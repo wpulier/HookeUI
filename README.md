@@ -97,9 +97,13 @@ ongoing development.
 | `dev` | Development and the source for Beta releases | Maintainers, through reviewed PRs |
 | `main` | Accepted source for Stable releases | Repository owner, through a promotion PR |
 
-An accepted Beta's source is promoted from `dev` to `main` before Stable publication.
-Both branches are open source. Releases are explicit: a merge or tag alone does
-not ship an update.
+**PR → `dev` → publish Beta → Will accepts → promote to `main` → publish Stable.**
+
+Only appointed maintainers' reviews count toward the required approval for `dev`;
+only Will can promote to `main`. Both branches are open source. Releases are
+explicit: a merge or tag alone does not ship an update. See the
+[review rules](CONTRIBUTING.md#reviews-and-maintainer-access) and
+[release policy](packaging/macos/RELEASING.md).
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), the [contributor checks](docs/testing/public-contributor-check.md),
 and the [capability guide](docs/contributing/README.md) before starting. The complete
