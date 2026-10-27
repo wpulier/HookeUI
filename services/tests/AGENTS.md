@@ -580,3 +580,14 @@ transport/snapshot are inert; it claims no researcher/model or ordinary-UI accep
 `test_comparison_datatables.py` uses synthetic population metadata/rows with real workspace journals and table
 publication to check exact comparison selection, Method values, warning/reopen and stale/foreign/input/method
 refusals. It does not establish an actual A/B/C UI workflow or scientific independence.
+
+Owned simulations also use a fresh catalog containing independent copies of the
+bundled models' available published weights and verification/device cache records.
+On macOS these are APFS clones. Source symlinks are refused; personal entries and
+channel catalogs are excluded. Missing weights remain missing and the production
+pinned legacy-cache resolver remains available. Prepared Python environments and
+tools are reused at their installed paths, including ordinary interpreter/dependency
+cache writes; this isolates saved scientific state, not the whole filesystem.
+No new model installation or provider request is made by this preparation.
+`test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
+qualify model performance.

@@ -117,7 +117,11 @@ class Stack:
             # datasets or recordings (the bridge's recordings go there too).
             self.home = tempfile.mkdtemp(prefix="micromind-sim-")
             paths = self.paths = Paths.under(self.home)
-            env = simulation_environment(dict(os.environ), paths, cloud=self.cloud)
+            from .catalog_fixture import prepare as prepare_catalog
+
+            inherited = dict(os.environ)
+            resources = prepare_catalog(inherited, paths)
+            env = {**simulation_environment(inherited, paths, cloud=self.cloud), **resources}
             self._bridge_args = dict(
                 args=["python3", str(BRIDGE_SCRIPT), "--port", bridge_port, "--simulate", str(self.video),
                       "--simulate-start-frame", str(self.start_frame), "--footage-dir", str(self.footage),

@@ -46,3 +46,14 @@ measurements also require a completed follower step after the final seed reply. 
 observed state are retained separately; a timeout fails the scenario. Admission
 does not inspect latency or retry slow samples. Cold-model loads, concurrent load
 phases and their original latency thresholds remain part of the gate.
+
+Owned simulations also use a fresh catalog containing independent copies of the
+bundled models' available published weights and verification/device cache records.
+On macOS these are APFS clones. Source symlinks are refused; personal entries and
+channel catalogs are excluded. Missing weights remain missing and the production
+pinned legacy-cache resolver remains available. Prepared Python environments and
+tools are reused at their installed paths, including ordinary interpreter/dependency
+cache writes; this isolates saved scientific state, not the whole filesystem.
+No new model installation or provider request is made by this preparation.
+`test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
+qualify model performance.
