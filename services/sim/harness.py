@@ -4285,6 +4285,7 @@ LONG_SCENARIOS = {"long-session": scenario_long_session}
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--video", help="recording to play (default: the manifest's qualified leaf recording)")
+    parser.add_argument("--asset-manifest", type=Path, help="External private test-asset manifest; never copied into the repository")
     parser.add_argument("--start-frame", type=int, default=2650)
     parser.add_argument("--bridge-port", type=int, default=18765)
     parser.add_argument("--orch-port", type=int, default=18770)
@@ -4293,6 +4294,18 @@ async def main() -> int:
                         + ", ".join(CLOUD_SCENARIOS) + ", " + ", ".join(LONG_SCENARIOS))
     parser.add_argument("--cloud", action="store_true", help="also run scenarios that call cloud AI models (uses API credit)")
     args = parser.parse_args()
+    if args.asset_manifest:
+        from orchestrator import assets
+        manifest = args.asset_manifest.expanduser().resolve()
+        if not manifest.is_file():
+            parser.error(f"Simulation prerequisite: asset manifest is missing: {manifest}")
+        try:
+            declared = json.loads(manifest.read_text())
+            if not isinstance(declared, dict) or not isinstance(declared.get('real'), list):
+                raise ValueError('expected an object with a real recording list')
+        except (OSError, ValueError) as error:
+            parser.error(f"Simulation prerequisite: invalid asset manifest: {error}")
+        assets.MANIFEST = manifest  # Harness-only metadata; production runtime and tracked manifest are unchanged.
     if not args.video:
         try:
             args.video = str(default_video())

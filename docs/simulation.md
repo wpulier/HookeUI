@@ -7,15 +7,19 @@ Each run has isolated saved state. It does not certify physical camera behavior.
 ```sh
 make check-public
 # With locally available, qualified footage and model prerequisites:
-make check SIM_VIDEO=path/relative/to/repository/qualified-video.mp4
+make check SIM_MANIFEST=/absolute/private/test-manifest.json
 # Affected scenarios only, during edits:
-make sim-test SIM_VIDEO=path/relative/to/repository/qualified-video.mp4 SIM_ONLY=freeze,crash
+make sim-test SIM_MANIFEST=/absolute/private/test-manifest.json SIM_ONLY=freeze,crash
 ```
 
 The full gate needs the original qualified leaf-epidermis input and actual local
 models, including the models selected by the research edition. The distributed
 asset manifest is intentionally empty: personal footage and internal backups are
-private. Obtain appropriate authorized test material separately. An arbitrary or
+private. Obtain appropriate authorized test material separately. `SIM_MANIFEST` reads an
+external manifest only in the harness; it never copies it into Git or changes the
+production app. Its file paths resolve against the local asset store. `SIM_VIDEO`
+can select another video for scenarios that support it, but labelled scenarios
+still require the matching qualified manifest. An arbitrary or
 synthetic clip cannot qualify specimen-specific assertions. The dataset and
 model-load scenarios check their known frame/annotation basis before acting.
 

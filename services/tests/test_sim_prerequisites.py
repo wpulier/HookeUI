@@ -54,3 +54,35 @@ runpy.run_module('sim.harness', run_name='__main__')
         assert "Simulation prerequisite:" in result.stderr
         assert ("not listed" if mode == "unlisted" else "missing") in result.stderr
         assert "Traceback" not in result.stderr
+
+
+def test_external_private_manifest_resolves_input_without_changing_public_manifest(tmp_path):
+    public = tmp_path / 'public.json'
+    public.write_text(json.dumps({'backup': {}, 'real': []}))
+    private = tmp_path / 'private.json'
+    private.write_text(json.dumps({'backup': {}, 'real': [
+        {'id': '2026-06-14-leaf-epidermis-3m43s', 'file': 'footage/private-fixture-missing.mp4'}
+    ]}))
+    before = public.read_bytes()
+    result = probe(public, f"""
+import runpy, sys
+sys.argv = ['sim.harness', '--asset-manifest', {str(private)!r}]
+runpy.run_module('sim.harness', run_name='__main__')
+""")
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert 'Simulation prerequisite: recording is missing:' in result.stderr
+    assert 'private-fixture-missing.mp4' in result.stderr
+    assert public.read_bytes() == before
+
+
+def test_missing_external_manifest_is_explained_before_any_process_starts(tmp_path):
+    public = tmp_path / 'public.json'
+    public.write_text(json.dumps({'backup': {}, 'real': []}))
+    result = probe(public, f"""
+import runpy, sys
+sys.argv = ['sim.harness', '--asset-manifest', {str(tmp_path / 'absent.json')!r}]
+runpy.run_module('sim.harness', run_name='__main__')
+""")
+    assert result.returncode == 2
+    assert 'Simulation prerequisite: asset manifest is missing:' in result.stderr
+    assert 'Traceback' not in result.stderr

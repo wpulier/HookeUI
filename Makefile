@@ -23,6 +23,8 @@ IS_CV_SERVICE = curl -s -m 2 "$(CV_URL)/api/health" 2>/dev/null | grep -q '"serv
 # Empty: the harness takes the leaf epidermis recording from the assets store (orchestrator.assets), which
 # every checkout and worktree reaches; set it to a path from the repo root to play another recording.
 SIM_VIDEO ?=
+# Optional absolute path to private test metadata, kept outside the distributed source.
+SIM_MANIFEST ?=
 # CAMERA_SOURCE=srt://0.0.0.0:9710?mode=listener starts on Blackmagic with that listener; empty: the camera's last
 # choice (camera-source.json in the assets store), else No camera (a first run: pictures and videos only).
 CAMERA_SOURCE ?=
@@ -239,7 +241,7 @@ check: test
 	$(MAKE) --no-print-directory sim-test SIM_ONLY=
 
 sim-test:
-	cd services && .venv/bin/python -m sim.harness $(if $(SIM_VIDEO),--video "../$(SIM_VIDEO)") $(if $(SIM_ONLY),--only "$(SIM_ONLY)")
+	cd services && .venv/bin/python -m sim.harness $(if $(SIM_MANIFEST),--asset-manifest "$(SIM_MANIFEST)") $(if $(SIM_VIDEO),--video "../$(SIM_VIDEO)") $(if $(SIM_ONLY),--only "$(SIM_ONLY)")
 
 # Every model in the catalog (catalog/models): ready here, or what it needs and how (orchestrator/readiness.py). It reads
 # files and the keys file only: it loads no model, downloads nothing and calls no provider.
