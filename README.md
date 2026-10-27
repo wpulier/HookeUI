@@ -46,6 +46,13 @@ See [contributing](CONTRIBUTING.md), [testing](docs/testing/public-contributor-c
 The Python services, Studio and camera bridge use some historical `MicroscopeMind`
 and `ObservationUI` identifiers for data and API compatibility.
 
+## Branches and official releases
+
+`dev` integrates reviewed work; `main` receives the source of an accepted Beta
+before Stable publication. Official signing and publishing live in the separate
+private Hooke platform repository. Merges and tags never ship an update.
+See [release ownership](packaging/macos/RELEASING.md).
+
 ## Source and brand rights
 
 First-party code is licensed under [Apache-2.0](LICENSE), subject to the

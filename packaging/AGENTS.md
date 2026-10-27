@@ -5,24 +5,11 @@ and keeps itself up to date (Sparkle). Everything is in `macos/`; [macos/README.
 
 ## Shipping an update
 
-Merging main and pushing tags do **not** ship updates. Use `macos/RELEASING.md`:
-checked dev → `release-channel.py beta` → Will accepts → `release-channel.py promote`.
-These shortcuts reuse prepare/publish, pin the accepted source and require explicit `--publish`
-for an offer. The generated `release-record.md` and public release description are the shared
-handoff; both developers follow RELEASING.md, not separate status ledgers. No test suite runs
-from a release shortcut. Low-level prepare/publish remain available for exact-artifact approval.
-Prepare never publishes; publish offers the exact approved bytes without rebuilding. Both commands serialize on the
-release Mac and check source/channel/build identity. The normal Stable feed reaches every installed Stable user.
-
-HookeUI Beta (`macos/channels.json`) has a permanent independent key/feed, app identity, data, keys, downloads and
-ports. Old local Betas used throwaway keys and need one initial install of the public Beta. Never copy Stable's
-profile into Beta implicitly. Local release is active; protected hosted workflows remain off because GitHub's current
-private-repository plan refuses required reviewers and some CI credentials are missing. Do not weaken those guards.
-`mac-app.yml` is manual build-only; no merge, push or tag updates users. `release.sh` redirects to the procedure.
-
-Running apps check at launch and periodically (four hours), and through Check for Updates. Users choose installation
-and restart. Versions are never republished; fix forward. Keep exact source, hash, approval and acceptance in the
-existing release ticket, and preserve private evidence outside Git.
+Official publication has moved to private `wpulier/hooke-web/desktop-release`.
+See `macos/RELEASING.md` for branch and ownership boundaries. Do not run historical
+publisher helpers in this core checkout for official releases. Merges and tags
+never ship. The private publisher uses the accepted core commit for both native
+and scientific runtime code; the core remains runnable without a Hooke account.
 
 ## What must stay true
 
