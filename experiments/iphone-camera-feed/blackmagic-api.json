@@ -1,0 +1,451 @@
+{
+ "about": "What Blackmagic Camera's API proved safe on this phone, per app version. Written by the Phone check (scripts/phone_lab.py); the bridge sends only writes listed safe here for the running version (start/stop and the server choice always).",
+ "versions": {
+  "3.5.200045": {
+   "by": "Phone check",
+   "complete": true,
+   "events": true,
+   "lenses": [
+    24,
+    48,
+    100,
+    200
+   ],
+   "product": "iPhone 17 Pro",
+   "provenAt": "2026-10-12T21:21:37",
+   "ranges": {
+    "/lens/zoom": {
+     "focalLength": 24,
+     "normalised": 0
+    },
+    "/system/supportedFormats": {
+     "supportedFormats": [
+      {
+       "codecs": [
+        "Apple ProRes RAW HQ:Max",
+        "Apple ProRes RAW HQ:High",
+        "Apple ProRes RAW HQ:Medium",
+        "Apple ProRes RAW HQ:Low",
+        "Apple ProRes RAW:Max",
+        "Apple ProRes RAW:High",
+        "Apple ProRes RAW:Medium",
+        "Apple ProRes RAW:Low",
+        "Apple ProRes 422 HQ:Default",
+        "Apple ProRes 422:Default",
+        "Apple ProRes 422 LT:Default",
+        "Apple ProRes 422 Proxy:Default",
+        "HEVC (H.265):Max",
+        "HEVC (H.265):High",
+        "HEVC (H.265):Medium",
+        "HEVC (H.265):Low",
+        "H.264:Max",
+        "H.264:High",
+        "H.264:Medium",
+        "H.264:Low"
+       ],
+       "frameRates": [
+        "23.98",
+        "24",
+        "25",
+        "29.97",
+        "30",
+        "48",
+        "50",
+        "59.94",
+        "60",
+        "100",
+        "120"
+       ],
+       "maxOffSpeedFrameRate": 120,
+       "minOffSpeedFrameRate": 4,
+       "recordResolution": {
+        "height": 2160,
+        "width": 1214
+       },
+       "resolutionDescriptor": {
+        "aspectRatio": "16:9",
+        "description": "4K",
+        "group": "4K"
+       },
+       "sensorResolution": {
+        "height": 2160,
+        "width": 1214
+       }
+      },
+      {
+       "codecs": [
+        "Apple ProRes RAW HQ:Max",
+        "Apple ProRes RAW HQ:High",
+        "Apple ProRes RAW HQ:Medium",
+        "Apple ProRes RAW HQ:Low",
+        "Apple ProRes RAW:Max",
+        "Apple ProRes RAW:High",
+        "Apple ProRes RAW:Medium",
+        "Apple ProRes RAW:Low",
+        "Apple ProRes 422 HQ:Default",
+        "Apple ProRes 422:Default",
+        "Apple ProRes 422 LT:Default",
+        "Apple ProRes 422 Proxy:Default",
+        "HEVC (H.265):Max",
+        "HEVC (H.265):High",
+        "HEVC (H.265):Medium",
+        "HEVC (H.265):Low",
+        "H.264:Max",
+        "H.264:High",
+        "H.264:Medium",
+        "H.264:Low"
+       ],
+       "frameRates": [
+        "23.98",
+        "24",
+        "25",
+        "29.97",
+        "30",
+        "48",
+        "50",
+        "59.94",
+        "60",
+        "100",
+        "120"
+       ],
+       "maxOffSpeedFrameRate": 120,
+       "minOffSpeedFrameRate": 4,
+       "recordResolution": {
+        "height": 1080,
+        "width": 606
+       },
+       "resolutionDescriptor": {
+        "aspectRatio": "16:9",
+        "description": "HD",
+        "group": "HD"
+       },
+       "sensorResolution": {
+        "height": 1080,
+        "width": 606
+       }
+      },
+      {
+       "codecs": [
+        "Apple ProRes RAW HQ:Max",
+        "Apple ProRes RAW HQ:High",
+        "Apple ProRes RAW HQ:Medium",
+        "Apple ProRes RAW HQ:Low",
+        "Apple ProRes RAW:Max",
+        "Apple ProRes RAW:High",
+        "Apple ProRes RAW:Medium",
+        "Apple ProRes RAW:Low",
+        "Apple ProRes 422 HQ:Default",
+        "Apple ProRes 422:Default",
+        "Apple ProRes 422 LT:Default",
+        "Apple ProRes 422 Proxy:Default",
+        "HEVC (H.265):Max",
+        "HEVC (H.265):High",
+        "HEVC (H.265):Medium",
+        "HEVC (H.265):Low",
+        "H.264:Max",
+        "H.264:High",
+        "H.264:Medium",
+        "H.264:Low"
+       ],
+       "frameRates": [
+        "23.98",
+        "24",
+        "25",
+        "29.97",
+        "30",
+        "48",
+        "50",
+        "59.94",
+        "60",
+        "100",
+        "120"
+       ],
+       "maxOffSpeedFrameRate": 120,
+       "minOffSpeedFrameRate": 4,
+       "recordResolution": {
+        "height": 720,
+        "width": 404
+       },
+       "resolutionDescriptor": {
+        "aspectRatio": "16:9",
+        "description": "720p",
+        "group": "720p"
+       },
+       "sensorResolution": {
+        "height": 720,
+        "width": 404
+       }
+      },
+      {
+       "codecs": [
+        "Apple ProRes RAW HQ:Max",
+        "Apple ProRes RAW HQ:High",
+        "Apple ProRes RAW HQ:Medium",
+        "Apple ProRes RAW HQ:Low",
+        "Apple ProRes RAW:Max",
+        "Apple ProRes RAW:High",
+        "Apple ProRes RAW:Medium",
+        "Apple ProRes RAW:Low",
+        "Apple ProRes 422 HQ:Default",
+        "Apple ProRes 422:Default",
+        "Apple ProRes 422 LT:Default",
+        "Apple ProRes 422 Proxy:Default",
+        "HEVC (H.265):Max",
+        "HEVC (H.265):High",
+        "HEVC (H.265):Medium",
+        "HEVC (H.265):Low",
+        "H.264:Max",
+        "H.264:High",
+        "H.264:Medium",
+        "H.264:Low"
+       ],
+       "frameRates": [
+        "23.98",
+        "24",
+        "25",
+        "29.97",
+        "30",
+        "48",
+        "50",
+        "59.94",
+        "60",
+        "100",
+        "120"
+       ],
+       "maxOffSpeedFrameRate": 120,
+       "minOffSpeedFrameRate": 4,
+       "recordResolution": {
+        "height": 3024,
+        "width": 1700
+       },
+       "resolutionDescriptor": {
+        "aspectRatio": "4:3",
+        "description": "Open Gate",
+        "group": "Open Gate"
+       },
+       "sensorResolution": {
+        "height": 3024,
+        "width": 1700
+       }
+      }
+     ]
+    },
+    "/video/supportedISOs": {
+     "supportedISOs": [
+      54,
+      64,
+      80,
+      100,
+      125,
+      160,
+      200,
+      250,
+      320,
+      400,
+      500,
+      640,
+      800,
+      1000,
+      1250,
+      1600,
+      2000,
+      2500,
+      3200,
+      3456
+     ]
+    },
+    "/video/supportedShutters": {
+     "shutterAngles": [
+      360,
+      327.27272727272725,
+      225,
+      216,
+      180,
+      112.5,
+      108,
+      90,
+      86.4,
+      54,
+      45,
+      43.2,
+      21.6,
+      10.8,
+      5.4,
+      2.7,
+      1.35
+     ],
+     "shutterSpeeds": [
+      30,
+      33,
+      48,
+      50,
+      60,
+      96,
+      100,
+      120,
+      125,
+      200,
+      240,
+      250,
+      500,
+      1000,
+      2000,
+      4000,
+      8000
+     ]
+    }
+   },
+   "reads": {
+    "/camera/photo": "missing",
+    "/camera/power": "ok",
+    "/camera/still": "missing",
+    "/colorCorrection/color": "ok",
+    "/colorCorrection/contrast": "ok",
+    "/colorCorrection/gain": "ok",
+    "/colorCorrection/gamma": "ok",
+    "/colorCorrection/lift": "ok",
+    "/colorCorrection/offset": "ok",
+    "/event/list": "ok",
+    "/lens/focus": "ok",
+    "/lens/focus/autoFocus": "ok",
+    "/lens/iris": "ok",
+    "/lens/opticalImageStabilization": "ok",
+    "/lens/stabilization": "missing",
+    "/lens/zoom": "ok",
+    "/livestreams/0": "ok",
+    "/livestreams/0/activePlatform": "ok",
+    "/livestreams/platforms": "ok",
+    "/media/active": "ok",
+    "/media/workingset": "ok",
+    "/monitoring/focusAssist": "ok",
+    "/monitoring/zebra": "ok",
+    "/presets": "ok",
+    "/presets/active": "ok",
+    "/system/codecFormat": "ok",
+    "/system/format": "ok",
+    "/system/product": "ok",
+    "/system/supportedCodecFormats": "ok",
+    "/system/supportedFormats": "ok",
+    "/transports/0": "ok",
+    "/transports/0/record": "ok",
+    "/transports/0/timecode": "ok",
+    "/video/autoExposure": "ok",
+    "/video/autoWhiteBalance": "missing",
+    "/video/detailSharpening": "missing",
+    "/video/detailSharpeningLevel": "missing",
+    "/video/gain": "missing",
+    "/video/imageStabilization": "missing",
+    "/video/iso": "ok",
+    "/video/ndFilter": "missing",
+    "/video/shutter": "ok",
+    "/video/stabilization": "missing",
+    "/video/supportedGains": "missing",
+    "/video/supportedISOs": "ok",
+    "/video/supportedShutters": "ok",
+    "/video/whiteBalance": "ok",
+    "/video/whiteBalanceTint": "ok"
+   },
+   "writes": {
+    "/lens/focus": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/lens/focus/autoFocus": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/lens/focus/doAutoFocus": {
+     "note": "focus once, then held",
+     "safe": true
+    },
+    "/lens/iris": {
+     "byCheck": true,
+     "note": "refused: PUT /lens/iris: 403 Lens iris is not controllable",
+     "safe": null
+    },
+    "/lens/opticalImageStabilization": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/lens/zoom": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/system/format": {
+     "note": "frame rate, the whole format sent back",
+     "safe": true
+    },
+    "/transports/0/record": {
+     "byCheck": true,
+     "clip": "A001_10121646_C007",
+     "note": "recorded A001_10121646_C007 on the phone",
+     "safe": true
+    },
+    "/video/autoExposure": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/video/detailSharpening": {
+     "byCheck": true,
+     "note": "the app doesn't have this setting",
+     "safe": null
+    },
+    "/video/gain": {
+     "byCheck": true,
+     "note": "the app doesn't have this setting",
+     "safe": null
+    },
+    "/video/iso": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/video/ndFilter": {
+     "byCheck": true,
+     "note": "the app doesn't have this setting",
+     "safe": null
+    },
+    "/video/shutter": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/video/stabilization": {
+     "byCheck": true,
+     "note": "the app doesn't have this setting",
+     "safe": null
+    },
+    "/video/whiteBalance": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    },
+    "/video/whiteBalance/doAuto": {
+     "byCheck": true,
+     "changes": false,
+     "note": "accepted (the view's white balance was already right)",
+     "safe": true
+    },
+    "/video/whiteBalanceTint": {
+     "byCheck": true,
+     "changes": true,
+     "note": "changes the picture",
+     "safe": true
+    }
+   }
+  }
+ }
+}

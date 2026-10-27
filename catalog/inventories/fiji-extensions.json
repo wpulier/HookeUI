@@ -1,0 +1,7566 @@
+{
+ "generated": "2026-10-13",
+ "sources": {
+  "extensions": "https://imagej.net/list-of-extensions",
+  "sites": "https://imagej.net/list-of-update-sites/",
+  "pages": "https://raw.githubusercontent.com/imagej/imagej.github.io/main/_pages<page>.md"
+ },
+ "counts": {
+  "ships-with-fiji": 133,
+  "none-known": 346,
+  "update-site": 76
+ },
+ "sitesRead": 329,
+ "sitesUnreadable": [
+  "OpenSPIM"
+ ],
+ "extensions": [
+  {
+   "name": "Save as animated gif",
+   "page": "/formats/animated-gif",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:IO_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Bio-Formats",
+   "page": "/formats/bio-formats",
+   "categories": [
+    "Import-Export",
+    "SciJava",
+    "OME"
+   ],
+   "artifact": "ome:bio-formats_plugins",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "DICOM",
+   "page": "/formats/dicom",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FIBSEM importer",
+   "page": "/formats/fib-sem",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:IO_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Formats",
+   "page": "/formats",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "LSM Toolbox",
+   "page": "/formats/lsm",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:LSM_Toolbox",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "LuraWave",
+   "page": "/formats/lurawave",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "EvidentImageJPlugin",
+   "page": "/formats/olympus",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Extract Images From PDF...",
+   "page": "/formats/pdf",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:IO_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "QuickTime",
+   "page": "/formats/quicktime",
+   "categories": [
+    "Import-Export",
+    "Development"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TIFF",
+   "page": "/formats/tiff",
+   "categories": [
+    "Import-Export",
+    "Development"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Vaa3d Reader",
+   "page": "/formats/vaa3d-reader",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:Vaa3d_Reader",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Vaa3d Writer",
+   "page": "/formats/vaa3d-writer",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:Vaa3d_Writer",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Video",
+   "page": "/formats/video",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "2D Histogram",
+   "page": "/plugins/2d-histogram",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D Binary Filters",
+   "page": "/plugins/3d-binary-filters",
+   "categories": [
+    "3D",
+    "Binary"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D Blob Segmentation",
+   "page": "/plugins/3d-blob-segmentation",
+   "categories": [
+    "3D",
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:3D_Blob_Segmentation",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "3D cyclorama",
+   "page": "/plugins/3d-cyclorama",
+   "categories": [
+    "3D",
+    "Digital Volume Unrolling",
+    "Digital Volume Flattening"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D ImageJ Suite",
+   "page": "/plugins/3d-imagej-suite",
+   "categories": [
+    "3D",
+    "Analysis",
+    "Filtering",
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "3D ImageJ Suite",
+    "url": "https://sites.imagej.net/Tboudier/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "3D Objects Counter+",
+   "page": "/plugins/3d-objects-counter-plus",
+   "categories": [
+    "Analysis",
+    "3D",
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D Objects Counter - StarDist",
+   "page": "/plugins/3d-objects-counter-stardist",
+   "categories": [
+    "Analysis",
+    "3D",
+    "Segmentation",
+    "Machine Learning"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D Objects Counter",
+   "page": "/plugins/3d-objects-counter",
+   "categories": [
+    "3D",
+    "Particle Analysis"
+   ],
+   "artifact": "sc.fiji:3D_Objects_Counter",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "3D Segmentation",
+   "page": "/plugins/3d-segmentation",
+   "categories": [
+    "3D",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "3D Surface Plot",
+   "page": "/plugins/3d-surface-plot",
+   "categories": [
+    "3D",
+    "Visualization"
+   ],
+   "artifact": "sc.fiji:Interactive_3D_Surface_Plot",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "3D Viewer",
+   "page": "/plugins/3d-viewer",
+   "categories": [
+    "3D",
+    "Visualization"
+   ],
+   "artifact": "sc.fiji:3D_Viewer",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "3Dscript",
+   "page": "/plugins/3dscript",
+   "categories": [
+    "Visualization",
+    "Scripting"
+   ],
+   "artifact": "sc.fiji:3D_Animation",
+   "route": {
+    "kind": "update-site",
+    "site": "3Dscript",
+    "url": "https://romulus.oice.uni-erlangen.de/updatesite/",
+    "evidence": "the only site whose index holds 3D_Animation's jar"
+   }
+  },
+  {
+   "name": "3View import list",
+   "page": "/plugins/3view-import-list",
+   "categories": [
+    "TrakEM2"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "4d Tools",
+   "page": "/plugins/4d-tools",
+   "categories": [
+    "Import-Export",
+    "Stacks"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "EasyFiji",
+   "page": "/plugins/EasyFiji_plugin",
+   "categories": [
+    "Image processing and vistualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FRETENATOR",
+   "page": "/plugins/FRETENATOR",
+   "categories": [
+    "Segmentation",
+    "Ratiometric Imaging",
+    "3D",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "FRETENATOR",
+    "url": "https://sites.imagej.net/FRETENATOR/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "AccPbFRET",
+   "page": "/plugins/accpbfret",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ActionBar",
+   "page": "/plugins/action-bar",
+   "categories": [
+    "Development"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ActogramJ",
+   "page": "/plugins/actogramj",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Adaptive Median Filter",
+   "page": "/plugins/adaptive-median-filter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Adelson's Squares",
+   "page": "/plugins/adelsons-squares",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "AdipoQ",
+   "page": "/plugins/adipoq",
+   "categories": [
+    "Automation",
+    "Analysis",
+    "Particle Analysis",
+    "Segmentation",
+    "Object Detection",
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "AdipoQ",
+    "url": "https://sites.imagej.net/AdipoQ/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Adiposoft",
+   "page": "/plugins/adiposoft",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Adjustable Watershed",
+   "page": "/plugins/adjustable-watershed/adjustable-watershed",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Align Image by line ROI",
+   "page": "/plugins/align-image-by-line-roi",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:VIB_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Align RGB planes",
+   "page": "/plugins/align-rgb-planes",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "AMPT",
+   "page": "/plugins/ampt",
+   "categories": [
+    "Annotation",
+    "Interactive",
+    "Photogrammetry"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Anaglyph for Red Cyan glasses",
+   "page": "/plugins/anaglyph-for-red-cyan-glasses",
+   "categories": [
+    "Scripting",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "AnalyzeSkeleton",
+   "page": "/plugins/analyze-skeleton",
+   "categories": [
+    "Skeleton",
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "sc.fiji:AnalyzeSkeleton_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Analyze Stripes",
+   "page": "/plugins/analyze-stripes",
+   "categories": [
+    "Analysis",
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Animove",
+   "page": "/plugins/animove",
+   "categories": [
+    "Tracking",
+    "Utilities",
+    "Import-Export",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Anisotropic Diffusion 2D",
+   "page": "/plugins/anisotropic-diffusion-2d",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "sc.fiji:Anisotropic_Diffusion_2D",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "AnnotatorJ",
+   "page": "/plugins/annotatorj",
+   "categories": [
+    "Annotation",
+    "Image Annotation",
+    "Deep Learning",
+    "Import-Export",
+    "Segmentation",
+    "Object Detection",
+    "Classification",
+    "Interactive"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Anomalous Diffusion Filters",
+   "page": "/plugins/anomalous-diffusion-filters",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "AplimTools",
+   "page": "/plugins/aplimtools",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Archipelago Plugins",
+   "page": "/plugins/archipelago-plugins",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Archipelago_Plugins",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Arrow",
+   "page": "/plugins/arrow",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "sc.fiji:Arrow_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Atlas Toolkit",
+   "page": "/plugins/atlas-toolkit",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Auto Crop",
+   "page": "/plugins/auto-crop",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:Fiji_Plugins",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Auto Local Threshold",
+   "page": "/plugins/auto-local-threshold",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:Auto_Local_Threshold",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Auto Threshold",
+   "page": "/plugins/auto-threshold",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:Auto_Threshold",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Automated workflow for parallel Multiview Reconstruction",
+   "page": "/plugins/automated-workflow-for-parallel-multiview-reconstruction",
+   "categories": [
+    "Transform",
+    "Registration",
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Automatic detection of neuronal labeling in histological image series",
+   "page": "/plugins/automatic-detection-of-neuronal-labeling-in-histological-image-series",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Automatic optimal filament segmentation",
+   "page": "/plugins/automatic-optimal-filament-segmentation",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Average Images",
+   "page": "/plugins/average-images",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "AxoNet",
+   "page": "/plugins/axonet",
+   "categories": [
+    "Machine Learning"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "AxoNet",
+    "url": "https://sites.imagej.net/AxoNet/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Background Subtractor",
+   "page": "/plugins/background-subtractor",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Balloon segmentation",
+   "page": "/plugins/balloon",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:BalloonSegmentation_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BAR",
+   "page": "/plugins/bar",
+   "categories": [
+    "Analysis",
+    "Filtering",
+    "Image Annotation",
+    "Scripting",
+    "Segmentation"
+   ],
+   "artifact": "com.github.tferr:BAR_",
+   "route": {
+    "kind": "update-site",
+    "site": "BAR",
+    "url": "https://sites.imagej.net/Tiago/",
+    "evidence": "the only site whose index holds BAR_'s jar"
+   }
+  },
+  {
+   "name": "Batch Composite",
+   "page": "/plugins/batch-composite",
+   "categories": [
+    "Automation",
+    "Color Processing",
+    "Import-Export",
+    "Stacks"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Batch Processor",
+   "page": "/plugins/batch-processor",
+   "categories": [
+    "Automation"
+   ],
+   "artifact": "org.scijava:batch-processor",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BigDataViewer",
+   "page": "/plugins/bdv",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "sc.fiji:bigdataviewer_fiji",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BigDataServer",
+   "page": "/plugins/bdv/server",
+   "categories": [
+    "Visualization",
+    "Transform"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "BigDataProcessor2",
+   "page": "/plugins/big-data-processor-2",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "BigDataProcessor",
+    "url": "https://sites.imagej.net/BigDataProcessor/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "BigDataProcessor",
+   "page": "/plugins/big-data-processor",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "BigStitcher",
+   "page": "/plugins/bigstitcher",
+   "categories": [
+    "ImgLib",
+    "Registration",
+    "Stitching"
+   ],
+   "artifact": "net.preibisch:BigStitcher",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BigTrace",
+   "page": "/plugins/bigtrace",
+   "categories": [
+    "Visualization",
+    "Analysis",
+    "Curve Tracing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "BigVolumeBrowser",
+   "page": "/plugins/bigvolumebrowser",
+   "categories": [
+    "3D Visualization",
+    "Meshes",
+    "SMLM"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "BigWarp",
+   "page": "/plugins/bigwarp",
+   "categories": [
+    "Visualization",
+    "Transform",
+    "Registration"
+   ],
+   "artifact": "sc.fiji:bigwarp_fiji",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Biomat",
+   "page": "/plugins/biomat",
+   "categories": [
+    "Filtering",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "BIOP Lookup Tables",
+   "page": "/plugins/biop-lookup-tables",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FIA",
+   "page": "/plugins/biosensor/fia",
+   "categories": [
+    "Registration",
+    "Motion Correction",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Biosensor Tools",
+    "url": "https://sites.imagej.net/Biosensor-Tools/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "MIA",
+   "page": "/plugins/biosensor/mia",
+   "categories": [
+    "Metadata",
+    "Utilities",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Biosensor Tools",
+    "url": "https://sites.imagej.net/Biosensor-Tools/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "NIA",
+   "page": "/plugins/biosensor/nia",
+   "categories": [
+    "Denoising",
+    "Machine Learning",
+    "Restoration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Biosensor Tools",
+    "url": "https://sites.imagej.net/Biosensor-Tools/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "RIA-J",
+   "page": "/plugins/biosensor/ria-j",
+   "categories": [
+    "Analysis",
+    "Visualization",
+    "Ratiometric Imaging"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "WinMan",
+   "page": "/plugins/biosensor/winman",
+   "categories": [
+    "Utilities",
+    "Workflow",
+    "Interface"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Biosensor Tools",
+    "url": "https://sites.imagej.net/Biosensor-Tools/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "BioVoxxel Toolbox",
+   "page": "/plugins/biovoxxel-toolbox",
+   "categories": [
+    "Particle Analysis",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Bleach Correction",
+   "page": "/plugins/bleach-correction",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:CorrectBleach_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Blend two images",
+   "page": "/plugins/blend-two-images",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Blind Analysis Tools",
+   "page": "/plugins/blind-analysis-tools",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Block Matching",
+   "page": "/plugins/block-matching",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:blockmatching_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BoneJ",
+   "page": "/plugins/bonej",
+   "categories": [
+    "Analysis",
+    "Mathematical Morphology",
+    "Particle Analysis"
+   ],
+   "artifact": "org.bonej:bonej-plugins",
+   "route": {
+    "kind": "update-site",
+    "site": "BoneJ",
+    "url": "https://sites.imagej.net/BoneJ/",
+    "evidence": "the only site whose index holds bonej-plugins's jar"
+   }
+  },
+  {
+   "name": "BoneJ1",
+   "page": "/plugins/bonej1",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Tissue Branch Tracker",
+   "page": "/plugins/btrack",
+   "categories": [
+    "Tracking",
+    "Tissue",
+    "Skeleton"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "bUnwarpJ",
+   "page": "/plugins/bunwarpj",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:bUnwarpJ_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "BioVoxxel 3D Box",
+   "page": "/plugins/bv3dbox",
+   "categories": [
+    "Particle Analysis",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CElegansBeadsAnalysis plugin",
+   "page": "/plugins/c-elegans-beads-analysis",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Calc dSpace",
+   "page": "/plugins/calc-dspace",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Calculator Plus",
+   "page": "/plugins/calculator-plus",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Calculator_Plus",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "CAMDU",
+   "page": "/plugins/camdu",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CARE",
+   "page": "/plugins/care",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "de.csbdresden:csbdeep",
+   "route": {
+    "kind": "update-site",
+    "site": "CSBDeep",
+    "url": "https://sites.imagej.net/CSBDeep/",
+    "evidence": "the only site whose index holds csbdeep's jar"
+   }
+  },
+  {
+   "name": "CATS",
+   "page": "/plugins/cats",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Cell Counter",
+   "page": "/plugins/cell-counter",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "sc.fiji:Cell_Counter",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Cell detector",
+   "page": "/plugins/cell-detector",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Cell Segmentation",
+   "page": "/plugins/cell-segmentation",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Celsius to fahrenheit",
+   "page": "/plugins/celsius-to-fahrenheit",
+   "categories": [
+    "Scripting",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Centre-Particle Coincidence",
+   "page": "/plugins/centre-particle-coincidence",
+   "categories": [
+    "Analysis",
+    "Colocalization",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CiliaQ",
+   "page": "/plugins/ciliaq",
+   "categories": [
+    "Automation",
+    "3D",
+    "Analysis",
+    "Particle Analysis",
+    "Segmentation",
+    "Object Detection",
+    "Colocalization",
+    "Tracking",
+    "Cilia"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "CiliaQ",
+    "url": "https://sites.imagej.net/CiliaQ/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "CIP",
+   "page": "/plugins/cip",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "CIP",
+    "url": "https://sites.imagej.net/CIP/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "CIPMM plugins",
+   "page": "/plugins/cipmm",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Enhance Local Contrast (CLAHE)",
+   "page": "/plugins/clahe",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "mpicbg:mpicbg_:1.4.1",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Classic Watershed",
+   "page": "/plugins/classic-watershed",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ClearVolume",
+   "page": "/plugins/clearvolume",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CLIJ",
+   "page": "/plugins/clij",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Cluster Analysis",
+   "page": "/plugins/cluster-analysis",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CMP-BIA tools",
+   "page": "/plugins/cmp-bia-tools",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Coloc 2",
+   "page": "/plugins/coloc-2",
+   "categories": [
+    "Colocalization",
+    "Color Processing"
+   ],
+   "artifact": "sc.fiji:Colocalisation_Analysis",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Colocalization by Cross Correlation",
+   "page": "/plugins/colocalization-by-cross-correlation",
+   "categories": [
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colocalization Image Creator",
+   "page": "/plugins/colocalization-image-creator",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colocalization Object Counter",
+   "page": "/plugins/colocalization-object-counter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colocalization Test",
+   "page": "/plugins/colocalization-test",
+   "categories": [
+    "Colocalization",
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colocalization Threshold",
+   "page": "/plugins/colocalization-threshold",
+   "categories": [
+    "Colocalization",
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colocalize",
+   "page": "/plugins/colocalize",
+   "categories": [
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ColonyArea",
+   "page": "/plugins/colonyarea",
+   "categories": [
+    "Segmentation",
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Color Histogram",
+   "page": "/plugins/color-histogram",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Color_Histogram",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Color Inspector 3D",
+   "page": "/plugins/color-inspector-3d",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Color_Inspector_3D",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Colorizer Overlay",
+   "page": "/plugins/colorizer-overlay",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Colour Deconvolution",
+   "page": "/plugins/colour-deconvolution",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "sc.fiji:Colour_Deconvolution",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Colour merge",
+   "page": "/plugins/colour-merge",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Compute Curvatures",
+   "page": "/plugins/compute-curvatures",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ComsystanJ",
+   "page": "/plugins/comsystanj",
+   "categories": [
+    "Complexity",
+    "Fractal Dimension",
+    "Entropy",
+    "Time Signal Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Contour Lines",
+   "page": "/plugins/contour-lines",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Copy Pixel Size",
+   "page": "/plugins/copy-pixel-size",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Correct 3D Drift",
+   "page": "/plugins/correct-3d-drift",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:Correct_3D_Drift",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Cover Maker",
+   "page": "/plugins/cover-maker",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:fiji",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "CPU Meter",
+   "page": "/plugins/cpu-meter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:CPU_Meter",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Crop (3D)",
+   "page": "/plugins/crop-3d",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Cross Sectional Analyzer",
+   "page": "/plugins/cross-sectional-analyzer",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CSBDeep",
+   "page": "/plugins/csbdeep",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "CSIMLab",
+   "page": "/plugins/csim-lab",
+   "categories": [
+    "Filtering",
+    "Noise"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Deep Zoom",
+   "page": "/plugins/deep-zoom",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DeepClas4Bio",
+   "page": "/plugins/deepclas4bio",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DeformationTracker",
+   "page": "/plugins/deformationtracker",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "net.imagej:ETrack",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds ETrack's jar"
+   }
+  },
+  {
+   "name": "Deforming Mesh 3D",
+   "page": "/plugins/deforming-mesh-3d",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Delaunay Voronoi",
+   "page": "/plugins/delaunay-voronoi",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "sc.fiji:VIB_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Delayed Snapshot",
+   "page": "/plugins/delayed-snapshot",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Dendritic Spine Counter",
+   "page": "/plugins/dendritic-spine-counter",
+   "categories": [
+    "Annotation",
+    "Segmentation",
+    "Feature Extraction"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DenoiSeg",
+   "page": "/plugins/denoiseg",
+   "categories": [
+    "Machine Learning",
+    "Denoising",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Descriptor-based registration (2d/3d)",
+   "page": "/plugins/descriptor-based-registration-2d-3d",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Descriptor based registration",
+   "page": "/plugins/descriptor-based-registration",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Descriptor_based_registration",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Detrendr",
+   "page": "/plugins/detrendr",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DHM Utilities",
+   "page": "/plugins/dhm-utilities",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DiameterJ",
+   "page": "/plugins/diameterj",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Dichromacy",
+   "page": "/plugins/dichromacy",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Dichromacy",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds Dichromacy's jar"
+   }
+  },
+  {
+   "name": "DICOM open",
+   "page": "/plugins/dicom-open",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Differentials",
+   "page": "/plugins/differentials",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Differentials_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Diffraction PSF 3D",
+   "page": "/plugins/diffraction-psf-3d",
+   "categories": [
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Directionality",
+   "page": "/plugins/directionality",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "sc.fiji:Directionality_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Distance Analysis",
+   "page": "/plugins/distance-analysis",
+   "categories": [
+    "Analysis",
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Distance Transform 3D",
+   "page": "/plugins/distance-transform-3d",
+   "categories": [
+    "Binary",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Distance Transform Watershed",
+   "page": "/plugins/distance-transform-watershed",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Distortion Correction",
+   "page": "/plugins/distortion-correction",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "sc.fiji:TrakEM2_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Dithering",
+   "page": "/plugins/dithering",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Draw 3D ROI",
+   "page": "/plugins/draw-3d-roi",
+   "categories": [
+    "3D",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "DS4H Image Alignment",
+   "page": "/plugins/ds4h-image-alignment",
+   "categories": [
+    "Tutorials",
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Dynamic Kymograph",
+   "page": "/plugins/dynamic-kymograph",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Dynamic Reslice",
+   "page": "/plugins/dynamic-reslice",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Dynamic ROI Profiler",
+   "page": "/plugins/dynamic-roi-profiler",
+   "categories": [
+    "Scripting",
+    "Image Annotation",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Edge and symmetry filter",
+   "page": "/plugins/edge-and-symmetry-filter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Elastic Alignment and Montage",
+   "page": "/plugins/elastic-alignment-and-montage",
+   "categories": [
+    "Registration",
+    "TrakEM2"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Elastix",
+   "page": "/plugins/elastix",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Ellipse split",
+   "page": "/plugins/ellipse-split",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "EM48 Workflow",
+   "page": "/plugins/em48-workflow",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "EpiGraph",
+   "page": "/plugins/epigraph",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "EpiGraph",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds EpiGraph's jar"
+   }
+  },
+  {
+   "name": "Extended Depth of Field",
+   "page": "/plugins/extended-depth-of-field",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:Extended_Depth_Field",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "FAST-HIPPOS",
+   "page": "/plugins/fast-hippos",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "FAST-HIPPOS",
+    "url": "https://sites.imagej.net/FAST-HIPPOS/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "FAST",
+   "page": "/plugins/fast",
+   "categories": [
+    "Analysis",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Fast4DReg",
+   "page": "/plugins/fast4dreg",
+   "categories": [
+    "Registration",
+    "Channel alignment"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Feature Extraction",
+   "page": "/plugins/feature-extraction",
+   "categories": [
+    "Registration",
+    "Feature Extraction"
+   ],
+   "artifact": "mpicbg:mpicbg",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Feature Finder",
+   "page": "/plugins/feature-finder",
+   "categories": [
+    "Feature Extraction"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FeatureJ",
+   "page": "/plugins/featurej",
+   "categories": [
+    "ImageScience"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Import/Export movie using FFmpeg",
+   "page": "/plugins/ffmpeg-video-import-export",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Figure Panel Builder",
+   "page": "/plugins/figure-panel-builder",
+   "categories": [
+    "Visualization",
+    "Analysis",
+    "Automation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FigureJ",
+   "page": "/plugins/figurej",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Fiji-Cellpose",
+   "page": "/plugins/fiji-cellpose",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Fiji-Cellpose",
+    "url": "https://sites.imagej.net/Fiji-Cellpose/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Fiji Developer",
+   "page": "/plugins/fiji-developer",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Fiji_Developer",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Fiji Logo 3D",
+   "page": "/plugins/fiji-logo-3d",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Fiji Plugins",
+   "page": "/plugins/fiji-plugins",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Fiji_Plugins",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Fiji Z-Spacing Correction",
+   "page": "/plugins/fiji-z-spacing-correction",
+   "categories": [
+    "TrakEM2",
+    "Transform"
+   ],
+   "artifact": "sc.fiji:z_spacing",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "FijiArchipelago",
+   "page": "/plugins/fijiarchipelago",
+   "categories": [
+    "TrakEM2"
+   ],
+   "artifact": "sc.fiji:Fiji_Archipelago",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "FijiRelax",
+   "page": "/plugins/fijirelax",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FijiWings",
+   "page": "/plugins/fijiwings",
+   "categories": [
+    "Analysis",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Fijiyama",
+   "page": "/plugins/fijiyama",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FilamentDetector",
+   "page": "/plugins/filament-detector",
+   "categories": [
+    "Object Detection",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:FilamentDetector",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "FiloQuant",
+   "page": "/plugins/filoquant",
+   "categories": [
+    "Analysis",
+    "Segmentation",
+    "Object Detection"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Find Connected Regions",
+   "page": "/plugins/find-connected-regions",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Find Dimension of Raw Image",
+   "page": "/plugins/find-dimension-of-raw-image",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Find Peaks",
+   "page": "/plugins/find-peaks",
+   "categories": [
+    "Scripting",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FITS Analysis",
+   "page": "/plugins/fits-analysis",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FLASH",
+   "page": "/plugins/flash",
+   "categories": [
+    "Analysis",
+    "Automation",
+    "Colocalization",
+    "Segmentation",
+    "Statistics"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "FLASH",
+    "url": "https://sites.imagej.net/FLASH/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "FLIMJ",
+   "page": "/plugins/flimj",
+   "categories": [
+    "Analysis",
+    "Lifetime"
+   ],
+   "artifact": "flimlib:flimj-ui",
+   "route": {
+    "kind": "update-site",
+    "site": "FLIMJ",
+    "url": "https://sites.imagej.net/FLIMJ/",
+    "evidence": "the only site whose index holds flimj-ui's jar"
+   }
+  },
+  {
+   "name": "FlowJ",
+   "page": "/plugins/flowj",
+   "categories": [
+    "Optic Flow"
+   ],
+   "artifact": "sc.fiji:FlowJ_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Foci Analyzer",
+   "page": "/plugins/foci-analyzer",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FOCUST",
+   "page": "/plugins/focust",
+   "categories": [
+    "Analysis",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "FOCUST",
+    "url": "https://sites.imagej.net/FOCUST/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Fourier Ring Correlation Plugin",
+   "page": "/plugins/fourier-ring-correlation",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Fpbioimage",
+   "page": "/plugins/fpbioimage",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Frames",
+   "page": "/plugins/frames",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Frangi",
+   "page": "/plugins/frangi",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "net.imagej:imagej-ops",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "FRAP Tools",
+   "page": "/plugins/frap-tools",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FreQ",
+   "page": "/plugins/freq",
+   "categories": [
+    "Automation",
+    "Analysis",
+    "Cilia",
+    "Fast Fourier Transformation",
+    "Frequency Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "FreQ",
+    "url": "https://sites.imagej.net/FreQ/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "FS Align TrakEM2",
+   "page": "/plugins/fs-align-trakem2",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:FS_Align_TrakEM2",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Fuzzy Set Intensity Transformations",
+   "page": "/plugins/fuzzy-set",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Gabriel Graph",
+   "page": "/plugins/gabriel-graph",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "GDSC-SMLM2",
+   "page": "/plugins/gdsc-smlm2",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Get dSpace",
+   "page": "/plugins/get-dspace",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Get Meta",
+   "page": "/plugins/get-meta",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "GIFT",
+   "page": "/plugins/gift",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Glasbey",
+   "page": "/plugins/glasbey",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Gnu Plot",
+   "page": "/plugins/gnu-plot",
+   "categories": [
+    "Plotting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Granulometric Filtering",
+   "page": "/plugins/granulometric-filtering",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Graph Cut",
+   "page": "/plugins/graph-cut",
+   "categories": [
+    "Segmentation",
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:Graph_Cut",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Gray Morphology",
+   "page": "/plugins/gray-morphology",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "sc.fiji:Gray_Morphology",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Grid/Collection Stitching Plugin",
+   "page": "/plugins/grid-collection-stitching",
+   "categories": [
+    "Registration",
+    "Stitching"
+   ],
+   "artifact": "sc.fiji:Stitching_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Grid",
+   "page": "/plugins/grid",
+   "categories": [
+    "Image Annotation",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Gut Analysis Toolbox",
+   "page": "/plugins/gut-analysis-toolbox",
+   "categories": [
+    "Analysis",
+    "Segmentation",
+    "Neuron",
+    "Gut"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "HDF5 Vibez",
+   "page": "/plugins/hdf5-vibez",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "sc.fiji:HDF5_Vibez",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Helmholtz Analysis",
+   "page": "/plugins/helmholtz-analysis",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Helmholtz_Analysis",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Help on Menu Item",
+   "page": "/plugins/help-on-menu-item",
+   "categories": [
+    "Help"
+   ],
+   "artifact": "sc.fiji:Fiji_Plugins",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "High Pass",
+   "page": "/plugins/high-pass",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Hill Shade",
+   "page": "/plugins/hill-shade",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Hough Circle Transform",
+   "page": "/plugins/hough-circle-transform",
+   "categories": [
+    "Analysis",
+    "Feature Extraction"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "UCB Vision Sciences",
+    "url": "https://sites.imagej.net/Llamero/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "HPC Workflow Manager",
+   "page": "/plugins/hpc-workflow-manager",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "IJ Blob",
+   "page": "/plugins/ij-blob",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "IJ Robot",
+   "page": "/plugins/ij-robot",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:IJ_Robot",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "IJMMD",
+   "page": "/plugins/ijmmd",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Image Annotation",
+   "page": "/plugins/image-annotation",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Image Expression Parser",
+   "page": "/plugins/image-expression-parser",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Image_Expression_Parser",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Image Stabilizer",
+   "page": "/plugins/image-stabilizer",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Image Stitching",
+   "page": "/plugins/image-stitching",
+   "categories": [
+    "Registration",
+    "Stitching",
+    "Cookbook"
+   ],
+   "artifact": "sc.fiji:Stitching_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Image Synthesizer",
+   "page": "/plugins/image-synthesizer",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Image Viewer",
+   "page": "/plugins/image-viewer",
+   "categories": [
+    "Annotation",
+    "Interactive",
+    "Macro",
+    "Microscopy",
+    "Montage",
+    "Utilities",
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Image5D",
+   "page": "/plugins/image5d",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "sc.fiji:Image_5D",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "IMBalENce",
+   "page": "/plugins/imbalence",
+   "categories": [
+    "Microscopy",
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Importing Image Files",
+   "page": "/plugins/importing-image-files",
+   "categories": [
+    "Cookbook",
+    "Tutorials",
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Plugins",
+   "page": "/plugins",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Integral Image Filters",
+   "page": "/plugins/integral-image-filters",
+   "categories": [
+    "Filtering",
+    "Integral Image"
+   ],
+   "artifact": "mpicbg:mpicbg_:1.4.1",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Intensity Profile Tools",
+   "page": "/plugins/intensity-profile-tools",
+   "categories": [
+    "Feature Extraction"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interaction Analysis",
+   "page": "/plugins/interaction-analysis",
+   "categories": [
+    "Particle Analysis",
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Interaction Factor",
+   "page": "/plugins/interaction-factor",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Affine",
+   "page": "/plugins/interactive-affine",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Fitting",
+   "page": "/plugins/interactive-fitting",
+   "categories": [
+    "Plotting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Marker-controlled Watershed",
+   "page": "/plugins/interactive-marker-controlled-watershed",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Moving Least Squares",
+   "page": "/plugins/interactive-moving-least-squares",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "mpicbg:mpicbg_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Interactive Perspective",
+   "page": "/plugins/interactive-perspective",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "mpicbg:mpicbg_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Interactive Rigid",
+   "page": "/plugins/interactive-rigid",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Similarity",
+   "page": "/plugins/interactive-similarity",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Interactive Stack Rotation",
+   "page": "/plugins/interactive-stack-rotation",
+   "categories": [
+    "Transform",
+    "Interactive"
+   ],
+   "artifact": "mpicbg:mpicbg_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Interactive Watershed",
+   "page": "/plugins/interactive-watershed",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Invasion assay",
+   "page": "/plugins/invasion-assay",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "IsletJ",
+   "page": "/plugins/isletj",
+   "categories": [
+    "Microscopy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "IsletJ2",
+   "page": "/plugins/isletj2",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "IsoData Classifier",
+   "page": "/plugins/isodata-classifier",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:IsoData_Classifier",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Iterative Deconvolve 3D",
+   "page": "/plugins/iterative-deconvolve-3d",
+   "categories": [
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "JaCoP",
+   "page": "/plugins/jacop",
+   "categories": [
+    "Analysis",
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "JavaCV Installer",
+   "page": "/plugins/javacv-installer",
+   "categories": [
+    "Development",
+    "Utilities"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "JFilament",
+   "page": "/plugins/jfilament",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Java Image Processing Pipeline (JIPipe)",
+   "page": "/plugins/jipipe",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Kalman Stack Filter",
+   "page": "/plugins/kalman-stack-filter",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Kappa",
+   "page": "/plugins/kappa",
+   "categories": [
+    "Analysis",
+    "Curvature"
+   ],
+   "artifact": "sc.fiji:Kappa",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Kuwahara Filter",
+   "page": "/plugins/kuwahara-filter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Kuwahara_Filter",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "KymographBuilder › Yet Another Kymograph Fiji plugin",
+   "page": "/plugins/kymograph-builder",
+   "categories": [
+    "Kymograph"
+   ],
+   "artifact": "sc.fiji:KymographBuilder",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "KymoResliceWide",
+   "page": "/plugins/kymoreslicewide",
+   "categories": [
+    "Stacks"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Labkit - Intuitive Pixel Classification in Fiji",
+   "page": "/plugins/labkit",
+   "categories": [
+    "Classification",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:labkit-ui",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Landmark Correspondences",
+   "page": "/plugins/landmark-correspondences",
+   "categories": [
+    "Transform",
+    "Registration"
+   ],
+   "artifact": "mpicbg:mpicbg_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Lasso and Blow Tool",
+   "page": "/plugins/lasso-and-blow-tool",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:Lasso_and_Blow_Tool",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Level Sets",
+   "page": "/plugins/level-sets",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:level_sets",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "LimeSeg",
+   "page": "/plugins/limeseg",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "eu.kiaru:limeseg",
+   "route": {
+    "kind": "update-site",
+    "site": "LimeSeg",
+    "url": "https://sites.imagej.net/LimeSeg/",
+    "evidence": "the only site whose index holds limeseg's jar"
+   }
+  },
+  {
+   "name": "LinearDistance",
+   "page": "/plugins/linear-distance",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Linear Kuwahara",
+   "page": "/plugins/linear-kuwahara",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:Linear_Kuwahara",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Linear Stack Alignment with SIFT",
+   "page": "/plugins/linear-stack-alignment-with-sift",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "mpicbg:mpicbg_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "List all threads",
+   "page": "/plugins/list-all-threads",
+   "categories": [
+    "Scripting",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Live Kymographer",
+   "page": "/plugins/live-kymographer",
+   "categories": [
+    "Kymograph"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Local Thickness",
+   "page": "/plugins/local-thickness",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:LocalThickness_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Low Light Tracking Tool",
+   "page": "/plugins/low-light-tracking-tool",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "LSM Worker",
+   "page": "/plugins/lsm-worker",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "LUMoS Spectral Unmixing",
+   "page": "/plugins/lumos-spectral-unmixing",
+   "categories": [
+    "Color Processing",
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "LungJ",
+   "page": "/plugins/lungj",
+   "categories": [
+    "Segmentation",
+    "Binary",
+    "Filtering",
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "M I P",
+   "page": "/plugins/m-i-p",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:M_I_P",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Make Fiji Package",
+   "page": "/plugins/make-fiji-package",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:Fiji_Package_Maker",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Make Screencast",
+   "page": "/plugins/make-screencast",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Malaria Sporozoites (9.2MB)",
+   "page": "/plugins/malaria-sporozoites-9.2mb",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Getting started with MaMuT",
+   "page": "/plugins/mamut/getting-started",
+   "categories": [
+    "Tracking",
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MaMuT",
+   "page": "/plugins/mamut",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:MaMuT",
+   "route": {
+    "kind": "update-site",
+    "site": "MaMuT",
+    "url": "https://sites.imagej.net/MaMuT/",
+    "evidence": "the only site whose index holds MaMuT's jar"
+   }
+  },
+  {
+   "name": "Manual drift correction plugin",
+   "page": "/plugins/manual-drift-correction",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Manual Tracking",
+   "page": "/plugins/manual-tracking",
+   "categories": [
+    "Particle Analysis",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:Manual_Tracking",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Marker-controlled Watershed",
+   "page": "/plugins/marker-controlled-watershed",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Mask Of Nearby Points",
+   "page": "/plugins/mask-of-nearby-points",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Mask(s) from ROI(s)",
+   "page": "/plugins/masks-from-rois",
+   "categories": [
+    "Image Annotation",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Mastodon",
+   "page": "/plugins/mastodon",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "org.mastodon:mastodon",
+   "route": {
+    "kind": "update-site",
+    "site": "Mastodon",
+    "url": "https://sites.imagej.net/Mastodon/",
+    "evidence": "its own site (its page names none; the others that hold its jar bundle it: MoBIE, sciview, TomancakLab)",
+    "reviewed": true
+   }
+  },
+  {
+   "name": "Max Inscribed Circles",
+   "page": "/plugins/max-inscribed-circles",
+   "categories": [
+    "Segmentation",
+    "Feature Extraction"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Maximum Entropy Threshold",
+   "page": "/plugins/maximum-entropy-threshold",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Microscope Focus Quality",
+   "page": "/plugins/microscope-focus-quality",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:microscope-image-quality",
+   "route": {
+    "kind": "update-site",
+    "site": "TensorFlow",
+    "url": "https://sites.imagej.net/TensorFlow/",
+    "evidence": "the only site whose index holds microscope-image-quality's jar"
+   }
+  },
+  {
+   "name": "Microscope Measurement Tools",
+   "page": "/plugins/microscope-measurement-tools",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Miji",
+   "page": "/plugins/miji",
+   "categories": [
+    "Tutorials",
+    "MATLAB"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MiNA - Mitochondrial Network Analysis",
+   "page": "/plugins/mina",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Miniature Faking",
+   "page": "/plugins/miniature-faking",
+   "categories": [
+    "Filtering",
+    "Interactive",
+    "Integral Image",
+    "Photography"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Minimum Cost Z surface Projection",
+   "page": "/plugins/minimum-cost-z-surface-projection",
+   "categories": [
+    "Projection"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Minimum/Maximum/Median",
+   "page": "/plugins/minimum-maximum-median",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MiToBo",
+   "page": "/plugins/mitobo",
+   "categories": [
+    "SciJava"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Mixture Modeling Thresholding",
+   "page": "/plugins/mixture-modeling-thresholding",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MoBIE",
+   "page": "/plugins/mobie",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MoBIE",
+    "url": "https://sites.imagej.net/MoBIE/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "ModularImageAnalysis (MIA)",
+   "page": "/plugins/modularimageanalysis",
+   "categories": [
+    "Analysis",
+    "Automation",
+    "Scripting"
+   ],
+   "artifact": "io.github.mianalysis:mia-plugin",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds mia-plugin's jar"
+   }
+  },
+  {
+   "name": "MorphoLibJ",
+   "page": "/plugins/morpholibj",
+   "categories": [
+    "Analysis",
+    "Filtering",
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "fr.inra.ijpb:MorphoLibJ_",
+   "route": {
+    "kind": "update-site",
+    "site": "IJPB-plugins",
+    "url": "https://sites.imagej.net/IJPB-plugins/",
+    "evidence": "its page: \"add the IJPB-plugins site to your list of update sites\" (also on Cellular Imaging and Mcat, which bundle it)",
+    "reviewed": true
+   }
+  },
+  {
+   "name": "Morphological Segmentation",
+   "page": "/plugins/morphological-segmentation",
+   "categories": [
+    "Segmentation",
+    "Mathematical Morphology"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MosaicJ",
+   "page": "/plugins/mosaicj",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:MosaicJ_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "MOSAICsuite",
+   "page": "/plugins/mosaicsuite",
+   "categories": [
+    "Particle Analysis",
+    "Filtering",
+    "Colocalization",
+    "Deconvolution",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "MotiQ",
+   "page": "/plugins/motiq",
+   "categories": [
+    "Automation",
+    "Analysis",
+    "Particle Analysis",
+    "Segmentation",
+    "Object Detection",
+    "Neuron",
+    "Tracking",
+    "Skeleton"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MotiQ",
+    "url": "https://sites.imagej.net/MotiQ/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Moving Least Squares",
+   "page": "/plugins/moving-least-squares",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:VIB_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "MRI Perfusion",
+   "page": "/plugins/mri-perfusion",
+   "categories": [
+    "Perfusion",
+    "MRI"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MS-ECS-2D update site",
+   "page": "/plugins/ms-ecs-2d-update-site",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MSER parameters",
+   "page": "/plugins/mser-parameters",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MTrack",
+   "page": "/plugins/mtrack",
+   "categories": [
+    "Tracking",
+    "Microtubules"
+   ],
+   "artifact": "org.kapoorlabs:MTrack:3.0.1-SNAPSHOT",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds MTrack's jar"
+   }
+  },
+  {
+   "name": "MTrack2",
+   "page": "/plugins/mtrack2",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:MTrack2_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "MTrackJ",
+   "page": "/plugins/mtrackj",
+   "categories": [
+    "Tracking",
+    "ImageScience"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multi Kymograph",
+   "page": "/plugins/multi-kymograph",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Multi_Kymograph",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Multi Otsu Threshold",
+   "page": "/plugins/multi-otsu-threshold",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multi Stack Montage",
+   "page": "/plugins/multi-stack-montage",
+   "categories": [
+    "Stacks",
+    "Montage",
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multi-Template Matching",
+   "page": "/plugins/multi-template-matching",
+   "categories": [
+    "Feature Extraction",
+    "Object Detection"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multi-View Deconvolution",
+   "page": "/plugins/multi-view-deconvolution",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:SPIM_Registration",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Multi-View Fusion",
+   "page": "/plugins/multi-view-fusion",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multifrac",
+   "page": "/plugins/multifrac",
+   "categories": [
+    "Analysis",
+    "Feature Extraction",
+    "ImageJ2",
+    "Mathematical Morphology",
+    "Stacks"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Multifrac",
+    "url": "https://sites.imagej.net/Multifrac/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Multiple Image Processor",
+   "page": "/plugins/multiple-image-processor",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MultiStackReg",
+   "page": "/plugins/multistackreg",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "de.embl.cmci:MultiStackRegistration_",
+   "route": {
+    "kind": "update-site",
+    "site": "MultiStackReg",
+    "url": "https://sites.imagej.net/MultiStackReg/",
+    "evidence": "its own site (its page names none; IMCF Uni Basel bundles it)",
+    "reviewed": true
+   }
+  },
+  {
+   "name": "MultiThresholder",
+   "page": "/plugins/multithresholder",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Multiview-Reconstruction",
+   "page": "/plugins/multiview-reconstruction",
+   "categories": [
+    "Transform",
+    "Registration",
+    "Deconvolution",
+    "ImgLib",
+    "Integral Image"
+   ],
+   "artifact": "sc.fiji:SPIM_Registration",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "MVR-DefineDataset",
+   "page": "/plugins/mvr-definedataset",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MVR-FusionDeconvolution",
+   "page": "/plugins/mvr-fusiondeconvolution",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MVR-ResaveDataset",
+   "page": "/plugins/mvr-resavedataset",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "MyofibrilJ",
+   "page": "/plugins/myofibrilj",
+   "categories": [
+    "Scripting",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "N2V",
+   "page": "/plugins/n2v",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Name Landmarks and Register",
+   "page": "/plugins/name-landmarks-and-register",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "NanoTrackJ",
+   "page": "/plugins/nanotrackj",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "NeuronDetector",
+   "page": "/plugins/neuron-detector",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "NeuronJ",
+   "page": "/plugins/neuronj",
+   "categories": [
+    "ImageScience",
+    "Neuroanatomy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "nnInterAppose",
+   "page": "/plugins/nninterappose",
+   "categories": [
+    "Segmentation",
+    "Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Noise Generator",
+   "page": "/plugins/noise-generator",
+   "categories": [
+    "Noise"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "NoiSee",
+   "page": "/plugins/noisee",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "NoiSee",
+    "url": "https://sites.imagej.net/NoiSee/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Non Local Means Denoise",
+   "page": "/plugins/non-local-means-denoise",
+   "categories": [
+    "Denoising"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Nscale_segmentation",
+   "page": "/plugins/nscale-segmentation",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Nucleus Counter",
+   "page": "/plugins/nucleus-counter",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "OMEVisual",
+   "page": "/plugins/omevisual",
+   "categories": [
+    "OME"
+   ],
+   "artifact": "sc.fiji:OMEVisual",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Op Finder",
+   "page": "/plugins/op-finder",
+   "categories": [
+    "Ops"
+   ],
+   "artifact": "net.imagej:op-finder",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "OpenMPI Plugin Extensions",
+   "page": "/plugins/openmpi-plugin-extensions",
+   "categories": [
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "OtoRing",
+   "page": "/plugins/otoring",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Panorama",
+   "page": "/plugins/panorama",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:panorama_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Parallel Iterative Deconvolution",
+   "page": "/plugins/parallel-iterative-deconvolution",
+   "categories": [
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Parallel Spectral Deconvolution",
+   "page": "/plugins/parallel-spectral-deconvolution",
+   "categories": [
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Particle Tracker",
+   "page": "/plugins/particle-tracker",
+   "categories": [
+    "Particle Analysis",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "ParticleSizer",
+   "page": "/plugins/particlesizer",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Pendent Drop",
+   "page": "/plugins/pendent-drop",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PerfusionMRI",
+   "page": "/plugins/perfusionmri",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Import Maps from PFE-CalcImage and perform measurements",
+   "page": "/plugins/pfe-calcimage",
+   "categories": [
+    "Import",
+    "Microscopy",
+    "Electron Microprobe"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PhotoBend",
+   "page": "/plugins/photobend",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PhotonImaging",
+   "page": "/plugins/photon-imaging",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PillarTracker GUI",
+   "page": "/plugins/pillartracker-gui",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PillarTracker",
+   "page": "/plugins/pillartracker",
+   "categories": [
+    "Tracking",
+    "Visualization",
+    "Analysis",
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "PIV analyser",
+   "page": "/plugins/piv-analyser",
+   "categories": [
+    "Optic Flow"
+   ],
+   "artifact": "sc.fiji:PIV_analyser",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "PixFRET",
+   "page": "/plugins/pixfret",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Point Analysis",
+   "page": "/plugins/point-analysis",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Point Picker",
+   "page": "/plugins/point-picker",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "sc.fiji:PointPicker_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "PQCT",
+   "page": "/plugins/pqct",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Puncta Process",
+   "page": "/plugins/process-puncta",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Pub Montage",
+   "page": "/plugins/pub-montage",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Public data sets",
+   "page": "/plugins/public-data-sets",
+   "categories": [
+    "Example Data",
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Qualitative Annotations",
+   "page": "/plugins/qualitative-annotations",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Quantile Based Normalization",
+   "page": "/plugins/quantile-based-normalization",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "QuickFigures",
+   "page": "/plugins/quickfigures",
+   "categories": [
+    "Visualization",
+    "User Interface"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "QuickPALM",
+   "page": "/plugins/quickpalm",
+   "categories": [
+    "Super-resolution"
+   ],
+   "artifact": "sc.fiji:QuickPALM_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Quiver Plot",
+   "page": "/plugins/quiver-plot",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Radial Symmetry",
+   "page": "/plugins/radial-symmetry",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RandomJ",
+   "page": "/plugins/randomj",
+   "categories": [
+    "ImageScience"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RATS: Robust Automatic Threshold Selection",
+   "page": "/plugins/rats",
+   "categories": [
+    "Segmentation",
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:RATS_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Read and Write Excel",
+   "page": "/plugins/read-and-write-excel",
+   "categories": [
+    "Import-Export"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Reconstruct Reader",
+   "page": "/plugins/reconstruct-reader",
+   "categories": [
+    "TrakEM2"
+   ],
+   "artifact": "sc.fiji:Reconstruct_Reader",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Region Competition",
+   "page": "/plugins/region-competition",
+   "categories": [
+    "Segmentation",
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Register Virtual Stack Slices",
+   "page": "/plugins/register-virtual-stack-slices",
+   "categories": [
+    "Registration",
+    "TrakEM2"
+   ],
+   "artifact": "sc.fiji:register_virtual_stack_slices",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Replace Red with Magenta",
+   "page": "/plugins/replace-red-with-magenta",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RETINA Analysis Toolkit",
+   "page": "/plugins/retina-analysis-toolkit",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Retinex",
+   "page": "/plugins/retinex",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RGB-Gray Merge",
+   "page": "/plugins/rgb-gray-merge",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RGB Measure Plus",
+   "page": "/plugins/rgb-measure-plus",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RGB Profiler",
+   "page": "/plugins/rgb-profiler",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RGB to Montage",
+   "page": "/plugins/rgb-to-montage",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Ridge Detection",
+   "page": "/plugins/ridge-detection",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "de.biomedical-imaging.imagej:ij_ridge_detect",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "RiFRET",
+   "page": "/plugins/rifret",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Robust clump splitting",
+   "page": "/plugins/robust-clump-splitting",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "de.biomedical-imaging.ij:ij_robust_split",
+   "route": {
+    "kind": "none-known",
+    "why": "no update site holds ij_robust_split's jar"
+   }
+  },
+  {
+   "name": "Roi 1-click tools",
+   "page": "/plugins/roi-1-click-tools",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ROI Conversions",
+   "page": "/plugins/roi-conversions",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Roi-group table",
+   "page": "/plugins/roi-group-table",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ROI Picker",
+   "page": "/plugins/roi-picker",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Rolling Ball Background Subtraction",
+   "page": "/plugins/rolling-ball-background-subtraction",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RootSystemTracker",
+   "page": "/plugins/rootsystemtracker",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "RunImageJScript",
+   "page": "/plugins/runimagejscript",
+   "categories": [
+    "CellProfiler"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Saim",
+   "page": "/plugins/saim",
+   "categories": [
+    "Analysis",
+    "Microscopy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Same Slice in Multiple Images",
+   "page": "/plugins/same-slice-in-multiple-images",
+   "categories": [
+    "Scripting",
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SampEn2D",
+   "page": "/plugins/sampen2d",
+   "categories": [
+    "Pattern Recognition"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Samples",
+   "page": "/plugins/samples",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Samples_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "sciview",
+   "page": "/plugins/sciview",
+   "categories": [
+    "3D",
+    "Visualization"
+   ],
+   "artifact": "sc.iview:sciview",
+   "route": {
+    "kind": "update-site",
+    "site": "sciview",
+    "url": "https://sites.imagej.net/sciview/",
+    "evidence": "the only site whose index holds sciview's jar"
+   }
+  },
+  {
+   "name": "Segment blob in 3D Viewer",
+   "page": "/plugins/segment-blob-in-3d-viewer",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Segmentation Editor",
+   "page": "/plugins/segmentation-editor",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SEM FEI metadata scale",
+   "page": "/plugins/sem-fei-metadata-scale",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SEM JOEL Scale",
+   "page": "/plugins/sem-joel-scale",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Serial Macro Extensions",
+   "page": "/plugins/serial-macro-extensions",
+   "categories": [
+    "Utilities",
+    "Macro",
+    "MacroExtensions"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Series Labeler",
+   "page": "/plugins/series-labeler",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "sc.fiji:Series_Labeler",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "ImageJ Server",
+   "page": "/plugins/server",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Shape Filter",
+   "page": "/plugins/shape-filter",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "de.biomedical-imaging.ij:ij_shape_filter",
+   "route": {
+    "kind": "update-site",
+    "site": "Biomedgroup",
+    "url": "https://sites.imagej.net/Biomedgroup/",
+    "evidence": "the only site whose index holds ij_shape_filter's jar"
+   }
+  },
+  {
+   "name": "Shape Index Map",
+   "page": "/plugins/shape-index-map",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Shape Smoothing",
+   "page": "/plugins/shape-smoothing",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Shepp-Logan Phantom",
+   "page": "/plugins/shepp-logan-phantom",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:SheppLogan_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT › Sholl Analysis",
+   "page": "/plugins/sholl-analysis",
+   "categories": [
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "the only site whose index holds SNT's jar"
+   }
+  },
+  {
+   "name": "Show Color Surfaces",
+   "page": "/plugins/show-color-surfaces",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Sigma Filter",
+   "page": "/plugins/sigma-filter",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SIMcheck",
+   "page": "/plugins/simcheck",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Simulate Color Blindness",
+   "page": "/plugins/simulate-color-blindness",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "sc.fiji:Dichromacy_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "SIMworks",
+   "page": "/plugins/simworks",
+   "categories": [
+    "Particle Analysis",
+    "Segmentation",
+    "Microscopy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SIOX: Simple Interactive Object Extraction",
+   "page": "/plugins/siox",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Siox_Segmentation",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Skeletonize3D",
+   "page": "/plugins/skeletonize3d",
+   "categories": [
+    "Skeleton"
+   ],
+   "artifact": "sc.fiji:Skeletonize3D_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Slice Labeler",
+   "page": "/plugins/slice-labeler",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SlideJ",
+   "page": "/plugins/slidej",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SLIM Curve",
+   "page": "/plugins/slim-curve",
+   "categories": [
+    "Analysis",
+    "Lifetime"
+   ],
+   "artifact": "slim-curve:slim_plugin:2.0.0-SNAPSHOT",
+   "route": {
+    "kind": "update-site",
+    "site": "SLIM Curve",
+    "url": "https://sites.imagej.net/SLIM-Curve/",
+    "evidence": "the only site whose index holds slim_plugin's jar"
+   }
+  },
+  {
+   "name": "SME Projection",
+   "page": "/plugins/sme-projection",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Snakuscule",
+   "page": "/plugins/snakuscule",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:Snakuscule_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNR_star – Covariance-based SNR measurement",
+   "page": "/plugins/snr_star",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SNT › Curation",
+   "page": "/plugins/snt/curation",
+   "categories": [
+    "QC",
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT › Delineation Analysis",
+   "page": "/plugins/snt/delineations",
+   "categories": [
+    "Contours",
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT",
+   "page": "/plugins/snt",
+   "categories": [
+    "Segmentation",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT › Sholl Analysis",
+   "page": "/plugins/snt/sholl",
+   "categories": [
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT › Spine/Varicosity/Label Analysis",
+   "page": "/plugins/snt/spines-varicosities",
+   "categories": [
+    "Maxima",
+    "Analysis",
+    "Neuroanatomy",
+    "Labels"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "SNT › Strahler Analysis (From Images)",
+   "page": "/plugins/snt/strahler",
+   "categories": [
+    "Skeleton",
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Spatial Pathology Plugin",
+   "page": "/plugins/spatial-pathology-plugin",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SpermQ",
+   "page": "/plugins/spermq",
+   "categories": [
+    "Automation",
+    "Analysis",
+    "Segmentation",
+    "Cilia",
+    "Kymograph"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "SpermQ",
+    "url": "https://sites.imagej.net/SpermQ/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Spheres and Tubes in 3D",
+   "page": "/plugins/spheres-and-tubes-in-3d",
+   "categories": [
+    "Unmaintained"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SPIM Bead Registration (deprecated)",
+   "page": "/plugins/spim-bead-registration-deprecated",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SPIM Bead Registration",
+   "page": "/plugins/spim-bead-registration",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SPIM Opener",
+   "page": "/plugins/spim-opener",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:SPIM_Opener",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "SPIM Registration",
+   "page": "/plugins/spim-registration",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:SPIM_Registration",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "SPIM Registration on cluster (deprecated)",
+   "page": "/plugins/spim-registration/on-cluster",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SPIM Workflow Manager For HPC",
+   "page": "/plugins/spim-workflow-manager-for-hpc",
+   "categories": [
+    "Transform",
+    "Registration",
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SPIMage processing course",
+   "page": "/plugins/spimage-processing-course",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Spirals",
+   "page": "/plugins/spirals",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Spline Deformation Generator",
+   "page": "/plugins/spline-deformation-generator",
+   "categories": [
+    "Transform"
+   ],
+   "artifact": "sc.fiji:SplineDeformationGenerator_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Spot Intensity Analysis",
+   "page": "/plugins/spot-intensity-analysis",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Spot Spine",
+   "page": "/plugins/spot-spine",
+   "categories": [
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SpotCounter",
+   "page": "/plugins/spotcounter",
+   "categories": [
+    "Particle Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Spots colocalization (ComDet)",
+   "page": "/plugins/spots-colocalization-comdet",
+   "categories": [
+    "Colocalization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SpotTracker",
+   "page": "/plugins/spottracker",
+   "categories": [
+    "Particle Analysis",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Sprout Morphology",
+   "page": "/plugins/sprout-morphology",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "angiogenesis:Sprout_Analysis",
+   "route": {
+    "kind": "update-site",
+    "site": "Angiogenesis",
+    "url": "https://sites.imagej.net/Angiogenesis/",
+    "evidence": "the only site whose index holds Sprout_Analysis's jar"
+   }
+  },
+  {
+   "name": "Squassh",
+   "page": "/plugins/squassh",
+   "categories": [
+    "Segmentation",
+    "Colocalization",
+    "Deconvolution"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "MOSAIC ToolSuite",
+    "url": "https://mosaic.mpi-cbg.de/Downloads/update/Fiji/MosaicToolsuite/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Stack Fitter",
+   "page": "/plugins/stack-fitter",
+   "categories": [
+    "Analysis",
+    "Stacks"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Stack Manipulation",
+   "page": "/plugins/stack-manipulation",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Stack_Manipulation",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "StackObjectCombiner",
+   "page": "/plugins/stack-object-combiner",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "StackReg",
+   "page": "/plugins/stackreg",
+   "categories": [
+    "Transform",
+    "Registration"
+   ],
+   "artifact": "sc.fiji:StackReg_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "StarDist",
+   "page": "/plugins/stardist",
+   "categories": [
+    "Machine Learning",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "StarDist",
+    "url": "https://sites.imagej.net/StarDist/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Statistical Region Merging",
+   "page": "/plugins/statistical-region-merging",
+   "categories": [
+    "Tutorials",
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:Statistical_Region_Merging",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "StereoMate",
+   "page": "/plugins/stereomate",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Stereoscopic 3D Projection",
+   "page": "/plugins/stereoscopic-3d-projection",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Stitching 2D/3D",
+   "page": "/plugins/stitching-2d-3d",
+   "categories": [
+    "Registration",
+    "Stitching"
+   ],
+   "artifact": "sc.fiji:Stitching_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Stitching data acquisition",
+   "page": "/plugins/stitching-data-acquisition",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Stochastic Denoise",
+   "page": "/plugins/stochastic-denoise",
+   "categories": [
+    "Denoising"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SNT › Strahler Analysis (From Images)",
+   "page": "/plugins/strahler-analysis",
+   "categories": [
+    "Skeleton",
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "org.morphonets:SNT",
+   "route": {
+    "kind": "update-site",
+    "site": "Neuroanatomy",
+    "url": "https://sites.imagej.net/Neuroanatomy/",
+    "evidence": "the only site whose index holds SNT's jar"
+   }
+  },
+  {
+   "name": "Straighten...",
+   "page": "/plugins/straighten",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Surfaceness",
+   "page": "/plugins/surfaceness",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "SynActJ",
+   "page": "/plugins/synactj",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Sync Windows",
+   "page": "/plugins/sync-windows",
+   "categories": [
+    "User Interface"
+   ],
+   "artifact": "sc.fiji:Sync_Win",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Hue Colors",
+   "page": "/plugins/syngenta-plugins/hue-colours",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TAPAS",
+   "page": "/plugins/tapas",
+   "categories": [
+    "Automation",
+    "Analysis",
+    "Filtering",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TEM suite",
+   "page": "/plugins/tem-suite",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Temporal-Color Code",
+   "page": "/plugins/temporal-color-code",
+   "categories": [
+    "Color Processing"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Temporal Median",
+   "page": "/plugins/temporal-median",
+   "categories": [
+    "Tracking",
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Test Block Matching Parameters",
+   "page": "/plugins/test-block-matching-parameters",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Test Java3D",
+   "page": "/plugins/test-java3d",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Thread Killer",
+   "page": "/plugins/thread-killer",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Thread_Killer",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Thresholded Blur",
+   "page": "/plugins/thresholded-blur",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Time Lapse",
+   "page": "/plugins/time-lapse",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Time_Lapse",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Time Stamper",
+   "page": "/plugins/time-stamper",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "sc.fiji:Time_Stamper",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Timebar",
+   "page": "/plugins/timebar",
+   "categories": [
+    "Image Annotation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ToAST",
+   "page": "/plugins/toast",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:ToAST_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TopoJ",
+   "page": "/plugins/topoj",
+   "categories": [
+    "Tutorials"
+   ],
+   "artifact": "sc.fiji:TopoJ_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Branch hierarchy analysis",
+   "page": "/plugins/trackmate/actions/branch-hierarchy-analysis",
+   "categories": [
+    "Track analysis"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Close gaps in tracks by introducing new spots",
+   "page": "/plugins/trackmate/actions/close-gaps-action",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Benchmark"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate Actions",
+   "page": "/plugins/trackmate/actions",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Export tracking results in the cell tracking challenge format",
+   "page": "/plugins/trackmate/actions/trackmate-ctc-exporter",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Benchmark"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate-ExTrack",
+   "page": "/plugins/trackmate/actions/trackmate-extrack",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "fr.pasteur.iah:TrackMate-ExTrack",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-ExTrack",
+    "url": "https://sites.imagej.net/TrackMate-ExTrack/",
+    "evidence": "the only site whose index holds TrackMate-ExTrack's jar"
+   }
+  },
+  {
+   "name": "TrackMate DoG detector",
+   "page": "/plugins/trackmate/detectors/difference-of-gaussian",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate Hessian detector",
+   "page": "/plugins/trackmate/detectors/hessian-detector",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate-Cellpose-Advanced",
+   "page": "/plugins/trackmate/detectors/trackmate-cellpose-advanced",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Cellpose",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Cellpose",
+    "url": "https://sites.imagej.net/TrackMate-Cellpose/",
+    "evidence": "the only site whose index holds TrackMate-Cellpose's jar"
+   }
+  },
+  {
+   "name": "TrackMate-Cellpose-SAM",
+   "page": "/plugins/trackmate/detectors/trackmate-cellpose-sam",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Cellpose",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Cellpose",
+    "url": "https://sites.imagej.net/TrackMate-Cellpose/",
+    "evidence": "the only site whose index holds TrackMate-Cellpose's jar"
+   }
+  },
+  {
+   "name": "TrackMate-Cellpose",
+   "page": "/plugins/trackmate/detectors/trackmate-cellpose",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Cellpose",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Cellpose",
+    "url": "https://sites.imagej.net/TrackMate-Cellpose/",
+    "evidence": "the only site whose index holds TrackMate-Cellpose's jar"
+   }
+  },
+  {
+   "name": "TrackMate-Ilastik",
+   "page": "/plugins/trackmate/detectors/trackmate-ilastik",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-Label-Image-Detector",
+   "page": "/plugins/trackmate/detectors/trackmate-label-image-detector",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-Lacss",
+   "page": "/plugins/trackmate/detectors/trackmate-lacss",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Deep Learning",
+    "Machine Learning"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate Mask detector",
+   "page": "/plugins/trackmate/detectors/trackmate-mask-detector",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-MorphoLibJ",
+   "page": "/plugins/trackmate/detectors/trackmate-morpholibj",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-Omnipose-Advanced",
+   "page": "/plugins/trackmate/detectors/trackmate-omnipose-advanced",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Cellpose",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Cellpose",
+    "url": "https://sites.imagej.net/TrackMate-Cellpose/",
+    "evidence": "the only site whose index holds TrackMate-Cellpose's jar"
+   }
+  },
+  {
+   "name": "TrackMate-Omnipose",
+   "page": "/plugins/trackmate/detectors/trackmate-omnipose",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Cellpose",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Cellpose",
+    "url": "https://sites.imagej.net/TrackMate-Cellpose/",
+    "evidence": "the only site whose index holds TrackMate-Cellpose's jar"
+   }
+  },
+  {
+   "name": "TrackMate-StarDist",
+   "page": "/plugins/trackmate/detectors/trackmate-stardist",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-Thresholding-Detector",
+   "page": "/plugins/trackmate/detectors/trackmate-thresholding-detector",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate v7 detectors",
+   "page": "/plugins/trackmate/detectors/trackmate-v7-detectors",
+   "categories": [
+    "Tracking",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate-Weka",
+   "page": "/plugins/trackmate/detectors/trackmate-weka",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Weka",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Weka",
+    "url": "https://sites.imagej.net/TrackMate-Weka/",
+    "evidence": "the only site whose index holds TrackMate-Weka's jar"
+   }
+  },
+  {
+   "name": "TrackMate-YOLO",
+   "page": "/plugins/trackmate/detectors/trackmate-yolo",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-YOLO",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-YOLO",
+    "url": "https://sites.imagej.net/TrackMate-YOLO/",
+    "evidence": "the only site whose index holds TrackMate-YOLO's jar"
+   }
+  },
+  {
+   "name": "Extending TrackMate",
+   "page": "/plugins/trackmate/extending",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate-Helper",
+   "page": "/plugins/trackmate/extensions/trackmate-helper",
+   "categories": [
+    "Segmentation",
+    "Tracking",
+    "Benchmark"
+   ],
+   "artifact": "sc.fiji:TrackMate-CTCRunner",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Helper",
+    "url": "https://sites.imagej.net/TrackMate-Helper/",
+    "evidence": "the only site whose index holds TrackMate-CTCRunner's jar"
+   }
+  },
+  {
+   "name": "TrackMate Kymograph",
+   "page": "/plugins/trackmate/extensions/trackmate-kymograph",
+   "categories": [
+    "Tracking",
+    "Kymograph"
+   ],
+   "artifact": "sc.fiji:TrackMate-Kymograph",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Kymograph",
+    "url": "https://sites.imagej.net/TrackMate-Kymograph/",
+    "evidence": "the only site whose index holds TrackMate-Kymograph's jar"
+   }
+  },
+  {
+   "name": "TrackMate-Oneat",
+   "page": "/plugins/trackmate/extensions/trackmate-oneat",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate",
+   "page": "/plugins/trackmate",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate FAQ",
+   "page": "/plugins/trackmate/misc/faq",
+   "categories": [
+    "Tracking",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Scripting TrackMate",
+   "page": "/plugins/trackmate/scripting/scripting",
+   "categories": [
+    "Tracking",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Setting keys for TrackMate detectors and trackers",
+   "page": "/plugins/trackmate/scripting/trackmate-detectors-trackers-keys",
+   "categories": [
+    "Tracking",
+    "Segmentation",
+    "Scripting"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Using TrackMate from MATLAB",
+   "page": "/plugins/trackmate/scripting/using-from-matlab",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackMate Accuracy",
+   "page": "/plugins/trackmate/trackers/accuracy",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate Trackastra",
+   "page": "/plugins/trackmate/trackers/trackmate-trackastra",
+   "categories": [
+    "Tracking",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:TrackMate-Trackastra",
+   "route": {
+    "kind": "update-site",
+    "site": "TrackMate-Trackastra",
+    "url": "https://sites.imagej.net/TrackMate-Trackastra/",
+    "evidence": "the only site whose index holds TrackMate-Trackastra's jar"
+   }
+  },
+  {
+   "name": "Configuring TrackMate conda path",
+   "page": "/plugins/trackmate/trackmate-conda-path",
+   "categories": [
+    "Tracking",
+    "Segmentation"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Manual editing of tracks using TrackMate",
+   "page": "/plugins/trackmate/tutorials/manual-track-editing",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Manual tracking with TrackMate",
+   "page": "/plugins/trackmate/tutorials/manual-tracking",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Shortcuts for editing and navigating the main view of TrackMate",
+   "page": "/plugins/trackmate/tutorials/trackmate-editing-shortcuts",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Editing object shape in TrackMate",
+   "page": "/plugins/trackmate/tutorials/trackmate-segmentation-editor",
+   "categories": [
+    "Segmentation",
+    "Tracking"
+   ],
+   "artifact": "sc.fiji:TrackMate",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrackMate display settings",
+   "page": "/plugins/trackmate/views/trackmate-display-settings",
+   "categories": [
+    "Tracking",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrackScheme",
+   "page": "/plugins/trackmate/views/trackscheme",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Trainable Segmentation Plugin (deprecated)",
+   "page": "/plugins/trainable-segmentation",
+   "categories": [
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TraJClassifier",
+   "page": "/plugins/trajclassifier",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TrakEM2 Archipelago",
+   "page": "/plugins/trakem2-archipelago",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:TrakEM2_Archipelago",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TrakEM2",
+   "page": "/plugins/trakem2",
+   "categories": [
+    "Registration",
+    "Segmentation",
+    "TrakEM2",
+    "Image Annotation",
+    "Neuroanatomy"
+   ],
+   "artifact": "sc.fiji:TrakEM2_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Transform Virtual Stack Slices",
+   "page": "/plugins/transform-virtual-stack-slices",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TransformJ",
+   "page": "/plugins/transformj",
+   "categories": [
+    "ImageScience"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "TreeJ",
+   "page": "/plugins/treej",
+   "categories": [
+    "Annotation",
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Tubeness",
+   "page": "/plugins/tubeness",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "net.imagej:imagej-ops",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "TurboReg",
+   "page": "/plugins/turboreg",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:TurboReg_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Tutorial Maker",
+   "page": "/plugins/tutorial-maker",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Trainable Weka Segmentation",
+   "page": "/plugins/tws",
+   "categories": [
+    "Segmentation",
+    "Machine Learning"
+   ],
+   "artifact": "sc.fiji:Trainable_Segmentation",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Large-scale cell tracking under segmentation uncertainty",
+   "page": "/plugins/ultrack",
+   "categories": [
+    "Tracking"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "UnwarpJ",
+   "page": "/plugins/unwarpj",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:UnwarpJ_",
+   "route": {
+    "kind": "update-site",
+    "site": "BIG-EPFL",
+    "url": "https://sites.imagej.net/BIG-EPFL/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Updater",
+   "page": "/plugins/updater",
+   "categories": [
+    "ImageJ2"
+   ],
+   "artifact": "net.imagej:imagej-updater",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Upload Sample Image",
+   "page": "/plugins/upload-sample-image",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Vessel Analysis",
+   "page": "/plugins/vessel-analysis",
+   "categories": [
+    "Analysis"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "VHPro",
+   "page": "/plugins/vhpro",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Virtual Insect Brain (VIB) Protocol",
+   "page": "/plugins/vib-protocol",
+   "categories": [
+    "Registration"
+   ],
+   "artifact": "sc.fiji:VIB_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Video Editing",
+   "page": "/plugins/video-editing",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "sc.fiji:Video_Editing",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "View5D",
+   "page": "/plugins/view5d",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "de.nanoimaging:View5D_",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "VisBio Ortho Stack",
+   "page": "/plugins/visbio",
+   "categories": [
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "LOCI",
+    "url": "https://sites.imagej.net/LOCI/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "Void Whizzard",
+   "page": "/plugins/void-whizzard",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Volume Calculator",
+   "page": "/plugins/volume-calculator",
+   "categories": [
+    "3D",
+    "Analysis"
+   ],
+   "artifact": "sc.fiji:Volume_Calculator",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "Volume Viewer",
+   "page": "/plugins/volume-viewer",
+   "categories": [
+    "3D",
+    "Visualization"
+   ],
+   "artifact": "sc.fiji:Volume_Viewer",
+   "route": {
+    "kind": "ships-with-fiji",
+    "sites": [
+     "Fiji-Latest"
+    ],
+    "evidence": "its jar is in the pinned Fiji build"
+   }
+  },
+  {
+   "name": "VTEA › Volumetric Tissue Exploration and Analysis",
+   "page": "/plugins/vtea",
+   "categories": [
+    "Segmentation",
+    "Visualization"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Watershed Algorithm (ImageJ plugin)",
+   "page": "/plugins/watershed-algorithm",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Wavelet Denoise",
+   "page": "/plugins/wavelet-denoise",
+   "categories": [
+    "Filtering"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Xlib",
+   "page": "/plugins/xlib",
+   "categories": [
+    "Analysis",
+    "Filtering",
+    "MATLAB",
+    "Particle Analysis",
+    "Segmentation",
+    "Skeleton"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "ZedMate",
+   "page": "/plugins/zedmate",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "Zellige",
+   "page": "/plugins/zellige",
+   "categories": [
+    "Projection",
+    "Segmentation"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "update-site",
+    "site": "Zellige",
+    "url": "https://sites.imagej.net/Zellige/",
+    "evidence": "its page names the site"
+   }
+  },
+  {
+   "name": "ZFBONE",
+   "page": "/plugins/zfbone",
+   "categories": [
+    "Uncategorized"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  },
+  {
+   "name": "FunImageJ",
+   "page": "/software/funimagej",
+   "categories": [
+    "Development",
+    "Scripting"
+   ],
+   "artifact": "fun.imagej:fun.imagej",
+   "route": {
+    "kind": "update-site",
+    "site": "FunImageJ",
+    "url": "https://sites.imagej.net/FunImageJ/",
+    "evidence": "the only site whose index holds fun.imagej's jar"
+   }
+  },
+  {
+   "name": "Neuroanatomy update site",
+   "page": "/update-sites/neuroanatomy",
+   "categories": [
+    "Analysis",
+    "Neuroanatomy"
+   ],
+   "artifact": "",
+   "route": {
+    "kind": "none-known",
+    "why": "its page names no artifact"
+   }
+  }
+ ]
+}

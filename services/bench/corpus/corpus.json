@@ -1,0 +1,383 @@
+{
+ "about": "Test material: real microscope footage and labelled pictures from public sources, fetched into the assets store's sources/corpus/ (assets/README.md) by `make corpus` and rendered into eyepiece footage with per-frame truth by `make corpus-tours` (bench/corpus/). For testing only, never shipped. `nc`: non-commercial licence, used only with --internal (internal benches). `look`: 1-5, how close the source is to a phone held to an eyepiece. Checked 2026-10-05; each source's licence is read again from the source when fetched where it can be (Wikimedia Commons).",
+ "items": [
+  {
+   "id": "paramecium-microbescope",
+   "specimen": "paramecium",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Paramecium recorded with Microbescope, 2014-10-14.webm"
+   }
+  },
+  {
+   "id": "paramecium-dividing",
+   "specimen": "paramecium (dividing)",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Paramecium Dividing.ogv"
+   }
+  },
+  {
+   "id": "euglena-metaboly",
+   "specimen": "euglena",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Euglena metaboly and swimming movement.ogv"
+   }
+  },
+  {
+   "id": "euglena-berkshire",
+   "specimen": "euglena",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Video- Euglena.webm"
+   }
+  },
+  {
+   "id": "amoeba-radiata",
+   "specimen": "amoeba",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Amoeba radiata DSC 6915.webm"
+   }
+  },
+  {
+   "id": "vorticella",
+   "specimen": "vorticella",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Vorticella DSC 7017.webm"
+   }
+  },
+  {
+   "id": "rotifer-swimming",
+   "specimen": "rotifer",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Swimming rotifer DSC 6955.webm"
+   }
+  },
+  {
+   "id": "daphnia-heartbeat",
+   "specimen": "daphnia",
+   "kind": "video",
+   "look": 3,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Daphnia Heartbeat.ogv"
+   }
+  },
+  {
+   "id": "diatom-movement",
+   "specimen": "diatom",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Diatom movement DSC 1261.webm"
+   }
+  },
+  {
+   "id": "volvox",
+   "specimen": "volvox",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Volvox Вольвокс 2 1.webm"
+   }
+  },
+  {
+   "id": "hydra-budding",
+   "specimen": "hydra (budding)",
+   "kind": "video",
+   "look": 3,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Hidra en gemación.webm"
+   }
+  },
+  {
+   "id": "tardigrade",
+   "specimen": "tardigrade",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Tardigrade in real time.ogv"
+   }
+  },
+  {
+   "id": "stentor-dividing",
+   "specimen": "stentor (dividing)",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Stentor dividing.ogv"
+   }
+  },
+  {
+   "id": "egeria-streaming",
+   "specimen": "egeria leaf (cytoplasmic streaming)",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Video- Cytoplasmic Streaming in Egeria densa.webm"
+   }
+  },
+  {
+   "id": "sperm",
+   "specimen": "human sperm",
+   "kind": "video",
+   "look": 3,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Human sperm under microscope.webm"
+   }
+  },
+  {
+   "id": "cilia-airway",
+   "specimen": "airway cilia",
+   "kind": "video",
+   "look": 2,
+   "fetch": {
+    "kind": "commons",
+    "title": "File:Airway epithelial cilia mouse.webm"
+   }
+  },
+  {
+   "id": "pond-seah",
+   "specimen": "pond water (ciliates, flagellates, rotifers, diatoms)",
+   "kind": "video",
+   "look": 4,
+   "fetch": {
+    "kind": "commons-search",
+    "search": "insource:\"Brandon Seah\" filetype:video",
+    "take": 12
+   }
+  },
+  {
+   "id": "berkshire-plants",
+   "specimen": "plant sections (stems, roots, leaves, stomata)",
+   "kind": "still",
+   "look": 4,
+   "fetch": {
+    "kind": "commons-search",
+    "search": "\"Berkshire Community College\" stem OR root OR leaf OR stomata filetype:bitmap",
+    "take": 20
+   }
+  },
+  {
+   "id": "berkshire-histology",
+   "specimen": "mammalian histology",
+   "kind": "still",
+   "look": 4,
+   "fetch": {
+    "kind": "commons-search",
+    "search": "\"Berkshire Community College\" histology OR tissue filetype:bitmap",
+    "take": 8
+   }
+  },
+  {
+   "id": "bccd",
+   "specimen": "blood smear",
+   "kind": "still",
+   "look": 3,
+   "licence": "MIT",
+   "truth": "boxes: RBC, WBC, Platelets",
+   "fetch": {
+    "kind": "github",
+    "repo": "Shenggan/BCCD_Dataset",
+    "branch": "master"
+   },
+   "tour": {
+    "images": "BCCD/JPEGImages/*.jpg",
+    "annotations": "voc:BCCD/Annotations/{stem}.xml",
+    "take": 16,
+    "columns": 4,
+    "zoom": 1.6,
+    "seconds": 60
+   }
+  },
+  {
+   "id": "memtrack",
+   "specimen": "swimming bacteria",
+   "kind": "video",
+   "look": 2,
+   "licence": "CC BY 4.0",
+   "truth": "drawn into the video",
+   "fetch": {
+    "kind": "zenodo",
+    "record": "10001477",
+    "match": ".mp4",
+    "take": 3
+   }
+  },
+  {
+   "id": "clinical-bacteria",
+   "specimen": "Gram-stained bacteria",
+   "kind": "still",
+   "look": 4,
+   "licence": "CC BY 4.0",
+   "truth": "boxes and masks: Gram-positive/negative cocci and bacilli (the annotated DeepDataSet, 1.9 GB)",
+   "fetch": {
+    "kind": "zenodo",
+    "record": "10526360",
+    "match": "DeepDataSet",
+    "take": 1,
+    "max_mb": 2000
+   }
+  },
+  {
+   "id": "phytoplankton-bloombio",
+   "specimen": "phytoplankton (43 taxa)",
+   "kind": "still",
+   "look": 4,
+   "licence": "CC BY 4.0",
+   "truth": "boxes (one Parquet shard of the detection set: pictures with their boxes)",
+   "fetch": {
+    "kind": "hf",
+    "repo": "bloombio/phytoplankton-microscopy",
+    "path": "detection",
+    "match": "test-00000-of",
+    "take": 1
+   }
+  },
+  {
+   "id": "plankton-videos",
+   "specimen": "rotifers and cryptomonas (dark field)",
+   "kind": "video",
+   "look": 2,
+   "licence": "Apache-2.0",
+   "truth": "boxes (YOLO) per frame; frames of one sequence",
+   "fetch": {
+    "kind": "hf",
+    "repo": "bcdemattei/plankton_interaction_videos",
+    "paths": [
+     "test/images",
+     "test/labels"
+    ],
+    "match": "Time1601_0303_",
+    "take": 600
+   }
+  },
+  {
+   "id": "insect-focus-stacks",
+   "specimen": "insect parts (focus stacks)",
+   "kind": "stack",
+   "look": 4,
+   "licence": "CC BY 4.0",
+   "fetch": {
+    "kind": "hf",
+    "repo": "Data-set/microscopy-focus-testset",
+    "paths": [
+     "data/sample_001",
+     "data/sample_002"
+    ],
+    "match": ".tif",
+    "take": 14
+   },
+   "truth": "a focus sweep (6 frames) and its fused picture, per sample",
+   "build": "none"
+  },
+  {
+   "id": "openslide-cmu1-small",
+   "specimen": "H&E tissue section",
+   "kind": "still",
+   "look": 4,
+   "licence": "CC0",
+   "fetch": {
+    "kind": "url",
+    "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/CMU-1-Small-Region.svs"
+   }
+  },
+  {
+   "id": "lacuna-malaria",
+   "specimen": "thick blood smear (malaria), phone over the eyepiece",
+   "kind": "still",
+   "look": 5,
+   "licence": "CC BY 4.0 (Roboflow mirror)",
+   "truth": "boxes: parasites, white cells",
+   "fetch": {
+    "kind": "manual",
+    "how": "Roboflow Universe needs an account: export the Lacuna malaria set as YOLO into the assets store's sources/corpus/lacuna-malaria/"
+   }
+  },
+  {
+   "id": "nih-thin-smears",
+   "specimen": "thin blood smear (malaria), phone on the eyepiece",
+   "kind": "still",
+   "look": 5,
+   "licence": "NLM data licence agreement (read it first)",
+   "truth": "points and polygons per cell",
+   "fetch": {
+    "kind": "manual",
+    "how": "Read the licence at https://data.lhncbc.nlm.nih.gov/public/Malaria/ then download NIH-NLM-ThinBloodSmearsPf into the assets store's sources/corpus/nih-thin-smears/"
+   }
+  },
+  {
+   "id": "onion-mitosis-cil",
+   "specimen": "onion root tip (mitosis)",
+   "kind": "still",
+   "look": 5,
+   "licence": "public domain",
+   "fetch": {
+    "kind": "manual",
+    "how": "Cell Image Library CIL:43552: save the full image into the assets store's sources/corpus/onion-mitosis-cil/"
+   }
+  },
+  {
+   "id": "emds6",
+   "specimen": "pond organisms (21 classes)",
+   "kind": "still",
+   "look": 3,
+   "nc": true,
+   "licence": "non-commercial",
+   "truth": "masks",
+   "fetch": {
+    "kind": "manual",
+    "how": "figshare 17125025 (EMDS-6): internal benches only"
+   }
+  },
+  {
+   "id": "raabin-wbc",
+   "specimen": "white blood cells",
+   "kind": "still",
+   "look": 3,
+   "nc": true,
+   "licence": "CC BY 4.0 on the Roboflow mirror (unverified)",
+   "truth": "labels, some masks",
+   "fetch": {
+    "kind": "manual",
+    "how": "raabindata.com: internal benches until the licence is confirmed"
+   }
+  },
+  {
+   "id": "own-recordings",
+   "specimen": "cheek cells, onion epidermis, yeast, animal blood, fibres, crystals, insect slides, Gram kit, pollen, Hydra, Daphnia, stage micrometer pan",
+   "kind": "video",
+   "look": 5,
+   "licence": "ours",
+   "fetch": {
+    "kind": "manual",
+    "how": "Recorded through the iPhone on the eyepiece with the bridge's record button; nothing public shows our optics, our auto-exposure or a real hand on the slide"
+   }
+  }
+ ]
+}

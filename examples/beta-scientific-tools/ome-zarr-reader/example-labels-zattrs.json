@@ -1,0 +1,60 @@
+{
+  "image-label": {
+    "version": "0.4"
+  },
+  "multiscales": [
+    {
+      "axes": [
+        {
+          "name": "y",
+          "type": "space",
+          "unit": "micrometer"
+        },
+        {
+          "name": "x",
+          "type": "space",
+          "unit": "micrometer"
+        }
+      ],
+      "coordinateTransformations": [
+        {
+          "scale": [
+            2,
+            4
+          ],
+          "type": "scale"
+        },
+        {
+          "translation": [
+            3,
+            -1
+          ],
+          "type": "translation"
+        }
+      ],
+      "datasets": [
+        {
+          "coordinateTransformations": [
+            {
+              "scale": [
+                0.5,
+                0.25
+              ],
+              "type": "scale"
+            },
+            {
+              "translation": [
+                -2,
+                10
+              ],
+              "type": "translation"
+            }
+          ],
+          "path": "0"
+        }
+      ],
+      "name": "Synthetic labels reference",
+      "version": "0.4"
+    }
+  ]
+}

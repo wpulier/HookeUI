@@ -1,0 +1,22 @@
+# Fiji, the app's managed copy (orchestrator/fiji_generations.py; phase 3's E3): a pinned Fiji Latest build for Apple
+# Silicon with its own JDK, kept as complete generations. Its plugins are turned on per update site in a new
+# generation; its functions run only through reviewed bindings (a tool-function each).
+id = "fiji"
+name = "Fiji"
+runs = "this-mac"
+version = "Fiji Latest 20261007-1617 (2.18.0, ImageJ 1.54p; macOS arm64, Zulu JDK 21)"
+licence = ["fiji"]
+kind = "tool"
+what = "ImageJ with its plugins, run headless by the app"
+runner = "fiji"
+source = { url = "https://downloads.imagej.net/fiji/archive/latest/20261007-1617/" }
+files = [
+  { path = "fiji-latest-macos-arm64-jdk.zip", bytes = 669009131, sha256 = "d26280e92a18d7036c92c17a2ca938154c2591c2d5e6bf982ec953a3368b18bd", url = "https://downloads.imagej.net/fiji/archive/latest/20261007-1617/fiji-latest-macos-arm64-jdk.zip" },
+]
+needs_to_get = ["download"]
+needs_to_run = ["platform:macos-arm64"]
+credit = { authors = "Schindelin et al. (the Fiji and ImageJ communities)", link = "https://fiji.sc", cite = "Schindelin, J. et al. Fiji: an open-source platform for biological-image analysis. Nat Methods 9, 676-682 (2012)" }
+workers = []
+host = "own"
+documented_mb = 1500
+load_limit_s = 120

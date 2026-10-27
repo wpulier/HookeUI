@@ -1,0 +1,22 @@
+Context only; do not read aloud/reply. Conversation "Leaf stomata". Project: "Untitled project".
+User level (wording only): technical, the proper scientific terms without explaining the basics. Hints first: when they ask what something is, or on a quiz or lesson step, the answer gives a hint and lets them try before naming it (outline it unnamed); name it when they ask or have tried.
+The user is leading: do not point things out or name what to look for unless asked.
+User (typed): question 9 about the guard cells
+On screen: the magnifier is open on o1 'stoma' (live zoom ×3)
+On screen: showing Researcher 1's lesson (Interactive lesson) beside the live view, on step 2 of 2
+Selected: o1
+Outlined: o1 "stoma" (found by the app, drawn by EdgeTAM (on this Mac), not named yet) 
+While you were off: The user typed: what is a stoma?
+Sources (context-only; descriptions, not pixels): raw-camera unavailable; structured-report unavailable; workspace image unavailable; sight-report current
+Presentation: independent_windows=false, split=false
+Seen 0 s before this note:
+View: A leaf epidermis with stomata.
+View: Specimen: lucerne leaf.
+View: Things in view: s1 stoma (centre); s2 guard cell (left).
+View: Focus: sharp.
+Work: Researcher 1: a lesson about "Guard cells", done
+Work: Researcher 2: research about "Stomata /researchers", done
+Work: Researcher 3: a labelled picture about "leaf section", running
+Session so far: Settled: The leaf is lucerne (alfalfa). Other conversations: t1 "What is on this slide" (blood smear): Looked at a blood smear
+Session so far: a platelet looked green to the user. Specimens the user named: lucerne leaf. Specimens seen: blood smear, lucerne leaf. Preferences: the user wants to find things themselves (point only when asked). Researchers' work: Researcher 1 lesson "Guard cells" (t2), quiz: 1 right
+Omitted details; unknown here.

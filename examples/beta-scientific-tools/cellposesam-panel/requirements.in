@@ -1,0 +1,6 @@
+napari @ hooke-wheel:napari-0.7.1.dev0-py3-none-any.whl
+napari-cellposesam==0.1.1
+cellpose==4.2.1.1
+magicgui==0.10.2
+pyside6==6.12.0
+vispy==0.17.0

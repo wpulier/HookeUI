@@ -1,0 +1,480 @@
+// Talking with the voice model over /ws/voice (services/orchestrator/voice/route.py).
+// Microphone: 16-bit mono PCM at 24 kHz (the model's own rate, so nothing resamples it again)
+// in ~40 ms chunks; the browser converts the microphone to 24 kHz with its own filtered
+// resampler, so speech reaches the model's transcription without aliasing. Speech back: "MMA1" + 16-bit mono
+// PCM at 24 kHz, played gap-free and flushed the moment the model is interrupted. The model
+// sees the eyepiece through the orchestrator, not through the browser.
+
+export interface VoiceEvent {
+  type: 'voice';
+  kind: string;
+  text?: string;
+  name?: string;
+  callId?: string;
+  args?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+}
+
+export type VoiceState = 'off' | 'connecting' | 'live' | 'error';
+
+export interface VoiceTarget {
+  model?: string;
+  trial?: string;
+  arm?: string;
+  connectionGrant?: string;
+}
+
+const AUDIO_MAGIC = 'MMA1';
+const OUTPUT_RATE = 24000;
+const INPUT_RATE = 24000;
+
+// Runs on the audio thread: convert to 16-bit at 24 kHz, post 40 ms chunks. The capture context
+// runs at 24 kHz, so this is a plain copy; if a browser refuses that rate, each output sample
+// averages the input samples it covers (a box filter, so higher frequencies do not fold back).
+const CAPTURE_WORKLET = `
+class Capture extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.ratio = sampleRate / ${INPUT_RATE};
+    this.pos = 0;
+    this.chunk = new Int16Array(${(INPUT_RATE * 40) / 1000});
+    this.fill = 0;
+    this.level = 0;
+  }
+  process(inputs) {
+    const input = inputs[0] && inputs[0][0];
+    if (!input) return true;
+    for (let i = 0; i < input.length; i++) this.level = Math.max(this.level * 0.9995, Math.abs(input[i]));
+    while (this.pos < input.length) {
+      const i = Math.floor(this.pos);
+      const end = Math.min(input.length, Math.max(i + 1, Math.floor(this.pos + this.ratio)));
+      let sum = 0;
+      for (let k = i; k < end; k++) sum += input[k];
+      const v = Math.max(-1, Math.min(1, sum / (end - i)));
+      this.chunk[this.fill++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+      if (this.fill === this.chunk.length) {
+        this.port.postMessage({ pcm: this.chunk.buffer, level: this.level }, [this.chunk.buffer]);
+        this.chunk = new Int16Array(${(INPUT_RATE * 40) / 1000});
+        this.fill = 0;
+      }
+      this.pos += this.ratio;
+    }
+    this.pos -= input.length;
+    return true;
+  }
+}
+registerProcessor('capture', Capture);
+`;
+
+export class VoiceClient {
+  state: VoiceState = 'off';
+  muted = false;
+  /** How audio travels (the server's VOICELINK option): "relay" through the app over a WebSocket,
+   * or "webrtc" directly between this browser and OpenAI (the app keeps a sideband for events). */
+  link: 'relay' | 'webrtc' = 'relay';
+  private peer: RTCPeerConnection | null = null;
+  private remote: HTMLAudioElement | null = null;
+  private mediaConnected = false;
+  private mediaTimer: ReturnType<typeof setInterval> | null = null;
+  private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private outputSpeaking = false;
+  private outputLastHeard = 0;
+  private outputProbe: MediaStreamAudioSourceNode | null = null;
+  private socket: WebSocket | null = null;
+  private mic: MediaStream | null = null;
+  private micContext: AudioContext | null = null;
+  private speaker: AudioContext | null = null;
+  private capture: AudioWorkletNode | null = null;
+  private silent: GainNode | null = null;
+  private providerReady = false;
+  private captured = false;
+  private stageSent = new Set<string>();
+  private pendingStages = new Set<string>();
+  private responseTimer: ReturnType<typeof setTimeout> | null = null;
+  private captureTimer: ReturnType<typeof setTimeout> | null = null;
+  private startupTimer: ReturnType<typeof setTimeout> | null = null;
+  private permissionTimer: ReturnType<typeof setTimeout> | null = null;
+  private playing = new Set<AudioBufferSourceNode>();
+  private audible = new Set<AudioBufferSourceNode>();
+  private playAt = 0;
+  private readonly onEvent: (event: VoiceEvent) => void;
+  private readonly onState: (state: VoiceState, detail?: string) => void;
+  private readonly onLevel: (level: number) => void;
+
+  constructor(
+    onEvent: (event: VoiceEvent) => void,
+    onState: (state: VoiceState, detail?: string) => void,
+    onLevel: (level: number) => void,
+  ) {
+    this.onEvent = onEvent;
+    this.onState = onState;
+    this.onLevel = onLevel;
+  }
+
+  /** `target` says which voice to talk to: a model id, or a blind arena arm. It may be a
+   * promise, so the microphone and speaker can be opened inside the click while the
+   * arena trial is still being created. */
+  private connectionAttempt = 0;
+
+  async start(target?: VoiceTarget | Promise<VoiceTarget>): Promise<void> {
+    if (this.state === 'connecting' || this.state === 'live') return;
+    const attempt = ++this.connectionAttempt;
+    this.providerReady = false; this.captured = false; this.mediaConnected = false;
+    this.stageSent.clear(); this.pendingStages.clear();
+    this.setState('connecting');
+    try {
+      // Both contexts are created inside the click that started the conversation, so the
+      // browser lets them play and record.
+      this.speaker = new AudioContext({ sampleRate: OUTPUT_RATE });
+      // Resume playback during the gesture, before awaiting microphone permission (WebKit).
+      try { this.micContext = new AudioContext({ sampleRate: INPUT_RATE }); }
+      catch { this.micContext = new AudioContext(); }
+      const audioReady = Promise.all([this.speaker.resume(), this.micContext.resume()]);
+      void audioReady.catch(() => {});
+      this.permissionTimer = setTimeout(() => {
+        if (attempt === this.connectionAttempt) this.setState('connecting',
+          'Waiting for microphone access. Allow the microphone prompt, or end Talk and check microphone permissions.');
+      }, 8_000);
+      const mic = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      if (attempt !== this.connectionAttempt) { mic.getTracks().forEach((track) => track.stop()); return; }
+      if (this.permissionTimer !== null) clearTimeout(this.permissionTimer);
+      this.permissionTimer = null;
+      this.mic = mic;
+      await audioReady;
+      if (attempt !== this.connectionAttempt) return;
+      const url = URL.createObjectURL(new Blob([CAPTURE_WORKLET], { type: 'text/javascript' }));
+      try { await this.micContext.audioWorklet.addModule(url); }
+      finally { URL.revokeObjectURL(url); }
+      if (attempt !== this.connectionAttempt) return;
+      const source = this.micContext.createMediaStreamSource(this.mic);
+      const capture = new AudioWorkletNode(this.micContext, 'capture');
+      this.capture = capture;
+      capture.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
+        if (attempt !== this.connectionAttempt) return;
+        this.captured = true;
+        this.report('capture');
+        if (!this.muted && event.data.level > 0.02) this.report('signal');
+        this.maybeReady();
+        if (this.captureTimer !== null) clearTimeout(this.captureTimer);
+        this.captureTimer = setTimeout(() => {
+          if (attempt === this.connectionAttempt && !this.muted) this.report('capture-stalled');
+        }, 5_000);
+        this.onLevel(this.muted ? 0 : event.data.level);
+        // Over WebRTC the microphone goes to OpenAI on its own track; here it only drives the meter.
+        // The provider must acknowledge session.start before accepting input. Do not
+        // retain pre-ready speech and replay it after setup or into another session.
+        if (this.providerReady && !this.peer && !this.muted && this.socket?.readyState === WebSocket.OPEN) this.socket.send(event.data.pcm);
+      };
+      source.connect(capture);
+      // Keep the worklet in the rendered graph. Silence prevents microphone feedback.
+      this.silent = this.micContext.createGain();
+      this.silent.gain.value = 0;
+      capture.connect(this.silent);
+      this.silent.connect(this.micContext.destination);
+      this.mic.getAudioTracks().forEach(track => track.addEventListener('ended', () => {
+        if (attempt !== this.connectionAttempt) return;
+        this.fail('The microphone disconnected. Choose an available microphone, then start Talk again.');
+      }));
+    } catch (error) {
+      if (attempt !== this.connectionAttempt) return;
+      this.cleanup();
+      const denied = error instanceof DOMException && error.name === 'NotAllowedError';
+      this.setState('error', denied ? 'Microphone access was blocked. Allow Hooke in System Settings → Privacy & Security → Microphone (or allow this browser), then start Talk again.' : String(error));
+      return;
+    }
+
+    let resolved: VoiceTarget = {};
+    try {
+      resolved = (await target) ?? {};
+    } catch (error) {
+      if (attempt !== this.connectionAttempt) return;
+      this.cleanup();
+      this.setState('error', String(error));
+      return;
+    }
+    if (attempt !== this.connectionAttempt) return;
+    const { connectionGrant, ...queryTarget } = resolved;
+    const params = new URLSearchParams(Object.entries(queryTarget).filter(([, v]) => v) as [string, string][]);
+    params.set('rate', String(INPUT_RATE));
+    try {
+      let offer: RTCSessionDescriptionInit | null = null;
+      if (this.link === 'webrtc' && this.mic) {
+        // OpenAI's browser flow (voice-webrtc guide): the microphone on a track, a data channel named
+        // "oai-events", and the offer exchanged through the app, which holds the API key.
+        const peer = new RTCPeerConnection();
+        this.peer = peer;
+        this.mic.getTracks().forEach((track) => peer.addTrack(track, this.mic as MediaStream));
+        peer.createDataChannel('oai-events');
+        peer.onconnectionstatechange = () => {
+          if (attempt !== this.connectionAttempt) return;
+          this.mediaConnected = peer.connectionState === 'connected';
+          if (this.disconnectTimer !== null) clearTimeout(this.disconnectTimer);
+          this.disconnectTimer = null;
+          if (this.mediaConnected) { this.maybeReady(); return; }
+          if (peer.connectionState === 'failed') this.fail('Voice audio disconnected. Your conversation is kept. Start Talk again to reconnect.');
+          else if (peer.connectionState === 'disconnected') {
+            this.phase('reconnecting');
+            this.disconnectTimer = setTimeout(() => {
+              if (attempt === this.connectionAttempt && !this.mediaConnected) this.fail('Voice audio could not reconnect. Start Talk again.');
+            }, 8_000);
+          }
+        };
+        const remote = new Audio();
+        remote.autoplay = true;
+        this.remote = remote;
+        peer.ontrack = (event) => {
+          if (attempt !== this.connectionAttempt) return;
+          const stream = new MediaStream([event.track]);
+          remote.srcObject = stream;
+          this.monitorOutput(stream);
+          void remote.play().then(() => { if (attempt === this.connectionAttempt) this.report('playback'); }).catch(() => { if (attempt === this.connectionAttempt) this.report('playback-blocked'); });
+        };
+        offer = await peer.createOffer();
+        if (attempt !== this.connectionAttempt) return;
+        await peer.setLocalDescription(offer);
+        if (attempt !== this.connectionAttempt) return;
+        await waitForIce(peer);
+        if (attempt !== this.connectionAttempt) return;
+        offer = peer.localDescription;
+        if (!offer?.sdp) throw new Error('Missing voice offer');
+        params.set('link', 'webrtc');
+      }
+      const query = params.size ? `?${params}` : '';
+      const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/voice${query}`);
+      socket.binaryType = 'arraybuffer';
+      socket.onopen = () => {
+        if (attempt !== this.connectionAttempt) { socket.close(); return; }
+        if (connectionGrant) socket.send(JSON.stringify({ type: 'workspace-bind', connectionGrant }));
+        if (offer) socket.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
+        for (const stage of this.pendingStages) socket.send(JSON.stringify({ type: 'diagnostic', stage }));
+        this.pendingStages.clear();
+      };
+      socket.onmessage = (event) => {
+        if (attempt !== this.connectionAttempt) return;
+        if (typeof event.data === 'string') {
+          let message: VoiceEvent;
+          try { message = JSON.parse(event.data) as VoiceEvent; }
+          catch { this.fail('Voice sent an unreadable response. End Talk and reconnect.'); return; }
+          if (message.kind === 'error') {
+            this.onEvent(message);
+            this.fail(String(message.data?.message || 'Voice failed. Check Activity and provider access, then start Talk again.'));
+            return;
+          }
+          if (message.kind === 'answer' && this.peer) {
+            void this.peer.setRemoteDescription({ type: 'answer', sdp: String(message.data?.sdp ?? '') }).catch(() => {
+              if (attempt === this.connectionAttempt) this.fail('Voice audio negotiation failed. Start Talk again to reconnect.');
+            });
+            return;
+          }
+          if (message.kind === 'ready') { this.providerReady = true; this.maybeReady(); }
+          if (message.kind === 'input_transcript') {
+            this.phase('processing');
+            if (this.responseTimer !== null) clearTimeout(this.responseTimer);
+            this.responseTimer = setTimeout(() => this.report('response-wait'), 20_000);
+          }
+          if (['output_transcript', 'turn_complete', 'error', 'closed'].includes(message.kind)) this.clearResponseTimer();
+          if (message.kind === 'turn_complete' && !this.outputSpeaking) this.phase(this.muted ? 'muted' : 'listening');
+          if (message.kind === 'interrupted') { this.clearResponseTimer(); this.flush(); }
+          this.onEvent(message);
+          return;
+        }
+        this.play(event.data as ArrayBuffer);
+      };
+      socket.onclose = () => {
+        if (attempt !== this.connectionAttempt) return;
+        const wasLive = this.state === 'live' || this.state === 'connecting';
+        this.cleanup();
+        if (wasLive) this.setState('error', 'Voice disconnected. Your conversation is kept. Start Talk again to reconnect.');
+      };
+      socket.onerror = () => {
+        if (attempt === this.connectionAttempt) this.fail('Voice could not connect. Check your connection and start Talk again.');
+      };
+      this.socket = socket;
+      this.startupTimer = setTimeout(() => {
+        if (attempt === this.connectionAttempt && this.state === 'connecting') {
+          this.fail('Voice did not finish connecting. Check Activity and provider access, then start Talk again.');
+        }
+      }, 20_000);
+    } catch {
+      if (attempt === this.connectionAttempt) this.fail('Voice could not establish audio. Check microphone and connection access, then start Talk again.');
+    }
+  }
+
+  private maybeReady(): void {
+    if (this.providerReady && this.captured && (!this.peer || this.mediaConnected) && this.state === 'connecting') {
+      this.clearStartupTimer();
+      this.setState('live');
+      this.phase(this.muted ? 'muted' : 'listening');
+    }
+  }
+
+  private phase(phase: string): void {
+    this.onEvent({type: 'voice', kind: 'status', data: {phase}});
+  }
+
+  private report(stage: string): void {
+    if (this.stageSent.has(stage)) return;
+    this.stageSent.add(stage);
+    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({type: 'diagnostic', stage}));
+    else this.pendingStages.add(stage);
+    this.onEvent({type: 'voice', kind: 'diagnostic', data: {stage}});
+  }
+
+  private clearResponseTimer(): void {
+    if (this.responseTimer !== null) clearTimeout(this.responseTimer);
+    this.responseTimer = null;
+  }
+
+  private clearStartupTimer(): void {
+    if (this.startupTimer !== null) clearTimeout(this.startupTimer);
+    this.startupTimer = null;
+  }
+
+  private fail(detail: string): void {
+    ++this.connectionAttempt;
+    this.cleanup();
+    this.setState('error', detail);
+  }
+
+  stop(): void {
+    ++this.connectionAttempt;
+    this.cleanup();
+    this.setState('off');
+  }
+
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    this.phase(muted ? 'muted' : 'listening');
+    this.mic?.getAudioTracks().forEach((track) => (track.enabled = !muted));
+    // The session is told (session.input_audio.mute), not just sent nothing.
+    if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: 'mute', muted }));
+  }
+
+  private play(data: ArrayBuffer): void {
+    const attempt = this.connectionAttempt;
+    const speaker = this.speaker;
+    if (!speaker || data.byteLength < 6 || data.byteLength % 2 !== 0 || String.fromCharCode(...new Uint8Array(data, 0, 4)) !== AUDIO_MAGIC) return;
+    if (speaker.state !== 'running') { this.report('playback-blocked'); return; }
+    const pcm = new Int16Array(data.slice(4));
+    // Live sends silence continuously. Receiving a packet is not speech.
+    const speech = pcm.some(sample => Math.abs(sample) >= 400);
+    if (speech) {
+      this.clearResponseTimer();
+      this.report('playback');
+      this.outputSpeaking = true;
+      this.phase('speaking');
+    }
+    const buffer = speaker.createBuffer(1, pcm.length, OUTPUT_RATE);
+    const channel = buffer.getChannelData(0);
+    for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 0x8000;
+    const node = speaker.createBufferSource();
+    node.buffer = buffer;
+    node.connect(speaker.destination);
+    // A little headroom on the first chunk absorbs network jitter without audible gaps.
+    this.playAt = Math.max(this.playAt, speaker.currentTime + 0.05);
+    node.start(this.playAt);
+    this.playAt += buffer.duration;
+    this.playing.add(node);
+    if (speech) this.audible.add(node);
+    node.onended = () => { if (attempt !== this.connectionAttempt) return; this.playing.delete(node); this.audible.delete(node); if (this.outputSpeaking && !this.audible.size && this.state === 'live') { this.outputSpeaking = false; this.phase(this.muted ? 'muted' : 'listening'); } };
+  }
+
+  /** The model was interrupted: drop everything still queued to play. */
+  private flush(): void {
+    for (const node of this.playing) {
+      try {
+        node.stop();
+      } catch {
+        // already finished
+      }
+    }
+    this.playing.clear();
+    this.audible.clear();
+    this.outputSpeaking = false;
+    this.playAt = 0;
+  }
+
+  private monitorOutput(stream: MediaStream): void {
+    const context = this.speaker;
+    if (!context) return;
+    const probe = context.createMediaStreamSource(stream);
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    probe.connect(analyser); // analysis only; the HTML audio element owns playback
+    this.outputProbe?.disconnect();
+    this.outputProbe = probe;
+    if (this.mediaTimer !== null) clearInterval(this.mediaTimer);
+    const samples = new Float32Array(analyser.fftSize);
+    this.mediaTimer = setInterval(() => {
+      analyser.getFloatTimeDomainData(samples);
+      const audible = samples.some(sample => Math.abs(sample) >= 0.012);
+      if (audible) { this.outputLastHeard = performance.now(); this.clearResponseTimer(); }
+      const speaking = audible || performance.now() - this.outputLastHeard < 350;
+      if (speaking !== this.outputSpeaking) {
+        this.outputSpeaking = speaking;
+        this.phase(speaking ? 'speaking' : this.muted ? 'muted' : 'listening');
+      }
+    }, 100);
+  }
+
+  private cleanup(): void {
+    if (this.mediaTimer !== null) clearInterval(this.mediaTimer);
+    if (this.disconnectTimer !== null) clearTimeout(this.disconnectTimer);
+    this.mediaTimer = this.disconnectTimer = null;
+    this.outputProbe?.disconnect(); this.outputProbe = null;
+    this.outputSpeaking = this.mediaConnected = false;
+    if (this.permissionTimer !== null) clearTimeout(this.permissionTimer);
+    this.permissionTimer = null;
+    this.clearStartupTimer();
+    this.clearResponseTimer();
+    if (this.captureTimer !== null) clearTimeout(this.captureTimer);
+    this.captureTimer = null;
+    const socket = this.socket;
+    this.socket = null;
+    if (socket) { socket.onclose = null; socket.close(); }
+    if (this.capture) { this.capture.port.onmessage = null; this.capture.disconnect(); }
+    this.capture = null;
+    this.silent?.disconnect();
+    this.silent = null;
+    this.flush();
+    this.peer?.close();
+    this.peer = null;
+    if (this.remote) this.remote.srcObject = null;
+    this.remote = null;
+    this.mic?.getTracks().forEach((track) => track.stop());
+    this.mic = null;
+    void this.micContext?.close();
+    this.micContext = null;
+    void this.speaker?.close();
+    this.speaker = null;
+    this.socket = null;
+    this.onLevel(0);
+  }
+
+  private setState(state: VoiceState, detail?: string): void {
+    this.state = state;
+    this.onState(state, detail);
+  }
+}
+
+/** GPT-Live's documented offer includes gathered candidates; don't race negotiation. */
+export async function waitForIce(peer: RTCPeerConnection): Promise<void> {
+  if (peer.iceGatheringState === 'complete') return;
+  await new Promise<void>((resolve, reject) => {
+    const done = () => {
+      if (peer.iceGatheringState !== 'complete') return;
+      clearTimeout(timeout);
+      peer.removeEventListener('icegatheringstatechange', done);
+      resolve();
+    };
+    const timeout = setTimeout(() => {
+      peer.removeEventListener('icegatheringstatechange', done);
+      reject(new Error('Voice could not gather a network route'));
+    }, 10_000);
+    peer.addEventListener('icegatheringstatechange', done);
+    done();
+  });
+}

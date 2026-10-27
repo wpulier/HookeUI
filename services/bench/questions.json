@@ -1,0 +1,20 @@
+{
+  "about": "Hand-labelled 'what is that?' questions on saved June 14 microscope frames. Targets are full-frame pixel centres (1280x720) checked on zoomed crops; any listed target counts as correct. 'kind' says whether the target is a small spot the candidate detector should propose (spot) or a larger shape that needs a box (shape).",
+  "questions": [
+    {"frame": "leaf-132922-012s.jpg", "question": "What's the oval shape on the right?", "kind": "shape", "targets": [[853, 387]], "tolerance": 40},
+    {"frame": "leaf-132922-012s.jpg", "question": "What's that oval in the middle, lower down?", "kind": "shape", "targets": [[667, 496]], "tolerance": 40},
+    {"frame": "leaf-132922-012s.jpg", "question": "What's the little dark squiggle near the bottom?", "kind": "spot", "targets": [[578, 644]], "tolerance": 25},
+    {"frame": "leaf-132922-045s.jpg", "question": "What are the dark specks near the top?", "kind": "spot", "targets": [[751, 123], [787, 120], [747, 138]], "tolerance": 25},
+    {"frame": "leaf-132922-045s.jpg", "question": "What's the oval structure right of centre?", "kind": "shape", "targets": [[757, 448]], "tolerance": 40},
+    {"frame": "leaf-132922-045s.jpg", "question": "What's the pale oval on the lower left?", "kind": "shape", "targets": [[544, 527]], "tolerance": 40},
+    {"frame": "leaf-132922-090s.jpg", "question": "What's the tiny black dot at the top?", "kind": "spot", "targets": [[747, 135], [757, 152], [785, 125]], "tolerance": 25},
+    {"frame": "leaf-132922-140s.jpg", "question": "What's the dark speck on the left edge?", "kind": "spot", "targets": [[390, 405]], "tolerance": 25},
+    {"frame": "leaf-132922-140s.jpg", "question": "What's the faint oval at the lower left?", "kind": "shape", "targets": [[547, 547]], "tolerance": 45},
+    {"frame": "leaf-132922-140s.jpg", "question": "What's that dark mark near the top?", "kind": "spot", "targets": [[565, 126], [597, 124]], "tolerance": 25},
+    {"frame": "leaf-132922-200s.jpg", "question": "What's the oval near the middle?", "kind": "shape", "targets": [[744, 424]], "tolerance": 45},
+    {"frame": "leaf-132922-200s.jpg", "question": "What's the bright yellow blob up and to the right?", "kind": "spot", "targets": [[833, 260]], "tolerance": 25},
+    {"frame": "leaf-132922-200s.jpg", "question": "What are the dark smudges at the very top?", "kind": "spot", "targets": [[737, 85], [775, 70]], "tolerance": 25},
+    {"frame": "leaf-131443-008s.jpg", "question": "What's the big oval in the middle?", "kind": "shape", "targets": [[720, 400]], "tolerance": 60},
+    {"frame": "leaf-131443-008s.jpg", "question": "What's the pale oval at the bottom left?", "kind": "shape", "targets": [[367, 533]], "tolerance": 60}
+  ]
+}

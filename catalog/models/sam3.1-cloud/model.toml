@@ -1,0 +1,25 @@
+# SAM 3.1 hosted by fal: outlining a box or point (fal-ai/sam-3-1) and every match of an example (.../image-rle).
+id = "sam3.1-cloud"
+name = "SAM 3.1 (cloud)"
+runs = "cloud"
+version = "fal-ai/sam-3-1"
+licence = ["sam3.1", "fal-api"]
+kind = "cloud-model"
+what = "Outlines what you box, and finds every thing like an example"
+runner = "cloud"
+service = "fal"
+source = { url = "https://fal.ai/models/fal-ai/sam-3-1" }
+needs_to_run = ["key:FAL_KEY"]
+credit = { authors = "Meta AI (SAM 3.1), hosted by fal", link = "https://fal.ai/models/fal-ai/sam-3-1" }
+
+[[implements]]
+operation = "outline"
+impl = "sam3.1-fal"
+input = "image.2d.rgb8"
+output = "masks.2d"
+
+[[implements]]
+operation = "find-like"
+impl = "sam3.1-all"
+input = "image.2d.rgb8"
+output = "labels.instance.2d"

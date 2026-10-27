@@ -1,0 +1,12 @@
+# The Hugging Face segmentation template's own Python: what adapter.py imports, every package pinned by its hash in env.lock
+# (uv pip compile requirements.in --generate-hashes --only-binary :all: --python-version 3.13
+#  --python-platform aarch64-apple-darwin -o env.lock, MACOSX_DEPLOYMENT_TARGET=14.0).
+torch==2.14.1
+# transformers 5.19's SegFormer image processors, the PIL one included, require torchvision (acceptance 2026-10-13:
+# Coralscapes' SegFormer couldn't load its processor without it).
+torchvision
+transformers>=5,<6
+safetensors
+numpy
+scipy
+pillow

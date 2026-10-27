@@ -1,0 +1,25 @@
+contributed_by = { name = "Hooke local integration candidate" }
+requires = { catalog = 4 }
+id = "ome-zarr-reader"
+name = "OME-Zarr folder reader"
+runs = "cpu"
+version = "7"
+licence = ["ome-zarr-reader"]
+runner = "python-env"
+env = { python = "3.12.11", lock = "env.lock", imports = ["napari", "magicgui", "vispy"], wheels = [{file="napari-0.7.1.dev0-py3-none-any.whl", sha256="ea1b1d4681556c3d811a334d60ce3f812e91600081eec74a1874d232fecbaf4f", bytes=3764877}, {file="asciitree-0.3.3-py3-none-any.whl", sha256="3f73d2e031b455f147048eea7c0a0a438479344afbc76e72c6252134bd4fa1d5", bytes=5097}] }
+needs_to_run = ["install:ome-zarr-reader"]
+component = { what = "Local OME-Zarr folder integration candidate", licence = "MIT", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+[[members]]
+id = "read-ome-zarr"
+name = "OME-Zarr images and labels (local candidate)"
+adapter = "adapter:open_host"
+bridge = "scientific-host-v1"
+reader = { format = 3, kind = "directory", input = "source", patterns = ["*.zarr"], access = "regional", maximum_bytes = 68719476736, requires = [".zattrs", ".zgroup"], keeps = ["values", "dtype", "byte-order", "axes", "calibration"] }
+inputs = [{id = "project", type = "project.scientific"}]
+outputs = [{id = "result", type = "project.scientific"}]
+
+# Synthetic exact-data oracles; not biological, interactive or large-data qualification.
+reader_checks = { format = 1, cases = [
+  { id = "calibrated-grey-pyramid", files = { ".zgroup" = "example-zgroup.json", ".zattrs" = "example-grey-zattrs.json", "0/.zarray" = "example-grey-0-zarray.json", "0/0.0.0" = "example-grey-0.bin", "1/.zarray" = "example-grey-1-zarray.json", "1/0.0.0" = "example-grey-1.bin" }, reference = "reference-grey.json", source = "Synthetic NGFF 0.4: big-endian uint16 z/y/x levels (2x4x6 and 1x2x3), literal integer formulas and composed calibration. Oracle generated independently with Python struct/hashlib, never the adapter; see generate_reference_cases.py." },
+  { id = "calibrated-object-labels", files = { ".zgroup" = "example-zgroup.json", ".zattrs" = "example-labels-zattrs.json", "0/.zarray" = "example-labels-0-zarray.json", "0/0.0" = "example-labels-0.bin" }, reference = "reference-labels.json", source = "Synthetic standalone NGFF image-label 0.4: little-endian uint32 y/x object IDs 0,7,9,65537 and composed calibration. Independent literal labels and affine basis; no biological accuracy or editing claim; see generate_reference_cases.py." }
+] }

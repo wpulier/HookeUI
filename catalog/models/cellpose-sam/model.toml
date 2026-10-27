@@ -1,0 +1,26 @@
+id = "cellpose-sam"
+name = "Cellpose-SAM"
+runs = "this-mac"
+version = "cellpose cpsam"
+licence = ["cellpose-sam"]
+kind = "model"
+what = "Outlines every cell in a view"
+runner = "gpu-worker"
+source = { hf = "mouseland/cellpose-sam", revision = "7c61431b5fbb078f3296754bd15d9f51b320f837" }
+files = [
+  { path = "cpsam_v2", bytes = 1233586851, sha256 = "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667", root = "cellpose" },
+]
+needs_to_get = ["download"]
+needs_to_run = ["install:cellpose"]
+credit = { authors = "Pachitariu, Rariden and Stringer (MouseLand, HHMI Janelia)", link = "https://github.com/MouseLand/cellpose" }
+workers = ["analysis"]
+host = "shared"
+documented_mb = 3550
+peak_mb = 3550
+load_limit_s = 300
+
+[[implements]]
+operation = "cells"
+impl = "cellpose-sam"
+input = "image.2d.rgb8"
+output = "labels.instance.2d"

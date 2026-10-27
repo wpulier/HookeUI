@@ -1,0 +1,8 @@
+id = "fal"
+name = "fal.ai"
+key = "FAL_KEY"
+enables = "SAM 3.1 in the cloud: outlining, and finding every thing like an example"
+get_key = "https://fal.ai/dashboard/keys"
+licence = "fal-api"
+test = "orchestrator/key_tests.py: fal, one free authenticated GET"
+costs = "billed by the provider per call: $0.01 for an outline or a find-all, fal's list price read from its pricing API on 2026-10-20; what the app spent is in its usage ledger (make day-report)"

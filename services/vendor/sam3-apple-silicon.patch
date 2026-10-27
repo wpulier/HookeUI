@@ -1,0 +1,1016 @@
+diff --git a/sam3/_device.py b/sam3/_device.py
+new file mode 100644
+index 0000000..145094b
+--- /dev/null
++++ b/sam3/_device.py
+@@ -0,0 +1,19 @@
++# MicroscopeMind patch: pick the accelerator instead of assuming CUDA.
++import os
++
++import torch
++
++
++def sam3_device() -> str:
++    forced = os.environ.get("SAM3_DEVICE")
++    if forced:
++        return forced
++    if torch.cuda.is_available():
++        return "cuda"
++    if torch.backends.mps.is_available():
++        return "mps"
++    return "cpu"
++
++
++def is_cuda() -> bool:
++    return sam3_device() == "cuda"
+diff --git a/sam3/model/decoder.py b/sam3/model/decoder.py
+index 578a2bf..bb8c62f 100644
+--- a/sam3/model/decoder.py
++++ b/sam3/model/decoder.py
+@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Union
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn.functional as torchF
+ from sam3.sam.rope import apply_rotary_enc, apply_rotary_enc_real, compute_axial_cis
+ from sam3.sam.transformer import RoPEAttention
+@@ -73,7 +74,7 @@ class TransformerDecoderLayer(nn.Module):
+         return tensor if pos is None else tensor + pos
+ 
+     def forward_ffn(self, tgt):
+-        with torch.amp.autocast(device_type="cuda", enabled=False):
++        with torch.amp.autocast(device_type=sam3_device(), enabled=False):
+             tgt2 = self.linear2(self.dropout3(self.activation(self.linear1(tgt))))
+         tgt = tgt + self.dropout4(tgt2)
+         tgt = self.norm3(tgt)
+@@ -298,7 +299,7 @@ class TransformerDecoder(nn.Module):
+             if resolution is not None and stride is not None:
+                 feat_size = resolution // stride
+                 coords_h, coords_w = self._get_coords(
+-                    feat_size, feat_size, device="cuda"
++                    feat_size, feat_size, device=sam3_device()
+                 )
+                 self.compilable_cord_cache = (coords_h, coords_w)
+                 self.compilable_stored_size = (feat_size, feat_size)
+@@ -1093,7 +1094,7 @@ class SimpleRoPEAttention(nn.Module):
+         self.compute_cis = partial(
+             compute_axial_cis, dim=d_model // num_heads, theta=rope_theta
+         )
+-        device = torch.device("cuda") if torch.cuda.is_available() else None
++        device = torch.device(sam3_device())  # MicroscopeMind patch: MPS and CPU too
+         self.freqs_cis = self.compute_cis(
+             end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
+         )
+diff --git a/sam3/model/edt.py b/sam3/model/edt.py
+index c4d6e7c..939d284 100644
+--- a/sam3/model/edt.py
++++ b/sam3/model/edt.py
+@@ -5,8 +5,13 @@
+ """Triton kernel for euclidean distance transform (EDT)"""
+ 
+ import torch
+-import triton
+-import triton.language as tl
++try:  # MicroscopeMind patch: Triton is CUDA-only; fall back to OpenCV elsewhere (MPS/CPU)
++    import triton
++    import triton.language as tl
++
++    _HAS_TRITON = True
++except ImportError:
++    _HAS_TRITON = False
+ 
+ """
+ Disclaimer: This implementation is not meant to be extremely efficient. A CUDA kernel would likely be more efficient.
+@@ -52,68 +57,70 @@ Overall, despite being quite naive, this implementation is roughly 5.5x faster t
+ """
+ 
+ 
+-@triton.jit
+-def edt_kernel(inputs_ptr, outputs_ptr, v, z, height, width, horizontal: tl.constexpr):
+-    # This is a somewhat verbatim implementation of the efficient 1D EDT algorithm described above
+-    # It can be applied horizontally or vertically depending if we're doing the first or second stage.
+-    # It's parallelized across batch+row (or batch+col if horizontal=False)
+-    # TODO: perhaps the implementation can be revisited if/when local gather/scatter become available in triton
+-    batch_id = tl.program_id(axis=0)
+-    if horizontal:
+-        row_id = tl.program_id(axis=1)
+-        block_start = (batch_id * height * width) + row_id * width
+-        length = width
+-        stride = 1
+-    else:
+-        col_id = tl.program_id(axis=1)
+-        block_start = (batch_id * height * width) + col_id
+-        length = height
+-        stride = width
+-
+-    # This will be the index of the right most parabola in the envelope ("the top of the stack")
+-    k = 0
+-    for q in range(1, length):
+-        # Read the function value at the current location. Note that we're doing a singular read, not very efficient
+-        cur_input = tl.load(inputs_ptr + block_start + (q * stride))
+-        # location of the parabola on top of the stack
+-        r = tl.load(v + block_start + (k * stride))
+-        # associated boundary
+-        z_k = tl.load(z + block_start + (k * stride))
+-        # value of the function at the parabola location
+-        previous_input = tl.load(inputs_ptr + block_start + (r * stride))
+-        # intersection between the two parabolas
+-        s = (cur_input - previous_input + q * q - r * r) / (q - r) / 2
+-
+-        # we'll pop as many parabolas as required
+-        while s <= z_k and k - 1 >= 0:
+-            k = k - 1
++if _HAS_TRITON:
++
++    @triton.jit
++    def edt_kernel(inputs_ptr, outputs_ptr, v, z, height, width, horizontal: tl.constexpr):
++        # This is a somewhat verbatim implementation of the efficient 1D EDT algorithm described above
++        # It can be applied horizontally or vertically depending if we're doing the first or second stage.
++        # It's parallelized across batch+row (or batch+col if horizontal=False)
++        # TODO: perhaps the implementation can be revisited if/when local gather/scatter become available in triton
++        batch_id = tl.program_id(axis=0)
++        if horizontal:
++            row_id = tl.program_id(axis=1)
++            block_start = (batch_id * height * width) + row_id * width
++            length = width
++            stride = 1
++        else:
++            col_id = tl.program_id(axis=1)
++            block_start = (batch_id * height * width) + col_id
++            length = height
++            stride = width
++
++        # This will be the index of the right most parabola in the envelope ("the top of the stack")
++        k = 0
++        for q in range(1, length):
++            # Read the function value at the current location. Note that we're doing a singular read, not very efficient
++            cur_input = tl.load(inputs_ptr + block_start + (q * stride))
++            # location of the parabola on top of the stack
+             r = tl.load(v + block_start + (k * stride))
++            # associated boundary
+             z_k = tl.load(z + block_start + (k * stride))
++            # value of the function at the parabola location
+             previous_input = tl.load(inputs_ptr + block_start + (r * stride))
++            # intersection between the two parabolas
+             s = (cur_input - previous_input + q * q - r * r) / (q - r) / 2
+ 
+-        # Store the new one
+-        k = k + 1
+-        tl.store(v + block_start + (k * stride), q)
+-        tl.store(z + block_start + (k * stride), s)
+-        if k + 1 < length:
+-            tl.store(z + block_start + ((k + 1) * stride), 1e9)
+-
+-    # Last step, we read the envelope to find the min in every location
+-    k = 0
+-    for q in range(length):
+-        while (
+-            k + 1 < length
+-            and tl.load(
+-                z + block_start + ((k + 1) * stride), mask=(k + 1) < length, other=q
+-            )
+-            < q
+-        ):
+-            k += 1
+-        r = tl.load(v + block_start + (k * stride))
+-        d = q - r
+-        old_value = tl.load(inputs_ptr + block_start + (r * stride))
+-        tl.store(outputs_ptr + block_start + (q * stride), old_value + d * d)
++            # we'll pop as many parabolas as required
++            while s <= z_k and k - 1 >= 0:
++                k = k - 1
++                r = tl.load(v + block_start + (k * stride))
++                z_k = tl.load(z + block_start + (k * stride))
++                previous_input = tl.load(inputs_ptr + block_start + (r * stride))
++                s = (cur_input - previous_input + q * q - r * r) / (q - r) / 2
++
++            # Store the new one
++            k = k + 1
++            tl.store(v + block_start + (k * stride), q)
++            tl.store(z + block_start + (k * stride), s)
++            if k + 1 < length:
++                tl.store(z + block_start + ((k + 1) * stride), 1e9)
++
++        # Last step, we read the envelope to find the min in every location
++        k = 0
++        for q in range(length):
++            while (
++                k + 1 < length
++                and tl.load(
++                    z + block_start + ((k + 1) * stride), mask=(k + 1) < length, other=q
++                )
++                < q
++            ):
++                k += 1
++            r = tl.load(v + block_start + (k * stride))
++            d = q - r
++            old_value = tl.load(inputs_ptr + block_start + (r * stride))
++            tl.store(outputs_ptr + block_start + (q * stride), old_value + d * d)
+ 
+ 
+ def edt_triton(data: torch.Tensor):
+@@ -128,7 +135,8 @@ def edt_triton(data: torch.Tensor):
+         It should be equivalent to a batched version of cv2.distanceTransform(input, cv2.DIST_L2, 0)
+     """
+     assert data.dim() == 3
+-    assert data.is_cuda
++    if not (_HAS_TRITON and data.is_cuda):
++        return _edt_opencv(data)
+     B, H, W = data.shape
+     data = data.contiguous()
+ 
+@@ -175,3 +183,14 @@ def edt_triton(data: torch.Tensor):
+     )
+     # don't forget to take sqrt at the end
+     return output.sqrt()
++
++
++def _edt_opencv(data: torch.Tensor) -> torch.Tensor:
++    """MicroscopeMind patch: batched cv2.distanceTransform(input, cv2.DIST_L2, 0), the
++    function the Triton kernel mimics, for devices without Triton."""
++    import cv2
++    import numpy as np
++
++    masks = data.detach().to("cpu").numpy().astype(np.uint8)
++    out = np.stack([cv2.distanceTransform(m, cv2.DIST_L2, 0) for m in masks])
++    return torch.from_numpy(out).to(device=data.device, dtype=torch.float32)
+diff --git a/sam3/model/io_utils.py b/sam3/model/io_utils.py
+index 4e76f04..7c17a12 100644
+--- a/sam3/model/io_utils.py
++++ b/sam3/model/io_utils.py
+@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn.functional as F
+ import torchvision.transforms.functional as TF
+ from PIL import Image
+@@ -69,7 +70,7 @@ def load_resource_as_video_frames(
+             images.append(img)
+         images = torch.stack(images)
+         if not offload_video_to_cpu:
+-            images = images.cuda()
++            images = images.to(sam3_device())
+         return images, orig_height, orig_width
+ 
+     is_image = (
+@@ -112,11 +113,11 @@ def load_image_as_single_frame_video(
+     # pyrefly: ignore [bad-assignment]
+     img_std = torch.tensor(img_std, dtype=torch.float16)[:, None, None]
+     if not offload_video_to_cpu:
+-        images = images.cuda()
++        images = images.to(sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_mean = img_mean.cuda()
++        img_mean = img_mean.to(sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_std = img_std.cuda()
++        img_std = img_std.to(sam3_device())
+     # normalize by mean and std
+     # pyrefly: ignore [unsupported-operation]
+     images -= img_mean
+@@ -236,9 +237,9 @@ def load_video_frames_from_image_folder(
+     ):
+         images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
+     if not offload_video_to_cpu:
+-        images = images.cuda()
+-        img_mean = img_mean.cuda()
+-        img_std = img_std.cuda()
++        images = images.to(sam3_device())
++        img_mean = img_mean.to(sam3_device())
++        img_std = img_std.to(sam3_device())
+     # normalize by mean and std
+     images -= img_mean
+     images /= img_std
+@@ -350,11 +351,11 @@ def load_video_frames_from_video_file_using_cv2(
+     # pyrefly: ignore [bad-assignment]
+     img_std = torch.tensor(img_std, dtype=torch.float16).view(1, 3, 1, 1)
+     if not offload_video_to_cpu:
+-        video_tensor = video_tensor.cuda()
++        video_tensor = video_tensor.to(sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_mean = img_mean.cuda()
++        img_mean = img_mean.to(sam3_device())
+         # pyrefly: ignore [missing-attribute]
+-        img_std = img_std.cuda()
++        img_std = img_std.to(sam3_device())
+     # normalize by mean and std
+     # pyrefly: ignore [unsupported-operation]
+     video_tensor -= img_mean
+@@ -374,7 +375,7 @@ def load_dummy_video(image_size, offload_video_to_cpu, num_frames=60, do_zeros=F
+     else:
+         images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float16)
+     if not offload_video_to_cpu:
+-        images = images.cuda()
++        images = images.to(sam3_device())
+     return images, video_height, video_width
+ 
+ 
+@@ -447,7 +448,7 @@ class AsyncImageFrameLoader:
+         img -= self.img_mean
+         img /= self.img_std
+         if not self.offload_video_to_cpu:
+-            img = img.cuda()
++            img = img.to(sam3_device())
+         self.images[index] = img
+         return img
+ 
+@@ -580,7 +581,7 @@ class AsyncVideoFileLoaderWithTorchCodec:
+         if offload_video_to_cpu:
+             out_device = torch.device("cpu")
+         else:
+-            out_device = torch.device("cuda") if gpu_device is None else gpu_device
++            out_device = torch.device(sam3_device()) if gpu_device is None else gpu_device
+         self.out_device = out_device
+         self.gpu_acceleration = gpu_acceleration
+         self.gpu_id = gpu_id
+diff --git a/sam3/model/position_encoding.py b/sam3/model/position_encoding.py
+index f38c62b..60c3ec7 100644
+--- a/sam3/model/position_encoding.py
++++ b/sam3/model/position_encoding.py
+@@ -6,6 +6,7 @@ import math
+ from typing import Optional
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from torch import nn
+ 
+ 
+@@ -52,7 +53,7 @@ class PositionEmbeddingSine(nn.Module):
+                 (precompute_resolution // 32, precompute_resolution // 32),
+             ]
+             for size in precompute_sizes:
+-                tensors = torch.zeros((1, 1) + size, device="cuda")
++                tensors = torch.zeros((1, 1) + size, device=sam3_device())
+                 self.forward(tensors)
+                 # further clone and detach it in the cache (just to be safe)
+                 self.cache[size] = self.cache[size].clone().detach()
+diff --git a/sam3/model/sam3_base_predictor.py b/sam3/model/sam3_base_predictor.py
+index 8b833d4..e09db5c 100644
+--- a/sam3/model/sam3_base_predictor.py
++++ b/sam3/model/sam3_base_predictor.py
+@@ -15,6 +15,7 @@ import uuid
+ from typing import Dict, List, Optional
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.logger import get_logger
+ 
+ logger = get_logger(__name__)
+@@ -151,6 +152,13 @@ class Sam3BasePredictor:
+             init_kwargs["async_loading_frames"] = self.async_loading_frames
+         if hasattr(self, "video_loader_type"):
+             init_kwargs["video_loader_type"] = self.video_loader_type
++        # MicroscopeMind patch: the SAM 3.1 multiplex model's init_state does not accept
++        # every option of the base API (e.g. offload_state_to_cpu); pass only what it takes.
++        import inspect
++
++        accepted = inspect.signature(self.model.init_state).parameters
++        if not any(p.kind == p.VAR_KEYWORD for p in accepted.values()):
++            init_kwargs = {k: v for k, v in init_kwargs.items() if k in accepted}
+         inference_state = self.model.init_state(**init_kwargs)
+ 
+         if not session_id:
+@@ -220,7 +228,7 @@ class Sam3BasePredictor:
+         valid_params = set(sig.parameters.keys())
+         filtered_kwargs = {k: v for k, v in kwargs.items() if k in valid_params}
+ 
+-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
++        with torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16):
+             frame_idx, outputs = self.model.add_prompt(**filtered_kwargs)
+         return {"frame_index": frame_idx, "outputs": outputs}
+ 
+@@ -240,7 +248,7 @@ class Sam3BasePredictor:
+                 "no `add_tracker_new_mask`. Use a point or box prompt instead."
+             )
+         mask_tensor = torch.as_tensor(mask, dtype=torch.bool)
+-        with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
++        with torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16):
+             result_frame, outputs = self.model.add_tracker_new_mask(
+                 inference_state=inference_state,
+                 frame_idx=frame_idx,
+@@ -492,7 +500,7 @@ class Sam3BasePredictor:
+         active_count = len(self._all_inference_states)
+         try:
+             free_bytes, total_bytes = torch.cuda.mem_get_info()
+-        except RuntimeError:
++        except (RuntimeError, AssertionError):  # MicroscopeMind patch: torch built without CUDA raises AssertionError
+             # No active CUDA context (e.g., CPU-only test env).
+             return {
+                 "free_bytes": 0,
+diff --git a/sam3/model/sam3_image_processor.py b/sam3/model/sam3_image_processor.py
+index f8439f5..de80ae6 100644
+--- a/sam3/model/sam3_image_processor.py
++++ b/sam3/model/sam3_image_processor.py
+@@ -6,6 +6,7 @@ from typing import Dict, List
+ import numpy as np
+ import PIL
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.model import box_ops
+ from sam3.model.data_misc import FindStage, interpolate
+ from torchvision.transforms import v2
+@@ -14,7 +15,7 @@ from torchvision.transforms import v2
+ class Sam3Processor:
+     """ """
+ 
+-    def __init__(self, model, resolution=1008, device="cuda", confidence_threshold=0.5):
++    def __init__(self, model, resolution=1008, device=sam3_device(), confidence_threshold=0.5):
+         self.model = model
+         self.resolution = resolution
+         self.device = device
+diff --git a/sam3/model/sam3_multiplex_base.py b/sam3/model/sam3_multiplex_base.py
+index 5b07e73..0909ab0 100644
+--- a/sam3/model/sam3_multiplex_base.py
++++ b/sam3/model/sam3_multiplex_base.py
+@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.distributed as dist
+ import torch.nn.functional as F
+ from sam3.logger import get_logger
+@@ -33,7 +34,7 @@ SAM3_COLLECTIVE_OP_TIMEOUT_SEC = int(os.getenv("SAM3_COLLECTIVE_OP_TIMEOUT_SEC",
+ 
+ logger = get_logger(__name__)
+ 
+-if torch.cuda.get_device_properties(0).major >= 8:
++if torch.cuda.is_available() and torch.cuda.get_device_properties(0).major >= 8:
+     # turn on tfloat32 for Ampere GPUs (https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices)
+     torch.backends.cuda.matmul.allow_tf32 = True
+     torch.backends.cudnn.allow_tf32 = True
+@@ -168,7 +169,7 @@ class Sam3MultiplexTrackerPredictor(nn.Module):
+         self.per_obj_inference = per_obj_inference
+         self.fill_hole_area = fill_hole_area
+         # use bfloat16 inference for Flash Attention kernel
+-        self.bf16_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++        self.bf16_context = torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+         self.bf16_context.__enter__()  # keep using for the entire model process
+ 
+     def __getattr__(self, name):
+@@ -2941,5 +2942,5 @@ class Sam3MultiplexPredictorWrapper(Sam3MultiplexTrackerPredictor):
+         self.is_multiplex_dynamic = is_multiplex_dynamic
+ 
+         # use bfloat16 inference for Flash Attention kernel
+-        self.bf16_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++        self.bf16_context = torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+         self.bf16_context.__enter__()
+diff --git a/sam3/model/sam3_multiplex_tracking.py b/sam3/model/sam3_multiplex_tracking.py
+index 1b6ce7d..36fb2ee 100644
+--- a/sam3/model/sam3_multiplex_tracking.py
++++ b/sam3/model/sam3_multiplex_tracking.py
+@@ -6,6 +6,7 @@ import numpy as np
+ import sam3.model.sam3_multiplex_base
+ import sam3.model.sam3_video_base
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.distributed as dist
+ import torch.nn.functional as F
+ from sam3 import perflib
+@@ -232,7 +233,7 @@ class Sam3MultiplexTracking(Sam3MultiplexBase):
+         inference_state = {}
+         inference_state["image_size"] = self.image_size
+         inference_state["num_frames"] = len(images)
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = torch.device(sam3_device())
+         inference_state["orig_height"] = orig_height
+         inference_state["orig_width"] = orig_width
+         inference_state["constants"] = {}
+@@ -1613,7 +1614,7 @@ class Sam3MultiplexTracking(Sam3MultiplexBase):
+         return inference_state
+ 
+     @torch.inference_mode()
+-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++    @torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+     def warm_up_compilation(self):
+         """
+         Warm up the model by running a dummy inference to compile the model. This is
+@@ -1752,7 +1753,7 @@ class Sam3MultiplexTracking(Sam3MultiplexBase):
+         backbone_out.update(text_outputs)
+         return backbone_out
+ 
+-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++    @torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+     def forward(self, input: BatchedDatapoint, is_inference: bool = False):
+         """This method is only used for benchmark eval (not used in the demo)."""
+         # set the model to single GPU for benchmark evaluation (to be compatible with trainer)
+diff --git a/sam3/model/sam3_multiplex_video_predictor.py b/sam3/model/sam3_multiplex_video_predictor.py
+index b86c7f1..be2cb01 100644
+--- a/sam3/model/sam3_multiplex_video_predictor.py
++++ b/sam3/model/sam3_multiplex_video_predictor.py
+@@ -13,6 +13,7 @@ via the shared Sam3BasePredictor handle_request/handle_stream_request API.
+ from typing import Dict, Optional
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.logger import get_logger
+ from sam3.model.sam3_base_predictor import Sam3BasePredictor
+ 
+@@ -48,7 +49,7 @@ class Sam3MultiplexVideoPredictor(Sam3BasePredictor):
+         torch.backends.cuda.matmul.allow_tf32 = True
+         torch.backends.cudnn.allow_tf32 = True
+         # use bfloat16 inference for Flash Attention kernel
+-        self.bf16_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++        self.bf16_context = torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+         self.bf16_context.__enter__()
+ 
+         if warm_up:
+diff --git a/sam3/model/sam3_tracker_base.py b/sam3/model/sam3_tracker_base.py
+index c7f40b7..b8e10e0 100644
+--- a/sam3/model/sam3_tracker_base.py
++++ b/sam3/model/sam3_tracker_base.py
+@@ -5,6 +5,7 @@
+ import logging
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn.functional as F
+ from sam3.model.memory import SimpleMaskEncoder
+ from sam3.model.sam3_tracker_utils import get_1d_sine_pe, select_closest_cond_frames
+@@ -653,14 +654,14 @@ class Sam3TrackerBase(torch.nn.Module):
+                     continue  # skip padding frames
+                 # "maskmem_features" might have been offloaded to CPU in demo use cases,
+                 # so we load it back to GPU (it's a no-op if it's already on GPU).
+-                feats = prev["maskmem_features"].cuda(non_blocking=True)
++                feats = prev["maskmem_features"].to(sam3_device(), non_blocking=True)
+                 seq_len = feats.shape[-2] * feats.shape[-1]
+                 to_cat_prompt.append(feats.flatten(2).permute(2, 0, 1))
+                 to_cat_prompt_mask.append(
+                     torch.zeros(B, seq_len, device=device, dtype=bool)
+                 )
+                 # Spatial positional encoding (it might have been offloaded to CPU in eval)
+-                maskmem_enc = prev["maskmem_pos_enc"][-1].cuda()
++                maskmem_enc = prev["maskmem_pos_enc"][-1].to(sam3_device())
+                 maskmem_enc = maskmem_enc.flatten(2).permute(2, 0, 1)
+ 
+                 if (
+diff --git a/sam3/model/sam3_tracking_predictor.py b/sam3/model/sam3_tracking_predictor.py
+index 43b068b..51f31ed 100644
+--- a/sam3/model/sam3_tracking_predictor.py
++++ b/sam3/model/sam3_tracking_predictor.py
+@@ -6,6 +6,7 @@ import logging
+ from collections import OrderedDict
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.model.sam3_tracker_base import concat_points, NO_OBJ_SCORE, Sam3TrackerBase
+ from sam3.model.sam3_tracker_utils import fill_holes_in_mask_scores
+ from sam3.model.utils.sam2_utils import load_video_frames
+@@ -47,7 +48,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+         self.max_point_num_in_prompt_enc = max_point_num_in_prompt_enc
+         self.non_overlap_masks_for_output = non_overlap_masks_for_output
+ 
+-        self.bf16_context = torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++        self.bf16_context = torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+         self.bf16_context.__enter__()  # keep using for the entire model process
+ 
+         self.iter_use_prev_mask_pred = True
+@@ -79,7 +80,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = torch.device(sam3_device())
+ 
+         if video_path is not None:
+             images, video_height, video_width = load_video_frames(
+@@ -301,7 +302,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+                     prev_out = obj_output_dict["non_cond_frame_outputs"].get(frame_idx)
+ 
+             if prev_out is not None and prev_out["pred_masks"] is not None:
+-                prev_sam_mask_logits = prev_out["pred_masks"].cuda(non_blocking=True)
++                prev_sam_mask_logits = prev_out["pred_masks"].to(sam3_device(), non_blocking=True)
+                 # Clamp the scale of prev_sam_mask_logits to avoid rare numerical issues.
+                 prev_sam_mask_logits = torch.clamp(prev_sam_mask_logits, -32.0, 32.0)
+         current_out, _ = self._run_single_frame_inference(
+@@ -1022,7 +1023,7 @@ class Sam3TrackerPredictor(Sam3TrackerBase):
+                 )
+             else:
+                 # Cache miss -- we will run inference on a single image
+-                image = inference_state["images"][frame_idx].cuda().float().unsqueeze(0)
++                image = inference_state["images"][frame_idx].to(sam3_device()).float().unsqueeze(0)
+                 backbone_out = self.forward_image(image)
+                 # Cache the most recent frame's feature (for repeated interactions with
+                 # a frame; we can use an LRU cache for more frames in the future).
+diff --git a/sam3/model/sam3_video_inference.py b/sam3/model/sam3_video_inference.py
+index d8c69c6..b67fa8d 100644
+--- a/sam3/model/sam3_video_inference.py
++++ b/sam3/model/sam3_video_inference.py
+@@ -7,6 +7,7 @@ from collections import defaultdict
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.distributed as dist
+ import torch.nn.functional as F
+ from sam3 import perflib
+@@ -798,7 +799,7 @@ class Sam3VideoInference(Sam3VideoBase):
+         return inference_state
+ 
+     @torch.inference_mode()
+-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++    @torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+     def warm_up_compilation(self):
+         """
+         Warm up the model by running a dummy inference to compile the model. This is
+@@ -906,7 +907,7 @@ class Sam3VideoInference(Sam3VideoBase):
+         )
+         return frame_idx, self._postprocess_output(inference_state, out)
+ 
+-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++    @torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+     def forward(self, input: BatchedDatapoint, is_inference: bool = False):
+         """This method is only used for benchmark eval (not used in the demo)."""
+         # set the model to single GPU for benchmark evaluation (to be compatible with trainer)
+diff --git a/sam3/model/sam3_video_predictor.py b/sam3/model/sam3_video_predictor.py
+index dcb53b0..bb130bb 100644
+--- a/sam3/model/sam3_video_predictor.py
++++ b/sam3/model/sam3_video_predictor.py
+@@ -16,6 +16,7 @@ from typing import List, Optional
+ 
+ import psutil
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.logger import get_logger
+ from sam3.model.sam3_base_predictor import Sam3BasePredictor
+ 
+@@ -50,7 +51,7 @@ class Sam3VideoPredictor(Sam3BasePredictor):
+                 apply_temporal_disambiguation=apply_temporal_disambiguation,
+                 compile=compile,
+             )
+-            .cuda()
++            .to(sam3_device())
+             .eval()
+         )
+ 
+@@ -249,7 +250,7 @@ class Sam3VideoPredictorMultiGPU(Sam3VideoPredictor):
+             device_id=self.device,
+         )
+         # warm-up the NCCL process group by running a dummy all-reduce
+-        tensor = torch.ones(1024, 1024).cuda()
++        tensor = torch.ones(1024, 1024).to(sam3_device())
+         torch.distributed.all_reduce(tensor)
+         logger.debug(f"started NCCL process group on {rank=} with {world_size=}")
+ 
+diff --git a/sam3/model/utils/sam2_utils.py b/sam3/model/utils/sam2_utils.py
+index e824fe1..30a8f06 100644
+--- a/sam3/model/utils/sam2_utils.py
++++ b/sam3/model/utils/sam2_utils.py
+@@ -11,6 +11,7 @@ from threading import Thread
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from PIL import Image
+ from tqdm import tqdm
+ 
+@@ -102,7 +103,7 @@ def load_video_frames(
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+     async_loading_frames=False,
+-    compute_device=torch.device("cuda"),
++    compute_device=torch.device(sam3_device()),
+ ):
+     """
+     Load the video frames from video_path. The frames are resized to image_size as in
+@@ -143,7 +144,7 @@ def load_video_frames_from_jpg_images(
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+     async_loading_frames=False,
+-    compute_device=torch.device("cuda"),
++    compute_device=torch.device(sam3_device()),
+ ):
+     """
+     Load the video frames from a directory of JPEG files ("<frame_index>.jpg" format).
+@@ -209,7 +210,7 @@ def load_video_frames_from_video_file(
+     offload_video_to_cpu,
+     img_mean=(0.5, 0.5, 0.5),
+     img_std=(0.5, 0.5, 0.5),
+-    compute_device=torch.device("cuda"),
++    compute_device=torch.device(sam3_device()),
+ ):
+     """Load the video frames from a video file."""
+     import decord
+diff --git a/sam3/model/video_tracking_multiplex.py b/sam3/model/video_tracking_multiplex.py
+index 8de125a..6865d23 100644
+--- a/sam3/model/video_tracking_multiplex.py
++++ b/sam3/model/video_tracking_multiplex.py
+@@ -25,6 +25,7 @@ except ImportError:
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.distributed
+ import torch.nn as nn
+ import torch.nn.functional as F
+@@ -1421,7 +1422,7 @@ class VideoTrackingMultiplex(nn.Module):
+                     continue
+                 # "maskmem_features" might have been offloaded to CPU in demo use cases,
+                 # so we load it back to GPU (it's a no-op if it's already on GPU).
+-                feats = feats.cuda(non_blocking=True)
++                feats = feats.to(sam3_device(), non_blocking=True)
+                 if feats.dim() == 5:
+                     feats = multiplex_state.demux(feats).contiguous()
+                     prev["maskmem_features"] = (
+@@ -1440,7 +1441,7 @@ class VideoTrackingMultiplex(nn.Module):
+                 maskmem_enc = maskmem_pos_list[-1]
+                 if maskmem_enc is None:
+                     continue
+-                maskmem_enc = maskmem_enc.cuda(non_blocking=True)
++                maskmem_enc = maskmem_enc.to(sam3_device(), non_blocking=True)
+                 if maskmem_enc.dim() == 5:
+                     maskmem_enc = multiplex_state.demux(maskmem_enc).contiguous()
+                     prev["maskmem_pos_enc"][-1] = (
+@@ -1465,8 +1466,8 @@ class VideoTrackingMultiplex(nn.Module):
+ 
+                 if self.save_image_features:
+                     # image features are in (HW)BC
+-                    image_feat = prev["image_features"].cuda()
+-                    image_pos_embed = prev["image_pos_enc"].cuda() + tpos_enc
++                    image_feat = prev["image_features"].to(sam3_device())
++                    image_pos_embed = prev["image_pos_enc"].to(sam3_device()) + tpos_enc
+                     # pyrefly: ignore [unbound-name]
+                     to_cat_image_feat.append(image_feat)
+                     # pyrefly: ignore [unbound-name]
+diff --git a/sam3/model/video_tracking_multiplex_demo.py b/sam3/model/video_tracking_multiplex_demo.py
+index 8afa7c2..97406cd 100644
+--- a/sam3/model/video_tracking_multiplex_demo.py
++++ b/sam3/model/video_tracking_multiplex_demo.py
+@@ -5,6 +5,7 @@ from typing import Iterable, Optional
+ 
+ import numpy as np
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ from sam3.model.data_misc import NestedTensor
+ from sam3.model.io_utils import load_video_frames
+ from sam3.model.multiplex_utils import MultiplexState
+@@ -95,11 +96,11 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+         # the original video height and width, used for resizing final output scores
+         inference_state["video_height"] = video_height
+         inference_state["video_width"] = video_width
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = torch.device(sam3_device())
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = torch.device(sam3_device())
+         # inputs on each frame
+         inference_state["point_inputs_per_obj"] = {}
+         inference_state["mask_inputs_per_obj"] = {}
+@@ -1417,9 +1418,7 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+                     )
+ 
+                 if prev_out is not None and prev_out["pred_masks"] is not None:
+-                    prev_sam_mask_logits_singleton = prev_out["pred_masks"].cuda(
+-                        non_blocking=True
+-                    )
++                    prev_sam_mask_logits_singleton = prev_out["pred_masks"].to(sam3_device(), non_blocking=True)
+                     prev_sam_mask_logits_singleton = torch.clamp(
+                         prev_sam_mask_logits_singleton, -32.0, 32.0
+                     )
+@@ -2634,7 +2633,7 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+         )
+         if backbone_out is None:
+             # Cache miss -- we will run inference on a single image
+-            image = inference_state["images"][frame_idx].cuda().float().unsqueeze(0)
++            image = inference_state["images"][frame_idx].to(sam3_device()).float().unsqueeze(0)
+             # TODO: We should optimize this because we don't always need all three outs
+             backbone_out = self.forward_image(
+                 NestedTensor(tensors=image, mask=None),
+@@ -3202,7 +3201,7 @@ class VideoTrackingMultiplexDemo(VideoTrackingDynamicMultiplex):
+                 obj_output_dict["non_cond_frame_outputs"].pop(t, None)
+ 
+     @torch.inference_mode()
+-    @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
++    @torch.autocast(device_type=sam3_device(), dtype=torch.bfloat16)
+     def warm_up_compilation(
+         self, offload_video_to_cpu=False, offload_state_to_cpu=False
+     ):
+@@ -3252,11 +3251,11 @@ class Sam3VideoTrackingMultiplexDemo(VideoTrackingMultiplexDemo):
+         # the original video height and width, used for resizing final output scores
+         inference_state["video_height"] = video_height
+         inference_state["video_width"] = video_width
+-        inference_state["device"] = torch.device("cuda")
++        inference_state["device"] = torch.device(sam3_device())
+         if offload_state_to_cpu:
+             inference_state["storage_device"] = torch.device("cpu")
+         else:
+-            inference_state["storage_device"] = torch.device("cuda")
++            inference_state["storage_device"] = torch.device(sam3_device())
+         # inputs on each frame
+         inference_state["point_inputs_per_obj"] = {}
+         inference_state["mask_inputs_per_obj"] = {}
+diff --git a/sam3/model/vl_combiner.py b/sam3/model/vl_combiner.py
+index c07fe91..7edd803 100644
+--- a/sam3/model/vl_combiner.py
++++ b/sam3/model/vl_combiner.py
+@@ -8,6 +8,7 @@ from copy import copy
+ from typing import List, Optional
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn as nn
+ from torch.nn.attention import sdpa_kernel, SDPBackend
+ 
+@@ -122,7 +123,7 @@ class SAM3VLBackbone(nn.Module):
+         return output
+ 
+     def forward_text(
+-        self, captions, input_boxes=None, additional_text=None, device="cuda"
++        self, captions, input_boxes=None, additional_text=None, device=sam3_device()
+     ):
+         return activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
+             captions=captions,
+@@ -137,7 +138,7 @@ class SAM3VLBackbone(nn.Module):
+         captions,
+         input_boxes=None,
+         additional_text=None,
+-        device="cuda",
++        device=sam3_device(),
+     ):
+         output = {}
+ 
+@@ -326,7 +327,7 @@ class VisionOnly(nn.Module):
+         captions,
+         input_boxes=None,
+         additional_text=None,
+-        device="cuda",
++        device=sam3_device(),
+     ):
+         bs = len(captions)
+         output = {
+diff --git a/sam3/model_builder.py b/sam3/model_builder.py
+index 602906b..779ea29 100644
+--- a/sam3/model_builder.py
++++ b/sam3/model_builder.py
+@@ -5,8 +5,8 @@
+ import os
+ from typing import Optional
+ 
+-import pkg_resources
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn as nn
+ from huggingface_hub import hf_hub_download
+ from iopath.common.file_io import g_pathmgr
+@@ -564,7 +564,7 @@ def _load_checkpoint(model, checkpoint_path):
+ def _setup_device_and_mode(model, device, eval_mode):
+     """Setup model device and evaluation mode."""
+     if device == "cuda":
+-        model = model.cuda()
++        model = model.to(sam3_device())
+     if eval_mode:
+         model.eval()
+     return model
+@@ -572,7 +572,7 @@ def _setup_device_and_mode(model, device, eval_mode):
+ 
+ def build_sam3_image_model(
+     bpe_path=None,
+-    device="cuda" if torch.cuda.is_available() else "cpu",
++    device=sam3_device() if torch.cuda.is_available() else "cpu",
+     eval_mode=True,
+     checkpoint_path=None,
+     load_from_HF=True,
+@@ -596,8 +596,8 @@ def build_sam3_image_model(
+         A SAM3 image model
+     """
+     if bpe_path is None:
+-        bpe_path = pkg_resources.resource_filename(
+-            "sam3", "assets/bpe_simple_vocab_16e6.txt.gz"
++        bpe_path = os.path.join(  # MicroscopeMind patch: no pkg_resources (gone from setuptools>=81)
++            os.path.dirname(__file__), "assets", "bpe_simple_vocab_16e6.txt.gz"
+         )
+ 
+     # Create visual components
+@@ -681,7 +681,7 @@ def build_sam3_video_model(
+     geo_encoder_use_img_cross_attn: bool = True,
+     strict_state_dict_loading: bool = True,
+     apply_temporal_disambiguation: bool = True,
+-    device="cuda" if torch.cuda.is_available() else "cpu",
++    device=sam3_device() if torch.cuda.is_available() else "cpu",
+     compile=False,
+ ) -> Sam3VideoInferenceWithInstanceInteractivity:
+     """
+@@ -695,8 +695,8 @@ def build_sam3_video_model(
+         Sam3VideoInferenceWithInstanceInteractivity: The instantiated dense tracking model
+     """
+     if bpe_path is None:
+-        bpe_path = pkg_resources.resource_filename(
+-            "sam3", "assets/bpe_simple_vocab_16e6.txt.gz"
++        bpe_path = os.path.join(  # MicroscopeMind patch: no pkg_resources (gone from setuptools>=81)
++            os.path.dirname(__file__), "assets", "bpe_simple_vocab_16e6.txt.gz"
+         )
+ 
+     # Build Tracker module
+@@ -941,7 +941,7 @@ def build_sam3_multiplex_video_model(
+     use_fa3: bool = False,
+     use_rope_real: bool = False,
+     strict_state_dict_loading: bool = True,
+-    device="cuda" if torch.cuda.is_available() else "cpu",
++    device=sam3_device() if torch.cuda.is_available() else "cpu",
+     compile=False,
+ ):
+     """
+@@ -1105,8 +1105,8 @@ def build_sam3_multiplex_video_predictor(
+         Sam3MultiplexVideoPredictor: The fully-initialized predictor
+     """
+     if bpe_path is None:
+-        bpe_path = pkg_resources.resource_filename(
+-            "sam3", "assets/bpe_simple_vocab_16e6.txt.gz"
++        bpe_path = os.path.join(  # MicroscopeMind patch: no pkg_resources (gone from setuptools>=81)
++            os.path.dirname(__file__), "assets", "bpe_simple_vocab_16e6.txt.gz"
+         )
+ 
+     from sam3.model.sam3_multiplex_base import Sam3MultiplexPredictorWrapper
+@@ -1116,9 +1116,11 @@ def build_sam3_multiplex_video_predictor(
+     )
+     from sam3.model.sam3_multiplex_video_predictor import Sam3MultiplexVideoPredictor
+ 
+-    # Build tracker
++    # Build tracker. Its weights come with the whole model's load below (the checkpoint's keys are all
++    # "tracker."/"detector." prefixed, so loading it into the bare tracker here matched none of them and read
++    # 3.5 GB for nothing). MicroscopeMind patch.
+     tracker_model = build_sam3_multiplex_video_model(
+-        checkpoint_path=checkpoint_path,
++        checkpoint_path=None,
+         load_from_HF=False,
+         multiplex_count=multiplex_count,
+         use_fa3=use_fa3,
+@@ -1202,7 +1204,9 @@ def build_sam3_multiplex_video_predictor(
+     if checkpoint_path is None:
+         checkpoint_path = download_ckpt_from_hf(version="sam3.1")
+     if checkpoint_path is not None:
+-        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
++        # Mapped, not read whole: the weights are copied into the model from the file's pages, so the load
++        # never holds a second 3.5 GB copy in memory. MicroscopeMind patch.
++        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True, mmap=True)
+         if "model" in ckpt and isinstance(ckpt["model"], dict):
+             ckpt = ckpt["model"]
+         # Remap checkpoint keys if needed (internal naming -> OSS naming)
+@@ -1228,7 +1232,7 @@ def build_sam3_multiplex_video_predictor(
+                 f"Unexpected keys ({len(unexpected_keys)}): {unexpected_keys[:10]}..."
+             )
+ 
+-    demo_model.cuda().eval()
++    demo_model.to(sam3_device()).eval()
+ 
+     # Wrap in predictor
+     predictor = Sam3MultiplexVideoPredictor(
+diff --git a/sam3/perflib/fused.py b/sam3/perflib/fused.py
+index 6800cca..83578cd 100644
+--- a/sam3/perflib/fused.py
++++ b/sam3/perflib/fused.py
+@@ -10,6 +10,15 @@ addmm_act_op = torch.ops.aten._addmm_activation
+ def addmm_act(activation, linear, mat1):
+     if torch.is_grad_enabled():
+         raise ValueError("Expected grad to be disabled.")
++    if not mat1.is_cuda:
++        # MicroscopeMind patch: the fused bf16 kernel exists only on CUDA; elsewhere
++        # (MPS/CPU) compute the same linear + activation unfused in the input dtype.
++        y = torch.nn.functional.linear(mat1, linear.weight.detach().to(mat1.dtype), linear.bias.detach().to(mat1.dtype))
++        if activation in [torch.nn.functional.relu, torch.nn.ReLU]:
++            return torch.nn.functional.relu(y)
++        if activation in [torch.nn.functional.gelu, torch.nn.GELU]:
++            return torch.nn.functional.gelu(y)
++        raise ValueError(f"Unexpected activation {activation}")
+     self = linear.bias.detach()
+     mat2 = linear.weight.detach()
+     self = self.to(torch.bfloat16)
+diff --git a/sam3/sam/transformer.py b/sam3/sam/transformer.py
+index 9babcee..ec25c31 100644
+--- a/sam3/sam/transformer.py
++++ b/sam3/sam/transformer.py
+@@ -7,6 +7,7 @@ from functools import partial
+ from typing import Tuple, Type
+ 
+ import torch
++from sam3._device import is_cuda, sam3_device  # MicroscopeMind patch
+ import torch.nn.functional as F
+ from sam3.sam.rope import apply_rotary_enc, apply_rotary_enc_real, compute_axial_cis
+ from torch import nn, Tensor
+@@ -284,7 +285,7 @@ class RoPEAttention(Attention):
+         self.compute_cis = partial(
+             compute_axial_cis, dim=self.internal_dim // self.num_heads, theta=rope_theta
+         )
+-        device = torch.device("cuda") if torch.cuda.is_available() else None
++        device = torch.device(sam3_device())  # MicroscopeMind patch: MPS and CPU too
+         self.freqs_cis = self.compute_cis(
+             end_x=feat_sizes[0], end_y=feat_sizes[1], device=device
+         )
+@@ -312,6 +313,12 @@ class RoPEAttention(Attention):
+             self.freqs_cis = self.compute_cis(end_x=w, end_y=h, device=q.device)
+             self.freqs_cis_real = self.freqs_cis.real
+             self.freqs_cis_imag = self.freqs_cis.imag
++        elif self.freqs_cis.device != q.device:
++            # MicroscopeMind patch: these tables are plain attributes (not buffers), so
++            # model.to(device) does not move them; follow the input's device instead.
++            self.freqs_cis = self.freqs_cis.to(q.device)
++            self.freqs_cis_real = self.freqs_cis.real
++            self.freqs_cis_imag = self.freqs_cis.imag
+         if q.shape[-2] != k.shape[-2]:
+             assert self.rope_k_repeat
+ 

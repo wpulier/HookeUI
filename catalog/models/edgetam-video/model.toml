@@ -1,0 +1,26 @@
+# The follower's model: outlines that follow their own thing (option TRACK "objects").
+id = "edgetam-video"
+name = "EdgeTAM video"
+runs = "this-mac"
+version = "yonigozlan/EdgeTAM-hf"
+licence = ["edgetam"]
+kind = "model"
+what = "Follows outlined things from frame to frame"
+runner = "gpu-worker"
+source = { hf = "yonigozlan/EdgeTAM-hf", revision = "c266ce53b3fc00f0f495b583f6a116c4e57f53bb" }
+files_from = "edgetam"
+needs_to_get = ["download"]
+needs_to_run = []
+credit = { authors = "Meta Reality Labs (EdgeTAM); Hugging Face port by yonigozlan", link = "https://github.com/facebookresearch/EdgeTAM" }
+workers = ["follow"]
+protected_on = ["follow"]
+host = "shared"
+documented_mb = 400
+peak_mb = 400
+load_limit_s = 300
+
+[[implements]]
+operation = "track"
+impl = "edgetam-video"
+input = "clip.2d.rgb8"
+output = "masks.2d"

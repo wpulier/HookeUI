@@ -1,0 +1,8 @@
+id = "roboflow"
+name = "Roboflow"
+key = "ROBOFLOW_API_KEY"
+enables = "Nothing in the studio yet: used by the benches"
+get_key = "https://app.roboflow.com/settings/api"
+licence = ""
+test = "orchestrator/key_tests.py: roboflow, one free authenticated GET"
+costs = "billed by Roboflow per call; used by benches only"

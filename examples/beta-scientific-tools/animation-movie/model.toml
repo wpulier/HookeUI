@@ -1,0 +1,20 @@
+requires = { catalog = 4 }
+id = "animation-movie"
+name = "napari-animation"
+runs = "cpu"
+version = "2-camera-recipe"
+licence = ["animation-movie"]
+runner = "python-env"
+env = { python = "3.12.11", lock = "env.lock", imports = ["napari", "magicgui", "vispy", "napari_animation"], wheels = [{ file = "napari-0.7.1.dev0-py3-none-any.whl", sha256 = "ea1b1d4681556c3d811a334d60ce3f812e91600081eec74a1874d232fecbaf4f", bytes = 3764877 }] }
+needs_to_run = ["install:animation-movie"]
+component = { what = "Private synthetic scientific host", licence = "MIT", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+[[members]]
+id = "viewer"
+category = "Present/Animation"
+search_aliases = ["animate", "movie", "camera motion", "export video"]
+name = "napari-animation"
+description = "Create camera keyframes, preview motion and export a movie. Private review candidate; preparation alone does not qualify scientific results, keyboard use or independent workflows."
+adapter = "adapter:open_host"
+bridge = "scientific-host-v1"
+inputs = [{id = "project", type = "project.scientific"}]
+outputs = [{id = "result", type = "project.scientific"}]

@@ -1,0 +1,245 @@
+{
+ "acquired": {
+  "actions": [
+   "read"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "a1",
+  "kind": "asset",
+  "madeBy": {
+   "from": "example"
+  },
+  "maker": null,
+  "pictures": [],
+  "placement": null,
+  "product": false,
+  "role": "acquired",
+  "run": null,
+  "source": {},
+  "state": "done",
+  "summary": "a picture",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Human cells \u00b7 David Root (CC0)"
+ },
+ "analysis": {
+  "actions": [
+   "open",
+   "read",
+   "show",
+   "hide",
+   "highlight",
+   "query"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "e2",
+  "kind": "population",
+  "madeBy": {
+   "execution": "x1-1",
+   "for": "Researcher 1",
+   "implementation": "cellpose-sam",
+   "operation": "cells",
+   "origin": "background"
+  },
+  "maker": {
+   "id": "r1",
+   "kind": "researcher",
+   "name": "Researcher 1"
+  },
+  "pictures": [
+   "/api/resources/e2/picture?day=<DAY>"
+  ],
+  "placement": null,
+  "product": true,
+  "role": "analysis",
+  "run": "x1-1",
+  "source": {},
+  "state": "done",
+  "summary": "341 cells",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Cell outlines, for Researcher 1 \u00b7 Cellpose-SAM \u00b7 10:05",
+  "version": 0
+ },
+ "analysis (one run)": {
+  "actions": [
+   "open",
+   "read"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "d3",
+  "kind": "result",
+  "madeBy": {
+   "actor": "you",
+   "execution": "x1-2",
+   "implementation": "basic-bright-objects",
+   "tool": "run_capability"
+  },
+  "maker": {
+   "kind": "you",
+   "name": "You"
+  },
+  "pictures": [],
+  "placement": null,
+  "product": false,
+  "role": "analysis",
+  "run": "x1-2",
+  "source": {},
+  "state": "done",
+  "summary": "271 regions",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Bright objects \u00b7 10:06"
+ },
+ "other": {
+  "actions": [
+   "open",
+   "read"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "b1",
+  "kind": "bookmark",
+  "madeBy": {
+   "actor": "assistant",
+   "tool": "bookmark"
+  },
+  "maker": {
+   "kind": "assistant",
+   "name": "The Assistant"
+  },
+  "pictures": [],
+  "placement": null,
+  "product": true,
+  "role": "other",
+  "run": null,
+  "source": {},
+  "state": "done",
+  "summary": "a place on the slide",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Bookmark \u00b7 10:07"
+ },
+ "source": {
+  "actions": [
+   "open",
+   "read"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "r1:source-0f3d1c9b6a2e",
+  "kind": "source",
+  "madeBy": {
+   "name": "Researcher 1",
+   "researcher": "r1",
+   "tool": "start_researcher"
+  },
+  "maker": {
+   "id": "r1",
+   "kind": "researcher",
+   "name": "Researcher 1"
+  },
+  "pictures": [],
+  "placement": null,
+  "product": false,
+  "role": "source",
+  "run": null,
+  "source": {
+   "citedIn": [
+    "r1"
+   ],
+   "researcher": "r1"
+  },
+  "state": "done",
+  "summary": "nature.com",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Cellpose: a generalist algorithm for cellular segmentation",
+  "untrusted": true,
+  "values": {
+   "site": "www.nature.com",
+   "title": "Cellpose: a generalist algorithm for cellular segmentation",
+   "url": "https://www.nature.com/articles/s41592-020-01018-x"
+  }
+ },
+ "unlisted": {
+  "actions": [
+   "read"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "id": "u1a2b3c",
+  "kind": "outcome",
+  "madeBy": {
+   "tool": "runner"
+  },
+  "maker": null,
+  "pictures": [],
+  "placement": null,
+  "product": false,
+  "role": null,
+  "run": null,
+  "source": {},
+  "state": "done",
+  "summary": "3 runs",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Outcome \u00b7 Cellpose-SAM, cells"
+ },
+ "writeup": {
+  "actions": [
+   "open",
+   "read",
+   "follow up"
+  ],
+  "at": 1791381900,
+  "day": "<DAY>",
+  "forms": [
+   {
+    "at": 1791381900,
+    "label": "Presentation",
+    "outputId": "o2",
+    "state": "ready",
+    "version": 1
+   },
+   {
+    "at": 1791381900,
+    "label": "Findings v2",
+    "state": "ready",
+    "version": 2
+   }
+  ],
+  "id": "r1",
+  "kind": "research",
+  "madeBy": {
+   "effort": "quick",
+   "engine": "gpt-6.1-sol",
+   "tool": "start_researcher"
+  },
+  "maker": {
+   "id": "r1",
+   "kind": "researcher",
+   "name": "Researcher 1"
+  },
+  "pictures": [],
+  "placement": null,
+  "product": true,
+  "role": "writeup",
+  "run": null,
+  "source": {
+   "pictures": [],
+   "researcher": "r1",
+   "written": true
+  },
+  "state": "done",
+  "summary": "Researcher 1 (bright regions): done",
+  "thread": null,
+  "time": "10:05:00",
+  "title": "Bright regions in Human cells",
+  "untrusted": true,
+  "version": 2
+ }
+}

@@ -1,0 +1,50 @@
+{
+  "valid": {
+    "contour": 2,
+    "selectedLabel": "18446744073709551615",
+    "showSelectedLabel": true,
+    "colorMode": "direct",
+    "backgroundValue": "0",
+    "autoSource": "seeded",
+    "autoSeed": 12345,
+    "directColors": [
+      {"label": null, "color": [1, 1, 1, 1]},
+      {"label": "0", "color": [0, 0, 0, 0]},
+      {"label": "9223372036854775807", "color": [1, 0, 0, 1]}
+    ],
+    "rendering": "iso_categorical",
+    "isoGradientMode": "smooth"
+  },
+  "otherValid": [
+    {"name": "original automatic colors", "patch": {"colorMode": "auto", "autoSource": "original", "autoSeed": null}},
+    {"name": "Python-set automatic colors", "patch": {"colorMode": "auto", "autoSource": "other", "autoSeed": null}},
+    {"name": "too many direct colors to show", "patch": {"colorMode": "auto", "directColors": null}},
+    {"name": "negative signed labels", "patch": {"selectedLabel": "-9223372036854775808", "backgroundValue": "-1"}},
+    {"name": "largest seed", "patch": {"autoSeed": 4294967294}}
+  ],
+  "invalid": [
+    {"name": "negative contour", "patch": {"contour": -1}},
+    {"name": "fractional contour", "patch": {"contour": 1.5}},
+    {"name": "boolean contour", "patch": {"contour": true}},
+    {"name": "contour beyond safe integers", "patch": {"contour": 9007199254740992}},
+    {"name": "numeric selected label", "patch": {"selectedLabel": 5}},
+    {"name": "leading zero label", "patch": {"selectedLabel": "007"}},
+    {"name": "negative zero label", "patch": {"backgroundValue": "-0"}},
+    {"name": "fractional label", "patch": {"selectedLabel": "1.5"}},
+    {"name": "string show selected", "patch": {"showSelectedLabel": "true"}},
+    {"name": "unknown color mode", "patch": {"colorMode": "selected"}},
+    {"name": "seeded without seed", "patch": {"autoSeed": null}},
+    {"name": "original with seed", "patch": {"autoSource": "original"}},
+    {"name": "seed above napari range", "patch": {"autoSeed": 4294967295}},
+    {"name": "negative seed", "patch": {"autoSeed": -1}},
+    {"name": "direct without colors", "patch": {"directColors": null}},
+    {"name": "color outside unit range", "patch": {"directColors": [{"label": "1", "color": [1.5, 0, 0, 1]}]}},
+    {"name": "three channel color", "patch": {"directColors": [{"label": "1", "color": [1, 0, 0]}]}},
+    {"name": "duplicate direct label", "patch": {"directColors": [{"label": "1", "color": [1, 0, 0, 1]}, {"label": "1", "color": [0, 1, 0, 1]}]}},
+    {"name": "numeric direct label", "patch": {"directColors": [{"label": 1, "color": [1, 0, 0, 1]}]}},
+    {"name": "unsupported rendering", "patch": {"rendering": "mip"}},
+    {"name": "unsupported gradient", "patch": {"isoGradientMode": "sobel"}},
+    {"name": "missing field", "remove": "isoGradientMode"},
+    {"name": "extra field", "patch": {"colormap": "glasbey"}}
+  ]
+}

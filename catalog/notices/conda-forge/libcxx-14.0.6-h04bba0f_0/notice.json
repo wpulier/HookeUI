@@ -1,0 +1,24 @@
+{
+ "package": "libcxx",
+ "version": "14.0.6",
+ "build": "h04bba0f_0",
+ "subdir": "osx-arm64",
+ "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libcxx-14.0.6-h04bba0f_0.tar.bz2",
+ "sha256": "87377a1175a739ec975381b2d4e1a5a6e3d344314c9a3ad59c1b87d1beba6d76",
+ "bytes": 1379919,
+ "licence": "Apache-2.0 WITH LLVM-exception",
+ "home": "http://libcxx.llvm.org/",
+ "source": "https://github.com/llvm/llvm-project",
+ "summary": "LLVM C++ standard library",
+ "component": "libcxx",
+ "builtAt": 1656324619722,
+ "licenceFiles": [
+  {
+   "inPackage": "info/licenses/libcxx/LICENSE.TXT",
+   "file": "libcxx__LICENSE.TXT",
+   "bytes": 16703,
+   "sha256": "539dd7aed86e8a4f12cbdd0e6c50c189c7d74847e4fecc64ce2c6ee3a01da38b"
+  }
+ ],
+ "readFrom": "the package's own info/about.json, info/index.json and info/licenses/, checked by its pinned sha256"
+}

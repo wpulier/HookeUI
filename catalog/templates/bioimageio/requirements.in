@@ -1,0 +1,8 @@
+# The bioimage.io template's own Python: what adapter.py imports, every package pinned by its hash in env.lock
+# (uv pip compile requirements.in --generate-hashes --python-version 3.13 --python-platform aarch64-apple-darwin -o env.lock,
+# MACOSX_DEPLOYMENT_TARGET=14.0).
+torch==2.14.1
+onnxruntime
+numpy
+scipy
+pyyaml

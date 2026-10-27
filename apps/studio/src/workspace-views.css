@@ -1,0 +1,125 @@
+[data-workspace-hidden=true]{display:none!important}
+.workspace-specimen{position:absolute!important;display:flex;flex-direction:column;border:1px solid var(--mm-line-strong);border-radius:8px;background:var(--mm-well);overflow:hidden;z-index:1;min-width:0}
+.workspace-specimen[hidden]{display:none!important}.workspace-specimen-full{width:auto!important;height:auto!important;border:0;border-radius:0}
+.workspace-specimen-bar{display:flex;align-items:center;gap:8px;flex-shrink:0;height:34px;padding:0 10px;color:var(--mm-text-2);background:var(--mm-bar);font:11px var(--mm-sans);cursor:grab;touch-action:none}
+.workspace-specimen-bar>span{flex:1}.workspace-specimen-bar button{font:inherit;padding:5px;border:0;border-radius:4px;background:var(--mm-card);color:var(--mm-text);cursor:pointer}
+.workspace-specimen-content{position:relative;flex:1;min-height:0}.workspace-specimen .fwin-grip{position:absolute;bottom:0;right:0;width:28px;height:28px;display:grid;place-items:center;color:#ddd;background:#333a;cursor:nwse-resize;z-index:3}.workspace-specimen-full .fwin-grip{display:none}.workspace-specimen .fwin-handle{display:none}
+.workspace-view-empty{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);width:min(400px,90%);text-align:center;color:var(--mm-text-2);font:14px var(--mm-sans)}.workspace-view-empty[hidden]{display:none}.workspace-view-empty h2{font-size:20px;color:var(--mm-text)}.workspace-view-empty button{padding:10px;margin:4px;background:var(--mm-card);color:var(--mm-text);border:1px solid var(--mm-line);border-radius:5px}
+.workspace-note{display:flex;flex-direction:column;gap:10px;padding:14px!important}.workspace-note input{font:600 15px var(--mm-sans);background:transparent;color:var(--mm-text);border:0;border-bottom:1px solid var(--mm-line);padding:5px}.workspace-note textarea{flex:1;min-height:100px;resize:none;background:transparent;color:var(--mm-text);border:0;font:14px/1.65 var(--mm-sans);padding:4px}.workspace-note small,.workspace-note-status{font-size:11px;color:var(--mm-text-2)}.workspace-note button{align-self:flex-end;color:var(--mm-text);background:var(--mm-card);border:1px solid var(--mm-line);padding:6px 10px;border-radius:4px}
+body[data-workspace-study=true] .study-source-bar{pointer-events:none;top:38px}.workspace-specimen :focus-visible{outline:2px solid var(--mm-accent);outline-offset:-2px}
+
+/* The legacy example row must not create implicit columns in the persistent shell. */
+body[data-workspace-study=true] #example-guide{position:fixed;grid-area:auto;bottom:48px;right:12px;max-width:360px;z-index:110}
+/* In that width its one line kept only the controls: the step and its sentence were cut to "1 o" (VM, 2026-10-19).
+   The sentence takes its own line above them. */
+body[data-workspace-study=true] #example-guide{flex-wrap:wrap;row-gap:6px;padding-top:10px;padding-bottom:10px}
+body[data-workspace-study=true] #example-guide .example-text{flex-basis:100%;flex-wrap:wrap;row-gap:4px}
+body[data-workspace-study=true] #example-guide :is(.example-words,.example-status){white-space:normal;overflow:visible}
+/* The full-size specimen window (z 30, the stage's first child) covered the stage's own overlays: the empty stage's
+   box, the hint and outline controls, and the magnifier where a result made on an image is shown (VM, 2026-10-19:
+   "Find bright objects" reported its outlines shown, behind the specimen). Level with it and later in the stage,
+   they sit above it, as .stage-status does, and below the artifacts' windows (35). */
+body[data-workspace-study=true] #stage>:is(#session-home,#magnifier,.stage-corner){z-index:30}
+
+html[data-workspace-study=true],body[data-workspace-study=true]{overflow:clip;height:100dvh}
+body[data-workspace-study=true] #stage{overflow:hidden}
+body[data-workspace-specimen-visible=false] :is(.study-source-bar,#hint){visibility:hidden}
+
+body[data-workspace-study=true] .workspace-specimen-bar .study-source-bar{position:static;inset:auto;min-width:0;flex:1;font-size:11px;color:var(--mm-text-2);overflow:hidden;pointer-events:none}
+.workspace-specimen-bar .study-source-bar>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.workspace-specimen-bar .study-source-mode{display:none}
+body[data-workspace-study=true]{display:flow-root}
+/* Base Studio's mobile min-height includes its old header; this shell owns that row. */
+body[data-workspace-study=true]:not([data-study-layout=baseline]) .studio{min-height:0!important;height:calc(100dvh - var(--study-top))!important}
+.workspace-recovery-dialog{width:min(680px,calc(100vw - 32px));max-height:85dvh;overflow:auto;background:var(--mm-card);color:var(--mm-text);border:1px solid var(--mm-line-strong);border-radius:12px;padding:20px;font:13px/1.5 var(--mm-sans)}
+.workspace-recovery-dialog::backdrop{background:#0007}.workspace-recovery-dialog button{background:var(--mm-raise);color:var(--mm-text);border:1px solid var(--mm-line);padding:8px 12px;border-radius:5px;margin:4px;cursor:pointer}.workspace-recovery-dialog label{display:block;padding:8px;overflow-wrap:anywhere}.workspace-management-row{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--mm-line);padding:8px 0}.workspace-management-row strong{flex:1;min-width:0;overflow-wrap:anywhere}.workspace-note-conflict{flex-shrink:0;background:var(--mm-card);padding:10px}.workspace-note-conflict:empty{display:none}.workspace-note-conflict textarea{width:100%;min-height:80px}.workspace-note details pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto}.workspace-view-tab [role=tab]{max-width:190px;overflow:hidden;text-overflow:ellipsis}
+body[data-workspace-specimen-visible=false] #session-home{display:none!important}
+@media(max-width:1199px){.study-right-panel{position:fixed;top:52px;bottom:0;max-width:calc(100vw - var(--study-rail));z-index:110}.study-right-panel{box-shadow:-12px 0 32px #0007}.workspace-management-row{flex-wrap:wrap}.workspace-management-row strong{flex-basis:100%}}
+.study-document-artifact .library-head{padding:8px;gap:6px;flex-wrap:wrap}.study-document-artifact .library-head h1{font-size:14px}.study-document-artifact .meas-note{padding:4px 8px;font-size:11px;margin:0}.study-document-artifact .meas-table-wrap{overflow:auto;flex:1}.study-document-artifact th{position:sticky;top:0;background:var(--mm-card);z-index:1}.study-document-artifact .meas-sort{padding:6px 8px}.study-document-artifact td{padding:5px 8px}
+body[data-workspace-specimen-visible=false] #layer-controls{display:none!important}
+
+.workspace-specimen-bar .workspace-specimen-synced{flex:0 1 auto;color:var(--mm-accent-on-soft);font-size:10px;white-space:nowrap;border-left:1px solid var(--mm-line-strong);padding-left:10px}
+
+.study-shell-notice{bottom:112px;display:flex;align-items:flex-start;gap:12px;max-width:min(500px,calc(100vw - 100px))}.study-shell-notice button{border:0;background:transparent;color:inherit;cursor:pointer;padding:2px 6px;font-size:16px}
+
+
+
+.study-projects-label{font:700 10px var(--mm-sans);letter-spacing:.09em;text-transform:uppercase;color:var(--mm-text-2);flex-shrink:0;padding:6px 8px;border:0;border-radius:6px;background:transparent;cursor:pointer}.study-projects-label:hover,.study-projects-label[aria-expanded='true']{color:var(--mm-text);background:var(--mm-hover,#ffffff14)}
+
+.lib-organization{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0 24px;font:12px/1.5 var(--mm-sans);color:var(--mm-text-2)}
+.lib-organize{padding:8px 12px;border:1px solid var(--mm-line-strong);border-radius:6px;background:var(--mm-card);color:var(--mm-text);cursor:pointer}
+.lib-package-note{font:12px/1.5 var(--mm-sans);color:var(--mm-text-2);margin:8px 0}.lib-package-note a{color:var(--mm-accent-on-soft);text-decoration:underline}
+.lib-catalog-content>.lib-words{margin-bottom:12px}.lib-catalog-content>.lib-words .lib-title{font:600 20px/1.3 var(--mm-sans);margin:0 0 8px}.lib-catalog-content>.lib-words .lib-lead{font:13px/1.5 var(--mm-sans);max-width:650px;margin:0}
+
+/* Compact drawers stay attached to the rail; controls remain in predictable rows. */
+body[data-workspace-study=true] :is(.study-drawer,.study-data-window){border-right:1px solid var(--mm-line)}
+
+.workspace-note textarea:focus-visible{outline:1px solid var(--mm-accent);outline-offset:3px;border-radius:3px}
+/* The drawer and the Data window come and go with the Stage in one motion (side-motion.ts): no fade of their own, and
+   switching between them while one is open shows the other in place, never fading in from the page colour. */
+.workspace-note-footer{display:flex;align-items:center;gap:10px;padding-right:20px;flex-shrink:0}.workspace-note-meta{display:grid;gap:4px;flex:1;min-width:0}.workspace-note-footer button{align-self:center;white-space:nowrap}
+
+/* The Tab row, the Stage bar, the Stage and the Working strip: workspace-feel.css lays them out and draws them. */
+
+body[data-workspace-study=true] #study-artifacts{bottom:0}
+body[data-workspace-study=true] .workspace-specimen-full{inset:0!important;bottom:0!important}
+
+/* Send to Tab (one way to move or also show a window), "Also in" (where else it is) and what just happened. */
+.workspace-also-in{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font:11px/1.4 var(--mm-sans);color:var(--mm-text-2)}.workspace-also-in[hidden]{display:none}
+.workspace-also-in button{font:500 11px/1.4 var(--mm-sans);color:var(--mm-text);background:var(--mm-card);border:1px solid var(--mm-line);border-radius:999px;padding:2px 9px;cursor:pointer;text-decoration:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workspace-also-in button:hover{border-color:var(--mm-accent);color:var(--mm-accent)}
+/* A toast just below the Tab row, so saying what happened never reflows the row's own controls. */
+.workspace-send-dialog{width:min(380px,92vw)}
+.workspace-send-mode{display:inline-flex;gap:0;border:1px solid var(--mm-line);border-radius:7px;padding:2px}
+.workspace-recovery-dialog .workspace-send-mode button{margin:0;border:0;border-radius:5px;background:transparent;color:var(--mm-text-2)}
+.workspace-recovery-dialog .workspace-send-mode button[aria-pressed=true]{background:var(--mm-raise);color:var(--mm-text);font-weight:600}
+.workspace-send-hint{margin:6px 0 10px;font-size:12px;color:var(--mm-text-2)}
+.workspace-send-list{display:grid;gap:4px}.workspace-recovery-dialog .workspace-send-list button{margin:0;text-align:left;overflow-wrap:anywhere}
+.workspace-recovery-dialog .workspace-send-list .workspace-send-new{border-style:dashed;color:var(--mm-accent)}
+.workspace-dialog-header{position:sticky;top:-20px;z-index:1;display:flex;align-items:center;gap:16px;margin:-20px -20px 16px;padding:14px 20px;background:var(--mm-card);border-bottom:1px solid var(--mm-line)}
+.workspace-dialog-header h2{flex:1;margin:0;font-size:18px;line-height:1.3}
+.workspace-dialog-header button{flex:none}
+.workspace-recovery-candidate{border:1px solid var(--mm-line);border-radius:8px;padding:12px;margin:12px 0}
+.workspace-recovery-candidate h3{margin:0 0 8px;font-size:13px}
+.workspace-recovery-candidate details{padding:0 8px 10px;color:var(--mm-text-2)}
+.workspace-recovery-candidate summary{cursor:pointer}
+.workspace-recovery-contents{margin:8px 0;padding-left:20px;overflow-wrap:anywhere}
+.workspace-recovery-intro{color:var(--mm-text-2)}
+.workspace-recovery-dialog button:focus-visible,.workspace-recovery-dialog summary:focus-visible,.workspace-send:focus-visible{outline:2px solid var(--mm-accent);outline-offset:2px}
+@media(max-width:520px){.workspace-dialog-header h2{font-size:15px}.workspace-management-row{flex-wrap:wrap}.workspace-management-row strong{flex-basis:100%}}
+/* Orientation and help (L7e): a Project's tabs while it opens, Help's task finder, recovery and failure notices. */
+.workspace-tabs-opening{padding:0 10px;color:var(--mm-text-2);font-size:12px}
+.study-help-find{display:grid;gap:10px;padding:16px;margin-bottom:8px;border:1px solid var(--mm-line-strong);border-radius:8px;background:var(--mm-card)}
+.study-help-find h3{margin:0;font-size:15px;color:var(--mm-text)}
+.study-help-label{display:grid;gap:6px;color:var(--mm-text-2);font-size:13px}
+.study-help-label input{min-height:40px;padding:8px 12px;border:1px solid var(--mm-line-strong);border-radius:6px;background:var(--mm-bar);color:var(--mm-text);font:inherit}
+.study-help-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.study-help-buttons button{width:auto;margin:0;padding:9px 14px}
+.study-help-examples{display:flex;flex-wrap:wrap;gap:6px}
+.study-help-example{padding:5px 10px;border:1px solid var(--mm-line-strong);border-radius:999px;background:none;color:var(--mm-accent-on-soft);font-size:12px;cursor:pointer}
+.study-help-steps{margin:0;padding-left:20px;display:grid;gap:8px;color:var(--mm-text-2)}
+.study-help-steps strong{color:var(--mm-text)}
+.study-help-steps .study-guide-action{margin:4px 0 0 8px;padding:4px 10px}
+.study-help-terms{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;margin:0}
+.study-help-terms dt{color:var(--mm-text);font-weight:600}
+.study-help-terms dd{margin:0;color:var(--mm-text-2)}
+.study-help-recovery ul{margin:0 0 12px;padding-left:20px;display:grid;gap:6px;color:var(--mm-text-2)}
+.study-help-find :is(button,input):focus-visible,.study-help-example:focus-visible,.study-notice-help:focus-visible{outline:2px solid var(--mm-accent);outline-offset:2px}
+.study-notice-help{margin-left:10px;padding:2px 8px;border:1px solid currentColor;border-radius:5px;background:none;color:inherit;font-size:12px;cursor:pointer}
+.study-agent-local{color:var(--mm-text)}
+@media(max-width:520px){.study-help-terms{grid-template-columns:minmax(0,1fr)}}
+.study-search-catalog{display:block;width:calc(100% - 32px);margin:8px 16px;padding:10px 12px;border:1px solid var(--mm-line-strong);border-radius:6px;background:var(--mm-card);color:var(--mm-accent-on-soft);text-align:left;font-size:13px;cursor:pointer}
+.study-search-catalog[hidden]{display:none}
+/* Closest guesses are labelled as guesses (task-search.ts `partial`); Add model or tool's is a quiet line (workspace-feel.css). */
+.actions-partial{margin:6px 0 10px;padding:8px 10px;border-left:3px solid var(--mm-iodine);background:var(--mm-iodine-soft);color:var(--mm-text);font-size:12px}
+
+/* A failed source switch must never display another input under the previous Tab. */
+body[data-workspace-input-unavailable] .workspace-specimen-content,
+body[data-workspace-input-opening] .workspace-specimen-content { visibility: hidden; }
+
+/* The specimen's way back in a Tab that hid it, and Main as home (no close: it always holds the specimen). */
+.workspace-specimen[data-front=true]:not(.workspace-specimen-full){z-index:36!important}
+/* Dragging onto the Tab row: the Tab (or +) it would land on, and the words beside the pointer. */
+.workspace-view-strip .drop-target{outline:2px solid var(--mm-accent);outline-offset:-2px;border-radius:6px;background:var(--mm-accent-soft,var(--mm-raise))}
+.workspace-drag-hint{position:fixed;z-index:1000;pointer-events:none;padding:4px 10px;border-radius:999px;background:var(--mm-accent);color:#fff;font:600 12px var(--mm-sans);white-space:nowrap;box-shadow:0 6px 18px #0006}
+.workspace-drag-hint[hidden]{display:none}
+

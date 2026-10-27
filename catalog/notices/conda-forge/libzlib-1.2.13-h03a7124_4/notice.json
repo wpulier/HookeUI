@@ -1,0 +1,24 @@
+{
+ "package": "libzlib",
+ "version": "1.2.13",
+ "build": "h03a7124_4",
+ "subdir": "osx-arm64",
+ "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libzlib-1.2.13-h03a7124_4.tar.bz2",
+ "sha256": "a1bf4a1c107838fea4570a7f1750306d65d84fcf2913d4e0d30b4db785e8f223",
+ "bytes": 51037,
+ "licence": "Zlib",
+ "home": "http://zlib.net/",
+ "source": "https://github.com/madler/zlib",
+ "summary": "Massively spiffy yet delicately unobtrusive compression library",
+ "component": "zlib",
+ "builtAt": 1665763965480,
+ "licenceFiles": [
+  {
+   "inPackage": "info/licenses/license.txt",
+   "file": "license.txt",
+   "bytes": 1098,
+   "sha256": "96302669dd680efcb8b3fa845cb735d32efc939357252915eec5fbd84b574343"
+  }
+ ],
+ "readFrom": "the package's own info/about.json, info/index.json and info/licenses/, checked by its pinned sha256"
+}

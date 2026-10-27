@@ -1,0 +1,13 @@
+.study-rail-bottom .app-update-reminder {color:var(--accent,#a9c9ff);border:1px solid #718cba60;border-radius:9px;background:#718cba12;font-size:11px;min-height:36px;margin:5px 6px;padding:6px 3px;}
+.app-update-reminder[hidden] {display:none!important;}
+/* In the workspace's rail it is drawn as the rail's buttons are (workspace-feel.css), in the accent as above, so an update
+   on offer or waiting for its restart is seen. */
+body[data-workspace-study='true'] .study-rail-bottom > button.app-update-reminder {color:var(--mm-accent,#a9c9ff);}
+.app-update-settings {padding:16px;border:1px solid #ffffff22;border-radius:12px;margin-bottom:20px;}
+.app-update-settings h3 {margin:0 0 8px;}
+.app-update-settings p {max-width:65ch;line-height:1.5;}
+.app-update-settings p:last-child {color:var(--muted,#aaa);font-size:13px;}
+.app-update-reminder:focus-visible,.app-update-settings button:focus-visible {outline:2px solid var(--accent,#a9c9ff);outline-offset:3px;}
+
+.app-update-settings button {font:inherit;font-size:13px;padding:8px 12px;border:1px solid #718cba80;border-radius:8px;background:#718cba20;color:inherit;cursor:pointer;}
+.app-update-settings button:disabled {opacity:.6;cursor:wait;}

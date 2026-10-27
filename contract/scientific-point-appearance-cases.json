@@ -1,0 +1,15 @@
+{
+  "valid": {"shading":"spherical","projection":"rescale_spherical","antialiasing":1.5,"canvasLimits":[2,80]},
+  "invalid": [
+    {"name":"unknown shading","patch":{"shading":"smooth"}},
+    {"name":"unknown projection","patch":{"projection":"linear"}},
+    {"name":"coerced projection","patch":{"projection":true}},
+    {"name":"negative smoothing","patch":{"antialiasing":-1}},
+    {"name":"boolean smoothing","patch":{"antialiasing":true}},
+    {"name":"reversed size limits","patch":{"canvasLimits":[80,2]}},
+    {"name":"negative size","patch":{"canvasLimits":[-1,80]}},
+    {"name":"boolean size","patch":{"canvasLimits":[false,80]}},
+    {"name":"missing limit","patch":{"canvasLimits":[2]}},
+    {"name":"unknown setting","patch":{"size":8}}
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "about": "Local test asset inventory. Add only your own or permission-cleared inputs; no recordings are bundled.",
+  "backup": {},
+  "optics": "Each recording's optics, when known (null: unknown): camera, microscope, objective (x), eyepiece (x), fieldNumber (mm), umPerPx (micrometres per camera pixel, measured), notes. Data for tests and benches; the app is never told it from the footage (it believes it is the live camera): the studio's \"Use its optics\" sets the objective the way the objective menu does.",
+  "real": [],
+  "corpus": {
+    "manifest": "services/bench/corpus/corpus.json",
+    "sources": "sources/corpus/<id>/",
+    "footage": "footage/corpus/corpus-<id>[-<n>].mp4 with .truth.json beside each",
+    "rebuild": "make corpus FETCH=1 (download), make corpus-tours (render)"
+  },
+  "bench": [
+    {
+      "path": "bench/frames",
+      "what": "frames from the 2026-06-14 leaf recordings, for the pointing, naming and outline benches",
+      "rebuild": "python -m bench.extract_frames"
+    },
+    {
+      "path": "bench/naming",
+      "what": "public labelled pictures for the naming bench (blood cells, Pap smears), with manifest.jsonl",
+      "rebuild": "python -m bench.naming.fetch"
+    },
+    {
+      "path": "bench/tracking/sperm-field-20261006.png",
+      "what": "a sparse sperm field from the 2026-10-06 demo recording, for the tracking benches",
+      "rebuild": "python -m bench.tracking --prepare <the demo recording>"
+    }
+  ]
+}

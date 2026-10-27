@@ -1,0 +1,40 @@
+# brainreg (BrainGlobe): registers a whole brain imaged as a volume to an atlas, here the Allen mouse brain atlas at 25 µm.
+# It runs as a job (orchestrator/jobs.py): its adapter, in its own Python made from env.lock, with its native part (NiftyReg,
+# which brainreg runs, as conda-forge's Apple Silicon build: the wheel's own macOS binaries are Intel-only and link a
+# Homebrew libpng at /usr/local; its libraries at the versions its build declares, libzlib <1.3 and libpng 1.6, in the
+# .tar.bz2 form the app unpacks itself) unpacked into that Python's prefix, which brainreg is pointed at (CONDA_PREFIX). The
+# atlas is its own data entry (allen-mouse-25um), never fetched at run time. Its proof registers brainreg's own sample
+# brain (test_brain.zip, the one its napari plugin offers: 270 slices, 50/40/40 µm, orientation psl).
+id = "brainreg"
+name = "brainreg"
+runs = "this-mac"
+version = "brainreg 1.0.17"
+licence = ["brainreg", "niftyreg", "libpng", "zlib", "libcxx"]  # its native part's notices: catalog/notices/conda-forge/
+kind = "tool-function"
+what = "Registers a whole-brain volume to an atlas"
+runner = "python-env"
+source = { url = "https://pypi.org/project/brainreg/1.0.17/", package = "brainreg==1.0.17" }
+files = [
+  { path = "test_brain.zip", bytes = 9724735, sha256 = "7bcfbc45bb40358cd8811e5264ca0a2367976db90bcefdcd67adf533e0162b5f", url = "https://gin.swc.ucl.ac.uk/brainglobe/test-data/raw/3bb18dd5ae2a85d10cafe1bfb3154b9f744a0fb3/brainreg/test_brain.zip" },
+]
+adapter = "adapter:register"
+env = { python = "3.13.5", lock = "env.lock", imports = ["brainreg.core.cli", "brainglobe_atlasapi", "tifffile"], commands = ["reg_aladin -v", "reg_f3d -v"], native = [
+  { name = "niftyreg 1.5.69.6", url = "https://conda.anaconda.org/conda-forge/osx-arm64/niftyreg-1.5.69.6-h72ed088_1.tar.bz2", bytes = 4620524, sha256 = "45e762f9a6771223bfe065bca091e0e6b1833052a50cf72d1f293271ca8a5987" },
+  { name = "libpng 1.6.38", url = "https://conda.anaconda.org/conda-forge/osx-arm64/libpng-1.6.38-h76d750c_0.tar.bz2", bytes = 304172, sha256 = "7ddb168b4064618fb06976b2fd51ebcadfb52f478a1eb7c6d6d6442470a6099b" },
+  { name = "libzlib 1.2.13", url = "https://conda.anaconda.org/conda-forge/osx-arm64/libzlib-1.2.13-h03a7124_4.tar.bz2", bytes = 51037, sha256 = "a1bf4a1c107838fea4570a7f1750306d65d84fcf2913d4e0d30b4db785e8f223" },
+  { name = "libcxx 14.0.6", url = "https://conda.anaconda.org/conda-forge/osx-arm64/libcxx-14.0.6-h04bba0f_0.tar.bz2", bytes = 1379919, sha256 = "87377a1175a739ec975381b2d4e1a5a6e3d344314c9a3ad59c1b87d1beba6d76" },
+] }
+needs_to_get = ["download"]
+needs_to_run = ["install:brainreg", "data:allen-mouse-25um", "platform:macos-arm64"]
+credit = { authors = "Tyson, Rousseau, Niedworok, Keshavarzi, Tsitoura, Cossell, Strom and Margrie (BrainGlobe)", link = "https://brainglobe.info/documentation/brainreg/", paper = "https://doi.org/10.1371/journal.pcbi.1009074" }
+host = "own"
+# Measured 2026-10-14: 6,250 MB peak (process-group physical footprint, 439 samples) registering its proof sample in
+# 240 s; reserved with a 20% margin. 2,000 (never measured) stopped every real run at 2,005 MB.
+documented_mb = 7500
+load_limit_s = 60
+
+[[implements]]
+operation = "register-atlas"
+impl = "brainreg"
+input = "volume.3d"
+output = "registration.atlas"

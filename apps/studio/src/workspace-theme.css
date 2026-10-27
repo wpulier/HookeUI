@@ -1,0 +1,67 @@
+/* Interface palettes only. Never filter scientific pixels or change mask colors. */
+/* The workspace takes the workspace-feel mock's palette (the 2026-10-24 plan's visual system; values from
+   design/workspace-feel/workspace-feel.css). Surfaces are told apart by tone, with 1 px hairlines and a 1 px top
+   highlight instead of borders, and one shadow for floating layers. The mock's names map so: page = the window;
+   bar = its panels (drawers, the Assistant, the Stage bar); card = raised (buttons, pills, cards, fields); raise = its
+   overlays (menus, popovers, toasts); hud = floating panels over the Stage. Gold (--mm-alive) is the lit cell's alone.
+   Two values differ from the mock, for 4.5:1 on its overlay surface (tokens.test.ts): tertiary text #909099 (the mock
+   #8a8a93) and, in light, the accent as text and icons #2360d4 (the filled primary keeps the mock's #2563d9). */
+:root[data-workspace-theme]{
+  --mm-page:#141416;--mm-bar:#19191c;--mm-card:#222226;--mm-raise:#2a2a2f;--mm-hud:#19191c;
+  /* The desk under a researcher's artifact: the Stage's true black (light: a quiet grey, so the page reads as paper). */
+  --mm-desk:#000000;
+  /* A picture's mat (a result's thumbnail beside a researcher's conversation): true black in every theme. */
+  --mm-mat:#000000;
+  --mm-panel:var(--mm-hud);--mm-panel-solid:var(--mm-card);
+  --mm-hover:rgb(255 255 255 / 5%);--mm-press:rgb(255 255 255 / 9%);
+  --mm-line:rgb(255 255 255 / 7%);--mm-line-strong:rgb(255 255 255 / 11%);
+  --mm-highlight:inset 0 1px 0 rgb(255 255 255 / 4%);
+  --mm-panel-edge:inset 0 0 0 1px rgb(255 255 255 / 11%),inset 0 1px 0 rgb(255 255 255 / 4%);
+  --mm-shadow-2:0 18px 48px rgb(0 0 0 / 50%),0 2px 8px rgb(0 0 0 / 35%);--mm-panel-shadow:var(--mm-shadow-2);
+  --mm-text:#ededf0;--mm-text-2:#a7a7b0;--mm-text-3:#909099;
+  --mm-accent:#79adff;--mm-accent-fill:#2f6fd6;--mm-accent-fill-hover:#3a7be4;
+  --mm-accent-soft:rgb(90 152 255 / 15%);--mm-accent-on-soft:#c6deff;
+  --mm-focus-ring:var(--mm-accent);--mm-focus-ring-inset:var(--mm-accent);
+  --mm-alive:#ffd28a;--mm-alive-soft:rgb(255 210 138 / 16%);
+  --mm-ready:#4cc987;--mm-ready-soft:rgb(76 201 135 / 14%);
+  --mm-attention:#ff6f66;--mm-attention-soft:rgb(255 111 102 / 14%);
+  --mm-green:var(--mm-ready);--mm-green-soft:var(--mm-ready-soft);
+  --mm-safranin:var(--mm-attention);--mm-safranin-soft:var(--mm-attention-soft);
+  --mm-ctl-text:var(--mm-text);--mm-ctl-text-2:var(--mm-text-2);--mm-ctl-icon:var(--mm-text-2);
+  /* Radii by tier: control 6, Tab 8 8 0 0, card 10, sheet 14, pill full. */
+  --mm-r-control:6px;--mm-r-button:8px;--mm-r-tab:8px 8px 0 0;--mm-r-card:10px;--mm-r-panel:10px;
+  --mm-r-sheet:14px;--mm-panel-radius:14px;--mm-r-pill:999px;
+  /* Motion: 120 ms hover and press, 200 ms drawers and pages, 320 ms reveals. */
+  --mm-ease:cubic-bezier(0.2, 0.8, 0.2, 1);--mm-fast:120ms;--mm-base:200ms;--mm-reveal:320ms;
+}
+:root[data-workspace-theme='black']{
+  --mm-page:#080808;--mm-bar:#0b0b0b;--mm-card:#171717;--mm-raise:#292929;--mm-hud:#101010;
+  --mm-line:#292929;--mm-line-strong:#484848;--mm-text:#f4f4f4;--mm-text-2:#bcbcbc;--mm-text-3:#a0a0a0;--mm-accent-soft:#182939;
+}
+:root[data-workspace-theme='light']{
+  color-scheme:light;
+  --mm-page:#f3f3f5;--mm-bar:#ffffff;--mm-card:#f0f0f3;--mm-raise:#e7e7eb;--mm-hud:#ffffff;--mm-desk:#dedee3;
+  --mm-line:rgb(0 0 0 / 8%);--mm-line-strong:rgb(0 0 0 / 13%);--mm-text:#17171a;--mm-text-2:#50505a;--mm-text-3:#64646d;
+  --mm-accent:#2360d4;--mm-accent-soft:rgb(37 99 217 / 10%);--mm-accent-on-soft:#174e94;--mm-accent-fill:#2563d9;--mm-accent-fill-hover:#1d55c2;
+  --mm-hover:rgb(0 0 0 / 4.5%);--mm-press:rgb(0 0 0 / 9%);--mm-control:rgb(0 0 0 / 5%);--mm-control-edge:rgb(0 0 0 / 15%);
+  --mm-ctl-fill:rgb(0 0 0 / 5%);--mm-ctl-fill-hover:rgb(0 0 0 / 9%);--mm-ctl-fill-press:rgb(0 0 0 / 13%);
+  --mm-ctl-edge:inset 0 0 0 1px rgb(0 0 0 / 13%);--mm-highlight:inset 0 1px 0 rgb(255 255 255 / 70%);
+  --mm-seg-track:#e1e1e8;--mm-seg-track-edge:inset 0 0 0 1px #bfc0ca;--mm-seg-on:#ffffff;
+  --mm-panel-edge:inset 0 0 0 1px rgb(0 0 0 / 13%);
+  --mm-shadow-1:0 2px 6px rgb(0 0 0 / 12%);--mm-shadow-2:0 18px 48px rgb(0 0 0 / 18%),0 2px 8px rgb(0 0 0 / 8%);
+  --mm-alive:#d18c0c;--mm-alive-soft:rgb(209 140 12 / 13%);
+  --mm-ready:#18914f;--mm-ready-soft:rgb(24 145 79 / 11%);
+  --mm-attention:#cf3a31;--mm-attention-soft:rgb(207 58 49 / 10%);
+  /* Words in a role colour stay a step darker than the lit cell's fills, for 4.5:1 on white. */
+  --mm-iodine:#805200;--mm-iodine-soft:#fff0cb;--mm-green:#167044;--mm-green-soft:#dcf3e6;--mm-safranin:#ba2924;--mm-safranin-soft:#ffe4e2;
+  --mm-violet:#7044bb;--mm-toluidine:#166d64;
+}
+/* The Stage is a true-black eyepiece in every theme, independently of application chrome. */
+:root[data-workspace-theme] #stage{--mm-well:#000000}
+/* The specimen window sits on that black, so in light its bar keeps the dark theme's words. */
+:root[data-workspace-theme='light'] .workspace-specimen{--mm-text:#ededf0;--mm-text-2:#a7a7b0;--mm-text-3:#909099}
+/* (The view's passing line, #hint, sits in the Working strip on the page tone now: workspace-feel.css colours it.) */
+:root[data-workspace-theme] .study-source-bar,:root[data-workspace-theme] .study-source-mode{color:#a7a7b0}
+.hooke-light-mark{display:none}
+:root[data-workspace-theme='light'] .hooke-light-mark{display:block}
+:root[data-workspace-theme='light'] .hooke-dark-mark{display:none}

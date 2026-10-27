@@ -1,0 +1,71 @@
+/* Data by what each thing is (ticket 66, D2; data-list.ts): the mock's .dfilter, .fsel, .fchip, .drow, .row-n, .here and
+   .row-live (design/data-research/data-research.css), in the studio's tokens. The rows are the shared anatomy
+   (workspace-feel.css .mm-row); the section headings are .mm-dsection. */
+
+/* Search Data with its magnifier (the mock's .dsearch-wrap). */
+body[data-workspace-study='true'] .study-data-search > .data-search-mark {
+  position: absolute; left: 10px; top: 9px; width: 14px; height: 14px; fill: none; stroke: var(--mm-text-3); stroke-width: 1.6;
+  stroke-linecap: round; pointer-events: none;
+}
+body[data-workspace-study='true'] .mm-search-wrap.study-data-search > input { padding-left: 30px; }
+
+/* Made by everyone ▾, or the chosen maker's chip with × (and Open Researcher N). */
+body[data-workspace-study='true'] .data-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 32px; padding: 2px 16px 4px; }
+body[data-workspace-study='true'] .data-filter:empty { display: none; }
+body[data-workspace-study='true'] .data-filter .data-made-by {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; margin: 0; padding: 0 8px 0 10px; box-sizing: border-box;
+  border: 1px solid var(--mm-line-strong); border-radius: 13px; background: transparent; box-shadow: none;
+  color: var(--mm-text-2); font: 500 12px var(--mm-sans); white-space: nowrap; cursor: pointer;
+}
+body[data-workspace-study='true'] .data-filter .data-made-by:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .data-made-by-mark,
+body[data-workspace-study='true'] .data-chip-x-mark,
+body[data-workspace-study='true'] .data-fold-mark { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+body[data-workspace-study='true'] .data-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 26px; max-width: 100%; box-sizing: border-box; padding: 0 4px 0 8px;
+  border-radius: 13px; background: var(--mm-accent-soft); color: var(--mm-text); font: 500 12px var(--mm-sans);
+}
+body[data-workspace-study='true'] .data-chip > .lit-cell { flex: none; }
+body[data-workspace-study='true'] .data-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-workspace-study='true'] .data-filter .data-chip-x {
+  flex: none; display: grid; place-items: center; width: 20px; height: 20px; margin: 0; padding: 0; border: 0; border-radius: 10px;
+  background: transparent; box-shadow: none; color: var(--mm-text-2); cursor: pointer;
+}
+body[data-workspace-study='true'] .data-filter .data-chip-x:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .data-filter .data-chip-open {
+  flex: none; height: 24px; margin: 0; padding: 0 4px; border: 0; border-radius: 5px; background: transparent; box-shadow: none;
+  color: var(--mm-text-2); font: 500 12px var(--mm-sans); text-underline-offset: 3px; cursor: pointer;
+}
+body[data-workspace-study='true'] .data-filter .data-chip-open:hover { color: var(--mm-text); text-decoration: underline; }
+
+/* A section's heading, and Other's fold (a heading that opens and closes). */
+body[data-workspace-study='true'] .study-data-body .data-fold {
+  width: 100%; box-sizing: border-box; margin: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .study-data-body .data-fold:hover { color: var(--mm-text); }
+body[data-workspace-study='true'] .data-fold > .data-fold-mark { align-self: center; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .data-fold > .data-fold-new { display: block; align-self: center; margin-left: 2px; }
+
+/* A row: its title with how many it holds ("Bright regions 271 regions"), its quiet line with On this Tab first. */
+body[data-workspace-study='true'] .data-row .mm-row-title.data-row-title {
+  display: flex; align-items: baseline; gap: 6px; min-width: 0; -webkit-line-clamp: none; white-space: nowrap; overflow: hidden;
+}
+body[data-workspace-study='true'] .data-row-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-workspace-study='true'] .data-row-n { flex: none; font: 500 12px/17px var(--mm-sans); color: var(--mm-text-2); font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .data-row-sub { display: block; }
+body[data-workspace-study='true'] .data-here { color: var(--mm-accent); font-weight: 500; }
+body[data-workspace-study='true'] .data-here::after { content: '·'; margin: 0 5px; color: var(--mm-text-3); font-weight: 400; }
+body[data-workspace-study='true'] .data-row-live { display: inline-flex; vertical-align: -2px; margin-right: 6px; }
+body[data-workspace-study='true'] .data-row-mark { color: var(--mm-text-2); }
+body[data-workspace-study='true'] .data-loading { padding: 8px 16px 12px; }
+
+/* Researchers: "Made a presentation, a table and outlines ›" under a researcher's row, leading to its work in Data. */
+body[data-workspace-study='true'] .study-drawer-body .researchers-board-made {
+  display: block; width: fit-content; max-width: calc(100% - 78px); min-height: 22px; box-sizing: border-box;
+  margin: -6px 0 10px 62px; padding: 3px 4px; border: 0; border-radius: 5px; background: transparent; box-shadow: none;
+  color: var(--mm-text-2); font: 500 12px/16px var(--mm-sans); text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .study-drawer-body .researchers-board-made:hover { background: var(--mm-hover); color: var(--mm-text); }
+/* A long line wraps under itself rather than hiding what it made, its › after its last word. */
+body[data-workspace-study='true'] .researchers-board-made-end { white-space: nowrap; }
+body[data-workspace-study='true'] .researchers-board-made-mark { width: 12px; height: 12px; margin-left: 2px; vertical-align: -2px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

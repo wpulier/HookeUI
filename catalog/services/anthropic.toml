@@ -1,0 +1,8 @@
+id = "anthropic"
+name = "Anthropic API"
+key = "ANTHROPIC_API_KEY"
+enables = "Lessons written by Claude (GPT-6.1 Sol writes them otherwise)"
+get_key = "https://console.anthropic.com/settings/keys"
+licence = "anthropic-api"
+test = "orchestrator/key_tests.py: anthropic, one free authenticated GET"
+costs = "billed by the provider per call; what the app spent is in its usage ledger (make day-report)"

@@ -1,0 +1,19 @@
+{
+ "participant": "P001",
+ "sequence": "S1",
+ "stratum": "naive | regular",
+ "site": "site-1",
+ "task": "T1",
+ "app": "napari | hooke",
+ "variant": "D1 | D2",
+ "period": 1,
+ "time_s": 0.0,
+ "cap_s": 360.0,
+ "done": true,
+ "correct": true,
+ "max_level": 0,
+ "l1_count": 0,
+ "lost": false,
+ "app_caused_wrong": false,
+ "_notes": "One line per attempt in attempts.jsonl (bench.h14_analysis.ATTEMPT_FIELDS). `correct` comes from bench.h14_scoring, never from the moderator. `lost` only for reasons unrelated to either app (design \u00a77.2). `app_caused_wrong` only after two reviewers adjudicate (\u00a76, H1b)."
+}

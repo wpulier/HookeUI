@@ -1,0 +1,96 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Tab row · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (workspace-feel plan, step 2): the production Tab row and Stage bar (WorkspaceViews and
+     WorkspaceResearchTabs, unchanged, with the workspace's own stylesheets) over a fake layout server and fake
+     researchers: Main, Tab 2, a recording, and researchers working, needing you and with partial findings, beside the
+     mock's workspace frame. No model, computation, Project write or private data. Parameters: ?w=<column px>
+     (668 is the mock's 1440 frame, 708 its 1100 frame), &theme=light, &active=<tab id or research:rN> (a researcher's
+     Tab shows the Stage bar's research side, drawn here with workspace-study's classes), &more=1 (five researchers more,
+     to show ⌄ counting), &start=1 (two researchers start after the Project opened: their cells light once). -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
+ .fixture{display:flex;height:100dvh;overflow:hidden}
+ .fixture-rail{width:72px;flex:none;display:flex;flex-direction:column;align-items:stretch;gap:2px;padding-top:56px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fixture-rail button{height:56px;border:0;background:transparent;color:var(--mm-text-2);font:11px var(--mm-sans);cursor:pointer}
+ .fixture-col{position:relative;flex:none;height:100%;box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fixture-side{flex:1;min-width:0;padding:56px 20px;color:var(--mm-text-3);font-size:12px;line-height:1.5}
+ .fixture-side button{display:block;margin:0 0 8px;height:28px;padding:0 10px;border:0;border-radius:7px;background:var(--mm-card);box-shadow:inset 0 0 0 1px var(--mm-line-strong);color:var(--mm-text);font:12px var(--mm-sans);cursor:pointer}
+</style>
+<body class="studio-shell" data-workspace-study="true">
+<div class="fixture">
+ <nav class="fixture-rail" aria-label="Fixture rail"><button type="button" id="rail-data">Data</button><button type="button" id="rail-researchers">Researchers</button></nav>
+ <div class="fixture-col" id="col">
+  <div class="studio" style="margin:0!important;width:100%!important;height:100%!important">
+   <main class="stage" id="stage" aria-label="Live view"><canvas id="view" aria-label="Fixture specimen"></canvas></main>
+  </div>
+ </div>
+ <aside class="fixture-side"><p>Fixture: the production Tab row and Stage bar over fake data (design evidence only).</p>
+  <button type="button" id="close-r4">Close Researcher 4</button><button type="button" id="all">Open All Tabs</button><button type="button" id="finish">Researcher 3 finishes</button></aside>
+</div>
+<!-- The Stage bar's right side, as index.html has it (the camera control, Record with its Data light). -->
+<template id="controls">
+ <button type="button" class="source camera-control" id="source" data-state="asset" aria-expanded="false">Human cells</button>
+ <span class="record-group" id="record-group"><button type="button" class="record" id="record" data-state="idle" aria-pressed="false"><span class="record-dot" aria-hidden="true"></span><span class="record-label">Record</span></button><a class="data-light" id="dataset" href="#datasets" data-state="off"><span class="dataset-dot" aria-hidden="true"></span><span class="dataset-label">Data</span></a></span>
+</template>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import {WorkspaceViews} from '/src/workspace-views.ts';import {WorkspaceResearchTabs,researcherObjective} from '/src/workspace-research-tabs.ts';import {tabMark} from '/src/tab-marks.ts';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';
+import cells from '../../design/workspace-feel/assets/human-cells.png';
+import {PanelStack} from '/src/panels.ts';import {studyArtifacts} from '/src/workspace-study-artifacts.ts';
+const params=new URLSearchParams(location.search);
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+document.getElementById('col').style.width=`${Number(params.get('w')||668)}px`;
+// The windows' stack, as main.ts configures it for the workspace.
+studyArtifacts().configure(new PanelStack(),()=>{const canvas=document.getElementById('view').getBoundingClientRect();return {canvas,area:{width:canvas.width,height:canvas.height},disc:null,object:null,labels:[]};});
+// A fake layout server: Main, Tab 2 and a recording, accepted as saved.
+const view=(id,title,source)=>({id,title,...(source?{input:{source,position:0}}:{}),specimen:{visible:true,rect:null},items:[],notes:[]});
+let layout={schema:5,coordinates:'stage',views:[view('main','Main','live'),view('t2','Tab 2','pic1'),view('rec','Oct 22, 3:40 pm','rec1')]},revision=1;
+const request=async(type,fields)=>{
+ if(type==='session-note')return {ok:true,notes:[]};
+ if(fields.layout){layout=fields.layout;return {ok:true,revision:++revision,layout};}
+ return {ok:true,revision,layout};
+};
+const now=Date.now()/1000;
+const row=(n,extra)=>({rid:`r${n}`,n,name:`Researcher ${n}`,label:'',brief:'',deliverable:null,effort:'quick',engine:'gpt-6.1-sol',purpose:'research',objectId:null,status:'running',step:'Writing the presentation',spent:0,cap:0,seconds:60,created:n,started:now-60,finished:null,snapshot:'',outputs:[],items:[],findings:[],corrections:[],history:[],canFollowUp:true,sitting:'fixture',result:null,...extra});
+let rows=[
+ row(2,{label:'Compare published methods for measuring nuclei',status:'partial',finished:now-600,outputs:[{kind:'html',url:'',current:true}]}),
+ row(3,{label:'Bright-region analysis of the fluorescent nuclei'}),
+ row(4,{label:'Independently analyze the fluorescently stained cells',requests:[{id:'q1',status:'asked',what:'',why:'it has worked for 60 minutes',keepGoing:true}]}),
+];
+if(params.get('start'))rows=[];
+if(params.get('more'))for(let n=5;n<10;n++)rows.push(row(n,{label:`Fixture researcher ${n}`,status:n%2?'running':'done',finished:n%2?null:now,outputs:n%2?[]:[{kind:'html',url:'',current:true}]}));
+let active=params.get('active')?.startsWith('research:')?params.get('active').slice(9):'';
+const views=new WorkspaceViews({storageKey:'fixture-tab-row',request,restoreItems:async()=>({recovered:1,missing:[]}),placeItem:()=>{},frontItem:()=>false,captureItems:()=>[],
+ openData:()=>{},notice:error=>console.warn(String(error)),layoutChanged:()=>{},
+ describeInput:source=>source==='rec1'?'recording':source==='pic1'?'picture':null,
+ closeTarget:kind=>document.getElementById(kind==='data'?'rail-data':'rail-researchers'),
+ menuTabs:()=>({closed:tabs.closedTabs().map(t=>({id:t.id,name:t.name,title:t.title,mark:t.mark,act:t.reopen})),studies:[]}),
+ research:{report:()=>tabs.report(),switch:id=>tabs.show(id),close:id=>tabs.closeTab(id)},researcherTab:rid=>tabs.has(rid),
+ addChoices:()=>[{label:'New researcher',title:'',act:()=>{}},{label:'New study…',title:'',act:()=>{}}]});
+const memory=new Map(),store={getItem:k=>memory.get(k)??null,setItem:(k,v)=>memory.set(k,v),removeItem:k=>memory.delete(k)};
+const tabs=new WorkspaceResearchTabs({host:()=>views.researchHost(),storage:store,session:store,key:'fixture',isNew:r=>r.status==='partial'||r.status==='done',
+ open:r=>{active=r.rid;update();},close:()=>{active='';update();},closed:t=>views.researchClosed(t.text,t.name,t.reopen,t.from,t.mark)});
+// The research side of the Stage bar, as workspace-study.ts builds it (back, what it works on, Stop): a fixture copy.
+const bar=document.createElement('header');bar.className='study-research-stage-bar';
+const back=document.createElement('button');back.type='button';back.className='study-research-back';back.append(tabMark('left','study-research-back-icon'),'Main');back.onclick=()=>{active='';update();};
+const divide=document.createElement('span');divide.className='study-research-divider';const summary=document.createElement('div');summary.className='study-research-summary';
+const stop=document.createElement('button');stop.type='button';stop.className='study-research-stop';stop.append(tabMark('stop','study-research-stop-icon'),'Stop');
+bar.append(back,divide,summary,stop);views.stageSlots().research.append(bar);
+const update=()=>{
+ document.body.dataset.researchOpen=String(!!active);tabs.update('fixture',rows,active);
+ const r=rows.find(x=>x.rid===active);summary.replaceChildren(Object.assign(document.createElement('strong'),{className:'study-research-objective',textContent:r?researcherObjective(r):''}));stop.hidden=!r||r.status!=='running';
+};
+const right=views.stageSlots().right;right.append(document.getElementById('controls').content.cloneNode(true));
+const divider=document.createElement('span');divider.className='study-stage-divider';const assistant=document.createElement('button');assistant.type='button';assistant.className='study-agent-toggle';assistant.textContent='Assistant';assistant.setAttribute('aria-pressed','true');right.append(divider,assistant);
+views.specimenLabel('Human cells · David Root, CC0',cells);
+await views.load('fixture');
+const want=params.get('active');if(want&&!want.startsWith('research:'))await views.goTo(want);
+update();
+if(params.get('start'))setTimeout(()=>{rows=[row(5,{label:'Outline the nuclei with a model of its choice',step:'Choosing a model'}),row(6,{label:'Measure the nuclei with a different model',step:'Choosing a model'})];update();},400);
+// The specimen: the mock's picture drawn into the live view's canvas.
+const canvas=document.getElementById('view'),image=new Image();image.src=cells;image.onload=()=>{const box=canvas.parentElement.getBoundingClientRect(),side=Math.min(box.width,box.height)-32;canvas.width=box.width;canvas.height=box.height;Object.assign(canvas.style,{width:'100%',height:'100%',display:'block'});const g=canvas.getContext('2d');g.drawImage(image,(box.width-side)/2,(box.height-side)/2,side,side);};
+document.getElementById('close-r4').onclick=()=>tabs.closeTab('research:r4');
+document.getElementById('all').onclick=()=>document.querySelector('.workspace-all-tabs').click();
+document.getElementById('finish').onclick=()=>{rows=rows.map(r=>r.rid==='r3'?{...r,status:'done',finished:Date.now()/1000,outputs:[{kind:'html',url:'',current:true}]}:r);update();};
+</script></body></html>

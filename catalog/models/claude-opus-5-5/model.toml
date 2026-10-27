@@ -1,0 +1,12 @@
+id = "claude-opus-5-5"
+name = "Claude Opus 5.5"
+runs = "cloud"
+version = "claude-opus-5-5"
+licence = ["anthropic-api"]
+kind = "cloud-model"
+what = "Arranges findings into presentations"
+runner = "cloud"
+service = "anthropic"
+source = { url = "https://docs.anthropic.com/en/docs/about-claude/models" }
+needs_to_run = ["key:ANTHROPIC_API_KEY"]
+credit = { authors = "Anthropic", link = "https://docs.anthropic.com/en/docs/about-claude/models" }

@@ -1,0 +1,180 @@
+{
+ "format": "hooke-h14-binding-manifest/1",
+ "design_sha256": "3a5b915760559eed21f926e0cd6d115fc1a70dd9fccc7c032248bcf23aeaa80d",
+ "q_procedures_sha256": "f900cda20db258a44f8e222fcac25d077087c1232d1591d011c1b1d2a9bd28c8",
+ "frozen_on": null,
+ "frozen_by_reviewer": null,
+ "amendments_applied": [],
+ "study": {
+  "completers": null,
+  "pilot_report_sha256": null,
+  "power_reestimate": {
+   "discordance": null,
+   "sd_of_D": null
+  },
+  "allocation_seed_holder": null,
+  "sites": [
+   null,
+   null,
+   null
+  ]
+ },
+ "napari": {
+  "reference_revision": "ebfc4a0a1e5386f41582761204f416fffe6cd0b6",
+  "archive_sha256": "3a29672c608ee6a8e84a488d7c5c122915f5c852757d401736f668bf60c740a6",
+  "wheel_sha256": "ea1b1d4681556c3d811a334d60ce3f812e91600081eec74a1874d232fecbaf4f",
+  "qt_stack": {
+   "PySide6": "6.12.0",
+   "vispy": "0.17.0",
+   "PyOpenGL": "3.1.10",
+   "QtPy": "2.4.3",
+   "numpy": "2.5.4"
+  },
+  "plugins": {
+   "napari-ome-zarr": null,
+   "napari-cellposesam": null,
+   "napari-animation": null
+  },
+  "environment_lock_sha256": null,
+  "cells_sample_name": null
+ },
+ "hooke": {
+  "dmg_sha256": null,
+  "version": null,
+  "build": null,
+  "bundle_sha256": null,
+  "catalog_entries": {
+   "ome-zarr-reader": null,
+   "cellpose-sam": null,
+   "animation": null
+  },
+  "environment_locks": null,
+  "cells_sample_name": null
+ },
+ "held_out_extension": {
+  "name": null,
+  "version": null,
+  "napari_sha256": null,
+  "hooke_integration_sha256": null,
+  "T14_goal": null,
+  "T14_oracle": null,
+  "T14_cap_s": null
+ },
+ "hardware": {
+  "mac_model_identifier": null,
+  "chip": null,
+  "memory_gb": null,
+  "macos_build": null,
+  "display": null,
+  "mouse": null,
+  "keyboard": null,
+  "unit_serials_sha256": [
+   null,
+   null,
+   null
+  ]
+ },
+ "caps_s": {
+  "T0": 1500,
+  "T1": 360,
+  "T2": 360,
+  "T3": 480,
+  "T4": 480,
+  "T5": 480,
+  "T6": 480,
+  "T7": 600,
+  "T8": 600,
+  "T9": 480,
+  "T10": 600,
+  "T11": 360,
+  "T12": 600,
+  "T13": 480,
+  "T14": null,
+  "U_tasks": null
+ },
+ "data": {
+  "T0": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T1": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T2": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T3": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T4": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T5": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T6": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T7": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T8": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T9": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T10": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T11": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T12": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "T13": {
+   "package_sha256": null,
+   "source": null,
+   "rights": null
+  },
+  "U_tasks": {
+   "preparation_sha256": null
+  }
+ },
+ "reference_outputs": {
+  "T0_check_labels": null,
+  "T8_reference_cellpose_run": null,
+  "T10_reference_keyframes": null
+ },
+ "interpretations_confirmed": null,
+ "analysis_script_sha256": null,
+ "scoring_script_sha256": null,
+ "moderator_script_sha256": null,
+ "proxy_and_recording_setup": null
+}

@@ -1,0 +1,213 @@
+{
+  "status": "available",
+  "root": {
+    "id": "ed394307d91f3-19",
+    "kind": "ask",
+    "at": 1791348395.52067,
+    "day": "2026-10-07",
+    "thread": "t1",
+    "generation": 1,
+    "turnId": 524,
+    "objectIds": [
+      "o2"
+    ],
+    "trialId": null,
+    "outcome": "completed",
+    "revision": 14,
+    "incomplete": false
+  },
+  "steps": [
+    {
+      "id": "ed394307d91f3-19.1",
+      "parent": "ed394307d91f3-19",
+      "operation": "brain",
+      "outcome": "completed",
+      "ms": 2327.73
+    },
+    {
+      "id": "ed394307d91f3-19.2",
+      "parent": "ed394307d91f3-19.1",
+      "operation": "vision",
+      "outcome": "completed",
+      "selected": "gemini-3.5-flash",
+      "adapter": "orchestrator.vision.GeminiVision",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash",
+      "identity": "provider-reported",
+      "optionId": "gemini-3.5-flash",
+      "reportedModel": "gemini-3.5-flash",
+      "ms": 1157.959
+    },
+    {
+      "id": "ed394307d91f3-19.3",
+      "parent": "ed394307d91f3-19.1",
+      "operation": "look",
+      "outcome": "completed",
+      "selected": "gemini-3.5-flash",
+      "selection": "resolved-option",
+      "frameId": 27065,
+      "policy": "box",
+      "ms": 2046.472
+    },
+    {
+      "id": "ed394307d91f3-19.4",
+      "parent": "ed394307d91f3-19.3",
+      "operation": "vision",
+      "outcome": "completed",
+      "selected": "gemini-3.5-flash",
+      "adapter": "orchestrator.vision.GeminiVision",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash",
+      "identity": "provider-reported",
+      "optionId": "gemini-3.5-flash",
+      "reportedModel": "gemini-3.5-flash",
+      "ms": 2044.233
+    },
+    {
+      "id": "ed394307d91f3-19.5",
+      "parent": "ed394307d91f3-19.1",
+      "operation": "tool:highlight",
+      "outcome": "failed",
+      "provider": "app",
+      "adapter": "brain.registry.Registry",
+      "ms": 0.049
+    },
+    {
+      "id": "ed394307d91f3-19.6",
+      "parent": "ed394307d91f3-19.1",
+      "operation": "point",
+      "outcome": "completed",
+      "frameId": 27065,
+      "trialId": null,
+      "arm": null,
+      "ms": 263.784
+    },
+    {
+      "id": "ed394307d91f3-19.7",
+      "parent": "ed394307d91f3-19.6",
+      "operation": "target",
+      "outcome": "completed",
+      "ms": 261.474
+    },
+    {
+      "id": "ed394307d91f3-19.8",
+      "parent": "ed394307d91f3-19.7",
+      "operation": "outline",
+      "outcome": "completed",
+      "selected": "edgetam",
+      "selection": "settings",
+      "frameId": 27065,
+      "objectId": "o2",
+      "producer": "ed394307d91f3-19.10",
+      "ms": 261.442
+    },
+    {
+      "id": "ed394307d91f3-19.9",
+      "parent": "ed394307d91f3-19.8",
+      "operation": "segment",
+      "outcome": "completed",
+      "selected": "edgetam",
+      "frameId": 27065,
+      "producer": "ed394307d91f3-19.10",
+      "ms": 259.516
+    },
+    {
+      "id": "ed394307d91f3-19.10",
+      "parent": "ed394307d91f3-19.9",
+      "operation": "gpu",
+      "outcome": "completed",
+      "selected": "edgetam",
+      "scope": "segment",
+      "worker": "micromind-gpu",
+      "rpcId": 3,
+      "frameId": 27065,
+      "provider": "local",
+      "device": "mps",
+      "identity": "adapter-dispatch; weight revision unverified",
+      "adapter": "gpu_worker.worker.Models.segment",
+      "model": "yonigozlan/EdgeTAM-hf",
+      "role": "outline",
+      "optionId": "edgetam",
+      "adapterMs": 254.3,
+      "ms": 259.485
+    },
+    {
+      "id": "ed394307d91f3-19.11",
+      "parent": "ed394307d91f3-19.8",
+      "operation": "outline-check",
+      "outcome": "completed",
+      "objectId": "o2",
+      "selected": "gemini-3.5-flash",
+      "selection": "settings",
+      "ms": 1868.728
+    },
+    {
+      "id": "ed394307d91f3-19.12",
+      "parent": "ed394307d91f3-19.11",
+      "operation": "vision",
+      "outcome": "completed",
+      "selected": "gemini-3.5-flash",
+      "adapter": "orchestrator.vision.GeminiVision",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash",
+      "identity": "provider-reported",
+      "optionId": "gemini-3.5-flash",
+      "reportedModel": "gemini-3.5-flash",
+      "ms": 1854.646
+    },
+    {
+      "id": "ed394307d91f3-19.13",
+      "parent": "ed394307d91f3-19.8",
+      "operation": "gpu",
+      "outcome": "completed",
+      "selected": "dinov2-small",
+      "scope": "embed",
+      "worker": "micromind-gpu-heavy",
+      "rpcId": 3,
+      "frameId": null,
+      "provider": "local",
+      "device": "mps",
+      "identity": "adapter-dispatch; weight revision unverified",
+      "adapter": "gpu_worker.embed",
+      "model": "facebook/dinov2-small",
+      "role": "embed",
+      "optionId": "dinov2-small",
+      "adapterMs": 18.0,
+      "ms": 6115.791
+    }
+  ],
+  "powers": [
+    {
+      "capability": "Model",
+      "label": "Gemini 3.5 Flash",
+      "provider": "gemini",
+      "outcome": "completed",
+      "cache": null,
+      "stepId": "ed394307d91f3-19.2"
+    },
+    {
+      "capability": "Highlight what it sees",
+      "label": "MicroscopeMind",
+      "provider": "app",
+      "outcome": "failed",
+      "cache": null,
+      "stepId": "ed394307d91f3-19.5"
+    },
+    {
+      "capability": "Outlining",
+      "label": "EdgeTAM (on this Mac)",
+      "provider": "local",
+      "outcome": "completed",
+      "cache": null,
+      "stepId": "ed394307d91f3-19.10"
+    },
+    {
+      "capability": "Look-alikes",
+      "label": "DINOv2 small",
+      "provider": "local",
+      "outcome": "completed",
+      "cache": null,
+      "stepId": "ed394307d91f3-19.13"
+    }
+  ]
+}

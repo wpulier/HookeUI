@@ -1,0 +1,41 @@
+{
+  "format": "reader-data-contract-v2",
+  "layers": [
+    {
+      "axes": [
+        "y",
+        "x"
+      ],
+      "basis": [
+        [
+          -1.0,
+          39.0
+        ],
+        [
+          0.0,
+          39.0
+        ],
+        [
+          -1.0,
+          40.0
+        ]
+      ],
+      "key": "selected-ome-zarr-0",
+      "levels": [
+        {
+          "dtype": "<u4",
+          "sha256": "4aebcfe0ea2cb2c56dbbc246c78c4ce90d68a37798eac87678747628d140a6aa",
+          "shape": [
+            3,
+            4
+          ]
+        }
+      ],
+      "type": "labels",
+      "units": [
+        "micrometer",
+        "micrometer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Run page · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (workspace-feel plan, step 5): the production Actions panel (actions-panel.ts, its run page and
+     Tools list, unchanged) in a production control deck (capability-controls.ts), with the workspace's own stylesheets,
+     over src/run-spec.fixture.json: the capabilities message of an isolated Hooke (no keys, nothing downloaded),
+     trimmed. Runs, Stops and downloads answer from this page (no model, no computation, no Project write). Parameters:
+     ?state=tools|tools-model|run|run-models|run-settings|run-setup|run-running|run-stopping|run-done|run-failed|
+     run-tasks|run-cloud|run-key|run-query, &theme=light. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:48px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;color:var(--mm-text);font:600 13px var(--mm-sans)}
+ nav.study-rail{position:fixed;left:0;top:48px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-drawer{position:fixed;left:72px;top:48px;bottom:0;width:340px;display:flex;flex-direction:column;background:var(--mm-bar);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-drawer .mm-dhead h2{margin:0}
+ .fx-list{flex:1;min-height:0;overflow:auto}
+ .fx-stage{position:fixed;left:412px;right:360px;top:48px;bottom:40px;background:#000;display:grid;place-items:center}
+ .fx-stage .workspace-specimen-content{width:min(80%,640px);aspect-ratio:1;background:center/contain no-repeat}
+ .fx-side{position:fixed;right:0;top:48px;bottom:0;width:360px;background:var(--mm-bar);box-shadow:inset 1px 0 0 var(--mm-line);padding:16px;box-sizing:border-box;color:var(--mm-text-3);font-size:12px;line-height:1.5}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-workspace-project="fixture" data-active-workspace-view="main">
+<div class="fx-top">Fixture: the production run page over a real capabilities message (design evidence only)</div>
+<nav class="study-rail" aria-label="Fixture rail"></nav>
+<section class="fx-drawer study-drawer" data-section="tools">
+ <div class="mm-dhead"><h2>Tools</h2><button type="button" class="mm-dhead-button">Add model or tool</button></div>
+ <div class="fx-list study-drawer-body"><div class="study-inspector"><div class="study-action-slot" id="slot"></div></div></div>
+</section>
+<div class="workspace-view-tabs" hidden><button aria-selected="true">Main</button></div>
+<main class="fx-stage"><div class="workspace-specimen-content" id="specimen"></div></main>
+<aside class="fx-side">The Assistant's column (not part of this fixture).</aside>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/capability-controls.css';import '/src/workspace-feel.css';
+import {ActionsPanel} from '/src/actions-panel.ts';import {configureControlDeck} from '/src/capability-controls.ts';
+import fixture from '/src/run-spec.fixture.json';
+import cells from '../../design/workspace-feel/assets/human-cells.png';
+const params=new URLSearchParams(location.search),state=params.get('state')||'run';
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+document.getElementById('specimen').style.backgroundImage=`url(${cells})`;
+const wire=structuredClone(fixture);const tools=wire.tools;delete wire.tools;
+configureControlDeck('fixture',{leftWidth:()=>340,toolsShowing:()=>true,back:()=>{}});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let answer=null;
+const said='Outlined and measured 271 bright regions with Bright objects · Basic local method. No scale: sizes are in pixels of the original image. Calibrate that image with a known length for µm.';
+const deps={
+ run:(capability,args,use,run)=>new Promise(resolve=>{answer=resolve;
+  if(state==='run-done')setTimeout(()=>resolve({ok:true,said,table:'e2'}),2600);
+  if(state==='run-failed')setTimeout(()=>resolve({ok:false,error:'This picture isn’t one 8-bit grey or RGB plane.'}),400);
+  if(state==='run-query')setTimeout(()=>resolve({ok:true,summary:'There are about 40 nuclei in the view.'}),900);}),
+ stop:async()=>{if(answer)answer({ok:true,stopping:true,summary:"Stop requested: it hasn't ended yet"});return {ok:true};},
+ selected:()=>null,session:()=>'fixture',openModels:m=>console.log('openModels',m),openActivity:()=>{},openTable:()=>{},openCamera:()=>{},cameraPage:()=>'#',
+ download:async(model,cancel)=>{const m=wire.models.find(x=>x.id===model);if(!m)return;
+  if(cancel){m.download={model,name:m.name,state:'cancelled',got:0,total:0,says:'Cancelled'};panel.setCapabilities(structuredClone(wire));return;}
+  const total=m.next?.bytes??413e6;m.download={model,name:m.name,state:'downloading',got:Math.round(total*0.42),total,says:'Downloading'};panel.setCapabilities(structuredClone(wire));},
+ tryClicks:async()=>{},clicksArmed:()=>true,
+};
+const root=document.createElement('section');document.getElementById('slot').append(root);
+const panel=new ActionsPanel(root,deps);
+panel.setTools(tools);panel.setCapabilities(structuredClone(wire));
+panel.setInput('Human cells · David Root, CC0');
+const open=(task,option)=>panel.open(task,option);
+const click=sel=>document.querySelector(sel)?.click();
+const pick=option=>{click('.run-with .run-change');[...document.querySelectorAll('.mrow')].find(m=>m.dataset.option===option)?.click();};
+if(state==='tools-model')panel.setMode('model');
+const bright=['run-settings','run-running','run-stopping','run-done','run-failed'].includes(state);
+// Bright objects is its own task, Find bright regions (contract/actions.json ownTasks), as in the mock.
+if(bright)open('catalog:basic-bright-objects');
+else if(state.startsWith('run')&&!['run-cloud','run-key','run-tasks','run-query'].includes(state))open('cells');
+if(state==='run-models')click('.run-with .run-change');
+if(state==='run-setup'){pick('instanseg-brightfield');await sleep(50);click('.run-foot .action-step');}
+if(state==='run-tasks')open('cells',{role:'cells',option:'micro-sam-lm'});
+if(state==='run-query'){wire.setup.keys.GEMINI_API_KEY.present=true;const role=wire.roles.find(r=>r.id==='vision');for(const o of role.options)if(o.id==='gemini-3.8-flash'){o.available=true;delete o.readiness;}
+ panel.setCapabilities(structuredClone(wire));open('count');await sleep(50);const f=document.querySelector('.run-fields input');f.value='nuclei';f.dispatchEvent(new Event('input'));
+ const row=panel.rowsShown().find(r=>r.id==='count');const go=panel.start(row);await sleep(50);[...document.querySelectorAll('.action-ask button')].find(b=>b.textContent==='Send')?.click();}
+if(state==='run-cloud'){const role=wire.roles.find(r=>r.id==='vision');for(const o of role.options)if(o.id==='gemini-3.8-flash'){o.available=true;delete o.readiness;}
+ wire.setup.keys.GEMINI_API_KEY.present=true;const g=wire.models.find(m=>m.id==='gemini-3.8-flash');Object.assign(g,{status:'ready',group:'ready',next:null,face:{state:'on',says:'On',action:null,also:[]}});
+ panel.setCapabilities(structuredClone(wire));open('count');}
+if(state==='run-key')open('find-like');
+if(['run-running','run-stopping','run-done','run-failed'].includes(state)){await sleep(50);click('.run-foot .action-go');}
+if(['run-running','run-stopping'].includes(state)){await sleep(100);panel.activity({type:'activity',id:'a1',kind:'model',text:'Loading Bright objects · Basic local method',at:Date.now()/1000,state:'running',ref:{model:'Bright objects · Basic local method'}});}
+if(state==='run-stopping'){await sleep(800);click('.run-foot .action-stop');}
+</script></body></html>

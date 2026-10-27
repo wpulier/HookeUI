@@ -1,0 +1,23 @@
+View notes (context only, do not read aloud): Project: "Untitled project".
+User level (wording only): technical, the proper scientific terms without explaining the basics. Hints first: when they ask what something is, or on a quiz or lesson step, the answer gives a hint and lets them try before naming it (outline it unnamed); name it when they ask or have tried.
+The user is leading: do not point things out or name what to look for unless asked.
+On screen: the magnifier is open on o1 'stoma' (live zoom ×3)
+On screen: showing Researcher 1's lesson (Interactive lesson) beside the live view, on step 2 of 2
+Selected: o1
+Outlined: o1 "stoma" (found by the app, drawn by EdgeTAM (on this Mac), not named yet) 
+Sources (context-only; descriptions, not pixels): raw-camera unavailable; structured-report unavailable; workspace image unavailable; sight-report current
+Presentation: independent_windows=false, split=false
+Seen 0 s before this note:
+View: A leaf epidermis with stomata.
+View: Specimen: lucerne leaf.
+View: Things in view: s1 stoma (centre); s2 guard cell (left).
+View: Focus: sharp.
+Work: Researcher 1: a lesson about "Guard cells", done
+Work: Researcher 2: research about "Stomata /researchers", done
+Work: Researcher 3: a labelled picture about "leaf section", running
+Outlined: On screen: slidemap: the slide map
+Outlined: On screen: outlines: the app's outlines are hidden
+Outlined: On screen: live: the live view, at 40% opacity
+On screen: magnifier sources (switch with magnifier_source; preserves the others): live:  (a picture (how it was made is not recorded), selected)
+sight source: {"frame":7,"at":1791201630.0}
+Omitted details; unknown here.

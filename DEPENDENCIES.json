@@ -1,0 +1,1772 @@
+{
+  "scope": "Candidate locked Python environment (all groups) and npm locks; optional catalog environments retain their own locks. Declared license metadata is evidence, not blanket clearance.",
+  "pythonLockSha256": "acf8e11293beb458dfcf26e153886f0cac7e8df9aa9754f5e4c123261c8185bd",
+  "python": [
+    {
+      "name": "aiofiles",
+      "version": "25.1.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "aiofiles-25.1.0.dist-info/licenses/LICENSE",
+        "aiofiles-25.1.0.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "annotated_doc-0.0.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "annotated_types-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "4.15.1",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "anyio-4.15.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "asyncstdlib",
+      "version": "3.14.0",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "asyncstdlib-3.14.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cellpose",
+      "version": "4.2.1.1",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "cellpose-4.2.1.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "declaredLicense": "MPL-2.0",
+      "licenseFiles": [
+        "certifi-2026.7.22.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "declaredLicense": "MIT-0",
+      "licenseFiles": [
+        "cffi-2.1.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "charset_normalizer-3.5.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "click-8.5.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.2",
+      "declaredLicense": "Apache-2.0 OR BSD-3-Clause",
+      "licenseFiles": [
+        "cryptography-50.0.2.dist-info/licenses/LICENSE",
+        "cryptography-50.0.2.dist-info/licenses/LICENSE.APACHE",
+        "cryptography-50.0.2.dist-info/licenses/LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "distro",
+      "version": "1.9.0",
+      "declaredLicense": "Apache License, Version 2.0",
+      "licenseFiles": [
+        "distro-1.9.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "einops",
+      "version": "0.8.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "einops-0.8.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "execnet",
+      "version": "2.1.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "execnet-2.1.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fal_client",
+      "version": "1.0.3",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "fal_client-1.0.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fastapi",
+      "version": "0.142.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "fastapi-0.142.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fastremap",
+      "version": "1.20.0",
+      "declaredLicense": "LGPL-3.0",
+      "licenseFiles": [
+        "fastremap-1.20.0.dist-info/licenses/AUTHORS",
+        "fastremap-1.20.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "filelock",
+      "version": "4.0.9",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "filelock-4.0.9.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fill_voids",
+      "version": "2.1.2",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "licenseFiles": [
+        "fill_voids-2.1.2.dist-info/licenses/AUTHORS",
+        "fill_voids-2.1.2.dist-info/licenses/COPYING",
+        "fill_voids-2.1.2.dist-info/licenses/COPYING.LESSER"
+      ]
+    },
+    {
+      "name": "flexcache",
+      "version": "0.3",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "flexcache-0.3.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "flexparser",
+      "version": "0.4",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "flexparser-0.4.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.9.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "fsspec-2026.9.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "ftfy",
+      "version": "6.3.1",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "ftfy-6.3.1.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "google-auth",
+      "version": "2.59.1",
+      "declaredLicense": "Apache 2.0",
+      "licenseFiles": [
+        "google_auth-2.59.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "google-genai",
+      "version": "2.28.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "google_genai-2.28.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "h11-0.16.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "h5py",
+      "version": "3.16.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "h5py-3.16.0.dist-info/licenses/LICENSE",
+        "h5py-3.16.0.dist-info/licenses/licenses/hdf5.txt",
+        "h5py-3.16.0.dist-info/licenses/licenses/license.txt",
+        "h5py-3.16.0.dist-info/licenses/licenses/pytables.txt",
+        "h5py-3.16.0.dist-info/licenses/licenses/python.txt",
+        "h5py-3.16.0.dist-info/licenses/licenses/stdint.txt",
+        "h5py-3.16.0.dist-info/licenses/lzf/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "hf-xet",
+      "version": "1.6.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "hf_xet-1.6.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpcore-1.0.9.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpcore2",
+      "version": "2.13.1",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpcore2-2.13.1.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httptools",
+      "version": "0.8.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "httptools-0.8.0.dist-info/licenses/LICENSE",
+        "httptools-0.8.0.dist-info/licenses/vendor/http-parser/LICENSE-MIT",
+        "httptools-0.8.0.dist-info/licenses/vendor/llhttp/LICENSE"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpx-0.28.1.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpx-sse",
+      "version": "0.4.3",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "httpx_sse-0.4.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "httpx2",
+      "version": "2.13.1",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpx2-2.13.1.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "1.33.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "huggingface_hub-1.33.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.20",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "idna-3.20.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "imagecodecs",
+      "version": "2026.8.16",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "imagecodecs-2026.8.16.dist-info/licenses/LICENSE",
+        "imagecodecs/licenses/LICENSE-aom",
+        "imagecodecs/licenses/LICENSE-bcdec",
+        "imagecodecs/licenses/LICENSE-bitshuffle",
+        "imagecodecs/licenses/LICENSE-blosc",
+        "imagecodecs/licenses/LICENSE-blosc2",
+        "imagecodecs/licenses/LICENSE-brotli",
+        "imagecodecs/licenses/LICENSE-brunsli",
+        "imagecodecs/licenses/LICENSE-bzip2",
+        "imagecodecs/licenses/LICENSE-cfitsio",
+        "imagecodecs/licenses/LICENSE-charls",
+        "imagecodecs/licenses/LICENSE-dav1d",
+        "imagecodecs/licenses/LICENSE-fastlz",
+        "imagecodecs/licenses/LICENSE-giflib",
+        "imagecodecs/licenses/LICENSE-hdf5",
+        "imagecodecs/licenses/LICENSE-heif",
+        "imagecodecs/licenses/LICENSE-highway",
+        "imagecodecs/licenses/LICENSE-isa-l",
+        "imagecodecs/licenses/LICENSE-jetraw",
+        "imagecodecs/licenses/LICENSE-jpeg",
+        "imagecodecs/licenses/LICENSE-jpg_0xc3",
+        "imagecodecs/licenses/LICENSE-jxrlib",
+        "imagecodecs/licenses/LICENSE-lcms2",
+        "imagecodecs/licenses/LICENSE-lerc",
+        "imagecodecs/licenses/LICENSE-libaec",
+        "imagecodecs/licenses/LICENSE-libaivf",
+        "imagecodecs/licenses/LICENSE-libdeflate",
+        "imagecodecs/licenses/LICENSE-libjpeg",
+        "imagecodecs/licenses/LICENSE-libjpeg-turbo",
+        "imagecodecs/licenses/LICENSE-libjxl",
+        "imagecodecs/licenses/LICENSE-libjxs",
+        "imagecodecs/licenses/LICENSE-liblj92",
+        "imagecodecs/licenses/LICENSE-liblzma",
+        "imagecodecs/licenses/LICENSE-libmng",
+        "imagecodecs/licenses/LICENSE-libpng",
+        "imagecodecs/licenses/LICENSE-libspng",
+        "imagecodecs/licenses/LICENSE-libtiff",
+        "imagecodecs/licenses/LICENSE-libultrahdr",
+        "imagecodecs/licenses/LICENSE-libwebp",
+        "imagecodecs/licenses/LICENSE-libxml2",
+        "imagecodecs/licenses/LICENSE-libyuv",
+        "imagecodecs/licenses/LICENSE-lz4",
+        "imagecodecs/licenses/LICENSE-lzf",
+        "imagecodecs/licenses/LICENSE-lzfse",
+        "imagecodecs/licenses/LICENSE-lzham",
+        "imagecodecs/licenses/LICENSE-lzokay",
+        "imagecodecs/licenses/LICENSE-meshoptimizer",
+        "imagecodecs/licenses/LICENSE-mozjpeg",
+        "imagecodecs/licenses/LICENSE-netcdf-c",
+        "imagecodecs/licenses/LICENSE-openexr",
+        "imagecodecs/licenses/LICENSE-openjpeg",
+        "imagecodecs/licenses/LICENSE-openjph",
+        "imagecodecs/licenses/LICENSE-openzl",
+        "imagecodecs/licenses/LICENSE-pcodec",
+        "imagecodecs/licenses/LICENSE-postgresql",
+        "imagecodecs/licenses/LICENSE-qoi",
+        "imagecodecs/licenses/LICENSE-rav1e",
+        "imagecodecs/licenses/LICENSE-snappy",
+        "imagecodecs/licenses/LICENSE-sperr",
+        "imagecodecs/licenses/LICENSE-svt-av1",
+        "imagecodecs/licenses/LICENSE-sz3",
+        "imagecodecs/licenses/LICENSE-wavpack",
+        "imagecodecs/licenses/LICENSE-zfp",
+        "imagecodecs/licenses/LICENSE-zlib",
+        "imagecodecs/licenses/LICENSE-zlib-ng",
+        "imagecodecs/licenses/LICENSE-zopfli",
+        "imagecodecs/licenses/LICENSE-zstd",
+        "imagecodecs/licenses/PATENTS-rav1e"
+      ]
+    },
+    {
+      "name": "iniconfig",
+      "version": "2.3.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "iniconfig-2.3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "jaraco.classes",
+      "version": "3.4.0",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "jaraco.classes-3.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "jaraco.context",
+      "version": "6.1.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "jaraco_context-6.1.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "jaraco.functools",
+      "version": "4.6.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "jaraco_functools-4.6.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "jinja2-3.1.6.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "jiter",
+      "version": "0.17.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "jiter-0.17.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "keyring",
+      "version": "25.7.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "keyring-25.7.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE",
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE.markdown-it"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.4",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "markupsafe-3.0.4.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "mdurl-0.1.2.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "more-itertools",
+      "version": "11.1.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "more_itertools-11.1.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "mpmath-1.3.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "msgpack",
+      "version": "1.2.3",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "msgpack-1.2.3.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "natsort",
+      "version": "8.4.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "natsort-8.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "networkx",
+      "version": "3.7",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "networkx-3.7.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.3",
+      "declaredLicense": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "licenseFiles": [
+        "numpy-2.5.3.dist-info/licenses/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/ma/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+        "numpy/_core/include/numpy/random/LICENSE.txt",
+        "numpy/ma/LICENSE",
+        "numpy/random/LICENSE.md"
+      ]
+    },
+    {
+      "name": "open_clip_torch",
+      "version": "3.3.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "open_clip_torch-3.3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "openai",
+      "version": "3.24.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "openai-3.24.0.dist-info/licenses/LICENSE",
+        "openai/_vendor/httpx_aiohttp/LICENSE"
+      ]
+    },
+    {
+      "name": "opencv-python-headless",
+      "version": "5.0.0.93",
+      "declaredLicense": "Apache 2.0",
+      "licenseFiles": [
+        "cv2/LICENSE-3RD-PARTY.txt",
+        "cv2/LICENSE.txt",
+        "opencv_python_headless-5.0.0.93.dist-info/LICENSE-3RD-PARTY.txt",
+        "opencv_python_headless-5.0.0.93.dist-info/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "opentelemetry-api",
+      "version": "1.45.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "opentelemetry_api-1.45.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "declaredLicense": "Apache-2.0 OR BSD-2-Clause",
+      "licenseFiles": [
+        "packaging-26.3.dist-info/licenses/LICENSE",
+        "packaging-26.3.dist-info/licenses/LICENSE.APACHE",
+        "packaging-26.3.dist-info/licenses/LICENSE.BSD",
+        "packaging/licenses/__init__.py",
+        "packaging/licenses/_spdx.py"
+      ]
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0",
+      "declaredLicense": "MIT-CMU",
+      "licenseFiles": [
+        "pillow-12.3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Pint",
+      "version": "0.26.1",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "pint-0.26.1.dist-info/licenses/AUTHORS",
+        "pint-0.26.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.13.5",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "platformdirs-4.13.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pluggy",
+      "version": "1.6.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pluggy-1.6.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.4",
+      "declaredLicense": "BSD-2-Clause",
+      "licenseFiles": [
+        "pyasn1-0.6.4.dist-info/licenses/LICENSE.rst"
+      ]
+    },
+    {
+      "name": "pyasn1_modules",
+      "version": "0.4.2",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "pycparser-3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pydantic-2.13.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.46.5",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pydantic_core-2.46.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "declaredLicense": "BSD-2-Clause",
+      "licenseFiles": [
+        "pygments-2.21.0.dist-info/licenses/AUTHORS",
+        "pygments-2.21.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pytest",
+      "version": "9.1.1",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pytest-9.1.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pytest-xdist",
+      "version": "3.8.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pytest_xdist-3.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "python-dotenv",
+      "version": "1.2.4",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "python_dotenv-1.2.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "pyyaml-6.0.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "2026.9.29",
+      "declaredLicense": "Apache-2.0 AND CNRI-Python",
+      "licenseFiles": [
+        "regex-2026.9.29.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "requests-2.34.2.dist-info/licenses/LICENSE",
+        "requests-2.34.2.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "rich",
+      "version": "15.0.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "rich-15.0.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "roifile",
+      "version": "2026.9.22",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "roifile-2026.9.22.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "safetensors",
+      "version": "0.8.0",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "safetensors-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.1",
+      "declaredLicense": "License text in installed distribution metadata",
+      "licenseFiles": [
+        "scipy-1.18.1.dist-info/LICENSE.txt",
+        "scipy/_lib/_uarray/LICENSE",
+        "scipy/fft/_duccfft/LICENSE.md",
+        "scipy/integrate/LICENSE_DOP"
+      ]
+    },
+    {
+      "name": "segment-anything",
+      "version": "1.0",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "segment_anything-1.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "84.0.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "setuptools-84.0.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/autocommand-2.2.2.dist-info/LICENSE",
+        "setuptools/_vendor/backports.tarfile-1.2.0.dist-info/LICENSE",
+        "setuptools/_vendor/importlib_metadata-8.7.1.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/jaraco.text-4.0.0.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco_context-6.1.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/jaraco_functools-4.4.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/more_itertools-10.8.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE.APACHE",
+        "setuptools/_vendor/packaging-26.0.dist-info/licenses/LICENSE.BSD",
+        "setuptools/_vendor/packaging/licenses/__init__.py",
+        "setuptools/_vendor/packaging/licenses/_spdx.py",
+        "setuptools/_vendor/platformdirs-4.4.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/tomli-2.4.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/wheel-0.46.3.dist-info/licenses/LICENSE.txt",
+        "setuptools/_vendor/zipp-3.23.0.dist-info/licenses/LICENSE",
+        "setuptools/config/NOTICE",
+        "setuptools/config/_validate_pyproject/NOTICE"
+      ]
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "declaredLicense": "ISC License",
+      "licenseFiles": [
+        "shellingham-1.5.4.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "sniffio",
+      "version": "1.3.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "licenseFiles": [
+        "sniffio-1.3.1.dist-info/LICENSE",
+        "sniffio-1.3.1.dist-info/LICENSE.APACHE2",
+        "sniffio-1.3.1.dist-info/LICENSE.MIT"
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "1.7.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "starlette-1.7.0.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "sympy-1.14.0.dist-info/licenses/AUTHORS",
+        "sympy-1.14.0.dist-info/licenses/LICENSE",
+        "sympy/parsing/latex/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "tenacity",
+      "version": "9.1.4",
+      "declaredLicense": "Apache 2.0",
+      "licenseFiles": [
+        "tenacity-9.1.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "tifffile",
+      "version": "2026.9.20",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "tifffile-2026.9.20.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "timm",
+      "version": "1.0.30",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "timm-1.0.30.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.23.2",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": []
+    },
+    {
+      "name": "torch",
+      "version": "2.14.1",
+      "declaredLicense": "Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT",
+      "licenseFiles": [
+        "torch-2.14.1.dist-info/licenses/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/FP16/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/FXdiv/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/NNPACK/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/NVTX/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/NVTX/docs/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/NVTX/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/NVTX/rust/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/NVTX/tools/docs/github-markdown-css/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/VulkanMemoryAllocator/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/XNNPACK/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/aiter/3rdparty/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/aiter/3rdparty/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/aiter/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/benchmark/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/cpp-httplib/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/cpuinfo/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/cpuinfo/deps/clog/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/cudnn_frontend/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/cutlass/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/cutlass/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cpuinfo/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cpuinfo/deps/clog/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cutlass/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/cutlass/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/external/hipify_torch/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/docs/src/general/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/experimental/hstu/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/src/quantize_ops/mx/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fbgemm/fbgemm_gpu/test/quantize/mx/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/cutlass/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/csrc/cutlass/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/flash_attn/cute/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/third_party/aiter/3rdparty/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/third_party/aiter/3rdparty/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/flash-attention/third_party/aiter/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/dart/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/flatbuffers/swift/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/fmt/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/gemmlowp/gemmlowp/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/gloo/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/ideep/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/third_party/gtest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/ideep/mkl-dnn/third_party/opencl/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/kineto/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/dynolog_headers/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/fmt/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/kineto/libkineto/third_party/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/llvm-openmp/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/mimalloc/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/miniz-3.0.2/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/composable_kernel/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/composable_kernel/docs/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/cutlass/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/cutlass/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/external/hipify_torch/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/mslk/mslk/attention/flash_attn/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/nccl/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/nccl/bindings/nccl4py/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_checkpoint/python/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_ep/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/nccl/contrib/nccl_ubx/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/onnx/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/onnx/third_party/pybind11/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/perfetto/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/benchmark/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googlemock/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googlemock/scripts/generator/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/googletest/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/protobuf/third_party/utf8_range/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/psimd/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/pthreadpool/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/pybind11/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/python-peachpy/LICENSE.rst",
+        "torch-2.14.1.dist-info/licenses/third_party/sleef/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/LICENSE.txt",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googlemock/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googlemock/scripts/generator/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/googletest/googletest/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/libnop/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/libuv/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/pybind11/LICENSE",
+        "torch-2.14.1.dist-info/licenses/third_party/tensorpipe/third_party/pybind11/tools/clang/LICENSE.txt",
+        "torch/_vendor/packaging/LICENSE",
+        "torch/_vendor/packaging/LICENSE.APACHE",
+        "torch/_vendor/packaging/LICENSE.BSD",
+        "torch/_vendor/quack/LICENSE"
+      ]
+    },
+    {
+      "name": "torchvision",
+      "version": "0.29.1",
+      "declaredLicense": "BSD",
+      "licenseFiles": [
+        "torchvision-0.29.1.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "declaredLicense": "MPL-2.0 AND MIT",
+      "licenseFiles": [
+        "tqdm-4.70.1.dist-info/licenses/LICENCE"
+      ]
+    },
+    {
+      "name": "transformers",
+      "version": "5.18.0",
+      "declaredLicense": "Apache 2.0 License",
+      "licenseFiles": [
+        "transformers-5.18.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "truststore",
+      "version": "0.10.4",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "truststore-0.10.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typer",
+      "version": "0.27.2",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "typer-0.27.2.dist-info/licenses/LICENSE",
+        "typer/_click/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "typing_inspection-0.4.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "declaredLicense": "PSF-2.0",
+      "licenseFiles": [
+        "typing_extensions-4.16.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "urllib3-2.8.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.54.0",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "uvicorn-0.54.0.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "uvloop",
+      "version": "0.23.0",
+      "declaredLicense": "MIT License",
+      "licenseFiles": [
+        "uvloop-0.23.0.dist-info/licenses/LICENSE-APACHE",
+        "uvloop-0.23.0.dist-info/licenses/LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "watchfiles",
+      "version": "1.3.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "watchfiles-1.3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "wcwidth",
+      "version": "0.9.2",
+      "declaredLicense": "See distribution license files",
+      "licenseFiles": [
+        "wcwidth-0.9.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "websockets",
+      "version": "16.1.1",
+      "declaredLicense": "BSD-3-Clause",
+      "licenseFiles": [
+        "websockets-16.1.1.dist-info/licenses/LICENSE"
+      ]
+    }
+  ],
+  "npm": [
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@dimforge/rapier3d-compat",
+      "version": "0.12.0",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@emnapi/core",
+      "version": "1.10.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@emnapi/runtime",
+      "version": "1.10.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@emnapi/wasi-threads",
+      "version": "1.2.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@napi-rs/wasm-runtime",
+      "version": "1.1.4",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@oxc-project/types",
+      "version": "0.132.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-android-arm64",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-darwin-arm64",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-darwin-x64",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-freebsd-x64",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm-gnueabihf",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm64-musl",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-ppc64-gnu",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-s390x-gnu",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-x64-gnu",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-x64-musl",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-openharmony-arm64",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-wasm32-wasi",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-win32-arm64-msvc",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/binding-win32-x64-msvc",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@rolldown/pluginutils",
+      "version": "1.0.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@tweenjs/tween.js",
+      "version": "23.1.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@tybys/wasm-util",
+      "version": "0.10.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@types/stats.js",
+      "version": "0.17.4",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@types/three",
+      "version": "0.184.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/@types/webxr",
+      "version": "0.5.24",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/fdir",
+      "version": "6.5.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/fflate",
+      "version": "0.8.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/fsevents",
+      "version": "2.3.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-android-arm64",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-darwin-arm64",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-darwin-x64",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-freebsd-x64",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm-gnueabihf",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm64-gnu",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm64-musl",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-linux-x64-gnu",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-linux-x64-musl",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-win32-arm64-msvc",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/lightningcss-win32-x64-msvc",
+      "version": "1.32.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/meshoptimizer",
+      "version": "1.1.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/nanoid",
+      "version": "3.3.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/picocolors",
+      "version": "1.1.1",
+      "license": "ISC"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/picomatch",
+      "version": "4.0.4",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/postcss",
+      "version": "8.5.15",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/rolldown",
+      "version": "1.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/three",
+      "version": "0.184.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/tinyglobby",
+      "version": "0.2.16",
+      "license": "MIT"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/tslib",
+      "version": "2.8.1",
+      "license": "0BSD"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/typescript",
+      "version": "6.0.3",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "package-lock.json",
+      "package": "node_modules/vite",
+      "version": "8.0.14",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@jridgewell/resolve-uri",
+      "version": "3.1.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@jridgewell/sourcemap-codec",
+      "version": "1.6.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@jridgewell/trace-mapping",
+      "version": "0.3.31",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@oxc-project/types",
+      "version": "0.152.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-android-arm-eabi",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-android-arm64",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-darwin-arm64",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-darwin-x64",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-freebsd-x64",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm-gnueabihf",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm64-gnu",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-arm64-musl",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-ppc64-gnu",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-s390x-gnu",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-x64-gnu",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-linux-x64-musl",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-openharmony-arm64",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-win32-arm64-msvc",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/binding-win32-x64-msvc",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@rolldown/pluginutils",
+      "version": "1.0.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@types/chai",
+      "version": "5.2.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@types/deep-eql",
+      "version": "4.0.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@types/estree",
+      "version": "1.0.9",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@types/node",
+      "version": "24.19.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@vitest/mocker",
+      "version": "5.0.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/@vitest/spy",
+      "version": "5.0.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/assertion-error",
+      "version": "2.0.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/chai",
+      "version": "6.3.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/es-module-lexer",
+      "version": "2.3.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/estree-walker",
+      "version": "3.0.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/expect-type",
+      "version": "1.4.0",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/fdir",
+      "version": "6.5.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/fsevents",
+      "version": "2.3.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-android-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-darwin-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-darwin-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-freebsd-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm-gnueabihf",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm64-gnu",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-linux-arm64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-linux-x64-gnu",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-linux-x64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-win32-arm64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/lightningcss-win32-x64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/magic-string",
+      "version": "1.4.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/nanoid",
+      "version": "3.3.19",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/obug",
+      "version": "2.2.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/picocolors",
+      "version": "1.1.1",
+      "license": "ISC"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/picomatch",
+      "version": "4.0.7",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/postcss",
+      "version": "8.5.28",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/rolldown",
+      "version": "1.2.12",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/source-map-js",
+      "version": "1.2.2",
+      "license": "BSD-3-Clause"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/std-env",
+      "version": "4.3.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/tinybench",
+      "version": "6.2.0",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/tinyexec",
+      "version": "1.3.1",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/tinyglobby",
+      "version": "0.2.17",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/typescript",
+      "version": "6.0.3",
+      "license": "Apache-2.0"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/undici-types",
+      "version": "7.24.6",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/vite",
+      "version": "8.3.2",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/vitest",
+      "version": "5.0.3",
+      "license": "MIT"
+    },
+    {
+      "lock": "apps/studio/package-lock.json",
+      "package": "node_modules/why-is-node-running",
+      "version": "3.2.1",
+      "license": "MIT"
+    }
+  ]
+}

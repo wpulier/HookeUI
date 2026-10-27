@@ -1,0 +1,8 @@
+id = "huggingface"
+name = "Hugging Face"
+key = "HF_TOKEN"
+enables = "Downloading the models whose makers ask you to accept a licence first"
+get_key = "https://huggingface.co/settings/tokens"
+licence = ""
+test = "orchestrator/key_tests.py: huggingface, one free authenticated GET"
+costs = "free: it only downloads weights; some models need their licence accepted on their page first"

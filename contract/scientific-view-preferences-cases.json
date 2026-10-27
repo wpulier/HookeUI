@@ -1,0 +1,479 @@
+{
+  "valid": {
+    "schema": 1,
+    "dimensions": {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "ndisplay": 2,
+      "point": [
+        1,
+        2,
+        3
+      ],
+      "labels": [
+        "z",
+        "y",
+        "x"
+      ],
+      "ranges": [
+        [
+          0,
+          4,
+          1
+        ],
+        [
+          0,
+          6,
+          1
+        ],
+        [
+          0,
+          8,
+          1
+        ]
+      ]
+    },
+    "camera": {
+      "center": [
+        0,
+        1,
+        2
+      ],
+      "zoom": 1,
+      "angles": [
+        0,
+        0,
+        90
+      ],
+      "perspective": 0,
+      "orientation": [
+        "towards",
+        "down",
+        "right"
+      ]
+    },
+    "layers": [
+      {
+        "key": "raw",
+        "type": "image",
+        "visible": true,
+        "opacity": 1,
+        "scale": [
+          2,
+          1,
+          1
+        ],
+        "translate": [
+          4,
+          0,
+          0
+        ],
+        "geometry": {
+          "affine": [
+            [
+              2,
+              0,
+              0,
+              4
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          "axes": [
+            "axis-0",
+            "axis-1",
+            "axis-2"
+          ],
+          "units": [
+            "pixel",
+            "pixel",
+            "pixel"
+          ]
+        }
+      }
+    ]
+  },
+  "otherValid": [
+    {
+      "name": "fractional world points stay exact",
+      "value": {
+        "schema": 1,
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "point": [
+            9.6,
+            2.5,
+            3.5
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "ranges": [
+            [
+              0,
+              9.6,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "layers": [
+          {
+            "key": "raw",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ],
+            "geometry": {
+              "affine": [
+                [
+                  2,
+                  0,
+                  0,
+                  4
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              ],
+              "axes": [
+                "axis-0",
+                "axis-1",
+                "axis-2"
+              ],
+              "units": [
+                "pixel",
+                "pixel",
+                "pixel"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "unknown root field",
+      "path": [
+        "source"
+      ],
+      "value": "live"
+    },
+    {
+      "name": "missing schema",
+      "path": [
+        "schema"
+      ],
+      "value": null
+    },
+    {
+      "name": "duplicate axes",
+      "path": [
+        "dimensions",
+        "order"
+      ],
+      "value": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "too many displayed axes",
+      "path": [
+        "dimensions",
+        "ndisplay"
+      ],
+      "value": 4
+    },
+    {
+      "name": "outside calibrated range",
+      "path": [
+        "dimensions",
+        "point"
+      ],
+      "value": [
+        9,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "bad layer key",
+      "path": [
+        "layers",
+        0,
+        "key"
+      ],
+      "value": "../raw"
+    },
+    {
+      "name": "nonpositive camera zoom",
+      "path": [
+        "camera",
+        "zoom"
+      ],
+      "value": 0
+    },
+    {
+      "name": "executable payload",
+      "path": [
+        "python"
+      ],
+      "value": "import os"
+    },
+    {
+      "name": "invalid opacity",
+      "path": [
+        "layers",
+        0,
+        "opacity"
+      ],
+      "value": 2
+    },
+    {
+      "name": "duplicate layer keys",
+      "path": [
+        "layers"
+      ],
+      "value": [
+        {
+          "key": "raw",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "geometry": {
+            "affine": [
+              [
+                2,
+                0,
+                0,
+                4
+              ],
+              [
+                0,
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                1
+              ]
+            ],
+            "axes": [
+              "axis-0",
+              "axis-1",
+              "axis-2"
+            ],
+            "units": [
+              "pixel",
+              "pixel",
+              "pixel"
+            ]
+          }
+        },
+        {
+          "key": "raw",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "geometry": {
+            "affine": [
+              [
+                2,
+                0,
+                0,
+                4
+              ],
+              [
+                0,
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                1
+              ]
+            ],
+            "axes": [
+              "axis-0",
+              "axis-1",
+              "axis-2"
+            ],
+            "units": [
+              "pixel",
+              "pixel",
+              "pixel"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "bad affine row",
+      "path": [
+        "layers",
+        0,
+        "geometry",
+        "affine",
+        0
+      ],
+      "value": [
+        1,
+        0
+      ]
+    },
+    {
+      "name": "non affine last row",
+      "path": [
+        "layers",
+        0,
+        "geometry",
+        "affine",
+        2
+      ],
+      "value": [
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "missing units",
+      "path": [
+        "layers",
+        0,
+        "geometry",
+        "units"
+      ],
+      "value": []
+    },
+    {
+      "name": "missing axes",
+      "path": [
+        "layers",
+        0,
+        "geometry",
+        "axes"
+      ],
+      "value": []
+    }
+  ]
+}

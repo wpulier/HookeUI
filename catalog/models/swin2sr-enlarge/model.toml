@@ -1,0 +1,50 @@
+# A Hugging Face model through the door (catalog format 2, ADR 0024): Swin2SR, a transformers super-resolution model no
+# reviewed template runs. Made with `make capability-new ID=swin2sr-enlarge OUTPUT=image.2d.rgb8 INTO=catalog`, its files
+# pinned with `make catalog-pin`, its requirements locked with `make capability-lock`.
+requires = { catalog = 2 }
+id = "swin2sr-enlarge"
+name = "Swin2SR enlarge"
+runs = "cpu"
+version = "caidas/swin2SR-lightweight-x2-64@07e8e61"
+licence = ["swin2sr-enlarge"]
+what = "Enlarges the middle of the view twice with Swin2SR super-resolution"
+description = "The middle of the view, enlarged two times by Swin2SR (lightweight, trained on everyday photographs, not microscope pictures). Its detail is the model's estimate of what an enlargement would show: a picture made by the model, never the camera's pixels and never a measurement."
+runner = "python-env"
+adapter = "adapter:run"
+env = { python = "3.13.5", lock = "env.lock", imports = ["torch", "transformers"] }
+needs_to_run = ["install:swin2sr-enlarge"]
+component = { what = "Swin2SR lightweight x2 (Conde, Choi, Burchi, Timofte)", licence = "Apache-2.0", url = "https://huggingface.co/caidas/swin2SR-lightweight-x2-64", tier = "open" }
+source = { hf = "caidas/swin2SR-lightweight-x2-64", revision = "07e8e61492ce6daf4f34c651622960faf110c17f" }
+files = [
+  { path = "config.json", bytes = 749, git_sha1 = "9b3c7153945311fcc9c44a96ced6dfe547ac0240" },
+  { path = "model.safetensors", bytes = 4082952, sha256 = "1b7a135af7de4287289c59939bf735de5afa9927a943bd946920acdcf4dd6365" },
+  { path = "preprocessor_config.json", bytes = 152, git_sha1 = "539dbfb6265f0ece81a881579565e88b90668fc4" },
+]
+needs_to_get = ["download"]
+credit = { authors = "Marcos V. Conde, Ui-Jin Choi, Maxime Burchi, Radu Timofte", link = "https://huggingface.co/caidas/swin2SR-lightweight-x2-64", paper = "https://arxiv.org/abs/2209.11345" }
+category = "Clearer picture"
+search_aliases = ["super resolution", "upscale", "enlarge", "swin2sr"]
+outcomes = { unsupported = "a view smaller than the part it enlarges" }
+tests = [
+  { input = "example-default-grid.png", outcome = "result" },
+  { input = "example-synthetic-texture.png", params = { size = 128 }, outcome = "result" },
+]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "size"
+type = "choice"
+options = [128, 256, 384]
+default = 256
+label = "Part enlarged"
+unit = "px"
+tooltip = "How large a square of the middle of the view it enlarges (the result is twice as large)"
+
+[[outputs]]
+id = "enlarged"
+type = "image.2d.rgb8"
+label = "Enlarged picture"

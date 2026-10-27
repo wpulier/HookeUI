@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iPhone CV Consumer</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        --bg: #f6f4ef;
+        --panel: rgba(255, 255, 255, 0.9);
+        --ink: #151923;
+        --muted: #687283;
+        --line: #d8ded8;
+        --line-strong: #b9c5bc;
+        --green: #1d8d69;
+        --green-soft: #e2f5ed;
+        --amber: #ad6818;
+        --amber-soft: #fff0d8;
+        --red: #ad3939;
+        --red-soft: #fae3df;
+        --blue: #2568a9;
+        --blue-soft: #e2eefb;
+        color: var(--ink);
+        background: var(--bg);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(135deg, #fbfaf7 0%, var(--bg) 52%, #eef3f1 100%),
+          #f6f4ef;
+      }
+
+      main {
+        width: min(1240px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 24px 0 34px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 780;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 3.2vw, 44px);
+        line-height: 1.06;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        max-width: 720px;
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .status-pill,
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+
+      .status-pill {
+        gap: 9px;
+        min-height: 38px;
+        padding: 0 13px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--muted);
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 999px;
+        background: var(--amber);
+        box-shadow: 0 0 0 4px rgba(173, 104, 24, 0.15);
+      }
+
+      body[data-state="live"] .dot {
+        background: var(--green);
+        box-shadow: 0 0 0 4px rgba(29, 141, 105, 0.15);
+      }
+
+      body[data-state="error"] .dot {
+        background: var(--red);
+        box-shadow: 0 0 0 4px rgba(173, 57, 57, 0.15);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.8fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .panel {
+        border: 1px solid rgba(183, 197, 190, 0.9);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: 0 22px 70px rgba(48, 58, 63, 0.12);
+      }
+
+      .preview-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        overflow: hidden;
+        background: var(--line);
+      }
+
+      .frame-panel {
+        min-width: 0;
+        background: #11161c;
+      }
+
+      .frame-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        min-height: 42px;
+        padding: 0 13px;
+        color: #edf4f2;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .frame-title {
+        font-size: 13px;
+        font-weight: 760;
+      }
+
+      .frame-endpoint {
+        color: rgba(237, 244, 242, 0.66);
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 11px;
+      }
+
+      .frame-shell {
+        position: relative;
+        display: grid;
+        min-height: 340px;
+        background: #11161c;
+      }
+
+      .feed-image {
+        display: block;
+        width: 100%;
+        min-height: 340px;
+        aspect-ratio: 16 / 9;
+        object-fit: contain;
+        background: #11161c;
+      }
+
+      .feed-image[hidden] {
+        display: none;
+      }
+
+      .empty-state {
+        display: grid;
+        place-items: center;
+        min-height: 340px;
+        padding: 24px;
+        color: rgba(237, 244, 242, 0.72);
+        text-align: center;
+      }
+
+      .empty-state[hidden] {
+        display: none;
+      }
+
+      .empty-state strong {
+        display: block;
+        margin-bottom: 7px;
+        color: #edf4f2;
+        font-size: 17px;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 13px;
+        border-top: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .endpoint {
+        color: #35453f;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      a,
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 12px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: #edf1ee;
+        color: var(--ink);
+        font: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      a.primary {
+        border-color: #1f604b;
+        background: #1f604b;
+        color: #fff;
+      }
+
+      button.primary {
+        border-color: #1f604b;
+        background: #1f604b;
+        color: #fff;
+      }
+
+      button.danger {
+        border-color: #d4aaa4;
+        background: var(--red-soft);
+        color: #8e2d2d;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .processed-panel:fullscreen {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        width: 100vw;
+        height: 100vh;
+        background: #050708;
+      }
+
+      .processed-panel:fullscreen .frame-head {
+        min-height: 46px;
+        background: rgba(7, 10, 12, 0.96);
+      }
+
+      .processed-panel:fullscreen .frame-shell {
+        min-height: 0;
+        background: #050708;
+      }
+
+      .processed-panel:fullscreen .feed-image {
+        width: 100vw;
+        height: 100%;
+        min-height: 0;
+        object-fit: contain;
+        background: #050708;
+      }
+
+      .side {
+        display: grid;
+        gap: 14px;
+      }
+
+      .card {
+        padding: 15px;
+      }
+
+      .card-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .badge {
+        min-height: 24px;
+        padding: 0 8px;
+        background: var(--amber-soft);
+        color: #8b4d0c;
+        font-size: 12px;
+        font-weight: 760;
+      }
+
+      .badge.good {
+        background: var(--green-soft);
+        color: #12684d;
+      }
+
+      .badge.bad {
+        background: var(--red-soft);
+        color: #8e2d2d;
+      }
+
+      .badge.info {
+        background: var(--blue-soft);
+        color: #174f82;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .metric {
+        min-height: 76px;
+        padding: 11px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.66);
+      }
+
+      .metric-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .metric-value {
+        margin-top: 7px;
+        font-size: 20px;
+        line-height: 1.1;
+        font-weight: 780;
+        letter-spacing: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .metric-note {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .command {
+        margin-top: 12px;
+        padding: 11px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #f7f8f5;
+        color: #24352f;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+      }
+
+      .footer-note {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      code {
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: #eef1ed;
+        color: #31443e;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 980px) {
+        .topbar,
+        .grid,
+        .preview-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 560px) {
+        main {
+          width: min(100vw - 20px, 1240px);
+          padding-top: 18px;
+        }
+
+        .metrics {
+          grid-template-columns: 1fr;
+        }
+
+        .feed-image,
+        .empty-state,
+        .frame-shell {
+          min-height: 250px;
+        }
+      }
+    </style>
+  </head>
+  <body data-state="idle">
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Live CV consumer</p>
+          <h1>OpenCV feed scaffold</h1>
+          <p class="subtitle">
+            Separate service consuming the iPhone bridge. The camera bridge owns
+            the phone; this app reads live frames and exposes processed output.
+          </p>
+        </div>
+        <div class="status-pill" aria-live="polite">
+          <span class="dot"></span>
+          <span id="statusText">Checking CV service</span>
+        </div>
+      </header>
+
+      <section class="grid">
+        <section class="panel" aria-label="CV frame preview">
+          <div class="preview-grid">
+            <article class="frame-panel">
+              <div class="frame-head">
+                <span class="frame-title">Raw bridge frame</span>
+                <span class="frame-endpoint">/raw.jpg</span>
+              </div>
+              <div class="frame-shell">
+                <img id="rawImage" class="feed-image" alt="Latest raw bridge frame" hidden />
+                <div id="rawEmpty" class="empty-state">
+                  <div>
+                    <strong>No raw frame</strong>
+                    <span>Waiting for the camera bridge.</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article id="processedPanel" class="frame-panel processed-panel">
+              <div class="frame-head">
+                <span class="frame-title">Processed OpenCV frame</span>
+                <span class="frame-endpoint">/processed.mjpeg</span>
+              </div>
+              <div class="frame-shell">
+                <img id="processedImage" class="feed-image" alt="Processed OpenCV stream" hidden />
+                <div id="processedEmpty" class="empty-state">
+                  <div>
+                    <strong>No processed frame</strong>
+                    <span>Waiting for live decoded frames.</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="toolbar">
+            <span class="endpoint" id="inputEndpoint">Input: --</span>
+            <div class="actions">
+              <button id="refreshButton" type="button">Refresh</button>
+              <button id="fullscreenButton" class="primary" type="button" disabled>Full Screen</button>
+              <a id="bridgeLink" class="primary" href="http://127.0.0.1:8765/camera/">Camera Bridge</a>
+            </div>
+          </div>
+        </section>
+
+        <aside class="side" aria-label="CV status details">
+          <section class="panel card">
+            <div class="card-title">
+              <h2>CV Runtime</h2>
+              <span id="cvBadge" class="badge">Checking</span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-label">Input mode</div>
+                <div id="inputModeMetric" class="metric-value">--</div>
+                <div id="inputModeNote" class="metric-note">Bridge MJPEG primary</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Decode rate</div>
+                <div id="fpsMetric" class="metric-value">--</div>
+                <div class="metric-note">Server-side estimate</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Resolution</div>
+                <div id="resolutionMetric" class="metric-value">--</div>
+                <div id="resolutionNote" class="metric-note">Waiting</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Frames</div>
+                <div id="framesMetric" class="metric-value">0</div>
+                <div id="framesNote" class="metric-note">Decoded / processed</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="card-title">
+              <h2>Bridge Dependency</h2>
+              <span id="bridgeBadge" class="badge">Checking</span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-label">Bridge state</div>
+                <div id="bridgeStateMetric" class="metric-value">--</div>
+                <div id="bridgeAgeNote" class="metric-note">Camera service</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">CV frame age</div>
+                <div id="ageMetric" class="metric-value">--</div>
+                <div class="metric-note">Freshness gate</div>
+              </div>
+            </div>
+            <div id="bridgeCommand" class="command">
+              Camera bridge: http://127.0.0.1:8765
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="card-title">
+              <h2>Frame Signal</h2>
+              <span id="signalBadge" class="badge info">Measuring</span>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-label">Brightness</div>
+                <div id="brightnessMetric" class="metric-value">--</div>
+                <div class="metric-note">Mean luma</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Edges</div>
+                <div id="edgesMetric" class="metric-value">--</div>
+                <div id="contrastNote" class="metric-note">Canny overlay</div>
+              </div>
+            </div>
+            <div id="errorLine" class="command">No errors reported.</div>
+          </section>
+        </aside>
+      </section>
+
+      <p class="footer-note">
+        Start bridge with <code>make camera</code>. Start CV with
+        <code>make cv</code>. Start both with <code>make camera-cv</code>.
+      </p>
+    </main>
+
+    <script>
+      const body = document.body;
+      const statusText = document.querySelector("#statusText");
+      const rawImage = document.querySelector("#rawImage");
+      const rawEmpty = document.querySelector("#rawEmpty");
+      const processedPanel = document.querySelector("#processedPanel");
+      const processedImage = document.querySelector("#processedImage");
+      const processedEmpty = document.querySelector("#processedEmpty");
+      const inputEndpoint = document.querySelector("#inputEndpoint");
+      const bridgeLink = document.querySelector("#bridgeLink");
+      const refreshButton = document.querySelector("#refreshButton");
+      const fullscreenButton = document.querySelector("#fullscreenButton");
+
+      const cvBadge = document.querySelector("#cvBadge");
+      const bridgeBadge = document.querySelector("#bridgeBadge");
+      const signalBadge = document.querySelector("#signalBadge");
+      const inputModeMetric = document.querySelector("#inputModeMetric");
+      const inputModeNote = document.querySelector("#inputModeNote");
+      const fpsMetric = document.querySelector("#fpsMetric");
+      const resolutionMetric = document.querySelector("#resolutionMetric");
+      const resolutionNote = document.querySelector("#resolutionNote");
+      const framesMetric = document.querySelector("#framesMetric");
+      const framesNote = document.querySelector("#framesNote");
+      const bridgeStateMetric = document.querySelector("#bridgeStateMetric");
+      const bridgeAgeNote = document.querySelector("#bridgeAgeNote");
+      const ageMetric = document.querySelector("#ageMetric");
+      const bridgeCommand = document.querySelector("#bridgeCommand");
+      const brightnessMetric = document.querySelector("#brightnessMetric");
+      const edgesMetric = document.querySelector("#edgesMetric");
+      const contrastNote = document.querySelector("#contrastNote");
+      const errorLine = document.querySelector("#errorLine");
+
+      let processedStreamOpen = false;
+      let latestHealth = null;
+
+      function setBadge(element, text, tone = "") {
+        element.className = `badge${tone ? ` ${tone}` : ""}`;
+        element.textContent = text;
+      }
+
+      function setState(state, text) {
+        body.dataset.state = state;
+        statusText.textContent = text;
+      }
+
+      function showFrames(show) {
+        rawImage.hidden = !show;
+        rawEmpty.hidden = show;
+        processedImage.hidden = !show;
+        processedEmpty.hidden = show;
+        fullscreenButton.disabled = !show || !fullscreenAvailable();
+
+        if (show) {
+          rawImage.src = `/raw.jpg?ts=${Date.now()}`;
+          if (!processedStreamOpen) {
+            processedImage.src = `/processed.mjpeg?ts=${Date.now()}`;
+            processedStreamOpen = true;
+          }
+          return;
+        }
+
+        rawImage.removeAttribute("src");
+        processedImage.removeAttribute("src");
+        processedStreamOpen = false;
+      }
+
+      function fullscreenAvailable() {
+        return Boolean(
+          document.fullscreenEnabled ||
+          document.webkitFullscreenEnabled ||
+          processedPanel.requestFullscreen ||
+          processedPanel.webkitRequestFullscreen
+        );
+      }
+
+      function fullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+      }
+
+      function isProcessedFullscreen() {
+        return fullscreenElement() === processedPanel;
+      }
+
+      function setFullscreenButton(active = isProcessedFullscreen()) {
+        fullscreenButton.classList.toggle("danger", active);
+        fullscreenButton.classList.toggle("primary", !active);
+        fullscreenButton.textContent = active ? "Exit Full Screen" : "Full Screen";
+      }
+
+      async function enterFullscreen() {
+        if (!fullscreenAvailable()) {
+          errorLine.textContent = "Fullscreen is not available in this browser.";
+          return;
+        }
+        if (!latestHealth?.ok) {
+          errorLine.textContent = "Fullscreen is available after live CV frames are decoding.";
+          return;
+        }
+        const request = processedPanel.requestFullscreen || processedPanel.webkitRequestFullscreen;
+        await request.call(processedPanel);
+        setFullscreenButton(true);
+      }
+
+      async function exitFullscreen() {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit && fullscreenElement()) {
+          await exit.call(document);
+        }
+        setFullscreenButton(false);
+      }
+
+      function toggleFullscreen() {
+        if (isProcessedFullscreen()) {
+          exitFullscreen().catch((error) => {
+            errorLine.textContent = `Exit fullscreen failed: ${error.message}`;
+          });
+          return;
+        }
+        enterFullscreen().catch((error) => {
+          errorLine.textContent = `Fullscreen failed: ${error.message}`;
+        });
+      }
+
+      function applyHealth(health) {
+        latestHealth = health;
+        const live = Boolean(health.ok);
+        const bridge = health.bridge || {};
+        const bridgeUrl = bridge.url || "http://127.0.0.1:8765";
+        const bridgeUi = `${bridgeUrl}/camera/`;
+        bridgeLink.href = bridgeUi;
+
+        setState(live ? "live" : "error", health.stateLabel || "CV service not ready");
+        setBadge(cvBadge, live ? "Live" : health.state || "Waiting", live ? "good" : "bad");
+        setBadge(
+          bridgeBadge,
+          bridge.ok ? "Bridge live" : bridge.error ? "Offline" : bridge.state || "Not live",
+          bridge.ok ? "good" : "bad",
+        );
+        setBadge(signalBadge, live ? "Processing" : "No frame", live ? "good" : "info");
+
+        inputModeMetric.textContent = health.inputMode || "--";
+        inputModeNote.textContent = health.settings?.primaryInput ? "Primary: /iphone.mjpeg" : "Bridge input";
+        fpsMetric.textContent = health.estimatedFps ? `${health.estimatedFps}` : "--";
+        resolutionMetric.textContent = health.width && health.height ? `${health.width} x ${health.height}` : "--";
+        resolutionNote.textContent = health.width >= 1280 && health.height >= 720 ? "Good for CV" : "Waiting";
+        framesMetric.textContent = `${health.frameCount || 0}`;
+        framesNote.textContent = `${health.processedCount || 0} processed`;
+        bridgeStateMetric.textContent = bridge.state || (bridge.error ? "offline" : "--");
+        bridgeAgeNote.textContent =
+          bridge.lastFrameAgeSeconds === null || bridge.lastFrameAgeSeconds === undefined
+            ? "Bridge frame age --"
+            : `Bridge age ${bridge.lastFrameAgeSeconds}s`;
+        ageMetric.textContent =
+          health.latestFrameAgeSeconds === null || health.latestFrameAgeSeconds === undefined
+            ? "--"
+            : `${health.latestFrameAgeSeconds}s`;
+        bridgeCommand.textContent = `Bridge UI: ${bridgeUi}`;
+        brightnessMetric.textContent =
+          health.brightnessPct === null || health.brightnessPct === undefined
+            ? "--"
+            : `${health.brightnessPct}%`;
+        edgesMetric.textContent =
+          health.edgePct === null || health.edgePct === undefined
+            ? "--"
+            : `${health.edgePct}%`;
+        contrastNote.textContent =
+          health.contrast === null || health.contrast === undefined
+            ? "Canny overlay"
+            : `Contrast ${health.contrast}`;
+        inputEndpoint.textContent = `Input: ${bridge.mjpegUrl || "--"}`;
+        errorLine.textContent = health.lastError || bridge.error || "No errors reported.";
+        showFrames(live);
+      }
+
+      async function refreshHealth() {
+        try {
+          const response = await fetch("/api/health", { cache: "no-store" });
+          const health = await response.json();
+          applyHealth(health);
+        } catch (error) {
+          setState("error", "CV service offline");
+          setBadge(cvBadge, "Offline", "bad");
+          setBadge(bridgeBadge, "Unknown", "");
+          setBadge(signalBadge, "No frame", "");
+          errorLine.textContent = error.message;
+          showFrames(false);
+        }
+      }
+
+      refreshButton.addEventListener("click", refreshHealth);
+      fullscreenButton.addEventListener("click", toggleFullscreen);
+      document.addEventListener("fullscreenchange", () => setFullscreenButton());
+      document.addEventListener("webkitfullscreenchange", () => setFullscreenButton());
+      setFullscreenButton(false);
+      refreshHealth();
+      window.setInterval(refreshHealth, 1000);
+    </script>
+  </body>
+</html>

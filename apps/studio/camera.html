@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ObservationUI Camera</title>
+    <!-- The camera page: served by the camera bridge at /camera/, built from apps/studio/src/camera (vite.camera.config.ts).
+         It works on its own, without the rest of ObservationUI, so the picture can always be got back from here. -->
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <div class="name">ObservationUI Camera</div>
+        <nav class="sources" id="sources" aria-label="Where the picture comes from"></nav>
+        <span class="top-dot" id="topDot" data-state="work" role="status" aria-label="Connecting"></span>
+      </header>
+      <p class="source-note" id="sourceNote"></p>
+
+      <main class="body" id="body">
+        <section class="stage" aria-label="The live picture">
+          <div class="thumb" id="thumb">
+            <img id="live" alt="The camera's live picture" hidden />
+            <p class="thumb-say" id="noPicture">No picture yet</p>
+          </div>
+          <div class="rhythm" aria-label="How evenly frames arrive">
+            <div class="trace" title="Each line is a frame arriving, over the last 5 seconds (newest at the right). Evenly spaced is smooth; a gap is a frame that came late.">
+              <canvas id="trace" aria-hidden="true"></canvas>
+              <span class="trace-say">each line is a frame · last 5 s</span>
+            </div>
+            <div class="steady" id="steady" data-even="true"
+                 title="How evenly frames arrive. Smooth: one every 33 ms at 30 fps. A stutter is a frame that waits longer, so motion jumps a little; Wi-Fi bunches frames more than the cable or the iPhone.">
+              <strong id="fps">–</strong>
+              <span id="evenness">no frames</span>
+              <span id="gaps"></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="doctor" aria-label="What is true right now">
+          <h1 id="headline" aria-live="polite">Checking</h1>
+          <section class="setup" id="setup" hidden aria-label="Set up the Blackmagic Camera app">
+            <p class="setup-head">Once, about 5 minutes. Keep the iPhone in your hand; this page ticks each step as it sees it done.</p>
+            <ol>
+              <li id="setup1">
+                <span class="tick"></span>
+                <div class="step">
+                  <p class="step-title">Get the free Blackmagic Camera app</p>
+                  <div class="step-body">
+                    <p>On the iPhone, scan this code with the Camera app and tap the link: the App Store opens on Blackmagic Camera, by Blackmagic Design. Tap Get.</p>
+                    <div class="qr"><img id="appQr" alt="QR code for Blackmagic Camera on the App Store" />
+                      <p>Or search the App Store for “Blackmagic Camera”. It is free.</p></div>
+                    <button class="cam-act" data-strong="true" type="button" id="haveApp">I have the app</button>
+                  </div>
+                </div>
+              </li>
+              <li id="setup2">
+                <span class="tick"></span>
+                <div class="step">
+                  <p class="step-title">Open it, and let this Mac reach it</p>
+                  <div class="step-body">
+                    <p>Open Blackmagic Camera. When it asks, allow the camera, the microphone and <b>Local Network</b> (that lets it talk to this Mac). Then tap the settings gear and turn on HTTP Server:</p>
+                    <p class="path"><span>Settings</span><span>Network Access</span><span>HTTP Server</span></p>
+                    <p class="wait">This ticks by itself once the Mac reaches the app. Keep the app open.</p>
+                    <details class="stuck"><summary>Not ticking? Try these</summary>
+                      <ul>
+                        <li>The Mac can reach the app only while it is open and in front.</li>
+                        <li>The iPhone must be on the same Wi-Fi as this Mac, or plugged into it with its cable.</li>
+                        <li>Said no to Local Network? In the iPhone's Settings › Apps › Blackmagic Camera, turn Local Network on.</li>
+                        <li>Turn off Remote Camera Control in Blackmagic Camera's settings, if it is on.</li>
+                        <li>Don't have the app yet? <button class="cam-link" type="button" id="noApp">Show how to get it</button></li>
+                      </ul></details>
+                  </div>
+                </div>
+              </li>
+              <li id="setup3">
+                <span class="tick"></span>
+                <div class="step">
+                  <p class="step-title">Give it ObservationUI's settings</p>
+                  <div class="step-body">
+                    <p>Scan this code with the iPhone's Camera app and tap the link. Safari asks to download <b>MicroscopeMind.xml</b>: tap Download.</p>
+                    <div class="qr"><img id="setupQr" alt="QR code for ObservationUI's settings file" />
+                      <p>The file goes to Downloads, in the Files app. Nothing else is installed.</p></div>
+                    <p>Then, in Blackmagic Camera, open:</p>
+                    <p class="path"><span>Settings</span><span>Live Stream</span><span>Platform</span><span>Import Stream Settings</span></p>
+                    <p>and pick MicroscopeMind.xml from Downloads.</p>
+                    <details class="stuck"><summary>Not ticking? Try these</summary>
+                      <ul>
+                        <li>The code opens nothing: the iPhone must be on the same Wi-Fi as this Mac.</li>
+                        <li>Or <a id="settingsLink" download="MicroscopeMind.xml">get the file here</a> and AirDrop it to the iPhone, then import it the same way.</li>
+                        <li>Can't find it when importing? In the file picker, tap Browse, then Downloads.</li>
+                      </ul></details>
+                  </div>
+                </div>
+              </li>
+              <li id="setup4">
+                <span class="tick"></span>
+                <div class="step">
+                  <p class="step-title">Choose the saved platform</p>
+                  <div class="step-body">
+                    <p>ObservationUI keeps the earlier MicroscopeMind platform name so existing phone settings keep working. Still in Live Stream, choose:</p>
+                    <p class="choices"><span>Platform: MicroscopeMind</span><span>Quality: Standard</span></p>
+                    <p>That's all. The picture comes in by itself, and from now on it does every time the app is open.</p>
+                    <details class="stuck"><summary>Not ticking? Try these</summary>
+                      <ul>
+                        <li>Standard isn't listed: import the file again (the step before).</li>
+                        <li>Choose Standard, not the app's own qualities: some of them close the app as it starts streaming.</li>
+                      </ul></details>
+                  </div>
+                </div>
+              </li>
+            </ol>
+          </section>
+          <p class="setup-done" id="setupDone" hidden>All set. Next time, just open Blackmagic Camera on your iPhone and the picture appears here.</p>
+          <section class="other" id="other" hidden aria-label="Which camera">
+            <div class="other-head">
+              <h2>Which camera?</h2>
+              <button class="cam-link" type="button" id="otherRefresh" title="Plugged one in? Look for it">Look again</button>
+            </div>
+            <div class="other-list" id="otherList" role="radiogroup" aria-label="Cameras this Mac sees"><p class="other-hint">Looking for cameras…</p></div>
+            <details class="other-net" id="otherNet">
+              <summary>A camera on the network instead</summary>
+              <form class="other-stream" id="otherStream">
+                <input id="otherUrl" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="rtsp://192.168.1.20:554/stream" aria-label="Stream address" />
+                <button class="cam-act" type="submit">Use this stream</button>
+              </form>
+              <p class="other-hint" id="otherNetNote">Its address starts with rtsp://, srt:// or rtmp://, and is in the camera's manual or app.</p>
+            </details>
+          </section>
+          <div id="checklist"></div>
+        </section>
+      </main>
+
+      <section class="camera" id="camera" aria-label="The phone's camera" hidden></section>
+
+      <footer class="foot">
+        <button id="check" class="cam-act" type="button" title="Watch this source's picture for a minute and keep the result, to compare sources">Check smoothness (1 min)</button>
+        <span id="checkState" class="note"></span>
+        <span class="spacer"></span>
+        <button id="openPhoneCheck" class="cam-link" type="button" title="Learn which of the phone's settings this Mac can change safely (once, and again after the app updates)">Phone check</button>
+        <button id="openCompare" class="cam-link" type="button" title="Smoothness checks of each source, side by side">Compare</button>
+        <button id="openDetails" class="cam-link" type="button" title="The technical facts, for whoever is helping">Details</button>
+      </footer>
+    </div>
+
+    <aside id="compare" class="sheet" aria-label="Compare sources" data-open="false">
+      <header><h2>Compare</h2><button class="cam-link" type="button" data-close>Close</button></header>
+      <p>Each check watches the picture for a minute, as the app receives it, so sources can be compared. The best is 30 frames a second, arriving evenly (smooth).</p>
+      <table>
+        <thead><tr><th>Source</th><th title="Frames a second">A second</th><th title="How evenly frames arrived">Smoothness</th><th title="Frames that came more than 0.1 s late in the minute">Long waits</th><th>When</th></tr></thead>
+        <tbody id="trialRows"><tr><td colspan="5">No checks yet.</td></tr></tbody>
+      </table>
+    </aside>
+
+    <aside id="phoneCheck" class="sheet" aria-label="Phone check" data-open="false">
+      <header><h2>Phone check</h2><button class="cam-link" type="button" data-close>Close</button></header>
+      <p>Learns what Blackmagic Camera lets this Mac change, so every control here is safe. The first time takes about 10 minutes; after that only what is new.</p>
+      <ul id="pcNeeds">
+        <li>Open Blackmagic Camera on the phone and keep it in front.</li>
+        <li>Plug the phone into this Mac with its cable.</li>
+        <li>Don't touch the phone while it runs. It records a 3-second clip on the phone.</li>
+      </ul>
+      <button id="pcStart" class="cam-act" data-strong="true" type="button">Start the Phone check</button>
+      <div id="pcRun" hidden>
+        <div class="progress"><span id="pcBar"></span></div>
+        <p id="pcStep"></p>
+      </div>
+      <p id="pcNeedsYou" class="needs-you" hidden></p>
+      <ul id="pcSummary" hidden></ul>
+      <p id="pcError" class="note" hidden></p>
+    </aside>
+
+    <aside id="details" class="sheet" aria-label="Details" data-open="false">
+      <header><h2>Details</h2><button class="cam-link" type="button" data-close>Close</button></header>
+      <dl id="facts"></dl>
+      <a class="cam-link" id="detailsSettings" download="MicroscopeMind.xml">Blackmagic settings file</a>
+    </aside>
+
+    <script type="module" src="/src/camera/page.ts"></script>
+  </body>
+</html>

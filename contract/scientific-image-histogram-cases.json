@@ -1,0 +1,41 @@
+{
+  "valid": {
+    "enabled": true,
+    "bins": 4,
+    "mode": "full",
+    "logScale": false,
+    "maxSamples": 1000000,
+    "range": [0, 1e17],
+    "binEdges": [0, 2.5e16, 5e16, 7.5e16, 1e17],
+    "counts": [10, 0, 3, 7],
+    "integer": false
+  },
+  "otherValid": [
+    {"name": "disabled without counts", "patch": {"enabled": false, "binEdges": null, "counts": null}},
+    {"name": "logarithmic counts", "patch": {"logScale": true, "counts": [1.0413927, 0, 0.60206, 0.90309]}},
+    {"name": "constant data range", "patch": {"range": [5, 5], "bins": 1, "binEdges": [4.5, 5.5], "counts": [12]}}
+  ],
+  "invalid": [
+    {"name": "zero bins", "patch": {"bins": 0}},
+    {"name": "too many bins", "patch": {"bins": 513}},
+    {"name": "fractional bins", "patch": {"bins": 2.5}},
+    {"name": "unknown mode", "patch": {"mode": "slice"}},
+    {"name": "string log scale", "patch": {"logScale": "no"}},
+    {"name": "zero samples", "patch": {"maxSamples": 0}},
+    {"name": "reversed range", "patch": {"range": [2, 1]}},
+    {"name": "infinite range", "patch": {"range": [0, "inf"]}},
+    {"name": "disabled with counts", "patch": {"enabled": false}},
+    {"name": "enabled without counts", "patch": {"binEdges": null, "counts": null}},
+    {"name": "edges and counts disagree", "patch": {"binEdges": [0, 1, 2]}},
+    {"name": "decreasing edges", "patch": {"binEdges": [0, 3, 2, 4, 5]}},
+    {"name": "negative count", "patch": {"counts": [1, -1, 0, 0]}},
+    {"name": "missing field", "remove": "maxSamples"},
+    {"name": "missing integer flag", "remove": "integer"},
+    {"name": "numeric integer flag", "patch": {"integer": 1}}
+  ],
+  "contrast": {
+    "valid": [{"action": "auto-once"}, {"action": "reset-range"}, {"action": "autoscale-range"}, {"action": "reset-histogram"}, {"action": "set-range", "range": [-5, 1e17]}],
+    "invalid": [{"action": "auto"}, {"action": "auto-once", "range": [0, 1]}, {"action": "autoscale-range", "range": [0, 1]}, {"action": "range-to-limits"}, {"action": "set-range"},
+                {"action": "set-range", "range": [3, 3]}, {"action": "set-range", "range": [0, null]}]
+  }
+}

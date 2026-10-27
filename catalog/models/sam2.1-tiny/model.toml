@@ -1,0 +1,30 @@
+id = "sam2.1-tiny"
+name = "SAM 2.1 tiny"
+runs = "this-mac"
+version = "facebook/sam2.1-hiera-tiny"
+licence = ["sam2.1"]
+kind = "model"
+what = "Outlines what you click or box"
+runner = "gpu-worker"
+source = { hf = "facebook/sam2.1-hiera-tiny", revision = "de431c4043854a71d8101e17995dfe596bf101a5" }
+files = [
+  { path = "config.json", bytes = 5695, git_sha1 = "e8fa1e6d6d31299bba32d2f5759c2d156c8a6bd1" },
+  { path = "model.safetensors", bytes = 155908064, sha256 = "48c14467e5cf9e51870511feb72c89688e82dd74523142c0538b663e193ac2a7" },
+  { path = "preprocessor_config.json", bytes = 683, git_sha1 = "8499e53cb79bf1786a890021550e6994b9808f39" },
+  { path = "processor_config.json", bytes = 95, git_sha1 = "7556f607c3581a19f545de09d8b3fc98502b9f36" },
+  { path = "video_preprocessor_config.json", bytes = 705, git_sha1 = "aceb9b5b612e726cea11ae4db21c0964629aac3a" },
+]
+needs_to_get = ["download"]
+needs_to_run = []
+credit = { authors = "Meta AI", link = "https://huggingface.co/facebook/sam2.1-hiera-tiny" }
+workers = ["interactive"]
+host = "shared"
+documented_mb = 450
+peak_mb = 450
+load_limit_s = 300
+
+[[implements]]
+operation = "outline"
+impl = "sam2.1-tiny"
+input = "image.2d.rgb8"
+output = "masks.2d"

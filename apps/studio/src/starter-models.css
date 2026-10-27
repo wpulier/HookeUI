@@ -1,0 +1,46 @@
+/* The small-models offer (starter-models.ts): in the first-launch Welcome under the ways in, and as one row at the top of
+   Models. Quiet: a card on the page's ground, the Download button the one filled control. */
+.starter-offer { display: grid; gap: 14px; padding: 18px 20px; border: 1px solid var(--mm-line-strong, rgb(255 255 255 / 14%)); border-radius: 14px; background: var(--mm-card, #232327); color: var(--mm-text, #eee); }
+.starter-offer[hidden] { display: none; }
+.starter-offer-head { display: grid; gap: 6px; }
+.starter-offer-heading { margin: 0; font: 600 16px/1.3 var(--mm-sans, system-ui); color: var(--mm-text, #eee); }
+.starter-offer-lead, .starter-offer-folder, .starter-offer-source, .starter-offer-declined { margin: 0; max-width: 72ch; font-size: 13px; line-height: 1.5; color: var(--mm-text-2, #aaa); }
+.starter-offer-source { color: var(--mm-text-3, #888); }
+.starter-offer-picked { margin: 0; font-size: 13px; color: var(--mm-text, #eee); }
+.starter-offer-declined { padding: 2px 0; }
+.starter-offer-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.starter-offer-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--mm-line, rgb(255 255 255 / 7%)); }
+.starter-offer-row:first-child { border-top: 0; }
+.starter-offer-mark { display: grid; place-items: center; width: 22px; }
+.starter-offer-mark input { width: 15px; height: 15px; margin: 0; accent-color: var(--mm-accent-fill, #2f6fd6); cursor: pointer; }
+.starter-offer-text { display: grid; gap: 2px; min-width: 0; cursor: default; }
+.starter-offer-text[for] { cursor: pointer; }
+.starter-offer-text strong { font-size: 13px; font-weight: 600; color: var(--mm-text, #eee); }
+.starter-offer-what { font-size: 12px; line-height: 1.4; color: var(--mm-text-2, #aaa); }
+.starter-offer-size { font-size: 12px; color: var(--mm-text-2, #aaa); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.starter-offer-size.is-progress { color: var(--mm-alive, #ffd28a); }
+.starter-offer-row.is-ready .starter-offer-size, .starter-offer-row.is-included .starter-offer-size { color: var(--mm-ready, #4cc987); }
+.starter-offer-row.is-failed .starter-offer-size { color: var(--mm-attention, #ff6f66); white-space: normal; max-width: 32ch; }
+.starter-offer-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.starter-offer-download, .starter-offer-later { min-width: 0; padding: 8px 16px; border-radius: 999px; font: 600 13px/1 var(--mm-sans, system-ui); cursor: pointer; }
+.starter-offer-download { border: 1px solid transparent; background: var(--mm-accent-fill, #2f6fd6); color: #fff; }
+.starter-offer-download:hover:not(:disabled) { background: var(--mm-accent-fill-hover, #3a7be3); }
+.starter-offer-download:disabled { opacity: 0.5; cursor: default; }
+.starter-offer-later { border: 1px solid var(--mm-line-strong, rgb(255 255 255 / 14%)); background: transparent; color: var(--mm-text, #eee); }
+.starter-offer-later:hover:not(:disabled) { background: var(--mm-hover, rgb(255 255 255 / 6%)); }
+.starter-offer-link { padding: 0; border: 0; background: none; color: var(--mm-accent, #5aa2ff); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.starter-offer-error { margin: 0; font-size: 12px; color: var(--mm-attention, #ff6f66); }
+.starter-offer :is(button, input):focus-visible { outline: 2px solid var(--mm-accent, #5aa2ff); outline-offset: 2px; }
+.starter-offer-row .starter-offer-later { padding: 5px 12px; font-size: 12px; }
+@media (max-width: 560px) {
+  .starter-offer-row { grid-template-columns: 22px minmax(0, 1fr); }
+  .starter-offer-size { grid-column: 2; text-align: left; }
+}
+/* On the empty Stage's card: a quiet strip like New here?, under the ways in. */
+.starter-offer-in-stage { margin-top: 10px; padding: 14px 16px; gap: 12px; border: 0; border-radius: 12px; background: rgb(255 255 255 / 4%); box-shadow: inset 0 0 0 0.5px var(--mm-line-strong, rgb(255 255 255 / 14%)); }
+.starter-offer-in-stage .starter-offer-heading { font-size: 13px; }
+.starter-offer-in-stage .starter-offer-lead, .starter-offer-in-stage .starter-offer-folder, .starter-offer-in-stage .starter-offer-source, .starter-offer-in-stage .starter-offer-declined { font-size: 12px; }
+.starter-offer-in-stage .starter-offer-row { padding: 6px 0; }
+.starter-offer-in-row { margin-bottom: 18px; }
+/* In the workspace's Models, only on its catalog view (not Keys, Your own or Storage). */
+.study-overlay:not([data-catalog-category='catalog']) .starter-offer-in-row { display: none; }

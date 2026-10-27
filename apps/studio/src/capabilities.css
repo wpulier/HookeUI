@@ -1,0 +1,274 @@
+/* Card, preferences and controls from the pinned October 10 design. */
+body.studio-shell .cap-card {
+  border-color: var(--mm-line-strong);
+  border-radius: var(--mm-r-panel);
+  background: var(--mm-raise);
+  box-shadow: var(--mm-shadow-2);
+}
+
+@media (max-width:720px) {
+  /* Keep the card's last actions above the persistent composer and software keyboard. */
+  body.studio-shell .cap-card {
+    bottom: calc(76px + var(--keyboard-inset, 0px));
+    max-height: min(70dvh, calc(100dvh - 100px - var(--keyboard-inset, 0px)));
+  }
+}
+
+body.studio-shell .cap-media {
+  background: var(--mm-well);
+}
+
+body.studio-shell .cap-card-body {
+  gap: 8px;
+  padding: 14px 16px 16px;
+}
+
+body.studio-shell .cap-card-body h4 {
+  color: var(--mm-text);
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .cap-card-who,
+body.studio-shell .cap-how,
+body.studio-shell .cap-evidence,
+body.studio-shell .cap-verdict-when,
+body.studio-shell .cap-power-detail,
+body.studio-shell .cap-source,
+body.studio-shell .cap-fallback-does,
+body.studio-shell .cap-choice-note {
+  color: var(--mm-text-2);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .cap-what {
+  color: var(--mm-text);
+  font: 400 var(--mm-14)/1.5 var(--mm-sans);
+}
+
+body.studio-shell .cap-purpose {
+  color: var(--mm-text-2);
+  font: 400 var(--mm-13)/1.5 var(--mm-sans);
+}
+
+body.studio-shell .cap-why,
+body.studio-shell .cap-badge {
+  color: var(--mm-iodine);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .cap-powered-head {
+  color: var(--mm-text-2);
+  font: 600 var(--mm-12)/1.3 var(--mm-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body.studio-shell .cap-power-row {
+  border-radius: var(--mm-r-control);
+  color: var(--mm-text);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .cap-power-row:hover {
+  background: var(--mm-hover);
+}
+
+body.studio-shell .cap-power-kind {
+  color: var(--mm-text-3);
+  font-size: var(--mm-11);
+}
+
+body.studio-shell .cap-power {
+  border-color: var(--mm-line-strong);
+  border-radius: var(--mm-r-control);
+  color: var(--mm-text);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .cap-v {
+  flex: 1;
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .cap-v-works[aria-pressed='true'] {
+  border-color: var(--mm-green);
+  background: var(--mm-green-soft);
+  color: var(--mm-green);
+}
+
+body.studio-shell :is(.cap-v-broken[aria-pressed='true'], .cap-note-row .cap-v-broken) {
+  border-color: var(--mm-safranin);
+  background: var(--mm-safranin-soft);
+  color: var(--mm-safranin);
+}
+
+body.studio-shell .cap-v-not-yet[aria-pressed='true'] {
+  border-color: var(--mm-text-3);
+  background: var(--mm-press);
+}
+
+body.studio-shell .cap-note {
+  min-height: 56px;
+  padding: 8px 12px;
+}
+
+body.studio-shell .cap-card-close {
+  color: var(--mm-text-2);
+}
+
+body.studio-shell .cap-option {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .cap-option[aria-checked='true'] {
+  border-color: var(--mm-green);
+  background: var(--mm-green-soft);
+  box-shadow: none;
+}
+
+body.studio-shell .cap-option:disabled {
+  border-style: dashed;
+  color: var(--mm-text-3);
+}
+
+body.studio-shell .cap-fixed-note {
+  color: var(--mm-text-3);
+}
+
+body.studio-shell .cap-none p:first-child {
+  color: var(--mm-text);
+  font: 500 var(--mm-16)/1.4 var(--mm-sans);
+}
+
+body.studio-shell .cap-prefs {
+  margin-top: 32px;
+}
+
+body.studio-shell .cap-prefs > h3 {
+  color: var(--mm-text);
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .cap-prefs-what {
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .cap-pref {
+  gap: 4px;
+  padding: 12px 14px;
+  border-color: var(--mm-line);
+  border-radius: var(--mm-r-card);
+  background: var(--mm-card);
+}
+
+body.studio-shell .cap-pref-head h4 {
+  font: 600 var(--mm-13)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .cap-pref-value {
+  color: var(--mm-text-2);
+  font-size: var(--mm-12);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* =================================================================================== Everything it can do, at a glance
+   Every family at once as a tile (Will, 2026-10-15: one folded row per family was too spread out to take in): what it
+   covers, how many of its capabilities run here and how many more a key turns on, and each capability as a chip whose
+   card opens on a click. The header is the Toolbox frame's (modelspage.css .toolbox-head); its filters are below. */
+body.studio-shell .capc-summary-link { padding: 0; border: 0; background: none; font: inherit; color: var(--mm-safranin); cursor: pointer; }
+body.studio-shell .capc-summary-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+body.studio-shell .capc-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+body.studio-shell .capc-filters .cap-search { flex: 1 1 18rem; max-width: 28rem; height: 32px; min-height: 0; padding: 0 12px; border: 0; border-radius: 8px;
+  background: rgb(0 0 0 / 28%); box-shadow: inset 0 0 0 0.5px var(--mm-line-strong); color: var(--mm-text); font: 400 var(--mm-13)/1 var(--mm-sans); }
+body.studio-shell .capc-field { display: inline-flex; align-items: center; gap: 8px; font-size: var(--mm-12); color: var(--mm-text-3); }
+body.studio-shell .capc-select { height: 30px; padding: 0 26px 0 10px; border: 0; border-radius: 8px; appearance: none;
+  background: var(--mm-ctl-fill) var(--mm-chevron) right 7px center / 12px no-repeat; box-shadow: var(--mm-ctl-edge);
+  color: var(--mm-ctl-text); font: 500 var(--mm-13)/1 var(--mm-sans); }
+body.studio-shell .capc-select:hover { background-color: var(--mm-ctl-fill-hover); }
+body.studio-shell .capc-head .cap-check { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Packed as columns (each tile as tall as its chips), so no row waits on its tallest tile: four across at the frame's
+   width, one on a phone. */
+body.studio-shell .capt-grid { columns: 14.5rem; column-gap: 10px; padding: 0 0 28px; }
+body.studio-shell .capt-grid > .cap-empty { column-span: all; }
+body.studio-shell .capt-tile {
+  display: grid; gap: 6px; min-width: 0; margin: 0 0 10px; padding: 12px 14px; break-inside: avoid; border-radius: var(--mm-r-panel);
+  background: var(--mm-card); box-shadow: inset 0 0 0 0.5px var(--mm-line-strong);
+}
+body.studio-shell .capt-head h3 { margin: 0; color: var(--mm-text); font: 600 var(--mm-14)/1.3 var(--mm-sans); letter-spacing: var(--mm-track-tight); }
+body.studio-shell .capt-what { margin: 2px 0 0; color: var(--mm-text-3); font: 400 var(--mm-12)/1.45 var(--mm-sans); }
+body.studio-shell .capt-tally { margin: 0; color: var(--mm-text-2); font: 500 var(--mm-12)/1.45 var(--mm-sans); font-variant-numeric: tabular-nums; }
+body.studio-shell .capt-quiet { color: var(--mm-text-3); font-weight: 400; }
+body.studio-shell .capt-broken { color: var(--mm-safranin); }
+body.studio-shell .capt-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+body.studio-shell .capt-chip, body.studio-shell .capt-chip.cap-chip {
+  display: inline-flex; align-items: center; gap: 5px; width: auto; max-width: 100%; min-height: 22px; padding: 1px 8px 1px 7px;
+  border: 0; border-radius: 11px; background: var(--mm-control); box-shadow: none; color: var(--mm-text);
+  font: 400 var(--mm-12)/1.3 var(--mm-sans); text-decoration: none; cursor: pointer;
+  transition: background var(--mm-fast) var(--mm-ease);
+}
+body.studio-shell .capt-chip:hover { background: var(--mm-hover); }
+body.studio-shell .capt-chip:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 1px; }
+body.studio-shell .capt-chip-who { flex: none; color: var(--mm-text-3); }
+body.studio-shell .capt-chip-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.studio-shell .capt-chip .cap-dot { width: 7px; height: 7px; box-sizing: border-box; border: 1.5px solid var(--mm-text-3); background: transparent; }
+body.studio-shell .capt-chip[data-verdict='works'] .cap-dot { border-color: var(--mm-green); background: var(--mm-green); }
+body.studio-shell .capt-chip[data-verdict='broken'] .cap-dot { border-color: var(--mm-safranin); background: var(--mm-safranin); }
+body.studio-shell .capt-chip[data-stale] .cap-dot { background: transparent; }
+/* Can't run here: quieter, its dot dashed; the chip's title (and its card) say why. */
+body.studio-shell .capt-chip[data-unavailable] { background: transparent; box-shadow: inset 0 0 0 1px var(--mm-line); color: var(--mm-text-3); }
+body.studio-shell .capt-chip[data-unavailable] .cap-dot { border-style: dashed; background: transparent; }
+body.studio-shell .capt-chip.capt-more { background: transparent; color: var(--mm-accent); }
+
+/* Production-only states and role facts use the existing service wire. */
+.cap-views { display:flex; padding:3px; border-radius:8px; background:var(--mm-panel); }
+.cap-views button { padding:6px 10px; border:0; background:transparent; color:var(--mm-text-2); font:inherit; border-radius:6px; }
+.cap-views button[aria-pressed="true"] { background:var(--mm-selected); color:var(--mm-text); }
+body.studio-shell .cap-who.capc-select { display:block; }
+.cap-local, .cap-model-facts { color:var(--mm-text-3); font-size:var(--mm-12); }
+.cap-models { display:grid; gap:28px; }
+.cap-model-group { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr)); gap:12px; }
+.cap-model-group > h3 { grid-column:1/-1; margin:0; }
+.cap-model-card { padding:16px; border:1px solid var(--mm-line); border-radius:10px; background:var(--mm-panel); min-width:0; }
+.cap-model-card p { font-size:var(--mm-12); color:var(--mm-text-2); }
+.cap-model-title { font-weight:600; }
+.cap-happened { border:0; padding:0; display:grid; gap:8px; }
+.cap-happened label { display:flex; gap:8px; align-items:center; }
+.cap-option small { display:block; font-weight:400; color:var(--mm-text-3); white-space:normal; }
+@media (pointer:coarse) { .cap-views button, .capc-select, .capt-chip, .toolbox-tabs a, .toolbox-add-way { min-height:44px!important; } }
+
+body.studio-shell .cap-option-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+body.studio-shell .cap-option-row > .cap-option { flex: 1 1 14rem; min-width: 0; }
+body.studio-shell .cap-option-sheet { padding: 16px 20px 20px; font: 13px/1.5 var(--mm-sans); color: var(--mm-text); }
+body.studio-shell .cap-option-sheet textarea { box-sizing: border-box; width: 100%; min-height: 90px; background: var(--mm-well); color: var(--mm-text); border: 1px solid var(--mm-panel-edge); }
+body.studio-shell .cap-option-sheet h3 { font: 600 14px/1.4 var(--mm-sans); margin-top: 20px; }
+body.studio-shell .cap-option-sheet > button { margin: 8px 8px 8px 0; }
+
+.cap-report-sheet { display: grid; gap: 14px; box-sizing: border-box; padding: 16px; max-width: 100%; }
+.cap-report-sheet .cap-note { box-sizing: border-box; width: 100%; }
+.cap-report-picture { display: flex; gap: 8px; align-items: center; }
+.cap-report-sheet img { max-width: 100%; max-height: 260px; object-fit: contain; }
+.cap-report-preview { max-height: 300px; overflow: auto; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cap-report-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* The app's own last check of each model (model_checks.py): beside the verdicts, in the failure stain when broken. */
+.cap-check { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.cap-check-status { color: var(--mm-text-2); font-size: var(--mm-12); }
+.cap-model-check { display: block; color: var(--mm-text-2); font-size: var(--mm-12); }
+.cap-model-check[data-check='works'] { color: var(--mm-green); }
+.cap-model-check[data-check='broken'] { color: var(--mm-safranin); }
+.cap-model-checks { display: grid; gap: 2px; }
+
+/* An option row's Add key: an invitation, in the accent, never the failure red (addkey.ts). */
+body.studio-shell .cap-option-row > .cap-add-key { color: var(--mm-accent); white-space: nowrap; }
+body.studio-shell .cap-option-row > .cap-download { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+body.studio-shell .cap-download-start { color: var(--mm-accent); }
+body.studio-shell .cap-download-state { font: 500 var(--mm-13)/1.3 var(--mm-sans); color: var(--mm-text-2); font-variant-numeric: tabular-nums; }
+body.studio-shell .cap-download-why { font: var(--mm-12)/1.3 var(--mm-sans); color: var(--mm-text-2); white-space: normal; max-width: 28ch; }
+body.studio-shell .cap-option-row > .cap-step-link { color: var(--mm-accent); font: 500 var(--mm-13)/1.3 var(--mm-sans); white-space: nowrap; }

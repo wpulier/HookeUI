@@ -1,0 +1,48 @@
+/* Controls live in their owner's DOM, but use the top layer to escape window clipping. */
+.capability-controls:popover-open,.capability-controls:not([popover]){display:flex}
+.capability-controls{position:fixed;inset:auto;margin:0;padding:0;box-sizing:border-box;flex-direction:column;gap:0;max-width:none;max-height:none;min-width:0;overflow:hidden;background:var(--mm-card,#202024);color:var(--mm-text,#eee);border:1px solid var(--mm-line-strong,#505058);border-radius:12px;box-shadow:0 16px 48px #0005;font:13px/1.45 system-ui;z-index:125;pointer-events:auto}
+.capability-controls::backdrop{background:transparent;pointer-events:none}
+.capability-controls[hidden]{display:none!important}
+
+.capability-controls button,.capability-controls select{color:inherit;background:var(--mm-raise,#303038);border:1px solid var(--mm-line-strong,#505058);border-radius:6px;padding:7px 9px;font:inherit}
+.capability-controls button:hover{background:var(--mm-accent-soft,#393950)}
+.capability-controls :focus-visible{outline:2px solid var(--mm-accent,#82aaff);outline-offset:2px}
+
+.capability-controls [hidden]{display:none!important}
+
+.capability-controls-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:16px;scrollbar-gutter:stable}
+
+.capability-controls-status{margin:0;padding:8px 18px;background:var(--mm-accent-soft,#343344);font-size:12px}
+.capability-controls-resize{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:ew-resize;touch-action:none}
+.capability-controls[data-position='right'] .capability-controls-resize{left:0;right:auto}
+.capability-controls-resize:hover,.capability-controls-resize:focus{background:var(--mm-accent,#82aaff)}
+/* Docked controls cover the existing sidebar exactly; only floating controls are windows. */
+.capability-controls[data-position='left'],.capability-controls[data-position='right']{border-radius:0;border-top:0;border-bottom:0;box-shadow:none;background:var(--mm-card,#202024)}
+.capability-controls[data-position='left']{border-left:0;box-shadow:1px 0 0 #0003}
+.capability-controls[data-position='right']{border-right:0;box-shadow:-1px 0 0 #0003}
+.capability-controls[data-position='floating']{border-top:2px solid var(--mm-accent,#82aaff)}
+.capability-controls-drop{position:fixed;inset:0;margin:0;padding:0;width:100vw;height:100dvh;max-width:none;max-height:none;border:0;background:transparent;pointer-events:none;overflow:hidden;color:var(--mm-text,#eee);font:13px/1.4 system-ui}
+.capability-controls-drop::backdrop{background:transparent;pointer-events:none}
+.capability-controls-drop-landing{position:absolute;box-sizing:border-box;border:2px solid var(--mm-accent,#82aaff);background:color-mix(in srgb,var(--mm-accent,#82aaff) 16%,transparent)}
+.capability-controls-drop-zone{position:absolute;box-sizing:border-box;border:2px dashed var(--mm-accent,#82aaff);background:color-mix(in srgb,var(--mm-accent,#82aaff) 8%,transparent);opacity:.5;display:flex;align-items:flex-start;justify-content:center;padding:22px 5px}
+.capability-controls-drop-zone>span{padding:6px 9px;text-align:center;border-radius:5px;background:var(--mm-card,#202024);border:1px solid var(--mm-accent,#82aaff);font-weight:600}
+.capability-controls-drop[data-position='left'] [data-side='left'],.capability-controls-drop[data-position='right'] [data-side='right']{border-style:solid;background:color-mix(in srgb,var(--mm-accent,#82aaff) 20%,transparent);opacity:1}
+.capability-controls-drop-hint{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);max-width:calc(100% - 32px);box-sizing:border-box;padding:10px 16px;border:1px solid var(--mm-accent,#82aaff);border-radius:8px;background:var(--mm-card,#202024);box-shadow:0 8px 24px #0006;text-align:center}
+
+.capability-controls .scientific-inspector{max-height:none;overflow:visible;display:block;border:0;background:transparent}
+.capability-controls .scientific-inspector-page{max-height:none;overflow:visible;padding:12px 0}
+.capability-controls .scientific-inspector-tabs{position:sticky;top:-16px;z-index:2;background:var(--mm-card,#202024);padding:8px 0;display:flex;flex-wrap:wrap;gap:4px}
+.capability-controls .scientific-native-panel canvas{max-width:100%;height:auto}
+.capability-controls input,.capability-controls textarea,.capability-controls fieldset{max-width:100%;min-width:0;box-sizing:border-box}
+.capability-controls .model-comparison-body{padding:0}
+
+/* The inspector is now in the top layer; give its former grid track back to the image. */
+.scientific-workspace .scientific-workbench.scientific-workbench-docked{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:220px}
+
+
+/* Replace the side's footprint while preserving its DOM, scroll and saved width. */
+body[data-workspace-study='true'][data-control-left-active='true'] :is(.study-drawer,.study-data-window){visibility:hidden;pointer-events:none}
+body[data-workspace-study='true'][data-control-right-active='true'] .study-right-panel{visibility:hidden;pointer-events:none}
+/* `html` outranks the floating drawer's rule (workspace-feel.css) without !important, which would also outrank the side
+   motion's Web Animations (side-motion.ts): the Stage moves with the columns when a page is docked too. */
+html body[data-workspace-study='true']:is([data-control-left-active='true'],[data-control-right-active='true']):not([data-study-layout='baseline']) .studio{margin-left:var(--control-stage-left,calc(var(--study-rail) + var(--study-drawer)));width:calc(100% - var(--control-stage-left,calc(var(--study-rail) + var(--study-drawer))) - var(--control-stage-right,var(--study-inspector-width)))}

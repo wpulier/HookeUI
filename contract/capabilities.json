@@ -1,0 +1,5422 @@
+{
+  "about": "Every capability of the app: one thing one actor can do (you, the agent, on its own, a researcher), the model roles behind it, and where it is measured. The one list the Capabilities page and the agent's capabilities tool show (ADR 0007). Hand-written; services/tests/test_capabilities.py checks it is complete.",
+  "families": [
+    {
+      "id": "feed",
+      "title": "Camera feed",
+      "what": "Getting the picture in: the iPhone, Blackmagic, test footage, recording"
+    },
+    {
+      "id": "quality",
+      "title": "Picture quality",
+      "what": "How good the view is, measured on every frame"
+    },
+    {
+      "id": "tracking",
+      "title": "Following the slide",
+      "what": "Keeping outlines on their things as the slide or the things move"
+    },
+    {
+      "id": "outlining",
+      "title": "Outlining",
+      "what": "Drawing an edge around things, selecting, clearing, checking"
+    },
+    {
+      "id": "naming",
+      "title": "Naming things",
+      "what": "What things are and how sure; descriptions and your own names"
+    },
+    {
+      "id": "finding",
+      "title": "Finding things",
+      "what": "By name or look, inside another thing, every one like this"
+    },
+    {
+      "id": "magnifier",
+      "title": "Magnifying & comparing",
+      "what": "A close-up beside the view; two things side by side"
+    },
+    {
+      "id": "measuring",
+      "title": "Counting & measuring",
+      "what": "How many, how big, and the scale"
+    },
+    {
+      "id": "motion",
+      "title": "Motion",
+      "what": "What moves, how fast, how straight"
+    },
+    {
+      "id": "time",
+      "title": "Looking back & watching",
+      "what": "The last minute, and waiting for something to happen"
+    },
+    {
+      "id": "map",
+      "title": "Slide map",
+      "what": "Where things are on the whole slide"
+    },
+    {
+      "id": "seeing",
+      "title": "A clearer picture",
+      "what": "Better pictures made from real frames"
+    },
+    {
+      "id": "snapshots",
+      "title": "Snapshots",
+      "what": "Saving the view with its outlines"
+    },
+    {
+      "id": "memory",
+      "title": "Memory",
+      "what": "Today's earlier talk and views"
+    },
+    {
+      "id": "conversation",
+      "title": "Talking with it",
+      "what": "Asking by text or voice, and how it answers"
+    },
+    {
+      "id": "researchers",
+      "title": "Researchers",
+      "what": "Background work you ask for: research, pictures, videos, lessons"
+    },
+    {
+      "id": "results",
+      "title": "Researchers' work",
+      "what": "Showing, reading and going through what they made"
+    },
+    {
+      "id": "display",
+      "title": "How it looks",
+      "what": "How outlines and spots are drawn"
+    },
+    {
+      "id": "testing",
+      "title": "Choosing & checking",
+      "what": "Which model does each job, blind tests, flags, your verdicts"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "retry-failed-step",
+      "family": "display",
+      "actor": "you",
+      "title": "Retry a failed step",
+      "what": "Retry a failed step without repeating successful work.",
+      "how": {
+        "command": "operation-retry"
+      },
+      "parts": [
+        "runner"
+      ]
+    },
+    {
+      "id": "camera",
+      "family": "feed",
+      "actor": "you",
+      "title": "Connect the camera",
+      "what": "Connect, reconnect or switch the camera feed",
+      "how": {
+        "control": "source"
+      },
+      "parts": [
+        "camera-bridge"
+      ]
+    },
+    {
+      "id": "camera-checklist",
+      "family": "feed",
+      "actor": "you",
+      "title": "Get the camera live",
+      "what": "Says what is wrong with the camera, and fixes it",
+      "how": {
+        "control": "source"
+      },
+      "parts": [
+        "camera-doctor",
+        "camera-views",
+        "camera-bridge"
+      ]
+    },
+    {
+      "id": "phone-camera",
+      "family": "feed",
+      "actor": "you",
+      "title": "Control the phone's camera",
+      "what": "Record, photo, lens, zoom, focus, exposure and colour on the phone",
+      "how": {
+        "control": "source"
+      },
+      "parts": [
+        "phone-link",
+        "phone-check",
+        "camera-views"
+      ]
+    },
+    {
+      "id": "test-footage",
+      "family": "feed",
+      "actor": "you",
+      "title": "Play test footage",
+      "what": "A recording plays into the live view instead",
+      "how": {
+        "control": "camera-panel"
+      },
+      "evidence": [
+        "sim:live"
+      ],
+      "parts": [
+        "camera-bridge"
+      ]
+    },
+    {
+      "id": "sources",
+      "family": "feed",
+      "actor": "you",
+      "title": "Open a session's sources",
+      "what": "Put a recording, a picture or the camera on stage",
+      "how": {
+        "command": "source",
+        "control": "source",
+        "also": [
+          "source-remove",
+          "source-restore",
+          "asset-meta"
+        ]
+      },
+      "parts": [
+        "library",
+        "camera-bridge",
+        "day"
+      ]
+    },
+    {
+      "id": "all-assets",
+      "family": "feed",
+      "actor": "you",
+      "title": "All assets",
+      "what": "Browse your recordings and pictures by what is in them",
+      "how": {
+        "control": "tab-assets",
+        "also": [
+          "asset-trash",
+          "asset-restore"
+        ]
+      },
+      "parts": [
+        "library"
+      ]
+    },
+    {
+      "id": "files-assets",
+      "family": "feed",
+      "actor": "auto",
+      "title": "Files new assets",
+      "what": "Files each new picture by what it shows, when turned on",
+      "how": {
+        "process": "orchestrator.library_looks"
+      },
+      "roles": [
+        "fast",
+        "library_looks"
+      ],
+      "needs": {
+        "library_looks": "on"
+      },
+      "parts": [
+        "library-looks",
+        "library"
+      ]
+    },
+    {
+      "id": "actions-panel",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Run actions by hand",
+      "what": "Runs what the agent can do, from the side bar's Actions",
+      "how": {
+        "command": "action",
+        "also": [
+          "action-cancel"
+        ],
+        "control": "session-rail"
+      },
+      "parts": [
+        "actions-panel",
+        "brain"
+      ]
+    },
+    {
+      "id": "try-example",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Try an example",
+      "what": "Walks through a real example of cells, measured and kept",
+      "how": {
+        "command": "onboarding",
+        "control": "session-home"
+      },
+      "parts": [
+        "onboarding",
+        "library",
+        "actions-panel",
+        "tables"
+      ]
+    },
+    {
+      "id": "measurements-table",
+      "family": "measuring",
+      "actor": "you",
+      "title": "Measurements table",
+      "what": "Every cell's or track's numbers, sortable, with Download CSV",
+      "how": {
+        "control": "measurements"
+      },
+      "parts": [
+        "tables",
+        "measurements-page"
+      ]
+    },
+    {
+      "id": "show-measurements",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Show the measurements",
+      "what": "Opens the table of what was measured, to read or export",
+      "how": {
+        "tool": "show_measurements",
+        "say": "show me the cell measurements as a table"
+      },
+      "parts": [
+        "tables",
+        "measurements-page"
+      ]
+    },
+    {
+      "id": "find-assets",
+      "family": "feed",
+      "actor": "agent",
+      "title": "Find in your assets",
+      "what": "Looks for a recording or picture in your library",
+      "how": {
+        "tool": "assets",
+        "say": "which recordings of rotifers do I have?"
+      },
+      "parts": [
+        "library"
+      ]
+    },
+    {
+      "id": "add-asset",
+      "family": "feed",
+      "actor": "agent",
+      "title": "Put an asset on stage",
+      "what": "Shows one of your recordings or pictures in this session",
+      "how": {
+        "tool": "add_asset",
+        "say": "show me last week's rotifer recording"
+      },
+      "parts": [
+        "library",
+        "camera-bridge",
+        "day"
+      ]
+    },
+    {
+      "id": "whole-frame",
+      "family": "feed",
+      "actor": "you",
+      "title": "Whole camera frame",
+      "what": "See the whole frame, not just the eyepiece",
+      "how": {
+        "control": "whole-frame"
+      },
+      "parts": [
+        "studio-view",
+        "eyepiece"
+      ]
+    },
+    {
+      "id": "hide-outlines",
+      "family": "display",
+      "actor": "you",
+      "title": "Hide outlines",
+      "what": "Hold H to see the bare specimen",
+      "how": {
+        "key": "H"
+      },
+      "parts": [
+        "studio-view"
+      ]
+    },
+    {
+      "id": "show-spots",
+      "family": "display",
+      "actor": "you",
+      "title": "Show detected spots",
+      "what": "Shows the small spots the app finds",
+      "how": {
+        "command": "debug",
+        "control": "spots"
+      },
+      "parts": [
+        "spots",
+        "studio-view"
+      ]
+    },
+    {
+      "id": "record",
+      "family": "feed",
+      "actor": "you",
+      "title": "Record the session",
+      "what": "Records the studio tab, the camera and a dataset",
+      "how": {
+        "control": "record"
+      },
+      "parts": [
+        "recorder",
+        "camera-bridge"
+      ]
+    },
+    {
+      "id": "dataset",
+      "family": "feed",
+      "actor": "you",
+      "title": "Collect a dataset",
+      "what": "Record saves video, frame facts and logs, checked by Data",
+      "how": {
+        "command": "dataset",
+        "control": "record"
+      },
+      "parts": [
+        "dataset-collector",
+        "camera-bridge"
+      ]
+    },
+    {
+      "id": "datasets",
+      "family": "feed",
+      "actor": "you",
+      "title": "See the datasets",
+      "what": "Where each dataset is, what it holds, your microscope",
+      "how": {
+        "control": "tab-datasets",
+        "command": "dataset-rename",
+        "also": [
+          "dataset-reveal",
+          "dataset-trash",
+          "rig"
+        ]
+      },
+      "parts": [
+        "datasets-tab",
+        "dataset-collector"
+      ]
+    },
+    {
+      "id": "save-session",
+      "family": "feed",
+      "actor": "you",
+      "title": "Save the session",
+      "what": "Keep this conversation or today as a dataset, session carries on",
+      "how": {
+        "control": "tab-datasets",
+        "process": "orchestrator.datasets.snapshot"
+      },
+      "parts": [
+        "dataset-snapshot",
+        "datasets-tab"
+      ]
+    },
+    {
+      "id": "flag",
+      "family": "testing",
+      "actor": "you",
+      "title": "Flag a moment",
+      "what": "F marks a moment to look at later",
+      "how": {
+        "command": "flag",
+        "key": "F"
+      },
+      "parts": [
+        "logs"
+      ]
+    },
+    {
+      "id": "view-quality",
+      "family": "quality",
+      "actor": "auto",
+      "title": "Judge the view",
+      "what": "Measures focus, light and glare on every frame",
+      "how": {
+        "process": "orchestrator.quality"
+      },
+      "roles": [
+        "quality"
+      ],
+      "evidence": [
+        "sim:focus-gate"
+      ],
+      "parts": [
+        "frame-quality",
+        "eyepiece"
+      ]
+    },
+    {
+      "id": "focus-meter",
+      "family": "quality",
+      "actor": "auto",
+      "title": "Focus meter",
+      "what": "A meter while you turn the focus knob",
+      "how": {
+        "process": "orchestrator.coach"
+      },
+      "roles": [
+        "coach"
+      ],
+      "parts": [
+        "coach",
+        "frame-quality"
+      ]
+    },
+    {
+      "id": "dust",
+      "family": "quality",
+      "actor": "auto",
+      "title": "Dust on the optics",
+      "what": "Finds spots that stay put while the slide moves",
+      "how": {
+        "process": "orchestrator.dust"
+      },
+      "roles": [
+        "dust"
+      ],
+      "evidence": [],
+      "parts": [
+        "dust"
+      ]
+    },
+    {
+      "id": "follow-slide",
+      "family": "tracking",
+      "actor": "auto",
+      "title": "Follow the slide",
+      "what": "Keeps outlines on their things as the slide moves",
+      "how": {
+        "process": "orchestrator.motion"
+      },
+      "roles": [
+        "orb_every"
+      ],
+      "evidence": [
+        "sim:tracking",
+        "sim:refind"
+      ],
+      "parts": [
+        "slide-tracker",
+        "outlines"
+      ]
+    },
+    {
+      "id": "follow-objects",
+      "family": "tracking",
+      "actor": "auto",
+      "title": "Follow swimming things",
+      "what": "Each outline follows its own moving thing, and shows its trail",
+      "how": {
+        "process": "orchestrator.objtrack"
+      },
+      "roles": [
+        "track"
+      ],
+      "needs": {
+        "track": "objects"
+      },
+      "parts": [
+        "object-follower",
+        "trails",
+        "outlines"
+      ]
+    },
+    {
+      "id": "performance",
+      "family": "feed",
+      "actor": "auto",
+      "title": "Performance meter",
+      "what": "Shows how hard the computer is working",
+      "how": {
+        "process": "orchestrator.machine"
+      },
+      "parts": [
+        "machine"
+      ]
+    },
+    {
+      "id": "click-outline",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Click to outline",
+      "what": "Click a thing: it is outlined and named",
+      "how": {
+        "command": "click",
+        "gesture": "click"
+      },
+      "roles": [
+        "outline",
+        "vision",
+        "closeup",
+        "quality",
+        "zeroshot",
+        "naming"
+      ],
+      "pair": "outline-a-thing",
+      "evidence": [
+        "sim:follow-clicks"
+      ],
+      "parts": [
+        "outlines",
+        "naming",
+        "studio-view"
+      ],
+      "fallbacks": [
+        {
+          "when": "the outline model is unsure of a small spot you clicked",
+          "does": "a clean ring is drawn around the spot instead",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny",
+              "sam3.1-local",
+              "sam3.1-fal",
+              "micro-sam-lm",
+              "edgetam>sam3.1-fal",
+              "edgetam>sam3.1-local"
+            ],
+            "when": "unsure-spot",
+            "to": "spot-ring"
+          }
+        },
+        {
+          "when": "SAM 3.1 finds nothing in EdgeTAM's box (the EdgeTAM-then-SAM 3.1 options)",
+          "does": "EdgeTAM's own outline is kept",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam>sam3.1-fal",
+              "edgetam>sam3.1-local"
+            ],
+            "when": "empty-refinement",
+            "to": "edgetam"
+          }
+        }
+      ]
+    },
+    {
+      "id": "box-outline",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Drag a box",
+      "what": "Drag a box to outline what is inside",
+      "how": {
+        "command": "click",
+        "gesture": "drag"
+      },
+      "roles": [
+        "outline",
+        "vision"
+      ],
+      "pair": "outline-box",
+      "parts": [
+        "outlines",
+        "naming"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits the box, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "running-look",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Keeps looking",
+      "what": "Describes the view whenever it settles",
+      "how": {
+        "process": "orchestrator.sight"
+      },
+      "roles": [
+        "sight",
+        "quality",
+        "dust"
+      ],
+      "evidence": [],
+      "parts": [
+        "sight"
+      ]
+    },
+    {
+      "id": "subject",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Notices a new specimen",
+      "what": "Tells the models when the specimen changes",
+      "how": {
+        "process": "orchestrator.day.subject"
+      },
+      "roles": [
+        "sight"
+      ],
+      "parts": [
+        "sight",
+        "day"
+      ]
+    },
+    {
+      "id": "descriptions",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Writes descriptions",
+      "what": "A short description under each name",
+      "how": {
+        "process": "orchestrator.enrich"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "sim:descriptions"
+      ],
+      "parts": [
+        "descriptions",
+        "research-worker"
+      ]
+    },
+    {
+      "id": "linger",
+      "family": "naming",
+      "actor": "you",
+      "title": "Linger to look up",
+      "what": "Hovering a thing looks it up first",
+      "how": {
+        "command": "focus",
+        "gesture": "hover"
+      },
+      "parts": [
+        "descriptions"
+      ]
+    },
+    {
+      "id": "open-card",
+      "family": "naming",
+      "actor": "you",
+      "title": "Open its card",
+      "what": "A thing's name, description and notes",
+      "how": {
+        "command": "card-open",
+        "gesture": "click"
+      },
+      "parts": [
+        "studio"
+      ]
+    },
+    {
+      "id": "reference-pictures",
+      "family": "naming",
+      "actor": "you",
+      "title": "Show reference pictures",
+      "what": "Pictures of the kind of thing, from the web",
+      "how": {
+        "command": "reveal"
+      },
+      "parts": [
+        "descriptions"
+      ]
+    },
+    {
+      "id": "pin-note",
+      "family": "naming",
+      "actor": "you",
+      "title": "Pin a note",
+      "what": "Pins a researcher's note under a label",
+      "how": {
+        "command": "pin-note"
+      },
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "rename",
+      "family": "naming",
+      "actor": "agent",
+      "title": "Rename an outline",
+      "what": "Gives an outline the name you say",
+      "how": {
+        "tool": "name_outline",
+        "say": "call that a guard cell"
+      },
+      "pair": "rename",
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "taught",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Remembers your names",
+      "what": "Suggests the names you taught for look-alikes",
+      "how": {
+        "process": "orchestrator.taught"
+      },
+      "roles": [
+        "taught",
+        "embed"
+      ],
+      "evidence": [],
+      "parts": [
+        "taught"
+      ]
+    },
+    {
+      "id": "seen-auto",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Seen one before",
+      "what": "Notices one like this seen earlier today",
+      "how": {
+        "process": "orchestrator.seen"
+      },
+      "roles": [
+        "seen",
+        "embed"
+      ],
+      "evidence": [],
+      "parts": [
+        "seen"
+      ]
+    },
+    {
+      "id": "zeroshot-auto",
+      "family": "naming",
+      "actor": "auto",
+      "title": "Medical names as a hint",
+      "what": "Hints likely cell names on a smear when naming a click",
+      "how": {
+        "process": "orchestrator.zeroshot"
+      },
+      "roles": [
+        "zeroshot"
+      ],
+      "evidence": [],
+      "parts": [
+        "zeroshot",
+        "naming"
+      ]
+    },
+    {
+      "id": "suggest-name",
+      "family": "naming",
+      "actor": "agent",
+      "title": "Suggest a better name",
+      "what": "Proposes a correction you can accept",
+      "how": {
+        "tool": "propose_correction"
+      },
+      "pair": "correction",
+      "parts": [
+        "corrections"
+      ]
+    },
+    {
+      "id": "accept-name",
+      "family": "naming",
+      "actor": "you",
+      "title": "Accept or dismiss",
+      "what": "Accept or dismiss a suggested name",
+      "how": {
+        "command": "accept-correction",
+        "also": [
+          "dismiss-correction"
+        ]
+      },
+      "pair": "correction",
+      "evidence": [
+        "sim:correction"
+      ],
+      "parts": [
+        "corrections"
+      ]
+    },
+    {
+      "id": "highlight",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Highlight what it sees",
+      "what": "Outlines things it has already seen",
+      "how": {
+        "tool": "highlight",
+        "say": "highlight the stomata"
+      },
+      "roles": [
+        "outline",
+        "fast"
+      ],
+      "pair": "outline-a-thing",
+      "evidence": [],
+      "parts": [
+        "outlines",
+        "board"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the running look drew, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "select",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Select an outline",
+      "what": "Selects one so its card opens",
+      "how": {
+        "tool": "select",
+        "say": "select the second one"
+      },
+      "pair": "select",
+      "parts": [
+        "board"
+      ]
+    },
+    {
+      "id": "select-click",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Click an outline",
+      "what": "Selects it and opens its card",
+      "how": {
+        "command": "select",
+        "gesture": "click"
+      },
+      "pair": "select",
+      "parts": [
+        "board",
+        "studio-view"
+      ]
+    },
+    {
+      "id": "clear",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Clear outlines",
+      "what": "Removes the outlines",
+      "how": {
+        "tool": "clear",
+        "say": "clear the highlights"
+      },
+      "pair": "clear",
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "clear-button",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Clear outlines",
+      "what": "The clear button removes every outline",
+      "how": {
+        "command": "clear",
+        "control": "clear"
+      },
+      "pair": "clear",
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "remove-one",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Remove one outline",
+      "what": "Its \u00d7, or a click on it once selected, removes it",
+      "how": {
+        "command": "remove"
+      },
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "undo-remove",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Bring back an outline",
+      "what": "Undo brings back a removed outline as it was",
+      "how": {
+        "command": "restore"
+      },
+      "parts": [
+        "outlines"
+      ]
+    },
+    {
+      "id": "cells",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Outline every cell",
+      "what": "A cell finder segments every cell; they are kept and measured",
+      "how": {
+        "tool": "outline_cells",
+        "say": "outline all the cells"
+      },
+      "roles": [
+        "cells"
+      ],
+      "pair": "cells",
+      "parts": [
+        "evidence",
+        "measurements",
+        "population-layer"
+      ],
+      "evidence": []
+    },
+    {
+      "id": "correct-population",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Correct a saved population",
+      "what": "Removes members or undoes corrections, preserving original measurements and revision history",
+      "how": {
+        "command": "population-correct"
+      },
+      "parts": [
+        "evidence",
+        "measurements",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "correct-cells",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Correct the cells",
+      "what": "Removes or merges cells you say are wrong, as a revision",
+      "how": {
+        "tool": "correct_cells",
+        "say": "that's not a cell"
+      },
+      "parts": [
+        "evidence",
+        "measurements",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "cells-by-colour",
+      "family": "outlining",
+      "actor": "agent",
+      "title": "Pick cells by colour",
+      "what": "Outlines the cells drawn in a colour you name",
+      "how": {
+        "tool": "highlight",
+        "args": {
+          "where": {
+            "colour": "red"
+          }
+        },
+        "say": "highlight all the red ones"
+      },
+      "parts": [
+        "member-colours",
+        "population-layer",
+        "evidence"
+      ]
+    },
+    {
+      "id": "cells-button",
+      "family": "outlining",
+      "actor": "you",
+      "title": "Outline every cell",
+      "what": "The Cells button outlines every cell",
+      "how": {
+        "command": "cells",
+        "control": "cells"
+      },
+      "roles": [
+        "cells"
+      ],
+      "pair": "cells",
+      "parts": [
+        "outlines",
+        "evidence",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "outline-check",
+      "family": "outlining",
+      "actor": "auto",
+      "title": "Checks its outlines",
+      "what": "Checks each outline it draws and fixes wrong ones",
+      "how": {
+        "process": "orchestrator.outline_check"
+      },
+      "roles": [
+        "outline_check",
+        "fast",
+        "outline",
+        "outline_repair"
+      ],
+      "evidence": [],
+      "parts": [
+        "outline-check",
+        "outlines"
+      ]
+    },
+    {
+      "id": "pre-outline",
+      "family": "outlining",
+      "actor": "auto",
+      "title": "Pre-outlines for pointing",
+      "what": "Outlines everything first when pointing uses masks",
+      "how": {
+        "process": "orchestrator.masks"
+      },
+      "roles": [
+        "pointing"
+      ],
+      "needs": {
+        "pointing": "masks"
+      },
+      "parts": [
+        "masks"
+      ]
+    },
+    {
+      "id": "first-guess",
+      "family": "outlining",
+      "actor": "auto",
+      "title": "First guess ring",
+      "what": "A quick ring on its first guess while it looks",
+      "how": {
+        "process": "orchestrator.snap"
+      },
+      "roles": [
+        "pointing"
+      ],
+      "evidence": [],
+      "needs": {
+        "pointing": "snap-first"
+      },
+      "parts": [
+        "snap",
+        "spots"
+      ]
+    },
+    {
+      "id": "find",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Find by name or look",
+      "what": "Finds and outlines things by name or appearance",
+      "how": {
+        "tool": "find",
+        "say": "find the white blood cell"
+      },
+      "roles": [
+        "vision",
+        "outline"
+      ],
+      "evidence": [],
+      "parts": [
+        "finder",
+        "outlines"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "find-inside",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Find inside an outline",
+      "what": "Finds a part inside an outlined thing",
+      "how": {
+        "tool": "find",
+        "args": {
+          "inside": "o1"
+        },
+        "say": "point out the nucleus in that cell"
+      },
+      "roles": [
+        "vision",
+        "outline"
+      ],
+      "parts": [
+        "finder",
+        "outlines"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "find-like",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Find all like this",
+      "what": "Outlines every thing like an outlined one",
+      "how": {
+        "tool": "find",
+        "args": {
+          "like": "o1"
+        },
+        "say": "find all like this one"
+      },
+      "roles": [
+        "fixed:find-all"
+      ],
+      "fallbacks": [
+        {
+          "when": "SAM 3.1 can't run here (no FAL_KEY, or not in this edition)",
+          "does": "the vision model boxes them and the outline model draws each box",
+          "roles": [
+            "vision",
+            "outline"
+          ],
+          "route": {
+            "operation": "find-like",
+            "after": [
+              "sam3.1-all"
+            ],
+            "when": "unavailable",
+            "to": "vision-boxes"
+          }
+        }
+      ],
+      "parts": [
+        "finder",
+        "outlines"
+      ]
+    },
+    {
+      "id": "find-concept",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Find every one by words",
+      "what": "SAM 3.1 outlines every match of the words",
+      "how": {
+        "tool": "find",
+        "args": {
+          "by": "concept"
+        },
+        "say": "find every stoma by its name with SAM 3.1"
+      },
+      "roles": [
+        "fixed:find-all"
+      ],
+      "evidence": [],
+      "parts": [
+        "finder",
+        "outlines"
+      ]
+    },
+    {
+      "id": "find-cells",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Pick from every cell",
+      "what": "Cell finder outlines all; it picks the ones asked",
+      "how": {
+        "tool": "find",
+        "args": {
+          "by": "cells"
+        },
+        "say": "outline every red blood cell"
+      },
+      "roles": [
+        "cells",
+        "vision"
+      ],
+      "evidence": [],
+      "parts": [
+        "finder",
+        "outlines"
+      ]
+    },
+    {
+      "id": "dissect",
+      "family": "finding",
+      "actor": "agent",
+      "title": "Break into parts",
+      "what": "Finds and names the parts inside a thing",
+      "how": {
+        "tool": "dissect",
+        "say": "what is it made of?"
+      },
+      "roles": [
+        "dissect",
+        "vision"
+      ],
+      "evidence": [
+        "sim:dissect-clicks"
+      ],
+      "parts": [
+        "dissector",
+        "outlines"
+      ]
+    },
+    {
+      "id": "zoom",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Magnify",
+      "what": "Opens the magnifier on a thing, at any level",
+      "how": {
+        "tool": "zoom",
+        "say": "magnify that"
+      },
+      "pair": "magnify",
+      "evidence": [
+        "sim:magnifier",
+        "sim:voice-magnify"
+      ],
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "zoom-click",
+      "family": "magnifier",
+      "actor": "you",
+      "title": "Double-click to magnify",
+      "what": "Double-click an outline to magnify it",
+      "how": {
+        "command": "magnifier",
+        "gesture": "double-click"
+      },
+      "pair": "magnify",
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "zoom-level",
+      "family": "magnifier",
+      "actor": "you",
+      "title": "Zoom in or out",
+      "what": "Wheel, pinch or \u2212 + in the magnifier",
+      "how": {
+        "control": "magnifier-zoom",
+        "gesture": "wheel or pinch"
+      },
+      "pair": "zoom-level",
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "hold",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Hold the sharpest frame",
+      "what": "Freezes the magnifier on its sharpest frame",
+      "how": {
+        "tool": "hold",
+        "say": "hold it there"
+      },
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "compare",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Side by side",
+      "what": "Shows two things side by side",
+      "how": {
+        "tool": "compare",
+        "say": "compare these two"
+      },
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "compare-models",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Compare named models",
+      "what": "Runs the models you name on one view, side by side",
+      "how": {
+        "tool": "compare_models",
+        "say": "compare EdgeTAM and SAM 2.1 on that"
+      },
+      "roles": [
+        "outline",
+        "cells"
+      ],
+      "parts": [
+        "runner",
+        "comparison",
+        "magnifier"
+      ]
+    },
+    {
+      "id": "contrast",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "How do they differ",
+      "what": "Looks at two things and says how they differ",
+      "how": {
+        "tool": "contrast",
+        "say": "how are these two different?"
+      },
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "focus-check",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Is it in focus",
+      "what": "Judges whether a thing is in focus now",
+      "how": {
+        "tool": "focus_check",
+        "say": "is it in focus?"
+      },
+      "parts": [
+        "magnifier",
+        "frame-quality"
+      ]
+    },
+    {
+      "id": "show-picture",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Show a researcher's picture",
+      "what": "Puts a researcher's picture in the magnifier",
+      "how": {
+        "tool": "show_in_magnifier",
+        "say": "show me the labelled picture"
+      },
+      "parts": [
+        "magnifier",
+        "research-worker",
+        "media-kinds"
+      ]
+    },
+    {
+      "id": "magnifier-source",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Switch magnifier source",
+      "what": "Shows an existing magnifier source while keeping the others available",
+      "how": {
+        "tool": "magnifier_source",
+        "say": "show just the reference photo"
+      },
+      "evidence": [
+        "services/tests/test_reference_photo.py"
+      ],
+      "parts": [
+        "magnifier",
+        "media-kinds"
+      ]
+    },
+    {
+      "id": "magnifier-picture",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Enlarge a picture",
+      "what": "Enlarges existing image pixels while preserving camera zoom and comparison",
+      "how": {
+        "tool": "magnifier_picture",
+        "say": "make just the reference picture bigger"
+      },
+      "evidence": [
+        "services/tests/test_reference_photo.py"
+      ],
+      "parts": [
+        "magnifier",
+        "media-kinds"
+      ]
+    },
+    {
+      "id": "reference-photo",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "A real reference photo",
+      "what": "Shows a real reference photo of that kind, with its source",
+      "how": {
+        "tool": "reference_photo",
+        "say": "show me a real picture of a stoma"
+      },
+      "evidence": [
+        "services/tests/test_reference_photo.py"
+      ],
+      "parts": [
+        "reference-photos",
+        "magnifier",
+        "media-kinds"
+      ],
+      "roles": [
+        "fixed:retrieval",
+        "reference_search"
+      ]
+    },
+    {
+      "id": "close-magnifier",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Close the magnifier",
+      "what": "Closes the magnifier",
+      "how": {
+        "tool": "close_magnifier",
+        "say": "close that"
+      },
+      "pair": "close-magnifier",
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "close-magnifier-x",
+      "family": "magnifier",
+      "actor": "you",
+      "title": "Close the magnifier",
+      "what": "Its \u00d7 or Escape closes it",
+      "how": {
+        "control": "magnifier-close",
+        "key": "Escape"
+      },
+      "pair": "close-magnifier",
+      "parts": [
+        "magnifier"
+      ]
+    },
+    {
+      "id": "count",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Count them",
+      "what": "Counts what is outlined, outlining first if needed",
+      "how": {
+        "tool": "count",
+        "say": "how many are there?"
+      },
+      "roles": [
+        "vision",
+        "outline"
+      ],
+      "parts": [
+        "outlines",
+        "finder"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "measure",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "How big is it",
+      "what": "A size in \u00b5m, measured by the app",
+      "how": {
+        "tool": "measure",
+        "say": "how big is that?"
+      },
+      "parts": [
+        "scale",
+        "outlines"
+      ]
+    },
+    {
+      "id": "query-population",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Ask about segmented cells",
+      "what": "Counts, sizes and shapes of what a cell finder segmented",
+      "how": {
+        "tool": "query_population",
+        "say": "which cell is the most elongated?"
+      },
+      "parts": [
+        "evidence",
+        "measurements"
+      ]
+    },
+    {
+      "id": "group-cells",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Group cells by look",
+      "what": "Groups segmented cells that look alike; never a type",
+      "how": {
+        "tool": "group_cells",
+        "say": "group these cells by how they look"
+      },
+      "roles": [
+        "embed"
+      ],
+      "parts": [
+        "evidence",
+        "enrichment",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "describe-groups",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "How the groups differ",
+      "what": "Each look group's size, measurements and examples",
+      "how": {
+        "tool": "describe_groups",
+        "say": "how do the groups differ?"
+      },
+      "roles": [
+        "embed",
+        "fixed:group-names"
+      ],
+      "parts": [
+        "evidence",
+        "enrichment",
+        "measurements"
+      ]
+    },
+    {
+      "id": "cells-by-look-group",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Pick cells by look group",
+      "what": "Lists, sorts or picks cells by look group or your label",
+      "how": {
+        "tool": "query_population",
+        "say": "which cells are in group 2?"
+      },
+      "roles": [
+        "embed"
+      ],
+      "parts": [
+        "evidence",
+        "enrichment"
+      ]
+    },
+    {
+      "id": "follow-cells",
+      "family": "motion",
+      "actor": "agent",
+      "title": "Keep an eye on cells",
+      "what": "Follows chosen cells and measures them again over time",
+      "how": {
+        "tool": "follow_cells",
+        "say": "keep an eye on the odd ones"
+      },
+      "roles": [
+        "outline"
+      ],
+      "parts": [
+        "identity",
+        "object-follower",
+        "measurements"
+      ]
+    },
+    {
+      "id": "individuals",
+      "family": "motion",
+      "actor": "agent",
+      "title": "Where they went",
+      "what": "Where followed cells are now and whether they changed",
+      "how": {
+        "tool": "individuals",
+        "say": "where are the odd ones now, and did they change?"
+      },
+      "parts": [
+        "identity",
+        "slidemap"
+      ]
+    },
+    {
+      "id": "same-one",
+      "family": "motion",
+      "actor": "agent",
+      "title": "That's the same one",
+      "what": "Joins two outlines you say are one thing",
+      "how": {
+        "tool": "same_one",
+        "say": "that's the same cell as before"
+      },
+      "parts": [
+        "identity"
+      ]
+    },
+    {
+      "id": "compare-captures",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Compare two captures' cells",
+      "what": "Compares two cell populations; cell by cell only through links",
+      "how": {
+        "tool": "query_population",
+        "args": {
+          "against": "e5"
+        },
+        "say": "how do these cells compare with the earlier ones?"
+      },
+      "parts": [
+        "evidence",
+        "measurements",
+        "identity"
+      ]
+    },
+    {
+      "id": "link-captures",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Link cells across captures",
+      "what": "Links the same cells in two views of one place",
+      "how": {
+        "tool": "query_population",
+        "args": {
+          "against": "e5",
+          "link": true
+        },
+        "say": "compare them with the earlier cells, linking each cell"
+      },
+      "roles": [
+        "fixed:link"
+      ],
+      "parts": [
+        "identity",
+        "evidence"
+      ]
+    },
+    {
+      "id": "outcomes",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Which model did better",
+      "what": "How each model has done on this specimen",
+      "how": {
+        "tool": "outcomes",
+        "say": "which model did better on this smear today?"
+      },
+      "parts": [
+        "outcomes",
+        "runner",
+        "evidence"
+      ]
+    },
+    {
+      "id": "objective",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Set the objective",
+      "what": "Says which objective is in use, for sizes",
+      "how": {
+        "tool": "set_objective",
+        "say": "I'm on 40x"
+      },
+      "pair": "objective",
+      "parts": [
+        "scale"
+      ]
+    },
+    {
+      "id": "objective-menu",
+      "family": "measuring",
+      "actor": "you",
+      "title": "Choose the objective",
+      "what": "The objective, in the Behaviour menu, for sizes",
+      "how": {
+        "command": "scale",
+        "control": "behaviour-toggle"
+      },
+      "pair": "objective",
+      "parts": [
+        "scale"
+      ]
+    },
+    {
+      "id": "calibrate",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Calibrate the scale",
+      "what": "Fixes the scale from a known length",
+      "how": {
+        "tool": "calibrate_scale",
+        "say": "that line is 100 \u00b5m"
+      },
+      "parts": [
+        "scale"
+      ]
+    },
+    {
+      "id": "track-motion",
+      "family": "motion",
+      "actor": "agent",
+      "title": "What moves, how fast",
+      "what": "Measures speed, straightness and drift; keeps the tracks, drawn where they fit",
+      "how": {
+        "tool": "track_motion",
+        "say": "are they swimming?"
+      },
+      "evidence": [
+        "services/tests/test_movement.py",
+        "services/tests/test_motion_tracks.py"
+      ],
+      "parts": [
+        "movement",
+        "slide-tracker",
+        "runner",
+        "motion-tracks"
+      ]
+    },
+    {
+      "id": "keep-trail",
+      "family": "motion",
+      "actor": "agent",
+      "title": "Keep where it went",
+      "what": "Keeps a followed thing's trail, its gaps and losses as they were",
+      "how": {
+        "tool": "track_motion",
+        "args": {
+          "of": "that"
+        },
+        "say": "show me where it went"
+      },
+      "roles": [
+        "track"
+      ],
+      "needs": {
+        "track": "objects"
+      },
+      "evidence": [
+        "services/tests/test_motion_tracks.py"
+      ],
+      "parts": [
+        "trails",
+        "object-follower",
+        "motion-tracks"
+      ]
+    },
+    {
+      "id": "show-tracks",
+      "family": "motion",
+      "actor": "agent",
+      "title": "Show tracks again",
+      "what": "Shows kept tracks live where they fit, else on their view",
+      "how": {
+        "tool": "present",
+        "say": "show me the tracks from earlier"
+      },
+      "evidence": [
+        "services/tests/test_motion_tracks.py",
+        "apps/studio/src/motiontracks.test.ts"
+      ],
+      "parts": [
+        "motion-tracks",
+        "screen",
+        "studio-view"
+      ]
+    },
+    {
+      "id": "what-happened",
+      "family": "time",
+      "actor": "agent",
+      "title": "What just happened",
+      "what": "Looks back over the last minute",
+      "how": {
+        "tool": "what_happened",
+        "say": "what just happened?"
+      },
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "clip"
+      ]
+    },
+    {
+      "id": "watch",
+      "family": "time",
+      "actor": "agent",
+      "title": "Tell me when",
+      "what": "Watches and says when something happens",
+      "how": {
+        "tool": "watch",
+        "say": "tell me when they stop moving"
+      },
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "watcher",
+        "movement"
+      ]
+    },
+    {
+      "id": "stop-watching",
+      "family": "time",
+      "actor": "agent",
+      "title": "Stop watching",
+      "what": "Stops watching for something",
+      "how": {
+        "tool": "stop_watching",
+        "say": "stop watching"
+      },
+      "parts": [
+        "watcher"
+      ]
+    },
+    {
+      "id": "watching",
+      "family": "time",
+      "actor": "agent",
+      "title": "What it is watching",
+      "what": "Says what it is watching for",
+      "how": {
+        "tool": "watching",
+        "say": "what are you watching for?"
+      },
+      "parts": [
+        "watcher"
+      ]
+    },
+    {
+      "id": "map-auto",
+      "family": "map",
+      "actor": "auto",
+      "title": "Builds a slide map",
+      "what": "Pastes each steady view where it is on the slide",
+      "how": {
+        "process": "orchestrator.slidemap"
+      },
+      "evidence": [
+        "sim:slide-map"
+      ],
+      "parts": [
+        "slidemap"
+      ]
+    },
+    {
+      "id": "map-show",
+      "family": "map",
+      "actor": "agent",
+      "title": "Show the slide map",
+      "what": "Opens the map of the slide so far",
+      "how": {
+        "tool": "show_map",
+        "say": "show me the map"
+      },
+      "pair": "map",
+      "parts": [
+        "slidemap"
+      ]
+    },
+    {
+      "id": "map-button",
+      "family": "map",
+      "actor": "you",
+      "title": "Show the slide map",
+      "what": "The map button opens the slide map",
+      "how": {
+        "command": "slidemap",
+        "control": "map"
+      },
+      "pair": "map",
+      "parts": [
+        "slidemap"
+      ]
+    },
+    {
+      "id": "where-is",
+      "family": "map",
+      "actor": "agent",
+      "title": "Where was it",
+      "what": "Finds where something was on the slide",
+      "how": {
+        "tool": "where_is",
+        "say": "where was the white cell?"
+      },
+      "parts": [
+        "slidemap"
+      ]
+    },
+    {
+      "id": "bookmark",
+      "family": "map",
+      "actor": "agent",
+      "title": "Bookmark a place",
+      "what": "Keeps this place on the slide with your words",
+      "how": {
+        "tool": "bookmark",
+        "say": "bookmark this, the nice stomata"
+      },
+      "parts": [
+        "bookmarks",
+        "slidemap"
+      ]
+    },
+    {
+      "id": "way-to-bookmark",
+      "family": "map",
+      "actor": "agent",
+      "title": "Which way to a bookmark",
+      "what": "Says which way a bookmarked place is from here",
+      "how": {
+        "tool": "way_to_bookmark",
+        "say": "which way is the stomata I marked?"
+      },
+      "parts": [
+        "bookmarks",
+        "slidemap"
+      ]
+    },
+    {
+      "id": "enhance",
+      "family": "seeing",
+      "actor": "agent",
+      "title": "A clearer picture",
+      "what": "Averaged, sharpest or focus-stacked from real frames",
+      "how": {
+        "tool": "enhance",
+        "say": "clean up the picture"
+      },
+      "evidence": [
+        "services/tests/test_enhance.py"
+      ],
+      "parts": [
+        "enhancer",
+        "sweep"
+      ]
+    },
+    {
+      "id": "snapshot",
+      "family": "snapshots",
+      "actor": "agent",
+      "title": "Take a snapshot",
+      "what": "Saves the view with outlines, labels and scale bar",
+      "how": {
+        "tool": "snapshot",
+        "say": "save this view"
+      },
+      "parts": [
+        "snapshot",
+        "scale"
+      ]
+    },
+    {
+      "id": "seen-before",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Seen this before",
+      "what": "Compares the view with today's earlier views",
+      "how": {
+        "tool": "seen_before",
+        "say": "have we seen this before?"
+      },
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "sight",
+        "logs"
+      ]
+    },
+    {
+      "id": "what-data",
+      "family": "memory",
+      "actor": "agent",
+      "title": "What data we have",
+      "what": "Lists everything the session made today, by kind and title",
+      "how": {
+        "tool": "resources",
+        "say": "what data do we have?"
+      },
+      "parts": [
+        "resources",
+        "evidence",
+        "day"
+      ]
+    },
+    {
+      "id": "inspect-camera",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Inspect the held camera",
+      "what": "Supplies the original dated camera crop for the next answer",
+      "how": {
+        "tool": "inspect_camera",
+        "say": "Compare this view with the saved picture"
+      },
+      "parts": [
+        "brain"
+      ]
+    },
+    {
+      "id": "how-known",
+      "family": "memory",
+      "actor": "agent",
+      "title": "How it knows",
+      "what": "Says what a name rests on: model, view, notes, sureness",
+      "how": {
+        "tool": "resources",
+        "args": {
+          "id": "o1"
+        },
+        "say": "how do you know it's a neutrophil?"
+      },
+      "parts": [
+        "naming-record",
+        "resources",
+        "outlines"
+      ]
+    },
+    {
+      "id": "user-annotation",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Keep a tentative note",
+      "what": "Keeps tentative notes and display names on exact saved evidence",
+      "how": {
+        "tool": "annotate_resource",
+        "say": "keep this as my tentative observation"
+      },
+      "parts": [
+        "resources",
+        "evidence",
+        "day"
+      ]
+    },
+    {
+      "id": "recall",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Recall earlier",
+      "what": "Finds what was said or found earlier today",
+      "how": {
+        "tool": "recall",
+        "say": "what did we say about the platelet?"
+      },
+      "evidence": [],
+      "parts": [
+        "memory",
+        "day"
+      ]
+    },
+    {
+      "id": "summaries",
+      "family": "memory",
+      "actor": "auto",
+      "title": "Keeps a summary",
+      "what": "Folds older talk into a running summary",
+      "how": {
+        "process": "orchestrator.day.memory"
+      },
+      "parts": [
+        "memory"
+      ]
+    },
+    {
+      "id": "ask",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Type a question",
+      "what": "Ask anything about the view",
+      "how": {
+        "command": "ask",
+        "control": "ask"
+      },
+      "roles": [
+        "vision",
+        "fast",
+        "brain",
+        "menu",
+        "early_look_typed",
+        "answer_check",
+        "completion",
+        "sampling"
+      ],
+      "evidence": [
+        "sim:brain-chat"
+      ],
+      "parts": [
+        "brain",
+        "board"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "look-deeper",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Look deeper",
+      "what": "One press on a card: the app chooses how to look closer",
+      "how": {
+        "command": "ask",
+        "control": "description-deeper"
+      },
+      "roles": [
+        "vision",
+        "fast",
+        "brain",
+        "menu",
+        "research",
+        "admit"
+      ],
+      "parts": [
+        "brain",
+        "board"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "talk",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Talk to it",
+      "what": "Speak; it answers and acts by voice",
+      "how": {
+        "control": "talk"
+      },
+      "roles": [
+        "voice",
+        "voicelink",
+        "fast",
+        "speculate",
+        "reflex",
+        "answer_check",
+        "completion",
+        "sampling"
+      ],
+      "evidence": [
+        "sim:voice"
+      ],
+      "parts": [
+        "voice-link",
+        "speech",
+        "brain"
+      ],
+      "fallbacks": [
+        {
+          "when": "EdgeTAM or SAM 2.1 finds nothing that fits a box the spoken answer points at, and fal is available",
+          "does": "SAM 3.1 on fal outlines what fills the box",
+          "roles": [
+            "outline"
+          ],
+          "route": {
+            "operation": "outline",
+            "after": [
+              "edgetam",
+              "sam2.1-tiny"
+            ],
+            "when": "empty-box",
+            "to": "sam3.1-fal"
+          }
+        }
+      ]
+    },
+    {
+      "id": "hands",
+      "family": "conversation",
+      "actor": "auto",
+      "title": "Acts as it hears",
+      "what": "Does what you said as soon as it is heard",
+      "how": {
+        "process": "orchestrator.brain.speech"
+      },
+      "roles": [
+        "fast",
+        "speculate",
+        "reflex"
+      ],
+      "evidence": [
+        "services/tests/test_speech.py"
+      ],
+      "parts": [
+        "speech"
+      ]
+    },
+    {
+      "id": "narrator",
+      "family": "conversation",
+      "actor": "auto",
+      "title": "Says results later",
+      "what": "Says finished results at the next pause",
+      "how": {
+        "process": "orchestrator.brain.narrator"
+      },
+      "parts": [
+        "narrator"
+      ]
+    },
+    {
+      "id": "name-specimen",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Name the specimen",
+      "what": "Uses your name for the specimen from now on",
+      "how": {
+        "tool": "name_specimen",
+        "say": "this is onion skin"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "new-thread",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "New conversation",
+      "what": "Starts a new conversation",
+      "how": {
+        "tool": "new_thread",
+        "say": "new topic"
+      },
+      "pair": "new-thread",
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "thread-menu",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Conversation menu",
+      "what": "Start, rename or go back to a conversation",
+      "how": {
+        "command": "thread",
+        "control": "thread"
+      },
+      "pair": "new-thread",
+      "evidence": [
+        "sim:threads"
+      ],
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "switch-thread",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Back to a conversation",
+      "what": "Goes back to an earlier conversation",
+      "how": {
+        "tool": "switch_thread",
+        "say": "back to the blood smear"
+      },
+      "parts": [
+        "day",
+        "memory"
+      ]
+    },
+    {
+      "id": "new-session",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "New session",
+      "what": "Starts a new session, a project with its own conversations",
+      "how": {
+        "tool": "new_session",
+        "say": "start a new session"
+      },
+      "pair": "new-session",
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "session-menu",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Sessions",
+      "what": "Start, name or go back to a session",
+      "how": {
+        "command": "session",
+        "control": "session",
+        "also": [
+          "view"
+        ]
+      },
+      "pair": "new-session",
+      "evidence": [
+        "sim:sessions"
+      ],
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "switch-session",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Back to a session",
+      "what": "Goes back to an earlier session, its conversations and work",
+      "how": {
+        "tool": "switch_session",
+        "say": "go back to yesterday's leaf session"
+      },
+      "parts": [
+        "day",
+        "memory"
+      ]
+    },
+    {
+      "id": "you-lead",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Let you find things",
+      "what": "Stops pointing things out until you ask",
+      "how": {
+        "tool": "set_lead",
+        "say": "let me find it myself"
+      },
+      "parts": [
+        "settings"
+      ]
+    },
+    {
+      "id": "level",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Explain simpler or deeper",
+      "what": "Changes how things are explained",
+      "how": {
+        "tool": "set_level",
+        "say": "explain it more simply"
+      },
+      "parts": [
+        "settings"
+      ]
+    },
+    {
+      "id": "suggest-next",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Suggest what next",
+      "what": "Offers something worth looking at next",
+      "how": {
+        "tool": "suggest_next",
+        "say": "what should I look at next?"
+      },
+      "parts": [
+        "narrator"
+      ]
+    },
+    {
+      "id": "research",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Look it up",
+      "what": "Researches a question on the web",
+      "how": {
+        "deliverable": "research",
+        "say": "look into why stomata close"
+      },
+      "roles": [
+        "research",
+        "admit",
+        "research_pacing",
+        "claim_check"
+      ],
+      "evidence": [
+        "sim:research"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "report",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Write a report",
+      "what": "A full written report with sources",
+      "how": {
+        "deliverable": "research",
+        "say": "write me a report on this"
+      },
+      "roles": [
+        "research",
+        "admit",
+        "research_pacing",
+        "claim_check"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "annotated",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Label a photo",
+      "what": "Labels a photo of the view",
+      "how": {
+        "deliverable": "annotated_image",
+        "say": "label the parts on a picture"
+      },
+      "roles": [
+        "research",
+        "image"
+      ],
+      "evidence": [
+        "sim:research-image"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "illustration",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Draw an illustration",
+      "what": "An illustration that explains it",
+      "how": {
+        "deliverable": "image",
+        "say": "draw how it works"
+      },
+      "roles": [
+        "research",
+        "image"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "video",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Make a video",
+      "what": "A short generated video explaining it",
+      "how": {
+        "deliverable": "video",
+        "say": "make a video of meiosis"
+      },
+      "roles": [
+        "research",
+        "fixed:video"
+      ],
+      "evidence": [
+        "sim:research-video"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "lesson",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Make a lesson",
+      "what": "An interactive lesson with a quiz",
+      "how": {
+        "deliverable": "lesson",
+        "say": "teach me about this"
+      },
+      "roles": [
+        "research",
+        "image",
+        "lesson_check",
+        "fixed:lesson-check",
+        "fixed:lesson-writer",
+        "fixed:editor"
+      ],
+      "evidence": [
+        "sim:research-lesson",
+        "sim:lesson-walkthrough"
+      ],
+      "parts": [
+        "research-worker",
+        "ledger"
+      ]
+    },
+    {
+      "id": "research-run",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Outline cells for itself",
+      "what": "Segments the view now or a kept one, never on screen",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher measure how much these cells vary"
+      },
+      "roles": [
+        "research",
+        "cells"
+      ],
+      "parts": [
+        "research-worker",
+        "research-hands",
+        "evidence",
+        "measurements",
+        "held"
+      ]
+    },
+    {
+      "id": "research-enhance",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Clearer picture for itself",
+      "what": "Averages or picks real frames for its reading, never on screen",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher take the clearest picture of the clip it held"
+      },
+      "roles": [
+        "research"
+      ],
+      "parts": [
+        "research-worker",
+        "research-hands",
+        "enhancer",
+        "sweep",
+        "held",
+        "resources"
+      ]
+    },
+    {
+      "id": "research-motion",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Motion for itself",
+      "what": "Measures what moves in the live view, never on screen",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher measure how fast these swim"
+      },
+      "roles": [
+        "research"
+      ],
+      "parts": [
+        "research-worker",
+        "research-hands",
+        "movement",
+        "slide-tracker",
+        "runner",
+        "motion-tracks"
+      ]
+    },
+    {
+      "id": "start-researcher",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Start a researcher",
+      "what": "Starts background research on what you asked",
+      "how": {
+        "tool": "start_researcher"
+      },
+      "roles": [
+        "admit",
+        "research"
+      ],
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "schedule-acquisition",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Schedule camera clips",
+      "what": "Keeps scheduled camera clips and records failed or missed captures",
+      "how": {
+        "tool": "schedule_acquisition",
+        "say": "capture ten five-second clips every thirty seconds"
+      },
+      "parts": [
+        "research-worker",
+        "research-hands"
+      ]
+    },
+    {
+      "id": "research-status",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "How is it going",
+      "what": "Says how the researchers are doing",
+      "how": {
+        "tool": "research_status",
+        "say": "how is the researcher doing?"
+      },
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "summarize-research",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "What they found",
+      "what": "Sums up what researchers found",
+      "how": {
+        "tool": "summarize_research",
+        "say": "what have they found?"
+      },
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "cancel-research",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Stop a researcher",
+      "what": "Stops a researcher",
+      "how": {
+        "tool": "cancel_researcher",
+        "say": "stop the researcher"
+      },
+      "pair": "cancel-research",
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "cancel-research-button",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Stop a researcher",
+      "what": "The Stop button on its work",
+      "how": {
+        "command": "research-cancel"
+      },
+      "pair": "cancel-research",
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "followup",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Ask a researcher",
+      "what": "Asks a researcher about its own work",
+      "how": {
+        "tool": "researcher_followup",
+        "say": "ask the researcher why"
+      },
+      "roles": [
+        "research"
+      ],
+      "pair": "followup",
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "research-note-form",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Steer a working researcher",
+      "what": "The pinned researcher composer sends a note to its existing inbox",
+      "how": {
+        "command": "research-note"
+      },
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "research-evidence-form",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Answer an evidence request",
+      "what": "Holds requested frames or declines, answering the exact retained question",
+      "how": {
+        "command": "research-evidence"
+      },
+      "parts": [
+        "held",
+        "research-worker"
+      ]
+    },
+    {
+      "id": "followup-form",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Ask a researcher",
+      "what": "The follow-up box on its work",
+      "how": {
+        "command": "research-followup"
+      },
+      "roles": [
+        "research"
+      ],
+      "pair": "followup",
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "revise",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Make a new version",
+      "what": "Changes one thing it made, keeping the old one",
+      "how": {
+        "tool": "revise_work",
+        "say": "make question 2 easier"
+      },
+      "roles": [
+        "research",
+        "image",
+        "fixed:editor",
+        "fixed:lesson-writer",
+        "fixed:video",
+        "presentation"
+      ],
+      "evidence": [
+        "sim:revise-lesson"
+      ],
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "note",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Pass a note",
+      "what": "Passes your words to a working researcher",
+      "how": {
+        "tool": "researcher_note",
+        "say": "tell it to focus on the guard cells"
+      },
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "hold-footage",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Hold footage for it",
+      "what": "Holds the seconds of view a researcher asked for, on your yes",
+      "how": {
+        "tool": "researcher_note",
+        "args": {
+          "answers": "q1",
+          "hold_seconds": 15,
+          "asked_with": "yes"
+        },
+        "say": "yes, keep 15 seconds for it"
+      },
+      "parts": [
+        "held",
+        "resources"
+      ]
+    },
+    {
+      "id": "research-cap",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Daily spending cap",
+      "what": "Sets how much researchers may spend a day",
+      "how": {
+        "tool": "set_research_cap",
+        "say": "cap research at two dollars"
+      },
+      "pair": "research-cap",
+      "parts": [
+        "ledger"
+      ]
+    },
+    {
+      "id": "research-cap-menu",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Daily spending cap",
+      "what": "Research spending in the Behaviour menu",
+      "how": {
+        "command": "settings",
+        "control": "behaviour-toggle"
+      },
+      "pair": "research-cap",
+      "parts": [
+        "ledger"
+      ]
+    },
+    {
+      "id": "show-result",
+      "family": "results",
+      "actor": "agent",
+      "title": "Show their work",
+      "what": "Opens a researcher's work beside the view",
+      "how": {
+        "tool": "show_result",
+        "say": "show me the lesson"
+      },
+      "pair": "show-result",
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "show-result-click",
+      "family": "results",
+      "actor": "you",
+      "title": "Open their work",
+      "what": "A researcher in Researchers, or Show beside the view",
+      "how": {
+        "command": "presenter"
+      },
+      "pair": "show-result",
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "read-result",
+      "family": "results",
+      "actor": "agent",
+      "title": "Read their work",
+      "what": "Reads a researcher's work in full",
+      "how": {
+        "tool": "read_result",
+        "say": "what does the lesson say?"
+      },
+      "parts": [
+        "presenter",
+        "research-worker"
+      ]
+    },
+    {
+      "id": "step",
+      "family": "results",
+      "actor": "agent",
+      "title": "Go through a lesson",
+      "what": "Goes through a lesson or quiz step by step",
+      "how": {
+        "tool": "result_step",
+        "say": "next question"
+      },
+      "evidence": [
+        "sim:lesson-walkthrough"
+      ],
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "mark-step",
+      "family": "results",
+      "actor": "agent",
+      "title": "Mark an answer",
+      "what": "Marks your answer to a quiz step",
+      "how": {
+        "tool": "mark_step"
+      },
+      "parts": [
+        "presenter",
+        "quiz"
+      ]
+    },
+    {
+      "id": "close-result",
+      "family": "results",
+      "actor": "agent",
+      "title": "Close their work",
+      "what": "Closes the work beside the view",
+      "how": {
+        "tool": "close_result",
+        "say": "close the lesson"
+      },
+      "pair": "close-result",
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "show-me",
+      "family": "results",
+      "actor": "agent",
+      "title": "Show me",
+      "what": "Shows a finding from the session's records it rests on",
+      "how": {
+        "tool": "show_me",
+        "say": "show me what it found"
+      },
+      "pair": "show-me",
+      "parts": [
+        "showing",
+        "screen",
+        "resources"
+      ]
+    },
+    {
+      "id": "stop-showing",
+      "family": "results",
+      "actor": "agent",
+      "title": "Stop showing",
+      "what": "Ends it, putting back only what it changed",
+      "how": {
+        "tool": "show_me",
+        "args": {
+          "stop": true
+        },
+        "say": "stop"
+      },
+      "pair": "stop-showing",
+      "parts": [
+        "showing",
+        "screen"
+      ]
+    },
+    {
+      "id": "stop-showing-click",
+      "family": "results",
+      "actor": "you",
+      "title": "Stop showing",
+      "what": "Stop on its bar, or Escape",
+      "how": {
+        "command": "showing",
+        "key": "Escape"
+      },
+      "pair": "stop-showing",
+      "parts": [
+        "showing",
+        "screen"
+      ]
+    },
+    {
+      "id": "close-result-x",
+      "family": "results",
+      "actor": "you",
+      "title": "Close their work",
+      "what": "Its \u00d7 closes the work beside the view",
+      "how": {
+        "control": "viewer-close"
+      },
+      "pair": "close-result",
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "popout",
+      "family": "results",
+      "actor": "you",
+      "title": "Open in a window",
+      "what": "Opens the Research view in its own window",
+      "how": {
+        "control": "research-popout"
+      },
+      "parts": [
+        "studio"
+      ]
+    },
+    {
+      "id": "quiz",
+      "family": "results",
+      "actor": "auto",
+      "title": "Checks quiz answers",
+      "what": "Checks your clicks on a slide quiz",
+      "how": {
+        "process": "orchestrator.quiz"
+      },
+      "parts": [
+        "quiz"
+      ]
+    },
+    {
+      "id": "style",
+      "family": "display",
+      "actor": "agent",
+      "title": "Outline colour and style",
+      "what": "Changes the outline colour or style",
+      "how": {
+        "tool": "set_style",
+        "say": "make the outlines yellow"
+      },
+      "roles": [
+        "style"
+      ],
+      "pair": "style",
+      "parts": [
+        "studio-view",
+        "settings"
+      ]
+    },
+    {
+      "id": "change-on-screen",
+      "family": "display",
+      "actor": "agent",
+      "title": "Change what is shown",
+      "what": "Shows, hides, fades, colours, moves or closes anything on screen",
+      "how": {
+        "tool": "present",
+        "say": "colour the cells by size"
+      },
+      "parts": [
+        "screen",
+        "studio-view",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "colour-by-look-group",
+      "family": "display",
+      "actor": "agent",
+      "title": "Colour cells by look group",
+      "what": "Colours each look group of the cells, with a legend",
+      "how": {
+        "tool": "present",
+        "say": "colour the cells by look group"
+      },
+      "roles": [
+        "embed"
+      ],
+      "parts": [
+        "enrichment",
+        "population-layer",
+        "screen"
+      ]
+    },
+    {
+      "id": "cells-layer-controls",
+      "family": "display",
+      "actor": "you",
+      "title": "Show, fade or colour cells",
+      "what": "Shows, hides, fades, fills or colours the cell outlines",
+      "how": {
+        "command": "present",
+        "control": "layer-controls",
+        "say": "colour the cells by size"
+      },
+      "parts": [
+        "screen",
+        "studio-view",
+        "population-layer"
+      ]
+    },
+    {
+      "id": "made-today",
+      "family": "memory",
+      "actor": "you",
+      "title": "Made in this session",
+      "what": "Lists everything this session made and opens it",
+      "how": {
+        "command": "present",
+        "control": "made-today",
+        "say": "what data do we have?"
+      },
+      "parts": [
+        "resources",
+        "screen"
+      ]
+    },
+    {
+      "id": "look-at-screen",
+      "family": "display",
+      "actor": "agent",
+      "title": "Look at the screen",
+      "what": "Checks the composed screen when the studio's report is unclear",
+      "how": {
+        "tool": "look_at_screen",
+        "say": "is the video still showing?"
+      },
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "screen"
+      ]
+    },
+    {
+      "id": "style-menu",
+      "family": "display",
+      "actor": "you",
+      "title": "Outline style",
+      "what": "Outline style in the Behaviour menu",
+      "how": {
+        "command": "settings",
+        "control": "behaviour-toggle"
+      },
+      "roles": [
+        "style"
+      ],
+      "pair": "style",
+      "parts": [
+        "studio-view",
+        "settings"
+      ]
+    },
+    {
+      "id": "models",
+      "family": "testing",
+      "actor": "you",
+      "title": "Choose the models",
+      "what": "Pick which model does each job",
+      "how": {
+        "command": "settings",
+        "control": "models-toggle"
+      },
+      "parts": [
+        "settings"
+      ]
+    },
+    {
+      "id": "add-api-key",
+      "family": "testing",
+      "actor": "you",
+      "title": "Add an API key",
+      "what": "Test a key, save it, and its models turn on",
+      "how": {
+        "control": "models-toggle"
+      },
+      "parts": [
+        "keys"
+      ]
+    },
+    {
+      "id": "add-your-own-model",
+      "family": "testing",
+      "actor": "you",
+      "title": "Add your own model",
+      "what": "A zoo or Cellpose model by link or file; on once checked",
+      "how": {
+        "command": "model-add",
+        "also": [
+          "model-activate",
+          "model-deactivate"
+        ]
+      },
+      "parts": [
+        "your-models",
+        "models-folder"
+      ],
+      "evidence": [
+        "services/tests/test_mine.py",
+        "services/tests/test_link_recognise.py"
+      ]
+    },
+    {
+      "id": "share-capability",
+      "family": "testing",
+      "actor": "you",
+      "title": "Share a capability",
+      "what": "As a file anyone opens, or sent for review",
+      "how": {
+        "command": "model-publish-prepare",
+        "also": [
+          "model-publish-submit",
+          "github-signin",
+          "model-publish-status",
+          "made-with-acquire"
+        ]
+      },
+      "parts": [
+        "capability-share",
+        "contributed-sandbox",
+        "github-signin",
+        "made-with",
+        "publish-api",
+        "your-models"
+      ],
+      "evidence": [
+        "services/tests/test_share.py",
+        "services/tests/test_github_signin.py",
+        "services/tests/test_made_with.py",
+        "services/tests/test_publish_api.py"
+      ]
+    },
+    {
+      "id": "build-capability",
+      "family": "testing",
+      "actor": "you",
+      "title": "Have an AI build it",
+      "what": "An AI drafts its adapter; each try runs sandboxed",
+      "how": {
+        "command": "model-build",
+        "also": [
+          "model-draft-use",
+          "model-draft-community"
+        ]
+      },
+      "roles": [
+        "research"
+      ],
+      "parts": [
+        "capability-builder",
+        "contributed-sandbox"
+      ],
+      "evidence": [
+        "services/tests/test_drafts.py"
+      ]
+    },
+    {
+      "id": "models-page",
+      "family": "testing",
+      "actor": "you",
+      "title": "See every model",
+      "what": "Which models run here, why not, and how to turn each on",
+      "how": {
+        "control": "setup-chip",
+        "also": [
+          "model-reveal",
+          "observe-again",
+          "observe-confirm"
+        ]
+      },
+      "parts": [
+        "models-page",
+        "models-folder",
+        "keys"
+      ],
+      "evidence": [
+        "services/tests/test_catalog_view.py",
+        "apps/studio/src/modelspage.test.ts"
+      ]
+    },
+    {
+      "id": "download-model",
+      "family": "testing",
+      "actor": "you",
+      "title": "Download a model",
+      "what": "Gets a model's pinned files, checked, into the models folder",
+      "how": {
+        "command": "model-download",
+        "also": [
+          "model-download-cancel",
+          "onboarding-models"
+        ]
+      },
+      "parts": [
+        "models-folder"
+      ],
+      "evidence": [
+        "services/tests/test_downloads.py",
+        "services/bench/catalog_proof.py",
+        "services/tests/test_onboarding_models.py",
+        "apps/studio/src/starter-models.test.ts"
+      ]
+    },
+    {
+      "id": "install-model-code",
+      "family": "testing",
+      "actor": "you",
+      "title": "Install a model's code",
+      "what": "Makes a model's own Python from its pinned lockfile",
+      "how": {
+        "command": "model-install",
+        "also": [
+          "model-install-cancel",
+          "model-uninstall"
+        ]
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_envs.py",
+        "services/bench/catalog_proof.py"
+      ]
+    },
+    {
+      "id": "prepare-scientific-candidate",
+      "family": "testing",
+      "actor": "you",
+      "title": "Prepare a scientific tool",
+      "what": "Prepares pinned dependencies for private review before explicitly choosing a tool",
+      "how": {
+        "command": "model-prepare"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_candidate_preparation.py"
+      ]
+    },
+    {
+      "id": "turn-on-fiji-plugin",
+      "family": "testing",
+      "actor": "you",
+      "title": "Turn on a Fiji plugin",
+      "what": "Adds a plugin's update site to a new, proven Fiji",
+      "how": {
+        "command": "fiji-add-site",
+        "also": [
+          "fiji-rollback"
+        ]
+      },
+      "parts": [
+        "fiji-generations"
+      ],
+      "evidence": [
+        "services/tests/test_fiji_generations.py",
+        "services/tests/test_inventories.py"
+      ]
+    },
+    {
+      "id": "register-volume",
+      "family": "measuring",
+      "actor": "you",
+      "title": "Register a brain volume",
+      "what": "Registers a whole-brain volume to the Allen mouse atlas",
+      "how": {
+        "command": "job-start",
+        "also": [
+          "volume-add",
+          "volume-describe",
+          "job-cancel",
+          "job-again"
+        ]
+      },
+      "parts": [
+        "registrations",
+        "jobs"
+      ],
+      "evidence": [
+        "services/tests/test_registrations.py",
+        "services/bench/catalog_proof.py"
+      ]
+    },
+    {
+      "id": "register-volume-agent",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Register a brain volume",
+      "what": "Registers a volume you added, asking only what's missing",
+      "how": {
+        "tool": "register_volume",
+        "say": "register this brain to the Allen atlas"
+      },
+      "parts": [
+        "registrations",
+        "jobs"
+      ],
+      "evidence": [
+        "services/tests/test_registrations.py"
+      ]
+    },
+    {
+      "id": "catalog-channels",
+      "family": "testing",
+      "actor": "you",
+      "title": "Get new catalog entries",
+      "what": "Lists entries merged since, or a community channel's, pinned",
+      "how": {
+        "command": "catalog-update",
+        "also": [
+          "channel-add",
+          "channel-trust",
+          "channel-remove",
+          "channel-update"
+        ]
+      },
+      "parts": [
+        "catalog-channels"
+      ],
+      "evidence": [
+        "services/tests/test_channels.py"
+      ]
+    },
+    {
+      "id": "new-capabilities",
+      "family": "testing",
+      "actor": "you",
+      "title": "See new capabilities",
+      "what": "What others added arrives by itself, offered, never turned on",
+      "how": {
+        "command": "catalog-news-seen",
+        "also": [
+          "catalog-news-dismiss",
+          "catalog-news-get"
+        ]
+      },
+      "parts": [
+        "catalog-news",
+        "catalog-channels"
+      ],
+      "evidence": [
+        "services/tests/test_catalog_news.py"
+      ]
+    },
+    {
+      "id": "turn-on-capability",
+      "family": "testing",
+      "actor": "you",
+      "title": "Turn a capability on",
+      "what": "One press carries every step a job needs, said when on",
+      "how": {
+        "command": "capability-turn-on",
+        "also": [
+          "capability-turn-on-cancel",
+          "capability-select",
+          "capability-try",
+          "capability-try-voice",
+          "capability-remove",
+          "model-turn-on",
+          "model-own-compare",
+          "model-own-use"
+        ]
+      },
+      "parts": [
+        "capability-shelf",
+        "contributed-sandbox",
+        "catalog-channels"
+      ],
+      "evidence": [
+        "services/tests/test_capability_shelf.py"
+      ]
+    },
+    {
+      "id": "turn-on-capability-agent",
+      "family": "testing",
+      "actor": "agent",
+      "title": "Turn a capability on",
+      "what": "On your yes, turns a job on; keys stay on its card",
+      "how": {
+        "tool": "turn_on",
+        "say": "turn on finding every cell"
+      },
+      "parts": [
+        "capability-shelf"
+      ],
+      "evidence": [
+        "services/tests/test_capability_shelf.py"
+      ]
+    },
+    {
+      "id": "run-new-kind",
+      "family": "testing",
+      "actor": "agent",
+      "title": "Run an added job",
+      "what": "Runs a new kind of job the catalog added, on the view",
+      "how": {
+        "tool": "run_capability",
+        "say": "denoise the view with the denoiser I added"
+      },
+      "parts": [
+        "new-kinds",
+        "contributed-sandbox"
+      ],
+      "evidence": [
+        "services/tests/test_kinds.py"
+      ]
+    },
+    {
+      "id": "describe-capability",
+      "family": "testing",
+      "actor": "agent",
+      "title": "Describe an added job",
+      "what": "Says an added capability's settings, input, output and outcomes",
+      "how": {
+        "tool": "describe_capability",
+        "say": "what can the bright objects finder be set to?"
+      },
+      "parts": [
+        "new-kinds"
+      ],
+      "evidence": [
+        "services/tests/test_one_door.py"
+      ]
+    },
+    {
+      "id": "try-new-kind",
+      "family": "testing",
+      "actor": "you",
+      "title": "Try an added job",
+      "what": "Try it on its card runs it on the view now",
+      "how": {
+        "command": "capability-run"
+      },
+      "parts": [
+        "new-kinds",
+        "contributed-sandbox"
+      ],
+      "evidence": [
+        "services/tests/test_kinds.py"
+      ]
+    },
+    {
+      "id": "go-back-version",
+      "family": "testing",
+      "actor": "you",
+      "title": "Go back a version",
+      "what": "One press runs the version before; kept until you change it",
+      "how": {
+        "command": "model-version"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_env_runner.py"
+      ]
+    },
+    {
+      "id": "keep-capability-updated",
+      "family": "testing",
+      "actor": "you",
+      "title": "Choose how it updates",
+      "what": "Update when you choose, review updates, maintain automatically, or pin",
+      "how": {
+        "command": "maintenance-policy"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance.py"
+      ]
+    },
+    {
+      "id": "check-capability-update",
+      "family": "testing",
+      "actor": "you",
+      "title": "Check for an update",
+      "what": "Looks at its catalog for a newer version, now",
+      "how": {
+        "command": "maintenance-check"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance.py"
+      ]
+    },
+    {
+      "id": "apply-capability-update",
+      "family": "testing",
+      "actor": "you",
+      "title": "Apply an update",
+      "what": "A proven update runs new work; running work keeps its version",
+      "how": {
+        "command": "maintenance-apply"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance.py"
+      ]
+    },
+    {
+      "id": "undo-capability-update",
+      "family": "testing",
+      "actor": "you",
+      "title": "Undo an update",
+      "what": "The version before runs again; automatic updates then wait for you",
+      "how": {
+        "command": "maintenance-undo"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance.py"
+      ]
+    },
+    {
+      "id": "stop-capability-update",
+      "family": "testing",
+      "actor": "you",
+      "title": "Stop an update",
+      "what": "Ends the update being prepared; the version in use is untouched",
+      "how": {
+        "command": "maintenance-stop"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance.py"
+      ]
+    },
+    {
+      "id": "accept-capability-update",
+      "family": "testing",
+      "actor": "you",
+      "title": "Accept what changed",
+      "what": "You accept exactly what an update changes; then it continues",
+      "how": {
+        "command": "maintenance-accept"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance_lifecycle.py"
+      ]
+    },
+    {
+      "id": "merge-your-version",
+      "family": "testing",
+      "actor": "you",
+      "title": "Update your own version",
+      "what": "Your version merged onto the newest of what it came from",
+      "how": {
+        "command": "maintenance-merge"
+      },
+      "parts": [
+        "model-environments"
+      ],
+      "evidence": [
+        "services/tests/test_maintenance_lifecycle.py"
+      ]
+    },
+    {
+      "id": "report-capability",
+      "family": "testing",
+      "actor": "you",
+      "title": "Report a problem",
+      "what": "The facts of a failure, to copy; never pictures or keys",
+      "how": {
+        "command": "model-report"
+      },
+      "parts": [
+        "capability-report"
+      ],
+      "evidence": [
+        "services/tests/test_report.py"
+      ]
+    },
+    {
+      "id": "monthly-cloud-cap",
+      "family": "testing",
+      "actor": "you",
+      "title": "Monthly cloud cap",
+      "what": "Optional; reached, no cloud model is asked; unknown costs count",
+      "how": {
+        "command": "usage-cap"
+      },
+      "parts": [
+        "usage-ledger"
+      ],
+      "evidence": [
+        "services/tests/test_usage_cap.py"
+      ]
+    },
+    {
+      "id": "behaviour",
+      "family": "testing",
+      "actor": "you",
+      "title": "Choose the behaviour",
+      "what": "How it points, checks, listens and explains",
+      "how": {
+        "command": "settings",
+        "control": "behaviour-toggle"
+      },
+      "parts": [
+        "settings"
+      ]
+    },
+    {
+      "id": "blind-test",
+      "family": "testing",
+      "actor": "you",
+      "title": "Blind A/B/C test",
+      "what": "Several options answer unnamed; you vote",
+      "how": {
+        "command": "arena",
+        "control": "blind-switch",
+        "also": [
+          "vote"
+        ]
+      },
+      "evidence": [
+        "sim:arena"
+      ],
+      "parts": [
+        "arena"
+      ]
+    },
+    {
+      "id": "scores",
+      "family": "testing",
+      "actor": "you",
+      "title": "Blind-test scores",
+      "what": "The votes so far, per option",
+      "how": {
+        "command": "scores",
+        "control": "scores-open"
+      },
+      "parts": [
+        "arena"
+      ]
+    },
+    {
+      "id": "verdict",
+      "family": "testing",
+      "actor": "you",
+      "title": "Mark works or broken",
+      "what": "Your verdict on a capability, kept in git",
+      "how": {
+        "command": "validate"
+      },
+      "parts": [
+        "catalogue"
+      ]
+    },
+    {
+      "id": "check-models",
+      "family": "testing",
+      "actor": "you",
+      "title": "Check every model",
+      "what": "Runs each model on this Mac once; shows which are broken",
+      "how": {
+        "command": "capability-check"
+      },
+      "parts": [
+        "model-checks",
+        "catalogue"
+      ],
+      "evidence": [
+        "services/tests/test_model_checks.py",
+        "services/bench/capability_check.py"
+      ]
+    },
+    {
+      "id": "ask-about-models",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Say what models need",
+      "what": "Which models run here, why not, and how to turn on",
+      "how": {
+        "tool": "models",
+        "say": "what do I need to set up?"
+      },
+      "parts": [
+        "models-page",
+        "keys"
+      ],
+      "evidence": [
+        "services/tests/test_catalog_tools.py"
+      ]
+    },
+    {
+      "id": "get-model",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Download on your yes",
+      "what": "Starts a model's download it offered, once you say yes",
+      "how": {
+        "tool": "get_model",
+        "say": "yes, download it"
+      },
+      "parts": [
+        "models-folder"
+      ],
+      "evidence": [
+        "services/tests/test_catalog_tools.py"
+      ]
+    },
+    {
+      "id": "open-model-card",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Open a model's card",
+      "what": "Opens the Models page at a model, its Add key there",
+      "how": {
+        "tool": "open_models",
+        "say": "add my OpenAI key"
+      },
+      "parts": [
+        "models-page"
+      ],
+      "evidence": [
+        "services/tests/test_catalog_tools.py"
+      ]
+    },
+    {
+      "id": "read-capabilities",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Read its capabilities",
+      "what": "Reads this list, as you see it",
+      "how": {
+        "tool": "capabilities",
+        "say": "what can you do?"
+      },
+      "parts": [
+        "catalogue"
+      ]
+    },
+    {
+      "id": "which-models",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Which models can do it",
+      "what": "Lists the models that could do it here, running none",
+      "how": {
+        "tool": "capabilities",
+        "args": {
+          "operation": "outline"
+        },
+        "say": "which models can outline this?"
+      },
+      "roles": [
+        "outline",
+        "cells"
+      ],
+      "parts": [
+        "runner",
+        "catalogue"
+      ]
+    },
+    {
+      "id": "use-for-request",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Use a model once",
+      "what": "Uses the model you name for this request only",
+      "how": {
+        "tool": "use",
+        "say": "use SAM 2.1 for this one"
+      },
+      "parts": [
+        "runner"
+      ]
+    },
+    {
+      "id": "set-default-model",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Change the default model",
+      "what": "Switches the model an operation uses from now on",
+      "how": {
+        "tool": "set_default",
+        "say": "always use SAM 2.1 to outline"
+      },
+      "roles": [
+        "outline",
+        "cells"
+      ],
+      "parts": [
+        "runner"
+      ]
+    },
+    {
+      "id": "retrieve-page",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Retrieve a page",
+      "what": "Finds a page and reads its actual text",
+      "how": {
+        "tool": "retrieve_page",
+        "say": "pull up a page about this"
+      },
+      "roles": [
+        "fixed:retrieval"
+      ],
+      "parts": [
+        "reference-photos"
+      ]
+    },
+    {
+      "id": "research-open-capture",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Open a retained research capture",
+      "what": "Opens the original captured frame from saved findings in this browser",
+      "how": {
+        "command": "research-open-capture"
+      },
+      "roles": [],
+      "parts": [
+        "presenter"
+      ]
+    },
+    {
+      "id": "research-presentation",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Produce or stop a presentation",
+      "what": "Arranges retained findings independently, or stops its presentation job",
+      "how": {
+        "command": "research-presentation"
+      },
+      "roles": [
+        "presentation"
+      ],
+      "parts": [
+        "research-worker"
+      ]
+    },
+    {
+      "id": "retain-population-labels",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Retain labels for tools",
+      "what": "Retain corrected population labels as native scientific inputs without rerunning their producer",
+      "how": {
+        "tool": "retain_population_labels",
+        "say": "retain these corrected labels for measurement"
+      },
+      "parts": [
+        "population-native"
+      ]
+    },
+    {
+      "id": "measure-saved-objects",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Measure saved objects",
+      "what": "Measure accepted native labels into a typed table without rerunning segmentation",
+      "how": {
+        "tool": "measure_saved_objects",
+        "say": "measure these accepted saved labels"
+      },
+      "parts": [
+        "scientific-measurement"
+      ]
+    },
+    {
+      "id": "compare-retained-methods",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Compare retained methods",
+      "what": "Compare accepted masks, preserve evidence and choose a protocol without rerunning producers",
+      "how": {
+        "tool": "compare_retained_methods",
+        "say": "compare these retained methods and keep the evidence"
+      },
+      "parts": [
+        "method-workflow"
+      ]
+    },
+    {
+      "id": "saved-make-table",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Pool saved measurements",
+      "what": "Combines selected saved measurements into an editable table",
+      "how": {
+        "tool": "make_table",
+        "say": "make a table from these saved measurements"
+      },
+      "parts": [
+        "saved-tables"
+      ]
+    },
+    {
+      "id": "saved-edit-table",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Edit a saved table",
+      "what": "Saves explicit conditions, exclusions and computed columns without changing original measurements",
+      "how": {
+        "tool": "edit_table",
+        "say": "exclude this row with the reason I gave"
+      },
+      "parts": [
+        "saved-tables"
+      ]
+    },
+    {
+      "id": "saved-analyze",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Analyze a saved table",
+      "what": "Computes your selected statistical test from an exact saved table version",
+      "how": {
+        "tool": "analyze",
+        "say": "run a Welch test using these two conditions"
+      },
+      "parts": [
+        "saved-tables",
+        "table-derivatives"
+      ]
+    },
+    {
+      "id": "saved-make-graph",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Graph a saved table",
+      "what": "Retains code-computed graph values and settings from an exact saved table",
+      "how": {
+        "tool": "make_graph",
+        "say": "make a scatter plot of these columns"
+      },
+      "parts": [
+        "saved-tables",
+        "table-derivatives"
+      ]
+    },
+    {
+      "id": "saved-read-analysis",
+      "family": "measuring",
+      "actor": "agent",
+      "title": "Read accepted analysis",
+      "what": "Reads saved numerical results and exclusions without running another calculation",
+      "how": {
+        "tool": "read_analysis",
+        "say": "read the accepted test result and included rows"
+      },
+      "parts": [
+        "table-derivatives",
+        "resources"
+      ]
+    },
+    {
+      "id": "saved-tabs",
+      "family": "display",
+      "actor": "agent",
+      "title": "Arrange named Tabs",
+      "what": "Changes named Tabs and retained placements in the original Studio",
+      "how": {
+        "tool": "tabs",
+        "say": "move this saved graph to the Results Tab"
+      },
+      "parts": [
+        "workspace-tabs"
+      ]
+    }
+  ],
+  "roles": [
+    {
+      "id": "vision",
+      "kind": "model",
+      "title": "Seeing",
+      "purpose": "Looks at the view to answer, point and name",
+      "hint": "which model looks at the view and answers"
+    },
+    {
+      "id": "fast",
+      "kind": "model",
+      "title": "Quick decisions",
+      "purpose": "Decides from notes alone, fast, whether a look is needed",
+      "hint": "the fast pass beside every look"
+    },
+    {
+      "id": "sight",
+      "kind": "model",
+      "title": "Running look",
+      "purpose": "Describes the view on its own as it settles",
+      "hint": "the look the app keeps on its own"
+    },
+    {
+      "id": "outline",
+      "kind": "model",
+      "title": "Outlining",
+      "purpose": "Draws an outline from a click or a box",
+      "hint": "which model draws the outline"
+    },
+    {
+      "id": "cells",
+      "kind": "model",
+      "title": "Cells",
+      "purpose": "Outlines every cell at once",
+      "hint": "what outlines every cell at once (the Cells button)"
+    },
+    {
+      "id": "embed",
+      "kind": "model",
+      "title": "Look-alikes",
+      "purpose": "Compares pictures: your names, seen before today",
+      "hint": "which model compares pictures"
+    },
+    {
+      "id": "zeroshot",
+      "kind": "model",
+      "title": "Medical names",
+      "purpose": "Ranks likely blood and Pap cell names for a click, as a hint",
+      "hint": "MedSigLIP's ranking of the subject's names, told to naming"
+    },
+    {
+      "id": "voice",
+      "kind": "model",
+      "title": "Talking",
+      "purpose": "Hears you and speaks, handing requests to the brain",
+      "hint": "it hands what you ask to the same mind you type to"
+    },
+    {
+      "id": "research",
+      "kind": "model",
+      "title": "Researching",
+      "purpose": "Thinks and searches the web for researchers",
+      "hint": "what researchers think and search the web with"
+    },
+    {
+      "id": "presentation",
+      "kind": "model",
+      "title": "Presentation model",
+      "purpose": "Arranges validated blocks from an exact retained findings version without research or acquisition",
+      "hint": "An independent job; standard findings survive every producer failure"
+    },
+    {
+      "id": "image",
+      "kind": "model",
+      "title": "Pictures",
+      "purpose": "Labels photos and draws illustrations for researchers",
+      "hint": "what labels photos and draws illustrations"
+    },
+    {
+      "id": "fixed:video",
+      "kind": "model",
+      "title": "Video",
+      "label": "Veo 3.1 Fast",
+      "purpose": "Makes researchers' videos",
+      "source": "research_worker.researcher:VIDEO_MODEL",
+      "model": "veo-3.1-fast",
+      "uses": [
+        "gemini-api"
+      ]
+    },
+    {
+      "id": "fixed:lesson-check",
+      "kind": "model",
+      "title": "Lesson checker",
+      "label": "Gemini 3.8 Flash",
+      "purpose": "Tries each quiz step without the picture",
+      "source": "research_worker.lesson_check:CHECK_MODEL",
+      "model": "gemini-3.8-flash",
+      "uses": [
+        "gemini-api"
+      ]
+    },
+    {
+      "id": "fixed:lesson-writer",
+      "kind": "model",
+      "title": "Lesson writer",
+      "label": "Claude Sonnet 5.5",
+      "purpose": "Writes a lesson's page",
+      "source": "research_worker.researcher:LESSON_CLAUDE",
+      "model": "claude-sonnet-5-5",
+      "uses": [
+        "anthropic-api"
+      ],
+      "fallback": {
+        "label": "GPT-6.1 Sol",
+        "source": "research_worker.researcher:LESSON_FALLBACK",
+        "model": "gpt-6.1-sol",
+        "uses": [
+          "openai-api"
+        ],
+        "when": "no ANTHROPIC_API_KEY"
+      }
+    },
+    {
+      "id": "fixed:editor",
+      "kind": "model",
+      "title": "Editor",
+      "label": "GPT-6.1 Sol",
+      "purpose": "Makes one small edit to a lesson or a picture's labels",
+      "source": "research_worker.researcher:EDIT_MODEL",
+      "model": "gpt-6.1-sol",
+      "uses": [
+        "openai-api"
+      ]
+    },
+    {
+      "id": "fixed:find-all",
+      "kind": "model",
+      "title": "Find all like this",
+      "label": "SAM 3.1 (cloud)",
+      "purpose": "Finds every match of an example, whatever the Outlining model is",
+      "source": "orchestrator.fal_segment:ENDPOINT",
+      "model": "sam3.1-cloud",
+      "uses": [
+        "fal-api",
+        "sam3.1"
+      ]
+    },
+    {
+      "id": "fixed:group-names",
+      "kind": "model",
+      "title": "Names for look groups",
+      "label": "MedSigLIP 448",
+      "purpose": "Ranks blood and Pap names for each look group, as data, when asked; not the Medical names setting",
+      "source": "gpu_worker.zeroshot:MODEL",
+      "model": "medsiglip",
+      "uses": [
+        "medsiglip"
+      ]
+    },
+    {
+      "id": "pointing",
+      "kind": "method",
+      "title": "Pointing",
+      "purpose": "How the look says where things are",
+      "hint": "how it says where things are"
+    },
+    {
+      "id": "brain",
+      "kind": "method",
+      "title": "Acting",
+      "purpose": "How the brain uses its tools",
+      "hint": "how it uses its tools: zoom, select, dissect\u2026"
+    },
+    {
+      "id": "menu",
+      "kind": "method",
+      "title": "Tool menu",
+      "purpose": "How the tools are listed for the model",
+      "hint": "how its tools are listed for the model"
+    },
+    {
+      "id": "dissect",
+      "kind": "method",
+      "title": "Dissecting",
+      "purpose": "How it finds the parts inside a thing",
+      "hint": "how it finds the parts inside an object"
+    },
+    {
+      "id": "track",
+      "kind": "method",
+      "title": "Outlines follow",
+      "purpose": "Whether outlines follow the slide or each thing",
+      "hint": "the slide, or each thing on its own"
+    },
+    {
+      "id": "orb_every",
+      "kind": "method",
+      "title": "Slide vote",
+      "purpose": "How often feature matches vote on the slide's move",
+      "hint": "every frame, or every few frames under load"
+    },
+    {
+      "id": "outline_check",
+      "kind": "method",
+      "title": "Checking outlines",
+      "purpose": "Checks each outline it draws, and fixes it",
+      "hint": "a model checks each outline the app draws"
+    },
+    {
+      "id": "naming",
+      "kind": "method",
+      "title": "Naming outlines",
+      "purpose": "How every outline the app draws gets its name",
+      "hint": "named as a tap is, or by what drew it"
+    },
+    {
+      "id": "outline_repair",
+      "kind": "method",
+      "title": "Redrawing outlines",
+      "purpose": "Which model draws again an outline that does not fit",
+      "hint": "the model that drew it, or another"
+    },
+    {
+      "id": "closeup",
+      "kind": "method",
+      "title": "Close-ups",
+      "purpose": "How close it looks when naming small things",
+      "hint": "one close-up, or closer looks the model asks for"
+    },
+    {
+      "id": "voicelink",
+      "kind": "method",
+      "title": "Voice link",
+      "purpose": "How the voice reaches OpenAI",
+      "hint": "through the app, or directly (WebRTC)"
+    },
+    {
+      "id": "lesson_check",
+      "kind": "method",
+      "title": "Lessons need the picture",
+      "purpose": "Checks that quiz steps need the picture",
+      "hint": "a model without the picture tries each quiz step"
+    },
+    {
+      "id": "research_pacing",
+      "kind": "method",
+      "title": "Research pacing",
+      "purpose": "Decides when a researcher writes up",
+      "hint": "the app's rule, or the facts told to the model"
+    },
+    {
+      "id": "claim_check",
+      "kind": "method",
+      "title": "Checking sources",
+      "purpose": "Checks sourced points against their pages",
+      "hint": "key words on the page, or a model reading it"
+    },
+    {
+      "id": "reference_search",
+      "kind": "method",
+      "title": "Photo search",
+      "purpose": "Where reference photos are searched for",
+      "hint": "the web alone, or the web and Wikimedia Commons raced"
+    },
+    {
+      "id": "taught",
+      "kind": "method",
+      "title": "Your names",
+      "purpose": "Suggests names you taught for look-alikes",
+      "hint": "your own labels, suggested again"
+    },
+    {
+      "id": "seen",
+      "kind": "method",
+      "title": "Seen before",
+      "purpose": "Notices one like this seen earlier today",
+      "hint": "seen one like it before today"
+    },
+    {
+      "id": "quality",
+      "kind": "policy",
+      "title": "A poor view",
+      "purpose": "What happens when the view is poor",
+      "hint": "out of focus, empty, too dark or washed out"
+    },
+    {
+      "id": "dust",
+      "kind": "policy",
+      "title": "Dust on the optics",
+      "purpose": "Whether spots on the optics are told or hidden",
+      "hint": "spots that stay put while the slide moves"
+    },
+    {
+      "id": "library_looks",
+      "kind": "policy",
+      "title": "Library looks",
+      "purpose": "Whether new assets' pictures are sent to be filed by look",
+      "hint": "off sends nothing; on uses your fast vision model"
+    },
+    {
+      "id": "coach",
+      "kind": "policy",
+      "title": "Focus meter",
+      "purpose": "Whether the focus meter shows",
+      "hint": "tells the phone refocusing from the focus knob"
+    },
+    {
+      "id": "speculate",
+      "kind": "policy",
+      "title": "Look early",
+      "purpose": "Starts a look before the voice hands over",
+      "hint": "start the look as soon as words need one"
+    },
+    {
+      "id": "reflex",
+      "kind": "policy",
+      "title": "Point as it answers",
+      "purpose": "How a spoken question's thing is outlined",
+      "hint": "point at once from the eyes"
+    },
+    {
+      "id": "early_look_typed",
+      "kind": "policy",
+      "title": "Look early when typed",
+      "purpose": "When a typed request's look starts",
+      "hint": "start the look beside the fast pass"
+    },
+    {
+      "id": "answer_check",
+      "kind": "policy",
+      "title": "Rewriting answers",
+      "purpose": "When an answer is written again from what happened",
+      "hint": "write the answer again only when what happened contradicts it"
+    },
+    {
+      "id": "completion",
+      "kind": "policy",
+      "title": "Checking plans are whole",
+      "purpose": "When a carried-out plan goes back to a model",
+      "hint": "ask again only after a failure or a query"
+    },
+    {
+      "id": "sampling",
+      "kind": "policy",
+      "title": "How the models sample",
+      "purpose": "The temperature sent with each Gemini call",
+      "hint": "leave the temperature to the model, as Google advises"
+    },
+    {
+      "id": "admit",
+      "kind": "policy",
+      "title": "When to make big things",
+      "purpose": "When videos, lessons and reports may start",
+      "hint": "only when asked in so many words"
+    },
+    {
+      "id": "style",
+      "kind": "policy",
+      "title": "Outlines",
+      "purpose": "How outlines are drawn",
+      "hint": "how outlines are drawn; hold H to hide them"
+    },
+    {
+      "id": "fixed:link",
+      "kind": "model",
+      "title": "Linking two views",
+      "label": "General 2D (Trackastra)",
+      "purpose": "Guesses which cells of two views of the same specimen are the same cell",
+      "source": "noncommercial.trackastra_link:TRACKASTRA_MODEL",
+      "model": "trackastra",
+      "uses": [
+        "trackastra",
+        "gurobipy"
+      ]
+    },
+    {
+      "id": "outcome_lines",
+      "kind": "policy",
+      "title": "Outcomes in the prompt",
+      "purpose": "Whether how models have done is pushed to the brain",
+      "hint": "off: looked up with the outcomes tool"
+    },
+    {
+      "id": "session_context",
+      "kind": "policy",
+      "title": "Session context",
+      "purpose": "Whether referenced session knowledge is pushed to the brain",
+      "hint": "off: pulled with resources and recall"
+    },
+    {
+      "id": "row_provenance",
+      "kind": "policy",
+      "title": "Which models, in rows",
+      "purpose": "Whether each outline's row tells the brain which models made it",
+      "hint": "off: read with resources when asked"
+    },
+    {
+      "id": "fixed:retrieval",
+      "title": "Fast web retrieval",
+      "kind": "model",
+      "source": "research_worker.retrieval:LOOKUP_MODEL",
+      "model": "gemini-3.8-flash",
+      "uses": [
+        "gemini-api"
+      ],
+      "purpose": "Finds reference photos and source pages without producing a research report",
+      "hint": "quick grounded source lookup",
+      "label": "Gemini 3.8 Flash"
+    }
+  ],
+  "parts": [
+    {
+      "id": "camera-bridge",
+      "title": "Camera bridge",
+      "kind": "app",
+      "purpose": "Reads the iPhone or Blackmagic Camera's stream, or plays test footage",
+      "source": "experiments/iphone-camera-feed/scripts/iphone_bridge_server.py"
+    },
+    {
+      "id": "camera-doctor",
+      "title": "Camera checklist",
+      "kind": "app",
+      "purpose": "The camera's facts in order, the first failing one with its fix",
+      "source": "experiments/iphone-camera-feed/scripts/camera_doctor.py"
+    },
+    {
+      "id": "camera-views",
+      "title": "Camera page and Phone panel",
+      "kind": "app",
+      "purpose": "The checklist and the phone's controls, one implementation for both",
+      "source": "apps/studio/src/camera/phone-controls.ts"
+    },
+    {
+      "id": "phone-link",
+      "title": "Phone link",
+      "kind": "app",
+      "purpose": "Talks to Blackmagic Camera: its stream, its controls, its crash reports",
+      "source": "experiments/iphone-camera-feed/scripts/phone_control.py"
+    },
+    {
+      "id": "phone-check",
+      "title": "Phone check",
+      "kind": "app",
+      "purpose": "Proves on the phone which of its settings this Mac may change",
+      "source": "experiments/iphone-camera-feed/scripts/phone_lab.py"
+    },
+    {
+      "id": "recorder",
+      "title": "Recorder",
+      "kind": "app",
+      "purpose": "Writes the studio tab and the camera feed to video files",
+      "source": "apps/studio/src/recorder.ts"
+    },
+    {
+      "id": "dataset-collector",
+      "title": "Dataset collector",
+      "kind": "app",
+      "purpose": "Copies everything into a dataset while the user records",
+      "source": "services/orchestrator/datasets/collector.py"
+    },
+    {
+      "id": "dataset-snapshot",
+      "title": "Session snapshot",
+      "kind": "app",
+      "purpose": "Freezes a window of the session into a dataset on Save",
+      "source": "services/orchestrator/datasets/snapshot.py"
+    },
+    {
+      "id": "datasets-tab",
+      "title": "Datasets tab",
+      "kind": "app",
+      "purpose": "Lists the datasets, their windows, video and counts",
+      "source": "apps/studio/src/datasets.ts"
+    },
+    {
+      "id": "studio-view",
+      "title": "Studio drawing",
+      "kind": "app",
+      "purpose": "Draws the live picture, outlines and labels",
+      "source": "apps/studio/src/view.ts"
+    },
+    {
+      "id": "studio",
+      "title": "Studio",
+      "kind": "app",
+      "purpose": "The page you use: buttons, menus and keys",
+      "source": "apps/studio/src/main.ts"
+    },
+    {
+      "id": "actions-panel",
+      "title": "Actions panel",
+      "kind": "app",
+      "purpose": "The agent's tools as forms you run yourself",
+      "source": "apps/studio/src/actions-panel.ts"
+    },
+    {
+      "id": "measurements-page",
+      "title": "Measurements page",
+      "kind": "app",
+      "purpose": "The table you sort, read and download",
+      "source": "apps/studio/src/measurements.ts"
+    },
+    {
+      "id": "tables",
+      "title": "Measurement tables",
+      "kind": "app",
+      "purpose": "Kept measurements as rows and CSV, in \u00b5m by their own scale",
+      "source": "services/orchestrator/tables.py"
+    },
+    {
+      "id": "eyepiece",
+      "title": "Eyepiece finder",
+      "kind": "algorithm",
+      "purpose": "Finds the round eyepiece in the camera picture",
+      "source": "services/orchestrator/fov.py"
+    },
+    {
+      "id": "frame-quality",
+      "title": "Frame measures",
+      "kind": "algorithm",
+      "purpose": "Measures sharpness, light and glare on every frame",
+      "source": "services/orchestrator/quality.py"
+    },
+    {
+      "id": "coach",
+      "title": "Focus coach",
+      "kind": "algorithm",
+      "purpose": "Follows sharpness while the focus knob turns",
+      "source": "services/orchestrator/coach.py"
+    },
+    {
+      "id": "dust",
+      "title": "Dust finder",
+      "kind": "algorithm",
+      "purpose": "Finds spots that stay put while the slide moves",
+      "source": "services/orchestrator/dust.py"
+    },
+    {
+      "id": "machine",
+      "title": "Computer meter",
+      "kind": "app",
+      "purpose": "Measures how hard the computer is working",
+      "source": "services/orchestrator/machine.py"
+    },
+    {
+      "id": "slide-tracker",
+      "title": "Slide tracker",
+      "kind": "algorithm",
+      "purpose": "Measures how the slide moves, frame to frame, without a model",
+      "source": "services/orchestrator/motion.py"
+    },
+    {
+      "id": "object-follower",
+      "title": "Object follower",
+      "kind": "app",
+      "purpose": "Follows each outline's own thing as it moves",
+      "source": "services/orchestrator/objtrack.py"
+    },
+    {
+      "id": "trails",
+      "title": "Motion trails",
+      "kind": "app",
+      "purpose": "Keeps where each followed thing went on its own, gaps kept",
+      "source": "services/orchestrator/trail.py"
+    },
+    {
+      "id": "outlines",
+      "title": "Outline store",
+      "kind": "app",
+      "purpose": "Keeps every outline pinned to its place on the slide",
+      "source": "services/orchestrator/scene.py"
+    },
+    {
+      "id": "board",
+      "title": "Board",
+      "kind": "app",
+      "purpose": "What is on screen, and what \"that\" or \"the second one\" means",
+      "source": "services/orchestrator/board.py"
+    },
+    {
+      "id": "spots",
+      "title": "Spot detector",
+      "kind": "algorithm",
+      "purpose": "Finds small spots in the picture, without a model",
+      "source": "services/orchestrator/candidates.py"
+    },
+    {
+      "id": "sight",
+      "title": "Running look",
+      "kind": "app",
+      "purpose": "Looks again whenever the view settles",
+      "source": "services/orchestrator/sight.py"
+    },
+    {
+      "id": "naming",
+      "title": "Namer",
+      "kind": "app",
+      "purpose": "Names a clicked thing from a close-up",
+      "source": "services/orchestrator/agent.py"
+    },
+    {
+      "id": "descriptions",
+      "title": "Description writer",
+      "kind": "app",
+      "purpose": "Looks up each named kind of thing ahead of time",
+      "source": "services/orchestrator/enrich.py"
+    },
+    {
+      "id": "taught",
+      "title": "Your names",
+      "kind": "app",
+      "purpose": "Matches new outlines to names you taught",
+      "source": "services/orchestrator/taught.py"
+    },
+    {
+      "id": "seen",
+      "title": "Seen today",
+      "kind": "app",
+      "purpose": "Matches new outlines to ones named earlier today",
+      "source": "services/orchestrator/seen.py"
+    },
+    {
+      "id": "zeroshot",
+      "title": "Medical names",
+      "kind": "app",
+      "purpose": "Ranks blood and Pap cell names for the namer",
+      "source": "services/orchestrator/zeroshot.py"
+    },
+    {
+      "id": "corrections",
+      "title": "Corrections",
+      "kind": "app",
+      "purpose": "Suggested names wait until you accept them",
+      "source": "services/orchestrator/announcer.py"
+    },
+    {
+      "id": "outline-check",
+      "title": "Outline checker",
+      "kind": "app",
+      "purpose": "Checks each outline the app draws, and redraws wrong ones",
+      "source": "services/orchestrator/outline_check.py"
+    },
+    {
+      "id": "masks",
+      "title": "Masker",
+      "kind": "app",
+      "purpose": "Outlines everything first, for pointing by masks",
+      "source": "services/orchestrator/masks.py"
+    },
+    {
+      "id": "snap",
+      "title": "First guess",
+      "kind": "app",
+      "purpose": "Rings the likeliest spot while the look works",
+      "source": "services/orchestrator/snap.py"
+    },
+    {
+      "id": "finder",
+      "title": "Finder",
+      "kind": "app",
+      "purpose": "Turns \"find X\" into outlines: by look, inside, like this, from every cell",
+      "source": "services/orchestrator/finder/__init__.py"
+    },
+    {
+      "id": "dissector",
+      "title": "Dissector",
+      "kind": "app",
+      "purpose": "Splits a thing into its parts",
+      "source": "services/orchestrator/dissect.py"
+    },
+    {
+      "id": "magnifier",
+      "title": "Magnifier",
+      "kind": "app",
+      "purpose": "A close-up beside the view, at any level",
+      "source": "services/orchestrator/magnifier.py"
+    },
+    {
+      "id": "reference-photos",
+      "title": "Reference photos",
+      "kind": "app",
+      "purpose": "Grounded web lookup with safe photo and page retrieval, with Commons as a fallback",
+      "source": "services/orchestrator/reference.py"
+    },
+    {
+      "id": "media-kinds",
+      "title": "Kinds of pictures",
+      "kind": "app",
+      "purpose": "Says each picture is the camera's, labelled, a web reference or AI-made",
+      "source": "services/orchestrator/media.py"
+    },
+    {
+      "id": "scale",
+      "title": "Scale",
+      "kind": "app",
+      "purpose": "Turns pixels into \u00b5m from the objective",
+      "source": "services/orchestrator/scale.py"
+    },
+    {
+      "id": "movement",
+      "title": "Motion meter",
+      "kind": "algorithm",
+      "purpose": "Follows small moving things and measures their speed",
+      "source": "services/orchestrator/movement.py"
+    },
+    {
+      "id": "motion-tracks",
+      "title": "Motion tracks",
+      "kind": "app",
+      "purpose": "Keeps measured tracks and kept trails, drawn live only where checked",
+      "source": "services/orchestrator/motiontracks.py"
+    },
+    {
+      "id": "clip",
+      "title": "Last minute",
+      "kind": "app",
+      "purpose": "Keeps a frame every half second for a minute",
+      "source": "services/orchestrator/clip.py"
+    },
+    {
+      "id": "watcher",
+      "title": "Watcher",
+      "kind": "app",
+      "purpose": "Checks again and again, and says when it happens",
+      "source": "services/orchestrator/watcher.py"
+    },
+    {
+      "id": "slidemap",
+      "title": "Slide map",
+      "kind": "algorithm",
+      "purpose": "Pastes each steady view where it is on the slide",
+      "source": "services/orchestrator/slidemap.py"
+    },
+    {
+      "id": "bookmarks",
+      "title": "Bookmarks",
+      "kind": "app",
+      "purpose": "Keeps places on the slide and says the way back to one",
+      "source": "services/orchestrator/bookmarks.py"
+    },
+    {
+      "id": "enhancer",
+      "title": "Enhancer",
+      "kind": "algorithm",
+      "purpose": "Averages, picks or stacks real frames",
+      "source": "services/orchestrator/enhance.py"
+    },
+    {
+      "id": "sweep",
+      "title": "Focus sweep",
+      "kind": "app",
+      "purpose": "Keeps the frames of the last turn of the focus knob",
+      "source": "services/orchestrator/sweep.py"
+    },
+    {
+      "id": "snapshot",
+      "title": "Snapshot maker",
+      "kind": "app",
+      "purpose": "Draws outlines and a scale bar on a frame, and saves it",
+      "source": "services/orchestrator/snapshot.py"
+    },
+    {
+      "id": "day",
+      "title": "Session journal",
+      "kind": "app",
+      "purpose": "Keeps a session's conversations, names and work; lists every session",
+      "source": "services/orchestrator/day/store.py"
+    },
+    {
+      "id": "memory",
+      "title": "Memory",
+      "kind": "app",
+      "purpose": "Folds older talk into summaries; finds what was said",
+      "source": "services/orchestrator/day/memory.py"
+    },
+    {
+      "id": "logs",
+      "title": "Interaction log",
+      "kind": "app",
+      "purpose": "Every action with its options and pictures, kept",
+      "source": "services/orchestrator/agent.py"
+    },
+    {
+      "id": "brain",
+      "title": "Brain",
+      "kind": "app",
+      "purpose": "Decides what to answer and which tools to use",
+      "source": "services/orchestrator/brain/loop.py"
+    },
+    {
+      "id": "speech",
+      "title": "Spoken requests",
+      "kind": "app",
+      "purpose": "Turns what you say into requests while you speak",
+      "source": "services/orchestrator/brain/speech.py"
+    },
+    {
+      "id": "voice-link",
+      "title": "Voice connection",
+      "kind": "app",
+      "purpose": "Connects your microphone and GPT-Live",
+      "source": "services/orchestrator/voice/route.py"
+    },
+    {
+      "id": "narrator",
+      "title": "Narrator",
+      "kind": "app",
+      "purpose": "Says finished results at the next pause",
+      "source": "services/orchestrator/brain/narrator.py"
+    },
+    {
+      "id": "research-worker",
+      "title": "Researchers",
+      "kind": "app",
+      "purpose": "Background work in its own process: web, pictures, video, lessons",
+      "source": "services/research_worker/researcher.py"
+    },
+    {
+      "id": "ledger",
+      "title": "Spending ledger",
+      "kind": "app",
+      "purpose": "Keeps researchers within the daily cap",
+      "source": "services/orchestrator/research/ledger.py"
+    },
+    {
+      "id": "presenter",
+      "title": "Result viewer",
+      "kind": "app",
+      "purpose": "Shows a researcher's work beside the view",
+      "source": "services/orchestrator/presenter.py"
+    },
+    {
+      "id": "quiz",
+      "title": "Quiz checker",
+      "kind": "app",
+      "purpose": "Checks your answers on a slide quiz",
+      "source": "services/orchestrator/quiz.py"
+    },
+    {
+      "id": "arena",
+      "title": "Blind test",
+      "kind": "app",
+      "purpose": "Runs options unnamed and keeps your votes",
+      "source": "services/orchestrator/arena.py"
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "kind": "app",
+      "purpose": "Which option does each job, kept for the day",
+      "source": "services/orchestrator/options.py"
+    },
+    {
+      "id": "catalogue",
+      "title": "This list",
+      "kind": "app",
+      "purpose": "The capability list and your verdicts",
+      "source": "services/orchestrator/capabilities.py"
+    },
+    {
+      "id": "model-checks",
+      "title": "Model checks",
+      "kind": "app",
+      "purpose": "Runs each model once on a real frame and keeps whether it worked",
+      "source": "services/orchestrator/model_checks.py"
+    },
+    {
+      "id": "your-models",
+      "title": "Your own models",
+      "kind": "app",
+      "purpose": "Adds your models, checks each in a process of its own, offers it once on",
+      "source": "services/orchestrator/mine.py"
+    },
+    {
+      "id": "models-page",
+      "title": "Models page",
+      "kind": "app",
+      "purpose": "Every catalog model: why it is on or off, what it is used for, and its next step",
+      "source": "services/orchestrator/catalog_view.py"
+    },
+    {
+      "id": "models-folder",
+      "title": "Models folder",
+      "kind": "app",
+      "purpose": "Downloads each model's pinned revision, checks it, and is all the loaders read",
+      "source": "services/orchestrator/downloads.py"
+    },
+    {
+      "id": "model-environments",
+      "title": "Model environments",
+      "kind": "app",
+      "purpose": "Makes a model's own Python from its hashed lockfile, ready only once proven",
+      "source": "services/orchestrator/envs.py"
+    },
+    {
+      "id": "fiji-generations",
+      "title": "Fiji generations",
+      "kind": "app",
+      "purpose": "Keeps the app's Fiji as complete generations, each proven before use",
+      "source": "services/orchestrator/fiji_generations.py"
+    },
+    {
+      "id": "registrations",
+      "title": "Volumes and registrations",
+      "kind": "app",
+      "purpose": "Keeps volumes you added with their facts, and each registration's record",
+      "source": "services/orchestrator/registrations.py"
+    },
+    {
+      "id": "jobs",
+      "title": "Jobs",
+      "kind": "app",
+      "purpose": "Runs an entry's minutes-long work in its own Python, cancellable",
+      "source": "services/orchestrator/jobs.py"
+    },
+    {
+      "id": "catalog-channels",
+      "title": "Catalog channels",
+      "kind": "app",
+      "purpose": "Fetches the reviewed catalog's newer entries and community channels, pinned, their code allowed apart",
+      "source": "services/orchestrator/channels.py"
+    },
+    {
+      "id": "catalog-news",
+      "title": "New for you",
+      "kind": "app",
+      "purpose": "Checks the reviewed catalog daily and keeps what is new to this Mac",
+      "source": "services/orchestrator/catalog_news.py"
+    },
+    {
+      "id": "capability-shelf",
+      "title": "What it can do",
+      "kind": "app",
+      "purpose": "Jobs by colour, each with the one press that turns it on",
+      "source": "services/orchestrator/capability_shelf.py"
+    },
+    {
+      "id": "new-kinds",
+      "title": "New kinds of job",
+      "kind": "app",
+      "purpose": "Runs an added job whose output the app already shows",
+      "source": "services/orchestrator/kinds.py"
+    },
+    {
+      "id": "capability-report",
+      "title": "Report it",
+      "kind": "app",
+      "purpose": "Prepares the facts of a failure to copy; nothing is sent",
+      "source": "services/orchestrator/report.py"
+    },
+    {
+      "id": "usage-ledger",
+      "title": "Usage ledger",
+      "kind": "app",
+      "purpose": "Estimates cloud spend per day and month, and admits calls within a cap",
+      "source": "services/research_worker/api_usage.py"
+    },
+    {
+      "id": "publish-api",
+      "title": "Share with everyone",
+      "kind": "app",
+      "purpose": "Sends a reviewed capability for review through GitHub's API, signed off",
+      "source": "services/orchestrator/publish_api.py"
+    },
+    {
+      "id": "made-with",
+      "title": "Made with",
+      "kind": "app",
+      "purpose": "Names in a shared picture what made it, and offers what is missing",
+      "source": "services/orchestrator/made_with.py"
+    },
+    {
+      "id": "github-signin",
+      "title": "GitHub sign-in",
+      "kind": "app",
+      "purpose": "Signs in to GitHub by its device flow, for sharing with everyone",
+      "source": "services/orchestrator/github_signin.py"
+    },
+    {
+      "id": "capability-share",
+      "title": "Sharing",
+      "kind": "app",
+      "purpose": "A capability as a file to send, opened as a community catalog",
+      "source": "services/orchestrator/share.py"
+    },
+    {
+      "id": "contributed-sandbox",
+      "title": "The sandbox",
+      "kind": "app",
+      "purpose": "Runs code nobody reviewed inside macOS sandbox, or refuses it",
+      "source": "services/orchestrator/sandbox.py"
+    },
+    {
+      "id": "capability-builder",
+      "title": "The builder",
+      "kind": "app",
+      "purpose": "Drafts an adapter for a link, tried in the sandbox until it runs",
+      "source": "services/orchestrator/drafts.py"
+    },
+    {
+      "id": "keys",
+      "title": "Keys",
+      "kind": "app",
+      "purpose": "Where each key comes from, testing and saving it, and every part using it at once",
+      "source": "services/orchestrator/key_admin.py"
+    },
+    {
+      "id": "evidence",
+      "title": "Evidence",
+      "kind": "app",
+      "purpose": "Keeps what an operation found: masks, measurements, saved and read back",
+      "source": "services/orchestrator/evidence.py"
+    },
+    {
+      "id": "measurements",
+      "title": "Measurements",
+      "kind": "algorithm",
+      "purpose": "Measures each member from its own mask: area, perimeter, Feret, shape",
+      "source": "services/orchestrator/measure.py"
+    },
+    {
+      "id": "enrichment",
+      "title": "Enrichment",
+      "kind": "app",
+      "purpose": "Adds facts from other models to the same cells: looks, groups, light, names",
+      "source": "services/orchestrator/enrichment.py"
+    },
+    {
+      "id": "identity",
+      "title": "Identity",
+      "kind": "app",
+      "purpose": "Knows when two things are one, how it knows, and their history",
+      "source": "services/orchestrator/identity.py"
+    },
+    {
+      "id": "outcomes",
+      "title": "Outcomes",
+      "kind": "app",
+      "purpose": "What happened when each model ran, from its records",
+      "source": "services/orchestrator/outcomes.py"
+    },
+    {
+      "id": "population-layer",
+      "title": "Population layer",
+      "kind": "app",
+      "purpose": "Shows a population over the live view, each member once its pixels are checked",
+      "source": "services/orchestrator/population.py"
+    },
+    {
+      "id": "member-colours",
+      "title": "Member colours",
+      "kind": "app",
+      "purpose": "The colours cells are drawn in, as the studio draws them, and their plain names",
+      "source": "services/orchestrator/colours.py"
+    },
+    {
+      "id": "runner",
+      "title": "Operations runner",
+      "kind": "app",
+      "purpose": "Chooses, runs and records an operation's implementation, with declared fallbacks only",
+      "source": "services/orchestrator/operations.py"
+    },
+    {
+      "id": "comparison",
+      "title": "Named comparison",
+      "kind": "app",
+      "purpose": "Draws what named models made side by side and measures how they agree",
+      "source": "services/orchestrator/comparing.py"
+    },
+    {
+      "id": "resources",
+      "title": "Session index",
+      "kind": "app",
+      "purpose": "One index of everything the session made, read the same way by everyone",
+      "source": "services/orchestrator/resources.py"
+    },
+    {
+      "id": "screen",
+      "title": "Screen report",
+      "kind": "app",
+      "purpose": "What the studio reports it shows; the verbs and their confirmation",
+      "source": "services/orchestrator/screen.py"
+    },
+    {
+      "id": "naming-record",
+      "title": "How it was named",
+      "kind": "app",
+      "purpose": "Keeps with each name what made it and what it rested on",
+      "source": "services/orchestrator/known.py"
+    },
+    {
+      "id": "held",
+      "title": "Held footage",
+      "kind": "app",
+      "purpose": "Frames of the view a researcher asked for, in memory",
+      "source": "services/orchestrator/held.py"
+    },
+    {
+      "id": "showing",
+      "title": "Showing a finding",
+      "kind": "app",
+      "purpose": "Owns what Show me changes, and puts back only that",
+      "source": "services/orchestrator/showing.py"
+    },
+    {
+      "id": "research-hands",
+      "title": "A researcher's hands",
+      "kind": "app",
+      "purpose": "Runs the app's operations a researcher asks for, off screen",
+      "source": "services/orchestrator/research/hands.py"
+    },
+    {
+      "id": "library",
+      "title": "Library",
+      "kind": "app",
+      "purpose": "Your recordings and pictures, each with its metadata",
+      "source": "services/orchestrator/library.py"
+    },
+    {
+      "id": "library-looks",
+      "title": "Library looks",
+      "kind": "app",
+      "purpose": "Files new assets by what their pictures show, when turned on",
+      "source": "services/orchestrator/library_looks.py"
+    },
+    {
+      "id": "onboarding",
+      "title": "First example",
+      "kind": "app",
+      "purpose": "An optional real example to try, its progress kept on this Mac",
+      "source": "services/orchestrator/onboarding.py"
+    },
+    {
+      "id": "population-native",
+      "title": "Retained population inputs",
+      "kind": "app",
+      "purpose": "Shared saved-population admission and atomic native input publication for Studio and the agent",
+      "source": "services/orchestrator/population_native.py"
+    },
+    {
+      "id": "scientific-measurement",
+      "title": "Accepted object measurements",
+      "kind": "app",
+      "purpose": "Shared native-input admission and atomic typed table publication for Studio and the agent",
+      "source": "services/orchestrator/scientific_measurement.py"
+    },
+    {
+      "id": "method-workflow",
+      "title": "Retained method comparison",
+      "kind": "app",
+      "purpose": "Shared exact native masks, bounded summaries and owned evidence publication",
+      "source": "services/orchestrator/method_workflow.py"
+    },
+    {
+      "id": "saved-tables",
+      "title": "Saved editable tables",
+      "kind": "app",
+      "purpose": "Retains exact source revisions, edits and exclusions",
+      "source": "services/orchestrator/datatables.py"
+    },
+    {
+      "id": "table-derivatives",
+      "title": "Saved analyses and graphs",
+      "kind": "app",
+      "purpose": "Computes and retains explicit analyses and graphs from accepted tables",
+      "source": "services/orchestrator/table_derivatives.py"
+    },
+    {
+      "id": "workspace-tabs",
+      "title": "Owned workspace Tabs",
+      "kind": "app",
+      "purpose": "Acknowledges named Tab actions in the original Studio opening",
+      "source": "services/orchestrator/workspace_tabs.py"
+    }
+  ],
+  "preferences": [
+    {
+      "id": "level",
+      "title": "Explaining",
+      "purpose": "How simply or deeply things are explained"
+    },
+    {
+      "id": "hintsFirst",
+      "title": "Hints first",
+      "purpose": "Give a hint before the answer"
+    },
+    {
+      "id": "userLeads",
+      "title": "You lead",
+      "purpose": "Point things out only when you ask"
+    },
+    {
+      "id": "quieter",
+      "title": "Quieter",
+      "purpose": "Speak up only about what you asked for"
+    },
+    {
+      "id": "researchCap",
+      "title": "Research spending",
+      "purpose": "Most researchers may spend in a day"
+    },
+    {
+      "id": "outlineColor",
+      "title": "Outline colour",
+      "purpose": "The colour outlines are drawn in"
+    },
+    {
+      "id": "compare",
+      "title": "Compare with",
+      "purpose": "A second model answers typed questions too"
+    },
+    {
+      "id": "objective",
+      "title": "Objective",
+      "purpose": "The objective in use, for sizes"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+contributed_by = { name = "Hooke local integration candidate" }
+requires = { catalog = 4 }
+id = "bdv-hdf5-reader"
+name = "BigDataViewer HDF5 folder reader"
+runs = "cpu"
+version = "1"
+licence = ["bdv-hdf5-reader"]
+runner = "python-env"
+env = { python = "3.12.11", lock = "env.lock", imports = ["napari", "magicgui", "vispy", "h5py"], wheels = [{file="napari-0.7.1.dev0-py3-none-any.whl", sha256="ea1b1d4681556c3d811a334d60ce3f812e91600081eec74a1874d232fecbaf4f", bytes=3764877}] }
+needs_to_run = ["install:bdv-hdf5-reader"]
+component = { what = "Local BigDataViewer HDF5 folder integration candidate", licence = "MIT", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+[[members]]
+id = "read-bdv-hdf5"
+name = "BigDataViewer / Huygens HDF5 (local candidate)"
+adapter = "adapter:open_host"
+bridge = "scientific-host-v1"
+reader = { format = 3, kind = "directory", input = "source", patterns = ["*"], entries = ["*.xml", "*.h5"], maximum_bytes = 67108864, keeps = ["values", "dtype", "byte-order", "axes", "calibration"] }
+inputs = [{id = "project", type = "project.scientific"}]
+outputs = [{id = "result", type = "project.scientific"}]

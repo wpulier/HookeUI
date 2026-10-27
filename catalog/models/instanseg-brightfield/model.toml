@@ -1,0 +1,55 @@
+# InstanSeg's brightfield nuclei model (Goldsborough et al., University of Edinburgh; Apache-2.0), added the way any
+# contributor adds one (catalog/README.md "Add a model with its own adapter"): this folder alone (its manifest, its
+# lockfile with every package by its hash, and adapter.py), no change to the app's code. Its weights are the
+# TorchScript file of the bioimage.io package InstanSeg publishes, pinned as a member of that zip.
+id = "instanseg-brightfield"
+name = "InstanSeg (brightfield nuclei)"
+runs = "this-mac"
+version = "instanseg-torch 0.1.2, brightfield_nuclei 0.1.1"
+licence = ["instanseg-brightfield"]
+kind = "model"
+what = "Outlines every nucleus on a brightfield slide"
+runner = "python-env"
+source = { url = "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip", bioimageio = "brightfield_nuclei" }
+files = [
+  { path = "instanseg.pt", bytes = 15792317, sha256 = "0c724da169d507d8dd2e206ad3675a0b1566824eee6e20ad9a0ba916311d9dd0", url = "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip", archive = { sha256 = "427aa9cfe961b6d0012e2abf6befc6a9f76398db5d28dc2302ad911327d1c448", bytes = 15054316, member = "instanseg.pt" } },
+]
+adapter = "adapter:segment"
+env = { python = "3.13.5", lock = "env.lock", imports = ["instanseg", "torch"] }
+component = { what = "InstanSeg brightfield nuclei (code and weights)", licence = "Apache-2.0", url = "https://github.com/instanseg/instanseg", tier = "open" }
+needs_to_get = ["download"]
+needs_to_run = ["install:instanseg-brightfield"]
+credit = { authors = "Goldsborough, O'Callaghan, Inglis, Leplat, Filbey, Bilen and Bankhead (University of Edinburgh)", link = "https://github.com/instanseg/instanseg", paper = "https://doi.org/10.48550/arXiv.2408.15954" }
+host = "own"
+documented_mb = 600
+load_limit_s = 120
+
+# The capability contract (catalog format 2, ADR 0024): its adapter reads pixel_size, now a setting the app passes when
+# it is given (left out, InstanSeg uses its own scale, as before). Its Apache-2.0 LICENSE is beside it, from the pinned
+# package. Ported from the parallel one-door branch (#316).
+requires = { catalog = 2 }
+operation = "cells"
+category = "Outline"
+search_aliases = ["instanseg", "nuclei"]
+outcomes = { empty = "no nucleus found" }
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "pixel_size"
+type = "number"
+optional = true
+min = 0.05
+max = 10.0
+step = 0.01
+unit = "µm"
+label = "Pixel size"
+tooltip = "One pixel's size, so InstanSeg rescales the picture to the scale it was trained on (left out: its own)"
+
+[[outputs]]
+id = "nuclei"
+type = "labels.instance.2d"
+label = "Nuclei"

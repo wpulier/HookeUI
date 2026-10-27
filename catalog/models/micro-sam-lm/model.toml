@@ -1,0 +1,36 @@
+id = "micro-sam-lm"
+name = "micro-sam (light microscopy)"
+runs = "this-mac"
+version = "vit_b_lm"
+licence = ["micro-sam-lm"]
+kind = "model"
+what = "Outlines cells, and what you click, trained on light microscopy"
+runner = "gpu-worker"
+source = { package = "micro_sam", weights = "vit_b_lm" }
+files = [
+  { path = "vit_b_lm", bytes = 375023499, sha256 = "ffe862fa5b58d78375506041faf0eb3927ced5b5391e8be383e6d7ac07aed924", url = "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/diplomatic-bug/1.2/files/vit_b.pt", root = "micro_sam" },
+  { path = "vit_b_lm_decoder", bytes = 38393613, sha256 = "3a1566aada52e24299286527ec60c966d213db86ee656c67439c71c1b4182c26", url = "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/diplomatic-bug/1.2/files/vit_b_decoder.pt", root = "micro_sam" },
+]
+needs_to_get = ["download"]
+needs_to_run = ["install:micro-sam"]
+credit = { authors = "Archit, Pape et al. (computational-cell-analytics)", link = "https://github.com/computational-cell-analytics/micro-sam" }
+workers = ["analysis"]
+host = "own-python"  # its own Python (services/noncommercial/README.md), a child of a worker of its own
+documented_mb = 1850
+peak_mb = 1850
+load_limit_s = 300  # its own start limit (noncommercial/microsam_cells.STARTUP_S)
+# Its own Python, made by the app (orchestrator/envs.py): micro-sam 1.8.14 and its 186 dependencies, each by its hash
+# (env.lock, from the environment it ran in on 2026-10-12, for macOS 14+ on Apple Silicon).
+env = { python = "3.13.5", lock = "env.lock", imports = ["micro_sam.util", "micro_sam.automatic_segmentation"] }
+
+[[implements]]
+operation = "outline"
+impl = "micro-sam-lm"
+input = "image.2d.rgb8"
+output = "masks.2d"
+
+[[implements]]
+operation = "cells"
+impl = "micro-sam-lm"
+input = "image.2d.rgb8"
+output = "labels.instance.2d"

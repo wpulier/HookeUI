@@ -1,0 +1,28 @@
+contributed_by = { name = "Hooke private beta preparation" }
+requires = { catalog = 4 }
+id = "cellposesam-panel"
+name = "Cellpose-SAM · interactive segmentation"
+runs = "cpu"
+version = "0.1.1-cpsam-v2-2d-beta-8"
+licence = ["cellposesam-panel"]
+runner = "python-env"
+example = "example-probe-mitosis.png"  # the device self-check's probe (adapter.py): CC0 human_mitosis crop
+source = { hf = "mouseland/cellpose-sam", revision = "7c61431b5fbb078f3296754bd15d9f51b320f837" }
+files = [{ path = "cpsam_v2", bytes = 1233586851, sha256 = "0f1cc3f7ecdd8a037a57c6c48d9d8921391be4cbce3fa9f13c3e3a2e1253c667" }]
+needs_to_get = ["download"]
+needs_to_run = ["install:cellposesam-panel"]
+env = { python = "3.12.11", lock = "env.lock", imports = ["napari", "magicgui", "vispy", "cellpose", "napari_cellposesam"], wheels = [{ file = "napari-0.7.1.dev0-py3-none-any.whl", sha256 = "ea1b1d4681556c3d811a334d60ce3f812e91600081eec74a1874d232fecbaf4f", bytes = 3764877 }] }
+component = { what = "Actual napari-cellposesam panel with prepared Cellpose-SAM weights; bounded 2D workflow rehearsal", licence = "BSD-3-Clause code; CC-BY-NC weights", url = "https://github.com/MouseLand/cellpose", tier = "noncommercial" }
+credit = { authors = "MouseLand / HHMI Janelia; napari-cellposesam contributors", link = "https://github.com/MouseLand/cellpose" }
+[[members]]
+id = "segment"
+category = "Analyze/Segmentation"
+search_aliases = ["segment cells", "instance masks", "cell boundaries"]
+name = "Segment cells with Cellpose-SAM"
+what = "Review segmentation with the actual Cellpose-SAM plugin"
+description = "Private 2D workflow rehearsal. One retained scalar image up to 1 MiB; prepared cpsam_v2. Save tool retains 2D settings, input and outputs. After reopen, run segmentation before recomputing thresholds. 3D, training and independent qualification remain open."
+adapter = "adapter:open_host"
+bridge = "scientific-host-v1"
+resources = { format = 1, memory_mb = 4096 }
+inputs = [{id = "project", type = "project.scientific"}]
+outputs = [{id = "result", type = "project.scientific"}]

@@ -1,0 +1,60 @@
+{
+  "format": "reader-data-contract-v1",
+  "layers": [
+    {
+      "axes": [
+        "z",
+        "y",
+        "x"
+      ],
+      "basis": [
+        [
+          17.0,
+          28.0,
+          45.0
+        ],
+        [
+          21.0,
+          28.0,
+          45.0
+        ],
+        [
+          17.0,
+          29.5,
+          45.0
+        ],
+        [
+          17.0,
+          28.0,
+          46.0
+        ]
+      ],
+      "key": "selected-ome-zarr-0",
+      "levels": [
+        {
+          "dtype": ">u2",
+          "sha256": "d840467ceaa6793a7e7cffc5cfc19858a7745bb6214412080c94fea088e7c52f",
+          "shape": [
+            2,
+            4,
+            6
+          ]
+        },
+        {
+          "dtype": ">u2",
+          "sha256": "08698b070efa47975aa313b23f108d8ba70ebc3087920de148a9c7869b4753c3",
+          "shape": [
+            1,
+            2,
+            3
+          ]
+        }
+      ],
+      "units": [
+        "micrometer",
+        "micrometer",
+        "micrometer"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "stable": {
+    "name": "HookeUI",
+    "bundleId": "org.hookeui.HookeUI",
+    "cameraBundleId": "org.hookeui.camera",
+    "supportFolder": "HookeUI",
+    "dataFolder": "MicroscopeMind",
+    "keychainService": "MicroscopeMind",
+    "orchestratorPort": 8770,
+    "cameraPort": 8765,
+    "isolated": false,
+    "releases": "wpulier/hookeui.org",
+    "feedURL": "https://github.com/wpulier/hookeui.org/releases/latest/download/appcast.xml",
+    "edPublicKey": "sparkle-public-key.txt",
+    "streamPort": 9710,
+    "settingsPort": 8767
+  },
+  "beta": {
+    "name": "HookeUI Beta",
+    "bundleId": "org.hookeui.HookeUI.beta",
+    "cameraBundleId": "org.hookeui.camera.beta",
+    "supportFolder": "HookeUI Beta",
+    "dataFolder": "MicroscopeMind-Beta",
+    "keychainService": "MicroscopeMind Beta",
+    "orchestratorPort": 8870,
+    "cameraPort": 8865,
+    "isolated": true,
+    "releases": "wpulier/hookeui-beta",
+    "feedURL": "https://github.com/wpulier/hookeui-beta/releases/latest/download/appcast.xml",
+    "edPublicKey": "sparkle-public-key-beta.txt",
+    "streamPort": 9810,
+    "settingsPort": 8867
+  }
+}

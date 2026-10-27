@@ -1,0 +1,22 @@
+{
+  "name": "microscope-mind",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "camera": "./experiments/iphone-camera-feed/scripts/serve-browser-check.sh",
+    "camera:controls": "./experiments/iphone-camera-feed/scripts/probe-camera-controls.sh \"iPhoneWild Camera\""
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "@types/three": "^0.184.1",
+    "three": "^0.184.0"
+  },
+  "description": "MicroscopeMind: iPhone microscope camera capture and live computer vision experiments."
+}

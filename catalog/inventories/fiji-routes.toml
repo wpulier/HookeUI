@@ -1,0 +1,20 @@
+# Reviewed routes for Fiji extensions (bench/fiji_inventory.py reads them first): an extension's page path -> its route,
+# with why. Written by a person when the inventory finds several sites, or none, for an extension that has one.
+
+["/plugins/morpholibj"]
+kind = "update-site"
+site = "IJPB-plugins"
+url = "https://sites.imagej.net/IJPB-plugins/"
+evidence = "its page: \"add the IJPB-plugins site to your list of update sites\" (also on Cellular Imaging and Mcat, which bundle it)"
+
+["/plugins/mastodon"]
+kind = "update-site"
+site = "Mastodon"
+url = "https://sites.imagej.net/Mastodon/"
+evidence = "its own site (its page names none; the others that hold its jar bundle it: MoBIE, sciview, TomancakLab)"
+
+["/plugins/multistackreg"]
+kind = "update-site"
+site = "MultiStackReg"
+url = "https://sites.imagej.net/MultiStackReg/"
+evidence = "its own site (its page names none; IMCF Uni Basel bundles it)"

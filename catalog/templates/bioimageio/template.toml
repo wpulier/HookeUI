@@ -1,0 +1,22 @@
+# A reviewed template (catalog/templates/README.md): what an entry made from a bioimage.io model's link runs (the
+# BioImage Model Zoo, or a GitHub repository or release holding its package). The app
+# copies adapter.py, env.lock and output-semantics.json byte for byte into the entry it writes (orchestrator/link_recognise.py, mine.py); only the
+# model's own files (its rdf.yaml, its weights, its test tensors, its cover) come from the link, each pinned by its hash.
+id = "bioimageio"
+version = 3
+# Entries made from an earlier reviewed version keep it (catalog/templates/README.md): its files, by their sha256, so the
+# app still says they run the reviewed runner (link_recognise.reviewed_template).
+earlier = [
+  { version = 2, sha256 = { "adapter.py" = "429d8442bc637c3395488bdc0e0ef2223fc46a481bf0dcddf148c38ac70c9357", "env.lock" = "a4638cef90ca7253c292841bf44048329fcd4edbda270601af721164e38f249c", "output-semantics.json" = "06af178cd8ce485aeb555ebd784f1749c4f7b7cb65b192830681467d3584af98" } },
+]
+entry_files = ["output-semantics.json"]
+runs = "A 2D BioImage Model Zoo model with TorchScript or ONNX weights, whose output is labels, a probability, or foreground and boundaries"
+where = "its bioimage.io package"
+proves = "checks it on its own test, then on a real picture"
+runner = "python-env"
+adapter = "adapter:segment"
+env = { python = "3.13.5", lock = "env.lock", imports = ["torch", "onnxruntime", "scipy", "yaml"] }
+host = "own"
+documented_mb = 1200
+load_limit_s = 180
+implements = { operation = "cells", input = "image.2d.rgb8", output = "labels.instance.2d" }

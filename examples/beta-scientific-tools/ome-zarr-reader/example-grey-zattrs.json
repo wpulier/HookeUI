@@ -1,0 +1,87 @@
+{
+  "multiscales": [
+    {
+      "axes": [
+        {
+          "name": "z",
+          "type": "space",
+          "unit": "micrometer"
+        },
+        {
+          "name": "y",
+          "type": "space",
+          "unit": "micrometer"
+        },
+        {
+          "name": "x",
+          "type": "space",
+          "unit": "micrometer"
+        }
+      ],
+      "coordinateTransformations": [
+        {
+          "scale": [
+            2,
+            3,
+            4
+          ],
+          "type": "scale"
+        },
+        {
+          "translation": [
+            11,
+            13,
+            17
+          ],
+          "type": "translation"
+        }
+      ],
+      "datasets": [
+        {
+          "coordinateTransformations": [
+            {
+              "scale": [
+                2,
+                0.5,
+                0.25
+              ],
+              "type": "scale"
+            },
+            {
+              "translation": [
+                3,
+                5,
+                7
+              ],
+              "type": "translation"
+            }
+          ],
+          "path": "0"
+        },
+        {
+          "coordinateTransformations": [
+            {
+              "scale": [
+                4,
+                1,
+                0.5
+              ],
+              "type": "scale"
+            },
+            {
+              "translation": [
+                3,
+                5,
+                7
+              ],
+              "type": "translation"
+            }
+          ],
+          "path": "1"
+        }
+      ],
+      "name": "Synthetic grey reference",
+      "version": "0.4"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Lit cell · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;padding:24px;background:var(--mm-page);color:var(--mm-text);font:13px/1.4 var(--mm-sans);-webkit-font-smoothing:antialiased}
+h1{margin:0 0 4px;font-size:18px;font-weight:600;letter-spacing:-0.01em}p{margin:0 0 16px;color:var(--mm-text-3)}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.surface{padding:12px 14px;border-radius:var(--mm-r-card);box-shadow:inset 0 0 0 1px var(--mm-line),var(--mm-highlight)}
+.surface h2{margin:0 0 8px;font-size:12px;font-weight:500;color:var(--mm-text-2)}
+.row{display:flex;align-items:center;gap:10px;height:28px}
+.row .word{width:150px;color:var(--mm-text)}.row .note{color:var(--mm-text-3);font-size:12px}
+.pill{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px;border-radius:var(--mm-r-pill);background:var(--mm-card);box-shadow:inset 0 0 0 1px var(--mm-line),var(--mm-highlight);font-size:12px}
+.pill .note{color:var(--mm-text-2)}
+.fractions{display:flex;gap:14px;align-items:center;margin-top:10px}
+button{height:28px;padding:0 10px;border-radius:var(--mm-r-button);border:1px solid var(--mm-line-strong);background:var(--mm-card);color:var(--mm-text);font:inherit;cursor:pointer}
+</style>
+<body data-workspace-study="true">
+<h1>Lit cell</h1>
+<p>Fixture only: every state of lit-cell.ts on the workspace's three surfaces, sizes 10, 12 and 14. No Project, model or researcher data.</p>
+<div class="grid" id="grid"></div>
+<div class="fractions" id="fractions"><span class="note" style="color:var(--mm-text-3)">Setup from a measured fraction</span></div>
+<p style="margin-top:16px"><button id="settle" type="button">Play the settle</button> <button id="theme" type="button">Light / dark</button>
+ <span class="row" style="display:inline-flex;margin-left:16px" id="turn"><button id="turn-ready" type="button">Working → ready, in place</button></span></p>
+<script type="module">
+import '/src/style.css';import '/src/workspace-theme.css';import '/src/workspace-feel.css';
+import {litCell,setLitCell,LIT_CELL_WORDS} from '/src/lit-cell.ts';
+const params=new URLSearchParams(location.search);document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+const grid=document.getElementById('grid');const all=[];
+for(const [surface,token] of [['page','--mm-page'],['panel','--mm-bar'],['raised','--mm-card']]){
+ const box=document.createElement('section');box.className='surface';box.style.background=`var(${token})`;
+ const h=document.createElement('h2');h.textContent=`On ${surface}`;box.append(h);
+ for(const state of Object.keys(LIT_CELL_WORDS)){
+  const row=document.createElement('div');row.className='row';
+  const word=document.createElement('span');word.className='word';word.textContent=`${state} · ${LIT_CELL_WORDS[state]}`;
+  const cells=[10,12,14].map(size=>litCell(state,{size,fraction:state==='setup'?0.5:undefined}));all.push(...cells);
+  row.append(...cells,word);box.append(row);
+ }
+ const pill=document.createElement('span');pill.className='pill';const p=litCell('working',{decorative:true});all.push(p);
+ const name=document.createElement('b');name.textContent='Researcher 3';name.style.fontWeight='500';const t=document.createElement('span');t.className='note mm-num';t.textContent='1:01:14';
+ pill.append(p,name,t);box.append(pill);grid.append(box);
+}
+const fractions=document.getElementById('fractions');
+for(const f of [null,0,0.25,0.5,0.75,1]){const wrap=document.createElement('span');wrap.className='row';wrap.style.gap='6px';const c=litCell('setup',{size:14,fraction:f});all.push(c);const n=document.createElement('span');n.className='note mm-num';n.textContent=f===null?'none':String(f);wrap.append(c,n);fractions.append(wrap);}
+document.getElementById('settle').onclick=()=>{for(const c of all)c.classList.remove('lit-cell-settle');for(const c of all){c.getBoundingClientRect();c.classList.add('lit-cell-settle');}};
+// The settle as a surface will use it: one cell changed in place by setLitCell, the polygon's breathing cancelled.
+const turning=litCell('working',{size:14});document.getElementById('turn').prepend(turning);
+document.getElementById('turn-ready').onclick=()=>{const ready=turning.dataset.state==='ready';setLitCell(turning,ready?'working':'ready',{size:14,settle:!ready});};
+document.getElementById('theme').onclick=()=>{const html=document.documentElement;html.dataset.workspaceTheme=html.dataset.workspaceTheme==='light'?'dark':'light';};
+</script>
+</body></html>

@@ -1,0 +1,57 @@
+# A derived version (ADR 0024's lineage): Spot measure with each spot's roundness and direction added. Made with
+# `make capability-derive FROM=spot-measure ID=spot-shape INTO=catalog`; its parent stays as it was, and both run.
+requires = { catalog = 2 }
+derived_from = { id = "spot-measure", version = "1", sha256 = "c282ffd900daf4bf0cbea4e29691d3e67ecc60b55d3e82f9f065f0b87e3499f1" }
+id = "spot-shape"
+name = "Spot shape"
+runs = "cpu"
+version = "1"
+licence = ["spot-shape"]
+what = "Measures each dark spot's area, centre, brightness, roundness and direction"
+description = "Spot measure, with each spot's roundness (the minor over the major axis of its second moments: 1 for a disc) and direction. Every connected spot darker than the threshold, larger than the smallest area, one row each: its area in pixels (and in µm² when the app knows the scale), its centre and its mean brightness. A threshold on brightness, not a cell finder: what counts as a spot is the threshold's."
+runner = "python-env"
+adapter = "adapter:run"
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy"] }
+needs_to_run = ["install:spot-shape"]
+component = { what = "Spot shape, an example derived capability", licence = "Apache-2.0", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+source = { made_here = "An example capability in this repository; no weights" }
+credit = { authors = "ObservationUI contributors; SciPy (ndimage)", link = "https://scipy.org" }
+category = "Measure"
+search_aliases = ["spot roundness", "shape of spots", "circularity"]
+hidden = ["pixel_size_um"]
+outcomes = { empty = "nothing is darker than the threshold and larger than the smallest area", unsupported = "pictures smaller than 16 px a side" }
+tests = [
+  { input = "example-three-spots.png", params = { threshold = 100 }, outcome = "result" },
+  { input = "example-blank.png", outcome = "empty" },
+  { input = "example-round-and-long.png", params = { threshold = 100 }, outcome = "result" },
+]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "threshold"
+type = "int"
+default = 100
+min = 0
+max = 255
+label = "Threshold"
+unit = "grey level"
+tooltip = "A spot is darker than this (0 black, 255 white)"
+
+[[inputs]]
+id = "min_area"
+type = "int"
+default = 20
+min = 1
+max = 100000
+label = "Smallest area"
+unit = "px"
+tooltip = "Spots smaller than this are left out as noise"
+
+[[outputs]]
+id = "spots"
+type = "table.objects"
+label = "Spots"

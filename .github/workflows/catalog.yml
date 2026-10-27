@@ -1,0 +1,44 @@
+# The repository's check of a proposed catalog entry (services/bench/catalog_ci.py; catalog/README.md "Publish it").
+# - static: on every pull request that touches the catalog, on Linux, in seconds: each changed entry reads, pins every
+#   file by URL and hash, names a known licence, and (runner python-env) has a hashed lockfile and no code that installs
+#   or fetches at run time.
+# - proof: the same entries downloaded, their environments made from their lockfiles and their adapters run on a real
+#   picture with the network refused, on an Apple Silicon Mac. A hosted macOS runner costs ten times a Linux one's
+#   minutes on a private repository (free on a public one), so it runs only when the repository variable
+#   CATALOG_PROOF_ON_MAC is "true"; otherwise a maintainer runs `make catalog-ci` on their Mac.
+name: catalog
+on:
+  pull_request:
+    # services/uv.lock and pyproject.toml make the app's own Python, which every built-in model runs in: a change to them
+    # checks the imports of each built-in model's pinned code against the lock, in seconds and with no weights downloaded
+    # (bench/catalog_ci.py; orchestrator/shared_python.py); proving them run is make capability-check.
+    paths: ["catalog/**", "services/bench/catalog_ci.py", "services/orchestrator/publish.py", "services/gpu_worker/manifests.py",
+            "services/uv.lock", "services/pyproject.toml", "services/orchestrator/shared_python.py"]
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.7.19" }
+      - run: uv sync --frozen
+        working-directory: services
+      - run: uv run python -m bench.catalog_ci --static --base origin/${{ github.base_ref }}
+        working-directory: services
+  proof:
+    needs: static
+    if: vars.CATALOG_PROOF_ON_MAC == 'true'
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.7.19" }
+      - run: uv sync --frozen --all-groups  # torch, transformers, einops...: pyproject's default group is dev only
+        working-directory: services
+      - run: uv run --frozen --all-groups python -m bench.catalog_ci --base origin/${{ github.base_ref }}
+        working-directory: services

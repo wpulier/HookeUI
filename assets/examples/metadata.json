@@ -1,0 +1,20 @@
+{
+  "id": "human-mitosis",
+  "title": "Human cells",
+  "author": "David Root",
+  "license": "CC0-1.0",
+  "source": "https://gitlab.com/scikit-image/data/-/raw/2cdc5ce89b334d28f06a58c9f0ca21aa6992a5ba/AS_09125_050116030001_D03f00d0.tif",
+  "width": 512,
+  "height": 512,
+  "dtype": "uint8",
+  "units": "pixels",
+  "original": {
+    "file": "human_mitosis.tif",
+    "sha256": "2751ba667c4067c5d30817cff004aa06f6f6287f1cdbb5b8c9c6a500308cb456"
+  },
+  "preview": {
+    "file": "human_mitosis.png",
+    "sha256": "e6670c3af254f8800e03461a99151e4a8aa955735dbc7f05789275c41ca7066c"
+  },
+  "pixelsSha256": "868c3327e26eb8e1d20fbf07c85713e9e868eba962419877bdb454bfc3418403"
+}

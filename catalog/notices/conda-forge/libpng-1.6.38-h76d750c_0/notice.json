@@ -1,0 +1,24 @@
+{
+ "package": "libpng",
+ "version": "1.6.38",
+ "build": "h76d750c_0",
+ "subdir": "osx-arm64",
+ "url": "https://conda.anaconda.org/conda-forge/osx-arm64/libpng-1.6.38-h76d750c_0.tar.bz2",
+ "sha256": "7ddb168b4064618fb06976b2fd51ebcadfb52f478a1eb7c6d6d6442470a6099b",
+ "bytes": 304172,
+ "licence": "zlib-acknowledgement",
+ "home": "http://www.libpng.org/pub/png/libpng.html",
+ "source": "https://sourceforge.net/p/libpng/code/ci/libpng16/tree/",
+ "summary": "PNG reference library",
+ "component": "libpng",
+ "builtAt": 1663347852090,
+ "licenceFiles": [
+  {
+   "inPackage": "info/licenses/LICENSE",
+   "file": "LICENSE",
+   "bytes": 5345,
+   "sha256": "dfe5a536b0e5a531f844fb9c101a3089aca60772a503893b8e15f9457e369960"
+  }
+ ],
+ "readFrom": "the package's own info/about.json, info/index.json and info/licenses/, checked by its pinned sha256"
+}

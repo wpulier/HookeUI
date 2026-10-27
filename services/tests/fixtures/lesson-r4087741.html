@@ -1,0 +1,267 @@
+<!-- services/research/2026-10-04/r4087741/outputs/01-lesson-cell-detective-observe-fi.html, photo removed -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cell Detective: Observe First, Identify Second</title>
+<style>
+:root{color-scheme:dark;--bg:#131a2b;--text:#e7ecf7;--accent:#ff4fa3;--panel:#1c263b;--muted:#bdc8dd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;line-height:1.6}
+main{max-width:850px;margin:auto;padding:24px 18px 50px}
+h1{font-size:clamp(1.8rem,5vw,2.65rem);line-height:1.15;margin:8px 0 16px}
+h2{font-size:1.35rem;margin-top:0}
+h3{font-size:1.08rem}
+p{margin:12px 0}
+.eyebrow{color:var(--accent);font-weight:700;font-size:.85rem;letter-spacing:.06em}
+.muted,small{color:var(--muted)}
+.card{background:var(--panel);border:1px solid #34415c;border-radius:16px;padding:20px;margin:20px 0}
+figure{margin:18px 0}
+.photo{position:relative;line-height:0;border-radius:12px;overflow:hidden;background:#0c1220}
+img{display:block;width:100%;height:auto;cursor:crosshair}
+figcaption{padding:8px 0;color:var(--muted)}
+#marker{position:absolute;width:24px;height:24px;border:2px solid var(--accent);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 2px #131a2b}
+label{display:block;font-weight:600;margin:14px 0 6px}
+textarea,select,input{width:100%;background:#131a2b;color:var(--text);border:1px solid #697792;border-radius:8px;padding:11px;font:inherit}
+textarea{min-height:90px;resize:vertical}
+button{background:var(--accent);color:#201020;border:0;border-radius:9px;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer;margin:12px 6px 0 0;min-height:44px}
+button.secondary{background:transparent;color:var(--text);border:1px solid #697792}
+button:disabled{opacity:.5;cursor:default}
+:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+[hidden]{display:none!important}
+.feedback{border-left:3px solid var(--accent);padding:3px 16px;margin-top:18px;background:#131a2b;border-radius:0 8px 8px 0}
+.status{color:var(--accent);font-weight:600}
+.question{scroll-margin-top:15px}
+.progress{font-size:.9rem;color:var(--muted)}
+ul{padding-left:22px}
+@media(max-width:500px){.card{padding:16px}main{padding:20px 14px}button{width:100%;margin-right:0}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">3–5 MINUTES · EVIDENCE CHALLENGE</div>
+<h1>Cell Detective: Observe First, Identify Second</h1>
+<p>Choose one complete cell in the middle or lower-middle of the photograph. Describe its outline, its neighbors, and any darker feature inside. Use shapes and positions, not organelle names yet.</p>
+<p class="muted">There is no prize for the most confident guess. Useful observations and honest uncertainty are what count.</p>
+</header>
+
+<section class="card" aria-labelledby="observe-heading">
+<h2 id="observe-heading">1 · Observe</h2>
+<figure>
+<div class="photo" id="photo">
+<img id="specimen" src="data:," alt="Student-supplied microscope photograph, shown without identification labels.">
+<span id="marker" hidden aria-hidden="true"></span>
+</div>
+<figcaption>Your photo</figcaption>
+</figure>
+<p class="muted">Tap the photo to mark your chosen cell, or describe its location below. The marker records your selection; it does not identify anything.</p>
+<p id="selection-status" role="status">No cell marked yet.</p>
+<label for="location">Cell location</label>
+<input id="location" type="text" placeholder="Describe where your chosen cell is">
+<label for="observations">Your observations: outline, neighbors, darker feature</label>
+<textarea id="observations" placeholder="Describe only what you can see. If something is unclear, say so."></textarea>
+<p class="muted">The image is blurry and unstained. It may not supply enough evidence for every answer.</p>
+<button id="open-challenge">Ready — reveal the three questions</button>
+<p id="observe-status" role="status"></p>
+</section>
+
+<section id="challenge" hidden aria-labelledby="challenge-heading">
+<h2 id="challenge-heading">2 · Choose → justify → reveal</h2>
+<p>For each question, choose an interpretation, record one visual clue, and set your confidence. “Insufficient evidence” is always a valid response. Feedback appears only when you submit that question.</p>
+<p id="progress" class="progress" role="status">0 of 3 responses submitted.</p>
+
+<article class="card question" id="question1">
+<h3>Question 1</h3>
+<p>Trace the shared outline between two neighboring compartments. What structure best explains it, and what does the overall pattern suggest: plant peel tissue, loose animal cells, or insufficient evidence? Can you prove this is onion from this picture alone?</p>
+<label for="answer1">Boundary and tissue interpretation</label>
+<select id="answer1">
+<option value="">Choose an interpretation</option>
+<option value="plant">Cell-wall boundaries; plant peel tissue</option>
+<option value="animal">Plasma-membrane boundaries; loose animal cells</option>
+<option value="unclear">Insufficient evidence to identify the boundaries or tissue</option>
+</select>
+<label for="identity1">Onion identity</label>
+<select id="identity1">
+<option value="">Choose a claim</option>
+<option value="plausible">Plausible, but not proved by this photo</option>
+<option value="proved">Proved by this photo</option>
+<option value="unclear">Insufficient evidence to determine onion identity</option>
+</select>
+<label for="clue1">One visual clue supporting your response</label>
+<textarea id="clue1" placeholder="Use a visible shape, position, or relationship—or describe what is too unclear."></textarea>
+<label for="confidence1">Confidence in your interpretation</label>
+<select id="confidence1">
+<option value="">Choose confidence</option>
+<option value="certain">Certain</option>
+<option value="likely">Likely</option>
+<option value="insufficient">Insufficient evidence</option>
+</select>
+<button data-submit="1">Submit question 1</button>
+<p id="status1" role="status"></p>
+<div id="feedback1" class="feedback" hidden tabindex="-1"></div>
+</article>
+
+<article class="card question" id="question2">
+<h3>Question 2</h3>
+<p>Look for darker round or oval spots inside several compartments. What could they be, and does this photograph resolve a nucleolus inside a nucleus?</p>
+<label for="answer2">Interpretation of the spots</label>
+<select id="answer2">
+<option value="">Choose an interpretation</option>
+<option value="nuclei">Likely nuclei; a nucleolus is not resolved</option>
+<option value="nucleoli">Definitely nucleoli, even without a surrounding nucleus</option>
+<option value="artifact">Possibly artifacts; not enough evidence to identify them</option>
+<option value="unclear">Insufficient evidence in my selected cell</option>
+</select>
+<label for="clue2">One visual clue supporting your response</label>
+<textarea id="clue2" placeholder="Describe a spot's shape, position, repetition—or why it is unclear."></textarea>
+<label for="confidence2">Confidence in your interpretation</label>
+<select id="confidence2">
+<option value="">Choose confidence</option>
+<option value="certain">Certain</option>
+<option value="likely">Likely</option>
+<option value="insufficient">Insufficient evidence</option>
+</select>
+<button data-submit="2">Submit question 2</button>
+<p id="status2" role="status"></p>
+<div id="feedback2" class="feedback" hidden tabindex="-1"></div>
+</article>
+
+<article class="card question" id="question3">
+<h3>Question 3</h3>
+<p>What can the pale interior of a complete cell and the overall blue-green tint tell you about a central vacuole and chloroplasts? Distinguish a visible feature from an inference.</p>
+<label for="answer3">Interpretation of the interior and color</label>
+<select id="answer3">
+<option value="">Choose an interpretation</option>
+<option value="inferred">A central vacuole is compatible with the pale interior but inferred; tint alone does not identify chloroplasts</option>
+<option value="resolved">The vacuole membrane is clearly resolved; the tint proves chloroplasts</option>
+<option value="unclear">Insufficient evidence to identify either structure in my selected cell</option>
+</select>
+<label for="clue3">One visual clue supporting your response</label>
+<textarea id="clue3" placeholder="Describe the interior or the color pattern, and what detail you can or cannot resolve."></textarea>
+<label for="confidence3">Confidence in your interpretation</label>
+<select id="confidence3">
+<option value="">Choose confidence</option>
+<option value="certain">Certain</option>
+<option value="likely">Likely</option>
+<option value="insufficient">Insufficient evidence</option>
+</select>
+<button data-submit="3">Submit question 3</button>
+<p id="status3" role="status"></p>
+<div id="feedback3" class="feedback" hidden tabindex="-1"></div>
+</article>
+</section>
+
+<section class="card" aria-labelledby="lesson-heading">
+<h2 id="lesson-heading">3 · Connect the evidence</h2>
+<p id="lesson-intro">Teaching notes stay hidden until you submit all three responses or explicitly request them.</p>
+<button id="reveal-lesson" class="secondary">Reveal teaching notes now</button>
+<div id="lesson" hidden>
+<p><strong>Observe before naming.</strong> This photo shows closely packed, elongated polygonal compartments with darker outlines and small darker dots in many compartments. The broad pale region to the right is beyond the tissue edge: do not mistake it for the interior of your selected cell.</p>
+<p><strong>Build a cautious identification.</strong> Shared boundaries and the packed pattern support plant epidermal peel tissue. Onion bulb epidermis is plausible, not species-level proof. Neither exact magnification nor stain identity can be established from the photograph alone.</p>
+<p><strong>Separate visible features from interpretations.</strong> The boundary network is consistent with cell walls—a cell structure, not an organelle. Repeated intracellular round or oval dark spots are likely nuclei; one isolated dot could be an artifact. Do not call a dot a nucleolus when a surrounding nucleus is not resolved.</p>
+<p><strong>Respect the limits.</strong> A pale central cell interior is compatible with a central vacuole, but its membrane is not clearly resolved. The plasma membrane and thin cytoplasmic layer are not separately identifiable here. Mitochondria, ribosomes, and nucleoli are not required visible answers.</p>
+<p><strong>Color is not identification.</strong> A uniform blue-green tint is not evidence of chloroplasts. Identifying chloroplasts requires discrete bodies; none are clearly resolved here.</p>
+<p class="muted">If you are also using a live microscope, a gentle fine-focus adjustment may help you check a boundary or spot. This is optional and cannot change the static photograph.</p>
+<p class="muted"><small>Source basis: Millersville’s onion microscopy laboratory identifies shared partitions as cell walls. Ohio State’s microscopy examples show stained onion nuclei at 100×, nucleoli in a separate 1000× view, and discrete green chloroplasts in Elodea. Those magnifications and staining conditions describe the reference examples, not your photo. The Jones &amp; Bartlett laboratory text distinguishes the wall from the unresolved plasma membrane and infers vacuole position from the light central area.</small></p>
+</div>
+</section>
+
+<section id="finish" class="card" hidden aria-labelledby="finish-heading">
+<h2 id="finish-heading">Finish · Sketch your evidence</h2>
+<p>On paper, sketch your chosen cell and one neighbor. Keep the sketch simple:</p>
+<ul>
+<li>Label one shared boundary <strong>cell wall</strong>.</li>
+<li>If you saw a convincing intracellular spot, mark it <strong>likely nucleus ?</strong>. Otherwise write “not resolved.”</li>
+<li>Mark the pale central area <strong>central vacuole — inferred, membrane not resolved</strong>.</li>
+</ul>
+<p>Carry your uncertainty into the sketch. A careful “not enough evidence” is better than adding a structure you did not see.</p>
+</section>
+</main>
+<script>
+(function(){
+"use strict";
+const el=id=>document.getElementById(id);
+const submitted=new Set();
+let selected=false;
+el("specimen").addEventListener("click",function(event){
+ const r=this.getBoundingClientRect();
+ const x=(event.clientX-r.left)/r.width*100;
+ const y=(event.clientY-r.top)/r.height*100;
+ el("marker").style.left=x+"%";
+ el("marker").style.top=y+"%";
+ el("marker").hidden=false;
+ selected=true;
+ el("selection-status").textContent="Your selection: "+Math.round(x)+"% across, "+Math.round(y)+"% down the photo. Choose a different point anytime.";
+});
+el("open-challenge").addEventListener("click",function(){
+ if(!selected&&!el("location").value.trim()){
+  el("observe-status").textContent="First mark a cell or describe its location.";
+  el("location").focus();return;
+ }
+ if(!el("observations").value.trim()){
+  el("observe-status").textContent="Add your observations first. “Too blurry to resolve” is a valid observation.";
+  el("observations").focus();return;
+ }
+ el("observe-status").textContent="Observation recorded. Now compare possible explanations.";
+ el("challenge").hidden=false;
+ this.disabled=true;
+ el("question1").scrollIntoView({behavior:"smooth",block:"start"});
+});
+function revealLesson(){
+ el("lesson").hidden=false;
+ el("lesson-intro").hidden=true;
+ el("reveal-lesson").hidden=true;
+}
+el("reveal-lesson").addEventListener("click",revealLesson);
+const explanations={
+1:"Cell-wall boundaries and tightly packed elongated cells support plant peel tissue. Onion epidermis is plausible, but the photograph alone does not prove onion identity. Shape and shared-boundary observations deserve credit; certainty about onion does not.",
+2:"Repeated dark round or oval spots inside compartments are likely nuclei. A single dot could be an artifact, and an unclear selected cell can legitimately yield insufficient evidence. A nucleolus is not identified here because no surrounding nucleus with an internal smaller body is clearly resolved.",
+3:"The pale cell interior is compatible with a central vacuole, but this is an inference: its membrane is not clearly resolved. The plasma membrane and thin cytoplasmic layer are not separately identifiable. General blue-green coloration does not identify chloroplasts; no discrete chloroplasts are clearly resolved."
+};
+document.querySelectorAll("[data-submit]").forEach(button=>{
+ button.addEventListener("click",()=>{
+  const n=button.dataset.submit;
+  const answer=el("answer"+n).value;
+  const clue=el("clue"+n).value.trim();
+  const confidence=el("confidence"+n).value;
+  if(!answer||(n==="1"&&!el("identity1").value)||!clue||!confidence){
+   el("status"+n).textContent="Choose each response, add one visual clue (or a visibility limit), and select confidence before submitting.";
+   return;
+  }
+  submitted.add(n);
+  el("status"+n).textContent="Response submitted.";
+  const feedback=el("feedback"+n);
+  feedback.replaceChildren();
+  const credit=document.createElement("p");
+  credit.className="status";
+  credit.textContent="Evidence credit: you supplied an observation or a visibility limit.";
+  const quote=document.createElement("p");
+  const label=document.createElement("strong");
+  label.textContent="Your clue: ";
+  quote.append(label,document.createTextNode(clue));
+  const note=document.createElement("p");
+  note.textContent=explanations[n];
+  const calibration=document.createElement("p");
+  calibration.className="muted";
+  calibration.textContent=confidence==="insufficient"
+   ?"Insufficient evidence is valid. Explain exactly which missing detail prevents a stronger conclusion."
+   :confidence==="certain"
+   ?"Check your certainty: a visible shape may be clear even when its identity remains only likely."
+   :"“Likely” leaves room for alternative explanations. Keep your claim tied to the visible clue.";
+  feedback.append(credit,quote,note,calibration);
+  feedback.hidden=false;
+  button.textContent="Resubmit question "+n;
+  el("progress").textContent=submitted.size+" of 3 responses submitted. No points are awarded for confidence alone.";
+  if(submitted.size===3){
+   revealLesson();
+   el("finish").hidden=false;
+  }
+  feedback.focus();
+ });
+});
+})();
+</script>
+</body>
+</html>

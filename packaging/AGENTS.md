@@ -1,0 +1,125 @@
+# The Mac app and its releases
+
+HookeUI.app is how people get this app: a signed, notarized dmg that runs the studio on a Mac with no developer tools
+and keeps itself up to date (Sparkle). Everything is in `macos/`; [macos/README.md](macos/README.md) is the reference.
+
+## Shipping an update
+
+Merging main and pushing tags do **not** ship updates. Use `macos/RELEASING.md`:
+checked dev → `release-channel.py beta` → Will accepts → `release-channel.py promote`.
+These shortcuts reuse prepare/publish, pin the accepted source and require explicit `--publish`
+for an offer. The generated `release-record.md` and public release description are the shared
+handoff; both developers follow RELEASING.md, not separate status ledgers. No test suite runs
+from a release shortcut. Low-level prepare/publish remain available for exact-artifact approval.
+Prepare never publishes; publish offers the exact approved bytes without rebuilding. Both commands serialize on the
+release Mac and check source/channel/build identity. The normal Stable feed reaches every installed Stable user.
+
+HookeUI Beta (`macos/channels.json`) has a permanent independent key/feed, app identity, data, keys, downloads and
+ports. Old local Betas used throwaway keys and need one initial install of the public Beta. Never copy Stable's
+profile into Beta implicitly. Local release is active; protected hosted workflows remain off because GitHub's current
+private-repository plan refuses required reviewers and some CI credentials are missing. Do not weaken those guards.
+`mac-app.yml` is manual build-only; no merge, push or tag updates users. `release.sh` redirects to the procedure.
+
+Running apps check at launch and periodically (four hours), and through Check for Updates. Users choose installation
+and restart. Versions are never republished; fix forward. Keep exact source, hash, approval and acceptance in the
+existing release ticket, and preserve private evidence outside Git.
+
+## What must stay true
+
+- **The updater key:** every release is signed with the same Sparkle key; its public half is
+  `macos/sparkle-public-key.txt`. Releases are signed with the private key: on the release Mac,
+  `~/.config/hookeui-release/sparkle_ed25519.key`, and the CI secret `SPARKLE_ED_KEY`. Lose it and no installed copy
+  accepts another update. Never print it.
+- **Nothing writes inside the app bundle:**
+  - the runtime is a copy in `~/Library/Application Support/HookeUI`;
+  - the user's data stays in `~/MicroscopeMind`;
+  - the bundle's signature must still verify after use.
+- **Blackmagic receiver:** FFmpeg includes pinned static SRT and OpenSSL with encryption support.
+  Every packaged build checks both SRT directions and receives an encrypted synthetic frame.
+  This prevents missing-transport releases; it does not qualify a physical phone. Source archives,
+  build recipes and LGPLv3/MPL/Apache notices ship through the existing release process.
+- **Camera discovery:** the native Info.plist declares `_http._tcp` in `NSBonjourServices`,
+  alongside its local-network purpose string, for Blackmagic's camera-control endpoint.
+  Browser/terminal discovery does not qualify the packaged app's network permission.
+- **A clean Mac has no developer tools:** the app must never need git, Xcode tools, Node or the system Python.
+  - The launcher's PATH guards keep `git`, `xcrun` and the like from opening macOS's install dialog.
+  - `scripts/studio.sh`'s packaged mode (a `packaged.json` beside it) skips the checks and builds those need.
+- **The snapshot ships only what the running app reads** (`macos/snapshot.py`). A new runtime folder or file the app
+  reads must be added to `RUNTIME`. Managed research provider/scientific runtime modules ship;
+  their deployment recipes, setup profiles and developer README do not. Media ships only when listed in `MEDIA`. Its privacy scan must stay clean.
+- **Build numbers grow:** Beta releases from checked dev; Stable uses its accepted source promoted to main; `release-channel.py` allocates `CFBundleVersion` above every
+  published build in both channels, including withdrawn releases. A same-source update still gets a larger build.
+- **Channels stay apart:** a new folder, port, Keychain service or Mac-wide cache the app uses comes from its
+  channel (`macos/channels.json`, `main.swift`'s `Channel`), never a fixed name, so a Beta never shares Stable's.
+  Stable's identity never changes: installed copies update only within their own bundle identifier.
+- **The launch screen claims only what ran** (ADR 0006; `macos/README.md` "What happens on a Mac"): each launch is
+  planned from the same marker files its steps check, only planned stages show, and a stage is ticked only when its
+  step reports it ran (`HookeUI/SetupWords.swift`, checked by `make native-test`). The first launch asks once before
+  the required download, with the build's measured numbers (`macos/runtime_download.py`), never typed ones; an
+  update never waits on that question. A new step gets a stage, words and a check there.
+- **Testing:** never launch the app in the owner's own session (it shares `~/MicroscopeMind` with the live app). Use a
+  clean VM, as the README's "Testing on a clean Mac" says.
+
+- Update reminders come from Sparkle through an origin-checked main-frame bridge.
+- **Restarting into an update, and quitting** (`HookeUI/UpdateWords.swift` LeaveFlow, the words checked by
+  `make native-test`): before either, the app reads the workspace (`window.hookeUpdateReadiness()`:
+  `{blockers, running}`, read from each kind of work's own source, `apps/studio/src/restart-readiness.ts`) and its own
+  downloads and installs, showing "Checking your work…" meanwhile, and reads again after the person chooses to go on.
+  - Restart (Sparkle's Install and Relaunch, or Restart to update): nothing at stake shows "Restart Hooke to finish
+    updating?" with **Restart Now as the Return default** (Will, 2026-10-26: "Restart Now as the default when nothing is
+    running"; this replaces the 0.1.2 rule that Keep Working was the default). Something running names it and has no
+    Return default ("Later" on Escape, "Stop and Restart" destructive); unsaved work, a lost connection or a read that
+    fails or takes over 5 s refuses the restart (OK only), so an unread kind is never "nothing running".
+  - Later leaves the update downloaded and waiting: the rail says Restart to update and Settings says so; either, or
+    the Hooke menu's Check for Updates…, asks again (never Sparkle's own window, whose retry would look like ⌘Q).
+  - Every plain quit (⌘Q, closing the window, logging out), an update waiting or not, follows one rule: nothing at
+    stake quits; running work asks "Quit Hooke and stop what's running?"; unsaved or unreadable work asks with
+    Quit Anyway. No state leaves Hooke unable to quit. A waiting update installs as Hooke quits; in the 0.4.1
+    rehearsal (a VM, 4695 → 4696) Sparkle then reopened Hooke on the new build within about a second.
+  - A quit that waits for its check (`.terminateLater`) is answered with `Termination.reply` and started from a check's
+    completion with `Termination.terminate` (`HookeUI/Termination.swift`), never with `DispatchQueue.main.async`: a
+    `terminate` called inside a main-queue block waits in a run loop where the main queue cannot run, so that answer
+    never arrives. Candidate 4695 stayed on "Closing your workspace" after Restart Now for this reason; `make
+    native-test` now quits a real NSApplication each way and checks that the old answer still hangs.
+
+Native Blackmagic access keeps one Network.framework Bonjour browser in the app
+process while Blackmagic is selected. The origin-checked camera bridge accepts only
+this workspace and its camera page; it returns bounded permission state, never
+network identities. This supplies a lasting macOS permission operation, while the
+Python camera bridge continues to own phone control and received frames. A denied
+permission has a System Settings recovery step; native discovery readiness never
+marks the camera live. Switching away or quitting cancels the native browser.
+
+The runtime fingerprint is finalized after compiled Studio/camera assets are added
+(`finalize_snapshot.py`), and includes build identity. UI-only/native-only rebuilds
+at one marketing version must never reuse an older extracted payload. A completed
+cached runtime is reused only when its packaged manifest exactly matches the bundle.
+
+Dismissing Sparkle's update sheet is deferral, not evidence that an update disappeared.
+Keep the rail reminder until an update check reports no applicable update or the
+installed version changes; closing the sheet never forces a restart.
+
+Blackmagic's SRT listener and settings-download server also use channel-owned ports:
+Stable 9710/8767, Beta 9810/8867. The launcher supplies both through the bridge's
+environment. Only the exact uncustomized legacy listener in early Beta source
+choices is remapped; custom streams remain intact, and this never selects a camera
+by itself. A physical phone still has one active destination: two apps cannot own
+the same live phone simultaneously merely because their ports differ.
+
+Optional Beta companion ZIPs use `macos/release_companions.py`: prepare freezes an
+explicit bounded manifest/asset allowlist and records its hash separately from the
+DMG. Publication requires both approvals, verifies downloaded draft bytes before
+activation and anonymous bytes afterward. Stable preserves its accepted Beta's exact
+companion binding; omission/substitution refuses. Package source and app source are
+recorded separately. Packaging never grants scientific qualification or trust.
+
+Native folder bridge v2 retains selected bytes in a private disk snapshot and exposes
+bounded offset reads through an opaque workspace-origin lease. The browser no longer
+needs the complete native snapshot in memory. Capture retains no-follow, local-volume,
+file/directory identity checks and a free-space reserve; progress renews the existing
+30-second inactivity limit, while Stop/app closure still cancels capture. Native
+selection permits the existing 64 GiB source-storage ceiling and 4,096 files; this is
+transport admission, not reader or full-size workflow qualification. Server acceptance
+remains the shared immutable Project intake, separate from native selection. The
+snapshot fixture checks small real files, retry reads and refusal/cleanup; it does not
+qualify an installed large-folder workflow.

@@ -1,0 +1,43 @@
+# The backend test suite on hosted Linux and Windows VMs (H11 groundwork). Started by hand only: these are
+# development checks of what works off macOS, not qualification (VMs, no GPU), and hosted minutes on a private
+# repository count against its quota. See packaging/windows/README.md and packaging/linux/test-container/README.md.
+name: backend on other OSes
+on:
+  workflow_dispatch:
+    inputs:
+      pytest_args:
+        description: "Extra pytest arguments (for example a list of test files)"
+        required: false
+        default: ""
+permissions:
+  contents: read
+jobs:
+  backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux (the same image as scripts/linux-container-test.sh, native x86_64)
+        if: runner.os == 'Linux'
+        run: scripts/linux-container-test.sh "$RUNNER_TEMP/out" HEAD
+        env:
+          JOBS: "4"
+          CPUS: "4"
+          PYTEST_ARGS: ${{ inputs.pytest_args }}
+          MEMORY: "12g"
+      - name: Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PYTEST_ARGS: ${{ inputs.pytest_args }}
+        run: ./packaging/windows/run-backend-tests.ps1 -Out "$env:RUNNER_TEMP\out" -Jobs 4 -PytestArgs "$env:PYTEST_ARGS"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-${{ matrix.os }}
+          path: ${{ runner.temp }}/out
+          retention-days: 14

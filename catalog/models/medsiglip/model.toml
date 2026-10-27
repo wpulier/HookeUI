@@ -1,0 +1,32 @@
+id = "medsiglip"
+name = "MedSigLIP 448"
+runs = "this-mac"
+version = "google/medsiglip-448"
+licence = ["medsiglip"]
+kind = "model"
+what = "Ranks medical names for a picture, as data for naming"
+runner = "gpu-worker"
+source = { hf = "google/medsiglip-448", revision = "9cea28a1a1195f665105faa6e8544c112fd960a4" }
+files = [
+  { path = "config.json", bytes = 879, git_sha1 = "24cb961fcf9807281860ea6dd9a0294f78924512" },
+  { path = "model.safetensors", bytes = 3513309984, sha256 = "3e1722b8100cca8b87cfe16e42140737aa6d312854e9e6bc24dff6db70e21d72" },
+  { path = "preprocessor_config.json", bytes = 360, git_sha1 = "fd9a857d8de35f6a38e6c6d1678335bd420c64bb" },
+  { path = "special_tokens_map.json", bytes = 455, git_sha1 = "77fa77122073e6bd9b0f50a5a07117a373d6dc28" },
+  { path = "spiece.model", bytes = 798330, sha256 = "1e5036bed065526c3c212dfbe288752391797c4bb1a284aa18c9a0b23fcaf8ec" },
+  { path = "tokenizer.json", bytes = 2399357, git_sha1 = "6d6fd0bd6cc263099dc98e4fa383f90c9baa3521" },
+  { path = "tokenizer_config.json", bytes = 809, git_sha1 = "4df9a5f8d3e8ef7e08cdc0ac5bf1cc9ef0e4eef7" },
+]
+needs_to_get = ["key:HF_TOKEN", "licence:https://huggingface.co/google/medsiglip-448", "download"]
+needs_to_run = []
+credit = { authors = "Google (Health AI Developer Foundations)", link = "https://huggingface.co/google/medsiglip-448" }
+workers = ["analysis"]
+host = "shared"
+documented_mb = 2400
+peak_mb = 3000
+load_limit_s = 600
+
+[[implements]]
+operation = "names"
+impl = "medsiglip-448"
+input = "image.2d.rgb8"
+output = "scores.text"

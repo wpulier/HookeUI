@@ -1,0 +1,24 @@
+# Derived from the (Git-ignored) recordings; regenerate with: python -m bench.extract_frames
+bench/frames/
+# Generated benchmark images and run logs; JSON summaries are kept
+bench/results/**/*.jpg
+logs/
+# Flight recordings from failed simulation scenarios
+sim/results/flight-*/
+sim/results/*.jpg
+# Researcher sessions (snapshots, outputs, fetched pictures) and the findings ledger
+/research/
+# Snapshots of the view the user asked for (snapshot tool): kept, never committed
+/snapshots/
+# Public labelled pictures for the naming bench (bench/naming/fetch.py): fetched, never committed
+bench/data/
+# The examples of labels the user taught (orchestrator/taught.py): kept, never committed
+/taught/
+# The outlines named today and their embeddings (orchestrator/seen.py): kept, never committed
+/seen/
+/capabilities/
+# Datasets the blue dot collects when the app runs from this folder (the live app keeps them in
+# ~/MicroscopeMind/datasets): kept, never committed
+/datasets/
+# Fine-tuned models' weights (orchestrator/finetuned.py; about 1.2 GB a version): kept, never committed
+/models/

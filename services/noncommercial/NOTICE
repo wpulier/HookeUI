@@ -1,0 +1,44 @@
+ObservationUI optional model integrations
+
+This directory contains wrappers, adapters and helper processes for optional
+model components. The directory name and the application's edition tiers do
+not impose a blanket non-commercial licence on every file or dependency.
+
+Integration source
+Project-authored integration source follows the repository's first-party
+licence scope and any applicable file-specific or third-party exceptions.
+This notice does not grant or change rights in that source. Preserve existing
+third-party copyright, licence and attribution notices.
+
+Fetched software
+Cellpose and Trackastra code are declared BSD-3-Clause; micro-sam code is
+declared MIT. Their separately installed dependencies have their own terms.
+Trackastra's locked environment includes Gurobi (proprietary); the current
+adapter calls greedy_nodiv linking. That execution choice does not change
+Gurobi's installation or licence terms. Exact package versions, hashes and
+model sources are recorded in services/uv.lock and the applicable entries
+and environment locks under catalog/models/.
+
+Weights and data
+Model weights, fine-tuned weights and training or input data have separate
+rights from the software that processes them. The catalog records micro-sam's
+vit_b_lm weights as CC-BY-4.0 and records non-commercial training-data terms
+for several training sets used by micro-sam and Cellpose-SAM. The retained
+Trackastra general_2d declaration does not establish its training-data terms.
+A user-added Cellpose model has its maker's weight terms, recorded on its
+catalog entry. These declarations and the application's policy tiers do not
+determine the legal effect of training data on weights or clear a particular
+use. Fine-tuning does not itself clear the source weights or training inputs.
+
+Edition policy
+The current component registry assigns Cellpose-SAM, its fine-tuned and
+user-added variants, micro-sam-lm, Trackastra and Gurobi to the noncommercial
+tier. The research edition permits all registered tiers. The commercial
+edition permits only open and terms tiers. MICROMIND_EDITION unset or empty
+defaults to research; an invalid nonempty value uses the commercial gate.
+These are application availability rules, not a licence grant or a finding
+that a component is legally suitable for a use.
+
+See services/orchestrator/licences.py, docs/licences.md, this directory's
+README.md and the applicable catalog entries and installed-package notices.
+Repository paths above are relative to the repository root.

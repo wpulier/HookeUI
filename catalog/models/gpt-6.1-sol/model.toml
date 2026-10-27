@@ -1,0 +1,12 @@
+id = "gpt-6.1-sol"
+name = "GPT-6.1 Sol"
+runs = "cloud"
+version = "gpt-6.1-sol"
+licence = ["openai-api"]
+kind = "cloud-model"
+what = "Researches, writes and edits with tools"
+runner = "cloud"
+service = "openai"
+source = { url = "https://platform.openai.com/docs/models" }
+needs_to_run = ["key:OPENAI_API_KEY"]
+credit = { authors = "OpenAI", link = "https://platform.openai.com/docs/models" }

@@ -1,0 +1,3325 @@
+{
+ "format": 1,
+ "note": "Selectors over the pinned napari archive. Every selected item is routed to one acceptance group or excluded with its reason; a selector that finds nothing fails generation. Regenerate with `make scientific-inventory`.",
+ "evidence_defaults": {
+  "P1": "isolated_profile_browser",
+  "P2": "isolated_profile_browser",
+  "P3": "isolated_profile_browser",
+  "P4": "isolated_profile_browser",
+  "P5": "isolated_profile_browser",
+  "P6": "actual_upstream_worker",
+  "P7": "actual_upstream_worker",
+  "P8": "clean_os_installation",
+  "Q": "clean_os_installation",
+  "W": "actual_upstream_worker",
+  "R01": "actual_upstream_worker",
+  "R02": "actual_upstream_worker",
+  "R03": "isolated_profile_browser",
+  "R04": "actual_upstream_worker",
+  "R05": "clean_os_installation",
+  "R06": "actual_upstream_worker",
+  "R07": "isolated_profile_browser",
+  "R08": "isolated_profile_browser",
+  "R09": "synthetic_fixture"
+ },
+ "group_evidence": {
+  "P7.custom-panel": "isolated_profile_browser",
+  "P7.panel-lifecycle": "isolated_profile_browser",
+  "P7.dynamic-controls": "isolated_profile_browser",
+  "P7.held-out": "independent_contributor",
+  "Q.usable-workflow": "fresh_researcher_comparison",
+  "Q.catalog-admission": "independent_contributor",
+  "Q.operation-proof": "actual_upstream_worker",
+  "Q.failure-isolation": "actual_upstream_worker"
+ },
+ "limits": {
+  "P1.playback": [
+   "Native playback may drop frames. Native refuses an axis without a slider."
+  ],
+  "P3.shapes": [
+   "Reference shape editing requires two displayed dimensions."
+  ],
+  "P3.grid-linked-views": [
+   "Native grid is a shared-canvas layout. Hooke independent persistent views are an additional requirement."
+  ],
+  "P4.label-tools": [
+   "Native multiscale Labels are not editable."
+  ],
+  "P4.shape-create": [
+   "Reference editing is limited to two displayed dimensions."
+  ],
+  "P5.volume-level": [
+   "Do not impose automatic fine-resolution 3D LOD on a reference that defaults to its coarsest level.",
+   "Native multiscale volume rendering uses its coarsest level by default (acceptance.md \u00a71)."
+  ],
+  "P6.console-session": [
+   "The supplied source does not pin a complete console runtime. Freeze napari_console and its dependencies before qualification."
+  ]
+ },
+ "census_exclusions": [
+  {
+   "path": "(^|/)(_tests|tests)/|conftest\\.py$|(^|/)_test_util",
+   "reason": "Upstream test code, not a public interaction; the tests a child uses as its oracle are named in that child (coverage reviewer to confirm)"
+  },
+  {
+   "path": "^src/napari/benchmarks/",
+   "reason": "Upstream performance benchmarks; Hooke limits are the .hooke-comparison children"
+  },
+  {
+   "path": "^src/napari/_vendor/|/vendored/",
+   "reason": "Vendored third-party code"
+  },
+  {
+   "path": "/_(?!_)[^/]*\\.py$",
+   "reason": "Module private to napari (leading underscore); its behaviour reaches users through the public layer, viewer or action symbols cited elsewhere (coverage reviewer to confirm)"
+  },
+  {
+   "path": "^(tools|resources|binder|\\.github|\\.circleci|\\.devcontainer)/|^(setup|noxfile)\\.py$",
+   "reason": "Build, packaging and release tooling"
+  },
+  {
+   "path": "^src/napari/_qt/layer_controls/dynamic/",
+   "reason": "Experimental alternate implementation of the same layer controls behind ExperimentalSettings.dynamic_layer_controls; the control obligations are the non-dynamic children"
+  },
+  {
+   "path": "^src/napari/_vispy/(visuals|filters|layers|overlays|utils)/",
+   "reason": "Rendering backend implementing the visual effect of cited layer and overlay properties; rendering fidelity is the .hooke-comparison render tolerance (coverage reviewer to confirm)"
+  },
+  {
+   "path": "/_shapes_models/",
+   "reason": "Private shape representations behind the cited Shapes API"
+  },
+  {
+   "path": "^src/napari/utils/(migrations|_testsupport|perf/)",
+   "reason": "Deprecation shims, upstream test fixtures and developer performance tracing"
+  },
+  {
+   "path": "^examples/",
+   "reason": "Examples exercise public API inventoried by the source selectors; coverage reviewer to confirm"
+  },
+  {
+   "path": ".",
+   "symbol": "(^|\\.)_[^_]",
+   "reason": "Private helper; its behaviour is inventoried through the public symbol or registered action that invokes it"
+  }
+ ],
+ "child_evidence": {
+  "Q.usable-workflow.step-1-freeze-task-criteria-tolerances-margins-participant": "source_inspection",
+  "P7.held-out.step-1-freeze-and-hash-sdk-documentation": "source_inspection",
+  "Q.catalog-admission.step-2-verify-evidence-binding-and-signer-authority": "actual_upstream_worker",
+  "Q.catalog-admission.step-3-attempt-replay-against-a-different-artifact": "actual_upstream_worker",
+  "P8.updates.napari-window-plugins-plugin-install-dialog": "isolated_profile_browser",
+  "W.cellposesam.step-2-run-actual-segmentation-for-each-declared": "physical_device"
+ },
+ "unpinned_sources": [
+  "the napari plugins the W groups require (napari-cellposesam, napari-ome-zarr, napari-animation): versions, archives and hashes",
+  "napari_console and its kernel and Jupyter dependencies (P6)",
+  "the napari documentation repository (napari/docs); this inventory uses docstrings, examples and the builtin manifest"
+ ],
+ "selectors": [
+  {
+   "source": "src/napari/components/dims.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Dims",
+   "group": "P1.axis-position",
+   "routes": [
+    [
+     "^Dims\\.(ndisplay)$",
+     "P1.display-mode"
+    ],
+    [
+     "^Dims\\.(order|rollable|axis_labels)$",
+     "P1.axis-order"
+    ],
+    [
+     "^Dims\\.(margin_left|margin_right)$",
+     "P1.slab-projection"
+    ],
+    [
+     "^Dims\\.units$",
+     "P1.calibrated-coordinates"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/dims.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Dims",
+   "group": "P1.axis-position",
+   "routes": [
+    [
+     "(displayed|not_displayed|displayed_order)$",
+     "P1.axis-order"
+    ],
+    [
+     "(margin_left_step|margin_right_step|thickness|thickness_step)$",
+     "P1.slab-projection"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/dims.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Dims",
+   "group": "P1.axis-position",
+   "routes": [
+    [
+     "(transpose|roll|set_axis_label)$",
+     "P1.axis-order"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/dims.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P1.axis-position"
+  },
+  {
+   "source": "src/napari/components/dims.py",
+   "select": "evented-fields",
+   "kind": "event",
+   "class": "Dims",
+   "group": "P6.callbacks",
+   "prefix": "dims-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_dims.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "QtDims",
+   "group": "P1.axis-position",
+   "routes": [
+    [
+     "is_playing",
+     "P1.playback"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_dims.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "QtDims",
+   "routes": [
+    [
+     "(play|stop)$",
+     "P1.playback"
+    ],
+    [
+     "closeEvent",
+     "exclude",
+     "Qt widget teardown hook"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_dims_slider.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "QtDimSliderWidget",
+   "group": "P1.playback"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_dims_slider.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "QtDimSliderWidget",
+   "routes": [
+    [
+     "show_margins_popup",
+     "P1.slab-projection"
+    ],
+    [
+     "resizeEvent",
+     "exclude",
+     "Qt resize hook; viewport resizing is the .hooke-ui-scale child"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_dims_slider.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "AnimationThread",
+   "group": "P1.playback"
+  },
+  {
+   "source": "src/napari/settings/_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "LoopMode",
+   "group": "P1.playback"
+  },
+  {
+   "source": "src/napari/components/camera.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Camera",
+   "group": "P2.camera"
+  },
+  {
+   "source": "src/napari/components/camera.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Camera",
+   "group": "P2.camera"
+  },
+  {
+   "source": "src/napari/components/camera.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Camera",
+   "group": "P2.camera"
+  },
+  {
+   "source": "src/napari/components/camera.py",
+   "select": "evented-fields",
+   "kind": "event",
+   "class": "Camera",
+   "group": "P6.callbacks",
+   "prefix": "camera-"
+  },
+  {
+   "source": "src/napari/components/grid.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "GridCanvas",
+   "group": "P3.grid-linked-views"
+  },
+  {
+   "source": "src/napari/components/grid.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "GridCanvas",
+   "group": "P3.grid-linked-views"
+  },
+  {
+   "source": "src/napari/components/cursor.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Cursor",
+   "group": "P1.calibrated-coordinates"
+  },
+  {
+   "source": "src/napari/components/tooltip.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Tooltip",
+   "group": "P1.calibrated-coordinates"
+  },
+  {
+   "source": "src/napari/components/canvas.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Canvas",
+   "group": "P3.common-appearance",
+   "routes": [
+    [
+     "grid$",
+     "P3.grid-linked-views"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/canvas.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Canvas",
+   "group": "P3.common-appearance"
+  },
+  {
+   "source": "src/napari/components/canvas.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "OverlayTiling",
+   "group": "P3.common-appearance",
+   "prefix": "tiling-"
+  },
+  {
+   "source": "src/napari/components/_viewer_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "CanvasPosition",
+   "group": "P3.common-appearance"
+  },
+  {
+   "source": "src/napari/components/_viewer_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "CursorStyle",
+   "group": "P3.common-appearance"
+  },
+  {
+   "source": "src/napari/components/overlays/base.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Overlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/base.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "CanvasOverlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/bounding_box.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "BoundingBoxOverlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/brush_circle.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "BrushCircleOverlay",
+   "group": "P4.label-brush",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/canvas_axes.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "CanvasAxesOverlay",
+   "group": "P1.axis-order",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/scene_axes.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "SceneAxesOverlay",
+   "group": "P1.axis-order",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/colorbar.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "ColorBarOverlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/interaction_box.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "SelectionBoxOverlay",
+   "group": "P4.shape-edit",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/interaction_box.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "TransformBoxOverlay",
+   "group": "P3.transforms",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/labels_brush_stroke.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "LabelsBrushStrokeOverlay",
+   "group": "P4.label-tools",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/labels_polygon.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "LabelsPolygonOverlay",
+   "group": "P4.label-tools",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/scale_bar.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "ScaleBarOverlay",
+   "group": "P1.calibrated-coordinates",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/text.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "TextOverlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/text.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "LayerNameOverlay",
+   "group": "P3.common-appearance",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/zoom.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "ZoomOverlay",
+   "group": "P2.camera",
+   "prefix": ""
+  },
+  {
+   "source": "src/napari/components/overlays/interaction_box.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "SelectionBoxOverlay",
+   "group": "P4.shape-edit"
+  },
+  {
+   "source": "src/napari/components/overlays/labels_brush_stroke.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "LabelsBrushStrokeOverlay",
+   "group": "P4.edit-conflicts"
+  },
+  {
+   "source": "src/napari/components/overlays/labels_polygon.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "LabelsPolygonOverlay",
+   "group": "P4.label-tools"
+  },
+  {
+   "source": "src/napari/components/overlays/text.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "exclude",
+   "routes": [
+    [
+     "CurrentSliceOverlay",
+     "P1.axis-position"
+    ]
+   ],
+   "reason": "Overlay class declaration; its fields are inventoried by the overlay field selectors"
+  },
+  {
+   "source": "src/napari/components/viewer_model.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "ViewerModel",
+   "routes": [
+    [
+     "(dims|layers)$",
+     "P6.bidirectional"
+    ],
+    [
+     "(cursor|help|status|tooltip|mouse_over_canvas)$",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "(canvas|scene)$",
+     "P3.common-appearance"
+    ],
+    [
+     "(theme|title)$",
+     "P3.common-appearance"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/viewer_model.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "ViewerModel",
+   "routes": [
+    [
+     "camera$",
+     "P2.camera"
+    ],
+    [
+     "grid$",
+     "P3.grid-linked-views"
+    ],
+    [
+     "(axes|floating_axes)$",
+     "P1.axis-order"
+    ],
+    [
+     "scale_bar$",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "text_overlay$",
+     "P3.common-appearance"
+    ],
+    [
+     "experimental$",
+     "P5.fast-navigation"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/viewer_model.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "ViewerModel",
+   "routes": [
+    [
+     "(json|model_dump)$",
+     "P6.scripts-notebooks"
+    ],
+    [
+     "(reset_view|fit_to_view)$",
+     "P2.camera"
+    ],
+    [
+     "(update_status_from_cursor|canvas_to_world)$",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "(add_layer|add_image)$",
+     "P3.lifecycle"
+    ],
+    [
+     "open_sample$",
+     "P7.samples-commands"
+    ],
+    [
+     "open$",
+     "P7.readers"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/viewer.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Viewer",
+   "routes": [
+    [
+     "update_console",
+     "P6.console-session"
+    ],
+    [
+     "(export_figure|screenshot)$",
+     "P3.common-appearance"
+    ],
+    [
+     "export_rois",
+     "P4.shape-edit"
+    ],
+    [
+     "(show|close|close_all)$",
+     "P6.scripts-notebooks"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/viewer.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P6.scripts-notebooks"
+  },
+  {
+   "source": "src/napari/view_layers.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P6.scripts-notebooks"
+  },
+  {
+   "source": "src/napari/components/layerlist.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "LayerList",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "units",
+     "P1.calibrated-coordinates"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/layerlist.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "LayerList",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "(link_layers|unlink_layers)$",
+     "P3.grid-linked-views"
+    ],
+    [
+     "save$",
+     "P7.writers"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/layerlist.py",
+   "select": "events",
+   "kind": "event",
+   "class": "LayerList",
+   "group": "P6.callbacks",
+   "prefix": "layerlist-"
+  },
+  {
+   "source": "src/napari/layers/utils/_link_layers.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P3.grid-linked-views"
+  },
+  {
+   "source": "src/napari/layers/base/base.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Layer",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "(mode)$",
+     "P3.lifecycle"
+    ],
+    [
+     "projection_mode$",
+     "P1.slab-projection"
+    ],
+    [
+     "(opacity|blending|cursor|cursor_size|bounding_box|name_overlay)$",
+     "P3.common-appearance"
+    ],
+    [
+     "(scale|scale_factor|translate|rotate|shear|affine)$",
+     "P3.transforms"
+    ],
+    [
+     "(axis_labels|units)$",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "experimental_clipping_planes",
+     "P2.clipping-planes"
+    ],
+    [
+     "(mouse_pan|mouse_zoom)$",
+     "P2.camera"
+    ],
+    [
+     "data$",
+     "P6.arrays"
+    ],
+    [
+     "loaded$",
+     "P5.fast-navigation"
+    ],
+    [
+     "ndim$",
+     "P1.axis-position"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/base/base.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Layer",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "(world_to_data|data_to_world|get_value|get_status|extent)$",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "(get_ray_intersections|click_plane_from_click_data|projected_distance_from_mouse_drag)$",
+     "P2.mixed-picking"
+    ],
+    [
+     "update_transform_box_visibility",
+     "P3.transforms"
+    ],
+    [
+     "update_highlight_visibility",
+     "P3.common-appearance"
+    ],
+    [
+     "(set_view_slice|refresh)$",
+     "P5.fast-navigation"
+    ],
+    [
+     "block_update_properties",
+     "P6.bidirectional"
+    ],
+    [
+     "(save)$",
+     "P7.writers"
+    ],
+    [
+     "(as_layer_data_tuple|create)$",
+     "P7.readers"
+    ],
+    [
+     "get_source_str",
+     "P3.lifecycle"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/base/base.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Layer",
+   "group": "P6.callbacks",
+   "prefix": "layer-"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Blending",
+   "group": "P3.common-appearance"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Mode",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ],
+   "prefix": "base-"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "InteractionBoxHandle",
+   "group": "P3.transforms"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "LayerLock",
+   "group": "P3.lifecycle"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ActionType",
+   "group": "P6.callbacks"
+  },
+  {
+   "source": "src/napari/layers/base/_base_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "BaseProjectionMode",
+   "group": "P1.slab-projection"
+  },
+  {
+   "source": "src/napari/layers/utils/plane.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Plane",
+   "group": "P2.clipping-planes"
+  },
+  {
+   "source": "src/napari/layers/utils/plane.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "SlicingPlane",
+   "group": "P2.clipping-planes",
+   "prefix": "slicing-"
+  },
+  {
+   "source": "src/napari/layers/utils/plane.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "ClippingPlane",
+   "group": "P2.clipping-planes",
+   "prefix": "clipping-"
+  },
+  {
+   "source": "src/napari/layers/utils/plane.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Plane",
+   "group": "P2.clipping-planes"
+  },
+  {
+   "source": "src/napari/layers/utils/plane.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "ClippingPlaneList",
+   "group": "P2.clipping-planes"
+  },
+  {
+   "source": "src/napari/layers/utils/text_manager.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "TextManager",
+   "group": "P3.points",
+   "prefix": "text-"
+  },
+  {
+   "source": "src/napari/layers/utils/text_manager.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "TextManager",
+   "group": "P3.points",
+   "prefix": "text-"
+  },
+  {
+   "source": "src/napari/layers/utils/_text_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Anchor",
+   "group": "P3.points",
+   "prefix": "text-"
+  },
+  {
+   "source": "src/napari/layers/_scalar_field/scalar_field.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "ScalarFieldBase",
+   "routes": [
+    [
+     "(data_level|locked_data_level|level_shapes|downsample_factors)$",
+     "P5.multiscale"
+    ],
+    [
+     "(depiction|plane)$",
+     "P2.clipping-planes"
+    ],
+    [
+     "(dtype|data_raw|custom_interpolation_kernel_2d)$",
+     "P3.image"
+    ],
+    [
+     "data$",
+     "P5.lazy-open"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/_scalar_field/scalar_field.py",
+   "select": "events",
+   "kind": "event",
+   "class": "ScalarFieldBase",
+   "group": "P6.callbacks",
+   "prefix": "scalar-"
+  },
+  {
+   "source": "src/napari/layers/image/image.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Image",
+   "group": "P3.image",
+   "routes": [
+    [
+     "rendering$",
+     "P2.volume-modes"
+    ],
+    [
+     "(attenuation|iso_threshold|interpolation3d)$",
+     "P2.volume-parameters"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/intensity_mixin.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "IntensityVisualizationMixin",
+   "group": "P3.image"
+  },
+  {
+   "source": "src/napari/layers/intensity_mixin.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "IntensityVisualizationMixin",
+   "group": "P3.image"
+  },
+  {
+   "source": "src/napari/layers/intensity_mixin.py",
+   "select": "events",
+   "kind": "event",
+   "class": "IntensityVisualizationMixin",
+   "group": "P6.callbacks",
+   "prefix": "intensity-"
+  },
+  {
+   "source": "src/napari/layers/image/_image_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Interpolation",
+   "group": "P3.image"
+  },
+  {
+   "source": "src/napari/layers/image/_image_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ImageRendering",
+   "group": "P2.volume-modes"
+  },
+  {
+   "source": "src/napari/layers/image/_image_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "VolumeDepiction",
+   "group": "P2.clipping-planes"
+  },
+  {
+   "source": "src/napari/layers/image/_image_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ImageProjectionMode",
+   "group": "P1.slab-projection"
+  },
+  {
+   "source": "src/napari/layers/image/_image_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "group": "P3.image",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ],
+    [
+     "orient_plane",
+     "P2.clipping-planes"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/labels/labels.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Labels",
+   "group": "P3.labels",
+   "routes": [
+    [
+     "(rendering|iso_gradient_mode)$",
+     "P2.volume-modes"
+    ],
+    [
+     "(contiguous|preserve_labels)$",
+     "P4.label-fill-preserve"
+    ],
+    [
+     "(n_edit_dimensions|brush_size)$",
+     "P4.label-brush"
+    ],
+    [
+     "mode$",
+     "P4.label-tools"
+    ],
+    [
+     "selected_label$",
+     "P4.label-tools"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/labels/labels.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Labels",
+   "group": "P3.labels",
+   "routes": [
+    [
+     "(undo|redo|block_history|data_setitem)$",
+     "P4.label-history"
+    ],
+    [
+     "(fill|paint|paint_polygon|swap_selected_and_background_labels)$",
+     "P4.label-tools"
+    ],
+    [
+     "get_status",
+     "P1.calibrated-coordinates"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/labels/labels.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Labels",
+   "group": "P6.callbacks",
+   "prefix": "labels-"
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Mode",
+   "group": "P4.label-tools",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ],
+   "prefix": "labels-"
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "LabelColorMode",
+   "group": "P3.labels"
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "LabelsRendering",
+   "group": "P2.volume-modes"
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "IsoCategoricalGradientMode",
+   "group": "P2.volume-modes"
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "group": "P4.label-tools",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ],
+    [
+     "(undo|redo)$",
+     "P4.label-history"
+    ],
+    [
+     "brush_size",
+     "P4.label-brush"
+    ],
+    [
+     "preserve_labels",
+     "P4.label-fill-preserve"
+    ],
+    [
+     "(reset_polygon)$",
+     "P4.edit-conflicts"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/labels/_labels_mouse_bindings.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P4.label-tools",
+   "prefix": "mouse-"
+  },
+  {
+   "source": "src/napari/layers/points/points.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Points",
+   "group": "P3.points",
+   "routes": [
+    [
+     "(out_of_slice_display|n_dimensional)$",
+     "P3.out-of-slice"
+    ],
+    [
+     "^Points\\.(current_|selected_data|mode)",
+     "P4.point-edit"
+    ],
+    [
+     "data$",
+     "P3.points"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/points/points.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Points",
+   "group": "P3.points",
+   "routes": [
+    [
+     "(add|remove|pop|remove_selected|interaction_box|mode|get_point_info)$",
+     "P4.point-edit"
+    ],
+    [
+     "get_ray_intersections",
+     "P2.mixed-picking"
+    ],
+    [
+     "get_status",
+     "P1.calibrated-coordinates"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/points/points.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Points",
+   "group": "P6.callbacks",
+   "prefix": "points-"
+  },
+  {
+   "source": "src/napari/layers/points/_points_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Mode",
+   "group": "P4.point-edit",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ],
+   "prefix": "points-"
+  },
+  {
+   "source": "src/napari/layers/points/_points_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Symbol",
+   "group": "P3.points"
+  },
+  {
+   "source": "src/napari/layers/points/_points_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Shading",
+   "group": "P3.points"
+  },
+  {
+   "source": "src/napari/layers/points/_points_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ColorMode",
+   "group": "P3.points"
+  },
+  {
+   "source": "src/napari/layers/points/_points_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "PointsProjectionMode",
+   "group": "P3.out-of-slice"
+  },
+  {
+   "source": "src/napari/layers/points/_points_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "group": "P4.point-edit",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/points/_points_mouse_bindings.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P4.point-edit",
+   "prefix": "mouse-"
+  },
+  {
+   "source": "src/napari/layers/shapes/shapes.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Shapes",
+   "group": "P3.shapes",
+   "routes": [
+    [
+     "^Shapes\\.current_",
+     "P4.shape-create"
+    ],
+    [
+     "(selected_data|mode|z_index)$",
+     "P4.shape-edit"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/shapes/shapes.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Shapes",
+   "group": "P3.shapes",
+   "routes": [
+    [
+     "^Shapes\\.add",
+     "P4.shape-create"
+    ],
+    [
+     "(remove|remove_selected|pop|move_to_front|move_to_back|interaction_box|get_index_and_intersection|get_shape_info)$",
+     "P4.shape-edit"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/shapes/shapes.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Shapes",
+   "group": "P6.callbacks",
+   "prefix": "shapes-"
+  },
+  {
+   "source": "src/napari/layers/shapes/_shapes_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Mode",
+   "group": "P4.shape-edit",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ],
+    [
+     "^Mode\\.ADD_",
+     "P4.shape-create"
+    ]
+   ],
+   "prefix": "shapes-"
+  },
+  {
+   "source": "src/napari/layers/shapes/_shapes_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ShapeType",
+   "group": "P3.shapes"
+  },
+  {
+   "source": "src/napari/layers/shapes/_shapes_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "ColorMode",
+   "group": "P3.shapes"
+  },
+  {
+   "source": "src/napari/layers/shapes/_shapes_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "group": "P4.shape-edit",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ],
+    [
+     "(activate_add|finish_drawing|hold_to_lock)",
+     "P4.shape-create"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/shapes/_shapes_mouse_bindings.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P4.shape-edit",
+   "routes": [
+    [
+     "^(add|finish|_add|initiate|polygon_creating)",
+     "P4.shape-create"
+    ]
+   ],
+   "prefix": "mouse-"
+  },
+  {
+   "source": "src/napari/layers/surface/surface.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Surface",
+   "group": "P3.surface",
+   "routes": [
+    [
+     "(shading|wireframe|normals|texture|texcoords|vertex_colors)$",
+     "P2.surface-render"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/surface/surface.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Surface",
+   "group": "P6.callbacks",
+   "prefix": "surface-"
+  },
+  {
+   "source": "src/napari/layers/surface/_surface_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "Shading",
+   "group": "P2.surface-render"
+  },
+  {
+   "source": "src/napari/layers/surface/_surface_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "SurfaceProjectionMode",
+   "group": "P3.out-of-slice"
+  },
+  {
+   "source": "src/napari/layers/surface/wireframe.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "SurfaceWireframe",
+   "group": "P2.surface-render",
+   "prefix": "wireframe-"
+  },
+  {
+   "source": "src/napari/layers/surface/normals.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "Normals",
+   "group": "P2.surface-render",
+   "prefix": "normals-"
+  },
+  {
+   "source": "src/napari/layers/surface/normals.py",
+   "select": "fields",
+   "kind": "field",
+   "class": "SurfaceNormals",
+   "group": "P2.surface-render",
+   "prefix": "surface-normals-"
+  },
+  {
+   "source": "src/napari/layers/surface/_surface_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/vectors/vectors.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Vectors",
+   "group": "P3.vectors",
+   "routes": [
+    [
+     "out_of_slice_display",
+     "P3.out-of-slice"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/vectors/vectors.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Vectors",
+   "group": "P3.vectors"
+  },
+  {
+   "source": "src/napari/layers/vectors/vectors.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Vectors",
+   "group": "P6.callbacks",
+   "prefix": "vectors-"
+  },
+  {
+   "source": "src/napari/layers/vectors/_vectors_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "VectorStyle",
+   "group": "P3.vectors"
+  },
+  {
+   "source": "src/napari/layers/vectors/_vectors_constants.py",
+   "select": "enum",
+   "kind": "enum-value",
+   "class": "VectorsProjectionMode",
+   "group": "P3.out-of-slice"
+  },
+  {
+   "source": "src/napari/layers/vectors/_vectors_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/layers/tracks/tracks.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Tracks",
+   "group": "P3.tracks"
+  },
+  {
+   "source": "src/napari/layers/tracks/tracks.py",
+   "select": "events",
+   "kind": "event",
+   "class": "Tracks",
+   "group": "P6.callbacks",
+   "prefix": "tracks-"
+  },
+  {
+   "source": "src/napari/layers/tracks/_tracks_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "routes": [
+    [
+     "PAN_ZOOM$|pan_zoom_mode$",
+     "P2.camera"
+    ],
+    [
+     "TRANSFORM$|transform_mode$",
+     "P3.transforms"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.image",
+   "routes": [
+    [
+     "QtOpacityBlending|QtTextVisibility",
+     "P3.common-appearance"
+    ],
+    [
+     "QtProjectionMode",
+     "P1.slab-projection"
+    ],
+    [
+     "QtMultiscaleLevel",
+     "P5.multiscale"
+    ],
+    [
+     "QtWidgetControlsBase|QtWrappedLabel|QtWidgetControlsProtocol",
+     "exclude",
+     "Base class of every control; the concrete controls are inventoried"
+    ],
+    [
+     "QtFaceColor",
+     "P3.points"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_image/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.image",
+   "routes": [
+    [
+     "Depiction",
+     "P2.clipping-planes"
+    ],
+    [
+     "Render",
+     "P2.volume-modes"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_labels/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.labels",
+   "routes": [
+    [
+     "BrushSize|Ndim",
+     "P4.label-brush"
+    ],
+    [
+     "Contiguous|PreserveLabels",
+     "P4.label-fill-preserve"
+    ],
+    [
+     "Render",
+     "P2.volume-modes"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_points/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.points",
+   "routes": [
+    [
+     "OutOfSlice|Projection",
+     "P3.out-of-slice"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_shapes/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.shapes"
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_surface/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P2.surface-render"
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_tracks/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.tracks"
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/widgets/_vectors/*.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.vectors",
+   "routes": [
+    [
+     "OutOfSlice|Projection",
+     "P3.out-of-slice"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/layer_controls/qt_*_controls.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P3.common-appearance",
+   "routes": [
+    [
+     "QtLabels",
+     "P4.label-tools"
+    ],
+    [
+     "QtPoints",
+     "P4.point-edit"
+    ],
+    [
+     "QtShapes",
+     "P4.shape-create"
+    ],
+    [
+     "QtImage",
+     "P3.image"
+    ],
+    [
+     "QtSurface",
+     "P3.surface"
+    ],
+    [
+     "QtTracks",
+     "P3.tracks"
+    ],
+    [
+     "QtVectors",
+     "P3.vectors"
+    ],
+    [
+     "QtLayerControls$|QtImageControlsBase|LayerFormLayout|QtCollapsible",
+     "P3.common-appearance"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/components/_viewer_key_bindings.py",
+   "select": "registered",
+   "kind": "action",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "toggle_ndisplay",
+     "P1.display-mode"
+    ],
+    [
+     "toggle_theme",
+     "P3.common-appearance"
+    ],
+    [
+     "reset_view|hold_for_pan_zoom",
+     "P2.camera"
+    ],
+    [
+     "(increment_dims|focus_axes)",
+     "P1.axis-position"
+    ],
+    [
+     "(roll_axes|transpose_axes)",
+     "P1.axis-order"
+    ],
+    [
+     "rotate_layers",
+     "P3.transforms"
+    ],
+    [
+     "toggle_grid",
+     "P3.grid-linked-views"
+    ],
+    [
+     "toggle_console",
+     "P6.console-session"
+    ],
+    [
+     "show_shortcuts",
+     "P3.common-appearance"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/utils/shortcuts.py",
+   "select": "dict-keys",
+   "kind": "shortcut",
+   "routes": [
+    [
+     "toggle_console",
+     "P6.console-session"
+    ],
+    [
+     "toggle_ndisplay",
+     "P1.display-mode"
+    ],
+    [
+     "toggle_theme|show_shortcuts",
+     "P3.common-appearance"
+    ],
+    [
+     "reset_view|hold_for_pan_zoom|pan_zoom_mode",
+     "P2.camera"
+    ],
+    [
+     "transform_mode",
+     "P3.transforms"
+    ],
+    [
+     "increment_dims|focus_axes",
+     "P1.axis-position"
+    ],
+    [
+     "roll_axes|transpose_axes",
+     "P1.axis-order"
+    ],
+    [
+     "rotate_layers",
+     "P3.transforms"
+    ],
+    [
+     "toggle_grid",
+     "P3.grid-linked-views"
+    ],
+    [
+     "(delete_selected_layers|toggle_selected_visibility|toggle_unselected_visibility|select_layer|show_only_layer)",
+     "P3.lifecycle"
+    ],
+    [
+     "brush_size",
+     "P4.label-brush"
+    ],
+    [
+     "preserve_labels",
+     "P4.label-fill-preserve"
+    ],
+    [
+     "reset_polygon",
+     "P4.edit-conflicts"
+    ],
+    [
+     "labels|label_id|new_label|swap_selected|complete_polygon",
+     "P4.label-tools"
+    ],
+    [
+     "points|delete_selected_points|select_all_data|select_append_all|select_all_in_slice",
+     "P4.point-edit"
+    ],
+    [
+     "activate_add_|finish_drawing|lock_aspect",
+     "P4.shape-create"
+    ],
+    [
+     "shapes|direct_mode|select_mode|vertex_|move_shapes|copy_selected|paste_shape",
+     "P4.shape-edit"
+    ],
+    [
+     "orient_plane",
+     "P2.clipping-planes"
+    ],
+    [
+     "auto_contrast",
+     "P3.image"
+    ]
+   ],
+   "name": "_default_shortcuts",
+   "prefix": "shortcut-"
+  },
+  {
+   "source": "src/napari/_app_model/actions/_view.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "routes": [
+    [
+     "toggle_ndisplay",
+     "P1.display-mode"
+    ],
+    [
+     "(fit_to_view|zoom_in|zoom_out|toggle_synced_camera)",
+     "P2.camera"
+    ],
+    [
+     "toggle_layer_tooltips",
+     "P3.common-appearance"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_app_model/actions/_view.py",
+   "select": "tuples",
+   "kind": "menu-command",
+   "group": "P3.common-appearance",
+   "routes": [
+    [
+     "scale_bar",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "axes",
+     "P1.axis-order"
+    ]
+   ],
+   "name": "toggle_actions"
+  },
+  {
+   "source": "src/napari/_app_model/actions/_file.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "group": "P3.lifecycle"
+  },
+  {
+   "source": "src/napari/_app_model/actions/_layerlist_context_actions.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "group": "P3.lifecycle",
+   "routes": [
+    [
+     "(bounding_box|colorbar|border_colorbar|face_colorbar|name_overlay)$",
+     "P3.common-appearance"
+    ],
+    [
+     "(link_selected|unlink_selected|select_linked)",
+     "P3.grid-linked-views"
+    ],
+    [
+     "extract_multiscale_level",
+     "P5.multiscale"
+    ],
+    [
+     "project_points_single_plane",
+     "P3.points"
+    ],
+    [
+     "project_(max|min|std|sum|mean|median)",
+     "P1.slab-projection"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_layerlist_context.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "group": "P3.transforms"
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_file.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "routes": [
+    [
+     "(open_|image_from_clipboard)",
+     "P7.readers"
+    ],
+    [
+     "save_layers",
+     "P7.writers"
+    ],
+    [
+     "screenshot",
+     "P3.common-appearance"
+    ],
+    [
+     "show_preferences",
+     "P3.common-appearance"
+    ],
+    [
+     "(close_dialog|restart|quit_dialog)",
+     "exclude",
+     "Window chrome of the Qt shell; Hooke may use a different layout (acceptance.md \u00a74) and its restart/reopen duties are the .hooke-ui-lifecycle children (coverage reviewer to confirm)"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_view.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "routes": [
+    [
+     "toggle_play",
+     "P1.playback"
+    ],
+    [
+     "toggle_activity_dock",
+     "P7.background"
+    ],
+    [
+     "toggle_command_palette",
+     "P7.samples-commands"
+    ],
+    [
+     "(toggle_fullscreen|toggle_menubar)",
+     "exclude",
+     "Window chrome of the Qt shell; Hooke may use a different layout (acceptance.md \u00a74) and its restart/reopen duties are the .hooke-ui-lifecycle children (coverage reviewer to confirm)"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_help.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "routes": [
+    [
+     ".",
+     "exclude",
+     "External documentation link or diagnostic report; not a scientific-workspace interaction (coverage reviewer to confirm)"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_debug.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "routes": [
+    [
+     ".",
+     "exclude",
+     "Developer performance tracing of the Qt shell"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/_qapp_model/qactions/_plugins.py",
+   "select": "actions",
+   "kind": "menu-command",
+   "group": "P8.updates"
+  },
+  {
+   "source": "src/napari/plugins/_npe2.py",
+   "select": "functions",
+   "kind": "function",
+   "routes": [
+    [
+     "^(read|get_readers)$",
+     "P7.readers"
+    ],
+    [
+     "^(write_layers|file_extensions_string_for_layers)$",
+     "P7.writers"
+    ],
+    [
+     "(sample_iterator|get_sample_data)",
+     "P7.samples-commands"
+    ],
+    [
+     "(get_widget_contribution|widget_iterator)",
+     "P7.custom-panel"
+    ],
+    [
+     "populate_qmenu",
+     "P7.samples-commands"
+    ],
+    [
+     "(iter_manifests|index_npe1_adapters|on_plugins_registered)",
+     "P7.samples-commands"
+    ],
+    [
+     "on_plugin_enablement_change",
+     "P7.panel-lifecycle"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/utils/_magicgui.py",
+   "select": "functions",
+   "kind": "function",
+   "group": "P7.forms",
+   "routes": [
+    [
+     "(add_worker_data|add_future_data)",
+     "P7.background"
+    ],
+    [
+     "^get_layers",
+     "P7.dynamic-controls"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/types.py",
+   "select": "newtypes",
+   "kind": "function",
+   "group": "P7.forms",
+   "prefix": "type-"
+  },
+  {
+   "source": "src/napari_builtins/builtins.yaml",
+   "select": "yaml",
+   "kind": "contribution",
+   "group": "P7.readers",
+   "sections": [
+    "readers"
+   ],
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari_builtins/builtins.yaml",
+   "select": "yaml",
+   "kind": "contribution",
+   "group": "P7.writers",
+   "sections": [
+    "writers"
+   ],
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari_builtins/builtins.yaml",
+   "select": "yaml",
+   "kind": "contribution",
+   "group": "P7.samples-commands",
+   "routes": [
+    [
+     "^widgets",
+     "P7.custom-panel"
+    ]
+   ],
+   "sections": [
+    "sample_data",
+    "widgets"
+   ],
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari/_qt/qt_main_window.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "Window",
+   "group": "P7.custom-panel"
+  },
+  {
+   "source": "src/napari/_qt/qt_main_window.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "Window",
+   "routes": [
+    [
+     "remove_dock_widget",
+     "P7.panel-lifecycle"
+    ],
+    [
+     "(add_plugin_dock_widget|add_dock_widget)",
+     "P7.custom-panel"
+    ],
+    [
+     "add_function_widget",
+     "P7.forms"
+    ],
+    [
+     "(export_figure|screenshot|clipboard)",
+     "P3.common-appearance"
+    ],
+    [
+     "export_rois",
+     "P4.shape-edit"
+    ],
+    [
+     "(resize|set_geometry|geometry|show|activate|close)$",
+     "exclude",
+     "Window chrome of the Qt shell; Hooke may use a different layout (acceptance.md \u00a74) and its restart/reopen duties are the .hooke-ui-lifecycle children (coverage reviewer to confirm)"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/qt_viewer.py",
+   "select": "properties",
+   "kind": "property",
+   "class": "QtViewer",
+   "routes": [
+    [
+     "(console|console_backlog|dockConsole)$",
+     "P6.console-session"
+    ],
+    [
+     "(layers|dockLayerList|layerButtons)$",
+     "P3.lifecycle"
+    ],
+    [
+     "(controls|dockLayerControls)$",
+     "P3.common-appearance"
+    ],
+    [
+     "viewerButtons",
+     "P1.display-mode"
+    ],
+    [
+     "(show_welcome_screen)",
+     "P3.lifecycle"
+    ],
+    [
+     "(dockPerformance)",
+     "exclude",
+     "Developer performance tracing of the Qt shell"
+    ],
+    [
+     "layer_to_visual",
+     "P3.common-appearance"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/_qt/qt_viewer.py",
+   "select": "methods",
+   "kind": "method",
+   "class": "QtViewer",
+   "routes": [
+    [
+     "(add_to_console_backlog|toggle_console_visibility)",
+     "P6.console-session"
+    ],
+    [
+     "(screenshot|clipboard|export_figure)",
+     "P3.common-appearance"
+    ],
+    [
+     "export_rois",
+     "P4.shape-edit"
+    ],
+    [
+     "(dragEnterEvent|dropEvent)",
+     "P7.readers"
+    ],
+    [
+     "resize_canvas",
+     "exclude",
+     "Window chrome of the Qt shell; Hooke may use a different layout (acceptance.md \u00a74) and its restart/reopen duties are the .hooke-ui-lifecycle children (coverage reviewer to confirm)"
+    ],
+    [
+     "(showEvent|hideEvent|closeEvent|keyPressEvent|keyReleaseEvent|set_welcome_tips)",
+     "exclude",
+     "Qt event hook; keyboard delivery is covered by the shortcut and .hooke-ui-input children"
+    ]
+   ]
+  },
+  {
+   "source": "src/napari/settings/_application.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "ApplicationSettings",
+   "routes": [
+    [
+     "(playback_fps|playback_mode)",
+     "P1.playback"
+    ],
+    [
+     "axis_orientation",
+     "P2.camera"
+    ],
+    [
+     "synced_camera",
+     "P2.camera"
+    ],
+    [
+     "^ApplicationSettings\\.grid_",
+     "P3.grid-linked-views"
+    ],
+    [
+     "float_display_precision",
+     "P1.calibrated-coordinates"
+    ],
+    [
+     "brush_size_on_mouse_move",
+     "P4.label-brush"
+    ],
+    [
+     "(ipy_interactive)",
+     "P6.console-session"
+    ],
+    [
+     "(open_history|save_history)",
+     "P7.readers"
+    ],
+    [
+     "(notification_level)",
+     "Q.failure-isolation"
+    ],
+    [
+     "dask$",
+     "P5.lazy-open"
+    ],
+    [
+     "new_labels_dtype",
+     "P3.labels"
+    ],
+    [
+     "plugin_widget_positions",
+     "P7.panel-lifecycle"
+    ],
+    [
+     "startup_script",
+     "P6.scripts-notebooks"
+    ],
+    [
+     "(first_time|save_window|window_|preferences_size|confirm_close_window|hold_button_delay)",
+     "exclude",
+     "Window chrome of the Qt shell; Hooke may use a different layout (acceptance.md \u00a74) and its restart/reopen duties are the .hooke-ui-lifecycle children (coverage reviewer to confirm)"
+    ]
+   ],
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_application.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "DaskSettings",
+   "group": "P5.lazy-open",
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_appearance.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "AppearanceSettings",
+   "group": "P3.common-appearance",
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_appearance.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "HighlightSettings",
+   "group": "P3.common-appearance",
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_experimental.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "ExperimentalSettings",
+   "routes": [
+    [
+     "async_",
+     "P5.fast-navigation"
+    ],
+    [
+     "(rdp_epsilon|lasso_vertex_distance|triangulation|compiled_triangulation)",
+     "P4.shape-create"
+    ],
+    [
+     "completion_radius",
+     "P4.label-tools"
+    ],
+    [
+     "colormap_backend",
+     "P3.labels"
+    ],
+    [
+     "command_palette",
+     "P7.samples-commands"
+    ],
+    [
+     "dynamic_layer_controls",
+     "P3.common-appearance"
+    ]
+   ],
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_plugins.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "PluginsSettings",
+   "routes": [
+    [
+     "disabled_plugins",
+     "P7.panel-lifecycle"
+    ],
+    [
+     "extension2reader",
+     "P7.readers"
+    ],
+    [
+     "extension2writer",
+     "P7.writers"
+    ]
+   ],
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/settings/_shortcuts.py",
+   "select": "fields",
+   "kind": "setting",
+   "class": "ShortcutsSettings",
+   "group": "P3.common-appearance",
+   "prefix": "setting-"
+  },
+  {
+   "source": "src/napari/layers/_multiscale_data.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P5.multiscale"
+  },
+  {
+   "source": "src/napari/layers/_data_protocols.py",
+   "select": "classes",
+   "kind": "control",
+   "group": "P5.lazy-open"
+  },
+  {
+   "source": "src/napari/utils/events/event.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/events/evented_model.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/events/containers/*.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-",
+   "file_prefix": true
+  },
+  {
+   "source": "src/napari/utils/key_bindings.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/transforms/transforms.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.transforms",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/colormaps/colormap.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.image",
+   "routes": [
+    [
+     "Label|Direct|Cyclic",
+     "P3.labels"
+    ]
+   ],
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/colormaps/colormap_utils.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.image",
+   "routes": [
+    [
+     "label",
+     "P3.labels"
+    ]
+   ],
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/notifications.py",
+   "select": "public",
+   "kind": "method",
+   "group": "Q.failure-isolation",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/theme.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.common-appearance",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/progress.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.background",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/action_manager.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.samples-commands",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/history.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.readers",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/io.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.readers",
+   "routes": [
+    [
+     "write|save|imsave",
+     "P7.writers"
+    ]
+   ],
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/layers/utils/color_encoding.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.points",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/layers/utils/string_encoding.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.points",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/layers/utils/color_manager.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.points",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/layers/utils/layer_utils.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.lifecycle",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/layers/utils/interactivity_utils.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P2.mixed-picking",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_command_palette.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.samples-commands",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_keyboard_settings.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.common-appearance",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/dialogs/qt_notification.py",
+   "select": "public",
+   "kind": "method",
+   "group": "Q.failure-isolation",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_viewer_buttons.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P1.display-mode",
+   "routes": [
+    [
+     "Grid",
+     "P3.grid-linked-views"
+    ],
+    [
+     "Roll|Transpose",
+     "P1.axis-order"
+    ],
+    [
+     "Home|Reset",
+     "P2.camera"
+    ]
+   ],
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_vispy/camera.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P2.camera",
+   "prefix": "vispy-"
+  },
+  {
+   "source": "src/napari/_vispy/canvas.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P1.calibrated-coordinates",
+   "prefix": "vispy-"
+  },
+  {
+   "source": "src/napari/__main__.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.scripts-notebooks",
+   "prefix": "cli-"
+  },
+  {
+   "source": "src/napari/plugins/*.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.samples-commands",
+   "prefix": "plugins-",
+   "file_prefix": true
+  },
+  {
+   "source": "src/napari_builtins/io/*.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.readers",
+   "routes": [
+    [
+     "write|save|imsave",
+     "P7.writers"
+    ]
+   ],
+   "prefix": "builtin-",
+   "file_prefix": true
+  },
+  {
+   "source": "src/napari_builtins/_qt/features_table.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.lifecycle",
+   "prefix": "features-table-"
+  },
+  {
+   "source": "src/napari_builtins/_measure_shapes.py",
+   "select": "public",
+   "kind": "method",
+   "group": "W.relations-calibration",
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari_builtins/_ndims_balls.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.samples-commands",
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari_builtins/_diffusion_4d.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.samples-commands",
+   "prefix": "builtin-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_viewer_dock_widget.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.panel-lifecycle",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/dialogs/qt_activity_dialog.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.background",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/task_status.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P7.background",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/components/histogram.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.image",
+   "prefix": "histogram-"
+  },
+  {
+   "source": "src/napari/utils/camera_orientations.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P2.camera",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/mouse_bindings.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/interactions.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P6.callbacks",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/color.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.common-appearance",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/utils/transforms/transform_utils.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.transforms",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_color_swatch.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.common-appearance",
+   "prefix": "swatch-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_highlight_preview.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.common-appearance",
+   "prefix": "highlight-"
+  },
+  {
+   "source": "src/napari/_qt/widgets/qt_welcome.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.lifecycle",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/containers/qt_axis_model.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P1.axis-order",
+   "prefix": "api-"
+  },
+  {
+   "source": "src/napari/_qt/containers/qt_tree_model.py",
+   "select": "public",
+   "kind": "method",
+   "group": "P3.lifecycle",
+   "prefix": "api-"
+  }
+ ],
+ "templates": [
+  {
+   "suffix": "hooke-ui-entry",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 1",
+   "requirement": "\"{title}\" begins through ordinary Open, Project Data, layer controls, Tools or a declared panel of the installed app, with no private fixture injection.",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-ui-input",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 2",
+   "requirement": "\"{title}\" is operated with representative mouse/trackpad and keyboard paths; focus, labels and help, disabled reasons, shortcut conflicts and the current selection are correct.",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-ui-scale",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 3",
+   "requirement": "\"{title}\" repeats at the declared viewport sizes and device-pixel scales, resizing during interaction, with no clipping and an exact screen-to-data mapping.",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-ui-states",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 4",
+   "requirement": "\"{title}\" shows preview versus accepted state, busy, error and cancel states, and stale/conflict recovery, preserving drafts and other unsaved layers.",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-ui-lifecycle",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 5",
+   "requirement": "Switching Tab or Project, closing and reopening the panel or window and restarting the app during \"{title}\" keep background work on its original input and destination.",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-ui-saved",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a74 step 6",
+   "requirement": "After \"{title}\", the exact saved scientific values, features, relations and provenance are inspected, then exported and reimported (or reopened across OSes where applicable).",
+   "evidence": "isolated_profile_browser"
+  },
+  {
+   "suffix": "hooke-failure-recovery",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a73 failure suite",
+   "requirement": "Each applicable injected failure during \"{title}\" (malformed input, dependency conflict, denied access, missing artifact, low disk, interrupted write, hang/crash, cancel, reconnect, stale revision, failed upgrade, revoked authorization, incomplete cleanup) is reported, leaves unrelated jobs, acquisition, saved work and generations intact, terminates owned workers and grants, and a corrected retry succeeds; the first failure evidence is kept.",
+   "evidence": "actual_upstream_worker"
+  },
+  {
+   "suffix": "hooke-comparison",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a75 matched comparison",
+   "requirement": "\"{title}\" is compared with pinned napari on frozen reference source, data, hardware, renderer and cache conditions, with numeric/render tolerances and a no-worse rule frozen before the final run; every attempt is kept.",
+   "evidence": "actual_upstream_worker"
+  },
+  {
+   "suffix": "qualify-configured",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "README \"What finished means\"; acceptance.md \u00a72 Qualification",
+   "requirement": "\"{title}\": Configured \u2014 the ordinary install and preparation paths complete on two independently reset instances of each advertised target, recorded separately.",
+   "evidence": "clean_os_installation"
+  },
+  {
+   "suffix": "qualify-operational",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "README \"What finished means\"; acceptance.md \u00a72 Qualification",
+   "requirement": "\"{title}\": Operational \u2014 the actual operation runs with its exact mode, runtime, parameters, device and reference tolerance, recorded separately.",
+   "evidence": "actual_upstream_worker"
+  },
+  {
+   "suffix": "qualify-usable",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "README \"What finished means\"; acceptance.md \u00a72, \u00a75",
+   "requirement": "\"{title}\": Usable \u2014 fresh researchers complete the intended task inside Hooke under the frozen no-worse rule, recorded separately.",
+   "evidence": "fresh_researcher_comparison"
+  },
+  {
+   "suffix": "platform-macos",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a76 clean-machine and platform qualification",
+   "requirement": "\"{title}\" passes on a clean macos instance of each advertised configuration (OS image, architecture, graphics/device, exact app artifact recorded).",
+   "evidence": "clean_os_installation"
+  },
+  {
+   "suffix": "platform-windows",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a76 clean-machine and platform qualification",
+   "requirement": "\"{title}\" passes on a clean windows instance of each advertised configuration (OS image, architecture, graphics/device, exact app artifact recorded).",
+   "evidence": "clean_os_installation"
+  },
+  {
+   "suffix": "platform-linux",
+   "families": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "Q",
+    "W"
+   ],
+   "basis": "acceptance.md \u00a76 clean-machine and platform qualification",
+   "requirement": "\"{title}\" passes on a clean linux instance of each advertised configuration (OS image, architecture, graphics/device, exact app artifact recorded).",
+   "evidence": "clean_os_installation"
+  }
+ ],
+ "harnesses": [
+  {
+   "name": "compare-event",
+   "families": [
+    "P6",
+    "P7"
+   ],
+   "kinds": [
+    "event"
+   ],
+   "symbols": [
+    "Camera.events.angles",
+    "Camera.events.center",
+    "Camera.events.mouse_pan",
+    "Camera.events.mouse_zoom",
+    "Camera.events.orientation",
+    "Camera.events.perspective",
+    "Camera.events.synced",
+    "Camera.events.zoom",
+    "Dims.events.axis_labels",
+    "Dims.events.last_used",
+    "Dims.events.margin_left",
+    "Dims.events.margin_right",
+    "Dims.events.ndim",
+    "Dims.events.ndisplay",
+    "Dims.events.order",
+    "Dims.events.point",
+    "Dims.events.range",
+    "Dims.events.rollable",
+    "Dims.events.units",
+    "IntensityVisualizationMixin.events.auto_contrast",
+    "IntensityVisualizationMixin.events.colormap",
+    "IntensityVisualizationMixin.events.contrast_limits",
+    "IntensityVisualizationMixin.events.contrast_limits_range",
+    "IntensityVisualizationMixin.events.gamma",
+    "Labels.events.brush_size",
+    "Labels.events.colormap",
+    "Labels.events.contiguous",
+    "Labels.events.contour",
+    "Labels.events.features",
+    "Labels.events.iso_gradient_mode",
+    "Labels.events.labels_update",
+    "Labels.events.n_edit_dimensions",
+    "Labels.events.paint",
+    "Labels.events.preserve_labels",
+    "Labels.events.properties",
+    "Labels.events.selected_label",
+    "Labels.events.show_selected_label",
+    "Layer.events.affine",
+    "Layer.events.axis_labels",
+    "Layer.events.blending",
+    "Layer.events.cursor",
+    "Layer.events.cursor_size",
+    "Layer.events.data",
+    "Layer.events.editable",
+    "Layer.events.help",
+    "Layer.events.locked",
+    "Layer.events.metadata",
+    "Layer.events.mode",
+    "Layer.events.mouse_pan",
+    "Layer.events.mouse_zoom",
+    "Layer.events.name",
+    "Layer.events.opacity",
+    "Layer.events.projection_mode",
+    "Layer.events.rotate",
+    "Layer.events.scale",
+    "Layer.events.scale_factor",
+    "Layer.events.set_data",
+    "Layer.events.shear",
+    "Layer.events.thumbnail",
+    "Layer.events.translate",
+    "Layer.events.units",
+    "Layer.events.visible",
+    "LayerList.events.begin_batch",
+    "LayerList.events.end_batch",
+    "LayerList.events.renamed",
+    "LayerList.events.units",
+    "Points.events.antialiasing",
+    "Points.events.border_color",
+    "Points.events.border_width",
+    "Points.events.border_width_is_relative",
+    "Points.events.canvas_size_limits",
+    "Points.events.current_border_color",
+    "Points.events.current_border_width",
+    "Points.events.current_face_color",
+    "Points.events.current_properties",
+    "Points.events.current_size",
+    "Points.events.current_symbol",
+    "Points.events.face_color",
+    "Points.events.feature_defaults",
+    "Points.events.features",
+    "Points.events.highlight",
+    "Points.events.n_dimensional",
+    "Points.events.out_of_slice_display",
+    "Points.events.properties",
+    "Points.events.shading",
+    "Points.events.size",
+    "Points.events.symbol",
+    "ScalarFieldBase.events.attenuation",
+    "ScalarFieldBase.events.custom_interpolation_kernel_2d",
+    "ScalarFieldBase.events.depiction",
+    "ScalarFieldBase.events.interpolation2d",
+    "ScalarFieldBase.events.interpolation3d",
+    "ScalarFieldBase.events.iso_threshold",
+    "ScalarFieldBase.events.plane",
+    "ScalarFieldBase.events.rendering",
+    "Shapes.events.current_edge_color",
+    "Shapes.events.current_face_color",
+    "Shapes.events.current_properties",
+    "Shapes.events.edge_color",
+    "Shapes.events.edge_width",
+    "Shapes.events.face_color",
+    "Shapes.events.feature_defaults",
+    "Shapes.events.features",
+    "Shapes.events.highlight",
+    "Shapes.events.properties",
+    "Surface.events.feature_defaults",
+    "Surface.events.features",
+    "Surface.events.normals",
+    "Surface.events.shading",
+    "Surface.events.texcoords",
+    "Surface.events.wireframe",
+    "Tracks.events.color_by",
+    "Tracks.events.colormap",
+    "Tracks.events.display_graph",
+    "Tracks.events.display_id",
+    "Tracks.events.display_tail",
+    "Tracks.events.head_length",
+    "Tracks.events.hide_completed_tracks",
+    "Tracks.events.properties",
+    "Tracks.events.rebuild_graph",
+    "Tracks.events.rebuild_tracks",
+    "Tracks.events.tail_length",
+    "Tracks.events.tail_width",
+    "Vectors.events.edge_color",
+    "Vectors.events.edge_color_mode",
+    "Vectors.events.edge_width",
+    "Vectors.events.feature_defaults",
+    "Vectors.events.features",
+    "Vectors.events.length",
+    "Vectors.events.out_of_slice_display",
+    "Vectors.events.properties",
+    "Vectors.events.vector_style"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Hooke's side: a confined review of a retained volume, opened by orchestrator.scientific_project_review.review in the prepared bundle (`NAPARI_NATIVE_HOST_PREPARATION`). The child's recipe in services/tests/scientific_comparison_recipes.py runs through the worker's python-resources console on the session's own viewer; a layer case adds a fresh layer to that viewer, and dims, camera and layer-list cases use the viewer's own. The reference side runs the same recipe in a separate process of the pinned runtime (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_process.py) that imports only napari, on a ViewerModel holding the same volume. Run by tests/test_scientific_reference_comparison.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference: its public trigger (scientific_comparison_recipes.EVENTS) emits the event at least once upstream, and Hooke's emissions equal the reference's exactly, each with its type, its full payload and whether it names the instance, and so does the instance's changed public state.",
+   "criteria": "Both sides run napari whose files hash the same, the reference shows the behaviour without an exception, Hooke's observation equals it after normalization (floats to 12 significant digits, frozen before the first run), and the mapped parametrized case passes with zero skips. The negatives that break the behaviour inside Hooke's worker are caught.",
+   "hooke_equivalent": "Hooke's Python console in a confined scientific review (python-resources), on the session's own viewer"
+  },
+  {
+   "name": "compare-attribute",
+   "families": [
+    "P6",
+    "P7"
+   ],
+   "kinds": [
+    "property",
+    "field",
+    "setting"
+   ],
+   "symbols": [
+    "EventedModel.events",
+    "KeymapProvider.keymap",
+    "Layer.data",
+    "Layer.metadata",
+    "MousemapProvider.mouse_double_click_callbacks",
+    "MousemapProvider.mouse_drag_callbacks",
+    "MousemapProvider.mouse_move_callbacks",
+    "MousemapProvider.mouse_wheel_callbacks",
+    "MousemapProviderPydantic.mouse_double_click_callbacks",
+    "MousemapProviderPydantic.mouse_drag_callbacks",
+    "MousemapProviderPydantic.mouse_move_callbacks",
+    "MousemapProviderPydantic.mouse_wheel_callbacks",
+    "Selectable.selection",
+    "Selection.active",
+    "ViewerModel.dims",
+    "ViewerModel.layers"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Hooke's side: a confined review of a retained volume, opened by orchestrator.scientific_project_review.review in the prepared bundle (`NAPARI_NATIVE_HOST_PREPARATION`). The child's recipe in services/tests/scientific_comparison_recipes.py runs through the worker's python-resources console on the session's own viewer; a layer case adds a fresh layer to that viewer, and dims, camera and layer-list cases use the viewer's own. The reference side runs the same recipe in a separate process of the pinned runtime (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_process.py) that imports only napari, on a ViewerModel holding the same volume. Run by tests/test_scientific_reference_comparison.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference: reading and changing the attribute through a layer added to the session's viewer, or that viewer's own dims and layer list, raises nothing upstream, and Hooke's observation (values read, values after the change and their effect) equals the reference's exactly.",
+   "criteria": "Both sides run napari whose files hash the same, the reference shows the behaviour without an exception, Hooke's observation equals it after normalization (floats to 12 significant digits, frozen before the first run), and the mapped parametrized case passes with zero skips. The negatives that break the behaviour inside Hooke's worker are caught.",
+   "hooke_equivalent": "Hooke's Python console in a confined scientific review (python-resources), on the session's own viewer"
+  },
+  {
+   "name": "compare-enum",
+   "families": [
+    "P6",
+    "P7"
+   ],
+   "kinds": [
+    "enum-value"
+   ],
+   "symbols": [
+    "ActionType.ADDED",
+    "ActionType.ADDING",
+    "ActionType.CHANGED",
+    "ActionType.CHANGING",
+    "ActionType.REMOVED",
+    "ActionType.REMOVING"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Hooke's side: a confined review of a retained volume, opened by orchestrator.scientific_project_review.review in the prepared bundle (`NAPARI_NATIVE_HOST_PREPARATION`). The child's recipe in services/tests/scientific_comparison_recipes.py runs through the worker's python-resources console on the session's own viewer; a layer case adds a fresh layer to that viewer, and dims, camera and layer-list cases use the viewer's own. The reference side runs the same recipe in a separate process of the pinned runtime (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_process.py) that imports only napari, on a ViewerModel holding the same volume. Run by tests/test_scientific_reference_comparison.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference: the member's pinned value and the behaviour that reports it upstream (a points layer added to the session's viewer reports its data actions), and Hooke's observation of both equals the reference's exactly.",
+   "criteria": "Both sides run napari whose files hash the same, the reference shows the behaviour without an exception, Hooke's observation equals it after normalization (floats to 12 significant digits, frozen before the first run), and the mapped parametrized case passes with zero skips. The negatives that break the behaviour inside Hooke's worker are caught.",
+   "hooke_equivalent": "Hooke's Python console in a confined scientific review (python-resources), on the session's own viewer"
+  },
+  {
+   "name": "compare-contribution",
+   "families": [
+    "P6",
+    "P7"
+   ],
+   "kinds": [
+    "contribution"
+   ],
+   "symbols": [
+    "readers:napari.get_obj_reader",
+    "readers:napari.get_py_reader",
+    "readers:napari.get_reader",
+    "sample_data:napari.data.astronaut:astronaut",
+    "sample_data:napari.data.balls_2d:balls_2d",
+    "sample_data:napari.data.balls_3d:balls_3d",
+    "sample_data:napari.data.binary_blobs:binary_blobs",
+    "sample_data:napari.data.binary_blobs_3D:binary_blobs_3D",
+    "sample_data:napari.data.brick:brick",
+    "sample_data:napari.data.camera:camera",
+    "sample_data:napari.data.cat:cat",
+    "sample_data:napari.data.checkerboard:checkerboard",
+    "sample_data:napari.data.clock:clock",
+    "sample_data:napari.data.coffee:coffee",
+    "sample_data:napari.data.coins:coins",
+    "sample_data:napari.data.colorwheel:colorwheel",
+    "sample_data:napari.data.grass:grass",
+    "sample_data:napari.data.gravel:gravel",
+    "sample_data:napari.data.horse:horse",
+    "sample_data:napari.data.hubble_deep_field:hubble_deep_field",
+    "sample_data:napari.data.immunohistochemistry:immunohistochemistry",
+    "sample_data:napari.data.microaneurysms:microaneurysms",
+    "sample_data:napari.data.moon:moon",
+    "sample_data:napari.data.page:page",
+    "sample_data:napari.data.retina:retina",
+    "sample_data:napari.data.rocket:rocket",
+    "sample_data:napari.data.shepp_logan_phantom:shepp_logan_phantom",
+    "sample_data:napari.data.text:text",
+    "writers:napari.write_directory:image*,labels*,points*,shapes*:Save to Folder",
+    "writers:napari.write_image:image:lossless",
+    "writers:napari.write_image:image:lossy",
+    "writers:napari.write_labels:labels:labels",
+    "writers:napari.write_points:points:points",
+    "writers:napari.write_shapes:shapes:shapes"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Hooke's side: a confined review of a retained volume, opened by orchestrator.scientific_project_review.review in the prepared bundle (`NAPARI_NATIVE_HOST_PREPARATION`). The child's recipe in services/tests/scientific_comparison_recipes.py runs through the worker's python-resources console on the session's own viewer; a layer case adds a fresh layer to that viewer, and dims, camera and layer-list cases use the viewer's own. The reference side runs the same recipe in a separate process of the pinned runtime (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_process.py) that imports only napari, on a ViewerModel holding the same volume. Run by tests/test_scientific_reference_comparison.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference: napari's builtin npe2 manifest lists the contribution, the sample opens, the reader reads and the writer writes and its files read back through napari, and Hooke's observation (each layer's type and data digest, the written names and what reads back) equals the reference's exactly.",
+   "criteria": "Both sides run napari whose files hash the same, the reference shows the behaviour without an exception, Hooke's observation equals it after normalization (floats to 12 significant digits, frozen before the first run), and the mapped parametrized case passes with zero skips. The negatives that break the behaviour inside Hooke's worker are caught.",
+   "hooke_equivalent": "Hooke's Python console in a confined scientific review (python-resources), on the session's own viewer"
+  },
+  {
+   "name": "browser-p2",
+   "families": [
+    "P2"
+   ],
+   "ids": [
+    "P2.camera.api-depthaxisorientation-away",
+    "P2.camera.api-depthaxisorientation-towards",
+    "P2.camera.api-horizontalaxisorientation-left",
+    "P2.camera.api-horizontalaxisorientation-right",
+    "P2.camera.api-verticalaxisorientation-down",
+    "P2.camera.api-verticalaxisorientation-up",
+    "P2.camera.camera-angles",
+    "P2.camera.camera-center",
+    "P2.camera.camera-orientation",
+    "P2.camera.camera-perspective",
+    "P2.camera.camera-zoom",
+    "P2.clipping-planes.clipping-clippingplane-enabled",
+    "P2.clipping-planes.layer-experimental-clipping-planes",
+    "P2.clipping-planes.plane-normal",
+    "P2.clipping-planes.plane-position",
+    "P2.clipping-planes.scalarfieldbase-depiction",
+    "P2.clipping-planes.scalarfieldbase-plane",
+    "P2.clipping-planes.slicing-slicingplane-thickness",
+    "P2.clipping-planes.volumedepiction-plane",
+    "P2.clipping-planes.volumedepiction-volume",
+    "P2.surface-render.normals-normals-color",
+    "P2.surface-render.normals-normals-length",
+    "P2.surface-render.normals-normals-visible",
+    "P2.surface-render.normals-normals-width",
+    "P2.surface-render.qtshadingcomboboxcontrol",
+    "P2.surface-render.shading-flat",
+    "P2.surface-render.shading-none",
+    "P2.surface-render.shading-smooth",
+    "P2.surface-render.surface-normals",
+    "P2.surface-render.surface-normals-surfacenormals-face",
+    "P2.surface-render.surface-normals-surfacenormals-vertex",
+    "P2.surface-render.surface-shading",
+    "P2.surface-render.surface-wireframe",
+    "P2.surface-render.wireframe-surfacewireframe-color",
+    "P2.surface-render.wireframe-surfacewireframe-visible",
+    "P2.surface-render.wireframe-surfacewireframe-width",
+    "P2.volume-modes.image-rendering",
+    "P2.volume-modes.imagerendering-additive",
+    "P2.volume-modes.imagerendering-attenuated-mip",
+    "P2.volume-modes.imagerendering-average",
+    "P2.volume-modes.imagerendering-iso",
+    "P2.volume-modes.imagerendering-minip",
+    "P2.volume-modes.imagerendering-mip",
+    "P2.volume-modes.imagerendering-translucent",
+    "P2.volume-parameters.image-attenuation",
+    "P2.volume-parameters.image-interpolation3d",
+    "P2.volume-parameters.image-iso-threshold"
+   ],
+   "evidence": "isolated_profile_browser",
+   "procedure": "A private Hooke (its own home, assets and empty keys; no camera, keychain or phone; free ports) serves the production Studio build. A fresh browser profile opens a retained 3D volume, and another a retained surface mesh (captured from the same worker as an ordinary output), from Project Data (Data, Open result, Open session, Refresh preview) in the prepared confined napari review bundle (`NAPARI_NATIVE_HOST_PREPARATION`). It operates the ordinary View controls and presses Apply view changes (services/tests/scientific_browser_p2.mjs, `HOOKE_BROWSER`). Before each Apply it records the control's upstream equivalent, and after each recipe it reads the session's napari state through Studio's own Python console. A plain pinned-napari process (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_replay.py) rebuilds the same layers from their layer-data tuples and replays the equivalents. Run by tests/test_scientific_browser_p2.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference. After each recipe, the session's napari state equals the state plain pinned napari reaches by applying the requirement's own setter with the same values: each layer's public state, its data by digest, and the camera. Examples are rendering, attenuation, iso_threshold, interpolation3d, depiction, plane, experimental_clipping_planes, shading, the wireframe and normals parts, and camera.update. The reference rebuilt from the session's layer-data tuples first equals the session. The control also shows the value the worker reports back, and the rendered preview's pixels change. For the isosurface threshold, a higher threshold lights fewer pixels; the Shading control offers exactly none, flat and smooth, and each renders the mesh differently. No matched native screenshot is claimed.",
+   "criteria": "Every mapped parametrized case executes in the production-path browser and passes with zero skips; states are equal after normalization (floats to 12 significant digits, frozen before the first comparison run).",
+   "hooke_equivalent": "The Studio's View controls of a scientific session (Data, Open result, Open session; the View tab; Apply view changes), over the confined napari review worker."
+  },
+  {
+   "name": "compare-call",
+   "families": [
+    "P7"
+   ],
+   "kinds": [
+    "function",
+    "method"
+   ],
+   "symbols": [
+    "Layer.as_layer_data_tuple",
+    "Layer.create",
+    "Layer.save",
+    "LayerList.save",
+    "ViewerModel.open",
+    "ViewerModel.open_sample",
+    "file_extensions_string_for_layers",
+    "get_filename_patterns_for_reader",
+    "get_readers",
+    "get_sample_data",
+    "iter_manifests",
+    "napari_write_image",
+    "napari_write_labels",
+    "napari_write_points",
+    "napari_write_shapes",
+    "read",
+    "read_data_with_plugins",
+    "sample_iterator",
+    "save_layers",
+    "widget_iterator",
+    "write_layer_data_with_plugins",
+    "write_layers"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Hooke's side: a confined review of a retained volume, opened by orchestrator.scientific_project_review.review in the prepared bundle (`NAPARI_NATIVE_HOST_PREPARATION`). The child's recipe in services/tests/scientific_comparison_recipes.py runs through the worker's python-resources console on the session's own viewer; a layer case adds a fresh layer to that viewer, and dims, camera and layer-list cases use the viewer's own. The reference side runs the same recipe in a separate process of the pinned runtime (`NAPARI_REFERENCE_PYTHON -I`, services/tests/scientific_reference_process.py) that imports only napari, on a hidden napari.Viewer holding the same volume, using the approved Cocoa GUI profile. Both sides record settings, controls mode, runtime/source/wheel identity and recipe digest; mismatches refuse admission. Run by tests/test_scientific_reference_comparison.py in `make scientific-acceptance`.",
+   "oracle": "The pinned reference: the function or method acts on the session's own viewer, a layer that viewer holds, or the session's own plugin registry (scientific_comparison_recipes.CALLS), and upstream raises nothing. Hooke's observation equals the reference's exactly: the normalized return value, every file written (by SHA-256) and what the session's viewer opens from it through the session's plugins, and the layers added. Paths under the working directory are compared as <cwd>.",
+   "criteria": "Both sides run napari whose files hash the same, the reference shows the behaviour without an exception, Hooke's observation equals it after normalization (floats to 12 significant digits, frozen before the first run), and the mapped parametrized case passes with zero skips. The negatives that break the behaviour inside Hooke's worker are caught. Every shared comparison prerequisite and the actual-worker writer-values negative must pass; a subset diagnostic probe grants no mapped completion.",
+   "hooke_equivalent": "Hooke's Python console in a confined scientific review (python-resources), on the session's own viewer"
+  },
+  {
+   "name": "compare-layerlist",
+   "families": [
+    "P3"
+   ],
+   "kinds": [
+    "method"
+   ],
+   "symbols": [
+    "LayerList.__getitem__",
+    "LayerList.__setitem__"
+   ],
+   "evidence": "actual_upstream_worker",
+   "basis": "pinned-source",
+   "procedure": "Run the bounded collection recipes in tests/scientific_comparison_recipes.py through the confined review worker python-resources console on its own retained-volume viewer, then independently in the pinned Cocoa napari Viewer with identical inputs/settings. Each lookup/replacement case records native layer data, object relationships, order, selection, expected refusals and replacement events; restore the original layer objects afterward. Use tests/test_scientific_reference_comparison.py through the canonical acceptance runner.",
+   "oracle": "Exact observations against independent pinned napari, plus positive identity/no-op/refusal anchors and two actual-worker broken behaviors: wrong name lookup and dropped integer replacement. All recipe cases must be present. A crash is not the required successful-but-wrong negative.",
+   "criteria": "Every mapped child and each shared source/wheel/runtime/profile/retained-volume prerequisite plus both collection-specific negatives executes without skips. Existing numeric normalization is unchanged. This worker-API evidence does not qualify ordinary manual UI, explicit Save/reopen or platform/independent-user acceptance.",
+   "hooke_equivalent": "The scientific session console operates on its own viewer.layers; ordinary UI layer management and persistence remain separate P3.lifecycle obligations."
+  }
+ ]
+}

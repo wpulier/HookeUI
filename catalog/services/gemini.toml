@@ -1,0 +1,8 @@
+id = "gemini"
+name = "Google Gemini API"
+key = "GEMINI_API_KEY"
+enables = "Seeing, naming and pointing at things, the running look, quick decisions and web lookups"
+get_key = "https://aistudio.google.com/apikey"
+licence = "gemini-api"
+test = "orchestrator/key_tests.py: gemini, one free authenticated GET"
+costs = "billed by the provider per call; what the app spent is in its usage ledger (make day-report)"

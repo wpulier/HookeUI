@@ -1,0 +1,37 @@
+{
+  "88c40ca17962489faa82a06c7cdf1e07aace9671a8649276c48fbe5ed0863452": {
+    "model": "affable-shark 1.2 / NucleiSegmentationBoundaryModel",
+    "weightsSha256": "8410950508655a300793b389c815dc30b1334062fc1dadb1e15e55a93cbb99a0",
+    "channels": [
+      "foreground",
+      "boundary"
+    ],
+    "conversion": "ObservationUI nearest-seed label conversion v1; distinct from the author's watershed conversion",
+    "rdf": "https://uk1s3.embassy.ebi.ac.uk/public-datasets/bioimage.io/affable-shark/1.2/files/rdf.yaml",
+    "evidence": [
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/experiments/dsb/export_bioimageio_model.py",
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/experiments/dsb/train_boundaries.py",
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/torch_em/data/datasets/dsb.py",
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/torch_em/transform/label.py",
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/experiments/dsb/validate_model.py",
+      "https://github.com/constantinpape/torch-em/blob/9406732f1e7940a872da1c503701e68d888cc8f2/torch_em/util/segmentation.py"
+    ],
+    "scope": "Author documentation and source establish channel order. This is not a reproducible-build receipt or scientific qualification. Original RDF bytes remain unchanged."
+  },
+  "57a28f865983f05b874dc2ad2c93570abaa53194e79aef63cfc5f9b4a88fd42a": {
+    "model": "InstanSeg brightfield_nuclei 0.1.1 (instanseg/instanseg release instanseg_models_v0.1.1, brightfield_nuclei.zip)",
+    "weightsSha256": "0c724da169d507d8dd2e206ad3675a0b1566824eee6e20ad9a0ba916311d9dd0",
+    "channels": [
+      "instance_labels"
+    ],
+    "conversion": "Its output is already instance labels (whole numbers carried as float32), read as they are: no conversion",
+    "version": "ObservationUI exact instance labels v1",
+    "rdf": "https://github.com/instanseg/instanseg/releases/download/instanseg_models_v0.1.1/brightfield_nuclei.zip#rdf.yaml",
+    "evidence": [
+      "https://github.com/instanseg/instanseg/blob/414fbc9e8039c1d049cc27871d66409084ded21c/instanseg/utils/create_bioimageio_model.py#L284-L340",
+      "the package's own test output (test-output_instance_segmentation.npy, sha256 5dc0f7ed283f786ea4edc88714f6c2d4ae38e9eec2d00bb24b7f3c46060a7c6e): float32, values 0 to 338, every one a whole number, 337 distinct labels",
+      "the reviewed runner (torch 2.14.1, CPU) reproduced that test output exactly: 0 of 65,536 pixels differ (2026-10-19)"
+    ],
+    "scope": "InstanSeg's export names the output tensor instance_segmentation with channel 'nuclei'; its makers' code and test output establish that values are object ids, 0 the background. This is not scientific qualification. Original RDF bytes remain unchanged."
+  }
+}

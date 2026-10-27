@@ -1,0 +1,73 @@
+import {afterEach,expect,test,vi} from 'vitest';
+const artifacts=vi.hoisted(()=>({blockReason:vi.fn(()=>null),removeDocument:vi.fn(),applyDocument:vi.fn(),document:vi.fn(),clearDocuments:vi.fn()}));
+vi.mock('./workspace-study-artifacts',()=>({studyArtifacts:()=>artifacts}));
+import {WorkspaceViews} from './workspace-views';
+import {TestElement,syntheticDOM} from './workspace-windows.test-support';
+afterEach(()=>vi.unstubAllGlobals());
+
+/** Main (home) and a work Tab, each with its specimen as the backdrop unless said. */
+function tabs(main={visible:true,rect:null as number[]|null},work={visible:true,rect:null as number[]|null}){
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const el=(tag:string)=>new TestElement(tag) as unknown as HTMLElement;
+ const current=Object.assign(Object.create(WorkspaceViews.prototype),{session:'p',
+  layout:{active:'main',views:[{id:'main',title:'Main',specimen:{...main},items:[],notes:[]},{id:'w',title:'Counting',specimen:{...work},items:[],notes:[]}]},
+  specimen:el('section'),specimenSize:el('button'),specimenHide:el('button'),specimenReturn:el('div'),stageSize:el('button'),stageHide:el('button'),stageWork:el('div'),
+  specimenShell:{resizeTo:vi.fn(),moveTo:vi.fn()},changed:vi.fn()});
+ const show=(id:string)=>{current.layout.active=id;Reflect.get(WorkspaceViews.prototype,'applySpecimen').call(current);};
+ const view=(id:string)=>current.layout.views.find((v:{id:string})=>v.id===id);
+ return {current,show,view};
+}
+
+test('Main always shows the specimen: a saved layout that hid it is shown again, as the backdrop',()=>{
+ const t=tabs({visible:false,rect:[1,2,3,4]});t.show('main');
+ expect(t.view('main').specimen).toEqual({visible:true,rect:null});expect(t.current.specimen.hidden).toBe(false);
+ expect(t.current.changed).toHaveBeenCalled();
+});
+
+test('Main offers no way to hide its specimen; a work Tab does, and keeps a way back when hidden',()=>{
+ const t=tabs();t.show('main');
+ expect(t.current.specimenHide.hidden).toBe(true);expect(t.current.specimenReturn.hidden).toBe(true);
+ t.show('w');expect(t.current.specimenHide.hidden).toBe(false);expect(t.current.specimenReturn.hidden).toBe(true);
+ t.view('w').specimen.visible=false;t.show('w');
+ expect(t.current.specimen.hidden).toBe(true);expect(t.current.specimenReturn.hidden).toBe(false);
+});
+
+test('showing a hidden specimen brings it back as the backdrop, not a small window',()=>{
+ const t=tabs(undefined,{visible:false,rect:[12,40,480,380]});t.show('w');
+ Reflect.get(WorkspaceViews.prototype,'showSpecimen').call(Object.assign(t.current,{active:()=>t.view('w')}));
+ expect(t.view('w').specimen).toEqual({visible:true,rect:null});expect(t.current.specimenReturn.hidden).toBe(true);
+});
+
+test('the size control says what it will do: Float from the backdrop, Backdrop from a window',()=>{
+ const t=tabs(undefined,{visible:true,rect:[12,40,480,380]});t.show('main');
+ expect(t.current.specimenSize.textContent).toBe('Float specimen');
+ t.show('w');expect(t.current.specimenSize.textContent).toBe('Fill Tab');
+});
+
+test('Main is never closed or removed',async()=>{
+ const t=tabs();const request=vi.fn();Object.assign(t.current,{openIds:['main','w'],changing:false,navigating:false,openingInput:false,capture:vi.fn(),flush:vi.fn(),opts:{request}});
+ await Reflect.get(WorkspaceViews.prototype,'closeTab').call(t.current,'main');expect(t.current.openIds).toEqual(['main','w']);expect(t.current.capture).not.toHaveBeenCalled();
+ await Reflect.get(WorkspaceViews.prototype,'arrangement').call(t.current,'remove','main');expect(request).not.toHaveBeenCalled();
+});
+
+test('the Stage bar names the specimen with the same Float or Fill and Hide, or says it is hidden with the way back',()=>{
+ const t=tabs(undefined,{visible:true,rect:[12,40,480,380]});t.show('main');
+ expect(t.current.stageSize.textContent).toBe('Float');expect(t.current.stageHide.hidden).toBe(true);expect(t.current.stageWork.dataset.specimen).toBe('shown');
+ t.show('w');expect(t.current.stageSize.textContent).toBe('Fill');expect(t.current.stageHide.hidden).toBe(false);
+ t.view('w').specimen.visible=false;t.show('w');expect(t.current.stageWork.dataset.specimen).toBe('hidden');expect(t.current.specimenReturn.hidden).toBe(false);
+});
+test('the Stage bar says the specimen\'s name, its credit quieter, and its picture, writing only when they change',()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const el=(tag:string)=>new TestElement(tag);
+ const current=Object.assign(Object.create(WorkspaceViews.prototype),{labelKey:'',stageWork:Object.assign(el('div'),{}),stageName:el('span'),stageCredit:el('span'),stageThumb:el('span')});
+ current.stageWork.dataset.heard='false'; // as the constructor leaves it
+ // Before the bridge's first report: no words, nothing to claim there is no specimen, the left out of layout.
+ expect(current.stageName.textContent).toBe('');expect(current.stageCredit.textContent).toBe('');expect(current.stageWork.dataset.heard).toBe('false');
+ Reflect.get(WorkspaceViews.prototype,'specimenLabel').call(current,'Human cells · David Root (CC0)','/t.png');
+ expect(current.stageWork.dataset.heard).toBe('true'); // heard: name, credit and picture appear together
+ expect(current.stageThumb.title).toBe('Human cells · David Root (CC0)');
+ expect(current.stageName.textContent).toBe('Human cells');expect(current.stageCredit.textContent).toBe('David Root (CC0)');expect(current.stageCredit.hidden).toBe(false);
+ expect(current.stageThumb.style.backgroundImage).toBe('url("/t.png")');expect(current.stageThumb.hidden).toBe(false);
+ Reflect.get(WorkspaceViews.prototype,'specimenLabel').call(current,'Live camera','');
+ expect(current.stageName.textContent).toBe('Live camera');expect(current.stageCredit.hidden).toBe(true);expect(current.stageThumb.hidden).toBe(true);
+});

@@ -1,0 +1,12 @@
+id = "gemini-3.5-flash"
+name = "Gemini 3.5 Flash"
+runs = "cloud"
+version = "gemini-3.5-flash"
+licence = ["gemini-api"]
+kind = "cloud-model"
+what = "A faster look: answers, points and names"
+runner = "cloud"
+service = "gemini"
+source = { url = "https://ai.google.dev/gemini-api/docs/models" }
+needs_to_run = ["key:GEMINI_API_KEY"]
+credit = { authors = "Google DeepMind", link = "https://ai.google.dev/gemini-api/docs/models" }

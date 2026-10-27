@@ -1,0 +1,55 @@
+# A plain algorithm as a capability (catalog format 2, ADR 0024): no model, a few lines of scipy. Made with
+# `make capability-new ID=spot-measure INTO=catalog`, then filled in.
+requires = { catalog = 2 }
+id = "spot-measure"
+name = "Spot measure"
+runs = "cpu"
+version = "1"
+licence = ["spot-measure"]
+what = "Measures each dark spot: its area, centre and brightness"
+description = "Every connected spot darker than the threshold, larger than the smallest area, one row each: its area in pixels (and in µm² when the app knows the scale), its centre and its mean brightness. A threshold on brightness, not a cell finder: what counts as a spot is the threshold's."
+runner = "python-env"
+adapter = "adapter:run"
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy"] }
+needs_to_run = ["install:spot-measure"]
+component = { what = "Spot measure, an example capability", licence = "Apache-2.0", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+source = { made_here = "An example capability in this repository; no weights" }
+credit = { authors = "ObservationUI contributors; SciPy (ndimage)", link = "https://scipy.org" }
+category = "Measure"
+search_aliases = ["count spots", "measure spots", "particle table"]
+hidden = ["pixel_size_um"]
+outcomes = { empty = "nothing is darker than the threshold and larger than the smallest area", unsupported = "pictures smaller than 16 px a side" }
+tests = [
+  { input = "example-three-spots.png", params = { threshold = 100 }, outcome = "result" },
+  { input = "example-blank.png", outcome = "empty" },
+]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "threshold"
+type = "int"
+default = 100
+min = 0
+max = 255
+label = "Threshold"
+unit = "grey level"
+tooltip = "A spot is darker than this (0 black, 255 white)"
+
+[[inputs]]
+id = "min_area"
+type = "int"
+default = 20
+min = 1
+max = 100000
+label = "Smallest area"
+unit = "px"
+tooltip = "Spots smaller than this are left out as noise"
+
+[[outputs]]
+id = "spots"
+type = "table.objects"
+label = "Spots"

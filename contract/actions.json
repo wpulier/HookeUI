@@ -1,0 +1,304 @@
+{
+ "about": "The Actions panel's own lists (apps/studio/src/actions-panel.ts; docs/design/2026-10-13-actions-panel.md), read by the studio and by services/tests/test_actions_panel.py, which runs every action the panel can offer through the action command. Its rows are contract/capabilities.json's agent capabilities with a tool in these families.",
+ "groups": [
+  {
+   "family": "outlining",
+   "title": "Outline"
+  },
+  {
+   "family": "finding",
+   "title": "Find"
+  },
+  {
+   "family": "measuring",
+   "title": "Measure"
+  },
+  {
+   "family": "magnifier",
+   "title": "Look closer"
+  },
+  {
+   "family": "seeing",
+   "title": "Clearer picture"
+  },
+  {
+   "family": "snapshots",
+   "title": "Snapshot"
+  },
+  {
+   "family": "motion",
+   "title": "Motion"
+  },
+  {
+   "family": "time",
+   "title": "Over time"
+  },
+  {
+   "family": "map",
+   "title": "The slide"
+  },
+  {
+   "family": "naming",
+   "title": "Name"
+  },
+  {
+   "family": "display",
+   "title": "How it looks"
+  }
+ ],
+ "agentOnly": {
+  "why": "They read the agent's own answers, take a researcher's picture or a list the user would say in words, the studio has its own control for them (the cells' layer, the magnifier), or a click on the view does them, or they take two outlines (one selection is one). Show the measurements is the panel's own Measurements table row.",
+  "ids": [
+   "suggest-name",
+   "look-at-screen",
+   "show-picture",
+   "magnifier-source",
+   "magnifier-picture",
+   "change-on-screen",
+   "colour-by-look-group",
+   "show-tracks",
+   "compare-models",
+   "query-population",
+   "cells-by-look-group",
+   "same-one",
+   "compare-captures",
+   "link-captures",
+   "select",
+   "cells-by-colour",
+   "correct-cells",
+   "follow-cells",
+   "highlight",
+   "compare",
+   "contrast",
+   "show-measurements"
+  ]
+ },
+ "needsTarget": {
+  "why": "They act on an outline, never on the whole view, though their tool would take the view.",
+  "ids": [
+   "rename",
+   "dissect"
+  ]
+ },
+ "common": {
+  "why": "What a researcher reaches for most, first (a curated list until the app counts what is used): the Measurements table, then these. Find bright regions (the bundled Bright objects) is the threshold the app runs with no key or download, as the 0.3.0 Common card did.",
+  "ids": [
+   "cells",
+   "find",
+   "count",
+   "catalog:basic-bright-objects",
+   "measure",
+   "track-motion",
+   "objective",
+   "enhance",
+   "snapshot"
+  ]
+ },
+ "ownTasks": {
+  "why": "Catalog entries listed in Tools as a task of their own, by that task's name, though their kind is a choice of one of the app's jobs (one page for one thing otherwise folds them into that job). Bright objects is operation \"cells\" but a threshold that finds bright regions, not cells (blob detection is not recognition): never a cell finder's row. It stays a choice in Outline every cell, where its declared output words (Bright regions (not cells), Bright regions are not a cell count) follow it.",
+  "titles": {
+   "catalog:basic-bright-objects": "Find bright regions"
+  }
+ },
+ "fields": {
+  "why": "Each tool argument's words in the panel, its choices said plainly (the value sent stays the tool's), a `hint` for a person under the field where it helps (the tool schema's description is the model's and is never shown), its default, or hidden (the agent's machinery), and `for`: the model options it applies to (shown and sent only when one of them is chosen; the server refuses it for any other). Keyed by tool, then argument.",
+  "tools": {
+   "outline_cells": {
+    "compare_reference": {
+     "label": "Compare with the ImageJ macro",
+     "for": [
+      "fiji-analyze-particles"
+     ]
+    }
+   },
+   "clear": {
+    "what": {
+     "label": "Which",
+     "choices": {
+      "all": "Everything",
+      "outlines": "Outlines",
+      "ai": "Only the app's",
+      "cells": "The cells"
+     }
+    }
+   },
+   "find": {
+    "what": {
+     "label": "What to find",
+     "hint": "The thing's name, such as nucleus"
+    },
+    "all": {
+     "label": "Every one, not just one"
+    },
+    "by": {
+     "label": "How",
+     "choices": {
+      "look": "By how it looks",
+      "cells": "Among every outlined cell",
+      "concept": "By its name (SAM 3.1)"
+     }
+    }
+   },
+   "zoom": {
+    "level": {
+     "label": "Zoom",
+     "choices": {
+      "more": "Closer",
+      "less": "Further",
+      "fit": "Fit",
+      "max": "As close as it goes",
+      "2": "2×",
+      "4": "4×",
+      "8": "8×"
+     }
+    }
+   },
+   "reference_photo": {
+    "subject": {
+     "label": "A photo of"
+    }
+   },
+   "count": {
+    "label": {
+     "label": "What to count"
+    }
+   },
+   "group_cells": {
+    "groups": {
+     "label": "Into how many groups"
+    },
+    "group": {
+     "hidden": true
+    },
+    "name": {
+     "hidden": true
+    }
+   },
+   "describe_groups": {
+    "names": {
+     "label": "Suggest names (blood and Pap smears)"
+    }
+   },
+   "individuals": {
+    "which": {
+     "hidden": true
+    }
+   },
+   "set_objective": {
+    "objective": {
+     "label": "Objective",
+     "choices": {
+      "4": "4×",
+      "10": "10×",
+      "20": "20×",
+      "40": "40×",
+      "60": "60×",
+      "100": "100×"
+     }
+    },
+    "field_number": {
+     "label": "Eyepiece field number (mm)"
+    }
+   },
+   "calibrate_scale": {
+    "micrometres": {
+     "label": "Its real length (µm)"
+    }
+   },
+   "track_motion": {
+    "seconds": {
+     "label": "Watch for (seconds)"
+    }
+   },
+   "what_happened": {
+    "seconds": {
+     "label": "Look back (seconds)"
+    }
+   },
+   "watch": {
+    "what": {
+     "label": "Tell me when"
+    },
+    "by": {
+     "label": "By watching",
+     "choices": {
+      "motion": "Movement",
+      "appears": "Something new appearing",
+      "look": "A yes/no question"
+     }
+    },
+    "below": {
+     "label": "Moving share below (0–1)"
+    },
+    "above": {
+     "label": "Moving share above (0–1)"
+    },
+    "question": {
+     "label": "The yes/no question"
+    },
+    "minutes": {
+     "label": "Give up after (minutes)"
+    }
+   },
+   "stop_watching": {
+    "which": {
+     "label": "Which (empty: all)"
+    }
+   },
+   "bookmark": {
+    "note": {
+     "label": "Note"
+    }
+   },
+   "way_to_bookmark": {
+    "which": {
+     "label": "Which (empty: the last)"
+    }
+   },
+   "enhance": {
+    "how": {
+     "label": "How",
+     "choices": {
+      "average": "Average the still frames",
+      "sharpest": "The sharpest frame",
+      "stack": "Focus stack (after turning the focus)"
+     }
+    }
+   },
+   "snapshot": {
+    "labels": {
+     "label": "With labels",
+     "default": true
+    },
+    "overlays": {
+     "label": "With outlines",
+     "default": true
+    }
+   },
+   "set_style": {
+    "color": {
+     "label": "Colour",
+     "choices": {
+      "pink": "Pink",
+      "yellow": "Yellow",
+      "cyan": "Cyan",
+      "green": "Green",
+      "white": "White"
+     }
+    },
+    "style": {
+     "label": "Style",
+     "choices": {
+      "classic": "Classic",
+      "edge": "Edge only"
+     }
+    }
+   },
+   "name_outline": {
+    "name": {
+     "label": "New name"
+    }
+   }
+  }
+ }
+}

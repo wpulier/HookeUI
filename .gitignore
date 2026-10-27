@@ -1,0 +1,66 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+dist-camera
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local Python environments and generated caches
+.venv/
+__pycache__/
+*.pyc
+
+# Third-party checkouts (recreated by scripts/setup-sam3.sh); patches are tracked
+services/vendor/*/
+
+# Test footage for the live feed (see footage/README.md)
+footage/*
+!footage/README.md
+
+# The day's journal of threads and turns (services/orchestrator/day); kept, never committed
+services/sessions/
+
+# Recordings of the camera and of the studio (Record button); kept, never committed
+recordings/
+
+# Claude Code: helper worktrees and this machine's preview launcher
+.claude/worktrees/
+.claude/launch.json
+
+# Private local acceptance evidence and recovery bundles, never application source
+/reports/
+# Browser snapshots and local acceptance exports can include private sessions.
+/.playwright-cli/
+/output/playwright/
+/output/reports/
+/output/research-preview/
+/output/research_notes/
+/output/research-qualification/
+
+# The bridge's iPhone capture app, built by experiments/iphone-camera-feed/capture-app/build.sh
+experiments/iphone-camera-feed/capture-app/build/
+
+# The Mac app's build (packaging/macos/build.sh)
+packaging/macos/build*/
+
+# Private development profiles, evidence and VM artifacts
+.scratch/

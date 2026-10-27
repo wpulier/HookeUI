@@ -1,0 +1,255 @@
+Everything the app can do, by who does it (You: the user, in the studio; I: you, with a tool; I, in the background: you, without being asked; My researchers: your researchers' background work). Unmarked: the user has not checked it yet.
+Camera feed (Getting the picture in: the iPhone, Blackmagic, test footage, recording):
+- You: Connect the camera: Connect, reconnect or switch the camera feed
+- You: Get the camera live: Says what is wrong with the camera, and fixes it
+- You: Control the phone's camera: Record, photo, lens, zoom, focus, exposure and colour on the phone
+- You: Play test footage: A recording plays into the live view instead
+- You: Open a session's sources: Put a recording, a picture or the camera on stage
+- You: All assets: Browse your recordings and pictures by what is in them
+- I, in the background: Files new assets: Files each new picture by what it shows, when turned on; models: Quick decisions: off; NOT AVAILABLE here: only with Library looks set to on (it is off)
+- I: Find in your assets: Looks for a recording or picture in your library (say "which recordings of rotifers do I have?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Put an asset on stage: Shows one of your recordings or pictures in this session (say "show me last week's rotifer recording"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- You: Whole camera frame: See the whole frame, not just the eyepiece
+- You: Record the session: Records the studio tab, the camera and a dataset
+- You: Collect a dataset: Record saves video, frame facts and logs, checked by Data
+- You: See the datasets: Where each dataset is, what it holds, your microscope
+- You: Save the session: Keep this conversation or today as a dataset, session carries on
+- I, in the background: Performance meter: Shows how hard the computer is working
+Picture quality (How good the view is, measured on every frame):
+- I, in the background: Judge the view: Measures focus, light and glare on every frame
+- I, in the background: Focus meter: A meter while you turn the focus knob
+- I, in the background: Dust on the optics: Finds spots that stay put while the slide moves
+Following the slide (Keeping outlines on their things as the slide or the things move):
+- I, in the background: Follow the slide: Keeps outlines on their things as the slide moves
+- I, in the background: Follow swimming things: Each outline follows its own moving thing, and shows its trail; models: Outlines follow: With each thing, a behaviour setting, uses EdgeTAM outline model
+Outlining (Drawing an edge around things, selecting, clearing, checking):
+- You: Click to outline: Click a thing: it is outlined and named (click); models: Outlining: EdgeTAM (on this Mac), a setting; Seeing: Gemini 3.8 Flash (cloud), a setting; Medical names: off; when the outline model is unsure of a small spot you clicked: a clean ring is drawn around the spot instead (Outlining: EdgeTAM (on this Mac), a setting); when SAM 3.1 finds nothing in EdgeTAM's box (the EdgeTAM-then-SAM 3.1 options): EdgeTAM's own outline is kept (Outlining: EdgeTAM (on this Mac), a setting)
+- You: Drag a box: Drag a box to outline what is inside (drag); models: Outlining: EdgeTAM (on this Mac), a setting; Seeing: Gemini 3.8 Flash (cloud), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits the box, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I: Highlight what it sees: Outlines things it has already seen (say "highlight the stomata"); models: Outlining: EdgeTAM (on this Mac), a setting; Quick decisions: off; when EdgeTAM or SAM 2.1 finds nothing that fits a box the running look drew, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I: Select an outline: Selects one so its card opens (say "select the second one")
+- You: Click an outline: Selects it and opens its card (click)
+- I: Clear outlines: Removes the outlines (say "clear the highlights")
+- You: Clear outlines: The clear button removes every outline
+- You: Remove one outline: Its ×, or a click on it once selected, removes it
+- You: Bring back an outline: Undo brings back a removed outline as it was
+- I: Outline every cell: A cell finder segments every cell; they are kept and measured (say "outline all the cells"); models: Cells: EdgeTAM automatic masks (on this Mac), a setting
+- You: Correct a saved population: Removes members or undoes corrections, preserving original measurements and revision history
+- I: Correct the cells: Removes or merges cells you say are wrong, as a revision (say "that's not a cell")
+- I: Pick cells by colour: Outlines the cells drawn in a colour you name (say "highlight all the red ones")
+- You: Outline every cell: The Cells button outlines every cell; models: Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I, in the background: Checks its outlines: Checks each outline it draws and fixes wrong ones; models: Quick decisions: off; Outlining: EdgeTAM (on this Mac), a setting
+- I, in the background: Pre-outlines for pointing: Outlines everything first when pointing uses masks; NOT AVAILABLE here: only with Pointing set to masks (it is box)
+- I, in the background: First guess ring: A quick ring on its first guess while it looks; NOT AVAILABLE here: only with Pointing set to snap-first (it is box)
+Naming things (What things are and how sure; descriptions and your own names):
+- I, in the background: Keeps looking: Describes the view whenever it settles; models: Running look: Gemini 3.8 Flash (cloud), a setting
+- I, in the background: Notices a new specimen: Tells the models when the specimen changes; models: Running look: Gemini 3.8 Flash (cloud), a setting
+- I, in the background: Writes descriptions: A short description under each name; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- You: Linger to look up: Hovering a thing looks it up first (hover)
+- You: Open its card: A thing's name, description and notes (click)
+- You: Show reference pictures: Pictures of the kind of thing, from the web
+- You: Pin a note: Pins a researcher's note under a label
+- I: Rename an outline: Gives an outline the name you say (say "call that a guard cell")
+- I, in the background: Remembers your names: Suggests the names you taught for look-alikes; models: Look-alikes: DINOv2 small (on this Mac), a setting
+- I, in the background: Seen one before: Notices one like this seen earlier today; models: Look-alikes: DINOv2 small (on this Mac), a setting
+- I, in the background: Medical names as a hint: Hints likely cell names on a smear when naming a click; models: Medical names: off; NOT AVAILABLE here: off in the settings (Medical names)
+- I: Suggest a better name: Proposes a correction you can accept
+- You: Accept or dismiss: Accept or dismiss a suggested name
+Finding things (By name or look, inside another thing, every one like this):
+- I: Find by name or look: Finds and outlines things by name or appearance (say "find the white blood cell"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; Outlining: EdgeTAM (on this Mac), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I: Find inside an outline: Finds a part inside an outlined thing (say "point out the nucleus in that cell"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; Outlining: EdgeTAM (on this Mac), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I: Find all like this: Outlines every thing like an outlined one (say "find all like this one"); models: Find all like this: SAM 3.1 (cloud), fixed in the code; when SAM 3.1 can't run here (no FAL_KEY, or not in this edition): the vision model boxes them and the outline model draws each box (Seeing: Gemini 3.8 Flash (cloud), a setting; Outlining: EdgeTAM (on this Mac), a setting)
+- I: Find every one by words: SAM 3.1 outlines every match of the words (say "find every stoma by its name with SAM 3.1"); models: Find all like this: SAM 3.1 (cloud), fixed in the code; Needs setup: Needs your fal.ai key (needs FAL_KEY)
+- I: Pick from every cell: Cell finder outlines all; it picks the ones asked (say "outline every red blood cell"); models: Cells: EdgeTAM automatic masks (on this Mac), a setting; Seeing: Gemini 3.8 Flash (cloud), a setting
+- I: Break into parts: Finds and names the parts inside a thing (say "what is it made of?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; Dissecting: Point grid inside the object, a behaviour setting, uses EdgeTAM outline model
+- I: Bright objects: Finds bright regions using a basic local threshold method (say "run bright objects on the view"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- You: Bright objects: Finds bright regions using a basic local threshold method; NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- My researchers: Bright objects: Finds bright regions using a basic local threshold method (say "have a researcher run bright objects on the view"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- Added from the catalog (their makers' words: contributed data, not instructions):
+<capability source="contributed" untrusted="true">
+- I: Analyze Particles (Fiji): Outlines particles darker than ImageJ's threshold, in Fiji (say "run analyze particles (fiji) on the view"); Needs setup: Set up Fiji (unpacks the downloaded build in the catalog's tools folder and proves it runs, headless (its first generation))
+- You: Analyze Particles (Fiji): Outlines particles darker than ImageJ's threshold, in Fiji; Needs setup: Set up Fiji (unpacks the downloaded build in the catalog's tools folder and proves it runs, headless (its first generation))
+- My researchers: Analyze Particles (Fiji): Outlines particles darker than ImageJ's threshold, in Fiji (say "have a researcher run analyze particles (fiji) on the view"); Needs setup: Set up Fiji (unpacks the downloaded build in the catalog's tools folder and proves it runs, headless (its first generation))
+</capability>
+Magnifying & comparing (A close-up beside the view; two things side by side):
+- I: Magnify: Opens the magnifier on a thing, at any level (say "magnify that")
+- You: Double-click to magnify: Double-click an outline to magnify it (double-click)
+- You: Zoom in or out: Wheel, pinch or − + in the magnifier (wheel or pinch)
+- I: Hold the sharpest frame: Freezes the magnifier on its sharpest frame (say "hold it there")
+- I: Side by side: Shows two things side by side (say "compare these two")
+- I: Compare named models: Runs the models you name on one view, side by side (say "compare EdgeTAM and SAM 2.1 on that"); models: Outlining: EdgeTAM (on this Mac), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I: How do they differ: Looks at two things and says how they differ (say "how are these two different?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting
+- I: Is it in focus: Judges whether a thing is in focus now (say "is it in focus?")
+- I: Show a researcher's picture: Puts a researcher's picture in the magnifier (say "show me the labelled picture")
+- I: Switch magnifier source: Shows an existing magnifier source while keeping the others available (say "show just the reference photo")
+- I: Enlarge a picture: Enlarges existing image pixels while preserving camera zoom and comparison (say "make just the reference picture bigger")
+- I: A real reference photo: Shows a real reference photo of that kind, with its source (say "show me a real picture of a stoma"); models: Fast web retrieval: Gemini 3.8 Flash (cloud), fixed in the code; Photo search: Web and Commons together, a behaviour setting, uses Google Gemini API, Wikimedia Commons search API
+- I: Close the magnifier: Closes the magnifier (say "close that")
+- You: Close the magnifier: Its × or Escape closes it (key Escape)
+Counting & measuring (How many, how big, and the scale):
+- You: Measurements table: Every cell's or track's numbers, sortable, with Download CSV
+- I: Show the measurements: Opens the table of what was measured, to read or export (say "show me the cell measurements as a table"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Count them: Counts what is outlined, outlining first if needed (say "how many are there?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; Outlining: EdgeTAM (on this Mac), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits a box the vision model drew, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I: How big is it: A size in µm, measured by the app (say "how big is that?")
+- I: Ask about segmented cells: Counts, sizes and shapes of what a cell finder segmented (say "which cell is the most elongated?")
+- I: Group cells by look: Groups segmented cells that look alike; never a type (say "group these cells by how they look"); models: Look-alikes: DINOv2 small (on this Mac), a setting
+- I: How the groups differ: Each look group's size, measurements and examples (say "how do the groups differ?"); models: Look-alikes: DINOv2 small (on this Mac), a setting; Names for look groups: MedSigLIP 448 (on this Mac), fixed in the code
+- I: Pick cells by look group: Lists, sorts or picks cells by look group or your label (say "which cells are in group 2?"); models: Look-alikes: DINOv2 small (on this Mac), a setting
+- I: Compare two captures' cells: Compares two cell populations; cell by cell only through links (say "how do these cells compare with the earlier ones?")
+- I: Link cells across captures: Links the same cells in two views of one place (say "compare them with the earlier cells, linking each cell"); models: Linking two views: General 2D (Trackastra) on this Mac, fixed in the code; Unavailable here: Not in this edition (not in the commercial edition: non-commercial component policy excludes Trackastra cell linking, Gurobi optimizer)
+- I: Set the objective: Says which objective is in use, for sizes (say "I'm on 40x")
+- You: Choose the objective: The objective, in the Behaviour menu, for sizes
+- I: Calibrate the scale: Fixes the scale from a known length (say "that line is 100 µm")
+- You: Register a brain volume: Registers a whole-brain volume to the Allen mouse atlas
+- I: Register a brain volume: Registers a volume you added, asking only what's missing (say "register this brain to the Allen atlas"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Retain labels for tools: Retain corrected population labels as native scientific inputs without rerunning their producer (say "retain these corrected labels for measurement"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Measure saved objects: Measure accepted native labels into a typed table without rerunning segmentation (say "measure these accepted saved labels"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Compare retained methods: Compare accepted masks, preserve evidence and choose a protocol without rerunning producers (say "compare these retained methods and keep the evidence"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Pool saved measurements: Combines selected saved measurements into an editable table (say "make a table from these saved measurements")
+- I: Edit a saved table: Saves explicit conditions, exclusions and computed columns without changing original measurements (say "exclude this row with the reason I gave")
+- I: Analyze a saved table: Computes your selected statistical test from an exact saved table version (say "run a Welch test using these two conditions")
+- I: Graph a saved table: Retains code-computed graph values and settings from an exact saved table (say "make a scatter plot of these columns")
+- I: Read accepted analysis: Reads saved numerical results and exclusions without running another calculation (say "read the accepted test result and included rows")
+Motion (What moves, how fast, how straight):
+- I: Keep an eye on cells: Follows chosen cells and measures them again over time (say "keep an eye on the odd ones"); models: Outlining: EdgeTAM (on this Mac), a setting
+- I: Where they went: Where followed cells are now and whether they changed (say "where are the odd ones now, and did they change?")
+- I: That's the same one: Joins two outlines you say are one thing (say "that's the same cell as before")
+- I: What moves, how fast: Measures speed, straightness and drift; keeps the tracks, drawn where they fit (say "are they swimming?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Keep where it went: Keeps a followed thing's trail, its gaps and losses as they were (say "show me where it went"); models: Outlines follow: With each thing, a behaviour setting, uses EdgeTAM outline model; NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Show tracks again: Shows kept tracks live where they fit, else on their view (say "show me the tracks from earlier")
+Looking back & watching (The last minute, and waiting for something to happen):
+- I: What just happened: Looks back over the last minute (say "what just happened?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Tell me when: Watches and says when something happens (say "tell me when they stop moving"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Stop watching: Stops watching for something (say "stop watching"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: What it is watching: Says what it is watching for (say "what are you watching for?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+Slide map (Where things are on the whole slide):
+- I, in the background: Builds a slide map: Pastes each steady view where it is on the slide
+- I: Show the slide map: Opens the map of the slide so far (say "show me the map")
+- You: Show the slide map: The map button opens the slide map
+- I: Where was it: Finds where something was on the slide (say "where was the white cell?")
+- I: Bookmark a place: Keeps this place on the slide with your words (say "bookmark this, the nice stomata")
+- I: Which way to a bookmark: Says which way a bookmarked place is from here (say "which way is the stomata I marked?")
+A clearer picture (Better pictures made from real frames):
+- I: A clearer picture: Averaged, sharpest or focus-stacked from real frames (say "clean up the picture")
+Snapshots (Saving the view with its outlines):
+- I: Take a snapshot: Saves the view with outlines, labels and scale bar (say "save this view")
+Memory (Today's earlier talk and views):
+- I: Seen this before: Compares the view with today's earlier views (say "have we seen this before?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting; NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: What data we have: Lists everything the session made today, by kind and title (say "what data do we have?")
+- I: Inspect the held camera: Supplies the original dated camera crop for the next answer (say "Compare this view with the saved picture")
+- I: How it knows: Says what a name rests on: model, view, notes, sureness (say "how do you know it's a neutrophil?")
+- I: Keep a tentative note: Keeps tentative notes and display names on exact saved evidence (say "keep this as my tentative observation")
+- I: Recall earlier: Finds what was said or found earlier today (say "what did we say about the platelet?")
+- I, in the background: Keeps a summary: Folds older talk into a running summary
+- You: Made in this session: Lists everything this session made and opens it (say "what data do we have?")
+Talking with it (Asking by text or voice, and how it answers):
+- You: Run actions by hand: Runs what the agent can do, from the side bar's Actions
+- You: Try an example: Walks through a real example of cells, measured and kept
+- I: Which model did better: How each model has done on this specimen (say "which model did better on this smear today?")
+- You: Type a question: Ask anything about the view; models: Seeing: Gemini 3.8 Flash (cloud), a setting; Quick decisions: off; when EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- You: Look deeper: One press on a card: the app chooses how to look closer; models: Seeing: Gemini 3.8 Flash (cloud), a setting; Quick decisions: off; Researching: GPT-6.1 Sol + web search (cloud), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- You: Talk to it: Speak; it answers and acts by voice; models: Talking: GPT-Live (OpenAI) in the cloud, a setting; Quick decisions: off; Voice link: Direct (WebRTC), a behaviour setting, uses OpenAI API; Point as it answers: Point at once with Gemini 3.5 Flash, a behaviour setting, uses Google Gemini API; when EdgeTAM or SAM 2.1 finds nothing that fits a box the spoken answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- I, in the background: Acts as it hears: Does what you said as soon as it is heard; models: Quick decisions: off; Point as it answers: Point at once with Gemini 3.5 Flash, a behaviour setting, uses Google Gemini API; NOT AVAILABLE here: off in the settings (Quick decisions)
+- I, in the background: Says results later: Says finished results at the next pause
+- I: Name the specimen: Uses your name for the specimen from now on (say "this is onion skin")
+- I: New conversation: Starts a new conversation (say "new topic")
+- You: Conversation menu: Start, rename or go back to a conversation
+- I: Back to a conversation: Goes back to an earlier conversation (say "back to the blood smear")
+- I: New session: Starts a new session, a project with its own conversations (say "start a new session")
+- You: Sessions: Start, name or go back to a session
+- I: Back to a session: Goes back to an earlier session, its conversations and work (say "go back to yesterday's leaf session")
+- I: Let you find things: Stops pointing things out until you ask (say "let me find it myself")
+- I: Explain simpler or deeper: Changes how things are explained (say "explain it more simply")
+- I: Suggest what next: Offers something worth looking at next (say "what should I look at next?")
+- I: Say what models need: Which models run here, why not, and how to turn on (say "what do I need to set up?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Download on your yes: Starts a model's download it offered, once you say yes (say "yes, download it"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Open a model's card: Opens the Models page at a model, its Add key there (say "add my OpenAI key"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Read its capabilities: Reads this list, as you see it (say "what can you do?")
+- I: Which models can do it: Lists the models that could do it here, running none (say "which models can outline this?"); models: Outlining: EdgeTAM (on this Mac), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I: Use a model once: Uses the model you name for this request only (say "use SAM 2.1 for this one")
+- I: Change the default model: Switches the model an operation uses from now on (say "always use SAM 2.1 to outline"); models: Outlining: EdgeTAM (on this Mac), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I: Retrieve a page: Finds a page and reads its actual text (say "pull up a page about this"); models: Fast web retrieval: Gemini 3.8 Flash (cloud), fixed in the code
+Researchers (Background work you ask for: research, pictures, videos, lessons):
+- My researchers: Look it up: Researches a question on the web (say "look into why stomata close"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Checking sources: A model reads the page, a behaviour setting, uses Google Gemini API
+- My researchers: Write a report: A full written report with sources (say "write me a report on this"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Checking sources: A model reads the page, a behaviour setting, uses Google Gemini API
+- My researchers: Label a photo: Labels a photo of the view (say "label the parts on a picture"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Pictures: GPT Image 2.5 Flare (cloud), a setting
+- My researchers: Draw an illustration: An illustration that explains it (say "draw how it works"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Pictures: GPT Image 2.5 Flare (cloud), a setting
+- My researchers: Make a video: A short generated video explaining it (say "make a video of meiosis"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Video: Veo 3.1 Fast (cloud), fixed in the code
+- My researchers: Make a lesson: An interactive lesson with a quiz (say "teach me about this"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Pictures: GPT Image 2.5 Flare (cloud), a setting; Lesson checker: Gemini 3.8 Flash (cloud), fixed in the code; Lesson writer: GPT-6.1 Sol (cloud), fixed in the code, its fallback because no ANTHROPIC_API_KEY; Editor: GPT-6.1 Sol (cloud), fixed in the code; Lessons need the picture: Check and log, a behaviour setting, uses Google Gemini API
+- My researchers: Outline cells for itself: Segments the view now or a kept one, never on screen (say "have a researcher measure how much these cells vary"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- My researchers: Clearer picture for itself: Averages or picks real frames for its reading, never on screen (say "have a researcher take the clearest picture of the clip it held"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Motion for itself: Measures what moves in the live view, never on screen (say "have a researcher measure how fast these swim"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- I: Start a researcher: Starts background research on what you asked; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- I: Schedule camera clips: Keeps scheduled camera clips and records failed or missed captures (say "capture ten five-second clips every thirty seconds")
+- I: How is it going: Says how the researchers are doing (say "how is the researcher doing?")
+- I: What they found: Sums up what researchers found (say "what have they found?")
+- I: Stop a researcher: Stops a researcher (say "stop the researcher")
+- You: Stop a researcher: The Stop button on its work
+- I: Ask a researcher: Asks a researcher about its own work (say "ask the researcher why"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- You: Steer a working researcher: The pinned researcher composer sends a note to its existing inbox
+- You: Answer an evidence request: Holds requested frames or declines, answering the exact retained question
+- You: Ask a researcher: The follow-up box on its work; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- I: Make a new version: Changes one thing it made, keeping the old one (say "make question 2 easier"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Pictures: GPT Image 2.5 Flare (cloud), a setting; Editor: GPT-6.1 Sol (cloud), fixed in the code; Lesson writer: GPT-6.1 Sol (cloud), fixed in the code, its fallback because no ANTHROPIC_API_KEY; Video: Veo 3.1 Fast (cloud), fixed in the code; Presentation model: off
+- I: Pass a note: Passes your words to a working researcher (say "tell it to focus on the guard cells")
+- I: Hold footage for it: Holds the seconds of view a researcher asked for, on your yes (say "yes, keep 15 seconds for it")
+- I: Daily spending cap: Sets how much researchers may spend a day (say "cap research at two dollars")
+- You: Daily spending cap: Research spending in the Behaviour menu
+- You: Open a retained research capture: Opens the original captured frame from saved findings in this browser
+- You: Produce or stop a presentation: Arranges retained findings independently, or stops its presentation job; models: Presentation model: off; NOT AVAILABLE here: off in the settings (Presentation model)
+Researchers' work (Showing, reading and going through what they made):
+- I: Show their work: Opens a researcher's work beside the view (say "show me the lesson")
+- You: Open their work: A researcher in Researchers, or Show beside the view
+- I: Read their work: Reads a researcher's work in full (say "what does the lesson say?")
+- I: Go through a lesson: Goes through a lesson or quiz step by step (say "next question")
+- I: Mark an answer: Marks your answer to a quiz step
+- I: Close their work: Closes the work beside the view (say "close the lesson")
+- I: Show me: Shows a finding from the session's records it rests on (say "show me what it found")
+- I: Stop showing: Ends it, putting back only what it changed (say "stop")
+- You: Stop showing: Stop on its bar, or Escape (key Escape)
+- You: Close their work: Its × closes the work beside the view
+- You: Open in a window: Opens the Research view in its own window
+- I, in the background: Checks quiz answers: Checks your clicks on a slide quiz
+How it looks (How outlines and spots are drawn):
+- You: Retry a failed step: Retry a failed step without repeating successful work.
+- You: Hide outlines: Hold H to see the bare specimen (key H)
+- You: Show detected spots: Shows the small spots the app finds
+- I: Outline colour and style: Changes the outline colour or style (say "make the outlines yellow"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Change what is shown: Shows, hides, fades, colours, moves or closes anything on screen (say "colour the cells by size")
+- I: Colour cells by look group: Colours each look group of the cells, with a legend (say "colour the cells by look group"); models: Look-alikes: DINOv2 small (on this Mac), a setting
+- You: Show, fade or colour cells: Shows, hides, fades, fills or colours the cell outlines (say "colour the cells by size")
+- I: Look at the screen: Checks the composed screen when the studio's report is unclear (say "is the video still showing?"); models: Seeing: Gemini 3.8 Flash (cloud), a setting
+- You: Outline style: Outline style in the Behaviour menu
+- I: Arrange named Tabs: Changes named Tabs and retained placements in the original Studio (say "move this saved graph to the Results Tab")
+Choosing & checking (Which model does each job, blind tests, flags, your verdicts):
+- You: Flag a moment: F marks a moment to look at later (key F)
+- You: Choose the models: Pick which model does each job
+- You: Add an API key: Test a key, save it, and its models turn on
+- You: Add your own model: A zoo or Cellpose model by link or file; on once checked
+- You: Share a capability: As a file anyone opens, or sent for review
+- You: Have an AI build it: An AI drafts its adapter; each try runs sandboxed; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- You: See every model: Which models run here, why not, and how to turn each on
+- You: Download a model: Gets a model's pinned files, checked, into the models folder
+- You: Install a model's code: Makes a model's own Python from its pinned lockfile
+- You: Prepare a scientific tool: Prepares pinned dependencies for private review before explicitly choosing a tool
+- You: Turn on a Fiji plugin: Adds a plugin's update site to a new, proven Fiji
+- You: Get new catalog entries: Lists entries merged since, or a community channel's, pinned
+- You: See new capabilities: What others added arrives by itself, offered, never turned on
+- You: Turn a capability on: One press carries every step a job needs, said when on
+- I: Turn a capability on: On your yes, turns a job on; keys stay on its card (say "turn on finding every cell"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Run an added job: Runs a new kind of job the catalog added, on the view (say "denoise the view with the denoiser I added"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Describe an added job: Says an added capability's settings, input, output and outcomes (say "what can the bright objects finder be set to?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- You: Try an added job: Try it on its card runs it on the view now
+- You: Go back a version: One press runs the version before; kept until you change it
+- You: Choose how it updates: Update when you choose, review updates, maintain automatically, or pin
+- You: Check for an update: Looks at its catalog for a newer version, now
+- You: Apply an update: A proven update runs new work; running work keeps its version
+- You: Undo an update: The version before runs again; automatic updates then wait for you
+- You: Stop an update: Ends the update being prepared; the version in use is untouched
+- You: Accept what changed: You accept exactly what an update changes; then it continues
+- You: Update your own version: Your version merged onto the newest of what it came from
+- You: Report a problem: The facts of a failure, to copy; never pictures or keys
+- You: Monthly cloud cap: Optional; reached, no cloud model is asked; unknown costs count
+- You: Choose the behaviour: How it points, checks, listens and explains
+- You: Blind A/B/C test: Several options answer unnamed; you vote
+- You: Blind-test scores: The votes so far, per option
+- You: Mark works or broken: Your verdict on a capability, kept in git
+- You: Check every model: Runs each model on this Mac once; shows which are broken

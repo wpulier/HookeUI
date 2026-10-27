@@ -1,0 +1,200 @@
+/* The Data reader (data-reader.ts; the mock's .reader and .rd-*): on the right edge in the Assistant's place, or a
+   reader Tab's full width. Its header: the kind's mark, title and count, who made it and when, ×; then its two views
+   and its actions. Its page keeps its own theme (the researcher page's .page rules, workspace-feel.css). */
+body[data-workspace-study='true'] .data-reader {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0; box-sizing: border-box;
+  background: var(--mm-bar); color: var(--mm-text); font-family: var(--mm-sans);
+}
+body[data-workspace-study='true'] .data-reader[hidden] { display: none; }
+body[data-workspace-study='true'] .data-reader-side {
+  position: fixed; z-index: 105; right: 0; top: var(--study-top); bottom: 40px; width: var(--reader-width, 600px);
+  border-left: 1px solid var(--mm-line-strong);
+}
+/* A reader Tab: the reader fills the Stage under its bar. */
+body[data-workspace-study='true'] .data-reader-tab { position: absolute; inset: 0; z-index: 40; background: var(--mm-bar); }
+body[data-workspace-study='true'] .rd-head { flex: none; border-bottom: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .rd-back {
+  display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 8px 10px 0; padding: 0 8px 0 4px; border: 0;
+  border-radius: var(--mm-r-control); background: transparent; color: var(--mm-text-2); font: 500 12px var(--mm-sans); cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-back:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .rd-back-icon,
+body[data-workspace-study='true'] .rd-talk-icon,
+body[data-workspace-study='true'] .rd-ref-go,
+body[data-workspace-study='true'] .rd-close-icon,
+body[data-workspace-study='true'] .rd-tick,
+body[data-workspace-study='true'] .rd-ic-mark { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+body[data-workspace-study='true'] .rd-back-icon { width: 14px; height: 14px; }
+body[data-workspace-study='true'] .rd-top { display: flex; align-items: flex-start; gap: 10px; padding: 14px 10px 8px 16px; }
+body[data-workspace-study='true'] .rd-ic {
+  flex: none; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--mm-card);
+  color: var(--mm-text-2); box-shadow: inset 0 0 0 1px var(--mm-line);
+}
+body[data-workspace-study='true'] .rd-ic-mark { width: 16px; height: 16px; }
+body[data-workspace-study='true'] .rd-words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+body[data-workspace-study='true'] .rd-title {
+  margin: 0; font: 600 15px/20px var(--mm-sans); letter-spacing: -0.01em; color: var(--mm-text);
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+body[data-workspace-study='true'] .rd-count { font: 400 13px var(--mm-sans); color: var(--mm-text-2); font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .rd-by { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .rd-top > :is(.rd-close, .rd-more) {
+  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; margin: 0; border: 0; border-radius: var(--mm-r-control);
+  background: transparent; box-shadow: none; color: var(--mm-text-3); cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-top > :is(.rd-close, .rd-more):hover,
+body[data-workspace-study='true'] .rd-bar > .rd-more:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .rd-close-icon { width: 14px; height: 14px; }
+body[data-workspace-study='true'] .rd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px 10px 16px; min-width: 0; }
+body[data-workspace-study='true'] .rd-bar-tab { padding: 10px 12px 10px 12px; }
+body[data-workspace-study='true'] .rd-bar > .rd-more { flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--mm-r-control); background: transparent; color: var(--mm-text-3); cursor: pointer; }
+body[data-workspace-study='true'] .rd-flex { flex: 1; min-width: 0; }
+body[data-workspace-study='true'] .rd-views { flex: none; }
+body[data-workspace-study='true'] .rd-talk {
+  display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 0 6px 0 8px; margin: 0; border: 0; border-radius: 7px;
+  background: transparent; color: var(--mm-accent); font: 500 12px var(--mm-sans); white-space: nowrap; cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-talk:hover { background: var(--mm-accent-soft); }
+body[data-workspace-study='true'] .rd-talk-icon { width: 12px; height: 12px; stroke-width: 1.8; }
+body[data-workspace-study='true'] .rd-button {
+  flex: none; height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; margin: 0;
+  padding: 0 10px; border: 1px solid var(--mm-line-strong); border-radius: 7px; background: var(--mm-card); box-shadow: var(--mm-highlight);
+  color: var(--mm-text); font: 500 12px var(--mm-sans); white-space: nowrap; cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-button:hover:not(:disabled) { background: var(--mm-raise); }
+body[data-workspace-study='true'] .rd-button:disabled { opacity: 0.6; cursor: default; }
+body[data-workspace-study='true'] .rd-button.is-on { background: var(--mm-ready-soft); border-color: color-mix(in srgb, var(--mm-ready) 40%, transparent); }
+body[data-workspace-study='true'] .rd-tick { width: 13px; height: 13px; margin-right: 2px; color: var(--mm-ready); stroke-width: 2; }
+body[data-workspace-study='true'] .rd-problem { margin: 0 16px 10px; font: 400 12px/16px var(--mm-sans); color: var(--mm-attention); }
+body[data-workspace-study='true'] .rd-body-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body[data-workspace-study='true'] .rd-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+body[data-workspace-study='true'] .rd-body > .rd-problem { margin: 0; }
+body[data-workspace-study='true'] .rd-loading,
+body[data-workspace-study='true'] .rd-empty { margin: 0; font: 400 13px/18px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-note { margin: -6px 0 0; font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); }
+/* The picture with its outlines: square, at most 420 px tall, contained. */
+body[data-workspace-study='true'] .rd-fig {
+  position: relative; flex: none; width: 100%; aspect-ratio: 1; max-height: 420px; border-radius: 10px; overflow: hidden; background: #000;
+  box-shadow: inset 0 0 0 1px var(--mm-line); display: grid; place-items: center;
+}
+body[data-workspace-study='true'] .rd-fig > :is(svg, img) { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+body[data-workspace-study='true'] .rd-fig-free { aspect-ratio: auto; max-height: 520px; }
+body[data-workspace-study='true'] .rd-fig-free > img { position: static; height: auto; max-height: 520px; }
+body[data-workspace-study='true'] .rd-video { width: 100%; max-height: 480px; border-radius: 10px; background: #000; }
+/* Its table: a framed card with its count, rows drawn as they scroll (data-reader.ts drawRows). */
+body[data-workspace-study='true'] .rd-holds { flex: none; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--mm-line); overflow: hidden; }
+body[data-workspace-study='true'] .rd-holds > .rd-mini,
+body[data-workspace-study='true'] .rd-tablebody > .rd-table { overflow-x: auto; }
+body[data-workspace-study='true'] .rd-holds-head { margin: 0; padding: 10px 12px 6px; font: 600 12px/16px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .rd-holds-head .rd-count { font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-holds > .rd-note { margin: 0; padding: 0 12px 10px; }
+body[data-workspace-study='true'] .rd-tablebody .rd-table { border-radius: 10px; box-shadow: inset 0 0 0 1px var(--mm-line); }
+body[data-workspace-study='true'] .rd-rtable { width: 100%; border-collapse: collapse; font: 400 13px var(--mm-sans); font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .rd-rtable th {
+  position: sticky; top: 0; z-index: 1; height: 28px; padding: 0 12px; background: var(--mm-bar); border-bottom: 1px solid var(--mm-line);
+  font: 500 12px var(--mm-sans); color: var(--mm-text-2); text-align: left; white-space: nowrap;
+}
+body[data-workspace-study='true'] .rd-rtable td { height: 28px; box-sizing: border-box; padding: 0 12px; color: var(--mm-text); white-space: nowrap; }
+body[data-workspace-study='true'] .rd-rtable :is(th, td)[data-type='number'] { text-align: right; }
+body[data-workspace-study='true'] .rd-rtable tr.rd-spacer > td { padding: 0; height: 0; }
+body[data-workspace-study='true'] .rd-rtable tbody tr:not(.rd-spacer):nth-child(even) > td { background: color-mix(in srgb, var(--mm-text) 3%, transparent); }
+/* A page: the desk fills the body, the page in its own theme. */
+body[data-workspace-study='true'] .rd-deskbody,
+body[data-workspace-study='true'] .rd-filebody { padding: 0; gap: 0; overflow: hidden; }
+body[data-workspace-study='true'] .rd-deskbody > .rd-desk { flex: 1; }
+/* A page in a dark theme on the dark desk keeps its edge. */
+body[data-workspace-study='true'] .data-reader .desk .page { box-shadow: var(--mm-shadow-2), 0 0 0 1px var(--mm-line-strong); }
+body[data-workspace-study='true'] .data-reader .rd-body-host { position: relative; }
+body[data-workspace-study='true'] .rd-filebody { overflow: auto; padding: 16px; }
+/* A source: what it is and where it came from. */
+body[data-workspace-study='true'] .rd-src {
+  display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; padding: 14px; border-radius: 10px; background: var(--mm-card);
+  box-shadow: inset 0 0 0 1px var(--mm-line);
+}
+body[data-workspace-study='true'] .rd-src-ic { width: 36px; height: 36px; border-radius: 8px; display: grid; place-items: center; background: var(--mm-bar); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .rd-src-w { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+body[data-workspace-study='true'] .rd-src-w > strong { font: 600 13px/18px var(--mm-sans); }
+body[data-workspace-study='true'] .rd-src-w > span { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .rd-src-site { font: 400 12px/16px var(--mm-sans); color: var(--mm-accent); text-decoration: none; }
+body[data-workspace-study='true'] .rd-src-site:hover { text-decoration: underline; }
+body[data-workspace-study='true'] .rd-cited { display: flex; flex-direction: column; gap: 4px; }
+body[data-workspace-study='true'] .rd-cited-label { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-words-body p { margin: 0 0 10px; font: 400 13px/20px var(--mm-sans); color: var(--mm-text); white-space: pre-wrap; }
+/* How it was made: label and value rows (the mock's .how-dl). */
+body[data-workspace-study='true'] .rd-how-dl { margin: 0; padding: 0; display: flex; flex-direction: column; }
+body[data-workspace-study='true'] .rd-how-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .rd-how-row:first-child { border-top: 0; padding-top: 0; }
+body[data-workspace-study='true'] .rd-how-row > dt { font: 400 12px/18px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-how-row > dd { margin: 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; font: 400 13px/18px var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .rd-how-row > dd > .rd-talk { margin-left: -8px; }
+body[data-workspace-study='true'] .rd-how-quiet { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-ver { display: inline-flex; align-items: center; gap: 6px; font: 400 13px/18px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .rd-ver.is-cur { color: var(--mm-text); font-weight: 500; }
+body[data-workspace-study='true'] .rd-ver-when { font: 400 12px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-ref {
+  width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) 14px; align-items: center; gap: 8px; margin: 2px 0; padding: 4px 6px 4px 0;
+  border: 0; border-radius: 7px; background: transparent; color: var(--mm-text); text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-ref:hover { background: var(--mm-hover); }
+body[data-workspace-study='true'] .rd-ref-ic { width: 28px; height: 28px; border-radius: 6px; display: grid; place-items: center; background: var(--mm-card); color: var(--mm-text-2); box-shadow: inset 0 0 0 1px var(--mm-line); }
+body[data-workspace-study='true'] .rd-ref-ic .rd-ic-mark { width: 14px; height: 14px; }
+body[data-workspace-study='true'] .rd-ref-w { min-width: 0; display: flex; flex-direction: column; }
+body[data-workspace-study='true'] .rd-ref-t { font: 400 13px/18px var(--mm-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .rd-ref-s { font: 400 11px/14px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-ref-go { width: 14px; height: 14px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-record { align-self: flex-start; font: 400 12px var(--mm-sans); color: var(--mm-text-3); text-decoration: none; }
+body[data-workspace-study='true'] .rd-record:hover { color: var(--mm-text-2); text-decoration: underline; }
+body[data-workspace-study='true'] .rd-live { width: 10px; height: 10px; border-radius: 50%; background: var(--mm-alive); }
+/* The row a reader shows is marked in Data (the mock's data-current). */
+body[data-workspace-study='true'] .mm-row-wrap[data-current='true'] > .mm-row { background: var(--mm-card); }
+/* A reader Tab's Stage bar names its item (workspace-views.ts stageReader) where a work Tab names its specimen. */
+body[data-workspace-study='true'] .workspace-stage-reader { flex: 1; display: flex; align-items: baseline; gap: 8px; min-width: 0; margin-right: 6px; }
+body[data-workspace-study='true'] .workspace-stage-reader[hidden] { display: none; }
+body[data-workspace-study='true'] .workspace-stage-reader > strong { font: 500 12px/16px var(--mm-sans); color: var(--mm-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .workspace-stage-reader > span { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'][data-reader-tab='true'] .workspace-stage-work { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  body[data-workspace-study='true'] .data-reader-side[data-reader-open='true'] .rd-body { animation: rd-in 120ms var(--mm-ease, ease) both; }
+}
+@keyframes rd-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The reader on a researcher's Tab (data-reader.ts mode 'research'; ticket 66 D3, the mock's research, research-docs,
+   research-sources and research-narrow frames): the right column beside its conversation. Its header on the panel
+   tone, with the switcher as its title; its page on the desk (research-workspace.ts `.rpage-host`), anything else on
+   the panel tone. No ×: it is this Tab's own right. */
+body[data-workspace-study='true'] .data-reader-research { position: relative; min-width: 0; background: var(--mm-bar); }
+body[data-workspace-study='true'] .data-reader-research[data-reader-page='true'] .rd-body-host { background: var(--mm-desk); }
+body[data-workspace-study='true'] .data-reader-research .rd-top { padding-right: 8px; }
+body[data-workspace-study='true'] .data-reader-research .rd-top > :is(.tbtn, .rtab-icon-button) { flex: none; margin-top: 1px; }
+body[data-workspace-study='true'] .data-reader-research .rd-top > .rd-more { margin-top: 1px; }
+body[data-workspace-study='true'] .data-reader-research .rd-ic > .lit-cell { display: block; }
+/* The title is the switcher: its words and ▾ (the mock's .rd-title .docsw). */
+body[data-workspace-study='true'] .rd-switch {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; height: auto; margin: -2px 0 -2px -6px; padding: 2px 6px;
+  border: 0; border-radius: 7px; background: transparent; color: var(--mm-text); font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-switch:hover, body[data-workspace-study='true'] .rd-switch[aria-expanded='true'] { background: var(--mm-hover); }
+body[data-workspace-study='true'] .rd-switch-t { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .rd-switch-icon { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .data-reader-research .rd-title { display: flex; -webkit-line-clamp: unset; }
+body[data-workspace-study='true'] .rd-clock { font-variant-numeric: tabular-nums; }
+/* Its page: the desk with its progress line, then Sections in their own band. */
+body[data-workspace-study='true'] .rpage-host { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--mm-desk); }
+/* Its sources: a card each (the mock's .srcs). */
+body[data-workspace-study='true'] .rd-body.rd-sources { gap: 10px; padding: 20px; }
+body[data-workspace-study='true'] .rd-sources > .rd-src { max-width: 600px; }
+body[data-workspace-study='true'] .rd-src-open {
+  align-self: flex-start; max-width: 100%; margin: 0; padding: 0; border: 0; background: transparent; color: var(--mm-text); font: 600 13px/18px var(--mm-sans);
+  text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .rd-src-open:hover { text-decoration: underline; }
+body[data-workspace-study='true'] .rd-src-w > .rd-src-line { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-src-line .rd-src-site { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .rd-src-cited { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+body[data-workspace-study='true'] .rd-src-cited:hover, body[data-workspace-study='true'] .rd-src-line .rd-src-site:hover { color: var(--mm-text-2); text-decoration: underline; }
+/* Its versions in How it was made: each a press that shows it on the page. */
+body[data-workspace-study='true'] .rd-ver-pick { margin: 0 0 0 -6px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hover); color: var(--mm-text); }
+/* The switcher's menu: wide enough for a title and its kind, each cut with an ellipsis rather than at the edge. */
+.workspace-add-menu.rd-switch-menu { max-width: min(460px, calc(100vw - 32px)); }
+.workspace-add-menu.rd-switch-menu > button { min-width: 0; }

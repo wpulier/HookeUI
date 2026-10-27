@@ -1,0 +1,9534 @@
+{
+ "about": "Acting bench cases (bench/acting/run.py has the format). Live cases are from the first live session, 2026-10-04 (services/logs/interactions.jsonl); `xfail` says why a case fails today, until the PR that fixes it. `within` limits sit between doing it at once (about 1.1-1.3 s) and waiting for a look (3.5 s or more), with room for timing jitter when tests run under load.",
+ "slides": "Each case lists its slide; boxes are frame pixels [x0, y0, x1, y1] with the slide at rest.",
+ "cases": [
+  {
+   "id": "live-140652",
+   "about": "14:06:52 'stop highlighting the phloem fibers and only highlight the xylem vessels': the slide had moved since the look, the highlight missed, the voice was told 'cleared 2 outlines' and said 'Done', and the xylem was outlined only when asked again.",
+   "slide": [
+    {
+     "name": "phloem fibers",
+     "box": [
+      300,
+      200,
+      380,
+      260
+     ]
+    },
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "phloem fibers"
+    ],
+    "look": [
+     "xylem vessels",
+     "phloem fibers"
+    ],
+    "moved": {
+     "epoch": 1
+    }
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "stop highlighting the phloem fibers and only highlight the xylem vessels"
+    },
+    {
+     "at": 1.5,
+     "handoff": "stop highlighting the phloem fibers and only highlight the xylem vessels",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "xylem",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Clearing the phloem and outlining the xylem vessels.",
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@xylem"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "xylem",
+     "reply": {
+      "answer": "Those are the xylem vessels; clearing the phloem.",
+      "targets": [
+       {
+        "thing": "xylem vessels"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "xylem"
+     },
+     {
+      "not_outlined": "phloem"
+     }
+    ]
+   }
+  },
+  {
+   "id": "live-140948",
+   "about": "14:09:48 'un-highlight what's in the view and highlight some of the stuff at the top': the clear worked, the highlight could not be outlined, the voice was told only 'cleared 1 outline' and said 'I've highlighted them'.",
+   "slide": [
+    {
+     "name": "parenchyma",
+     "box": [
+      500,
+      80,
+      700,
+      160
+     ],
+     "outlinable": false
+    },
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "look": [
+     "parenchyma",
+     "xylem vessels"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "un-highlight what's in the view and highlight some of the stuff at the top"
+    },
+    {
+     "at": 1.5,
+     "handoff": "un-highlight what's in the view and highlight some of the stuff at the top",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "un-highlight",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Clearing that and outlining the parenchyma at the top.",
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@parenchyma"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "un-highlight",
+     "reply": {
+      "answer": "Here they are highlighted now!",
+      "targets": [
+       {
+        "thing": "parenchyma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "parenchyma"
+     }
+    ],
+    "possible": false
+   }
+  },
+  {
+   "id": "live-152750",
+   "about": "15:27:50 'actually close the zoom. Uh, can you highlight the blue part': the close and the highlight came in one request after the slide moved; the close waited for the look.",
+   "slide": [
+    {
+     "name": "cortex",
+     "box": [
+      200,
+      450,
+      360,
+      560
+     ]
+    },
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "magnifier": "xylem vessels",
+    "look": [
+     "cortex",
+     "xylem vessels"
+    ],
+    "moved": {
+     "dx": 150
+    }
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "actually close the zoom. Uh, can you highlight the blue part"
+    },
+    {
+     "at": 1.5,
+     "handoff": "actually close the zoom. Uh, can you highlight the blue part",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "blue part",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the zoom and outlining the blue part.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@cortex"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "blue part",
+     "reply": {
+      "answer": "The blue part is the cortex; closing the zoom.",
+      "targets": [
+       {
+        "thing": "cortex"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     },
+     {
+      "outlined": "cortex"
+     },
+     {
+      "not_outlined": "xylem"
+     }
+    ],
+    "within": {
+     "magnifier closed": 2.5
+    }
+   }
+  },
+  {
+   "id": "live-153656",
+   "about": "15:36:56 typed 'outline the pink': nothing could be outlined and the answer said 'Here is the pink-stained tissue outlined'. Fixed on 2026-10-04 (Brain._reconcile); kept as a regression test.",
+   "slide": [
+    {
+     "name": "pink tissue",
+     "box": [
+      800,
+      400,
+      1000,
+      600
+     ],
+     "outlinable": false
+    }
+   ],
+   "board": {
+    "look": [
+     "pink tissue"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the pink"
+    }
+   ],
+   "vision": [
+    {
+     "when": "pink",
+     "reply": {
+      "answer": "Here is the pink-stained tissue outlined.",
+      "final": {
+       "answer": "I couldn't outline the pink tissue; nothing there could be outlined.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": [],
+       "requires": {
+        "problems": ["nothing distinct to outline there"]
+       }
+      },
+      "targets": [
+       {
+        "thing": "pink tissue"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "pink"
+     }
+    ],
+    "possible": false,
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "live-140842",
+   "about": "14:08:42 'Can you close the' ... 'Oh, wait, never mind': the first piece closed the magnifier on its own. The model judges both pieces: unfinished, then (joined) a cancel.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "magnifier": "xylem vessels",
+    "look": [
+     "xylem vessels"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "Can you close the"
+    },
+    {
+     "at": 2.6,
+     "say": "Oh, wait, never mind"
+    }
+   ],
+   "fast": [
+    {
+     "when": "never mind",
+     "reply": {
+      "intent": "cancel",
+      "needs_look": false,
+      "answer": "",
+      "actions": []
+     }
+    },
+    {
+     "when": "can you close the",
+     "reply": {
+      "intent": "unfinished",
+      "needs_look": false,
+      "answer": "",
+      "actions": []
+     }
+    },
+    {
+     "when": "close",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the magnifier.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "voice-highlight-seen",
+   "about": "'highlight the xylem' with a current look: outlined from the look at once, without a new look.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "cortex",
+     "box": [
+      200,
+      450,
+      360,
+      560
+     ]
+    }
+   ],
+   "board": {
+    "look": [
+     "xylem vessels",
+     "cortex"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "highlight the xylem"
+    },
+    {
+     "at": 1.5,
+     "handoff": "highlight the xylem",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "highlight the xylem",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining the xylem.",
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@xylem"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "xylem"
+     }
+    ],
+    "within": {
+     "outlined xylem": 2.5
+    }
+   }
+  },
+  {
+   "id": "voice-close-then-highlight-current",
+   "about": "'close the zoom and highlight the cortex' with a current look: both done at once, in order.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "cortex",
+     "box": [
+      200,
+      450,
+      360,
+      560
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "magnifier": "xylem vessels",
+    "look": [
+     "xylem vessels",
+     "cortex"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "close the zoom and highlight the cortex"
+    },
+    {
+     "at": 1.5,
+     "handoff": "close the zoom and highlight the cortex",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "cortex",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the zoom and outlining the cortex.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@cortex"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     },
+     {
+      "outlined": "cortex"
+     },
+     {
+      "not_outlined": "xylem"
+     }
+    ],
+    "within": {
+     "magnifier closed": 2.5,
+     "outlined cortex": 2.5
+    }
+   }
+  },
+  {
+   "id": "voice-select-outlined",
+   "about": "'select the xylem' when it is outlined: selected at once.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "look": [
+     "xylem vessels"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "select the xylem"
+    },
+    {
+     "at": 1.5,
+     "handoff": "select the xylem",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "select",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Selecting the xylem.",
+      "actions": [
+       {
+        "tool": "select",
+        "args": {
+         "object": "#xylem"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "selected": "xylem"
+     }
+    ],
+    "within": {
+     "selected xylem": 2.5
+    }
+   }
+  },
+  {
+   "id": "chat-what-is-that",
+   "about": "typed 'what is the round thing?': the look names and outlines it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      400,
+      300,
+      460,
+      350
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "what is the round thing?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "round",
+     "reply": {
+      "answer": "That's likely a stoma, outlining it.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "stoma"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "chat-what-is-that-after-hiding-the-outlines",
+   "about": "M1.5b re-check N7: the outlines hidden, then 'what is the round thing?': the look's own outline shows the outlines again, and says so (never 'outlining it' while nothing is drawn).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      400,
+      300,
+      460,
+      350
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "hide the outlines"
+    },
+    {
+     "at": 2.0,
+     "type": "what is the round thing?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "hide",
+     "reply": {
+      "answer": "Hiding the outlines.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "present",
+        "args": {
+         "what": "outlines",
+         "do": "hide"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "round",
+     "reply": {
+      "answer": "That's likely a stoma, outlining it.",
+      "final": {
+       "answer": "That's likely a stoma. The outlines were hidden and are now shown again.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": [],
+       "requires": {
+        "limitations": ["the outlines were hidden, shown again"]
+       }
+      },
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "stoma"
+     },
+     {
+      "outlines_visible": true
+     }
+    ],
+    "told": [
+     "shown again"
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "chat-clear-then-highlight",
+   "about": "typed 'clear the old ones and outline the stoma': the look outlines the stoma and clears the app's earlier outlines.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      400,
+      300,
+      460,
+      350
+     ]
+    },
+    {
+     "name": "trichome",
+     "box": [
+      900,
+      100,
+      960,
+      200
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "trichome"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "clear the old ones and outline the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "stoma",
+     "reply": {
+      "answer": "Clearing those and outlining the stoma.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "stoma"
+     },
+     {
+      "not_outlined": "trichome"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "voice-clear-then-highlight-in-the-models-order",
+   "about": "'only highlight the xylem': the model lists the clear, then the highlight; its order is kept (no code reordering, 2026-10-06), so the clear never removes the new highlight.",
+   "slide": [
+    {
+     "name": "phloem fibers",
+     "box": [
+      300,
+      200,
+      380,
+      260
+     ]
+    },
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "phloem fibers"
+    ],
+    "look": [
+     "xylem vessels",
+     "phloem fibers"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "only highlight the xylem"
+    },
+    {
+     "at": 1.5,
+     "handoff": "only highlight the xylem",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "xylem",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining only the xylem.",
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@xylem"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "xylem"
+     },
+     {
+      "not_outlined": "phloem"
+     }
+    ],
+    "within": {
+     "outlined xylem": 2.5
+    }
+   }
+  },
+  {
+   "id": "live-163622-a-clear-keeps-what-a-later-step-names",
+   "about": "16:36:22 'can you re-highlight the vascular bundle on ours because it's not done well': the look planned clear (the app's outlines) then highlight o20, the vascular bundle's own outline; the clear removed o20, the highlight failed (\"can't find 'o20'\"), and the answer said it re-highlighted the vascular bundle. A clearing step never removes what a later step of the same request names: the bundle's outline is kept and highlighted, the others are cleared.",
+   "slide": [
+    {
+     "name": "vascular bundle",
+     "box": [
+      500,
+      300,
+      620,
+      400
+     ]
+    },
+    {
+     "name": "cortex",
+     "box": [
+      200,
+      150,
+      300,
+      230
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "vascular bundle",
+     "cortex"
+    ],
+    "look": [
+     "vascular bundle",
+     "cortex"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "can you re-highlight the vascular bundle on ours because it's not done well"
+    },
+    {
+     "at": 1.5,
+     "handoff": "can you re-highlight the vascular bundle on ours because it's not done well",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "vascular",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "",
+      "actions": []
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "vascular",
+     "reply": {
+      "answer": "Clearing the old markings and highlighting the vascular bundle again.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "clear",
+        "args": {
+         "what": "ai"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "#vascular bundle"
+         ]
+        }
+       }
+      ],
+      "final": {
+       "answer": "I cleared the other markings and highlighted the vascular bundle again.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "vascular bundle"
+     },
+     {
+      "not_outlined": "cortex"
+     }
+    ],
+    "settle": 4.0
+   }
+  },
+  {
+   "id": "chat-zoom-on-what-it-finds",
+   "about": "typed 'zoom in on the stoma': the look outlines it, then the magnifier opens on it (target 1).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      400,
+      300,
+      460,
+      350
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "zoom in on the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "stoma",
+     "reply": {
+      "answer": "Opening the magnifier on the stoma.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "stoma"
+     },
+     {
+      "magnifier": "open"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "voice-wait-calls-off-a-close",
+   "about": "'close the zoom and' ... 'wait': the close is called off.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "magnifier": "xylem vessels",
+    "look": [
+     "xylem vessels"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "close the zoom and"
+    },
+    {
+     "at": 2.7,
+     "say": "wait"
+    }
+   ],
+   "fast": [
+    {
+     "when": "wait",
+     "reply": {
+      "intent": "cancel",
+      "needs_look": false,
+      "answer": "",
+      "actions": []
+     }
+    },
+    {
+     "when": "close the zoom and",
+     "reply": {
+      "intent": "unfinished",
+      "needs_look": false,
+      "answer": "",
+      "actions": []
+     }
+    },
+    {
+     "when": "close",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the magnifier.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "voice-finished-close-is-not-held",
+   "about": "'close the magnifier' (finished words): closed at once, not held.",
+   "slide": [
+    {
+     "name": "xylem vessels",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "xylem vessels"
+    ],
+    "magnifier": "xylem vessels",
+    "look": [
+     "xylem vessels"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "close the magnifier"
+    },
+    {
+     "at": 1.5,
+     "handoff": "close the magnifier",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "close",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the magnifier.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     }
+    ],
+    "within": {
+     "magnifier closed": 2.0
+    }
+   }
+  },
+  {
+   "id": "chat-point-out-inside-the-highlight",
+   "about": "typed 'point out the nucleus inside the highlight': the nucleus inside the highlighted cell is outlined; the highlight stays; the neighbour's nucleus is not.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      460,
+      300,
+      500,
+      340
+     ]
+    },
+    {
+     "name": "chloroplast",
+     "box": [
+      420,
+      350,
+      440,
+      370
+     ]
+    },
+    {
+     "name": "nucleus of a neighbour",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "point out the nucleus inside the highlight"
+    }
+   ],
+   "vision": [
+    {
+     "when": "nucleus",
+     "reply": {
+      "answer": "Finding the nucleus inside that guard cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "find",
+        "args": {
+         "what": "nucleus",
+         "inside": "#guard cell"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "find": [
+    {
+     "when": "nucleus",
+     "things": [
+      "nucleus"
+     ]
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "guard cell"
+     },
+     {
+      "outlined": "nucleus"
+     },
+     {
+      "outlines": 2
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-the-look-keeps-the-outline-it-points-within",
+   "about": "the look itself boxes a nucleus inside the highlighted cell: the cell's outline stays.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      460,
+      300,
+      500,
+      340
+     ]
+    },
+    {
+     "name": "chloroplast",
+     "box": [
+      420,
+      350,
+      440,
+      370
+     ]
+    },
+    {
+     "name": "nucleus of a neighbour",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which part of it is the nucleus?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "nucleus",
+     "reply": {
+      "answer": "That dark round part is the nucleus.",
+      "targets": [
+       {
+        "thing": "nucleus"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "guard cell"
+     },
+     {
+      "outlined": "nucleus"
+     }
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "chat-find-every",
+   "about": "typed 'outline every chloroplast and nucleus': all=true outlines every one found.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      460,
+      300,
+      500,
+      340
+     ]
+    },
+    {
+     "name": "chloroplast",
+     "box": [
+      420,
+      350,
+      440,
+      370
+     ]
+    },
+    {
+     "name": "nucleus of a neighbour",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline every nucleus"
+    }
+   ],
+   "vision": [
+    {
+     "when": "every nucleus",
+     "reply": {
+      "answer": "Outlining every nucleus.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "find",
+        "args": {
+         "what": "nucleus",
+         "all": true
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "find": [
+    {
+     "when": "nucleus",
+     "things": [
+      "nucleus"
+     ]
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 2
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-find-nothing-says-so",
+   "about": "nothing like it in the view: the answer says so, nothing is claimed.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      460,
+      300,
+      500,
+      340
+     ]
+    },
+    {
+     "name": "chloroplast",
+     "box": [
+      420,
+      350,
+      440,
+      370
+     ]
+    },
+    {
+     "name": "nucleus of a neighbour",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "find the paramecium"
+    }
+   ],
+   "vision": [
+    {
+     "when": "paramecium",
+     "reply": {
+      "answer": "Here is the paramecium outlined.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "find",
+        "args": {
+         "what": "paramecium"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "find": [
+    {
+     "when": "paramecium",
+     "things": [],
+     "note": "there is no paramecium in this leaf section"
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "paramecium"
+     }
+    ],
+    "possible": false,
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-find-all-like-this",
+   "about": "typed 'outline all the others like this one' after clicking a red cell: every red cell, not the white cell, the clicked one kept.",
+   "slide": [
+    {
+     "name": "red cell 1",
+     "box": [
+      100,
+      300,
+      160,
+      360
+     ]
+    },
+    {
+     "name": "red cell 2",
+     "box": [
+      280,
+      300,
+      340,
+      360
+     ]
+    },
+    {
+     "name": "red cell 3",
+     "box": [
+      460,
+      300,
+      520,
+      360
+     ]
+    },
+    {
+     "name": "red cell 4",
+     "box": [
+      640,
+      300,
+      700,
+      360
+     ]
+    },
+    {
+     "name": "red cell 5",
+     "box": [
+      820,
+      300,
+      880,
+      360
+     ]
+    },
+    {
+     "name": "white cell",
+     "box": [
+      500,
+      500,
+      580,
+      580
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "red cell 1"
+    ],
+    "clicked": [
+     "red cell 1"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the others like this one"
+    }
+   ],
+   "vision": [
+    {
+     "when": "like this",
+     "reply": {
+      "answer": "Finding every one like it.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "find",
+        "args": {
+         "what": "red cell",
+         "like": "#red cell 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 5
+     },
+     {
+      "not_outlined": "white"
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-how-many-finds-then-counts",
+   "about": "typed 'how many red cells are there?' with nothing outlined: they are found and outlined, then counted.",
+   "slide": [
+    {
+     "name": "red cell 1",
+     "box": [
+      100,
+      300,
+      160,
+      360
+     ]
+    },
+    {
+     "name": "red cell 2",
+     "box": [
+      280,
+      300,
+      340,
+      360
+     ]
+    },
+    {
+     "name": "red cell 3",
+     "box": [
+      460,
+      300,
+      520,
+      360
+     ]
+    },
+    {
+     "name": "red cell 4",
+     "box": [
+      640,
+      300,
+      700,
+      360
+     ]
+    },
+    {
+     "name": "red cell 5",
+     "box": [
+      820,
+      300,
+      880,
+      360
+     ]
+    },
+    {
+     "name": "white cell",
+     "box": [
+      500,
+      500,
+      580,
+      580
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "how many red cells are there?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "how many",
+     "reply": {
+      "answer": "Counting them.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "count",
+        "args": {
+         "label": "red cell"
+        }
+       }
+      ],
+      "then": {
+       "answer": "There are 5 red cells in view.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "find": [
+    {
+     "when": "red cell",
+     "things": [
+      "red cell"
+     ]
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 5
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-how-many-cells",
+   "about": "typed 'how many cells are there?': the cell finder segments them (a population, no outlines), and the number said is the population's.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "how many cells are there?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "how many cells",
+     "reply": {
+      "answer": "Segmenting the cells to count them.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "count",
+        "args": {
+         "label": "cells",
+         "of": "@1"
+        }
+       }
+      ],
+      "then": {
+       "answer": "There are {n} cells in view.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "outlines": 0
+     }
+    ],
+    "told": [
+     "7 cells"
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-the-most-elongated-cell",
+   "about": "typed 'which cell is the most elongated?' after the cells were segmented: highlight's selector by elongation picks the 90 x 30 one, measured.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the cells"
+    },
+    {
+     "at": 4.0,
+     "type": "which cell is the most elongated?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "most elongated",
+     "reply": {
+      "answer": "Highlighting the most elongated cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "by": "elongation",
+         "top": 1,
+         "label": "most elongated"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "outline all the cells",
+     "reply": {
+      "answer": "Segmenting every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "over": "cell 3"
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-the-long-skinny-one-when-none-is",
+   "about": "typed 'highlight the long skinny one' when no cell is longer than twice its width: nothing fits the measured range, and that is said.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the cells"
+    },
+    {
+     "at": 4.0,
+     "type": "highlight the long skinny one"
+    }
+   ],
+   "vision": [
+    {
+     "when": "long skinny",
+     "reply": {
+      "answer": "Highlighting the long skinny one.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "where": {
+          "elongation": [
+           2.5,
+           null
+          ]
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "outline all the cells",
+     "reply": {
+      "answer": "Segmenting every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "possible": false,
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-five-largest-in-one-request",
+   "about": "typed 'outline the cells and highlight the five largest': [outline_cells, highlight(of=@1, by=area, top=5)] in one request; the second step waits for the first.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells and highlight the five largest"
+    }
+   ],
+   "vision": [
+    {
+     "when": "five largest",
+     "reply": {
+      "answer": "Segmenting the cells, then the five largest.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "of": "@1",
+         "by": "area",
+         "top": 5
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 5
+     },
+     {
+      "over": "cell 6"
+     },
+     {
+      "over": "cell 4"
+     },
+     {
+      "over": "cell 2"
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-biggest-cell-first-guess-holds",
+   "about": "M2: 'which is the biggest cell?' answered by eye at once (a first guess, outlined), then every cell measured in the same answer; the measurement confirms the guess and its outline takes the guess's place.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which is the biggest cell?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "biggest",
+     "reply": {
+      "answer": "By eye, this one looks the biggest: a first guess. I'm measuring every cell to check it.",
+      "targets": [
+       {
+        "thing": "cell 6",
+        "label": "biggest cell?"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "of": "@1",
+         "by": "area",
+         "top": 1,
+         "checks": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     },
+     {
+      "over": "cell 6"
+     }
+    ],
+    "told": [
+     "first guess holds"
+    ],
+    "settle": 8.0
+   },
+   "beginner": true
+  },
+  {
+   "id": "chat-biggest-cell-first-guess-corrected",
+   "about": "M2: the first guess by eye is the second largest; the measurement says so, says where the guess ranks, and outlines the largest in its place (never silent, the guess never kept as if right).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which is the biggest cell?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "biggest",
+     "reply": {
+      "answer": "By eye, this one looks the biggest: a first guess. I'm measuring every cell to check it.",
+      "targets": [
+       {
+        "thing": "cell 4",
+        "label": "biggest cell?"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "of": "@1",
+         "by": "area",
+         "top": 1,
+         "checks": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     },
+     {
+      "over": "cell 6"
+     }
+    ],
+    "told": [
+     "first guess was not it"
+    ],
+    "settle": 8.0
+   },
+   "beginner": true
+  },
+  {
+   "id": "chat-biggest-cell-first-guess-unsaid",
+   "about": "M2.1 review B3: the model's answer says nothing of a guess ('This one is the biggest cell.', a plain label); a step checking target 1 makes it a first guess in code: the answer says so before it is shown, and the measurement then says it was not it.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which is the biggest cell?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "biggest",
+     "reply": {
+      "answer": "This one is the biggest cell.",
+      "final": {
+       "answer": "The first guess by eye was checked; my first guess was not it. The measured largest cell is outlined.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": [],
+       "requires": {
+        "limitations": ["Targets [1] are first guesses by eye"],
+        "operations": [
+         {"tool": "outline_cells", "ok": true},
+         {"tool": "highlight", "ok": true, "summary_contains": ["first guess was not it"]}
+        ]
+       }
+      },
+      "targets": [
+       {
+        "thing": "cell 4",
+        "label": "cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "of": "@1",
+         "by": "area",
+         "top": 1,
+         "checks": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     },
+     {
+      "over": "cell 6"
+     }
+    ],
+    "told": [
+     "first guess by eye",
+     "first guess was not it"
+    ],
+    "settle": 8.0
+   },
+   "beginner": true
+  },
+  {
+   "id": "chat-group-cells-by-look",
+   "beginner": true,
+   "about": "K1: 'group these cells by how they look': every cell segmented, embedded and grouped by look in one answer; the number of groups said with its criterion, and a group said to be cells that look alike, never a type.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "group these cells by how they look"
+    }
+   ],
+   "vision": [
+    {
+     "when": "group these",
+     "reply": {
+      "answer": "Grouping the cells by how they look.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "group_cells",
+        "args": {
+         "of": "@1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     }
+    ],
+    "told": [
+     "groups by look",
+     "not a type"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-how-do-the-groups-differ",
+   "beginner": true,
+   "about": "K1: after grouping, 'how do the groups differ?' is answered from the groups' facts (sizes, measured medians), pulled by describe_groups, never a type. describe_groups is a query: its facts go to the model, which answers.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "group these cells by how they look"
+    },
+    {
+     "at": 6.0,
+     "type": "how do the groups differ?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "group these",
+     "reply": {
+      "answer": "Grouping the cells by how they look.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "group_cells",
+        "args": {
+         "of": "@1"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "differ",
+     "reply": {
+      "answer": "Comparing the groups.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "describe_groups",
+        "args": {}
+       }
+      ],
+      "then": {
+       "answer": "The cells of group 1 are larger than group 2's; they are groups by look, not types.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     }
+    ],
+    "told": [
+     "groups by look, not types"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-colour-cells-by-look-group",
+   "beginner": true,
+   "about": "K1: after grouping, 'colour them by group' colours the cells' layer by look group with a legend, through the presentation verbs (no new tool), done once the studio shows it.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "group these cells by how they look"
+    },
+    {
+     "at": 6.0,
+     "type": "colour them by group"
+    }
+   ],
+   "vision": [
+    {
+     "when": "group these",
+     "reply": {
+      "answer": "Grouping the cells by how they look.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       },
+       {
+        "tool": "group_cells",
+        "args": {
+         "of": "@1"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "colour them",
+     "reply": {
+      "answer": "Colouring the cells by look group.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "present",
+        "args": {
+         "what": "the cells",
+         "do": "colour",
+         "value": "look groups"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "coloured_by": "group"
+     }
+    ],
+    "told": [
+     "coloured by look group"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-where-are-the-followed-cells",
+   "beginner": true,
+   "about": "K2: two cells followed ('keep an eye on cells 1 and 2'), then 'where are they now?': answered from the individuals' places, measured from the slide's movement, saying how it knows; individuals pulled by a query.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "keep an eye on cells 1 and 2"
+    },
+    {
+     "at": 10.0,
+     "type": "where are they now?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Outlining every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "keep an eye",
+     "reply": {
+      "answer": "Keeping an eye on those two.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "follow_cells",
+        "args": {
+         "members": [
+          "c1",
+          "c2"
+         ]
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "where are they",
+     "reply": {
+      "answer": "Checking where they are.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "individuals",
+        "args": {
+         "ask": "where"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Both are still in view, where their outlines are.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "outlines": 2
+     }
+    ],
+    "told": [
+     "keeping an eye on c1 and c2",
+     "measured again every 15 s"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-has-the-followed-cell-grown",
+   "beginner": true,
+   "about": "K2: 'has it grown?' right after following: nothing measured twice yet, and that is what is said (a change is said only between measurements on a shared basis; never guessed).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "keep an eye on cells 1 and 2"
+    },
+    {
+     "at": 10.0,
+     "type": "has the first one grown?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Outlining every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "keep an eye",
+     "reply": {
+      "answer": "Keeping an eye on those two.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "follow_cells",
+        "args": {
+         "members": [
+          "c1",
+          "c2"
+         ]
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "grown",
+     "reply": {
+      "answer": "Looking at its measurements.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "individuals",
+        "args": {
+         "which": "i1",
+         "ask": "changed"
+        }
+       }
+      ],
+      "then": {
+       "answer": "It has not been measured twice yet, so I can't say whether it grew.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "outlines": 2
+     }
+    ],
+    "told": [
+     "can't say whether it grew"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-which-model-did-better-today",
+   "beginner": true,
+   "about": "K3: 'which model did better on this smear today?' is answered from the outcomes tool (what happened here, with n; one run is too few to say), never from a recommendation pushed into the prompt.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {
+    "specimen": "a blood smear"
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "which model did better on this smear today?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Outlining every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "did better",
+     "reply": {
+      "answer": "Looking at how they have done.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outcomes",
+        "args": {
+         "operation": "cells"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Here is how they have done on this smear.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     }
+    ],
+    "queried": {
+     "outcomes": [
+      "what happened on a blood smear (today",
+      "the past, not a recommendation",
+      "Cellpose-SAM cellpose cpsam (route): 1 run today (too few runs to say)"
+     ]
+    },
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-five-largest-next-turn",
+   "about": "the cells segmented in one request, 'the five largest' in the next: the population is reused, nothing segmented again.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the cells"
+    },
+    {
+     "at": 4.0,
+     "type": "now highlight the five largest"
+    }
+   ],
+   "vision": [
+    {
+     "when": "five largest",
+     "reply": {
+      "answer": "Highlighting the five largest.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "by": "area",
+         "top": 5
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "outline all the cells",
+     "reply": {
+      "answer": "Segmenting every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 5
+     },
+     {
+      "over": "cell 6"
+     },
+     {
+      "population": 7
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-what-data-do-we-have",
+   "about": "typed 'outline the cells', then 'what data do we have?': the resources tool answers from the one index, and the number said is the population's (flow 10, Amendment 3).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "what data do we have?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Segmenting the cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "what data",
+     "reply": {
+      "answer": "Let me see what we have.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {}
+       }
+      ],
+      "then": {
+       "answer": "We have the cell outlines from earlier: {n} cells.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     }
+    ],
+    "told": [
+     "7 cells"
+    ],
+    "settle": 10.0
+   }
+  },
+  {
+   "id": "chat-colour-the-outlined-cells-by-size",
+   "about": "typed 'outline the cells', then 'do you see the outlined cells? can you colour them by size?': the same verbs act on the cells' layer, and it is said done only once the studio reports the layer coloured by the area column (flow 9, Amendment 2).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "do you see the outlined cells? can you colour them by size?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Segmenting the cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "colour them",
+     "reply": {
+      "answer": "Yes: colouring the cell outlines by size.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "present",
+        "args": {
+         "what": "the outlined cells",
+         "do": "colour",
+         "value": "size"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "coloured_by": "areaPx"
+     }
+    ],
+    "settle": 10.0
+   }
+  },
+  {
+   "id": "chat-what-colour-are-the-cells-outlined-in",
+   "about": "going live, G3 (2026-10-07 16:09): typed 'outline the cells', then 'what colour are the cells outlined in?'. The brain said 'a bright color' and the voice 'magenta or cyan', guessed: nothing told them how the cells' layer is coloured. The scene table now says it ('each in its own colour'), so the answer comes from what is drawn.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "what colour are the cells outlined in?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Segmenting the cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "what colour",
+     "reply": {
+      "answer": "Each cell is outlined in its own colour.",
+      "targets": [],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     }
+    ],
+    "brain_told": [
+     "shown over the live view, each in its own colour"
+    ],
+    "told": [
+     "each cell is outlined in its own colour"
+    ],
+    "settle": 10.0
+   }
+  },
+  {
+   "id": "chat-highlight-the-red-ones",
+   "about": "going live, G3: typed 'outline the cells', then 'can you highlight all the red ones?'. Hands sent it to find, whose vision model sees the camera's picture and never the app's outlines ('no red elements present'). One highlight by the colour each cell is drawn in (its own, from its id: cell 6 is c6, drawn red) outlines exactly the red ones, no look. The other colours drawn are said beside it, as facts (the review of G3, SF1).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "can you highlight all the red ones?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Segmenting the cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "red ones",
+     "reply": {
+      "answer": "Highlighting the cells drawn red.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "where": {
+          "colour": "red"
+         }
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "over": "cell 6"
+     }
+    ],
+    "brain_told": [
+     "shown over the live view, each in its own colour"
+    ],
+    "settle": 10.0,
+    "told": [
+     "drawn red: outlined cell c6; also drawn: "
+    ]
+   }
+  },
+  {
+   "id": "chat-highlight-the-blue-ones-coloured-by-size",
+   "about": "going live, G3: with the cells coloured by size, 'highlight all the blue ones' is the colour they are drawn in now (the size ramp's low end: cells 7, 1 and 5, the smallest), not their own colours (none of the seven is drawn blue by its id).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      360,
+      260
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      744,
+      254
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      800,
+      200,
+      900,
+      300
+     ]
+    },
+    {
+     "name": "cell 7",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the cells"
+    },
+    {
+     "at": 6.0,
+     "type": "colour them by size"
+    },
+    {
+     "at": 12.0,
+     "type": "highlight all the blue ones"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the cells",
+     "reply": {
+      "answer": "Segmenting the cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "colour them",
+     "reply": {
+      "answer": "Colouring the cell outlines by size.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "present",
+        "args": {
+         "what": "the outlined cells",
+         "do": "colour",
+         "value": "size"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "blue ones",
+     "reply": {
+      "answer": "Highlighting the cells drawn blue.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "where": {
+          "colour": "blue"
+         }
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 7
+     },
+     {
+      "coloured_by": "areaPx"
+     },
+     {
+      "outlines": 3
+     },
+     {
+      "over": "cell 7"
+     },
+     {
+      "over": "cell 1"
+     },
+     {
+      "over": "cell 5"
+     }
+    ],
+    "brain_told": [
+     "shown over the live view, coloured by size, blue (low) to red (high)"
+    ],
+    "settle": 10.0
+   }
+  },
+  {
+   "id": "chat-which-models-runs-nothing",
+   "about": "typed 'which models can outline this?': the capabilities query lists them, the default and what can run, and nothing is run (flow 2, Understand/Inspect).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which models can outline this?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "which models",
+     "reply": {
+      "answer": "Checking which models can.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "capabilities",
+        "args": {
+         "operation": "outline",
+         "prompt": "point"
+        }
+       }
+      ],
+      "then": {
+       "answer": "EdgeTAM is the default; SAM 2.1 tiny can run here too.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "told": [
+     "EdgeTAM is the default"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "chat-use-a-model-for-this-request-only",
+   "about": "typed 'use SAM 2.1 tiny to outline the guard cell': the choice is made before the look's outlines, and the outline is SAM 2.1 tiny's, raw (contract 7).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use SAM 2.1 tiny to outline the guard cell"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the guard cell with SAM 2.1 tiny.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "chat-a-choice-makes-again-what-another-model-outlined",
+   "about": "typed 'use SAM 2.1 tiny to outline the guard cell' with the guard cell already outlined by EdgeTAM: it is outlined again with SAM 2.1 tiny and replaces it, never kept as it was (ADR 0011; scaffolding review, M1.4 item 2).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use SAM 2.1 tiny to outline the guard cell"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the guard cell with SAM 2.1 tiny.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "chat-a-choice-makes-again-what-find-would-reuse",
+   "about": "acceptance flow 2 on footage: 'outline that cell again with SAM 2.1 tiny, just this once' was answered with use + find, and find reused EdgeTAM's outline, so the choice went unused. Find outlines it again with the choice (ticket.reusable), and the new one replaces the old.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the guard cell again with SAM 2.1 tiny, just this once"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the guard cell again with SAM 2.1 tiny.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       },
+       {
+        "tool": "find",
+        "args": {
+         "what": "guard cell"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "settle": 5.0
+   },
+   "find": [
+    {
+     "when": "guard cell",
+     "things": [
+      "guard cell"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "voice-a-choice-covers-the-look-after-hands",
+   "about": "said 'use SAM 2.1 tiny to outline the guard cell' with no current look: hands makes the choice at once, the hand-off's look outlines the guard cell, and it is SAM 2.1 tiny's (the hand-off adopts hands' choices; scaffolding review, M1.4 item 1).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "say": "use SAM 2.1 tiny to outline the guard cell"
+    },
+    {
+     "at": 1.5,
+     "handoff": "use SAM 2.1 tiny to outline the guard cell",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "use sam 2.1 tiny",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Outlining the guard cell with SAM 2.1 tiny.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the guard cell with SAM 2.1 tiny.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-a-refused-choice-runs-nothing-in-its-place",
+   "about": "typed 'use the spot ring to outline the guard cell': the spot ring cannot be chosen, so the request's outlining is refused with the reason; the default never outlines in its place (ADR 0011; scaffolding review, M1.4 item 8).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use the spot ring to outline the guard cell"
+    }
+   ],
+   "vision": [
+    {
+     "when": "spot ring",
+     "reply": {
+      "answer": "Outlining the guard cell with the spot ring.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "spot ring"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "not_outlined": "guard cell"
+     }
+    ],
+    "told": [
+     "there is no 'spot ring'"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "chat-the-next-request-is-back-to-the-default",
+   "about": "a request that chose SAM 2.1 tiny, then 'outline the nucleus': the next request is outlined by the default (a choice covers its own request only, contract 7).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use SAM 2.1 tiny to outline the guard cell"
+    },
+    {
+     "at": 3.0,
+     "type": "outline the nucleus"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the guard cell with SAM 2.1 tiny.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "nucleus",
+     "reply": {
+      "answer": "Outlining the nucleus.",
+      "targets": [
+       {
+        "thing": "nucleus"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "nucleus",
+       "edgetam"
+      ]
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "first-session-click-name-closer-save",
+   "beginner": true,
+   "about": "flow 11, the first session: a thing clicked, then 'what is it?', 'follow it', 'look closer' and 'save that', at the simple level; the vocabulary scan reports any model name, id or internal word the user was shown and never used (Amendment 4, items 7-8). The click is set on the board because the bench has no click event (naming a click is tests/test_identify's, and flow 11 was run live on footage with a real click: click to name about 2 s).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ],
+    "clicked": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "what is it?"
+    },
+    {
+     "at": 3.0,
+     "type": "follow it"
+    },
+    {
+     "at": 6.0,
+     "type": "look closer"
+    },
+    {
+     "at": 9.0,
+     "type": "save that"
+    }
+   ],
+   "vision": [
+    {
+     "when": "what is it",
+     "reply": {
+      "answer": "That's a guard cell, one of a pair around a leaf pore. Fairly sure.",
+      "targets": [],
+      "actions": []
+     }
+    },
+    {
+     "when": "follow it",
+     "reply": {
+      "answer": "Following the guard cell in the magnifier so it stays centred.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "guard cell"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "look closer",
+     "reply": {
+      "answer": "Looking closer at the guard cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "guard cell"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "save that",
+     "reply": {
+      "answer": "Saving a picture of the view with its outline.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "snapshot",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     },
+     {
+      "outlined": "guard cell"
+     }
+    ],
+    "settle": 14.0,
+    "told": [
+     "saved with today's snapshots"
+    ]
+   }
+  },
+  {
+   "id": "live-161145-check-keeps-both",
+   "about": "2026-10-07 16:11:41 'highlight the stomata': o3 and o4, one on each stoma, both 'stoma with guard cells'. At 16:11:45 the outline check called o3 'wrong: on a different stoma' with a box on o4's stoma, and the fix moved o3 there: two labels on one stoma, none on the other, nothing said (going live G4). A fix never lands where another outline is: both stay on their own stoma.",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ],
+     "seen_as": "stoma with guard cells"
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ],
+     "seen_as": "stoma with guard cells"
+    }
+   ],
+   "board": {
+    "look": [
+     "stoma 1",
+     "stoma 2"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "highlight the stomata"
+    },
+    {
+     "at": 1.5,
+     "handoff": "highlight the stomata",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "highlight the stomata",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Highlighting the stomata.",
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "s1",
+          "s2"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "check": [
+    {
+     "on": "stoma 1",
+     "reply": {
+      "fits": "wrong",
+      "why": "the outline is on a different stoma",
+      "box_of": "stoma 2"
+     }
+    },
+    {
+     "on": "stoma 2",
+     "reply": {
+      "fits": "yes",
+      "why": "follows its edge"
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "over": "stoma 1"
+     },
+     {
+      "over": "stoma 2"
+     },
+     {
+      "outlines": 2
+     }
+    ],
+    "settle": 6.0,
+    "logged": [
+     {
+      "kind": "outline-check",
+      "fits": "wrong",
+      "done": "kept: the fix would cover"
+     },
+     {
+      "kind": "override",
+      "rule": "check-fix-would-cover"
+     }
+    ],
+    "never_told": [
+     "Redrew"
+    ]
+   }
+  },
+  {
+   "id": "check-redraws-onto-a-free-place-and-says-so",
+   "about": "typed 'outline the stoma': the check calls the outline wrong and gives the box of a stoma nothing outlines; the outline moves there, after the answer was shown, so the move is said where it was asked (going live G4; ADR 0006).",
+   "slide": [
+    {
+     "name": "epidermal cell",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline the stoma",
+     "reply": {
+      "answer": "Outlining the stoma.",
+      "targets": [
+       {
+        "thing": "epidermal cell",
+        "label": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "check": [
+    {
+     "on": "epidermal cell",
+     "reply": {
+      "fits": "wrong",
+      "why": "an epidermal cell, not a stoma",
+      "box_of": "stoma"
+     }
+    },
+    {
+     "on": "stoma",
+     "reply": {
+      "fits": "yes",
+      "why": "follows its edge"
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "over": "stoma"
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "settle": 6.0,
+    "told": [
+     "Redrew the stoma outline: the old one was on something else."
+    ],
+    "logged": [
+     {
+      "kind": "outline-check",
+      "done": "replaced"
+     }
+    ]
+   }
+  },
+  {
+   "id": "live-161151-zoom-into-both",
+   "about": "2026-10-07 16:11:51 'can you zoom into both of them' with two stomata outlined: zoom(o3) then zoom(o4) in one request; the magnifier shows one thing, so the second replaced the first while the answer said 'Zooming in on both stomata now' and the voice 'they're both zoomed in' (going live G4). The second is shown beside the first instead, a still picture of each, and said so.",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma 1",
+     "stoma 2"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "can you zoom into both of them"
+    },
+    {
+     "at": 1.5,
+     "handoff": "can you zoom into both of them",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "zoom into both",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Zooming in on both stomata now.",
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma 1",
+         "level": "more"
+        }
+       },
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma 2",
+         "level": "more"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier_picture": "stoma 1 and stoma 2"
+     }
+    ],
+    "settle": 4.0,
+    "told": [
+     "a still picture of each",
+     "side by side instead"
+    ],
+    "logged": [
+     {
+      "kind": "override",
+      "rule": "one-magnifier"
+     }
+    ]
+   }
+  },
+  {
+   "id": "live-161230-two-separate-windows",
+   "evidence_scope": "legacy singleton magnifier adapter; not modern native-window availability",
+   "about": "2026-10-07 16:12:30 'you make them two separate windows': compare ran, and the answer said 'I'll separate them into two windows', the voice 'they're split into two separate windows now'. There is one magnifier: the answer the tools' descriptions now lead to says they are side by side in it, that it can be moved and resized, and that separate windows for each are not there yet, and nothing says they were split (going live G4; separate, movable windows are the partner's P5, #189).",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma 1",
+     "stoma 2"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "you make them two separate windows"
+    },
+    {
+     "at": 1.5,
+     "handoff": "you make them two separate windows",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "separate windows",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "The magnifier is one window, so I'm putting them side by side in it; you can move and resize it, but separate windows for each aren't available yet.",
+      "final": {
+       "answer": "They are side by side in the magnifier; separate windows for each aren't available yet in this legacy adapter.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": [],
+       "requires": {
+        "operations": [
+         {"tool": "compare", "ok": true, "summary_contains": ["side by side", "source pictures, not live tracking"]}
+        ]
+       }
+      },
+      "actions": [
+       {
+        "tool": "compare",
+        "args": {
+         "a": "#stoma 1",
+         "b": "#stoma 2"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier_picture": "stoma 1 and stoma 2"
+     }
+    ],
+    "settle": 4.0,
+    "told": [
+     "side by side in the magnifier",
+     "separate windows for each aren't available yet"
+    ],
+    "never_told": [
+     "separate windows now",
+     "split into two",
+     "into two windows"
+    ]
+   }
+  },
+  {
+   "id": "chat-compare-by-hands-then-the-look-zooms-a-third",
+   "evidence_scope": "legacy singleton magnifier adapter; not modern native-window availability",
+   "about": "typed 'compare these two and zoom on the pore': the fast pass compares the two stomata and asks for a look; the look's answer zooms on the pore. One request, one magnifier: the pair stays shown and the zoom on a third is refused with what to do, never the pair replaced while both are said (the partner's review of G4, SHOULD-FIX 1: hands' steps' magnifier was not carried to the look's).",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    },
+    {
+     "name": "pore",
+     "box": [
+      500,
+      500,
+      540,
+      540
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma 1",
+     "stoma 2",
+     "pore"
+    ],
+    "look": [
+     "stoma 1",
+     "stoma 2",
+     "pore"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "compare these two and zoom on the pore"
+    }
+   ],
+   "fast": [
+    {
+     "when": "compare these two",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Comparing the two stomata and zooming on the pore.",
+      "actions": [
+       {
+        "tool": "compare",
+        "args": {
+         "a": "#stoma 1",
+         "b": "#stoma 2"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "compare these two",
+     "reply": {
+      "answer": "Comparing the two stomata and zooming on the pore.",
+      "final": {
+       "answer": "The two stomata remain side by side in the magnifier. In this legacy adapter, ask for the pore on its own next.",
+       "actions": [],
+       "observation_scope": "none",
+       "input_refs": [],
+       "requires": {
+        "problems": ["already shows", "ask for the pore on its own next"],
+        "operations": [
+         {"tool": "compare", "ok": true, "summary_contains": ["side by side", "source pictures, not live tracking"]},
+         {"tool": "zoom", "ok": false, "summary_contains": ["already shows", "ask for the pore on its own next"]}
+        ]
+       }
+      },
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#pore"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier_picture": "stoma 1 and stoma 2"
+     }
+    ],
+    "settle": 4.0,
+    "told": [
+     "ask for the pore on its own next"
+    ],
+    "logged": [
+     {
+      "kind": "turn",
+      "actions": "already shows"
+     }
+    ]
+   }
+  },
+  {
+   "id": "chat-zoom-into-both-hands-one-the-look-both",
+   "about": "typed 'zoom into both of them': the fast pass zooms on stoma 1 and asks for a look; the look gives zoom(stoma 1), zoom(stoma 2). Only the look's step that repeats what hands did is dropped, so stoma 2 is shown beside stoma 1, never one shown under 'zooming in on both' (the partner's review of G4, NOTE 5: every look step of a tool hands ran was dropped).",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma 1",
+     "stoma 2"
+    ],
+    "look": [
+     "stoma 1",
+     "stoma 2"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "zoom into both of them"
+    }
+   ],
+   "fast": [
+    {
+     "when": "zoom into both",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Zooming in on both stomata now.",
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma 1",
+         "level": "more"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "zoom into both",
+     "reply": {
+      "answer": "Zooming in on both stomata now.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma 1",
+         "level": "more"
+        }
+       },
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma 2",
+         "level": "more"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier_picture": "stoma 1 and stoma 2"
+     }
+    ],
+    "settle": 4.0,
+    "told": [
+     "a still picture of each"
+    ],
+    "logged": [
+     {
+      "kind": "override",
+      "rule": "one-magnifier"
+     }
+    ]
+   }
+  },
+  {
+   "id": "chat-zoom-into-both-by-label-hands-one-the-look-both",
+   "about": "the same by label: hands zoom on 'stoma 1', the look's zoom on 'stoma 2' differs from it only in the object, named by label, so it is not dropped as a repeat (the partner's re-check of G4, SHOULD-FIX: two stomata, one shown under 'Zooming in on both stomata now').",
+   "slide": [
+    {
+     "name": "stoma 1",
+     "box": [
+      300,
+      300,
+      380,
+      360
+     ]
+    },
+    {
+     "name": "stoma 2",
+     "box": [
+      700,
+      300,
+      780,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma 1",
+     "stoma 2"
+    ],
+    "look": [
+     "stoma 1",
+     "stoma 2"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "zoom into both of them"
+    }
+   ],
+   "fast": [
+    {
+     "when": "zoom into both",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Zooming in on both stomata now.",
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "stoma 1",
+         "level": "more"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "zoom into both",
+     "reply": {
+      "answer": "Zooming in on both stomata now.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "stoma 1",
+         "level": "more"
+        }
+       },
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "stoma 2",
+         "level": "more"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier_picture": "stoma 1 and stoma 2"
+     }
+    ],
+    "settle": 4.0,
+    "told": [
+     "a still picture of each"
+    ],
+    "logged": [
+     {
+      "kind": "override",
+      "rule": "one-magnifier"
+     }
+    ]
+   }
+  },
+  {
+   "id": "live-161351-a-real-picture",
+   "about": "16:13:51 'Pull up a real picture of a stoma, like another one, and then uh have it, just the picture pulled up, zoomed': the fast pass started a researcher asked for an illustration (deliverable image); about 40 s later the result viewer opened on an AI illustration titled 'Real close-up of a stoma', the real photo it had found a tab away. Now a real photo from Wikimedia Commons comes up in the magnifier in seconds, said as a reference, not this slide (the partner's live case 6, P5-f). The fast pass's choice of tool is scripted here (bench/tool_choice.py has the request for the model's).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      500,
+      300,
+      580,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "Pull up a real picture of a stoma, like another one, and then uh have it, just the picture pulled up, zoomed"
+    },
+    {
+     "at": 1.5,
+     "handoff": "Pull up a real picture of a stoma, like another one, and then uh have it, just the picture pulled up, zoomed",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "real picture",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Pulling up a real photo of a stoma.",
+      "actions": [
+       {
+        "tool": "reference_photo",
+        "args": {
+         "subject": "stoma"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "real picture",
+     "reply": {
+      "answer": "Pulling up a real photo of a stoma.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "reference_photo",
+        "args": {
+         "subject": "stoma"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     },
+     {
+      "magnifier_shows": "reference"
+     }
+    ],
+    "within": {
+     "magnifier_shows reference": 4.0
+    },
+    "told": [
+     "not this slide"
+    ]
+   }
+  },
+  {
+   "id": "live-161532-a-magnification-next-to-the-photo",
+   "about": "16:15:32 'Pull up a magnification so I can look at it next to the photo', the live stoma outlined and a reference photo up: the brain ran compare (two outlines) on the stoma alone and said 'I can't find the live specimen on screen'. Now zoom with beside keeps the photo and opens the live stoma's close-up next to it, both at once in the one window, and says so (the partner's live case 7, P5-f). The tool choice is scripted here.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      500,
+      300,
+      580,
+      360
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ],
+    "picture": "reference"
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "Pull up a magnification so I can look at it next to the photo"
+    },
+    {
+     "at": 1.5,
+     "handoff": "Pull up a magnification so I can look at it next to the photo",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "next to the photo",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Opening the live stoma beside the photo.",
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "stoma",
+         "beside": true
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "next to the photo",
+     "reply": {
+      "answer": "Opening the live stoma beside the photo.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "stoma",
+         "beside": true
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     },
+     {
+      "magnifier_beside": "reference"
+     }
+    ],
+    "within": {
+     "magnifier_beside reference": 2.5
+    },
+    "told": [
+     "both in the one window"
+    ]
+   }
+  },
+  {
+   "id": "chat-which-model-after-a-highlight",
+   "about": "Live 2026-10-11: after a highlight, 'which model did you use?' got 'our built-in vision model', invented. The answer comes from the outline's own record (resources(id=...), known.chain): the vision model found it and EdgeTAM drew it (Slice 2).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    },
+    {
+     "name": "nucleus",
+     "box": [
+      800,
+      300,
+      840,
+      340
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "highlight the guard cell"
+    },
+    {
+     "at": 6.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "highlight",
+     "reply": {
+      "answer": "Outlining the guard cell.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": []
+     }
+    },
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "o2"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Gemini 3.8 Flash found the guard cell and EdgeTAM drew its outline, on this Mac.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlined": "guard cell"
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "How it was made, each model in order: found by Gemini 3.8 Flash, drawn by EdgeTAM (on this Mac)"
+     ]
+    },
+    "told": [
+     "EdgeTAM"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-which-model-after-a-click",
+   "about": "Slice 2: a thing the user clicked, then 'which model did you use?': the user's click found it and EdgeTAM drew it, read from the outline's own record (resources(id=...)), never 'the vision model'.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ],
+    "clicked": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "o1"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Your click found it and EdgeTAM drew the outline, on this Mac.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "found by the user's click at",
+      "drawn by EdgeTAM (on this Mac)"
+     ]
+    },
+    "told": [
+     "EdgeTAM"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "chat-which-model-after-a-redraw",
+   "about": "Live 2026-10-11: 'try the sam2.1 model, do it again' drew it with SAM 2.1 tiny for that request only. Then 'which model did you use?' is answered from the redrawn outline's own record: SAM 2.1 tiny, as chosen for that request (Slice 2).",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "try the sam2.1 model, outline the guard cell again"
+    },
+    {
+     "at": 6.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam2.1",
+     "reply": {
+      "answer": "Outlining the guard cell again with SAM 2.1 tiny, for this request.",
+      "targets": [
+       {
+        "thing": "guard cell"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "by": "user",
+         "operation": "outline",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "o3"
+        }
+       }
+      ],
+      "then": {
+       "answer": "SAM 2.1 tiny drew it, for that request only; Gemini 3.8 Flash found it.",
+       "targets": [],
+       "actions": []
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "drawn by SAM 2.1 tiny (on this Mac) as chosen for that request"
+     ]
+    },
+    "told": [
+     "SAM 2.1 tiny"
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "chat-outline-it-with-one-model-then-another",
+   "about": "Slice 5 (the user's journey 6, 2026-10-11): 'outline the guard cell with SAM 2.1, then with EdgeTAM' keeps a choice per step: each outline is drawn by the model chosen before it, both are kept, and the steps' receipts say which drew which.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the guard cell with SAM 2.1, then with EdgeTAM"
+    }
+   ],
+   "fast": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining the guard cell with SAM 2.1, then with EdgeTAM.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "implementation": "sam2.1-tiny",
+         "by": "user"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "o1"
+         ]
+        }
+       },
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "implementation": "edgetam",
+         "by": "user"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "o1"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "made_by": [
+       "guard cell",
+       "edgetam"
+      ]
+     },
+     {
+      "outlines": 2
+     }
+    ],
+    "queried": {
+     "highlight": [
+      "drawn again with SAM 2.1 tiny (on this Mac)",
+      "drawn again with EdgeTAM (on this Mac)"
+     ]
+    },
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "chat-keep-the-compared-outline-you-choose",
+   "about": "Slice 5 (the user's Q16 and journey 7): 'compare EdgeTAM and SAM 2.1 on the guard cell', then 'keep the SAM 2.1 one': the comparison holds its view, and keeping puts SAM 2.1's outline on the board in place of the app's earlier one.",
+   "slide": [
+    {
+     "name": "guard cell",
+     "box": [
+      400,
+      250,
+      560,
+      400
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "guard cell"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "compare EdgeTAM and SAM 2.1 on the guard cell"
+    },
+    {
+     "at": 6.0,
+     "type": "keep the SAM 2.1 one"
+    }
+   ],
+   "fast": [
+    {
+     "when": "compare",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Comparing EdgeTAM and SAM 2.1 on the guard cell.",
+      "actions": [
+       {
+        "tool": "compare_models",
+        "args": {
+         "implementations": [
+          "edgetam",
+          "sam2.1-tiny"
+         ],
+         "object": "o1"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "keep",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Keeping SAM 2.1's outline.",
+      "actions": [
+       {
+        "tool": "compare_models",
+        "args": {
+         "keep": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "guard cell",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "compare_models": [
+      "each result is kept for 5 minutes",
+      "kept SAM 2.1 tiny's outline of the guard cell on the board"
+     ]
+    },
+    "settle": 10.0
+   }
+  },
+  {
+   "id": "journey-1-highlight-zoom-snapshot-one-request",
+   "about": "Journey 1 (Slice 9), typed in one request: 'highlight the stoma, zoom in on it and take a snapshot'. The stoma is outlined, magnified, and a snapshot of it is shown.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "highlight the stoma, zoom in on it and take a snapshot"
+    }
+   ],
+   "vision": [
+    {
+     "when": "snapshot",
+     "reply": {
+      "answer": "Outlining the stoma, zooming in on it and taking a snapshot.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "target 1"
+        }
+       },
+       {
+        "tool": "snapshot",
+        "args": {
+         "object": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "on": "stoma"
+     },
+     {
+      "magnifier_picture": "snapshot of"
+     }
+    ],
+    "held": [
+     {
+      "board": {
+       "magnified": "stoma"
+      }
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-1-highlight-zoom-snapshot-three-requests",
+   "about": "Journey 1 (Slice 9), typed as three requests: 'highlight the stoma', 'zoom in on it', 'take a snapshot'.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "highlight the stoma"
+    },
+    {
+     "at": 4.0,
+     "type": "zoom in on it"
+    },
+    {
+     "at": 8.0,
+     "type": "take a snapshot",
+     "id": "snapshot-request"
+    }
+   ],
+   "vision": [
+    {
+     "when": "highlight the stoma",
+     "reply": {
+      "answer": "Outlining the stoma.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    },
+    {
+     "when": "zoom in",
+     "reply": {
+      "answer": "Zooming in on the stoma.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "#stoma"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "snapshot",
+     "reply": {
+      "answer": "Taking a snapshot.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "snapshot",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "on": "stoma"
+     },
+     {
+      "snapshot_shown": "snapshot-request"
+     }
+    ],
+    "held": [
+     {
+      "after": 4.0,
+      "board": {
+       "magnified": "stoma"
+      }
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "journey-1-voice-highlight-zoom-snapshot",
+   "about": "Journey 1 (Slice 9) by voice, in one request: the look outlines the stoma, zooms and takes the snapshot.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "say": "highlight the stoma, zoom in on it and take a snapshot"
+    },
+    {
+     "at": 1.5,
+     "handoff": "highlight the stoma, zoom in on it and take a snapshot",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "snapshot",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Looking for the stoma.",
+      "actions": []
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "snapshot",
+     "reply": {
+      "answer": "Outlining the stoma, zooming in on it and taking a snapshot.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "zoom",
+        "args": {
+         "object": "target 1"
+        }
+       },
+       {
+        "tool": "snapshot",
+        "args": {
+         "object": "target 1"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "on": "stoma"
+     },
+     {
+      "magnifier_picture": "snapshot of"
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-2-close-magnifier-then-highlight-guard-cells",
+   "about": "Journey 2 (Slice 9), typed with the stoma magnified: 'close the magnifier then highlight the guard cells'. The close is done at once from the notes; the look outlines both guard cells after it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    },
+    {
+     "name": "guard cell 2",
+     "box": [
+      480,
+      250,
+      540,
+      330
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ],
+    "magnifier": "stoma"
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "close the magnifier then highlight the guard cells"
+    }
+   ],
+   "fast": [
+    {
+     "when": "guard cells",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Closing the magnifier, then finding the guard cells.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "guard cells",
+     "reply": {
+      "answer": "Outlining the two guard cells.",
+      "targets": [
+       {
+        "thing": "guard cell 1"
+       },
+       {
+        "thing": "guard cell 2"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     },
+     {
+      "on": "guard cell 1"
+     },
+     {
+      "on": "guard cell 2"
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "journey-2-voice-close-magnifier-then-highlight-guard-cells",
+   "about": "Journey 2 (Slice 9) by voice: the close at once, by hands; the look outlines the guard cells after it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    },
+    {
+     "name": "guard cell 2",
+     "box": [
+      480,
+      250,
+      540,
+      330
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ],
+    "magnifier": "stoma"
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "close the magnifier then highlight the guard cells"
+    },
+    {
+     "at": 1.5,
+     "handoff": "close the magnifier then highlight the guard cells",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "guard cells",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Closing the magnifier, then finding the guard cells.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "guard cells",
+     "reply": {
+      "answer": "Outlining the two guard cells.",
+      "targets": [
+       {
+        "thing": "guard cell 1"
+       },
+       {
+        "thing": "guard cell 2"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     },
+     {
+      "on": "guard cell 1"
+     },
+     {
+      "on": "guard cell 2"
+     }
+    ],
+    "within": {
+     "magnifier closed": 2.5
+    },
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-3-cells-then-the-round-ones",
+   "about": "Journey 3 (Slice 9): 'outline all the cells' (the cell finder's population), then 'highlight the round ones' (highlight by the measured roundness column).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      350,
+      250
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      790,
+      240
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the cells"
+    },
+    {
+     "at": 4.0,
+     "type": "highlight the round ones"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline all the cells",
+     "reply": {
+      "answer": "Outlining every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "round ones",
+     "reply": {
+      "answer": "Highlighting the round cells.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "where": {
+          "roundness": [
+           0.85,
+           null
+          ]
+         }
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 6
+     },
+     {
+      "outlines": 4
+     },
+     {
+      "over": "cell 1"
+     },
+     {
+      "over": "cell 2"
+     },
+     {
+      "over": "cell 4"
+     },
+     {
+      "over": "cell 6"
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-3-cells-then-the-biggest",
+   "about": "Journey 3 (Slice 9): 'outline all the cells', then 'highlight the biggest one' (highlight by area, the first one).",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      350,
+      250
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    },
+    {
+     "name": "cell 4",
+     "box": [
+      560,
+      200,
+      640,
+      280
+     ]
+    },
+    {
+     "name": "cell 5",
+     "box": [
+      700,
+      210,
+      790,
+      240
+     ]
+    },
+    {
+     "name": "cell 6",
+     "box": [
+      250,
+      400,
+      282,
+      432
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline all the cells"
+    },
+    {
+     "at": 4.0,
+     "type": "highlight the biggest one"
+    }
+   ],
+   "vision": [
+    {
+     "when": "outline all the cells",
+     "reply": {
+      "answer": "Outlining every cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "outline_cells",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "biggest",
+     "reply": {
+      "answer": "Highlighting the biggest cell.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "highlight",
+        "args": {
+         "by": "area",
+         "top": 1
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population": 6
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "over": "cell 4"
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-4-which-model-after-a-highlight",
+   "about": "Journey 4 (Slice 9): 'which model did you use?' about an outline the look found (Gemini 3.8 Flash) and EdgeTAM drew. Answered from the outline's own record (resources id=), which names each model in the chain (Q4).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "#stoma"
+        }
+       }
+      ],
+      "then": {
+       "answer": "It was found by the look and drawn by the outline model.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "EdgeTAM",
+      "Gemini 3.8 Flash"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-4-which-model-after-a-click",
+   "about": "Journey 4 (Slice 9): 'which model did you use?' about an outline the user's click made (EdgeTAM, the default): the record says the click and the model that drew it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "click": "stoma"
+    },
+    {
+     "at": 2.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "#stoma"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Your click outlined it, drawn by the outline model.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "edgetam"
+      ]
+     }
+    ],
+    "queried": {
+     "resources": [
+      "EdgeTAM",
+      "click"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-4-which-model-after-a-redraw",
+   "about": "Journey 4 (Slice 9): the stoma drawn again with SAM 2.1 tiny for one request, then 'which model did you use?': the record names SAM 2.1 tiny.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline it again with SAM 2.1"
+    },
+    {
+     "at": 4.0,
+     "type": "which model did you use?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the stoma again with SAM 2.1 tiny, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "which model",
+     "reply": {
+      "answer": "Checking how it was made.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "#stoma"
+        }
+       }
+      ],
+      "then": {
+       "answer": "SAM 2.1 tiny drew it.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "SAM 2.1 tiny"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-4-how-do-you-know",
+   "about": "Journey 4 (Slice 9): 'how do you know it's a stoma?' about an outline the look found and named: the record says which model named it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "how do you know it's a stoma?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "how do you know",
+     "reply": {
+      "answer": "Checking how it was named.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "id": "#stoma"
+        }
+       }
+      ],
+      "then": {
+       "answer": "The look named it from its oval shape and the pore in the middle.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 1
+     }
+    ],
+    "queried": {
+     "resources": [
+      "Gemini 3.8 Flash"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-5-use-sam21-for-this",
+   "about": "Journey 5 (Slice 9): 'use SAM 2.1 for this' with the stoma outlined by EdgeTAM: drawn again by SAM 2.1 tiny for this request only; the default stays EdgeTAM.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use SAM 2.1 for this"
+    }
+   ],
+   "vision": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "answer": "Outlining the stoma with SAM 2.1 tiny, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "SAM 2.1 tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "told": [
+     "for this request"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-5-do-it-again-with-micro-sam",
+   "about": "Journey 5 (Slice 9): 'do it again with micro-sam': the stoma drawn again by micro-sam, replacing the earlier outline; the default stays EdgeTAM.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "do it again with micro-sam"
+    }
+   ],
+   "vision": [
+    {
+     "when": "micro-sam",
+     "reply": {
+      "answer": "Outlining the stoma again with micro-sam, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "micro-sam"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "micro-sam-lm"
+      ]
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-5-from-now-on-micro-sam-then-a-click",
+   "about": "Journey 5 (Slice 9): 'from now on use micro-sam', then a click: the default is micro-sam and the click is outlined by it.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "from now on use micro-sam for outlines"
+    },
+    {
+     "at": 8.0,
+     "click": "guard cell 1"
+    }
+   ],
+   "vision": [
+    {
+     "when": "from now on",
+     "reply": {
+      "answer": "From now on, outlines use micro-sam.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "set_default",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "micro-sam"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "setting": [
+       "outline",
+       "micro-sam-lm"
+      ]
+     },
+     {
+      "made_by": [
+       "guard cell 1",
+       "micro-sam-lm"
+      ]
+     }
+    ],
+    "told": [
+     "from now on"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-5-from-now-on-kept-across-a-restart",
+   "about": "Journey 5 (Slice 9, Q15): 'from now on use micro-sam', then the app restarts, then a click: the day's default is kept across the restart and the click is outlined by micro-sam.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    },
+    {
+     "name": "guard cell 1",
+     "box": [
+      400,
+      250,
+      460,
+      330
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "from now on use micro-sam for outlines"
+    },
+    {
+     "at": 8.0,
+     "restart": true
+    },
+    {
+     "at": 9.0,
+     "click": "guard cell 1"
+    }
+   ],
+   "vision": [
+    {
+     "when": "from now on",
+     "reply": {
+      "answer": "From now on, outlines use micro-sam.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "set_default",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "micro-sam"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "setting": [
+       "outline",
+       "micro-sam-lm"
+      ]
+     },
+     {
+      "made_by": [
+       "guard cell 1",
+       "micro-sam-lm"
+      ]
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-6-sam21-then-micro-sam-per-step",
+   "about": "Journey 6 (Slice 9): 'outline the stoma with SAM 2.1, then with micro-sam': each step uses the model named for it, and both outlines stay.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "look": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the stoma with SAM 2.1, then with micro-sam"
+    }
+   ],
+   "fast": [
+    {
+     "when": "micro-sam",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining the stoma with SAM 2.1 tiny, then with micro-sam.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "sam2.1-tiny"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@stoma"
+         ]
+        }
+       },
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "micro-sam-lm"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@stoma"
+         ],
+         "keep": true
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "made_by": [
+       "stoma",
+       "micro-sam-lm"
+      ]
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-7-compare-then-keep-sam21",
+   "about": "Journey 7 (Slice 9, Q16): 'compare EdgeTAM and SAM 2.1 on this', then 'keep the SAM 2.1 one': that arm's outline goes on the board.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "compare EdgeTAM and SAM 2.1 on this"
+    },
+    {
+     "at": 5.0,
+     "type": "keep the SAM 2.1 one"
+    }
+   ],
+   "vision": [
+    {
+     "when": "compare",
+     "reply": {
+      "answer": "Comparing EdgeTAM and SAM 2.1 tiny on the stoma.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "compare_models",
+        "args": {
+         "implementations": [
+          "EdgeTAM",
+          "SAM 2.1 tiny"
+         ],
+         "object": "#stoma"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "keep the sam",
+     "reply": {
+      "answer": "Keeping SAM 2.1 tiny's outline.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "compare_models",
+        "args": {
+         "keep": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "journey-8-vision-model-for-one-request",
+   "about": "Journey 8 (Slice 9, Q14): 'use Gemini 3.5 Flash to look at this': the look of this request uses Gemini 3.5 Flash (the turn log's `used`; its settings are only the defaults); the default stays Gemini 3.8 Flash.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use Gemini 3.5 Flash to look at this: what is the oval?"
+    }
+   ],
+   "fast": [
+    {
+     "when": "gemini 3.5",
+     "reply": {
+      "intent": "question",
+      "needs_look": true,
+      "answer": "Looking with Gemini 3.5 Flash.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "vision",
+         "by": "user",
+         "implementation": "gemini-3.5-flash"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "oval",
+     "reply": {
+      "answer": "That oval is a stoma.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "on": "stoma"
+     },
+     {
+      "setting": [
+       "vision",
+       "gemini-3.8-flash"
+      ]
+     }
+    ],
+    "logged": [
+     {
+      "kind": "turn",
+      "used": "'vision': {'implementation': 'gemini-3.5-flash', 'origin': 'user-chosen', 'used': True"
+     }
+    ],
+    "settle": 6.0
+   },
+   "keys": [
+    "GEMINI_API_KEY"
+   ]
+  },
+  {
+   "id": "journey-8-vision-model-from-now-on",
+   "about": "Journey 8 (Slice 9, Q14): 'switch the vision model to Gemini 3.5 Flash from now on': the default vision model is Gemini 3.5 Flash.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "switch the vision model to Gemini 3.5 Flash from now on"
+    }
+   ],
+   "fast": [
+    {
+     "when": "gemini 3.5",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "From now on the vision model is Gemini 3.5 Flash.",
+      "actions": [
+       {
+        "tool": "set_default",
+        "args": {
+         "operation": "vision",
+         "by": "user",
+         "implementation": "gemini-3.5-flash"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "setting": [
+       "vision",
+       "gemini-3.5-flash"
+      ]
+     }
+    ],
+    "settle": 4.0
+   },
+   "keys": [
+    "GEMINI_API_KEY"
+   ]
+  },
+  {
+   "id": "journey-9-an-old-model-name-corrected-in-the-request",
+   "about": "Journey 9 (Slice 9, Q11): the model names 'SAM 3.1 (local)', an old name the app itself showed: it resolves (an old label kept for one release, names.py), or else the refusal lists the names and the request's next round picks one; either way the stoma is outlined by SAM 3.1 on this Mac in the same request.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "look": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the stoma with SAM 3.1 local"
+    }
+   ],
+   "fast": [
+    {
+     "when": "sam 3.1",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining the stoma with SAM 3.1 on this Mac.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "SAM 3.1 (local)"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "@stoma"
+         ]
+        }
+       }
+      ],
+      "final": {
+       "answer": "Outlining the stoma with SAM 3.1 on this Mac.",
+       "targets": [],
+       "actions": [
+        {
+         "tool": "use",
+         "args": {
+          "operation": "outline",
+          "by": "user",
+          "implementation": "sam3.1-local"
+         }
+        },
+        {
+         "tool": "highlight",
+         "args": {
+          "things": [
+           "@stoma"
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam3.1-local"
+      ]
+     }
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "journey-10-segmentation-models-then-the-second",
+   "about": "Journey 10 (Slice 9): 'what segmentation models do you have?' (the capabilities list, nothing run), then 'use the second one on the stoma': the name as the list gave it resolves.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "what segmentation models do you have?"
+    },
+    {
+     "at": 4.0,
+     "type": "use the second one on the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "segmentation models",
+     "reply": {
+      "answer": "Checking which models can outline here.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "capabilities",
+        "args": {
+         "operation": "outline"
+        }
+       }
+      ],
+      "then": {
+       "answer": "EdgeTAM is the default; SAM 2.1 tiny, SAM 3.1 and micro-sam can run here too.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    },
+    {
+     "when": "second one",
+     "reply": {
+      "answer": "Outlining the stoma with SAM 2.1 tiny, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "SAM 2.1 tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "queried": {
+     "capabilities": [
+      "SAM 2.1 tiny"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-10-a-name-as-the-app-shows-it",
+   "about": "Journey 10 (Slice 9, Q11): 'what models can outline here?' then 'use the first one on the stoma', the model naming it as the app's own capability list shows it ('EdgeTAM (on this Mac)'): a name the app shows resolves.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "what models can outline here?"
+    },
+    {
+     "at": 4.0,
+     "type": "use the first one on the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "what models",
+     "reply": {
+      "answer": "Checking which models can outline here.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "capabilities",
+        "args": {}
+       }
+      ],
+      "then": {
+       "answer": "Outlining: EdgeTAM (on this Mac), a setting.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    },
+    {
+     "when": "first one",
+     "reply": {
+      "answer": "Outlining the stoma with EdgeTAM, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "EdgeTAM (on this Mac)"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "edgetam"
+      ]
+     }
+    ],
+    "queried": {
+     "capabilities": [
+      "EdgeTAM (on this Mac)"
+     ]
+    },
+    "never_told": [
+     "there is no"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-11-researcher-show-read-close",
+   "about": "Journey 11 (Slice 9): 'have a researcher look into these and make me a short lesson', 'show me what it found' (show_me, then its work opened), 'read me the lesson' (read_result), 'close that' (the result viewer).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "have a researcher look into these and make me a short lesson"
+    },
+    {
+     "at": 14.0,
+     "type": "show me what it found"
+    },
+    {
+     "at": 19.0,
+     "type": "read me the lesson"
+    },
+    {
+     "at": 23.0,
+     "type": "close that"
+    }
+   ],
+   "vision": [
+    {
+     "when": "have a researcher",
+     "reply": {
+      "answer": "Starting a researcher on a short lesson.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "start_researcher",
+        "args": {
+         "brief": "look into these and make me a short lesson",
+         "effort": "standard",
+         "deliverable": "lesson",
+         "asked_with": "make me a short lesson"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "fast": [
+    {
+     "when": "read me the lesson",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Reading the lesson.",
+      "actions": [
+       {
+        "tool": "read_result",
+        "args": {
+         "researcher": "1",
+         "part": "lesson"
+        }
+       }
+      ],
+      "then": {
+       "answer": "The first question asks what guard cells control.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    },
+    {
+     "when": "show me what it found",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Here is what it found.",
+      "actions": [
+       {
+        "tool": "show_me",
+        "args": {
+         "researcher": "1"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Opening its work beside the view.",
+       "targets": [],
+       "actions": [
+        {
+         "tool": "show_result",
+         "args": {
+          "researcher": "1"
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "when": "close that",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing it.",
+      "actions": [
+       {
+        "tool": "close_result",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "viewer": "closed"
+     }
+    ],
+    "held": [
+     {
+      "after": 14.0,
+      "board": {
+       "viewer": "open"
+      }
+     }
+    ],
+    "queried": {
+     "read_result": [
+      "What do guard cells control?"
+     ]
+    },
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-12-snapshot-from-earlier-close-then-highlight",
+   "about": "Journey 12 (Slice 9): a snapshot taken and the magnifier closed; then 'pull up the snapshot from earlier' (its saved entry opened), 'close that', 'highlight the stoma'.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "take a snapshot"
+    },
+    {
+     "at": 3.0,
+     "type": "close the magnifier"
+    },
+    {
+     "at": 6.0,
+     "type": "pull up the snapshot from earlier"
+    },
+    {
+     "at": 11.0,
+     "type": "close that"
+    },
+    {
+     "at": 14.0,
+     "type": "highlight the stoma"
+    }
+   ],
+   "vision": [
+    {
+     "when": "take a snapshot",
+     "reply": {
+      "answer": "Taking a snapshot.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "snapshot",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "highlight the stoma",
+     "reply": {
+      "answer": "Outlining the stoma.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": []
+     }
+    }
+   ],
+   "fast": [
+    {
+     "when": "snapshot from earlier",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Finding the snapshot from earlier.",
+      "actions": [
+       {
+        "tool": "resources",
+        "args": {
+         "kind": "snapshot"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Opening the snapshot from earlier.",
+       "targets": [],
+       "actions": [
+        {
+         "tool": "present",
+         "args": {
+          "what": "$snapshot",
+          "do": "open"
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "when": "close the magnifier",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing the magnifier.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    },
+    {
+     "when": "close that",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Closing it.",
+      "actions": [
+       {
+        "tool": "close_magnifier",
+        "args": {}
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "closed"
+     },
+     {
+      "on": "stoma"
+     }
+    ],
+    "held": [
+     {
+      "after": 6.0,
+      "board": {
+       "magnifier_picture": "snapshot"
+      }
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-13-whats-moving-then-keep-the-fastest",
+   "about": "Journey 13 (Slice 9): three small things swim over a still view at different speeds; 'what's moving?' (track_motion measures the last seconds), then 'keep the fastest' (present emphasises the fastest track and hides the rest). The question comes once the camera has sent a few seconds of frames.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 45.0,
+     "type": "what's moving?"
+    },
+    {
+     "at": 85.0,
+     "type": "keep the fastest"
+    }
+   ],
+   "vision": [],
+   "expect": {
+    "board": [],
+    "queried": {
+     "track_motion": [
+      "moving"
+     ]
+    },
+    "settle": 6.0,
+    "told": [
+     "kept (highest net speed"
+    ]
+   },
+   "fast": [
+    {
+     "when": "fastest",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Keeping the fastest track.",
+      "actions": [
+       {
+        "tool": "present",
+        "args": {
+         "what": "$tracks",
+         "do": "emphasise",
+         "by": "speed",
+         "top": 1,
+         "rest": "hide"
+        }
+       }
+      ]
+     }
+    },
+    {
+     "when": "moving",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Measuring what moves.",
+      "actions": [
+       {
+        "tool": "track_motion",
+        "args": {}
+       }
+      ],
+      "then": {
+       "answer": "A few small things are moving.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "camera": "live",
+   "movers": [
+    {
+     "from": [
+      300,
+      500
+     ],
+     "velocity": [
+      10,
+      0
+     ]
+    },
+    {
+     "from": [
+      700,
+      150
+     ],
+     "velocity": [
+      0,
+      30
+     ]
+    },
+    {
+     "from": [
+      1100,
+      600
+     ],
+     "velocity": [
+      -80,
+      0
+     ]
+    }
+   ]
+  },
+  {
+   "id": "journey-14-a-clearer-picture",
+   "about": "Journey 14 (Slice 9): 'make a clearer picture' on a still view: enhance averages the still frames of the last second and shows it in the magnifier, labelled with how it was made.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 20.0,
+     "type": "make a clearer picture"
+    }
+   ],
+   "fast": [
+    {
+     "when": "clearer picture",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Making a clearer picture from the camera's frames.",
+      "actions": [
+       {
+        "tool": "enhance",
+        "args": {
+         "how": "average"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "magnifier": "open"
+     },
+     {
+      "magnifier_picture": "real frames"
+     }
+    ],
+    "settle": 5.0
+   },
+   "camera": "live"
+  },
+  {
+   "id": "journey-15-a-researcher-segments-with-micro-sam",
+   "about": "Journey 15 (Slice 9, Q24): 'have a researcher outline the cells with micro-sam and tell me how much they vary': its `run` names micro-sam, and the population it made for itself is micro-sam's.",
+   "slide": [
+    {
+     "name": "cell 1",
+     "box": [
+      200,
+      200,
+      240,
+      240
+     ]
+    },
+    {
+     "name": "cell 2",
+     "box": [
+      300,
+      200,
+      350,
+      250
+     ]
+    },
+    {
+     "name": "cell 3",
+     "box": [
+      420,
+      220,
+      510,
+      250
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "have a researcher outline the cells with micro-sam and tell me how much they vary"
+    }
+   ],
+   "vision": [
+    {
+     "when": "have a researcher",
+     "reply": {
+      "answer": "Starting a researcher on it.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "start_researcher",
+        "args": {
+         "brief": "outline the cells with micro-sam and tell me how much they vary",
+         "effort": "quick",
+         "deliverable": "research"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "researcher": [
+    {
+     "when": "micro-sam",
+     "reply": {
+      "run": {
+       "operation": "segment",
+       "implementation": "micro-sam-lm"
+      },
+      "title": "Cell sizes",
+      "summary": "The cells vary about twofold in area."
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "population_made_by": "micro-sam-lm"
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-16-a-model-loading-mid-request",
+   "about": "Journey 16 (Slice 9, Q19): 'outline the stoma with micro-sam' with micro-sam not loaded yet (8 s to load here; 120 s live on 2026-10-11): it says it is loading (loads.py, from the worker's load messages, which the bench's GPU sends as a worker does), and the stoma is outlined once it has loaded.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "cold": {
+    "micro-sam-lm": 8.0
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "outline the stoma with micro-sam"
+    }
+   ],
+   "vision": [
+    {
+     "when": "micro-sam",
+     "reply": {
+      "answer": "Outlining the stoma with micro-sam, for this request.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "micro-sam-lm"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "micro-sam-lm"
+      ]
+     }
+    ],
+    "told": [
+     "loading"
+    ],
+    "settle": 14.0
+   }
+  },
+  {
+   "id": "journey-17-try-the-other-model",
+   "about": "Journey 17 (Slice 0, Q3): a casual 'hmm, try the other model' with the stoma outlined by EdgeTAM: a choice for this request only (use, never set_default), said so; the default stays EdgeTAM.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "hmm, try the other model"
+    }
+   ],
+   "vision": [
+    {
+     "when": "other model",
+     "reply": {
+      "answer": "Trying SAM 2.1 tiny on the stoma, for this request only.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "told": [
+     "for this request"
+    ],
+    "settle": 5.0
+   }
+  },
+  {
+   "id": "journey-17-voice-try-the-other-model",
+   "about": "Journey 17 (Slice 0, Q3) by voice: 'try the other model' is a choice for this request only, said so; the default stays EdgeTAM.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "say": "try the other model"
+    },
+    {
+     "at": 1.5,
+     "handoff": "try the other model",
+     "id": "d1"
+    }
+   ],
+   "fast": [
+    {
+     "when": "other model",
+     "reply": {
+      "intent": "request",
+      "needs_look": true,
+      "answer": "Trying another model on the stoma.",
+      "actions": []
+     }
+    }
+   ],
+   "vision": [
+    {
+     "when": "other model",
+     "reply": {
+      "answer": "Trying SAM 2.1 tiny on the stoma, for this request only.",
+      "targets": [
+       {
+        "thing": "stoma"
+       }
+      ],
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "sam2.1-tiny"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "settle": 8.0
+   }
+  },
+  {
+   "id": "journey-5-use-sam21-redraws-the-outline-on-the-board",
+   "about": "Journey 5 (Slice 9, Q17) as the real fast pass plans it (live bench 2026-10-11: 'use SAM 2.1 for this' with the stoma outlined): `use`, then a highlight of the outline already on the board. Outlining it 'with SAM 2.1' redraws it, replacing EdgeTAM's.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {
+    "outlines": [
+     "stoma"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "use SAM 2.1 for this"
+    }
+   ],
+   "fast": [
+    {
+     "when": "sam 2.1",
+     "reply": {
+      "intent": "request",
+      "needs_look": false,
+      "answer": "Outlining the stoma with SAM 2.1 tiny, for this request.",
+      "actions": [
+       {
+        "tool": "use",
+        "args": {
+         "operation": "outline",
+         "by": "user",
+         "implementation": "sam2.1-tiny"
+        }
+       },
+       {
+        "tool": "highlight",
+        "args": {
+         "things": [
+          "#stoma"
+         ]
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "made_by": [
+       "stoma",
+       "sam2.1-tiny"
+      ]
+     },
+     {
+      "outlines": 1
+     },
+     {
+      "setting": [
+       "outline",
+       "edgetam"
+      ]
+     }
+    ],
+    "settle": 5.0
+   }
+  },
+ {
+  "id": "chat-start-a-new-session",
+  "about": "Sessions (ADR 0017): 'start a new session' starts one: a new session, one empty conversation, the one left kept.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {},
+  "events": [
+   {
+    "at": 0.0,
+    "type": "start a new session"
+   }
+  ],
+  "vision": [
+   {
+    "when": "new session",
+    "reply": {
+     "answer": "Starting a new session.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "new_session",
+       "args": {}
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "new"
+    },
+    {
+     "conversations": 1
+    }
+   ],
+   "queried": {
+    "new_session": [
+     "started a new session"
+    ]
+   },
+   "settle": 4.0
+  }
+ },
+ {
+  "id": "chat-new-topic-stays-in-the-session",
+  "about": "Sessions (ADR 0017): 'new topic, let's look at the onion' is a conversation in the same session, never a new session.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {},
+  "events": [
+   {
+    "at": 0.0,
+    "type": "new topic, let's look at the onion"
+   }
+  ],
+  "vision": [
+   {
+    "when": "new topic",
+    "reply": {
+     "answer": "New conversation for the onion.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "new_thread",
+       "args": {
+        "title": "onion"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "same"
+    },
+    {
+     "conversations": 2
+    }
+   ],
+   "settle": 4.0
+  }
+ },
+ {
+  "id": "chat-start-over-is-not-a-new-session",
+  "about": "Sessions (ADR 0017): 'let's start over' never starts a session: a fresh conversation in this one.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {},
+  "events": [
+   {
+    "at": 0.0,
+    "type": "let's start over"
+   }
+  ],
+  "vision": [
+   {
+    "when": "start over",
+    "reply": {
+     "answer": "Starting a fresh conversation.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "new_thread",
+       "args": {}
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "same"
+    },
+    {
+     "conversations": 2
+    }
+   ],
+   "settle": 4.0
+  }
+ },
+ {
+  "id": "chat-go-back-to-yesterdays-leaf-session",
+  "about": "Sessions (ADR 0017): 'go back to yesterday's leaf session' opens it (found by its day and name): its conversation comes back, the live view starts fresh.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {
+   "sessions": [
+    {
+     "name": "Leaf epidermis",
+     "days_ago": 1,
+     "title": "Stomata",
+     "specimen": "onion epidermis",
+     "said": [
+      [
+       "user",
+       "what are these bean-shaped cells?"
+      ],
+      [
+       "assistant",
+       "Guard cells, two around each stoma."
+      ]
+     ],
+     "summary": "We looked at stomata on onion epidermis; the bean-shaped cells were guard cells."
+    },
+    {
+     "name": "Blood smear",
+     "days_ago": 3,
+     "title": "Platelets",
+     "specimen": "blood smear",
+     "said": [
+      [
+       "user",
+       "is that a platelet?"
+      ],
+      [
+       "assistant",
+       "Yes, a platelet; the purple is the stain."
+      ]
+     ],
+     "summary": "We looked at a blood smear; the small purple fragments were platelets."
+    }
+   ]
+  },
+  "events": [
+   {
+    "at": 0.0,
+    "type": "go back to yesterday's leaf session"
+   }
+  ],
+  "vision": [
+   {
+    "when": "leaf session",
+    "reply": {
+     "answer": "Going back to the leaf session.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "switch_session",
+       "args": {
+        "session": "yesterday's leaf session"
+       }
+      }
+     ],
+     "then": {
+      "answer": "Back in Leaf epidermis: we looked at stomata.",
+      "targets": [],
+      "actions": [],
+      "confirmation": true
+     }
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "new"
+    },
+    {
+     "session_named": "leaf epidermis"
+    }
+   ],
+   "queried": {
+    "switch_session": [
+     "Leaf epidermis",
+     "live view started fresh"
+    ]
+   },
+   "settle": 6.0
+  }
+ },
+ {
+  "id": "chat-what-did-we-find-in-another-session-stays-here",
+  "about": "Sessions (ADR 0017): a question about another session ('what did we find in Tuesday's blood smear session?') is looked up, never a switch.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {
+   "sessions": [
+    {
+     "name": "Blood smear",
+     "days_ago": 3,
+     "title": "Platelets",
+     "specimen": "blood smear",
+     "said": [
+      [
+       "user",
+       "is that a platelet?"
+      ],
+      [
+       "assistant",
+       "Yes, a platelet; the purple is the stain."
+      ]
+     ],
+     "summary": "We looked at a blood smear; the small purple fragments were platelets."
+    }
+   ]
+  },
+  "events": [
+   {
+    "at": 0.0,
+    "type": "what did we find in Tuesday's blood smear session?"
+   }
+  ],
+  "vision": [
+   {
+    "when": "blood smear",
+    "reply": {
+     "answer": "Let me look that up.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "recall",
+       "args": {
+        "query": "blood smear platelets"
+       }
+      }
+     ],
+     "then": {
+      "answer": "I can't find that in this session; I can open the blood smear session if you like.",
+      "targets": [],
+      "actions": [],
+      "confirmation": true
+     }
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "same"
+    },
+    {
+     "conversations": 1
+    }
+   ],
+   "settle": 6.0
+  }
+ },
+ {
+  "id": "chat-back-to-the-leaf-session-what-did-we-conclude",
+  "about": "Sessions (ADR 0017): 'back to the leaf session: what did we conclude?' opens it and is answered from its summary and filed there.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {
+   "sessions": [
+    {
+     "name": "Leaf epidermis",
+     "days_ago": 1,
+     "title": "Stomata",
+     "specimen": "onion epidermis",
+     "said": [
+      [
+       "user",
+       "what are these bean-shaped cells?"
+      ],
+      [
+       "assistant",
+       "Guard cells, two around each stoma."
+      ]
+     ],
+     "summary": "We looked at stomata on onion epidermis; the bean-shaped cells were guard cells."
+    }
+   ]
+  },
+  "events": [
+   {
+    "at": 0.0,
+    "type": "back to the leaf session: what did we conclude?"
+   }
+  ],
+  "vision": [
+   {
+    "when": "conclude",
+    "reply": {
+     "answer": "Going back to the leaf session.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "switch_session",
+       "args": {
+        "session": "the leaf session"
+       }
+      }
+     ],
+     "then": {
+      "answer": "We concluded the bean-shaped cells were guard cells.",
+      "targets": [],
+      "actions": [],
+      "confirmation": true
+     }
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session_named": "leaf epidermis"
+    },
+    {
+     "answer_filed": "guard cells"
+    }
+   ],
+   "told": [
+    "guard cells"
+   ],
+   "queried": {
+    "switch_session": [
+     "the bean-shaped cells were guard cells"
+    ]
+   },
+   "settle": 6.0
+  }
+ },
+ {
+  "id": "chat-a-restart-keeps-the-session",
+  "about": "Sessions (ADR 0017): a new session, then the app restarts: it opens in the same session.",
+  "slide": [
+   {
+    "name": "stoma",
+    "box": [
+     600,
+     300,
+     680,
+     380
+    ]
+   }
+  ],
+  "board": {},
+  "events": [
+   {
+    "at": 0.0,
+    "type": "start a new session called kidney section"
+   },
+   {
+    "at": 9.0,
+    "restart": true
+   }
+  ],
+  "vision": [
+   {
+    "when": "new session",
+    "reply": {
+     "answer": "Starting the kidney section session.",
+     "targets": [],
+     "actions": [
+      {
+       "tool": "new_session",
+       "args": {
+        "name": "kidney section"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "board": [
+    {
+     "session": "new"
+    },
+    {
+     "session_named": "kidney section"
+    },
+    {
+     "resumed": true
+    }
+   ],
+   "settle": 4.0
+  }
+ },
+  {
+   "id": "models-why-not-offers-then-yes-downloads",
+   "about": "P4 of the open catalog: 'why can't you outline with SAM 3.1 on this Mac?' is answered from the Models page (not downloaded, 3.5 GB) and the download is offered; the user's 'yes, download it' starts exactly that download (get_model with the offer's id and their words), and nothing is said to be done before it is.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "setup": {
+    "not_downloaded": [
+     "sam3.1-local"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "why can't you outline with SAM 3.1 on this Mac?"
+    },
+    {
+     "at": 6.0,
+     "type": "yes, download it"
+    }
+   ],
+   "vision": [
+    {
+     "when": "why can't you outline",
+     "reply": {
+      "answer": "Checking what SAM 3.1 needs here.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "models",
+        "args": {
+         "about": "SAM 3.1 (this Mac)"
+        }
+       }
+      ],
+      "then": {
+       "answer": "It isn't downloaded on this Mac yet (3.5 GB). Want me to get it?",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    },
+    {
+     "when": "yes, download it",
+     "reply": {
+      "answer": "Starting the download of SAM 3.1 now.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "get_model",
+        "args": {
+         "confirms": "p1",
+         "asked_with": "yes, download it"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "queried": {
+     "models": [
+      "Download 3.5 GB",
+      "Offered (p1)"
+     ]
+    },
+    "downloaded": [
+     "sam3.1-local"
+    ],
+    "told": [
+     "Want me to get it"
+    ],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "models-no-yes-no-download",
+   "about": "P4: offered a download, the user says 'no thanks': nothing is downloaded.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "setup": {
+    "not_downloaded": [
+     "sam3.1-local"
+    ]
+   },
+   "events": [
+    {
+     "at": 0.0,
+     "type": "why can't you outline with SAM 3.1 on this Mac?"
+    },
+    {
+     "at": 6.0,
+     "type": "no thanks"
+    }
+   ],
+   "vision": [
+    {
+     "when": "why can't you outline",
+     "reply": {
+      "answer": "Checking what SAM 3.1 needs here.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "models",
+        "args": {
+         "about": "SAM 3.1 (this Mac)"
+        }
+       }
+      ],
+      "then": {
+       "answer": "It isn't downloaded on this Mac yet (3.5 GB). Want me to get it?",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    },
+    {
+     "when": "no thanks",
+     "reply": {
+      "answer": "Okay, I'll leave it.",
+      "targets": [],
+      "actions": []
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "downloaded": [],
+    "settle": 6.0
+   }
+  },
+  {
+   "id": "models-add-my-key-opens-its-card",
+   "about": "P4: 'add my OpenAI key' opens a card that waits on it on the Models page (its Add key there): no key is asked for in the chat, and none is said.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "add my OpenAI key"
+    }
+   ],
+   "vision": [
+    {
+     "when": "add my openai key",
+     "reply": {
+      "answer": "Opening where you add it.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "open_models",
+        "args": {
+         "model": "OpenAI key"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "opened": [
+     "#models/gpt-image-2.5-flare"
+    ],
+    "never_told": [
+     "sk-",
+     "paste your key here"
+    ],
+    "settle": 3.0
+   }
+  },
+  {
+   "id": "models-what-a-key-turns-on",
+   "about": "P4: 'what does my Google key turn on?' is the catalog's own words for the key, with the models that use it, and that it turns on only what it lists (talking needs OpenAI).",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "what does my Google key turn on?"
+    }
+   ],
+   "vision": [
+    {
+     "when": "google key",
+     "reply": {
+      "answer": "Checking what that key turns on.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "models",
+        "args": {
+         "about": "my Google key"
+        }
+       }
+      ],
+      "then": {
+       "answer": "Your Google key turns on seeing, naming and quick decisions; talking needs an OpenAI key.",
+       "targets": [],
+       "actions": [],
+       "confirmation": true
+      }
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "outlines": 0
+     }
+    ],
+    "queried": {
+     "models": [
+      "It turns on only what it lists",
+      "Gemini 3.8 Flash"
+     ]
+    },
+    "settle": 4.0
+   }
+  }
+ ]
+}

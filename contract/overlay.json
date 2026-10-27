@@ -1,0 +1,36 @@
+{
+  "frameDimMs": 1500,
+  "feedStaleS": 3.0,
+  "fadeStartPx": 4,
+  "fadeEndPx": 12,
+  "speedWindow": 10,
+  "inViewRadius": 0.95,
+  "clickRadius": 0.97,
+  "speechLineGapS": 8,
+  "magnifier": {
+    "maxLevel": 64,
+    "minWindowPx": 4,
+    "pixelatedK": 6,
+    "fitPad": 0.15,
+    "fitMinPx": 32,
+    "panelCssPx": 352,
+    "aspect": [4, 3]
+  },
+  "kindOrder": { "html": 0, "video": 1, "image": 2 },
+  "memberColours": {
+    "palette": ["#f979e8", "#22c55e", "#38c3f7", "#e74c3c", "#ffa500", "#ff69b4", "#00ced1", "#ffdc64",
+      "#1e90ff", "#f08080", "#ff1493", "#9acd32"],
+    "heat": [[59, 130, 246], [20, 184, 166], [250, 204, 21], [239, 68, 68]],
+    "unmeasured": "#8a93a6"
+  },
+  "performance": {
+    "fps": { "ideal": 30, "good": 27, "fair": 20 },
+    "screenMs": { "good": 75, "fair": 150 },
+    "analyseMs": { "good": 33, "fair": 66 },
+    "clickMs": { "good": 300, "fair": 600 },
+    "loadPerCore": { "good": 1.0, "fair": 2.0 },
+    "memFreePct": { "good": 25, "fair": 10 },
+    "swapInsPerS": { "good": 20, "fair": 200, "windowS": 30, "hysteresis": 0.5 },
+    "diskFreeGb": { "good": 100, "fair": 30 }
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "scope": "Distributed repository media; no personal recordings or model weights",
+  "assets": [
+    {
+      "path": "apps/studio/src/fonts/Inter-Variable.woff2",
+      "sha256": "13b4cddc57045d40b411008e61588c8f81aa0bd72fe884624831a0ff9c4d159a",
+      "license": "OFL-1.1",
+      "provenance": "Inter-OFL.txt",
+      "note": "Upstream font; accompanying notice retained"
+    },
+    {
+      "path": "apps/studio/src/fonts/Newsreader-Italic-Variable.woff2",
+      "sha256": "8920f06c4c116e91721a2cbbbb195d1ab6997a657cb3313dab5c99b6b202d899",
+      "license": "OFL-1.1",
+      "provenance": "Newsreader-OFL.txt",
+      "note": "Upstream font; accompanying notice retained"
+    },
+    {
+      "path": "apps/studio/src/assets/core-mark-dark.svg",
+      "sha256": "be2e66c24636e479992ebe6d7ae8d8734cf229ff1df48a46d52a12620b685dc0",
+      "license": "Apache-2.0",
+      "provenance": "First-party geometric UI source",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "apps/studio/src/assets/core-mark-light.svg",
+      "sha256": "59d4d39f73a77813dbc32c0b55b879b96b81b5015dd3e1c640acce236b3cf3bf",
+      "license": "Apache-2.0",
+      "provenance": "First-party geometric UI source",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "assets/examples/human_mitosis.tif",
+      "sha256": "2751ba667c4067c5d30817cff004aa06f6f6287f1cdbb5b8c9c6a500308cb456",
+      "license": "CC0-1.0",
+      "provenance": "assets/examples/NOTICE.md",
+      "note": "Bundled specimen or derived crop; David Root attribution retained"
+    },
+    {
+      "path": "assets/examples/human_mitosis.png",
+      "sha256": "e6670c3af254f8800e03461a99151e4a8aa955735dbc7f05789275c41ca7066c",
+      "license": "CC0-1.0",
+      "provenance": "assets/examples/NOTICE.md",
+      "note": "Bundled specimen or derived crop; David Root attribution retained"
+    },
+    {
+      "path": "examples/beta-scientific-tools/cellposesam-panel/example-probe-mitosis.png",
+      "sha256": "5ff14f13500012ceb3fe14c14e3f0f4b72d016cb9bcea444215b8a5f873fa2c0",
+      "license": "CC0-1.0",
+      "provenance": "assets/examples/NOTICE.md",
+      "note": "Bundled specimen or derived crop; David Root attribution retained"
+    },
+    {
+      "path": "catalog/models/spot-measure/example-blank.png",
+      "sha256": "b6d1a48e845a34f022e855924e784e55c6fe41512387b4b3506033f9d0a83000",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/spot-measure/example-three-spots.png",
+      "sha256": "9feeeaf4376759402c28bd86c9a9ee7d97d91042577c08e5c950fbeec2ca0b69",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/swin2sr-enlarge/example-default-grid.png",
+      "sha256": "ec128873f45c6a6b07541094ff0ea6c9ab1c8a7c857a39c0f22cb72dba005427",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/swin2sr-enlarge/example-synthetic-texture.png",
+      "sha256": "bbcab4ad02c9dfd6dd22d7837538ca5713cea50c8e208e24cf80ba67be984d3b",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/fiji-gaussian-blur/example-synthetic-texture.png",
+      "sha256": "bbcab4ad02c9dfd6dd22d7837538ca5713cea50c8e208e24cf80ba67be984d3b",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/spot-shape/example-round-and-long.png",
+      "sha256": "ffacdbf5edff638e1ea308d2510aa70ab24d829c9b3c3ee164489c2c169291fc",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/spot-shape/example-blank.png",
+      "sha256": "b6d1a48e845a34f022e855924e784e55c6fe41512387b4b3506033f9d0a83000",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/spot-shape/example-three-spots.png",
+      "sha256": "9feeeaf4376759402c28bd86c9a9ee7d97d91042577c08e5c950fbeec2ca0b69",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/fiji-subtract-background/example-synthetic-texture.png",
+      "sha256": "bbcab4ad02c9dfd6dd22d7837538ca5713cea50c8e208e24cf80ba67be984d3b",
+      "license": "Apache-2.0",
+      "provenance": "catalog/EXAMPLES.md",
+      "note": "Generated geometric fixture or neutral core icon"
+    },
+    {
+      "path": "catalog/models/basic-bright-objects/example-human-cells.png",
+      "sha256": "e6670c3af254f8800e03461a99151e4a8aa955735dbc7f05789275c41ca7066c",
+      "license": "CC0-1.0",
+      "provenance": "assets/examples/NOTICE.md",
+      "note": "Bundled specimen or derived crop; David Root attribution retained"
+    }
+  ]
+}

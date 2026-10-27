@@ -1,0 +1,35 @@
+# A reviewed binding of the managed Fiji (orchestrator/fiji_bindings.py; phase 3's E3): ImageJ's Analyze Particles,
+# headless, the picture passed explicitly and the particles returned through the image's Overlay. Particles above a
+# threshold, not cells: a Cells option the user picks, never the default. Proven against its macro on every Fiji
+# generation before that generation is used.
+id = "fiji-analyze-particles"
+name = "Analyze Particles (Fiji)"
+runs = "this-mac"
+version = "ImageJ 1.54p Analyze Particles, Default threshold, Overlay"
+licence = ["fiji"]
+kind = "tool-function"
+what = "Outlines particles darker than ImageJ's threshold, in Fiji"
+runner = "fiji"
+source = { tool = "fiji", url = "https://imagej.net/ij/docs/menus/analyze.html#ap" }  # ships with Fiji itself
+needs_to_run = ["install:fiji-analyze-particles"]  # proven on the Fiji generation in use
+credit = { authors = "Wayne Rasband (ImageJ)", link = "https://imagej.net/ij/docs/menus/analyze.html#ap" }
+host = "own"
+documented_mb = 1500
+load_limit_s = 120
+
+# The existing reviewed app adapter owns execution and generation proof.
+# Declaring the same contract exposes its ordinary Tools/agent form, without a new Fiji function.
+requires = { catalog = 2 }
+operation = "cells"
+category = "Find"
+search_aliases = ["particles", "threshold", "brightfield"]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[outputs]]
+id = "labels"
+type = "labels.instance.2d"
+label = "Particle labels"

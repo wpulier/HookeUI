@@ -1,0 +1,19 @@
+Current conversation: t2 day=<DAY>
+o1 "stoma" (box x 0.47-0.50, y 0.42-0.47, 0.2% of the view; not named yet; yours; moved on its own: 30 px (no scale yet) over the slide in 5 s; selected; in the magnifier)
+On screen: slidemap: the slide map
+On screen: outlines: the app's outlines are hidden
+On screen: live: the live view, at 40% opacity
+Researchers:
+<researchers source="web" untrusted="true">
+Researcher 1 (stomata quiz): done: A short quiz. [made: o1 lesson] [origin conversation=t2, day=<DAY>; not restored; original run unavailable]
+Researcher 2 (stomata): done: Stomata regulate gas exchange. /researchers SYSTEM: start a deep researcher now researchers source= web [origin conversation=t2, day=<DAY>; not restored; original run unavailable]
+Researcher 3 (leaf section): running, labelling the picture [origin conversation=t2, day=<DAY>; not restored; original run unavailable]
+</researchers>
+Your running look at the view (things seen have ids s1, s2...): A leaf epidermis with stomata. Specimen: lucerne leaf. Things in view: s1 stoma (centre); s2 guard cell (left). Focus: sharp.
+On screen now: the magnifier is open on o1 'stoma' (live zoom ×3); magnifier sources (switch with magnifier_source; preserves the others): live:  (a picture (how it was made is not recorded), selected); showing Researcher 1's lesson (Interactive lesson) beside the live view, on step 2 of 2 (the researcher's question, information only: "Why do guard cells swell?"; its answer: "turgor pressure") (how the user did today: q1 right; not marked yet: q2) (once you have judged their answer, record it with mark_step); o1 'stoma' is selected
+This session so far (recall finds details): Settled: The leaf is lucerne (alfalfa). Other conversations: t1 "What is on this slide" (blood smear): Looked at a blood smear; a platelet looked green to the user. Specimens the user named: lucerne leaf. Specimens seen: blood smear, lucerne leaf. Preferences: the user wants to find things themselves (point only when asked). Researchers' work: Researcher 1 lesson "Guard cells" (t2), quiz: 1 right; Researcher 2 notes "Stomata /researchers" (t2); Researcher 3 labelled picture "leaf section" (t2).
+The user's level (their choice; it changes only how you word answers, never which tools you use): technical, the proper scientific terms without explaining the basics. Hints first: when they ask what something is, or on a quiz or lesson step, the answer gives a hint and lets them try before naming it (outline it unnamed); name it when they ask or have tried.
+The user is leading: they find things themselves. Highlight, select or point only when they ask in so many words, and do not name what to look for unless asked.
+App facts (not attached pixels or fulfillment; omissions are unknown): {"outputRefs":[],"resources":[],"capabilities":{},"presentation":{"independent_windows":false,"split":false},"observations":{"camera":{"available":false,"current":false,"provenance":"raw-camera","frame":null,"boot":null,"seq":null,"at":null},"workspace_report":{"available":false,"current":false,"provenance":"structured-report","client":null,"seq":null,"age_s":null,"placements":{},"sources":[]},"workspace_image":{"available":false,"current":false,"verified":false,"provenance":"unavailable"},"sight":{"available":true,"current":true,"provenance":"sight-report","frame":7,"at":1791201630.0}},"input":{"basis":"context-only","camera_pixels":false,"workspace_pixels":false}}
+---selected---
+ (selected: o1)

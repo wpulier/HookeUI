@@ -1,0 +1,117 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Models · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (workspace-feel plan, step 8): the production Models page (modelspage.ts) in the production
+     Models sheet (workspace-study-surfaces.ts), with the workspace's own stylesheets, over synthetic catalog rows shaped
+     like the capabilities wire's `models` (catalog_view.py): a few with a passed check, one waiting on your key, ones to
+     download, a download in progress or stopped, one Fiji needs, one made from your corrections, an agent's cloud model,
+     an atlas. Downloads, keys and adds answer from this page (nothing runs, nothing is written). Parameters:
+     ?state=models|add-start|add-link|add-review|added|downloading|failed|details|unchecked|setup|away|storage, &theme=light.
+     "added" goes the Add way (a link, its review, Review setup) to a model that is ready, as a person reaching Ready. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:48px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;color:var(--mm-text);font:600 13px var(--mm-sans)}
+ nav.study-rail{position:fixed;left:0;top:48px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-stage{position:fixed;left:72px;right:360px;top:48px;bottom:40px;background:#000;display:grid;place-items:center}
+ .fx-stage .workspace-specimen-content{width:min(80%,640px);aspect-ratio:1;background:center/contain no-repeat}
+ .fx-side{position:fixed;right:0;top:48px;bottom:0;width:360px;background:var(--mm-bar);box-shadow:inset 1px 0 0 var(--mm-line)}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-workspace-project="fixture">
+<div class="fx-top">Fixture: the production Models page over synthetic catalog rows (design evidence only)</div>
+<nav class="study-rail" aria-label="Fixture rail"></nav>
+<main class="fx-stage" id="stage"><div class="workspace-specimen-content" id="specimen"></div></main>
+<aside class="fx-side"></aside>
+<section id="models-page" class="models-page" hidden></section>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/capability-controls.css';import '/src/workspace-feel.css';
+import {ModelsPage} from '/src/modelspage.ts';import {StudySurfaces} from '/src/workspace-study-surfaces.ts';
+import cells from '../../design/workspace-feel/assets/human-cells.png';
+const params=new URLSearchParams(location.search),state=params.get('state')||'models';
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+document.getElementById('specimen').style.backgroundImage=`url(${cells})`;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const row=(id,over)=>({id,name:id,runs:'this-mac',where:'on this Mac',what:'',kind:'model',version:'1',credit:{},link:'',licence:'',tier:'open',mine:false,
+  status:'ready',word:'Ready',group:'available',next:null,steps:[],inUse:false,chosen:false,facts:[],usedFor:[],size:0,files:[],folder:'',revision:'r1',...over});
+const on=(says='Its check passed on this Mac')=>({state:'on',says,action:null,also:[]});
+const unchecked={state:'unchecked',says:'Not checked on this Mac yet',action:{kind:'check',says:'Check it here'},also:[]};
+const checkPlan=(id,label)=>[{role:`model:${id}`,title:label,option:id,recheck:false,canTry:false,plan:{option:id,model:id,label,recipe:'fixture',privacy:'Pictures stay on this Mac',cost:'Free',steps:[{kind:'check',says:'Run its functional check',by:'app'}]}}];
+const dl=(id,bytes,label)=>({kind:'download',says:`Download ${Math.round(bytes/1e6)} MB`,model:id,bytes});
+const models=[
+ row('sam3.1-cloud',{name:'SAM 3.1 (cloud)',runs:'cloud',where:'in the cloud',kind:'cloud-model',what:'Outlines what you box, and finds every thing like an example',
+  status:'needs-setup',word:'Needs your fal.ai key',group:'needs-you',next:{kind:'key',says:'Add your fal.ai key',service:'fal'},
+  facts:[{kind:'key',ok:false,says:'Needs your fal.ai key',service:'fal'}],face:{state:'needs-setup',says:'Needs your fal.ai key',action:{kind:'key',says:'Add your fal.ai key',service:'fal'},also:[]},
+  usedFor:[{role:'fixed:find-all',title:'Find all like this',option:'model',options:[],current:true,fixed:false}]}),
+ row('cellpose-sam',{name:'Cellpose-SAM',what:'Outlines every cell in a view',face:on(),size:1233586851,abilities:[{id:'cells',title:'Outline every cell',what:'A cell finder segments every cell; they are kept and measured',actor:'you',say:'',role:'cells',option:'cellpose-sam',current:true}]}),
+ row('basic-bright-objects',{name:'Bright objects',kind:'tool-function',runs:'cpu',what:'Finds bright regions using a basic local threshold method',face:on(),newKind:{operation:'cells',input:'image.2d.rgb8',output:'labels.instance.2d',gives:'outlines',proved:true,proof:'bundled with the app'}}),
+ row('edgetam',{name:'EdgeTAM',what:'Outlines what you click or box, fast enough for every click',face:on(),size:55953586}),
+ row('gemini-3.8-flash',{name:'Gemini 3.8 Flash',runs:'cloud',where:'in the cloud',kind:'cloud-model',what:'Looks at the view, answers, points and names',face:on('Your Google key works'),
+  facts:[{kind:'key',ok:true,says:'Uses your Google Gemini API key',service:'gemini'}]}),
+ row('gpt-6.1-sol',{name:'GPT-6.1 Sol',runs:'cloud',where:'in the cloud',kind:'cloud-model',what:'Researches, writes and edits with tools',face:on('Your OpenAI key works'),
+  facts:[{kind:'key',ok:true,says:'Uses your OpenAI API key',service:'openai'}]}),
+ row('sam2.1-tiny',{name:'SAM 2.1 tiny',what:'Outlines what you click or box',face:on(),size:155915242}),
+ row('allen-25',{name:'Allen mouse brain atlas (25 µm)',kind:'data',what:'The Allen mouse brain atlas at 25 µm, for registration',face:{state:'obtained',says:'Files checked',action:null,also:[]},size:40e6}),
+ row('dinov2-small',{name:'DINOv2 small',what:'Turns a picture into numbers that compare how things look',face:unchecked,setups:checkPlan('dinov2-small','DINOv2 small')}),
+ row('medsiglip',{name:'MedSigLIP 448',what:'Ranks medical names for a picture, as data for naming',face:unchecked,setups:checkPlan('medsiglip','MedSigLIP 448')}),
+ row('micro-sam-lm',{name:'micro-sam (light microscopy)',what:'Outlines cells, and what you click, trained on light microscopy',status:'needs-setup',word:'Download 413 MB',
+  size:413417112,next:dl('micro-sam-lm',413417112),face:{state:'needs-setup',says:'Download 413 MB',action:dl('micro-sam-lm',413417112),also:[]},link:'https://bioimage.io/#/?id=diplomatic-bug'}),
+ row('instanseg-brightfield',{name:'InstanSeg (brightfield nuclei)',what:'Outlines every nucleus on a brightfield slide',status:'needs-setup',word:'Download 16 MB',size:15792317,
+  next:dl('instanseg-brightfield',15792317),face:{state:'needs-setup',says:'Download 16 MB',action:dl('instanseg-brightfield',15792317),also:[]}}),
+ row('fiji-gaussian-blur',{name:'Gaussian Blur (Fiji)',kind:'tool-function',what:'Smooths the view with ImageJ’s Gaussian Blur',status:'needs-setup',word:'Set up Fiji first',
+  next:{kind:'install',says:'Set up Fiji first',model:'fiji'},face:{state:'needs-setup',says:'Set up Fiji first',action:null,also:[]},
+  setups:[{role:'model:fiji-gaussian-blur',title:'Gaussian Blur (Fiji)',option:'fiji-gaussian-blur',recheck:false,canTry:false,plan:{option:'fiji-gaussian-blur',model:'fiji-gaussian-blur',label:'Gaussian Blur (Fiji)',recipe:'fixture',privacy:'Pictures stay on this Mac',cost:'Free',steps:[{kind:'install',says:'Set up Fiji first',model:'fiji',by:'app'},{kind:'check',says:'Run its functional check',by:'app'}]}}]}),
+ row('cellpose-sam-tuned',{name:'Cellpose-SAM fine-tuned on your corrections',what:'Cellpose-SAM retrained here on your own corrections of its cells',status:'needs-setup',word:'Make its weights here',
+  next:{kind:'weights',says:'Make its weights here'},face:{state:'needs-setup',says:'Make its weights here',action:null,also:[]}}),
+ row('claude-opus-5-5',{name:'Claude Opus 5.5',runs:'cloud',where:'in the cloud',kind:'cloud-model',what:'Writes, reasons and reviews for researchers',status:'needs-setup',word:'Needs your Anthropic key',
+  licence:'Anthropic API: Anthropic commercial terms',tier:'terms',next:{kind:'key',says:'Add your Anthropic key',service:'anthropic'},facts:[{kind:'key',ok:false,says:'Needs your Anthropic key',service:'anthropic'}],
+  face:{state:'needs-setup',says:'Needs your Anthropic key',action:null,also:[]},
+  setups:[{role:'model:claude-opus-5-5',title:'Claude Opus 5.5',option:'claude-opus-5-5',recheck:false,canTry:false,plan:{option:'claude-opus-5-5',model:'claude-opus-5-5',label:'Claude Opus 5.5',recipe:'fixture',privacy:'Sends pictures to Anthropic (your key)',cost:'Billed by Anthropic per call',steps:[{kind:'key',says:'Add your Anthropic key',service:'anthropic',by:'you'}]}}]}),
+ row('trackastra-gurobi',{name:'Trackastra (Gurobi)',what:'Links outlined cells across frames, with the Gurobi optimizer',status:'unavailable',word:'Not in this edition',group:'unavailable',
+  face:{state:'unavailable',says:'Not in this edition',action:null,also:[]}}),
+];
+const keys={FAL_KEY:{service:'fal',name:'fal.ai',short:'fal',getKey:'',enables:'',present:false,source:null,sourceSays:'',canSave:true},
+ GEMINI_API_KEY:{service:'gemini',name:'Google Gemini API',short:'Google',getKey:'',enables:'',present:true,source:'file',sourceSays:'',canSave:true},
+ OPENAI_API_KEY:{service:'openai',name:'OpenAI API',short:'OpenAI',getKey:'',enables:'',present:true,source:'file',sourceSays:'',canSave:true}};
+const wire={type:'capabilities',families:[],actors:{you:'',agent:'',auto:'',researcher:''},capabilities:[],roles:[],preferences:[],pending:0,build:'fixture',agentText:'',
+ models,setup:{edition:'research',options:{},keys,downloads:[],installs:[],disk:{freeBytes:200e9,spareBytes:1<<30},shelf:{cards:[],behind:[],counts:{green:0,red:0,yellow:0,grey:0}}}};
+const find=id=>models.find(m=>m.id===id);
+if(state==='downloading'){const m=find('micro-sam-lm');m.download={model:m.id,name:m.name,state:'downloading',got:Math.round(m.size*0.42),total:m.size,says:'Downloading'};}
+if(state==='failed'){const m=find('instanseg-brightfield');m.download={model:m.id,name:m.name,state:'failed',got:Math.round(m.size*0.42),total:m.size,says:'no connection'};}
+if(state==='added'){Object.assign(find('micro-sam-lm'),{status:'ready',word:'Ready',next:null,face:on(),mine:true,
+  facts:[{kind:'files',ok:true,says:'Its files are on this Mac (413 MB), checked against the pinned ones'},{kind:'check',ok:true,says:'Its functional check passed on this Mac'},{kind:'on',ok:true,says:'Added to Models and Tools'}],
+  setups:[{role:'model:micro-sam-lm',title:'micro-sam (light microscopy)',option:'micro-sam-lm',recheck:true,canTry:false,ready:true,plan:{option:'micro-sam-lm',model:'micro-sam-lm',label:'micro-sam',recipe:'fixture',privacy:'Pictures stay on this Mac',cost:'Free',steps:[{kind:'check',says:'Run its functional check',by:'app'}]}}]});}
+const served={'cellpose-sam':[{task:'cells',title:'Outline every cell'}],'basic-bright-objects':[{task:'catalog:basic-bright-objects',title:'Find bright regions'}],
+ 'edgetam':[{task:'click-outline',title:'Outline what you click'}],'sam2.1-tiny':[{task:'click-outline',title:'Outline what you click'}],'gemini-3.8-flash':[{task:'count',title:'Count them'}],
+ 'micro-sam-lm':[{task:'cells',title:'Outline every cell'}],'dinov2-small':[{task:'looks',title:'Compare how things look'}],'medsiglip':[]};
+const inventory={bytes:1.9e9,preserved:'Your pictures, data and results stay.',says:'1.90 GB in managed copies: 1.20 GB can be freed, 0.70 GB is kept for saved work.',
+ items:[{id:'env-cellpose',name:'Cellpose-SAM environment',kind:'env',models:['cellpose-sam','cellpose-sam-tuned'],bytes:1.2e9,revision:'r1',generations:2,
+   says:'Shared by Cellpose-SAM and its fine-tuned copy. Removing these 2 runtime copies means they need setup again.'},
+  {id:'env-instanseg',name:'InstanSeg environment',kind:'env',models:['instanseg-brightfield'],bytes:0.7e9,revision:'r1',generations:1,
+   retention:{reason:'Kept: a saved result in this Project uses it.',next:'Remove that result first.',checked:true}}]};
+const page=new ModelsPage(document.getElementById('models-page'),{
+ space:{list:async()=>inventory,remove:async()=>({says:'Removed.'})},
+ session:()=>'fixture',served:m=>served[m]??[],specimen:()=>'Human cells',
+ download:async(model,cancel)=>{const m=find(model);if(!m)return;m.download=cancel?undefined:{model,name:m.name,state:'downloading',got:Math.round(m.size*0.12),total:m.size,says:'Downloading'};page.update(structuredClone(wire));},
+ reveal:async()=>{},observe:async()=>{},
+ add:async()=>({model:'micro-sam-lm',name:'micro-sam (light microscopy)',says:'Found a bioimage.io model the reviewed runner takes: diplomatic-bug.'}),
+ shelf:{turnOn:async()=>{},cancel:async()=>{},tryIt:async()=>{},seen:async()=>{},dismiss:async()=>{},get:async()=>{}},
+});
+window.addEventListener('hooke-use-model',e=>console.log('use',JSON.stringify(e.detail)));
+const surfaces=new StudySurfaces(hash=>{});
+const root=document.getElementById('models-page');
+root.hidden=false;page.update(structuredClone(wire));
+surfaces.show({page:'models',hash:'#models',node:root});page.show(null);
+document.activeElement?.blur?.();
+if(state==='add-start'){window.dispatchEvent(new CustomEvent('hooke-models-add'));}
+if(state==='add-link'){page.show('add-link');}
+if(state==='add-review'||state==='added'){page.show('add-link');await sleep(50);const input=[...document.querySelectorAll('.capability-entry-field')].find(l=>l.textContent.startsWith('Model or GitHub link')).querySelector('input');
+ input.value='https://bioimage.io/#/?id=diplomatic-bug';input.dispatchEvent(new Event('input'));document.querySelector('.capability-import-continue').click();}
+if(state==='added'){await sleep(200);[...document.querySelectorAll('.capability-inspection button')].find(b=>b.textContent==='Review setup').click();}
+if(state==='setup'){document.querySelector('[data-category="setup"]')?.click();}
+if(state==='away'){document.querySelector('[data-category="away"]')?.click();}
+if(state==='storage'){document.querySelector('[data-category="storage"]')?.click();await sleep(50);[...document.querySelectorAll('#capability-space button')].find(b=>/storage/.test(b.textContent))?.click();}
+if(state==='details'){document.querySelector('[data-model="cellpose-sam"] .model-card-hit').click();}
+if(state==='unchecked'){document.querySelector('[data-category="unchecked"]')?.click();}
+if(state==='downloading'||state==='failed'){document.querySelector('[data-category="setup"]')?.click();}
+await sleep(100);document.activeElement?.blur?.();
+</script>
+</body></html>

@@ -1,0 +1,47 @@
+# Explicit frozen-candidate gate. Routine edits use focused local checks; do not run
+# the same full paid Mac suite for a PR push and again for its unchanged merge.
+# Dispatch on the exact candidate branch; record the resolved SHA/run in ticket 62.
+# No publishing or secrets. Quiet simulated-camera checks remain local.
+name: tests
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  make-test:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.7.19" }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/studio/package-lock.json
+      - run: brew install ffmpeg
+      - run: uv sync --locked --python 3.13 --all-groups --inexact
+        working-directory: services
+      # Installed on the development Mac, so tests count on them: SAM 3.1's code (`make sam3-setup`; readiness and the
+      # pickers say it is installed) and micro-sam's own Python made by hand at its default place
+      # (noncommercial/microsam_cells.py DEFAULT_PYTHON; tests that compare or replay micro-sam count it as installed,
+      # with a stand-in for its model, so an empty environment is enough: none runs micro-sam itself).
+      - run: make sam3-setup
+      - run: uv venv --python 3.13 ~/.cache/micromind/venvs/microsam
+      - run: npm ci
+        working-directory: apps/studio
+      # Left out here only, each still run by `make test` on a Mac: what this virtual Mac can't give.
+      # - its timers: time.sleep(1/30) takes about 70 ms here (measured 2026-10-21, also at latency tier 0), so the
+      #   camera link's fake 30 fps feed makes about 14 and the hang check, looking every second, misses a 1.1 s wait;
+      # - this Mac's downloads: the model check is asked with no environment, so it reads the real Hugging Face cache
+      #   (~/.cache/huggingface) and needs SAM 3.1's weights there.
+      - run: make test JOBS=3
+        env:
+          PYTEST_ADDOPTS: >-
+            --deselect tests/test_camera_link.py::test_the_console_reads_the_rhythm_and_runs_a_source_check
+            --deselect tests/test_operations.py::test_a_worker_running_past_its_limit_is_hung_and_calls_fail_fast_with_the_reason
+            --deselect tests/test_model_checks.py::test_what_cannot_run_here_is_said_without_running_it

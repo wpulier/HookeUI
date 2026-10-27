@@ -1,0 +1,36 @@
+{
+ "format": "hooke-qualification-evidence/1",
+ "case": null,
+ "group": null,
+ "aspect": null,
+ "artifact": {
+  "app": null,
+  "sdk": null,
+  "bundle": null,
+  "environment_lock": null,
+  "model": null
+ },
+ "target": {
+  "os": null,
+  "build": null,
+  "arch": null,
+  "hardware": null,
+  "gpu": null,
+  "driver": null,
+  "image": null,
+  "reset": null,
+  "instance": null
+ },
+ "fixtures": {},
+ "procedure": "<frozen file sha256>#<section>",
+ "started": null,
+ "ended": null,
+ "result": null,
+ "interventions": [],
+ "retries": [],
+ "limitations": "",
+ "files": {},
+ "operator": null,
+ "reviewer": null,
+ "signatures": []
+}

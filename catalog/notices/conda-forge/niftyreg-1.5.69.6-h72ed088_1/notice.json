@@ -1,0 +1,30 @@
+{
+ "package": "niftyreg",
+ "version": "1.5.69.6",
+ "build": "h72ed088_1",
+ "subdir": "osx-arm64",
+ "url": "https://conda.anaconda.org/conda-forge/osx-arm64/niftyreg-1.5.69.6-h72ed088_1.tar.bz2",
+ "sha256": "45e762f9a6771223bfe065bca091e0e6b1833052a50cf72d1f293271ca8a5987",
+ "bytes": 4620524,
+ "licence": "BSD-3-Clause",
+ "home": "https://github.com/KCL-BMEIS/niftyreg",
+ "source": null,
+ "summary": "rigid, affine and non-linear registration of nifti images",
+ "component": "niftyreg",
+ "builtAt": 1651751463975,
+ "licenceFiles": [
+  {
+   "inPackage": "info/licenses/LICENSE.txt",
+   "file": "LICENSE.txt",
+   "bytes": 1512,
+   "sha256": "3b8325c0edf0e0664cb2c2369fa2459be2ee7e9013243378c19c689a0acebb7d"
+  },
+  {
+   "inPackage": "info/licenses/reg-io/nifti/LICENSE",
+   "file": "reg-io__nifti__LICENSE",
+   "bytes": 388,
+   "sha256": "7e79481776a1413c90b452ce9517f2e470d2e4b0b92ff08869a00e0e64416317"
+  }
+ ],
+ "readFrom": "the package's own info/about.json, info/index.json and info/licenses/, checked by its pinned sha256"
+}

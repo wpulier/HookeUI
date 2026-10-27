@@ -1,0 +1,21 @@
+/* A 0.3.0 results Tab's pointer (legacy-output-tab.ts; ticket 66 D5, the mock's legacy frame): centred on the Stage, the
+   researcher's lit cell in a soft square, one line of title, its result and what of it is in Data, then Open
+   Researcher N and Close this Tab. Its name is on the Stage bar where a reader Tab names its item. The Stage is the
+   specimen's black well in both themes (workspace-theme.css #stage), so the card's ink is the well's own (the mock's
+   emptystage), never the interface's. */
+body[data-workspace-study='true'] .legacy-tab-host { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; }
+body[data-workspace-study='true'] .legacy-tab-host[hidden] { display: none; }
+body[data-workspace-study='true'] .legacy-tab-inner { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 520px; text-align: center; }
+body[data-workspace-study='true'] .legacy-tab-ic { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: rgb(255 255 255 / 6%); color: rgb(255 255 255 / 62%); }
+body[data-workspace-study='true'] .legacy-tab-mark { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+body[data-workspace-study='true'] .legacy-tab-title { margin: 0; font: 500 15px/20px var(--mm-sans); color: #ededf0; }
+body[data-workspace-study='true'] .legacy-tab-line { margin: 0; max-width: 440px; font: 400 13px/19px var(--mm-sans); color: rgb(255 255 255 / 62%); }
+body[data-workspace-study='true'] .legacy-tab-actions { display: flex; gap: 8px; margin-top: 10px; }
+body[data-workspace-study='true'] .legacy-tab-actions > button {
+  height: 32px; padding: 0 12px; border: 0; border-radius: var(--mm-r-control, 7px); background: rgb(255 255 255 / 8%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  color: #ededf0; font: 500 13px var(--mm-sans); cursor: pointer;
+}
+body[data-workspace-study='true'] .legacy-tab-actions > button:hover { background: rgb(255 255 255 / 13%); }
+body[data-workspace-study='true'] .legacy-tab-actions > .legacy-tab-open { background: var(--mm-accent-fill); box-shadow: none; color: var(--mm-on-fill); }
+body[data-workspace-study='true'] .legacy-tab-actions > .legacy-tab-open:hover { background: var(--mm-accent-fill-hover); }
+body[data-workspace-study='true'][data-legacy-tab='true'] .workspace-stage-work { display: none; }

@@ -1,0 +1,40 @@
+# The click worker's outline model, also the analysis worker's automatic masks. catalog/README.md says what each key means.
+id = "edgetam"
+name = "EdgeTAM"
+runs = "this-mac"
+version = "yonigozlan/EdgeTAM-hf"
+licence = ["edgetam"]
+kind = "model"
+what = "Outlines what you click or box, fast enough for every click"
+runner = "gpu-worker"
+source = { hf = "yonigozlan/EdgeTAM-hf", revision = "c266ce53b3fc00f0f495b583f6a116c4e57f53bb" }
+files = [
+  { path = "config.json", bytes = 38595, git_sha1 = "99474be42b1eaa27ab68cd7e7ef538cf17575831" },
+  { path = "model.safetensors", bytes = 55912824, sha256 = "8858f8e4757b0b96dab8763f296ecffd845efbbbf698f64163cfa20a63d5fff4" },
+  { path = "preprocessor_config.json", bytes = 721, git_sha1 = "22c7b2849493c6c49459a8134cea0760281964bd" },
+  { path = "processor_config.json", bytes = 95, git_sha1 = "7556f607c3581a19f545de09d8b3fc98502b9f36" },
+  { path = "video_preprocessor_config.json", bytes = 711, git_sha1 = "bd75f91d107f92d94f9046e97c6053b5d0191770" },
+  # Its backbone's config, which transformers reads by timm's repository name when it builds a default EdgeTAM config.
+  { path = "companions/timm/repvit_m1.dist_in1k/config.json", bytes = 640, git_sha1 = "f15da2a7572ec8f81442cbbf0d07b7fded07c8cf", from = { hf = "timm/repvit_m1.dist_in1k", revision = "55e64695f26bb1711730f916e557b464fb46478d", path = "config.json" } },
+]
+needs_to_get = ["download"]
+needs_to_run = []
+credit = { authors = "Meta Reality Labs (EdgeTAM); Hugging Face port by yonigozlan", link = "https://github.com/facebookresearch/EdgeTAM" }
+workers = ["interactive", "analysis"]
+protected_on = ["interactive"]  # the live view's clicks: never let go of there
+host = "shared"
+documented_mb = 400
+peak_mb = 400
+load_limit_s = 300
+
+[[implements]]
+operation = "outline"
+impl = "edgetam"
+input = "image.2d.rgb8"
+output = "masks.2d"
+
+[[implements]]
+operation = "cells"
+impl = "edgetam-automask"
+input = "image.2d.rgb8"
+output = "labels.instance.2d"

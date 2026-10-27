@@ -1,0 +1,7 @@
+napari @ hooke-wheel:napari-0.7.1.dev0-py3-none-any.whl
+ome-zarr==0.10.3
+zarr==2.18.7
+magicgui==0.10.2
+pyside6==6.12.0
+vispy==0.17.0
+asciitree @ hooke-wheel:asciitree-0.3.3-py3-none-any.whl

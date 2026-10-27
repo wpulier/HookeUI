@@ -1,0 +1,12 @@
+id = "gpt-5.6-luna"
+name = "GPT-5.6 Luna"
+runs = "cloud"
+version = "gpt-5.6-luna"
+licence = ["openai-api"]
+kind = "cloud-model"
+what = "Looks at the view, answers, points and names"
+runner = "cloud"
+service = "openai"
+source = { url = "https://platform.openai.com/docs/models" }
+needs_to_run = ["key:OPENAI_API_KEY"]
+credit = { authors = "OpenAI", link = "https://platform.openai.com/docs/models" }

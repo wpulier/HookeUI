@@ -1,0 +1,131 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Researcher Tab · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (workspace-feel plan, step 7): the production researcher page (research.ts ResearchView over
+     research-workspace.ts, with the existing renderers in presentation.ts) and the production Study home (study-view.ts
+     renderStudy), each in the research stage as the workspace mounts it, with the workspace's own stylesheets, over
+     synthetic researcher records and a synthetic Study (no server, no model, no researcher runs; every field is a real wire
+     field). The Stage bar's research side is a fixture copy of workspace-study.ts's. Parameters:
+     ?state=writing|writing-table|report|done|needs|stopping|stopped|interrupted|starting|study, &theme=light. The page's
+     columns follow the window: three at 1240 px of page and over, two from 860, one below. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:44px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;font:600 13px var(--mm-sans)}
+ .fx-rail{position:fixed;left:0;top:44px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-tabs{position:fixed;left:72px;right:0;top:44px;height:44px;background:var(--mm-page);display:flex;align-items:flex-end;gap:2px;padding:0 8px;box-sizing:border-box}
+ .fx-tabs span{height:36px;display:flex;align-items:center;padding:0 12px;border-radius:8px 8px 0 0;color:var(--mm-text-2)}
+ .fx-tabs span[aria-current]{background:var(--mm-bar);color:var(--mm-text)}
+ .fx-bar{position:fixed;left:72px;right:0;top:88px}
+ .fx-stage{position:fixed;left:72px;right:0;top:120px;bottom:40px;background:#000}
+ .fx-strip{position:fixed;left:72px;right:0;bottom:0;height:40px;box-shadow:inset 0 1px 0 var(--mm-line);background:var(--mm-page)}
+ body[data-workspace-study='true'] .fx-stage > .study-research-stage{position:absolute;inset:0;display:flex;flex-direction:column}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-research-open="true">
+<div class="fx-top">Fixture: the production researcher Tab over synthetic records (design evidence only)</div>
+<nav class="fx-rail" aria-label="Fixture rail"></nav>
+<div class="fx-tabs" id="tabs"><span>Main</span><span>Tab 2</span><span id="tab-r" aria-current="true"></span></div>
+<div class="fx-bar"><div class="workspace-stage-bar"><div class="workspace-stage-research">
+ <header class="study-research-stage-bar" aria-label="Researcher" id="bar"></header></div>
+ <div class="workspace-stage-right"><button type="button" class="source" data-state="none">No camera</button><span class="study-stage-divider"></span><button type="button" class="study-agent-toggle" aria-pressed="false">Assistant</button></div></div></div>
+<main class="fx-stage" id="stage"><section class="study-research-stage" aria-label="Researcher"><div class="study-research-holder" id="holder">
+ <section class="research" id="research" role="tabpanel" aria-labelledby="research-heading">
+  <header class="research-head"><h2 id="research-heading">Researchers</h2><p class="research-spend" id="research-spend"></p><button type="button" id="research-popout">Open in a new window</button></header>
+  <p class="research-empty" id="research-empty"></p><ol class="research-list" id="research-list"></ol>
+  <details class="research-quick" id="research-quick" hidden><summary>Quick lookups (<span id="research-quick-count">0</span>)</summary><ol id="research-quick-list"></ol></details>
+  <article class="research-session" id="research-session" hidden></article>
+ </section></div></section></main>
+<div class="fx-strip"></div>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';
+import {ResearchView} from '/src/research.ts';import {renderStudy,studyAllowanceWords} from '/src/study-view.ts';
+import {researchStageBar} from '/src/research-tab.ts';
+import {researcherCell} from '/src/shelf.ts';import {litCell} from '/src/lit-cell.ts';import {tabMark} from '/src/tab-marks.ts';import {clock} from '/src/working-strip.ts';
+import {requestStop} from '/src/research-stop.ts';
+import cells from '../../design/workspace-feel/assets/human-cells.png';
+const params=new URLSearchParams(location.search),state=params.get('state')||'writing';
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+const now=Date.now()/1000,DAY='fixture-project';
+const areas=Array.from({length:271},(_,i)=>[String(i+1),String(Math.round(60+((i*7919)%520)*(1+((i*31)%5)/6)))]);
+const finding=(extra={})=>({title:'Bright regions in Human cells',one_liner:'Bright objects found 271 bright regions; touching nuclei join, so 271 counts regions, not cells.',
+ summary:'Bright objects found 271 regions brighter than the background. Touching nuclei join into one region, so 271 counts bright regions, not cells.',
+ significance:'',details:['271 regions of at least 20 px², from one threshold','Each region’s area in px², from the same outlines'],look_for:'',confidence:null,sources:[],refs:[],
+ report:{methods:'The picture was smoothed with a 1.0 px blur, a threshold was set between the bright nuclei and the dark background, and every joined region of at least 20 px² was kept.',
+  observations:'271 bright regions. Most are single nuclei; the long tail of large areas is touching nuclei counted as one region.',
+  measurements:'Median area 142 px². The ten largest regions are above 600 px², each two or more touching nuclei.',
+  limitations:'A threshold joins touching nuclei, so this is not a cell count. Areas are in px², since the picture has no pixel size.'},
+ tables:[{title:'areas.csv',columns:['region','area (px²)'],rows:areas}],limitations:['A threshold joins touching nuclei, so this is not a cell count.'],
+ next_questions:['Would a trained model split the touching nuclei?'],findingRevision:{version:1,digest:'d1',complete:true},...extra});
+const base=(n,extra)=>Object.assign({rid:'r'+n,n,name:'Researcher '+n,label:'',brief:'Look into it',deliverable:null,effort:'standard',engine:'gpt-6.1-sol',purpose:'research',objectId:null,
+ status:'running',step:'',spent:0.05,cap:0.5,seconds:3600,created:now-3700,started:now-3673,finished:null,snapshot:cells,specimen:'Human cells',outputs:[],items:[],findings:[],
+ corrections:[],history:[],canFollowUp:true,result:null,findingRevisions:[],sitting:DAY,day:DAY},extra);
+const t3=now-3673;
+const r3=base(3,{label:'Bright-region analysis of the fluorescent nuclei',brief:'Find the bright regions in Human cells, measure them, and make a short presentation.',
+ step:'Writing the presentation',result:finding(),findingRevisions:[{version:1,digest:'d1',at:t3+3600,complete:true}],
+ ran:[{id:'e7',operation:'capability',capability:'basic-bright-objects',at:t3+13,title:'Bright regions mask',kind:'population',count:271}],
+ steps:[{at:t3+2,kind:'step',text:'Looked at a saved picture from today'},{at:t3+10,kind:'step',text:'Asking the app to run Bright objects · Basic local method on the live view'},
+  {at:t3+14,kind:'step',text:'The app outlined 271 bright regions: their areas are in the result'},{at:t3+40,kind:'step',text:'Reading a saved result from today'},
+  {at:t3+3600,kind:'step',text:'Saved its findings: the count, the areas and how they were found'},{at:now-25,kind:'step',text:'Writing the presentation'}]});
+const t2=now-86400-400;
+const r2=base(2,{label:'Compare published methods for measuring nuclei',brief:'Compare published methods for measuring nuclei, and say which fit this picture.',status:'partial',created:t2-30,started:t2,finished:t2+28*60,
+ result:finding({title:'Measuring nuclei: which methods fit this picture',one_liner:'It wrote up before trying a trained model on this picture.',summary:'For bright, well-separated nuclei on a dark background, a threshold method is a fair first pass. Where nuclei touch, it joins them, so a trained model is needed to split them.',
+  tables:[],sources:['https://www.nature.com/articles/s41592-020-01018-x','https://www.cellpose.org/'],findingRevision:{version:1,digest:'d2',complete:false}}),findingRevisions:[{version:1,digest:'d2',at:t2+28*60,complete:false}],
+ ran:[{id:'e5',operation:'capability',capability:'basic-bright-objects',at:t2+300,title:'Bright regions mask',kind:'population',count:271}],
+ steps:[{at:t2+20,kind:'step',text:'Looked at a saved picture from today'},{at:t2+120,kind:'search',text:'Searched the web: published methods for measuring nuclei in fluorescence images'},
+  {at:t2+290,kind:'step',text:'Asking the app to run Bright objects · Basic local method on the live view'},{at:t2+302,kind:'step',text:'The app outlined 271 bright regions'},
+  {at:t2+1500,kind:'stall',text:'Nothing new in 3 rounds: writing up what it has'}]});
+const t4=now-3641;
+const r4=base(4,{label:'Independently analyze the fluorescently stained cells',brief:'Independently analyze the fluorescently stained cells.',started:t4,created:t4-20,step:'Asked whether to keep going',
+ requests:[{id:'q1',run:0,what:'',why:'it has worked for 60 minutes',keepGoing:true,status:'asked',at:now-40}],
+ ran:[{id:'e9',operation:'segment',at:t4+60,title:'Cell outlines, for Researcher 4 · 17:12',kind:'population',count:312}],
+ steps:[{at:t4+5,kind:'step',text:'Looked at a saved picture from today'},{at:t4+50,kind:'step',text:'Asking the app to segment every cell in the live view and measure them'},
+  {at:t4+70,kind:'step',text:'The app outlined 312 cells'},{at:now-40,kind:'request',text:'Asked the user whether to keep going: it has worked for 60 minutes'}]});
+const r5=base(5,{label:'Outline the nuclei with a model of its choice',brief:'Outline the nuclei in Human cells with a model of your choice.',started:now-3,created:now-4,step:'Choosing a model',steps:[]});
+const r11=base(11,{label:'Look for dividing cells in Human cells',brief:'Look for dividing cells in Human cells.',status:'interrupted',started:now-900,created:now-910,finished:now-852,
+ findings:[{kind:'observation',text:'A few small, very bright nuclei',sources:[]}],steps:[{at:now-896,kind:'step',text:'Looked at a saved picture from today'},{at:now-870,kind:'step',text:'Took a fresh look at the live view'}]});
+const rows={writing:r3,'writing-table':r3,stopping:r3,stopped:{...r3,status:'cancelled',finished:now-20,step:''},done:{...r3,status:'done',finished:t3+3640,step:''},report:r2,needs:r4,starting:r5,interrupted:r11};
+const shown=rows[state];
+// The researcher's own read (/api/research/<rid>), answered from these records; nothing else is fetched.
+const realFetch=window.fetch.bind(window);
+window.fetch=async(input,init)=>{const url=String(input);const m=url.match(/\/api\/research\/(r\d+)/);
+ if(m){const row=Object.values(rows).find(r=>r.rid===m[1]&&r===shown)??Object.values(rows).find(r=>r.rid===m[1]);return new Response(JSON.stringify({...row,stepsTotal:row?.steps?.length??0}),{status:row?200:404,headers:{'Content-Type':'application/json'}});}
+ return realFetch(input,init);};
+const sent=[];
+const research=new ResearchView(command=>{sent.push(command);console.log('fixture command',command);return {ok:true,requestId:command.requestId};});
+research.modelName=id=>id==='gpt-6.1-sol'?'GPT-6.1 Sol':null;research.toolName=key=>key==='basic-bright-objects'?'Bright objects · Basic local method':null;
+research.sitting=DAY;
+// The Stage bar's research side, as workspace-study.ts builds it (back, title, its state words and clock, Stop).
+const bar=document.getElementById('bar');
+const back=document.createElement('button');back.type='button';back.className='study-research-back';back.append(tabMark('left','study-research-back-icon'),'Main');
+const divide=document.createElement('span');divide.className='study-research-divider';
+const summary=document.createElement('div');summary.className='study-research-summary';
+const stop=document.createElement('button');stop.type='button';stop.className='study-research-stop';stop.append(tabMark('stop','study-research-stop-icon'),'Stop');
+bar.append(back,divide,summary,stop);
+const tab=document.getElementById('tab-r');
+if(state==='study'){
+ const study={id:'pstudy1',session:DAY,revision:3,digest:'sd',title:'Nuclear size across three fields',objective:'Do nuclei differ in size between the three fields?',criteria:'Median nuclear area per field, with the spread',
+  status:'active',capMicrousd:1e6,spentMicrousd:320000,heldMicrousd:250000,availableMicrousd:430000,inputs:[],
+  tasks:{'field-a':{status:'completed',specification:{title:'Measure nuclei in Field A'},reservedMicrousd:200000,chargedMicrousd:160000,execution:{provider:'claude-managed-google',session:'s1'}},
+   'field-b':{status:'completed',specification:{title:'Measure nuclei in Field B'},reservedMicrousd:200000,chargedMicrousd:160000,execution:{provider:'claude-managed-google',session:'s2'}},
+   'field-c':{status:'running',specification:{title:'Measure nuclei in Field C'},reservedMicrousd:250000,chargedMicrousd:null,execution:{provider:'claude-managed-google',session:'s3'},observation:{providerStatus:'running'}}},
+  findings:[{request:'f1',statement:'Fields A and B have nuclei of similar size: medians 141 and 146 px².',tasks:['field-a','field-b']}]};
+ document.getElementById('research').hidden=true;
+ const page=document.createElement('article');document.getElementById('holder').append(page);
+ renderStudy(page,study,{control:async()=>{},collect:async()=>{},ask:()=>document.querySelector('.study-agent-toggle')?.setAttribute('aria-pressed','true')},[{id:'claude-managed-google',label:'Claude',ready:true,accessVerified:true,inputReady:true}]);
+ const controls=page.querySelector('.study-view-controls');stop.remove();if(controls)bar.append(controls);
+ summary.append(Object.assign(document.createElement('strong'),{className:'study-research-objective',textContent:study.title}),Object.assign(document.createElement('span'),{className:'study-research-facts',textContent:studyAllowanceWords(study)}));
+ tab.append(tabMark('study','workspace-tab-icon'),study.title);
+}else{
+ if(state==='stopping')requestStop('r3',()=>{});
+ research.apply({sessions:Object.values(rows).filter((r,i,all)=>all.findIndex(x=>x.rid===r.rid)===i&&r.rid!==shown.rid).concat([shown]),spentToday:0.2});
+ research.show(shown.rid);
+ const words=researchStageBar(shown);
+ const facts=document.createElement('span');facts.className='study-research-facts';
+ const clockNode=document.createElement('span');clockNode.className='study-research-clock mm-num';
+ facts.append(Object.assign(document.createElement('span'),{textContent:words.words}));
+ if(words.since!==null){facts.append(clockNode);const tick=()=>{clockNode.textContent=clock((Date.now()/1000-words.since)*1000);};tick();setInterval(tick,1000);}
+ summary.append(Object.assign(document.createElement('strong'),{className:'study-research-objective',textContent:words.title}),facts);
+ stop.hidden=!words.stop;
+ tab.append(litCell(researcherCell(shown),{size:12,decorative:true}),' ',shown.name);
+ if(state==='writing-table')setTimeout(()=>[...document.querySelectorAll('.frow')].find(b=>/areas\.csv/.test(b.textContent))?.click(),400);
+}
+</script></body></html>

@@ -1,0 +1,2165 @@
+{
+ "type": "capabilities",
+ "families": [],
+ "actors": {
+  "you": "",
+  "agent": "",
+  "auto": "",
+  "researcher": ""
+ },
+ "capabilities": [
+  {
+   "id": "click-outline",
+   "family": "outlining",
+   "actor": "you",
+   "title": "Click to outline",
+   "what": "Click a thing: it is outlined and named",
+   "how": {
+    "command": "click",
+    "gesture": "click"
+   },
+   "roles": [
+    "outline",
+    "vision",
+    "closeup",
+    "quality",
+    "zeroshot",
+    "naming"
+   ],
+   "parts": [
+    "outlines",
+    "naming",
+    "studio-view"
+   ],
+   "available": true,
+   "why": ""
+  },
+  {
+   "id": "cells",
+   "family": "outlining",
+   "actor": "agent",
+   "title": "Outline every cell",
+   "what": "A cell finder segments every cell; they are kept and measured",
+   "how": {
+    "tool": "outline_cells",
+    "say": "outline all the cells"
+   },
+   "roles": [
+    "cells"
+   ],
+   "parts": [
+    "evidence",
+    "measurements",
+    "population-layer"
+   ],
+   "available": true,
+   "why": ""
+  },
+  {
+   "id": "find",
+   "family": "finding",
+   "actor": "agent",
+   "title": "Find by name or look",
+   "what": "Finds and outlines things by name or appearance",
+   "how": {
+    "tool": "find",
+    "say": "find the white blood cell"
+   },
+   "roles": [
+    "vision",
+    "outline"
+   ],
+   "parts": [
+    "finder",
+    "outlines"
+   ],
+   "available": true,
+   "why": ""
+  },
+  {
+   "id": "find-like",
+   "family": "finding",
+   "actor": "agent",
+   "title": "Find all like this",
+   "what": "Outlines every thing like an outlined one",
+   "how": {
+    "tool": "find",
+    "args": {
+     "like": "o1"
+    },
+    "say": "find all like this one"
+   },
+   "roles": [
+    "fixed:find-all"
+   ],
+   "parts": [
+    "finder",
+    "outlines"
+   ],
+   "available": false,
+   "why": "needs FAL_KEY"
+  },
+  {
+   "id": "count",
+   "family": "measuring",
+   "actor": "agent",
+   "title": "Count them",
+   "what": "Counts what is outlined, outlining first if needed",
+   "how": {
+    "tool": "count",
+    "say": "how many are there?"
+   },
+   "roles": [
+    "vision",
+    "outline"
+   ],
+   "parts": [
+    "outlines",
+    "finder"
+   ],
+   "available": true,
+   "why": ""
+  },
+  {
+   "id": "catalog:basic-bright-objects",
+   "family": "finding",
+   "actor": "agent",
+   "title": "Bright objects",
+   "what": "Finds bright regions using a basic local threshold method",
+   "how": {
+    "tool": "run_capability",
+    "args": {
+     "capability": "basic-bright-objects"
+    },
+    "say": "run bright objects · basic local method on the view"
+   },
+   "roles": [],
+   "parts": [
+    "new-kinds"
+   ],
+   "available": true,
+   "why": "",
+   "generated": true,
+   "catalog": "basic-bright-objects",
+   "runsOn": "Bright objects: the app's own code, on this Mac",
+   "fields": [
+    {
+     "key": "sigma",
+     "label": "Smoothing",
+     "kind": "number",
+     "required": false,
+     "hint": "The Gaussian blur's sigma (a 5 by 5 kernel) before the threshold",
+     "choices": [],
+     "said": {},
+     "numeric": true,
+     "initial": 1.0,
+     "min": 0.1,
+     "max": 5.0,
+     "step": 0.1,
+     "unit": "px",
+     "advanced": false
+    },
+    {
+     "key": "min_area",
+     "label": "Smallest object",
+     "kind": "number",
+     "required": false,
+     "hint": "Regions smaller than this are left out",
+     "choices": [],
+     "said": {},
+     "numeric": true,
+     "initial": 20,
+     "min": 1,
+     "max": 1000000,
+     "unit": "px²",
+     "advanced": false
+    },
+    {
+     "key": "connectivity",
+     "label": "Joined when",
+     "kind": "choice",
+     "required": false,
+     "hint": "8: touching at a corner joins two regions; 4: only touching at an edge does",
+     "choices": [
+      "8",
+      "4"
+     ],
+     "said": {},
+     "numeric": true,
+     "initial": 8,
+     "advanced": true
+    }
+   ]
+  },
+  {
+   "id": "catalog:fiji-analyze-particles",
+   "family": "finding",
+   "actor": "agent",
+   "title": "Analyze Particles (Fiji)",
+   "what": "Outlines particles darker than ImageJ's threshold, in Fiji",
+   "how": {
+    "tool": "run_capability",
+    "args": {
+     "capability": "fiji-analyze-particles"
+    },
+    "say": "run analyze particles (fiji) on the view"
+   },
+   "roles": [],
+   "parts": [
+    "new-kinds",
+    "contributed-sandbox"
+   ],
+   "available": false,
+   "why": "Fiji isn't set up here (its card on the Models page sets it up)",
+   "generated": true,
+   "catalog": "fiji-analyze-particles",
+   "runsOn": "Analyze Particles (Fiji): ImageJ, in the app's own Fiji on this Mac",
+   "fields": []
+  }
+ ],
+ "roles": [
+  {
+   "id": "vision",
+   "kind": "model",
+   "title": "Seeing",
+   "purpose": "Looks at the view to answer, point and name",
+   "hint": "which model looks at the view and answers",
+   "current": "gemini-3.8-flash",
+   "default": "gemini-3.8-flash",
+   "defaultReason": null,
+   "options": [
+    {
+     "id": "gemini-3.8-flash",
+     "label": "Gemini 3.8 Flash",
+     "note": "15/15 right object, ~2.0 s",
+     "available": false,
+     "why": "needs GEMINI_API_KEY",
+     "runs": "cloud",
+     "said": "Gemini 3.8 Flash (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your Google Gemini API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your Google Gemini API key",
+       "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://aistudio.google.com/apikey",
+       "service": "gemini"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your Google Gemini API key",
+        "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://aistudio.google.com/apikey",
+        "service": "gemini"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gemini-3.8-flash-hires",
+     "label": "Gemini 3.8 Flash (high resolution)",
+     "note": "naming bench: exact 56% vs 53%, coarse 80% vs 79%, +0.17 s (within noise)",
+     "available": false,
+     "why": "needs GEMINI_API_KEY",
+     "runs": "cloud",
+     "said": "Gemini 3.8 Flash (high resolution) in the cloud",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your Google Gemini API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your Google Gemini API key",
+       "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://aistudio.google.com/apikey",
+       "service": "gemini"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your Google Gemini API key",
+        "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://aistudio.google.com/apikey",
+        "service": "gemini"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gemini-3.5-flash-lite",
+     "label": "Gemini 3.5 Flash-Lite",
+     "note": "14/15, ~1.0 s",
+     "available": false,
+     "why": "needs GEMINI_API_KEY",
+     "runs": "cloud",
+     "said": "Gemini 3.5 Flash-Lite (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your Google Gemini API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your Google Gemini API key",
+       "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://aistudio.google.com/apikey",
+       "service": "gemini"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your Google Gemini API key",
+        "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://aistudio.google.com/apikey",
+        "service": "gemini"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gemini-3.5-flash",
+     "label": "Gemini 3.5 Flash",
+     "note": "pointing 30/30 at 1.1 s; naming 62% exact, 79% coarse at 1.7 s; fast bench 78/80 at 1.04 s",
+     "available": false,
+     "why": "needs GEMINI_API_KEY",
+     "runs": "cloud",
+     "said": "Gemini 3.5 Flash (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your Google Gemini API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your Google Gemini API key",
+       "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://aistudio.google.com/apikey",
+       "service": "gemini"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your Google Gemini API key",
+        "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://aistudio.google.com/apikey",
+        "service": "gemini"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gpt-5.6-luna-priority",
+     "label": "GPT-5.6 Luna (priority)",
+     "note": "fast bench 78/80, p50 1.13 s / p90 1.66 s",
+     "available": false,
+     "why": "needs OPENAI_API_KEY",
+     "runs": "cloud",
+     "said": "GPT-5.6 Luna (priority) in the cloud",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your OpenAI API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your OpenAI API key",
+       "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://platform.openai.com/api-keys",
+       "service": "openai"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your OpenAI API key",
+        "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://platform.openai.com/api-keys",
+        "service": "openai"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gpt-6-luna",
+     "label": "GPT-6 Luna",
+     "note": "12/15, ~1.8 s",
+     "available": false,
+     "why": "needs OPENAI_API_KEY",
+     "runs": "cloud",
+     "said": "GPT-6 Luna (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your OpenAI API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your OpenAI API key",
+       "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://platform.openai.com/api-keys",
+       "service": "openai"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your OpenAI API key",
+        "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://platform.openai.com/api-keys",
+        "service": "openai"
+       }
+      ]
+     }
+    },
+    {
+     "id": "gpt-6.1-sol",
+     "label": "GPT-6.1 Sol",
+     "note": "28/30 right with tools (spike S1); rejects reasoning effort none, so low",
+     "available": false,
+     "why": "needs OPENAI_API_KEY",
+     "runs": "cloud",
+     "said": "GPT-6.1 Sol (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your OpenAI API key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your OpenAI API key",
+       "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://platform.openai.com/api-keys",
+       "service": "openai"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your OpenAI API key",
+        "how": "put OPENAI_API_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://platform.openai.com/api-keys",
+        "service": "openai"
+       }
+      ]
+     }
+    }
+   ],
+   "agentCanChange": [],
+   "powers": [],
+   "fallbackFor": []
+  },
+  {
+   "id": "outline",
+   "kind": "model",
+   "title": "Outlining",
+   "purpose": "Draws an outline from a click or a box",
+   "hint": "which model draws the outline",
+   "current": "edgetam",
+   "default": "edgetam",
+   "defaultReason": null,
+   "options": [
+    {
+     "id": "edgetam",
+     "label": "EdgeTAM",
+     "note": "~15-60 ms per outline",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "EdgeTAM (on this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "sam2.1-tiny",
+     "label": "SAM 2.1 tiny",
+     "note": "~15-85 ms per outline",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "SAM 2.1 tiny (on this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "sam3.1-local",
+     "label": "SAM 3.1 (this Mac)",
+     "note": "~1.4 s per outline (its tracker: 41/54 fit on the outline-fit bench); first use loads 5.3 GB",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "SAM 3.1 (this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "sam3.1-fal",
+     "label": "SAM 3.1 (cloud)",
+     "note": "~1.4-1.9 s warm per outline",
+     "available": false,
+     "why": "needs FAL_KEY",
+     "runs": "both",
+     "said": "SAM 3.1 (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your fal.ai key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your fal.ai key",
+       "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://fal.ai/dashboard/keys",
+       "service": "fal"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your fal.ai key",
+        "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://fal.ai/dashboard/keys",
+        "service": "fal"
+       }
+      ]
+     }
+    },
+    {
+     "id": "edgetam>sam3.1-fal",
+     "label": "EdgeTAM then SAM 3.1 (cloud)",
+     "note": "SAM 3.1 redraws EdgeTAM's box; whole objects from a click",
+     "available": false,
+     "why": "needs FAL_KEY",
+     "runs": "both",
+     "said": "EdgeTAM then SAM 3.1 (cloud)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Needs your fal.ai key",
+      "group": "Needs setup",
+      "next": {
+       "kind": "key",
+       "says": "Add your fal.ai key",
+       "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://fal.ai/dashboard/keys",
+       "service": "fal"
+      },
+      "steps": [
+       {
+        "kind": "key",
+        "says": "Add your fal.ai key",
+        "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+        "url": "https://fal.ai/dashboard/keys",
+        "service": "fal"
+       }
+      ]
+     }
+    },
+    {
+     "id": "edgetam>sam3.1-local",
+     "label": "EdgeTAM then SAM 3.1 (this Mac)",
+     "note": "SAM 3.1 redraws EdgeTAM's box; ~2-3 s",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "EdgeTAM then SAM 3.1 (this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "micro-sam-lm",
+     "label": "micro-sam (light microscopy)",
+     "note": "BCCD clicks: platelets 8/10 vs EdgeTAM 2/10, white cells 11/12 vs 10/12; ~0.54 s on a new frame vs 0.08 s",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "micro-sam (light microscopy) on this Mac",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    }
+   ],
+   "operation": {
+    "id": "outline",
+    "returns": "instance/1",
+    "accepts": {
+     "edgetam": [
+      "point",
+      "box"
+     ],
+     "sam2.1-tiny": [
+      "point",
+      "box"
+     ],
+     "sam3.1-local": [
+      "point",
+      "box",
+      "text"
+     ],
+     "sam3.1-fal": [
+      "point",
+      "box",
+      "text"
+     ],
+     "micro-sam-lm": [
+      "point",
+      "box"
+     ],
+     "edgetam>sam3.1-fal": [
+      "point",
+      "box"
+     ],
+     "edgetam>sam3.1-local": [
+      "point",
+      "box"
+     ],
+     "spot-ring": [
+      "point"
+     ]
+    }
+   },
+   "agentCanChange": [],
+   "powers": [],
+   "fallbackFor": []
+  },
+  {
+   "id": "cells",
+   "kind": "model",
+   "title": "Cells",
+   "purpose": "Outlines every cell at once",
+   "hint": "what outlines every cell at once (the Cells button)",
+   "current": "cellpose-sam",
+   "default": "cellpose-sam",
+   "defaultReason": null,
+   "options": [
+    {
+     "id": "cellpose-sam",
+     "label": "Cellpose-SAM",
+     "note": "phase 0: ~350 cells in ~1.5 s; trained on cells 7.5-120 px across",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "Cellpose-SAM (on this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "cellpose-sam-tuned",
+     "label": "Cellpose-SAM fine-tuned on your corrections",
+     "note": "made from your corrected cells (make finetune-cells); recommended only if it wins on its held-out days (docs/bench/replay.md)",
+     "available": false,
+     "why": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)",
+     "runs": "mac",
+     "said": "Cellpose-SAM fine-tuned on your corrections (on this Mac)",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Make its weights here",
+      "group": "Needs setup",
+      "next": {
+       "kind": "weights",
+       "says": "Make its weights here",
+       "how": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)"
+      },
+      "steps": [
+       {
+        "kind": "weights",
+        "says": "Make its weights here",
+        "how": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)"
+       }
+      ]
+     }
+    },
+    {
+     "id": "micro-sam-lm",
+     "label": "micro-sam (light microscopy)",
+     "note": "BCCD: red cells 99/126 (Cellpose 113/126), white 9/12 (9/12), in ~0.7-1.1 s vs 3.6-7.9 s",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "micro-sam (light microscopy) on this Mac",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "edgetam-automask",
+     "label": "EdgeTAM automatic masks",
+     "note": "every distinct thing from a grid of EdgeTAM prompts, ~1 s; not benchmarked on cells yet",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "EdgeTAM automatic masks (on this Mac)",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "fiji-analyze-particles",
+     "label": "Analyze Particles (Fiji)",
+     "note": "particles darker than ImageJ's Default threshold, not cells; proven against its macro; not benchmarked",
+     "available": false,
+     "why": "Fiji isn't set up here (its card on the Models page sets it up)",
+     "runs": "",
+     "said": "Analyze Particles (Fiji) on this Mac",
+     "readiness": {
+      "status": "needs-setup",
+      "word": "Set up Fiji first",
+      "group": "Needs setup",
+      "next": {
+       "kind": "install",
+       "says": "Set up Fiji first",
+       "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+       "model": "fiji"
+      },
+      "steps": [
+       {
+        "kind": "install",
+        "says": "Set up Fiji first",
+        "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+        "model": "fiji"
+       }
+      ]
+     }
+    },
+    {
+     "id": "basic-bright-objects",
+     "label": "Bright objects",
+     "note": "bright regions using Gaussian smoothing and Otsu threshold; not biological cell identities",
+     "available": true,
+     "why": "",
+     "runs": "mac",
+     "said": "Bright objects",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    },
+    {
+     "id": "off",
+     "label": "Off",
+     "note": "cells are outlined one click at a time",
+     "available": true,
+     "why": "",
+     "runs": "",
+     "said": "Off",
+     "readiness": {
+      "status": "ready",
+      "word": "Ready",
+      "group": "Ready",
+      "next": null,
+      "steps": []
+     }
+    }
+   ],
+   "operation": {
+    "id": "cells",
+    "returns": "polygons/1",
+    "accepts": {
+     "cellpose-sam": [
+      "field"
+     ],
+     "cellpose-sam-tuned": [
+      "field"
+     ],
+     "micro-sam-lm": [
+      "field"
+     ],
+     "fiji-analyze-particles": [
+      "field"
+     ],
+     "basic-bright-objects": [
+      "field"
+     ],
+     "edgetam-automask": [
+      "field"
+     ]
+    }
+   },
+   "agentCanChange": [],
+   "powers": [],
+   "fallbackFor": []
+  },
+  {
+   "id": "fixed:find-all",
+   "kind": "model",
+   "title": "Find all like this",
+   "purpose": "Finds every match of an example, whatever the Outlining model is",
+   "fixed": true,
+   "label": "SAM 3.1 (cloud)",
+   "current": "fal-ai/sam-3-1/image-rle",
+   "runs": "both",
+   "tier": "terms",
+   "licence": "fal.ai hosted inference: fal terms of service; SAM 3.1 outline model: SAM License (commercial use allowed, with conditions)",
+   "options": [],
+   "fallback": null,
+   "primary": {
+    "label": "SAM 3.1 (cloud)",
+    "value": "fal-ai/sam-3-1/image-rle",
+    "runs": "both",
+    "model": "sam3.1-cloud",
+    "available": false,
+    "why": "needs FAL_KEY",
+    "readiness": {
+     "status": "needs-setup",
+     "word": "Needs your fal.ai key",
+     "group": "Needs setup",
+     "next": {
+      "kind": "key",
+      "says": "Add your fal.ai key",
+      "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+      "url": "https://fal.ai/dashboard/keys",
+      "service": "fal"
+     },
+     "steps": [
+      {
+       "kind": "key",
+       "says": "Add your fal.ai key",
+       "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+       "url": "https://fal.ai/dashboard/keys",
+       "service": "fal"
+      }
+     ]
+    }
+   },
+   "operation": {
+    "id": "find-like",
+    "returns": "matches/1",
+    "accepts": {
+     "sam3.1-all": [
+      "example",
+      "text"
+     ],
+     "vision-boxes": [
+      "example",
+      "text"
+     ]
+    }
+   },
+   "agentCanChange": [],
+   "powers": [],
+   "fallbackFor": []
+  }
+ ],
+ "preferences": [],
+ "pending": 0,
+ "build": "",
+ "agentText": "",
+ "setup": {
+  "edition": "research",
+  "options": {},
+  "keys": {
+   "FAL_KEY": {
+    "service": "fal",
+    "name": "fal.ai",
+    "short": "fal",
+    "present": false
+   },
+   "GEMINI_API_KEY": {
+    "service": "gemini",
+    "name": "Google Gemini API",
+    "short": "Google",
+    "present": false
+   }
+  }
+ },
+ "models": [
+  {
+   "id": "gemini-3.8-flash",
+   "name": "Gemini 3.8 Flash",
+   "runs": "cloud",
+   "where": "in the cloud",
+   "what": "Looks at the view, answers, points and names",
+   "kind": "cloud-model",
+   "version": "gemini-3.8-flash",
+   "group": "needs-you",
+   "status": "needs-setup",
+   "word": "Needs your Google Gemini API key",
+   "next": {
+    "kind": "key",
+    "says": "Add your Google Gemini API key",
+    "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+    "url": "https://aistudio.google.com/apikey",
+    "service": "gemini"
+   },
+   "steps": [
+    {
+     "kind": "key",
+     "says": "Add your Google Gemini API key",
+     "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+     "url": "https://aistudio.google.com/apikey",
+     "service": "gemini"
+    }
+   ],
+   "size": 0,
+   "face": {
+    "state": "needs-setup",
+    "says": "Add your Google Gemini API key",
+    "action": {
+     "kind": "key",
+     "says": "Add your Google Gemini API key",
+     "how": "put GEMINI_API_KEY=... in ~/Desktop/micromind.txt",
+     "url": "https://aistudio.google.com/apikey",
+     "service": "gemini"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "vision",
+     "title": "Seeing",
+     "option": "gemini-3.8-flash",
+     "label": "Gemini 3.8 Flash (cloud)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "Gemini 3.8 Flash (cloud)",
+      "Gemini 3.8 Flash (high resolution) in the cloud"
+     ]
+    },
+    {
+     "role": "fast",
+     "title": "Quick decisions",
+     "option": "gemini-3.8-flash",
+     "label": "Gemini 3.8 Flash (cloud)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "Gemini 3.8 Flash (cloud)"
+     ]
+    },
+    {
+     "role": "sight",
+     "title": "Running look",
+     "option": "gemini-3.8-flash",
+     "label": "Gemini 3.8 Flash (cloud)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "Gemini 3.8 Flash (cloud)"
+     ]
+    },
+    {
+     "role": "research",
+     "title": "Researching",
+     "option": "gemini-3.8-flash",
+     "label": "Gemini 3.8 Flash + Google Search (cloud)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "Gemini 3.8 Flash + Google Search (cloud)"
+     ]
+    },
+    {
+     "role": "fixed:lesson-check",
+     "title": "Lesson checker",
+     "option": "model",
+     "label": "Gemini 3.8 Flash",
+     "current": true,
+     "fixed": true,
+     "options": [
+      "Gemini 3.8 Flash"
+     ]
+    },
+    {
+     "role": "fixed:retrieval",
+     "title": "Fast web retrieval",
+     "option": "model",
+     "label": "Gemini 3.8 Flash",
+     "current": true,
+     "fixed": true,
+     "options": [
+      "Gemini 3.8 Flash"
+     ]
+    }
+   ],
+   "facts": [
+    {
+     "kind": "key",
+     "ok": false,
+     "says": "Your Google key isn't added yet",
+     "service": "gemini",
+     "ref": "https://aistudio.google.com/apikey"
+    }
+   ],
+   "abilities": [
+    {
+     "id": "click-outline",
+     "title": "Click to outline",
+     "what": "Click a thing: it is outlined and named",
+     "actor": "you",
+     "say": "",
+     "role": "vision",
+     "option": "gemini-3.8-flash",
+     "current": true
+    },
+    {
+     "id": "find",
+     "title": "Find by name or look",
+     "what": "Finds and outlines things by name or appearance",
+     "actor": "agent",
+     "say": "find the white blood cell",
+     "role": "vision",
+     "option": "gemini-3.8-flash",
+     "current": true
+    },
+    {
+     "id": "count",
+     "title": "Count them",
+     "what": "Counts what is outlined, outlining first if needed",
+     "actor": "agent",
+     "say": "how many are there?",
+     "role": "vision",
+     "option": "gemini-3.8-flash",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "fiji-analyze-particles",
+   "name": "Analyze Particles (Fiji)",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines particles darker than ImageJ's threshold, in Fiji",
+   "kind": "tool-function",
+   "version": "ImageJ 1.54p Analyze Particles, Default threshold, Overlay",
+   "group": "available",
+   "status": "needs-setup",
+   "word": "Set up Fiji first",
+   "next": {
+    "kind": "install",
+    "says": "Set up Fiji first",
+    "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+    "model": "fiji"
+   },
+   "steps": [
+    {
+     "kind": "install",
+     "says": "Set up Fiji first",
+     "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+     "model": "fiji"
+    }
+   ],
+   "size": 0,
+   "face": {
+    "state": "needs-setup",
+    "says": "Set up Fiji first",
+    "action": {
+     "kind": "install",
+     "says": "Set up Fiji first",
+     "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+     "model": "fiji"
+    },
+    "also": []
+   },
+   "newKind": {
+    "operation": "cells",
+    "input": "image.2d.rgb8",
+    "output": "labels.instance.2d",
+    "gives": "outlines",
+    "on": "current still image",
+    "proved": false,
+    "made": "Particle labels"
+   },
+   "usedFor": [
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "fiji-analyze-particles",
+     "label": "Analyze Particles (Fiji) on this Mac",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "Analyze Particles (Fiji) on this Mac"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "fiji-analyze-particles",
+     "current": false
+    },
+    {
+     "id": "kind:cells",
+     "title": "Analyze Particles (Fiji)",
+     "what": "Outlines particles darker than ImageJ's threshold, in Fiji",
+     "actor": "you",
+     "say": "",
+     "role": "cells",
+     "option": "fiji-analyze-particles",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "basic-bright-objects",
+   "name": "Bright objects",
+   "runs": "cpu",
+   "where": "on this Mac",
+   "what": "Finds bright regions using a basic local threshold method",
+   "kind": "tool-function",
+   "version": "bright-regions/1",
+   "group": "available",
+   "status": "ready",
+   "word": "Ready",
+   "steps": [],
+   "size": 0,
+   "face": {
+    "state": "unchecked",
+    "says": "Ready to run; not checked on this Mac yet",
+    "action": {
+     "kind": "check",
+     "says": "Check it here",
+     "model": "basic-bright-objects"
+    },
+    "also": []
+   },
+   "newKind": {
+    "operation": "cells",
+    "input": "image.2d.rgb8",
+    "output": "labels.instance.2d",
+    "gives": "outlines",
+    "on": "current still image",
+    "proved": true,
+    "activeVersion": "bright-regions/1",
+    "proof": "bundled with the app",
+    "made": "Bright regions (not cells)",
+    "madeNote": "Bright regions are not a cell count"
+   },
+   "usedFor": [
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "basic-bright-objects",
+     "label": "Bright objects",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "Bright objects"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "basic-bright-objects",
+     "current": false
+    },
+    {
+     "id": "kind:cells",
+     "title": "Bright objects",
+     "what": "Finds bright regions using a basic local threshold method",
+     "actor": "you",
+     "say": "",
+     "role": "cells",
+     "option": "basic-bright-objects",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "cellpose-sam",
+   "name": "Cellpose-SAM",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines every cell in a view",
+   "kind": "model",
+   "version": "cellpose cpsam",
+   "group": "available",
+   "status": "ready",
+   "word": "Ready",
+   "steps": [],
+   "size": 1233586851,
+   "face": {
+    "state": "unchecked",
+    "says": "Ready to run; not checked on this Mac yet",
+    "action": {
+     "kind": "check",
+     "says": "Check it here",
+     "model": "cellpose-sam"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "cellpose-sam",
+     "label": "Cellpose-SAM (on this Mac)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "Cellpose-SAM (on this Mac)"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "cellpose-sam",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "cellpose-sam-tuned",
+   "name": "Cellpose-SAM fine-tuned on your corrections",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Cellpose-SAM retrained here on your own corrections of its cells",
+   "kind": "model",
+   "version": "cellpose cpsam, fine-tuned",
+   "group": "available",
+   "status": "needs-setup",
+   "word": "Make its weights here",
+   "next": {
+    "kind": "weights",
+    "says": "Make its weights here",
+    "how": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)"
+   },
+   "steps": [
+    {
+     "kind": "weights",
+     "says": "Make its weights here",
+     "how": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)"
+    }
+   ],
+   "size": 0,
+   "face": {
+    "state": "needs-setup",
+    "says": "Make its weights here",
+    "action": {
+     "kind": "weights",
+     "says": "Make its weights here",
+     "how": "no fine-tuned weights here yet (make finetune-cells makes them from your corrected cells)"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "cellpose-sam-tuned",
+     "label": "Cellpose-SAM fine-tuned on your corrections (on this Mac)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "Cellpose-SAM fine-tuned on your corrections (on this Mac)"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "cellpose-sam-tuned",
+     "current": false
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "edgetam",
+   "name": "EdgeTAM",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines what you click or box, fast enough for every click",
+   "kind": "model",
+   "version": "yonigozlan/EdgeTAM-hf",
+   "group": "available",
+   "status": "ready",
+   "word": "Ready",
+   "steps": [],
+   "size": 55953586,
+   "face": {
+    "state": "unchecked",
+    "says": "Ready to run; not checked on this Mac yet",
+    "action": {
+     "kind": "check",
+     "says": "Check it here",
+     "model": "edgetam"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "outline",
+     "title": "Outlining",
+     "option": "edgetam",
+     "label": "EdgeTAM (on this Mac)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "EdgeTAM (on this Mac)",
+      "EdgeTAM then SAM 3.1 (cloud)",
+      "EdgeTAM then SAM 3.1 (this Mac)"
+     ]
+    },
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "edgetam-automask",
+     "label": "EdgeTAM automatic masks (on this Mac)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "EdgeTAM automatic masks (on this Mac)"
+     ]
+    },
+    {
+     "role": "pointing",
+     "title": "Pointing",
+     "option": "masks",
+     "label": "Model picks a numbered outline (on this Mac)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "Model picks a numbered outline (on this Mac)"
+     ]
+    },
+    {
+     "role": "dissect",
+     "title": "Dissecting",
+     "option": "grid",
+     "label": "Point grid inside the object (on this Mac)",
+     "current": true,
+     "fixed": false,
+     "options": [
+      "Point grid inside the object (on this Mac)",
+      "Model boxes the parts it sees (on this Mac)"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "click-outline",
+     "title": "Click to outline",
+     "what": "Click a thing: it is outlined and named",
+     "actor": "you",
+     "say": "",
+     "role": "outline",
+     "option": "edgetam",
+     "current": true
+    },
+    {
+     "id": "find",
+     "title": "Find by name or look",
+     "what": "Finds and outlines things by name or appearance",
+     "actor": "agent",
+     "say": "find the white blood cell",
+     "role": "outline",
+     "option": "edgetam",
+     "current": true
+    },
+    {
+     "id": "count",
+     "title": "Count them",
+     "what": "Counts what is outlined, outlining first if needed",
+     "actor": "agent",
+     "say": "how many are there?",
+     "role": "outline",
+     "option": "edgetam",
+     "current": true
+    },
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "edgetam-automask",
+     "current": false
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "fiji-gaussian-blur",
+   "name": "Gaussian Blur (Fiji)",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Smooths the view with ImageJ's Gaussian Blur",
+   "kind": "tool-function",
+   "version": "1",
+   "group": "available",
+   "status": "needs-setup",
+   "word": "Set up Fiji first",
+   "next": {
+    "kind": "install",
+    "says": "Set up Fiji first",
+    "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+    "model": "fiji"
+   },
+   "steps": [
+    {
+     "kind": "install",
+     "says": "Set up Fiji first",
+     "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+     "model": "fiji"
+    }
+   ],
+   "size": 0,
+   "face": {
+    "state": "needs-setup",
+    "says": "Set up Fiji first",
+    "action": {
+     "kind": "install",
+     "says": "Set up Fiji first",
+     "how": "Fiji isn't set up here (its card on the Models page sets it up)",
+     "model": "fiji"
+    },
+    "also": []
+   },
+   "newKind": {
+    "operation": "fiji-gaussian-blur",
+    "input": "image.2d.rgb8",
+    "output": "image.2d.rgb8",
+    "gives": "a picture",
+    "on": "current still image",
+    "proved": false,
+    "made": "Blurred picture",
+    "fields": [
+     {
+      "key": "sigma",
+      "label": "Sigma (radius)",
+      "kind": "number",
+      "required": false,
+      "hint": "How far the smoothing reaches: the Gaussian's standard deviation, in pixels",
+      "choices": [],
+      "said": {},
+      "numeric": true,
+      "initial": 2.0,
+      "min": 0.5,
+      "max": 20.0,
+      "step": 0.5,
+      "unit": "px",
+      "advanced": false
+     }
+    ]
+   },
+   "usedFor": [],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "kind:fiji-gaussian-blur",
+     "title": "Gaussian Blur (Fiji)",
+     "what": "Smooths the view with ImageJ's Gaussian Blur",
+     "actor": "you",
+     "say": "",
+     "role": "fiji-gaussian-blur",
+     "option": "fiji-gaussian-blur",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "instanseg-brightfield",
+   "name": "InstanSeg (brightfield nuclei)",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines every nucleus on a brightfield slide",
+   "kind": "model",
+   "version": "instanseg-torch 0.1.2, brightfield_nuclei 0.1.1",
+   "group": "available",
+   "status": "needs-setup",
+   "word": "Download 16 MB",
+   "next": {
+    "kind": "download",
+    "says": "Download 16 MB",
+    "how": "Its Download button on the Models page (the chip at the top), or make catalog-download ID=instanseg-brightfield",
+    "model": "instanseg-brightfield",
+    "bytes": 15792317
+   },
+   "steps": [
+    {
+     "kind": "download",
+     "says": "Download 16 MB",
+     "how": "Its Download button on the Models page (the chip at the top), or make catalog-download ID=instanseg-brightfield",
+     "model": "instanseg-brightfield",
+     "bytes": 15792317
+    },
+    {
+     "kind": "install",
+     "says": "Install InstanSeg (brightfield nuclei)",
+     "how": "its own Python and 35 packages, each checked by its hash, made in the catalog's folder (its Install button on the Models page)",
+     "model": "instanseg-brightfield"
+    }
+   ],
+   "size": 15792317,
+   "face": {
+    "state": "needs-setup",
+    "says": "Download 16 MB",
+    "action": {
+     "kind": "download",
+     "says": "Download 16 MB",
+     "how": "Its Download button on the Models page (the chip at the top), or make catalog-download ID=instanseg-brightfield",
+     "model": "instanseg-brightfield",
+     "bytes": 15792317
+    },
+    "also": []
+   },
+   "newKind": {
+    "operation": "cells",
+    "input": "image.2d.rgb8",
+    "output": "labels.instance.2d",
+    "gives": "outlines",
+    "on": "current still image",
+    "proved": false,
+    "made": "Nuclei"
+   },
+   "usedFor": [],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "kind:cells",
+     "title": "InstanSeg (brightfield nuclei)",
+     "what": "Outlines every nucleus on a brightfield slide",
+     "actor": "you",
+     "say": "",
+     "role": "cells",
+     "option": "instanseg-brightfield",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "micro-sam-lm",
+   "name": "micro-sam (light microscopy)",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines cells, and what you click, trained on light microscopy",
+   "kind": "model",
+   "version": "vit_b_lm",
+   "group": "available",
+   "status": "ready",
+   "word": "Ready",
+   "steps": [],
+   "size": 413417112,
+   "face": {
+    "state": "unchecked",
+    "says": "Ready to run; not checked on this Mac yet",
+    "action": {
+     "kind": "check",
+     "says": "Check it here",
+     "model": "micro-sam-lm"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "outline",
+     "title": "Outlining",
+     "option": "micro-sam-lm",
+     "label": "micro-sam (light microscopy) on this Mac",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "micro-sam (light microscopy) on this Mac"
+     ]
+    },
+    {
+     "role": "cells",
+     "title": "Cells",
+     "option": "micro-sam-lm",
+     "label": "micro-sam (light microscopy) on this Mac",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "micro-sam (light microscopy) on this Mac"
+     ]
+    },
+    {
+     "role": "outline_repair",
+     "title": "Redrawing outlines",
+     "option": "micro-sam-lm",
+     "label": "micro-sam (light microscopy) on this Mac",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "micro-sam (light microscopy) on this Mac"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "click-outline",
+     "title": "Click to outline",
+     "what": "Click a thing: it is outlined and named",
+     "actor": "you",
+     "say": "",
+     "role": "outline",
+     "option": "micro-sam-lm",
+     "current": false
+    },
+    {
+     "id": "find",
+     "title": "Find by name or look",
+     "what": "Finds and outlines things by name or appearance",
+     "actor": "agent",
+     "say": "find the white blood cell",
+     "role": "outline",
+     "option": "micro-sam-lm",
+     "current": false
+    },
+    {
+     "id": "count",
+     "title": "Count them",
+     "what": "Counts what is outlined, outlining first if needed",
+     "actor": "agent",
+     "say": "how many are there?",
+     "role": "outline",
+     "option": "micro-sam-lm",
+     "current": false
+    },
+    {
+     "id": "cells",
+     "title": "Outline every cell",
+     "what": "A cell finder segments every cell; they are kept and measured",
+     "actor": "agent",
+     "say": "outline all the cells",
+     "role": "cells",
+     "option": "micro-sam-lm",
+     "current": false
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "sam2.1-tiny",
+   "name": "SAM 2.1 tiny",
+   "runs": "this-mac",
+   "where": "on this Mac",
+   "what": "Outlines what you click or box",
+   "kind": "model",
+   "version": "facebook/sam2.1-hiera-tiny",
+   "group": "available",
+   "status": "ready",
+   "word": "Ready",
+   "steps": [],
+   "size": 155915242,
+   "face": {
+    "state": "unchecked",
+    "says": "Ready to run; not checked on this Mac yet",
+    "action": {
+     "kind": "check",
+     "says": "Check it here",
+     "model": "sam2.1-tiny"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "outline",
+     "title": "Outlining",
+     "option": "sam2.1-tiny",
+     "label": "SAM 2.1 tiny (on this Mac)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "SAM 2.1 tiny (on this Mac)"
+     ]
+    },
+    {
+     "role": "outline_repair",
+     "title": "Redrawing outlines",
+     "option": "sam2.1-tiny",
+     "label": "SAM 2.1 tiny (on this Mac)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "SAM 2.1 tiny (on this Mac)"
+     ]
+    }
+   ],
+   "facts": [],
+   "abilities": [
+    {
+     "id": "click-outline",
+     "title": "Click to outline",
+     "what": "Click a thing: it is outlined and named",
+     "actor": "you",
+     "say": "",
+     "role": "outline",
+     "option": "sam2.1-tiny",
+     "current": false
+    },
+    {
+     "id": "find",
+     "title": "Find by name or look",
+     "what": "Finds and outlines things by name or appearance",
+     "actor": "agent",
+     "say": "find the white blood cell",
+     "role": "outline",
+     "option": "sam2.1-tiny",
+     "current": false
+    },
+    {
+     "id": "count",
+     "title": "Count them",
+     "what": "Counts what is outlined, outlining first if needed",
+     "actor": "agent",
+     "say": "how many are there?",
+     "role": "outline",
+     "option": "sam2.1-tiny",
+     "current": false
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  },
+  {
+   "id": "sam3.1-cloud",
+   "name": "SAM 3.1 (cloud)",
+   "runs": "cloud",
+   "where": "in the cloud",
+   "what": "Outlines what you box, and finds every thing like an example",
+   "kind": "cloud-model",
+   "version": "fal-ai/sam-3-1",
+   "group": "available",
+   "status": "needs-setup",
+   "word": "Needs your fal.ai key",
+   "next": {
+    "kind": "key",
+    "says": "Add your fal.ai key",
+    "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+    "url": "https://fal.ai/dashboard/keys",
+    "service": "fal"
+   },
+   "steps": [
+    {
+     "kind": "key",
+     "says": "Add your fal.ai key",
+     "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+     "url": "https://fal.ai/dashboard/keys",
+     "service": "fal"
+    }
+   ],
+   "size": 0,
+   "face": {
+    "state": "needs-setup",
+    "says": "Add your fal.ai key",
+    "action": {
+     "kind": "key",
+     "says": "Add your fal.ai key",
+     "how": "put FAL_KEY=... in ~/Desktop/micromind.txt",
+     "url": "https://fal.ai/dashboard/keys",
+     "service": "fal"
+    },
+    "also": []
+   },
+   "usedFor": [
+    {
+     "role": "outline",
+     "title": "Outlining",
+     "option": "sam3.1-fal",
+     "label": "SAM 3.1 (cloud)",
+     "current": false,
+     "fixed": false,
+     "options": [
+      "SAM 3.1 (cloud)",
+      "EdgeTAM then SAM 3.1 (cloud)"
+     ]
+    },
+    {
+     "role": "fixed:find-all",
+     "title": "Find all like this",
+     "option": "model",
+     "label": "SAM 3.1 (cloud)",
+     "current": true,
+     "fixed": true,
+     "options": [
+      "SAM 3.1 (cloud)"
+     ]
+    }
+   ],
+   "facts": [
+    {
+     "kind": "key",
+     "ok": false,
+     "says": "Your fal key isn't added yet",
+     "service": "fal",
+     "ref": "https://fal.ai/dashboard/keys"
+    }
+   ],
+   "abilities": [
+    {
+     "id": "click-outline",
+     "title": "Click to outline",
+     "what": "Click a thing: it is outlined and named",
+     "actor": "you",
+     "say": "",
+     "role": "outline",
+     "option": "sam3.1-fal",
+     "current": false
+    },
+    {
+     "id": "find",
+     "title": "Find by name or look",
+     "what": "Finds and outlines things by name or appearance",
+     "actor": "agent",
+     "say": "find the white blood cell",
+     "role": "outline",
+     "option": "sam3.1-fal",
+     "current": false
+    },
+    {
+     "id": "count",
+     "title": "Count them",
+     "what": "Counts what is outlined, outlining first if needed",
+     "actor": "agent",
+     "say": "how many are there?",
+     "role": "outline",
+     "option": "sam3.1-fal",
+     "current": false
+    },
+    {
+     "id": "find-like",
+     "title": "Find all like this",
+     "what": "Outlines every thing like an outlined one",
+     "actor": "agent",
+     "say": "find all like this one",
+     "role": "fixed:find-all",
+     "option": "primary",
+     "current": true
+    }
+   ],
+   "credit": {},
+   "link": "",
+   "licence": "",
+   "tier": "",
+   "mine": false,
+   "inUse": false,
+   "chosen": false,
+   "files": [],
+   "folder": "",
+   "revision": ""
+  }
+ ],
+ "tools": {
+  "outline_cells": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "compare_reference": {
+      "type": "boolean",
+      "description": "For an explicitly selected Fiji Analyze Particles run, compare with its ImageJ macro on the same input and generation. Agreement is not accuracy."
+     }
+    },
+    "required": []
+   },
+   "kind": "effect",
+   "family": "scene"
+  },
+  "count": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "label": {
+      "type": "string",
+      "description": "what to count"
+     },
+     "of": {
+      "type": "string",
+      "description": "a population id (e3) or \"@n\", to count its members"
+     }
+    },
+    "required": [
+     "label"
+    ]
+   },
+   "kind": "query",
+   "family": "measuring"
+  },
+  "find": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "what": {
+      "type": "string",
+      "description": "what to find (for \"concept\": the thing's name alone)"
+     },
+     "inside": {
+      "type": "string",
+      "description": "object id, \"target N\", or a label"
+     },
+     "like": {
+      "type": "string",
+      "description": "every thing like this outlined one (\"find all like this\", \"the others like it\"): object id or \"that\""
+     },
+     "all": {
+      "type": "boolean",
+      "description": "true: every match; false: one; omitted: the vision model follows the quantity in the original request"
+     },
+     "keep": {
+      "type": "boolean",
+      "description": "keep earlier highlights too"
+     },
+     "keep_container": {
+      "type": "boolean",
+      "description": "default true; false replaces only the app-drawn inside outline after a successful find, preserving user outlines"
+     },
+     "by": {
+      "type": "string",
+      "enum": [
+       "look",
+       "cells",
+       "concept"
+      ],
+      "description": "\"look\" (default), \"cells\", or \"concept\" (SAM 3.1 matches the words; on these slides an example works better)"
+     }
+    },
+    "required": [
+     "what"
+    ]
+   },
+   "kind": "effect",
+   "family": "finding"
+  },
+  "run_capability": {
+   "params": {
+    "type": "object",
+    "properties": {
+     "capability": {
+      "type": "string",
+      "enum": [
+       "basic-bright-objects",
+       "fiji-analyze-particles"
+      ],
+      "description": "its id"
+     },
+     "resource": {
+      "anyOf": [
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "session": {
+          "type": "string"
+         },
+         "id": {
+          "type": "string"
+         },
+         "revision": {
+          "type": "string"
+         },
+         "component": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "session",
+         "id",
+         "revision",
+         "component"
+        ],
+        "description": "An exact retained capability input from the input picker; never a preview URL or latest revision."
+       },
+       {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+         "kind": {
+          "type": "string",
+          "enum": [
+           "array"
+          ]
+         },
+         "session": {
+          "type": "string"
+         },
+         "id": {
+          "type": "string"
+         },
+         "component": {
+          "type": "string"
+         },
+         "revision": {
+          "type": "integer",
+          "minimum": 1
+         }
+        },
+        "required": [
+         "kind",
+         "session",
+         "id",
+         "revision",
+         "component"
+        ],
+        "description": "Choose a saved single-plane uint8 intensity image with Y/X axes (at most one megapixel); other types need an explicit conversion."
+       }
+      ]
+     },
+     "params": {
+      "type": "object",
+      "description": "its parameters by id with the values the user asked for, as its description lists them; one left out is its default"
+     },
+     "by": {
+      "type": "string",
+      "enum": [
+       "user",
+       "brain"
+      ],
+      "description": "who chose to run it: the user's own request, or you (optional: brain)"
+     }
+    },
+    "required": [
+     "capability"
+    ]
+   },
+   "kind": "effect",
+   "family": "seeing"
+  }
+ }
+}

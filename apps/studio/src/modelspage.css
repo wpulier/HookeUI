@@ -1,0 +1,335 @@
+/* The Models page (modelspage.ts) and the header's setup chip. Quiet surfaces; colour only where it says something:
+   green ready, iodine (attention) what needs you, safranin broken. */
+
+.models-page {
+  position: relative;
+  grid-row: 2 / 4;
+  grid-column: 1; /* beside the chat, as the other pages */
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 32px 48px;
+}
+.models-page[hidden] { display: none; }
+body[data-view='models'] .stage,
+body[data-view='models'] .dock,
+body.studio-shell[data-view='models'] .dock { display: none; }
+
+/* The Toolbox frame (toolbox.ts toolboxFrame): both views, Toolbox and Everything it can do, lay out the same way, so a
+   switch between them moves nothing above the body (2026-10-15: the tabs jumped on every switch). The same padding and
+   a stable scrollbar gutter on both roots; one centred column; the tabs, the band and the header in one order. */
+#models-page, #capabilities { padding: 24px 32px 48px; scrollbar-gutter: stable; }
+.toolbox-frame { max-width: 72rem; margin-inline: auto; }
+.toolbox-tabs {
+  display: inline-flex; gap: 2px; margin: 0 0 16px; padding: 3px; border-radius: var(--mm-r-button);
+  background: var(--mm-control); box-shadow: var(--mm-ctl-edge);
+}
+.toolbox-tabs a {
+  padding: 6px 14px; border-radius: var(--mm-r-control); color: var(--mm-text-2); text-decoration: none;
+  font: 500 var(--mm-13)/1.3 var(--mm-sans);
+}
+.toolbox-tabs a:hover { color: var(--mm-text); }
+.toolbox-tabs a[aria-current="page"] { background: var(--mm-raise); color: var(--mm-text); box-shadow: var(--mm-shadow-1); }
+.toolbox-tabs a:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 1px; }
+
+/* The band: your keys and Add a capability, side by side, the same on both views. */
+.toolbox-band { display: grid; grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr); gap: 12px; margin-bottom: 24px; }
+.toolbox-band > section {
+  display: grid; align-content: start; gap: 10px; min-width: 0; padding: 14px 16px; border-radius: var(--mm-r-panel);
+  background: var(--mm-card); box-shadow: inset 0 0 0 0.5px var(--mm-line-strong); outline: none; scroll-margin: 24px;
+}
+.toolbox-band-head { display: grid; gap: 2px; }
+.toolbox-band-head h3 { margin: 0; color: var(--mm-text); font: 600 var(--mm-14)/1.3 var(--mm-sans); }
+.toolbox-band-head p { margin: 0; color: var(--mm-text-3); font: 400 var(--mm-12)/1.45 var(--mm-sans); }
+.toolbox-band-wait { margin: 0; min-height: 60px; color: var(--mm-text-3); font: 400 var(--mm-12)/1.45 var(--mm-sans); }
+.toolbox-key-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11.5rem), 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.toolbox-key {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name act' 'adds act' 'state act';
+  align-items: center; column-gap: 8px; min-width: 0; padding: 8px 10px 8px 12px;
+  border-radius: var(--mm-r-card); background: var(--mm-control);
+}
+.toolbox-key-name { grid-area: name; }
+.toolbox-key-adds { grid-area: adds; }
+.toolbox-key-state { grid-area: state; }
+.toolbox-key-name { color: var(--mm-text); font: 600 var(--mm-13)/1.3 var(--mm-sans); }
+.toolbox-key-adds { color: var(--mm-accent-on-soft); font: 500 var(--mm-12)/1.35 var(--mm-sans); font-variant-numeric: tabular-nums; }
+.toolbox-key-state { color: var(--mm-text-3); font: 400 var(--mm-12)/1.35 var(--mm-sans); overflow-wrap: anywhere; }
+.toolbox-key[data-present='true'] .toolbox-key-state { color: var(--mm-green); }
+.toolbox-key-act { grid-area: act; }
+.toolbox-key-other { margin: 0; color: var(--mm-text-3); font: 400 var(--mm-12)/1.5 var(--mm-sans); }
+.toolbox-key-blocked { margin: 0; color: var(--mm-iodine); font: 400 var(--mm-12)/1.5 var(--mm-sans); }
+.toolbox-key-other-act { padding: 0; border: 0; background: none; color: var(--mm-accent); font: inherit; cursor: pointer; }
+.toolbox-key-other-act:hover { text-decoration: underline; text-underline-offset: 3px; }
+.toolbox-add-ways { display: grid; gap: 4px; }
+.toolbox-add-way {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; width: 100%; padding: 7px 12px; border: 0; border-radius: var(--mm-r-card);
+  background: var(--mm-control); color: var(--mm-text); text-align: left; cursor: pointer;
+  transition: background var(--mm-fast) var(--mm-ease);
+}
+.toolbox-add-way:hover { background: var(--mm-hover); }
+.toolbox-add-way:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 1px; }
+.toolbox-add-way strong { font: 600 var(--mm-13)/1.3 var(--mm-sans); }
+.toolbox-add-way span { color: var(--mm-text-3); font: 400 var(--mm-12)/1.35 var(--mm-sans); }
+
+/* The header: the title with its summary; the page's own controls on the right; the atlas's filters under them. */
+.toolbox-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px 16px; margin-bottom: 24px; }
+.toolbox-head-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; }
+.toolbox-head-title h2 {
+  margin: 0; color: var(--mm-text);
+  font: 600 var(--mm-24)/1.2 var(--mm-display); letter-spacing: var(--mm-track-display);
+}
+.toolbox-head .toolbox-head-sub { min-height: 1.4em; margin: 0; color: var(--mm-text-2); font: 500 var(--mm-13)/1.4 var(--mm-sans); font-variant-numeric: tabular-nums; }
+.toolbox-head-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
+.toolbox-head-link { color: var(--mm-text-2); font: 500 var(--mm-13)/1.3 var(--mm-sans); text-decoration: none; }
+.toolbox-head-link:hover { color: var(--mm-text); text-decoration: underline; text-underline-offset: 3px; }
+.toolbox-head > .capc-filters { grid-column: 1 / -1; }
+
+/* A section: one of the summary's groups (its words), From the community, Fiji. */
+.toolbox-section { margin-bottom: 36px; scroll-margin: 24px; }
+.toolbox-section-head { display: grid; gap: 2px; margin-bottom: 14px; }
+.toolbox-section-title {
+  display: flex; align-items: center; gap: 8px; margin: 0; color: var(--mm-text);
+  font: 600 var(--mm-16)/1.3 var(--mm-display); letter-spacing: var(--mm-track-tight);
+}
+.toolbox-section-what { margin: 0; max-width: 72ch; color: var(--mm-text-3); font: 400 var(--mm-13)/1.45 var(--mm-sans); }
+.toolbox-community-none, .toolbox-community-share { margin: 0 0 12px; color: var(--mm-text-2); font: 400 var(--mm-13)/1.5 var(--mm-sans); }
+.toolbox-community-share strong { color: var(--mm-text); }
+.toolbox-fiji-counts { margin: 0 0 10px; color: var(--mm-text); font: 500 var(--mm-13)/1.45 var(--mm-sans); font-variant-numeric: tabular-nums; }
+.toolbox-fiji-functions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.toolbox-fiji-functions li {
+  display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-radius: var(--mm-r-card); background: var(--mm-card);
+  box-shadow: inset 0 0 0 0.5px var(--mm-line-strong);
+}
+.toolbox-fiji-functions a { color: var(--mm-text); font: 500 var(--mm-13)/1.3 var(--mm-sans); text-decoration: none; }
+.toolbox-fiji-functions a:hover { text-decoration: underline; }
+
+/* The groups. */
+.models-group { margin-bottom: 32px; }
+.models-group-head { display: grid; gap: 2px; margin-bottom: 12px; }
+.models-group-head :is(h3, h4) {
+  display: flex; align-items: center; gap: 8px; margin: 0; color: var(--mm-text);
+  font: 600 var(--mm-14)/1.3 var(--mm-sans);
+}
+/* A group's count is a plain tertiary figure, as the mock's (no pill, nothing warm). */
+.models-group-count {
+  color: var(--mm-text-3); font: 500 var(--mm-12)/1.5 var(--mm-sans); font-variant-numeric: tabular-nums;
+}
+.models-group-head p { margin: 0; color: var(--mm-text-3); font: 400 var(--mm-13)/1.45 var(--mm-sans); }
+.models-get-all-row {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px;
+  margin-bottom: 12px; padding: 10px 12px; border-radius: var(--mm-r-card); background: var(--mm-card);
+  color: var(--mm-text-2); font: 400 var(--mm-13)/1.45 var(--mm-sans);
+}
+.models-get-all { color: var(--mm-accent); white-space: nowrap; }
+
+.models-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr)); gap: 10px; align-items: start; }
+
+.model-action { color: var(--mm-accent); }
+.model-action-link { font: 500 var(--mm-13)/1.3 var(--mm-sans); text-decoration: none; }
+.model-action-link:hover { text-decoration: underline; }
+.model-how {
+  margin: 0; padding: 6px 8px; border-radius: var(--mm-r-control); background: var(--mm-well);
+  color: var(--mm-text-2); font: 400 var(--mm-12)/1.45 ui-monospace, 'SF Mono', Menlo, monospace; overflow-wrap: anywhere;
+}
+
+/* Why? and Details. */
+.model-why, .model-details { border-top: 0.5px solid var(--mm-line); padding-top: 6px; }
+.model-why summary, .model-details summary {
+  width: max-content; cursor: pointer; color: var(--mm-text-2); font: 500 var(--mm-12)/1.6 var(--mm-sans); list-style-position: inside;
+}
+.model-why summary:hover, .model-details summary:hover { color: var(--mm-text); }
+.model-facts { display: grid; gap: 4px; margin: 6px 0 2px; padding: 0; list-style: none; }
+.model-facts li > .cap-download { grid-column: 2 / -1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.model-facts li > .cap-download > * { min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.model-facts li[data-kind='files'] > .model-fact-act { grid-column: 2 / -1; justify-self: start; }
+.model-facts li {
+  display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: baseline; gap: 6px;
+  color: var(--mm-text); font: 400 var(--mm-12)/1.45 var(--mm-sans);
+}
+.model-fact-mark { font-weight: 700; text-align: center; color: var(--mm-text-3); }
+.model-facts li[data-ok='true'] .model-fact-mark { color: var(--mm-green); }
+.model-facts li[data-ok='false'] .model-fact-mark { color: var(--mm-iodine); }
+.model-facts li[data-ok='false'] .model-fact-says { color: var(--mm-text); }
+.model-facts li[data-ok='true'] .model-fact-says { color: var(--mm-text-2); }
+.model-fact-act {
+  padding: 0; border: 0; background: none; color: var(--mm-accent); cursor: pointer; white-space: nowrap;
+  font: 500 var(--mm-12)/1.45 var(--mm-sans); text-decoration: none;
+}
+.model-fact-act:hover { text-decoration: underline; }
+.model-details-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 3px 12px; margin: 6px 0; }
+.model-details-list dt { color: var(--mm-text-3); font: 400 var(--mm-12)/1.45 var(--mm-sans); }
+.model-details-list dd { margin: 0; color: var(--mm-text-2); font: 400 var(--mm-12)/1.45 var(--mm-sans); overflow-wrap: anywhere; }
+.model-details-list a { color: var(--mm-accent); text-decoration: none; }
+.model-files { display: grid; gap: 1px; max-height: 9rem; overflow: auto; margin: 4px 0 0; padding: 0; list-style: none; }
+.model-files li {
+  display: flex; justify-content: space-between; gap: 12px; color: var(--mm-text-3);
+  font: 400 var(--mm-11)/1.5 ui-monospace, 'SF Mono', Menlo, monospace; font-variant-numeric: tabular-nums;
+}
+.model-files li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Add your own. */
+.models-own {
+  margin-top: 8px; padding: 16px 18px; border-radius: var(--mm-r-panel);
+  box-shadow: inset 0 0 0 1px var(--mm-line-strong); border: 0; background: transparent;
+}
+.models-own h3 { margin: 0 0 6px; color: var(--mm-text); font: 600 var(--mm-14)/1.3 var(--mm-sans); }
+.models-own p { margin: 0; max-width: 70ch; color: var(--mm-text-2); font: 400 var(--mm-13)/1.55 var(--mm-sans); }
+.models-own code, .models-problems code {
+  padding: 1px 5px; border-radius: 4px; background: var(--mm-well); color: var(--mm-text);
+  font: 400 var(--mm-12)/1.4 ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.models-draft-review { margin: 8px 0; color: var(--mm-text-2); font: 400 var(--mm-12)/1.5 var(--mm-sans); }
+.models-draft-review summary { cursor: pointer; color: var(--mm-text); font-weight: 600; }
+.models-draft-review h5 { margin: 8px 0 2px; color: var(--mm-text); font: 600 var(--mm-12)/1.4 var(--mm-sans); }
+.models-draft-review ul, .models-draft-review ol { margin: 0; padding-left: 18px; }
+.models-draft-review li { overflow-wrap: anywhere; }
+.models-draft-checks li[data-blocks="true"], .models-draft-blocked { color: var(--mm-safranin); }
+.models-draft-code {
+  max-height: 320px; overflow: auto; margin: 4px 0; padding: 8px 10px; border-radius: 6px; background: var(--mm-well);
+  color: var(--mm-text); white-space: pre; font: 400 var(--mm-12)/1.45 ui-monospace, 'SF Mono', Menlo, monospace;
+}
+.models-problems { margin-top: 12px; }
+.models-problems h4 { margin: 0 0 4px; color: var(--mm-safranin); font: 600 var(--mm-12)/1.4 var(--mm-sans); }
+.models-problems ul { margin: 0; padding-left: 18px; color: var(--mm-text-2); font: 400 var(--mm-12)/1.5 var(--mm-sans); }
+
+@media (max-width: 720px) {
+  #models-page, #capabilities { padding: 16px 16px 96px; }
+  .toolbox-band { grid-template-columns: 1fr; }
+  .toolbox-head { grid-template-columns: 1fr; }
+  .toolbox-head-acts { justify-content: flex-start; }
+}
+
+/* The header's chip (setup chip): what your choices need, one click from anywhere. */
+body.studio-shell .bar > .setup-chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: 7px; margin-left: 12px; }
+@media (max-width: 960px) { body.studio-shell .bar > .setup-chip { margin-left: 0; order: 11; } }
+.setup-chip-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--mm-text-3); }
+.setup-chip[data-tone='ok'] .setup-chip-dot { background: var(--mm-green); box-shadow: 0 0 0 3px var(--mm-green-soft); }
+.setup-chip[data-tone='needs'] { color: var(--mm-iodine); }
+.setup-chip[data-tone='needs'] .setup-chip-dot { background: var(--mm-iodine); box-shadow: 0 0 0 3px var(--mm-iodine-soft); }
+.setup-chip[aria-pressed='true'] { background: var(--mm-ctl-fill-press); }
+
+/* The live view's note when your Seeing model can't run (it can't see without it). */
+.setup-note {
+  display: flex; align-items: center; gap: 10px; max-width: min(34rem, 100%);
+  padding: 7px 8px 7px 12px; border-radius: var(--mm-r-button);
+  background: var(--mm-hud); box-shadow: var(--mm-shadow-1), inset 0 0 0 0.5px rgb(242 179 61 / 40%);
+  color: var(--mm-text); font: 500 var(--mm-13)/1.35 var(--mm-sans); pointer-events: auto;
+}
+.setup-note[hidden] { display: none; }
+.setup-note::before { content: ''; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--mm-iodine); }
+.setup-note-act { color: var(--mm-accent); white-space: nowrap; }
+.setup-note-close {
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--mm-r-control); background: none;
+  color: var(--mm-text-3); cursor: pointer; font: 400 16px/1 var(--mm-sans);
+}
+.setup-note-close:hover { background: var(--mm-hover); color: var(--mm-text); }
+
+/* The Models menu's link to this page (models.ts allModelsLink). */
+body.studio-shell .models-all-link {
+  display: block; margin: 2px 2px 6px; padding: 8px 10px; border-radius: var(--mm-r-control);
+  background: var(--mm-control); color: var(--mm-accent); font: 500 var(--mm-13)/1.3 var(--mm-sans); text-decoration: none;
+}
+body.studio-shell .models-all-link:hover { background: var(--mm-ctl-fill-hover); }
+
+/* Add your own: a link or a path, a file dropped in, what was found in the folder. */
+/* Wraps, so the link field keeps room for a link (acceptance 2026-10-13: the hint took the row and left it 20 px). */
+.models-own-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 8px; }
+.models-own-hint { flex: 1 0 100%; order: 10; color: var(--mm-text-3); font: 400 var(--mm-12)/1.4 var(--mm-sans); }
+.models-own-input {
+  flex: 1 1 280px; min-width: 240px; height: 32px; padding: 0 10px; border: 0; border-radius: var(--mm-r-control);
+  background: var(--mm-well); box-shadow: inset 0 0 0 0.5px var(--mm-line-strong); color: var(--mm-text);
+  font: 400 var(--mm-13)/1 var(--mm-sans);
+}
+.models-own-input:focus { outline: 2px solid var(--mm-accent); outline-offset: -1px; }
+.models-own-add { color: var(--mm-accent); white-space: nowrap; }
+.models-own-drop {
+  display: block; margin: 0 0 10px; padding: 18px; border-radius: var(--mm-r-card); cursor: pointer; text-align: center;
+  box-shadow: inset 0 0 0 1px var(--mm-line-strong); color: var(--mm-text-2); font: 400 var(--mm-13)/1.4 var(--mm-sans);
+  background-image: repeating-linear-gradient(135deg, transparent 0 8px, rgb(255 255 255 / 2%) 8px 16px);
+}
+.models-own-drop strong { color: var(--mm-text); font-weight: 600; }
+.models-own-drop[data-over='true'] { background-color: var(--mm-accent-soft); box-shadow: inset 0 0 0 1.5px var(--mm-accent); }
+.models-own-found h4 { margin: 6px 0 4px; color: var(--mm-text-2); font: 600 var(--mm-12)/1.4 var(--mm-sans); }
+.models-own-found ul { display: grid; gap: 4px; margin: 0 0 8px; padding: 0; list-style: none; }
+.models-own-found li { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--mm-text); font: 400 var(--mm-13)/1.4 var(--mm-sans); }
+.models-own-said { margin: 4px 0 8px !important; color: var(--mm-text) !important; font-weight: 500 !important; }
+.models-own-said[data-ok='false'] { color: var(--mm-iodine) !important; }
+.models-own-where { margin-top: 8px !important; color: var(--mm-text-3) !important; font-size: var(--mm-12) !important; }
+.model-action-quiet { color: var(--mm-text-2); }
+
+/* Asked of the outside world (observed.py): a fact may carry two actions (its page, Check again); a card being asked. */
+.model-facts li.model-fact-observed { grid-template-columns: 16px minmax(0, 1fr) auto auto; }
+.model-fact-act[disabled] { color: var(--mm-text-3); cursor: default; text-decoration: none; }
+
+/* Fiji plugins: every extension listed (inventories.py), how it installs, whether it is in Fiji and usable by the app. */
+.models-fiji { padding-top: 4px; }
+.models-fiji > summary { width: max-content; cursor: pointer; color: var(--mm-text-2); font: 500 var(--mm-13)/1.5 var(--mm-sans); }
+.models-fiji > summary:hover { color: var(--mm-text); }
+.models-fiji > p { max-width: 72ch; color: var(--mm-text-2); font: 400 var(--mm-13)/1.5 var(--mm-sans); }
+.fiji-tools { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.fiji-search { flex: 1 1 220px; min-width: 0; }
+.fiji-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.fiji-row { display: grid; grid-template-columns: minmax(140px, 1.2fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 10px; padding: 6px 4px; font: 400 var(--mm-12)/1.45 var(--mm-sans); align-items: baseline; border-bottom: 0.5px solid var(--mm-line); }
+.fiji-row[data-route="none-known"] .fiji-how { opacity: 0.7; }
+.fiji-categories, .fiji-installed, .fiji-usable { color: var(--mm-text-3); }
+.fiji-more { padding: 8px 4px; color: var(--mm-text-3); }
+@media (max-width: 820px) { .fiji-row { grid-template-columns: 1fr; gap: 2px; } }
+
+.tool-state { margin: 0; color: var(--mm-text-2); font: 400 var(--mm-13)/1.5 var(--mm-sans); }
+.toolbox-unavailable > summary:hover { color: var(--mm-text); }
+.toolbox-unavailable[open] > summary { margin-bottom: 6px; }
+.toolbox-unavailable > .toolbox-section-what { margin-bottom: 14px; }
+
+.tool-demo { margin: 20px 0; } .tool-demo img, .tool-demo video { width: 100%; max-height: 280px; object-fit: contain; border-radius: 8px; }
+.tool-demo figcaption, .tool-check, .tool-terms { font-size: 12px; line-height: 1.5; color: var(--mm-text-2); }
+.tool-setup { display: grid; gap: 8px; margin: 12px 0; } .tool-setup .mm-control { justify-self: start; }
+.tool-options-primary, .tool-options-rest { padding-left: 20px; line-height: 1.6; }
+
+
+/* Own-input review: actual outputs share one input and remain readable at narrow widths. */
+.own-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.own-comparison figure { margin: 0; min-width: 0; }
+.own-comparison img { width: 100%; object-fit: contain; max-height: 24rem; }
+.own-comparison pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.own-input-preview { max-width: 12rem; max-height: 8rem; object-fit: contain; }
+@media (max-width: 600px) { .own-comparison { grid-template-columns: 1fr; } }
+
+.models-advanced-add { margin: 1rem 0; }
+
+/* The setup sheet's own parts that workspace-feel.css does not draw (it draws the sheet, its header, body, facts, steps,
+   actions and Add model or tool, step 8): a bundle's result review, a key form, preparation facts and a kind's trial. */
+.tool-setup-sheet-body .add-key { margin: 0; }
+
+.tool-bundle-review { display: grid; gap: 8px; border-top: 1px solid var(--mm-line-strong); padding-top: 12px; }
+.tool-bundle-results { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.tool-bundle-results figure { margin: 0; min-width: 0; display: grid; align-content: start; gap: 6px; }
+.tool-bundle-results img { width: 100%; max-height: 120px; object-fit: contain; background: var(--mm-bg); }
+.tool-bundle-results figcaption { font-weight: 600; }
+.tool-bundle-results a { font-size: var(--mm-12); overflow-wrap: anywhere; }
+.tool-bundle-review pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
+.tool-bundle-results table { width: 100%; border-collapse: collapse; font-size: var(--mm-12); }
+.tool-bundle-results td, .tool-bundle-results th { text-align: left; padding: 3px; border-bottom: 1px solid var(--mm-line-strong); overflow-wrap: anywhere; }
+
+/* Preparation text and recovery controls share a readable vertical flow. */
+.tool-setup-sheet .model-facts li { grid-template-columns: 16px minmax(0, 1fr); align-items: start; row-gap: 6px; }
+.tool-setup-sheet .model-facts li > .model-fact-mark { grid-column: 1; grid-row: 1; }
+.tool-setup-sheet .model-facts li > .model-fact-says { grid-column: 2; min-width: 0; overflow-wrap: anywhere; }
+.tool-setup-sheet .model-facts li > .model-fact-going { grid-column: 2; min-width: 0; overflow-wrap: anywhere; color: var(--mm-text-2); }
+.tool-setup-sheet .model-facts li > .model-fact-act { grid-column: 2; justify-self: start; max-width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+
+/* Ready tools keep their full controls, with one clear run action per operation. */
+.tool-setup-sheet .tool-kind-trial { display: grid; gap: 12px; padding: 16px; border-radius: 12px; background: var(--mm-card); box-shadow: inset 0 0 0 1px var(--mm-line); }
+.tool-setup-sheet .tool-kind-trial > p { font-size: 12px; line-height: 1.5; color: var(--mm-text-2); }
+.tool-setup-sheet .tool-kind-trial > p:empty { display: none; }
+.tool-setup-sheet .tool-kind-trial > [data-model-editor] { display: grid; gap: 10px; }
+.tool-setup-sheet .tool-kind-trial > .model-fact-act { justify-self: start; text-align: left; }
+
+/* Keep the candidate's next action visible before optional capability detail. */
+.tool-preparation {padding:16px;margin:12px 0 20px;border:1px solid var(--mm-line-strong);border-radius:12px;background:var(--mm-control)}
+.tool-preparation>h4 {margin:0 0 6px}
+.tool-preparation>p {margin:0 0 12px;color:var(--mm-text-2);font-size:12px;line-height:1.5}
+.tool-preparation .model-facts li {grid-template-columns:16px minmax(0,1fr);row-gap:8px}
+.tool-preparation .model-fact-act,.tool-preparation .model-fact-going {grid-column:2;justify-self:start;white-space:normal;text-align:left}
+.model-preparation-diagnostics {grid-column:2 / -1;min-width:0;color:var(--mm-text-2);font-size:12px}
+.model-preparation-diagnostics summary {cursor:pointer}
+.model-preparation-diagnostics pre, .tool-setup-diagnostic, .tool-setup-destination {max-height:180px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.5}

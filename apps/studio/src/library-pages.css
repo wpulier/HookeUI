@@ -1,0 +1,577 @@
+/* ======================================================================================== Footage */
+body.studio-shell :is(.assets, .datasets) {
+  padding-top: 24px;
+  padding-inline: 32px;
+}
+
+body.studio-shell .assets > * {
+  max-width: 1120px;
+  margin-inline: auto;
+}
+
+body.studio-shell .assets-head {
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+body.studio-shell .assets-title {
+  align-items: center;
+  gap: 8px 16px;
+}
+
+body.studio-shell .assets-count {
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .assets-where {
+  max-width: 80ch;
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .assets-search {
+  width: 100%;
+  max-width: 420px;
+}
+
+body.studio-shell .assets-group {
+  margin-top: 28px;
+}
+
+body.studio-shell h3.assets-group-name {
+  margin: 0 0 12px;
+  color: var(--mm-text-2);
+  font: 600 var(--mm-12)/1.3 var(--mm-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body.studio-shell .assets-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body.studio-shell .assets-play {
+  grid-template-columns: 66px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  min-height: 80px;
+  padding: 8px 12px 8px 8px;
+  border: 1px solid var(--mm-line);
+  border-radius: var(--mm-r-card);
+  background: var(--mm-card);
+  color: var(--mm-text);
+  transition: background-color var(--mm-fast) var(--mm-ease), border-color var(--mm-fast) var(--mm-ease);
+}
+
+body.studio-shell .assets-play:hover {
+  border-color: var(--mm-line-strong);
+  background: var(--mm-raise);
+}
+
+/* The bridge has not supplied measured disc geometry: keep every source pixel visible. */
+body.studio-shell .assets-thumb {
+  grid-row: 1 / span 2;
+  width: 56px;
+  height: 56px;
+  margin: 5px;
+  aspect-ratio: 1;
+  border-radius: 6px;
+  object-fit: contain;
+  object-position: center;
+  object-view-box: none;
+  background: radial-gradient(circle, rgb(231 236 247 / 7%) 0 54%, transparent 56%), var(--mm-well);
+  box-shadow: 0 0 0 1px var(--mm-line-strong), 0 0 0 4px var(--mm-well), 0 0 0 5px var(--mm-line);
+  opacity: 1;
+}
+
+body.studio-shell .assets-card-title {
+  display: -webkit-box;
+  align-self: end;
+  padding: 0;
+  overflow: hidden;
+  font: 500 var(--mm-14)/1.3 var(--mm-sans);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body.studio-shell .assets-card-note {
+  align-self: start;
+  min-height: 1.4em;
+  padding: 0;
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Playing in the live view: test footage is a testing state, so iodine. */
+body.studio-shell .assets-card.playing .assets-play {
+  border-color: var(--mm-iodine);
+  background: color-mix(in srgb, var(--mm-iodine) 6%, var(--mm-card));
+}
+
+body.studio-shell .assets-card.playing .assets-thumb {
+  box-shadow: 0 0 0 1px var(--mm-iodine), 0 0 0 4px var(--mm-well), 0 0 0 5px var(--mm-iodine-soft);
+}
+
+body.studio-shell .assets-card.playing .assets-card-note {
+  color: var(--mm-iodine);
+}
+
+body.studio-shell .assets-add-open {
+  margin-left: auto;
+}
+
+body.studio-shell .assets-add-open::before {
+  content: '+';
+  font-size: var(--mm-16);
+  line-height: 1;
+}
+
+body.studio-shell .assets-more {
+  margin-top: 12px;
+}
+
+body.studio-shell .assets-library-head {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+body.studio-shell .assets-library-head h3.assets-group-name {
+  margin: 0;
+}
+
+body.studio-shell .assets-library .assets-where {
+  margin: 0 0 12px;
+}
+
+body.studio-shell .assets-back {
+  min-height: 28px;
+  color: var(--mm-text-2);
+}
+
+body.studio-shell .assets-subhead {
+  margin: 16px 0 8px;
+  color: var(--mm-text-2);
+  font: 600 var(--mm-12)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .assets-form {
+  max-width: 560px;
+  margin: 16px 0 8px;
+  padding: 20px;
+  gap: 12px;
+  border: 1px solid var(--mm-line);
+  border-radius: var(--mm-r-panel);
+  background: var(--mm-card);
+}
+
+body.studio-shell .assets-form h3.assets-group-name {
+  margin: 0;
+}
+
+body.studio-shell .assets-field {
+  gap: 4px;
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .assets-field input[type='file'] {
+  color: var(--mm-text-2);
+  font: inherit;
+}
+
+/* ======================================================================================= Datasets */
+body.studio-shell .datasets > * {
+  max-width: 920px;
+  margin-inline: auto;
+}
+
+body.studio-shell .ds-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title save' 'lede lede' 'total total' 'saved saved';
+  align-items: center;
+  gap: 6px 16px;
+  margin-bottom: 24px;
+}
+
+body.studio-shell .ds-head h2 { grid-area: title; }
+
+body.studio-shell .ds-head .ds-save-session {
+  grid-area: save;
+  margin: 0;
+  color: var(--mm-text);
+  text-decoration: none;
+}
+
+body.studio-shell .ds-lede {
+  grid-area: lede;
+  max-width: 64ch;
+  color: var(--mm-text-2);
+  font-size: var(--mm-14);
+}
+
+body.studio-shell .ds-total {
+  grid-area: total;
+  margin: 0;
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .ds-saved-note {
+  grid-area: saved;
+  color: var(--mm-green);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-rig {
+  margin-bottom: 24px;
+  border: 1px solid var(--mm-line);
+  border-radius: var(--mm-r-panel);
+  background: var(--mm-card);
+}
+
+body.studio-shell .ds-rig-line {
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--mm-r-panel);
+}
+
+body.studio-shell .ds-rig-line::after {
+  color: var(--mm-methylene);
+  font: 500 var(--mm-13)/1 var(--mm-sans);
+}
+
+body.studio-shell .ds-rig-title {
+  font: 600 var(--mm-14)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .ds-rig-summary {
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-rig-form {
+  padding: 0 18px 18px;
+}
+
+body.studio-shell .ds-rig-note {
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .ds-field-name {
+  color: var(--mm-text-2);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .ds-field-saved {
+  color: var(--mm-green);
+  font: 500 var(--mm-12)/1 var(--mm-sans);
+}
+
+body.studio-shell .ds-list {
+  display: grid;
+  gap: 12px;
+}
+
+body.studio-shell .ds-item,
+body.studio-shell .ds-item:first-child {
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--mm-line);
+  border-radius: var(--mm-r-panel);
+  background: var(--mm-card);
+}
+
+body.studio-shell .ds-item[data-status='collecting'] {
+  border-color: color-mix(in srgb, var(--mm-methylene) 45%, transparent);
+}
+
+body.studio-shell .ds-disc {
+  width: 72px;
+  margin: 5px;
+  background: var(--mm-well);
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--mm-line-strong), 0 0 0 5px var(--mm-well);
+}
+
+body.studio-shell .ds-disc img {
+  border-radius: inherit;
+  object-fit: contain;
+  object-view-box: none;
+}
+
+/* Without measured disc geometry, retain the complete thumbnail and its corners. */
+body.studio-shell .ds-disc::after {
+  display: none;
+}
+
+body.studio-shell .ds-item[data-status='collecting'] .ds-disc {
+  box-shadow: 0 0 0 1.5px var(--mm-methylene), 0 0 0 5px var(--mm-well), 0 0 0 6px var(--mm-methylene-soft);
+}
+
+body.studio-shell .ds-disc-empty {
+  border: 1px dashed var(--mm-line-strong);
+  background: transparent;
+  box-shadow: none;
+}
+
+body.studio-shell .ds-top {
+  align-items: center;
+  gap: 6px 10px;
+}
+
+body.studio-shell .ds-name {
+  color: var(--mm-text);
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .ds-name.ds-untitled {
+  color: var(--mm-text-3);
+  font-weight: 500;
+}
+
+body.studio-shell .ds-name-input {
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .ds-length {
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-when {
+  margin: 2px 0 12px;
+  color: var(--mm-text-3);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-ribbon {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--mm-hover);
+}
+
+body.studio-shell .ds-run {
+  background: var(--mm-methylene);
+}
+
+body.studio-shell .ds-ribbon-note {
+  margin: 6px 0 0;
+  color: var(--mm-text-3);
+  font: 400 var(--mm-12)/1.5 var(--mm-sans);
+}
+
+body.studio-shell .ds-ribbon-note.ds-broken {
+  color: var(--mm-safranin);
+}
+
+body.studio-shell .ds-item[data-rebuilt] .ds-ribbon-note {
+  color: var(--mm-iodine);
+}
+
+body.studio-shell .ds-figures {
+  gap: 8px 28px;
+  margin: 16px 0 0;
+}
+
+body.studio-shell .ds-figure dd {
+  color: var(--mm-text);
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+body.studio-shell .ds-figure dt {
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .ds-actions {
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+body.studio-shell .ds-action {
+  min-height: 28px;
+  padding: 0 10px;
+  color: var(--mm-text-2);
+}
+
+body.studio-shell .ds-action:hover {
+  color: var(--mm-text);
+}
+
+body.studio-shell .ds-review .ds-primary {
+  color: #fff;
+  background: var(--mm-accent-fill);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+body.studio-shell .ds-review .ds-primary:hover:not(:disabled) {
+  background: var(--mm-accent);
+}
+
+body.studio-shell .ds-action.ds-danger {
+  border-color: color-mix(in srgb, var(--mm-safranin) 60%, transparent);
+  color: var(--mm-safranin);
+}
+
+body.studio-shell .ds-confirm > span {
+  color: var(--mm-text);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-details {
+  margin-top: 12px;
+  padding: 4px 0 4px 16px;
+  border-left: 1px solid var(--mm-line-strong);
+}
+
+body.studio-shell .ds-details h4 {
+  color: var(--mm-text-2);
+  font: 600 var(--mm-12)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .ds-facts {
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-fact dt {
+  color: var(--mm-text-3);
+}
+
+body.studio-shell .ds-fact .ds-source {
+  color: var(--mm-text-3);
+  font: 400 var(--mm-12)/1.4 var(--mm-sans);
+}
+
+body.studio-shell .ds-unknown {
+  color: var(--mm-text-3);
+  font-size: var(--mm-12);
+}
+
+body.studio-shell .ds-where {
+  color: var(--mm-text-2);
+  font: 400 var(--mm-12)/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body.studio-shell .ds-where .ds-action {
+  font-family: var(--mm-sans);
+}
+
+body.studio-shell .ds-review {
+  margin-bottom: 24px;
+  padding: 20px;
+  border: 1px solid var(--mm-line-strong);
+  border-radius: var(--mm-r-panel);
+  background: var(--mm-card);
+  box-shadow: var(--mm-shadow-1);
+}
+
+body.studio-shell .ds-review-title {
+  margin: 0 0 12px;
+  font: 600 var(--mm-16)/1.3 var(--mm-sans);
+}
+
+body.studio-shell .ds-review-scopes {
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+body.studio-shell .ds-review-scopes .ds-action[aria-pressed='true'] {
+  border-color: var(--mm-text-3);
+  background: var(--mm-press);
+  color: var(--mm-text);
+  text-decoration: none;
+}
+
+body.studio-shell .ds-review-window {
+  color: var(--mm-text);
+  font-size: var(--mm-14);
+}
+
+body.studio-shell .ds-review h4 {
+  margin: 16px 0 4px;
+  color: var(--mm-text-3);
+  font: 600 var(--mm-11)/1.3 var(--mm-sans);
+  letter-spacing: 0.06em;
+}
+
+body.studio-shell .ds-review ul {
+  color: var(--mm-text-2);
+  font-size: var(--mm-13);
+}
+
+body.studio-shell .ds-review-missing li::marker {
+  color: var(--mm-iodine);
+}
+
+body.studio-shell .ds-review .ds-name-input {
+  width: min(100%, 420px);
+  margin-top: 16px;
+  font-weight: 400;
+}
+
+body.studio-shell .ds-empty-state p,
+body.studio-shell .ds-empty {
+  color: var(--mm-text-2);
+}
+
+@container datasets (max-width: 34rem) {
+  body.studio-shell .ds-item,
+  body.studio-shell .ds-item:first-child {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+
+  body.studio-shell .ds-disc {
+    width: 48px;
+  }
+
+  body.studio-shell .ds-head {
+    grid-template-areas: 'title title' 'save save' 'lede lede' 'total total' 'saved saved';
+  }
+
+  body.studio-shell .ds-head .ds-save-session {
+    justify-self: start;
+  }
+}
+
+
+body.studio-shell .assets-error, body.studio-shell .ds-error, body.studio-shell .ds-rig-error { color:var(--mm-safranin); }
+body.studio-shell .assets-done, body.studio-shell .ds-saved-note { color:var(--mm-green); }
+body.studio-shell .assets-upload-status progress { width:100%; accent-color:var(--mm-accent); }
+body.studio-shell .ds-gap { background:repeating-linear-gradient(135deg,transparent,transparent 2px,var(--mm-iodine) 2px,var(--mm-iodine) 3px); }
+body.studio-shell .ds-seg { min-width:1px; }
+body.studio-shell .ds-leaving { opacity:.6; }
+body.studio-shell .ds-review-error { color:var(--mm-safranin); }
+
+body.studio-shell .ds-citations textarea { width: 100%; box-sizing: border-box; min-height: 100px; background: var(--mm-well); color: var(--mm-text); border: 1px solid var(--mm-panel-edge); }
+
+@media (max-width: 960px), (pointer: coarse) {
+  body.studio-shell .assets-add-open,
+  body.studio-shell .assets-upload,
+  body.studio-shell .assets-more,
+  body.studio-shell .assets-back,
+  body.studio-shell .ds-action { min-height: 44px; }
+}
+
+@media (max-width: 720px) {
+  body.studio-shell :is(.assets, .datasets) {
+    padding-top: 16px;
+    padding-inline: 16px;
+  }
+  body.studio-shell .assets-grid { grid-template-columns: minmax(0, 1fr); }
+}

@@ -1,0 +1,110 @@
+/* Research-owned content styles: the findings, presentations, charts, captures and galleries the renderers draw
+   (presentation.ts, research-chart.ts, research-captures.ts), wherever they show, and the researcher cards. The
+   researcher Tab's layout (its three columns, the paper page and its theme) is workspace-feel.css's. */
+.research-asked { display: -webkit-box; margin: 0; overflow: hidden; color: var(--mm-text-3); font-size: var(--mm-13); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.research-holds { margin: 6px 0 0; color: var(--mm-text-2); font-size: var(--mm-12); font-variant-numeric: tabular-nums; }
+.research-key { margin: 4px 0 0; color: var(--mm-text-2); font-size: var(--mm-13); font-variant-numeric: tabular-nums; }
+.artifact-evidence-context { font-size: 12px; line-height: 1.5; color: var(--muted); }
+.artifact-evidence-context p { margin: 0 0 12px; }
+.viewer-summary > h2 { margin: 0; font: 600 20px/1.4 var(--mm-display); letter-spacing: var(--mm-track-tight); text-wrap: balance; }
+.viewer-summary :is(p, li) { font-size: 14px; line-height: 1.5; }
+.viewer-summary .sources { font-size: 12px; }
+.research-table { overflow: auto; }
+.research-chart { margin: 24px 0; }
+.research-chart-bars { display: grid; gap: 6px; }
+.research-chart-point { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(60px, 2fr) auto; align-items: center; gap: 12px; padding: 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--mm-text); text-align: left; font: inherit; }
+.research-chart-point[aria-pressed="true"], .research-chart tr[data-selected] { background: var(--mm-accent-soft); }
+.research-chart-point:focus-visible { outline: 2px solid var(--mm-focus-ring); }
+.research-chart-rail { position: relative; height: 18px; background: var(--mm-card); }
+.research-chart-bar { position: absolute; top: 0; bottom: 0; background: var(--mm-accent); border-radius: 2px; }
+.research-chart-data { overflow: auto; }
+.research-chart-data pre { white-space: pre-wrap; word-break: break-word; max-width: 28rem; }
+.research-presented-blocks { display: grid; gap: 20px; }
+.research-presented-blocks > * { margin-block: 0; }
+.viewer-summary[data-layout="comparison"] .research-presented-blocks { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+.viewer-summary[data-layout="comparison"] .research-presented-blocks > :is([data-anchor="summary"], .research-chart, .research-table, [data-anchor*="limitations"]) { grid-column: 1 / -1; }
+.viewer-summary[data-layout="briefing"] .research-presented-blocks > section { padding: 16px; background: var(--mm-card); border-radius: 10px; }
+/* A presentation's look, the producer's choice (research_worker/presentation.py STYLE; presentation.ts applyStyle). */
+.viewer-summary[data-theme] { padding: 20px; border-radius: 12px; }
+.viewer-summary[data-theme="paper"] { background: #f5f1e8; color: #222018; }
+.viewer-summary[data-theme="paper"] :is(h2, h3, .viewer-subhead) { color: #3a2f1c; }
+.viewer-summary[data-theme="paper"] a { color: #8a4b00; }
+.viewer-summary[data-theme="paper"] .research-presented-blocks > section { background: #ebe4d4; }
+.viewer-summary[data-theme="contrast"] { background: #000; color: #fff; }
+.viewer-summary[data-theme="contrast"] :is(h2, h3) { color: #fff; letter-spacing: 0.01em; }
+.viewer-summary[data-theme="accent"] { background: linear-gradient(160deg, color-mix(in srgb, var(--mm-accent) 22%, var(--mm-card)), var(--mm-card) 55%); }
+.viewer-summary[data-theme="accent"] :is(h2, h3) { color: var(--mm-accent); }
+.viewer-summary[data-density="compact"] .research-presented-blocks { gap: 10px; font-size: 0.94em; }
+.viewer-summary[data-density="spacious"] .research-presented-blocks { gap: 32px; line-height: 1.65; }
+.research-presented-blocks > .research-emphasis { padding: 14px 16px; border-left: 4px solid var(--mm-accent); background: color-mix(in srgb, var(--mm-accent) 10%, transparent); border-radius: 8px; font-size: 1.06em; }
+.viewer-summary[data-theme="paper"] .research-presented-blocks > .research-emphasis { border-left-color: #b5651d; background: #efe3cf; }
+.research-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; }
+body.studio-shell .research-evidence-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+body.studio-shell .researcher-more { padding: 0 8px 6px; font-size: 11px; }
+body.studio-shell .researcher-links { display: flex; justify-content: space-between; align-items: center; gap: 12px; opacity: 0; }
+body.studio-shell .researcher-card:hover .researcher-links,
+body.studio-shell .researcher-card:focus-within .researcher-links { opacity: 1; }
+body.studio-shell .researcher-full { color: inherit; text-decoration: none; }
+@media (hover: none) { body.studio-shell .researcher-links { opacity: 1; } }
+
+/* The Researchers tab: a card per researcher of today (researcher-cards.ts), the shelf's chips grown into cards on the
+   strip; the shelf itself floats above the dock's tabs (studio-shell.css "The shelf"). */
+body.studio-shell .tray .researcher-cards { position: static; inset: auto; display: flex; gap: 8px; height: 100%; max-width: none; padding: 8px 10px; margin: 0; overflow-x: auto; overflow-y: hidden; background: none; align-items: stretch; }
+body.studio-shell .tray[data-size='expanded'] .researcher-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); gap: 8px; height: auto; overflow: visible; padding: 14px 18px 18px; align-items: stretch; }
+body.studio-shell .tray[data-size='expanded'] .researcher-card { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 10px 10px 10px; }
+body.studio-shell .tray[data-size='expanded'] .researcher-card-main { max-width: none; }
+body.studio-shell .tray[data-size='expanded'] .researcher-more { flex-wrap: wrap; row-gap: 4px; padding: 0 0 0 51px; }
+body.studio-shell .tray[data-size='expanded'] .researcher-elsewhere { grid-column: 1 / -1; justify-self: start; padding: 6px 2px 0; }
+body.studio-shell .tray .researcher-card {
+  position: relative; display: flex; align-items: center; gap: 8px; flex: none; padding: 6px 8px 6px 7px; border: 0; border-radius: 10px; background: rgb(255 255 255 / 4%);
+}
+body.studio-shell .tray .researcher-card-main { display: flex; align-items: center; gap: 11px; height: 100%; padding: 0 4px 0 0; border: 0; background: none; color: var(--mm-text); text-align: left; max-width: 22rem; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; border-radius: 0; }
+body.studio-shell .tray .researcher-thumb { width: 44px; height: 44px; border-radius: var(--mm-r-control); background-size: cover; background-repeat: no-repeat; background-position: center; flex: none; position: relative; box-shadow: inset 0 0 0 0.5px rgb(255 255 255 / 14%); }
+body.studio-shell .tray .researcher-card[data-fresh] .researcher-thumb { box-shadow: 0 0 0 2.5px var(--mm-green); }
+body.studio-shell .tray .researcher-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+body.studio-shell .tray .researcher-title { font: 500 12.5px/1.2 var(--mm-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--mm-text); }
+body.studio-shell .tray .researcher-status { font-size: var(--mm-11); color: var(--mm-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.studio-shell .tray .researcher-card:is([data-status='running'], [data-status='revising'], [data-status='starting']) .researcher-status { color: var(--mm-accent); }
+body.studio-shell .tray .researcher-card[data-asking] .researcher-status { color: var(--mm-iodine); }
+body.studio-shell .tray .researcher-card[data-fresh] .researcher-status { color: var(--mm-green); }
+body.studio-shell .tray .researcher-card[data-status='partial'] .researcher-status { color: var(--mm-iodine); }
+body.studio-shell .researcher-more { display: flex; align-items: center; gap: 4px; padding-right: 18px; }
+body.studio-shell .research-evidence-actions { display: inline-flex; gap: 4px; }
+body.studio-shell .tray .researcher-more :is(button, a) { height: 26px; padding: 0 10px; font-size: var(--mm-12); }
+body.studio-shell .tray .researcher-more .researcher-full { color: var(--mm-accent); background: none; }
+body.studio-shell .tray .researcher-more .researcher-stop { background: none; color: var(--mm-text-2); }
+body.studio-shell .tray .researcher-more .researcher-stop:hover { background: var(--mm-hover); color: var(--mm-text); }
+body.studio-shell .researcher-links { display: inline-flex; align-items: center; gap: 2px; }
+body.studio-shell .tray:not([data-size='expanded']) .researcher-card:is(:hover, :focus-within) { background: #27272b; }
+/* In the strip the links take the status line's place on hover or focus, so the title stays readable. */
+body.studio-shell .tray:not([data-size='expanded']) .researcher-links {
+  position: absolute; left: 60px; right: 22px; bottom: 7px; justify-content: flex-start; opacity: 0; pointer-events: none;
+  background: #27272b; transition: opacity var(--mm-fast) var(--mm-ease);
+}
+body.studio-shell .tray:not([data-size='expanded']) .researcher-links :is(a, button) { height: 20px; padding: 0 6px; margin-left: -6px; margin-right: 6px; border-radius: 5px; font-size: var(--mm-11); }
+body.studio-shell .tray:not([data-size='expanded']) .researcher-card:is(:hover, :focus-within) .researcher-links { opacity: 1; pointer-events: auto; }
+body.studio-shell .tray:not([data-size='expanded']) .researcher-more:not(:has(.research-evidence-actions)) { padding: 0; }
+body.studio-shell .tray .researcher-more button.mm-primary { background: var(--mm-iodine); color: #1d1404; }
+body.studio-shell .tray .researcher-more button.mm-primary:hover { background: #f6c25c; }
+/* Researchers still working in another session: a quiet heading before their cards. */
+body.studio-shell .tray .researcher-elsewhere { flex: none; align-self: center; margin: 0; padding: 0 8px; font: 600 var(--mm-11)/1.2 var(--mm-sans); color: var(--mm-text-3); white-space: nowrap; }
+
+
+body.studio-shell .tray .research-evidence-actions { margin-top: 0; }
+body.studio-shell .tray[data-size="expanded"] .researcher-links { opacity: 1; pointer-events: auto; }
+
+.research-capture { padding-block: var(--space-4, 16px); border-top: 1px solid var(--edge); }
+.research-capture-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
+.research-capture-controls select { min-width: 0; max-width: 100%; }
+.research-capture pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.research-capture details { margin-block: 12px; }
+.research-capture-preview { margin: 12px 0; }
+.research-capture-preview img { display: block; width: 100%; max-height: 200px; object-fit: contain; background: var(--surface); border-radius: var(--radius-2, 8px); }
+.research-capture-preview figcaption { color: var(--muted); font-size: 12px; margin-top: 6px; }
+/* A research page's own theme, the presentation's choice (presentation.ts applyStyle; paper when none was chosen): the
+   artifact's colours, never the interface's, the same in the app's dark and light. The researcher Tab's page
+   (workspace-feel.css) and the Study's write-up draw with these. */
+.page[data-theme] { --s-bg: #f5f1e8; --s-title: #3a2f1c; --s-body: #222018; --s-muted: #8a8170; --s-link: #8a4b00; --s-line: rgb(138 129 112 / 35%); --s-tint: #ebe4d4; --s-alive: rgb(209 140 12 / 16%); --s-mat: #000000; --s-frame: #ffffff; }
+.page[data-theme='graphite'] { --s-bg: #1c1c20; --s-title: #ededf0; --s-body: #b3b3bc; --s-muted: #8a8a93; --s-link: #ededf0; --s-line: rgb(255 255 255 / 14%); --s-tint: #26262b; --s-alive: rgb(255 210 138 / 16%); }
+.page[data-theme='contrast'] { --s-bg: #000000; --s-title: #ffffff; --s-body: #ffffff; --s-muted: #a7a7b0; --s-link: #ffffff; --s-line: rgb(255 255 255 / 30%); --s-tint: #111111; --s-alive: rgb(255 210 138 / 16%); }
+.page[data-theme='accent'] { --s-bg: #1a2233; --s-title: #79adff; --s-body: #c9d3e6; --s-muted: #8f9bb3; --s-link: #9cc3ff; --s-line: rgb(121 173 255 / 25%); --s-tint: #222c40; --s-alive: rgb(255 210 138 / 16%); }

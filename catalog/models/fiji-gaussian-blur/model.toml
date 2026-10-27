@@ -1,0 +1,45 @@
+# A Fiji function as a folder (ADR 0024; orchestrator/fiji_runner.py): ImageJ's own Gaussian Blur, run headless in the
+# managed Fiji and proven identical to the same command run as an ImageJ macro, at sigma 0.5, 2 and 20. No app code
+# names it.
+requires = { catalog = 2 }
+id = "fiji-gaussian-blur"
+name = "Gaussian Blur (Fiji)"
+runs = "this-mac"
+version = "1"
+licence = ["fiji"]
+kind = "tool-function"
+what = "Smooths the view with ImageJ's Gaussian Blur"
+description = "ImageJ's Process > Filters > Gaussian Blur on the picture, each colour channel on its own, the radius in pixels. The result is a smoothed picture made by Fiji, never the camera's view."
+runner = "fiji"
+source = { tool = "fiji", url = "https://imagej.net/ij/docs/menus/process.html#gaussian" }
+needs_to_run = ["install:fiji-gaussian-blur"]
+credit = { authors = "Wayne Rasband and ImageJ contributors (ImageJ 1.x)", link = "https://imagej.net/ij/" }
+category = "Clearer picture"
+search_aliases = ["smooth", "blur", "denoise", "gaussian filter"]
+tags = ["filter", "smoothing"]
+tests = [{ input = "example-synthetic-texture.png", params = { sigma = 3.0 }, outcome = "result" }]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "sigma"
+type = "number"
+default = 2.0
+min = 0.5
+max = 20.0
+step = 0.5
+unit = "px"
+label = "Sigma (radius)"
+tooltip = "How far the smoothing reaches: the Gaussian's standard deviation, in pixels"
+
+[[outputs]]
+id = "blurred"
+type = "image.2d.rgb8"
+label = "Blurred picture"
+
+[fiji]
+command = "Gaussian Blur..."
+options = "sigma={sigma}"

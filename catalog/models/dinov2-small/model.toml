@@ -1,0 +1,28 @@
+id = "dinov2-small"
+name = "DINOv2 small"
+runs = "this-mac"
+version = "facebook/dinov2-small"
+licence = ["dinov2-small"]
+kind = "model"
+what = "Turns a picture into numbers that compare how things look"
+runner = "gpu-worker"
+source = { hf = "facebook/dinov2-small", revision = "ed25f3a31f01632728cabb09d1542f84ab7b0056" }
+files = [
+  { path = "config.json", bytes = 547, git_sha1 = "5664b325e6258d3960fad8c4c1cff958f3cc2272" },
+  { path = "model.safetensors", bytes = 88249960, sha256 = "ae1e99fcefd534ed978cdeb8326f08030c96e28b7a81ffcbc98a857c84d14be1" },
+  { path = "preprocessor_config.json", bytes = 436, git_sha1 = "ff5b47c2edcd1d3556d63c01a65d93b58b9efce1" },
+]
+needs_to_get = ["download"]
+needs_to_run = []
+credit = { authors = "Meta AI", link = "https://huggingface.co/facebook/dinov2-small" }
+workers = ["analysis"]
+host = "shared"
+documented_mb = 400
+peak_mb = 400
+load_limit_s = 300
+
+[[implements]]
+operation = "looks"
+impl = "dinov2-small"
+input = "image.2d.rgb8"
+output = "vectors"

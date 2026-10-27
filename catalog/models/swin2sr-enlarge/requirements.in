@@ -1,0 +1,6 @@
+# Swin2SR enlarge: what adapter.py imports (torch and transformers as the reviewed hf-segmentation template pins them).
+torch==2.14.1
+transformers>=5,<6
+safetensors
+numpy
+pillow

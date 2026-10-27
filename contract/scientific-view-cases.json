@@ -1,0 +1,1723 @@
+{
+  "valid": {
+    "format": "scientific-host-v1",
+    "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "width": 32,
+    "height": 24,
+    "pixelRatio": 1,
+    "derivedDisplay": true,
+    "privatePreview": true,
+    "dirty": false,
+    "layers": [
+      {
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "name": "Intensity",
+        "type": "image",
+        "visible": true,
+        "opacity": 1,
+        "scale": [
+          2,
+          1,
+          1
+        ],
+        "translate": [
+          4,
+          0,
+          0
+        ]
+      }
+    ],
+    "dimensions": {
+      "order": [
+        2,
+        0,
+        1
+      ],
+      "displayed": [
+        0,
+        1
+      ],
+      "ndisplay": 2,
+      "steps": [
+        1,
+        2,
+        3
+      ],
+      "counts": [
+        5,
+        7,
+        9
+      ],
+      "labels": [
+        "z",
+        "y",
+        "x"
+      ],
+      "point": [
+        1,
+        2,
+        3
+      ],
+      "ranges": [
+        [
+          0,
+          4,
+          1
+        ],
+        [
+          0,
+          6,
+          1
+        ],
+        [
+          0,
+          8,
+          1
+        ]
+      ]
+    },
+    "camera": {
+      "center": [
+        0,
+        1,
+        2
+      ],
+      "zoom": 1,
+      "angles": [
+        0,
+        0,
+        90
+      ],
+      "perspective": 0,
+      "orientation": [
+        "towards",
+        "down",
+        "right"
+      ]
+    },
+    "controls": {
+      "format": "scientific-controls-v1",
+      "panel": "cccccccccccccccccccccccccccccccc",
+      "revision": 1,
+      "controls": [
+        {
+          "id": "dddddddddddddddddddddddddddddddd",
+          "label": "Opacity",
+          "help": "How strongly to show this layer",
+          "enabled": true,
+          "visible": true,
+          "kind": "number",
+          "value": 1,
+          "min": 0,
+          "max": 1,
+          "step": null
+        },
+        {
+          "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "label": "Channel",
+          "help": "",
+          "enabled": true,
+          "visible": true,
+          "kind": "choice",
+          "value": "ffffffffffffffffffffffffffffffff",
+          "choices": [
+            {
+              "id": "ffffffffffffffffffffffffffffffff",
+              "label": "DNA"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "invalid": [
+    {
+      "name": "unknown frame fields",
+      "path": [
+        "actor"
+      ],
+      "value": "human"
+    },
+    {
+      "name": "boolean width",
+      "path": [
+        "width"
+      ],
+      "value": true
+    },
+    {
+      "name": "oversized image",
+      "path": [
+        "width"
+      ],
+      "value": 1025
+    },
+    {
+      "name": "private proof cannot become accepted",
+      "path": [
+        "privatePreview"
+      ],
+      "value": false
+    },
+    {
+      "name": "display is not raw data",
+      "path": [
+        "derivedDisplay"
+      ],
+      "value": false
+    },
+    {
+      "name": "duplicate axes",
+      "path": [
+        "dimensions",
+        "order"
+      ],
+      "value": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "name": "boolean axis",
+      "path": [
+        "dimensions",
+        "order"
+      ],
+      "value": [
+        false,
+        2,
+        1
+      ]
+    },
+    {
+      "name": "displayed order mismatch",
+      "path": [
+        "dimensions",
+        "displayed"
+      ],
+      "value": [
+        1,
+        0
+      ]
+    },
+    {
+      "name": "display count mismatch",
+      "path": [
+        "dimensions",
+        "ndisplay"
+      ],
+      "value": 3
+    },
+    {
+      "name": "fractional step",
+      "path": [
+        "dimensions",
+        "steps"
+      ],
+      "value": [
+        1,
+        2,
+        0.5
+      ]
+    },
+    {
+      "name": "outside data",
+      "path": [
+        "dimensions",
+        "steps"
+      ],
+      "value": [
+        5,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "empty dimension",
+      "path": [
+        "dimensions",
+        "counts"
+      ],
+      "value": [
+        0,
+        7,
+        9
+      ]
+    },
+    {
+      "name": "wrong axis names",
+      "path": [
+        "dimensions",
+        "labels"
+      ],
+      "value": [
+        "y",
+        "x"
+      ]
+    },
+    {
+      "name": "too many dimensions",
+      "path": [
+        "dimensions",
+        "order"
+      ],
+      "value": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    {
+      "name": "zero zoom",
+      "path": [
+        "camera",
+        "zoom"
+      ],
+      "value": 0
+    },
+    {
+      "name": "boolean coordinate",
+      "path": [
+        "camera",
+        "center"
+      ],
+      "value": [
+        false,
+        1,
+        2
+      ]
+    },
+    {
+      "name": "impossible projection",
+      "path": [
+        "camera",
+        "perspective"
+      ],
+      "value": 180
+    },
+    {
+      "name": "wrong orientation axis",
+      "path": [
+        "camera",
+        "orientation"
+      ],
+      "value": [
+        "up",
+        "towards",
+        "right"
+      ]
+    },
+    {
+      "name": "hidden camera authority",
+      "path": [
+        "camera",
+        "editable"
+      ],
+      "value": true
+    },
+    {
+      "name": "mismatched transform",
+      "path": [
+        "layers",
+        "0",
+        "translate"
+      ],
+      "value": [
+        0,
+        0
+      ]
+    },
+    {
+      "name": "unknown layer type",
+      "path": [
+        "layers",
+        "0",
+        "type"
+      ],
+      "value": "arbitrary"
+    },
+    {
+      "name": "negative opacity",
+      "path": [
+        "layers",
+        "0",
+        "opacity"
+      ],
+      "value": -0.1
+    },
+    {
+      "name": "duplicate layer identity",
+      "path": [
+        "layers"
+      ],
+      "value": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ]
+        },
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unbounded name",
+      "path": [
+        "layers",
+        "0",
+        "name"
+      ],
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "unknown panel field",
+      "path": [
+        "controls",
+        "callback"
+      ],
+      "value": "eval"
+    },
+    {
+      "name": "zero panel revision",
+      "path": [
+        "controls",
+        "revision"
+      ],
+      "value": 0
+    },
+    {
+      "name": "control outside bounds",
+      "path": [
+        "controls",
+        "controls",
+        "0",
+        "value"
+      ],
+      "value": 2
+    },
+    {
+      "name": "nonpositive step",
+      "path": [
+        "controls",
+        "controls",
+        "0",
+        "step"
+      ],
+      "value": 0
+    },
+    {
+      "name": "unknown choice",
+      "path": [
+        "controls",
+        "controls",
+        "1",
+        "value"
+      ],
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "duplicate choices",
+      "path": [
+        "controls",
+        "controls",
+        "1",
+        "choices"
+      ],
+      "value": [
+        {
+          "id": "ffffffffffffffffffffffffffffffff",
+          "label": "DNA"
+        },
+        {
+          "id": "ffffffffffffffffffffffffffffffff",
+          "label": "RNA"
+        }
+      ]
+    },
+    {
+      "name": "duplicate controls",
+      "path": [
+        "controls",
+        "controls"
+      ],
+      "value": [
+        {
+          "id": "dddddddddddddddddddddddddddddddd",
+          "label": "Opacity",
+          "help": "How strongly to show this layer",
+          "enabled": true,
+          "visible": true,
+          "kind": "number",
+          "value": 1,
+          "min": 0,
+          "max": 1,
+          "step": null
+        },
+        {
+          "id": "dddddddddddddddddddddddddddddddd",
+          "label": "Opacity",
+          "help": "How strongly to show this layer",
+          "enabled": true,
+          "visible": true,
+          "kind": "number",
+          "value": 1,
+          "min": 0,
+          "max": 1,
+          "step": null
+        }
+      ]
+    },
+    {
+      "name": "executable control field",
+      "path": [
+        "controls",
+        "controls",
+        "0",
+        "callback"
+      ],
+      "value": "eval"
+    },
+    {
+      "name": "wrong boolean",
+      "path": [
+        "controls",
+        "controls",
+        "0",
+        "enabled"
+      ],
+      "value": 1
+    },
+    {
+      "name": "world point outside extent",
+      "path": [
+        "dimensions",
+        "point"
+      ],
+      "value": [
+        5,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "zero spacing",
+      "path": [
+        "dimensions",
+        "ranges",
+        "0"
+      ],
+      "value": [
+        0,
+        4,
+        0
+      ]
+    },
+    {
+      "name": "counts disagree with world range",
+      "path": [
+        "dimensions",
+        "counts"
+      ],
+      "value": [
+        6,
+        7,
+        9
+      ]
+    },
+    {
+      "name": "invalid editable input ",
+      "path": [
+        "layers",
+        0,
+        "editableInput"
+      ],
+      "value": ""
+    },
+    {
+      "name": "invalid editable input False",
+      "path": [
+        "layers",
+        0,
+        "editableInput"
+      ],
+      "value": false
+    },
+    {
+      "name": "invalid editable input ../unrelated",
+      "path": [
+        "layers",
+        0,
+        "editableInput"
+      ],
+      "value": "../unrelated"
+    },
+    {
+      "name": "invalid editable input aaaaaaaaaaaaaaaaaaaa",
+      "path": [
+        "layers",
+        0,
+        "editableInput"
+      ],
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "duplicate editable input",
+      "path": [
+        "layers"
+      ],
+      "value": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "editableInput": "volume"
+        },
+        {
+          "id": "cccccccccccccccccccccccccccccccc",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "editableInput": "volume"
+        }
+      ]
+    },
+    {
+      "name": "empty logical key",
+      "path": [
+        "layers",
+        0,
+        "viewKey"
+      ],
+      "value": ""
+    },
+    {
+      "name": "oversized logical key",
+      "path": [
+        "layers",
+        0,
+        "viewKey"
+      ],
+      "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "path is not a logical key",
+      "path": [
+        "layers",
+        0,
+        "viewKey"
+      ],
+      "value": "../raw"
+    },
+    {
+      "name": "non-string logical key",
+      "path": [
+        "layers",
+        0,
+        "viewKey"
+      ],
+      "value": 7
+    },
+    {
+      "name": "duplicate logical view keys",
+      "path": [
+        "layers"
+      ],
+      "value": [
+        {
+          "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "viewKey": "raw-volume",
+          "viewGeometry": {
+            "affine": [
+              [
+                2,
+                0,
+                0,
+                4
+              ],
+              [
+                0,
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                1
+              ]
+            ],
+            "axes": [
+              "axis-0",
+              "axis-1",
+              "axis-2"
+            ],
+            "units": [
+              "pixel",
+              "pixel",
+              "pixel"
+            ]
+          }
+        },
+        {
+          "id": "11111111111111111111111111111111",
+          "name": "Intensity",
+          "type": "image",
+          "visible": true,
+          "opacity": 1,
+          "scale": [
+            2,
+            1,
+            1
+          ],
+          "translate": [
+            4,
+            0,
+            0
+          ],
+          "viewKey": "raw-volume",
+          "viewGeometry": {
+            "affine": [
+              [
+                2,
+                0,
+                0,
+                4
+              ],
+              [
+                0,
+                1,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                0,
+                0,
+                1
+              ]
+            ],
+            "axes": [
+              "axis-0",
+              "axis-1",
+              "axis-2"
+            ],
+            "units": [
+              "pixel",
+              "pixel",
+              "pixel"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "keyboard axis outside the dimensions",
+      "path": [
+        "dimensions",
+        "lastUsed"
+      ],
+      "value": 3
+    },
+    {
+      "name": "fractional keyboard axis",
+      "path": [
+        "dimensions",
+        "lastUsed"
+      ],
+      "value": 1.5
+    },
+    {
+      "name": "rollable flags for other dimensions",
+      "path": [
+        "dimensions",
+        "rollable"
+      ],
+      "value": [
+        true,
+        true
+      ]
+    },
+    {
+      "name": "rollable flag that is not boolean",
+      "path": [
+        "dimensions",
+        "rollable"
+      ],
+      "value": [
+        true,
+        1,
+        true
+      ]
+    },
+    {
+      "name": "units for other dimensions",
+      "path": [
+        "dimensions",
+        "units"
+      ],
+      "value": [
+        "second"
+      ]
+    },
+    {
+      "name": "unit that is not text",
+      "path": [
+        "dimensions",
+        "units"
+      ],
+      "value": [
+        "second",
+        3,
+        "pixel"
+      ]
+    }
+  ],
+  "otherValid": [
+    {
+      "name": "fractional world extent and round-to-even steps",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ]
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            10,
+            2,
+            4
+          ],
+          "counts": [
+            10,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            9.6,
+            2.5,
+            3.5
+          ],
+          "ranges": [
+            [
+              0,
+              9.6,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "integral JSON numbers",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32.0,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ]
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            1,
+            2,
+            3
+          ],
+          "counts": [
+            5,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              4,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1.0,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "explicit editable native input",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ],
+            "editableInput": "volume"
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            1,
+            2,
+            3
+          ],
+          "counts": [
+            5,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              4,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "explicit logical view layer identity",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ],
+            "viewKey": "raw-volume",
+            "viewGeometry": {
+              "affine": [
+                [
+                  2,
+                  0,
+                  0,
+                  4
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  0,
+                  0,
+                  1
+                ]
+              ],
+              "axes": [
+                "axis-0",
+                "axis-1",
+                "axis-2"
+              ],
+              "units": [
+                "pixel",
+                "pixel",
+                "pixel"
+              ]
+            }
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            1,
+            2,
+            3
+          ],
+          "counts": [
+            5,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              4,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "keyboard axis, rollable flags and axis units",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ]
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            1,
+            2,
+            3
+          ],
+          "counts": [
+            5,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              4,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ],
+          "lastUsed": 2,
+          "rollable": [
+            true,
+            false,
+            true
+          ],
+          "units": [
+            "second",
+            "micrometer",
+            "micrometer"
+          ]
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "axes without units",
+      "value": {
+        "format": "scientific-host-v1",
+        "frame": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "width": 32,
+        "height": 24,
+        "pixelRatio": 1,
+        "derivedDisplay": true,
+        "privatePreview": true,
+        "dirty": false,
+        "layers": [
+          {
+            "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "name": "Intensity",
+            "type": "image",
+            "visible": true,
+            "opacity": 1,
+            "scale": [
+              2,
+              1,
+              1
+            ],
+            "translate": [
+              4,
+              0,
+              0
+            ]
+          }
+        ],
+        "dimensions": {
+          "order": [
+            2,
+            0,
+            1
+          ],
+          "displayed": [
+            0,
+            1
+          ],
+          "ndisplay": 2,
+          "steps": [
+            1,
+            2,
+            3
+          ],
+          "counts": [
+            5,
+            7,
+            9
+          ],
+          "labels": [
+            "z",
+            "y",
+            "x"
+          ],
+          "point": [
+            1,
+            2,
+            3
+          ],
+          "ranges": [
+            [
+              0,
+              4,
+              1
+            ],
+            [
+              0,
+              6,
+              1
+            ],
+            [
+              0,
+              8,
+              1
+            ]
+          ],
+          "lastUsed": 0,
+          "rollable": [
+            true,
+            true,
+            true
+          ],
+          "units": null
+        },
+        "camera": {
+          "center": [
+            0,
+            1,
+            2
+          ],
+          "zoom": 1,
+          "angles": [
+            0,
+            0,
+            90
+          ],
+          "perspective": 0,
+          "orientation": [
+            "towards",
+            "down",
+            "right"
+          ]
+        },
+        "controls": {
+          "format": "scientific-controls-v1",
+          "panel": "cccccccccccccccccccccccccccccccc",
+          "revision": 1,
+          "controls": [
+            {
+              "id": "dddddddddddddddddddddddddddddddd",
+              "label": "Opacity",
+              "help": "How strongly to show this layer",
+              "enabled": true,
+              "visible": true,
+              "kind": "number",
+              "value": 1,
+              "min": 0,
+              "max": 1,
+              "step": null
+            },
+            {
+              "id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+              "label": "Channel",
+              "help": "",
+              "enabled": true,
+              "visible": true,
+              "kind": "choice",
+              "value": "ffffffffffffffffffffffffffffffff",
+              "choices": [
+                {
+                  "id": "ffffffffffffffffffffffffffffffff",
+                  "label": "DNA"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

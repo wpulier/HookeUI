@@ -1,0 +1,28 @@
+.datatable-view{display:flex;flex-direction:column;min-width:0;min-height:0;height:100%;gap:.6rem;padding:1rem;box-sizing:border-box;color:var(--text,#dedee5)}
+.datatable-view h2,.datatable-view p{margin:0}.datatable-toolbar,.datatable-controls,.datatable-pager{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}.datatable-controls{max-height:11rem;overflow:auto}.datatable-view button,.datatable-view input,.datatable-view select{font:inherit;color:inherit;background:var(--panel,#20212a);border:1px solid var(--line,#494956);border-radius:5px;padding:.35rem .5rem}.datatable-view button:disabled{opacity:.45}.datatable-view :focus-visible{outline:2px solid #aaaaff;outline-offset:2px}.datatable-freshness{font-size:.85rem}.datatable-note{flex-basis:100%;font-size:.85rem;color:var(--muted,#a9a9b7)}.datatable-viewport{flex:1;min-height:8rem;overflow:auto}.datatable-view table{border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%}.datatable-view th{position:sticky;top:0;background:var(--panel,#20212a);z-index:1}.datatable-view th,.datatable-view td{text-align:left;border-bottom:1px solid var(--line,#494956);padding:.4rem .6rem;white-space:nowrap}.datatable-view td input{max-width:12rem}.datatable-view tr[aria-selected=true]{background:#aaaaff20}.datatable-excluded{opacity:.65}.datatable-pager{justify-content:center}
+
+/* 2026-10-23 pass: the rows first. One toolbar line (freshness chip, Analyze, Graph, More), filtering and editing as two
+   disclosures, numbers right-aligned in tabular figures. */
+.datatable-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.datatable-freshness { border-radius: 999px; padding: 3px 10px; font-size: 12px; border: 1px solid var(--mm-line-strong, rgb(255 255 255 / 12%)); background: transparent; color: var(--mm-text-2, #a6a6ae); cursor: pointer; }
+.datatable-freshness[data-state='current']::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--mm-green, #34c77b); vertical-align: 1px; }
+.datatable-freshness[data-state='stale'] { color: var(--mm-iodine, #f2b33d); border-color: color-mix(in srgb, var(--mm-iodine, #f2b33d) 45%, transparent); }
+.datatable-more { position: relative; }
+.datatable-more > summary { list-style: none; cursor: pointer; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--mm-control-edge, rgb(255 255 255 / 9%)); background: var(--mm-control, rgb(255 255 255 / 7%)); font-size: 13px; }
+.datatable-more > summary::-webkit-details-marker { display: none; }
+.datatable-more > summary::after { content: " ▾"; color: var(--mm-text-3, #97979f); }
+.datatable-more[open] > .datatable-more-items { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; min-width: 220px; display: grid; gap: 2px; padding: 6px; border-radius: 10px; background: var(--mm-panel-solid, #27272c); box-shadow: var(--mm-panel-shadow, 0 18px 44px rgb(0 0 0 / 42%)); }
+.datatable-more-items > button { text-align: left; border: 0; background: transparent; padding: 6px 10px; border-radius: 6px; }
+.datatable-more-items > button:hover:not(:disabled) { background: var(--mm-control, rgb(255 255 255 / 7%)); }
+.datatable-controls { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.datatable-tools > summary { cursor: pointer; font-size: 12px; color: var(--mm-text-2, #a6a6ae); }
+.datatable-tools[open] { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 0; }
+.datatable-tools[open] > summary { flex-basis: 100%; }
+.datatable-view td.datatable-number { text-align: right; font-variant-numeric: tabular-nums; }
+.datatable-view th.datatable-number { text-align: right; }
+/* The window header already names the table; status sits on the toolbar line; the chip is a status, not a button. */
+.study-artifact .datatable-view > h2 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.datatable-view .datatable-toolbar > [role='status'] { margin-right: 6px; font-size: 12px; color: var(--mm-text-2, #a6a6ae); }
+.datatable-view .datatable-freshness { border-radius: 999px; padding: 2px 10px; background: transparent; font-size: 12px; }
+.datatable-view th, .datatable-view td { padding: 4px 8px; }
+.datatable-view td input[type='checkbox'] { padding: 0; margin: 0; }

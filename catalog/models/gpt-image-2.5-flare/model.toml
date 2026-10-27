@@ -1,0 +1,12 @@
+id = "gpt-image-2.5-flare"
+name = "GPT Image 2.5 Flare"
+runs = "cloud"
+version = "gpt-image-2.5-flare"
+licence = ["openai-api"]
+kind = "cloud-model"
+what = "Makes and labels pictures for researchers"
+runner = "cloud"
+service = "openai"
+source = { url = "https://platform.openai.com/docs/models" }
+needs_to_run = ["key:OPENAI_API_KEY"]
+credit = { authors = "OpenAI", link = "https://platform.openai.com/docs/models" }

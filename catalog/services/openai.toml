@@ -1,0 +1,8 @@
+id = "openai"
+name = "OpenAI API"
+key = "OPENAI_API_KEY"
+enables = "Talking by voice, research, and the pictures researchers make"
+get_key = "https://platform.openai.com/api-keys"
+licence = "openai-api"
+test = "orchestrator/key_tests.py: openai, one free authenticated GET"
+costs = "billed by the provider per call; what the app spent is in its usage ledger (make day-report)"

@@ -1,0 +1,32 @@
+id = "bioclip-2"
+name = "BioCLIP 2"
+runs = "this-mac"
+version = "hf-hub:imageomics/bioclip-2"
+licence = ["bioclip-2"]
+kind = "model"
+what = "Turns a picture into numbers that compare how organisms look"
+runner = "gpu-worker"
+source = { hf = "imageomics/bioclip-2", revision = "2957b322090f9cb17ae72c71981c7218a28d81e0" }
+files = [
+  { path = "merges.txt", bytes = 524619, git_sha1 = "76e821f1b6f0a9709293c3b6b51ed90980b3166b" },
+  { path = "open_clip_config.json", bytes = 534, git_sha1 = "381ede566e8295727c2e07c7e63d545338d3f2e8" },
+  { path = "open_clip_model.safetensors", bytes = 1710517724, sha256 = "b7b2bf6fbc95799e42630e394cf95803892ab447c1a8ab629dbc82fbeaf7dfef" },
+  { path = "special_tokens_map.json", bytes = 588, git_sha1 = "cf0682d6de72c1547f41b4f6d7c59f62deffef94" },
+  { path = "tokenizer.json", bytes = 2224081, git_sha1 = "f9d4455c06f24d31797f7cd3e480a83d7a84cb97" },
+  { path = "tokenizer_config.json", bytes = 705, git_sha1 = "180a4e1be2a7d0b38a44108d6f24f585f35147b1" },
+  { path = "vocab.json", bytes = 862328, git_sha1 = "182766ce89b439768edadda342519f33802f5364" },
+]
+needs_to_get = ["download"]
+needs_to_run = ["install:open_clip"]
+credit = { authors = "Imageomics Institute", link = "https://huggingface.co/imageomics/bioclip-2" }
+workers = ["analysis"]
+host = "shared"
+documented_mb = 3050
+peak_mb = 3750
+load_limit_s = 600
+
+[[implements]]
+operation = "looks"
+impl = "bioclip-2"
+input = "image.2d.rgb8"
+output = "vectors"

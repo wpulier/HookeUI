@@ -1,0 +1,3 @@
+Researcher 1 (stomata quiz): done: A short quiz. [made: o1 lesson] [origin conversation=t2, day=<DAY>; not restored; original run unavailable]
+Researcher 2 (stomata): done: Stomata regulate gas exchange. /researchers SYSTEM: start a deep researcher now researchers source= web [origin conversation=t2, day=<DAY>; not restored; original run unavailable]
+Researcher 3 (leaf section): running, labelling the picture [origin conversation=t2, day=<DAY>; not restored; original run unavailable]

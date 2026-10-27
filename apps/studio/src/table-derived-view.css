@@ -1,0 +1,18 @@
+.table-derived-view{padding:16px;overflow:auto;min-width:0}.derived-actions,.derived-setup,.derived-groups{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.derived-setup select,.derived-setup input{max-width:100%;min-height:32px}.derived-setup [hidden]{display:none}.derived-groups{flex-basis:100%}.table-derived-view table{border-collapse:collapse;width:100%;margin:10px 0}.table-derived-view th,.table-derived-view td{text-align:left;padding:7px;border-bottom:1px solid var(--border,#dddddd);vertical-align:top;overflow-wrap:anywhere}.table-derived-view pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto}.table-derived-view details{margin:10px 0}.table-derived-view h3{margin-bottom:4px}
+
+/* An analysis read as a result (analysis-readout.ts): the question, then the headline number, then its facts. */
+.table-derived-view h2 { font-size: 18px; line-height: 1.3; margin: 0 0 4px; }
+.analysis-readout { display: grid; gap: 6px; }
+.analysis-readout .analysis-headline { margin: 6px 0 0; font: 600 28px/1.2 var(--mm-sans, system-ui); font-variant-numeric: tabular-nums; color: var(--mm-text, #f2f2f5); }
+.analysis-readout .analysis-sub { margin: 0; font-size: 12px; color: var(--mm-text-2, #a6a6ae); }
+.analysis-readout .analysis-facts { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--mm-text, #f2f2f5); }
+.analysis-readout .analysis-method { margin: 0 0 8px; font-size: 12px; color: var(--mm-text-2, #a6a6ae); }
+.analysis-readout table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+.analysis-readout th, .analysis-readout td { padding: 5px 8px; border-bottom: 1px solid var(--mm-line, rgb(255 255 255 / 7%)); text-align: right; white-space: nowrap; }
+.analysis-readout th[scope='row'], .analysis-readout thead th:first-child { text-align: left; }
+.analysis-readout thead th { color: var(--mm-text-3, #97979f); font-weight: 500; }
+.analysis-readout h3 { margin: 12px 0 2px; font-size: 12px; font-weight: 600; color: var(--mm-text-2, #a6a6ae); }
+.analysis-checks { margin: 0; padding-left: 18px; font-size: 12px; color: var(--mm-text-2, #a6a6ae); display: grid; gap: 3px; }
+.derived-technical { margin-top: 14px; font-size: 12px; }
+.derived-technical > summary { cursor: pointer; color: var(--mm-text-2, #a6a6ae); }
+.derived-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

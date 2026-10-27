@@ -1,0 +1,503 @@
+/* The workspace's calm pass (Will, 2026-10-22: "feel, design, usability"; follow the product, not the mock).
+   Presentation only, loaded last: the same controls and behaviour, with one button language (quiet by default, one
+   filled primary per panel), underline Tabs, softer edges and the specimen leading. Nothing is hidden or removed. */
+
+body[data-workspace-study='true'] {
+  /* From the theme's own text colour, so the dark, black and light themes all get the same quiet weight. */
+  --calm-fill: color-mix(in srgb, var(--mm-text) 6%, transparent);
+  --calm-fill-hover: color-mix(in srgb, var(--mm-text) 11%, transparent);
+  --calm-edge: color-mix(in srgb, var(--mm-text) 10%, transparent);
+}
+
+/* --- One button language: quiet by default ------------------------------------------------------------------- */
+/* Rows (workspace-feel.css .mm-row), their ⋯, the quiet tabs over a list, Activity's lines and the secondary buttons
+   (an answer beside a primary, an empty place's one action, a card's Show page) keep their own look, and so do Data's
+   filter, its Other fold and a researcher's "Made …" line (`.data-plain`, data-list.css). */
+body[data-workspace-study='true'] :is(.study-drawer-body, .study-data-body, .study-artifact) button:not(.study-primary):not(.mm-primary):not(.action-go):not([role='tab']):not(.workspace-new-tab):not(.workspace-chip):not(.mm-row):not(.mm-row-more):not(.mm-show-all):not(.mm-dtabs > button):not(.activity-panel button):not(.mm-row-question button):not(.mm-drawer-empty > .mm-control):not(.capability-controls-launcher):not(.mm-btn):not(.trow-hit):not(.mm-dtabs > button):not(.study-artifact > header > button):not(.data-plain) {
+  border: 0;
+  background: var(--calm-fill);
+  box-shadow: none;
+  border-radius: 8px;
+  color: var(--mm-text);
+}
+body[data-workspace-study='true'] :is(.study-drawer-body, .study-data-body, .study-artifact) button:not(.study-primary):not(.mm-primary):not(.action-go):not([role='tab']):not(.workspace-new-tab):not(.workspace-chip):not(.mm-row):not(.mm-row-more):not(.mm-show-all):not(.mm-dtabs > button):not(.activity-panel button):not(.mm-row-question button):not(.mm-drawer-empty > .mm-control):not(.capability-controls-launcher):not(.mm-btn):not(.trow-hit):not(.mm-dtabs > button):not(.study-artifact > header > button):not(.data-plain):hover {
+  background: var(--calm-fill-hover);
+}
+
+/* The one primary of a panel: filled. */
+body[data-workspace-study='true'] :is(.study-primary, .mm-primary) {
+  border: 0;
+  border-radius: 8px;
+  background: var(--mm-accent-fill, #2f6fd6);
+  color: #fff;
+  font-weight: 600;
+}
+body[data-workspace-study='true'] :is(.study-primary, .mm-primary):hover { filter: brightness(1.08); }
+
+/* --- Panels: the drawer's ways in, one primary and a quiet list ---------------------------------------------- */
+body[data-workspace-study='true'] .study-drawer-body > button:not(.study-primary) {
+  justify-content: flex-start; text-align: left; font-weight: 500; padding: 10px 12px; min-height: 0;
+}
+body[data-workspace-study='true'] .study-drawer-body > .study-primary { padding: 11px 14px; }
+body[data-workspace-study='true'] .study-panel-header h2 { font-weight: 600; letter-spacing: -.01em; }
+body[data-workspace-study='true'] .study-eyebrow { color: var(--mm-text-3); font-weight: 600; letter-spacing: .06em; }
+
+
+/* --- Windows on the Stage: the picture leads, their tools are light ------------------------------------------ */
+body[data-workspace-study='true'] .study-artifact button { font-size: 12px; padding: 5px 10px; }
+
+
+
+
+
+/* An empty Tab: one primary way back to the picture, the others quiet. */
+body[data-workspace-study='true'] .workspace-view-empty button { border: 0; border-radius: 8px; background: var(--calm-fill); color: var(--mm-text); }
+body[data-workspace-study='true'] .workspace-view-empty button:first-of-type { background: var(--mm-accent-fill, #2f6fd6); color: #fff; font-weight: 600; }
+
+/* The top: a shorter, quieter Project row. Open Projects by name, the current one in bold; rename and close appear
+   on hover (or keyboard focus) and stay on the current one; "Projects ▾" in the same case as everything else. */
+body[data-workspace-study='true'] { --study-top: 48px; }
+body[data-workspace-study='true'] .study-bar { height: 48px; border-bottom: 1px solid var(--calm-edge); }
+body[data-workspace-study='true'] .study-projects-label { text-transform: none; letter-spacing: 0; font: 500 13px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-session-tab,
+body[data-workspace-study='true'] .study-session-tab:has([aria-selected='true']) {
+  border: 0; border-radius: 0; background: transparent; align-self: stretch;
+}
+body[data-workspace-study='true'] .study-session-tab > button[role='tab'] { font: 500 13px var(--mm-sans); color: var(--mm-text-2); padding: 0 6px 0 12px; }
+/* The current Project is a title, not a selected Tab: bold, never the accent underline, which belongs to the Tab row
+   below alone (Will, 2026-10-23: which Tab is selected must never be in doubt). */
+body[data-workspace-study='true'] .study-session-tab > button[aria-selected='true'] { color: var(--mm-text); font-weight: 600; box-shadow: none; }
+body[data-workspace-study='true'] .study-session-tab > button:not([role='tab']) { opacity: 0; transition: opacity .12s; }
+body[data-workspace-study='true'] .study-session-tab:is(:hover, :focus-within, :has([aria-selected='true'])) > button:not([role='tab']) { opacity: 1; }
+body[data-workspace-study='true'] .study-new-tab { color: var(--mm-text-2); background: transparent; border: 0; }
+
+/* The specimen's own bar: a light strip on the picture's edge, its controls quiet until wanted. */
+body[data-workspace-study='true'] .workspace-specimen-bar { background: transparent; height: 30px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .workspace-specimen-bar button { background: transparent; color: var(--mm-text-3); transition: color .12s; }
+body[data-workspace-study='true'] .workspace-specimen:is(:hover, :focus-within) .workspace-specimen-bar button { color: var(--mm-text-2); }
+
+/* A Project's hidden rename/close take no room until shown (it is hovered, focused, or the current one), so names
+   sit evenly and nothing is pushed out of the row. */
+body[data-workspace-study='true'] .study-session-tab > button:not([role='tab']) {
+  max-width: 0; padding-left: 0; padding-right: 0; margin: 0; overflow: hidden; transition: opacity .12s, max-width .12s;
+}
+body[data-workspace-study='true'] .study-session-tab:is(:hover, :focus-within, :has([aria-selected='true'])) > button:not([role='tab']) {
+  max-width: 32px; padding-left: 6px; padding-right: 6px;
+}
+
+/* "In" / "Also in": where a result is, as small Tab-name pills, never mistaken for the card's own actions. */
+body[data-workspace-study='true'] .study-artifact .workspace-also-in button.workspace-chip{
+  font: 500 11px/1.4 var(--mm-sans); padding: 2px 9px; border-radius: 999px; border: 1px solid var(--mm-line); background: transparent; color: var(--mm-text-2);
+}
+body[data-workspace-study='true'] .study-artifact .workspace-also-in button.workspace-chip:hover{ color: var(--mm-text); border-color: var(--mm-accent); }
+
+body[data-workspace-study='true'] .workspace-icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; display: block; }
+
+/* The specimen's bar names it already; "Tab input" said nothing a scientist needs. */
+body[data-workspace-study='true'] .workspace-specimen-synced { display: none; }
+/* The Specimen menu: what is on the Stage, then the ways to change it, then the camera folded to one line. */
+body[data-workspace-study='true'] .phone-choices { display: grid; gap: 6px; margin: 4px 0 2px; }
+body[data-workspace-study='true'] .phone-choices > h3 { margin: 0; }
+body[data-workspace-study='true'] .phone-choice-list { display: grid; gap: 2px; }
+body[data-workspace-study='true'] .phone-choice {
+  display: grid; gap: 1px; text-align: left; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--mm-text); font: 500 13px/1.35 var(--mm-sans); cursor: pointer;
+}
+body[data-workspace-study='true'] .phone-choice:hover { background: var(--calm-fill-hover); }
+body[data-workspace-study='true'] .phone-choice-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-workspace-study='true'] .phone-choice-detail { font-size: 11.5px; font-weight: 400; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .phone-choice[aria-current='true'] { cursor: default; background: var(--calm-fill); opacity: 1; }
+body[data-workspace-study='true'] .phone-choice[aria-current='true'] .phone-choice-detail::after { content: ' · on the Stage'; color: var(--mm-accent); }
+body[data-workspace-study='true'] .phone-camera { border-top: 1px solid var(--calm-edge); padding-top: 8px; margin-top: 4px; }
+body[data-workspace-study='true'] .phone-camera-summary { cursor: pointer; padding: 6px 2px; font: 600 13px var(--mm-sans); color: var(--mm-text-2); list-style-position: inside; }
+body[data-workspace-study='true'] .phone-camera[open] > .phone-camera-summary { margin-bottom: 6px; color: var(--mm-text); }
+
+/* --- The Assistant in the example (2026-10-23): what it is, from the top, not a lone message in the middle --------- */
+body[data-workspace-study='true'] .study-assistant-off {
+  margin: 28px 24px auto !important; padding: 0; text-align: left; justify-items: start; gap: 12px;
+}
+body[data-workspace-study='true'] .study-assistant-off h3 { font: italic 500 22px/1.2 var(--mm-serif); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-assistant-off > p { max-width: 34ch; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-assistant-examples { list-style: none; margin: 6px 0 4px; padding: 0; display: grid; gap: 2px; width: 100%; }
+body[data-workspace-study='true'] .study-assistant-examples li {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 2px;
+  border-top: 1px solid var(--calm-edge);
+}
+body[data-workspace-study='true'] .study-assistant-examples li:last-child { border-bottom: 1px solid var(--calm-edge); }
+body[data-workspace-study='true'] .study-assistant-examples svg { width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: var(--mm-text-3); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+body[data-workspace-study='true'] .study-assistant-examples span { display: grid; gap: 2px; }
+body[data-workspace-study='true'] .study-assistant-examples strong { font: 600 13px/1.35 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-assistant-examples small { font: 400 12px/1.4 var(--mm-sans); color: var(--mm-text-3); }
+
+/* --- Inputs (2026-10-23): the specimens first, then ways to add one --------------------------------------------- */
+
+body[data-workspace-study='true'] .study-live-mark { grid-row: 1 / span 2; width: 10px; height: 10px; border-radius: 50%; border: 1.5px dashed var(--mm-text-3); box-sizing: border-box; }
+body[data-workspace-study='true'] .study-live-card.active[data-camera='true'] .study-live-mark { border: 0; background: #3fbf7f; }
+
+
+/* --- A researcher as a Tab (2026-10-23): its study in the Stage's place ------------------------------------------- */
+body[data-workspace-study='true'] #stage > .study-research-stage {
+  position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; min-height: 0; background: var(--mm-page);
+}
+body[data-workspace-study='true'] #stage > .study-research-stage[hidden] { display: none; }
+body[data-workspace-study='true'] .study-research-stage-note { font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-research-holder { flex: 1; min-height: 0; overflow: auto; }
+body[data-workspace-study='true'] .study-research-holder > :not(.research):not(.study-home) { position: static !important; inset: auto !important; width: auto !important; max-width: none !important; height: auto !important; min-height: 100%; }
+/* A Study reads as a page, not a form stretched across the Stage (Study target): one centred column. */
+body[data-workspace-study='true'] .study-research-holder { container-type: inline-size; container-name: study; }
+body[data-workspace-study='true'] .study-research-holder > .study-view { max-width: none !important; display: block; padding: 0; }
+
+/* Activity in the workspace: each line's time on a quiet line of its own (it ran into the words: "on stage03:33:26 AM"). */
+body[data-workspace-study='true'] :is(.study-drawer, .study-data-window) .activity-time {
+  display: block; margin-top: 3px; font-size: 11px; color: var(--mm-text-3); font-variant-numeric: tabular-nums;
+}
+body[data-workspace-study='true'] :is(.study-drawer, .study-data-window) .activity-meta { display: block; font-size: 11px; color: var(--mm-text-3); }
+/* Inside the workspace's Activity, the drawer already says Activity and has its own close: the panel's own header goes. */
+body[data-workspace-study='true'] :is(.study-drawer, .study-data-window) #activity-panel > header { display: none; }
+
+/* --- Studies (2026-10-23): the research runtime's efforts, as a Tab (their rows in Researchers are workspace-feel.css's) */
+
+body[data-workspace-study='true'] .study-view { display: grid; gap: 22px; align-content: start; max-width: 760px; padding: 24px 28px 40px; }
+body[data-workspace-study='true'] .study-view h3 { margin: 0 0 6px; font: 600 12px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-view p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--mm-text); }
+body[data-workspace-study='true'] .study-view .study-view-empty { color: var(--mm-text-3); font-size: 13px; }
+body[data-workspace-study='true'] .study-view-needs { padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, #e0a43b 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, #e0a43b 35%, transparent); }
+body[data-workspace-study='true'] .study-view-finding { padding: 10px 0; border-top: 1px solid var(--calm-edge); }
+body[data-workspace-study='true'] .study-view-cites { margin-top: 4px !important; font-size: 12px !important; color: var(--mm-text-3) !important; }
+body[data-workspace-study='true'] .study-view-state { margin-right: auto; font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-new-study form { display: grid; gap: 12px; min-width: min(520px, 86vw); }
+body[data-workspace-study='true'] .study-new-study-field { display: grid; gap: 6px; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study-field :is(textarea, input) { font: 400 14px/1.45 var(--mm-sans); color: var(--mm-text); background: rgb(0 0 0 / 22%); border: 1px solid var(--mm-line); border-radius: 8px; padding: 9px 11px; }
+
+/* Study controls retain exact inputs and explicit cloud admission. Evidence stays inert and expandable. */
+body[data-workspace-study='true'] .study-view-start { display: grid; gap: 10px; }
+body[data-workspace-study='true'] .study-task-recovery,
+body[data-workspace-study='true'] .study-task-evidence { display: grid; gap: 10px; min-width: 0; }
+body[data-workspace-study='true'] .study-task-recovery button { justify-self: start; }
+body[data-workspace-study='true'] .study-task-recovery input { min-width: 0; width: 100%; box-sizing: border-box; }
+body[data-workspace-study='true'] .study-evidence-details pre,
+body[data-workspace-study='true'] .study-evidence-transcript { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 340px; overflow: auto; font: 13px/1.5 var(--mm-sans); }
+body[data-workspace-study='true'] .study-view :is(button, select) { padding: 8px 10px; border: 1px solid var(--mm-line); border-radius: 8px; background: var(--calm-fill); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-view button:disabled { opacity: .55; cursor: not-allowed; }
+body[data-workspace-study='true'] .study-view :is(button, input, textarea, select, summary):focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 3px; }
+body[data-workspace-study='true'] .study-view fieldset,
+body[data-workspace-study='true'] .study-new-study fieldset { display: grid; gap: 10px; border: 1px solid var(--mm-line); border-radius: 8px; padding: 12px; max-height: 280px; overflow: auto; }
+body[data-workspace-study='true'] .study-new-study { max-height: 90vh; overflow: auto; }
+body[data-workspace-study='true'] .study-view-notice:empty { display: none; }
+body[data-workspace-study='true'] .study-view-notice { padding: 10px; border: 1px solid var(--mm-line); border-radius: 8px; }
+
+/* Study preparation precedes Start; inputs and review remain readable in one column. */
+body[data-workspace-study='true'] .study-view-preparation { display: grid; gap: 18px; }
+body[data-workspace-study='true'] .study-view-preparation:empty { display: none; }
+body[data-workspace-study='true'] .study-captured-input { margin-top: 8px; }
+body[data-workspace-study='true'] .study-view details > summary { cursor: pointer; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-spending-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(190px,1fr)); gap: 12px; }
+body[data-workspace-study='true'] .study-new-study-field.study-choice { display: flex; align-items: flex-start; gap: 10px; }
+body[data-workspace-study='true'] .study-choice input[type='checkbox'] { flex: 0 0 auto; width: 16px; height: 16px; margin: 2px 0 0; padding: 0; accent-color: var(--mm-accent); }
+body[data-workspace-study='true'] .study-choice:has(input:disabled) { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-new-study { overflow: hidden; padding-bottom: 0; }
+body[data-workspace-study='true'] .study-new-study form { max-height: 84vh; gap: 0; grid-template-rows: minmax(0,1fr) auto; }
+body[data-workspace-study='true'] .study-new-study-body { display: grid; gap: 12px; min-height: 0; overflow: auto; padding: 0 3px 16px; }
+body[data-workspace-study='true'] .study-new-study-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 0; border-top: 1px solid var(--mm-line); }
+
+/* The Study's question and its researcher tiles (study-view.ts; Study target, docs/design/2026-10-23-part1-study). */
+body[data-workspace-study='true'] .study-researchers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+body[data-workspace-study='true'] .study-researchers > legend { margin-bottom: 6px; font: 600 12px var(--mm-sans); color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-researcher-tile { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; padding: 10px 12px; border-radius: 10px; background: var(--calm-fill); box-shadow: inset 0 0 0 1px var(--mm-line); cursor: pointer; }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:checked) { box-shadow: inset 0 0 0 1.5px var(--mm-accent); }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:disabled) { cursor: default; }
+body[data-workspace-study='true'] .study-researcher-words { display: grid; gap: 2px; font-size: 13px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-researcher-words strong { color: var(--mm-text); font-size: 14px; }
+body[data-workspace-study='true'] .study-researcher-ready { grid-column: 2; font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-researchers > .study-check-again { justify-self: start; }
+body[data-workspace-study='true'] .study-view .study-view-reads { font-size: 13px; color: var(--mm-text-2); }
+
+body[data-workspace-study='true'] .study-new-study-footer .study-new-study-starts { margin: 0 auto 0 0; align-self: center; }
+
+/* Study actions are sized to their words, never stretched across the column. */
+body[data-workspace-study='true'] .study-view :is(.study-view-start, .study-scientific-staging) > button { justify-self: start; }
+
+/* --- The Study page (study-view.ts), drawn to docs/design/2026-10-23-part1-study/study-tab.html ----------------- */
+body[data-workspace-study='true'] .study-view { --s-iodine: var(--mm-iodine, #f2b33d); --s-green: var(--mm-green, #34c77b); --s-red: var(--mm-safranin, #ff5f57); font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .study-kind { font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-state-pill { display: inline-flex; align-items: center; gap: 6px; margin-right: 6px; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-state-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-state-active::before { background: var(--mm-accent); box-shadow: 0 0 0 3px var(--mm-accent-soft); }
+body[data-workspace-study='true'] .study-facts-rail { display: grid; gap: 26px; align-content: start; }
+body[data-workspace-study='true'] .study-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+body[data-workspace-study='true'] .study-view .study-sec-head h3 { margin: 0; font: 600 13px var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-count { margin-left: 6px; color: var(--mm-text-3); font-weight: 400; }
+body[data-workspace-study='true'] .study-view .study-facts-rail h3 { margin: 0 0 8px; font: 600 12px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+body[data-workspace-study='true'] .study-facts li { display: grid; gap: 1px; }
+body[data-workspace-study='true'] .study-sub { font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-sub.study-ok { color: var(--s-green); }
+/* What we know */
+body[data-workspace-study='true'] .study-view .study-view-finding { padding: 12px 0 13px; border-top: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-chip { display: inline-block; font-size: 11px; border: 1px solid var(--mm-line-strong); border-radius: 999px; padding: 1px 9px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-chip-ok { border-color: color-mix(in srgb, var(--s-green) 40%, transparent); color: var(--s-green); }
+body[data-workspace-study='true'] .study-chip-bad { border-color: color-mix(in srgb, var(--s-red) 40%, transparent); color: var(--s-red); }
+body[data-workspace-study='true'] .study-add-finding > summary { color: var(--mm-accent); font-size: 12px; }
+body[data-workspace-study='true'] .study-add-finding[open] { grid-column: 1 / -1; }
+/* The composer: one card. */
+body[data-workspace-study='true'] .study-view .study-composer-wrap { display: block; }
+body[data-workspace-study='true'] .study-composer { display: grid; border: 1px solid var(--mm-line-strong); border-radius: 12px; background: var(--mm-panel, #1f1f23); }
+body[data-workspace-study='true'] .study-composer-part { display: grid; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-composer-part:last-child { border-bottom: 0; }
+body[data-workspace-study='true'] .study-view .study-composer-label { font-size: 12px; font-weight: 600; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-composer .study-researchers { border: 0; padding: 0; margin: 0; grid-template-columns: 1fr 1fr; }
+body[data-workspace-study='true'] .study-amounts { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; }
+body[data-workspace-study='true'] .study-amounts input { width: 96px; text-align: right; }
+body[data-workspace-study='true'] .study-go { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+body[data-workspace-study='true'] .study-view .study-go-note { max-width: 420px; }
+body[data-workspace-study='true'] .study-composer .study-view-preparation { gap: 14px; }
+body[data-workspace-study='true'] .study-composer .study-scientific-staging, body[data-workspace-study='true'] .study-composer .study-scientific-admission { padding-top: 10px; border-top: 1px dashed var(--mm-line); }
+/* Narrow Stage (the Assistant open, or a small window): one column, the facts after the hero. */
+@container study (max-width: 900px) {
+  body[data-workspace-study='true'] .study-composer .study-researchers { grid-template-columns: 1fr; }
+}
+body[data-workspace-study='true'] .study-view button.study-primary:not(:disabled) { background: var(--mm-accent-fill); border-color: transparent; color: var(--mm-on-fill, #fff); font-weight: 500; }
+body[data-workspace-study='true'] .study-composer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+body[data-workspace-study='true'] .study-view .study-composer-head .study-check-again { padding: 2px 8px; border: 0; background: transparent; color: var(--mm-accent); font-size: 12px; }
+body[data-workspace-study='true'] .study-uses { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+body[data-workspace-study='true'] .study-uses li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+body[data-workspace-study='true'] .study-tag { flex: none; font-size: 11px; color: var(--mm-text-3); border: 1px solid var(--mm-line-strong); border-radius: 4px; padding: 0 5px; }
+body[data-workspace-study='true'] .study-composer :is(.study-scientific-staging, .study-scientific-admission)[data-nothing='true'] { gap: 4px; }
+body[data-workspace-study='true'] .study-composer :is(.study-scientific-staging, .study-scientific-admission)[data-nothing='true'] > p { color: var(--mm-text-3); font-size: 12px; }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:checked) { background: var(--mm-accent-soft); }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:disabled:not(:checked)) { background: transparent; box-shadow: inset 0 0 0 1px var(--mm-line-strong); border: 1px dashed var(--mm-line-strong); }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:disabled:not(:checked)) strong { color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-researcher-tile:has(input:disabled:not(:checked)) .study-researcher-ready { color: var(--mm-iodine, #f2b33d); }
+/* While a Study or researcher fills the Stage, the Stage itself never scrolls: a focus or scroll call inside the page
+   could otherwise slide the whole stage, and its bar, under the Tab row. The page scrolls in its own holder. */
+body[data-workspace-study='true'][data-research-open='true'] #stage { overflow: clip; }
+/* A review in place (the target's review sheet, inline in the timeline): turns, files, facts, then the decision. */
+body[data-workspace-study='true'] .study-view .study-task-evidence h4 { margin: 6px 0 0; font: 600 12px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-turn { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; }
+body[data-workspace-study='true'] .study-who { font-size: 12px; color: var(--mm-text-3); padding-top: 1px; }
+body[data-workspace-study='true'] .study-view .study-turn pre { margin: 0; white-space: pre-wrap; font: 13px/1.5 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+body[data-workspace-study='true'] .study-files li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+body[data-workspace-study='true'] .study-files a { color: var(--mm-accent); font-size: 12px; }
+body[data-workspace-study='true'] .study-decide { display: grid; gap: 10px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-decide .study-task-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+body[data-workspace-study='true'] .study-view button.study-accept:not(:disabled) { background: color-mix(in srgb, var(--mm-green, #34c77b) 14%, transparent); border: 1px solid color-mix(in srgb, var(--mm-green, #34c77b) 40%, transparent); color: var(--mm-green, #34c77b); font-weight: 500; }
+/* Review: a sheet over the rail, beside the study (study-view.ts showSheet). It does not scroll with the page. */
+body[data-workspace-study='true'] .study-review-sheet:not([hidden]) { position: absolute; top: 44px; right: 0; bottom: 0; z-index: 5; width: min(540px, 100%); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--mm-panel-solid, #27272c); border-left: 1px solid var(--mm-line-strong); box-shadow: -24px 0 48px rgb(0 0 0 / 35%); }
+body[data-workspace-study='true'] .study-review-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 20px 12px; border-bottom: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-view .study-review-title h3 { margin: 0; font: 600 16px/1.3 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-review-body { overflow: auto; padding: 4px 20px 16px; }
+body[data-workspace-study='true'] .study-view .study-review-body .study-task-evidence:not(:empty) { margin: 0; padding: 0; border: 0; background: transparent; }
+body[data-workspace-study='true'] .study-review-foot { padding: 14px 20px 16px; border-top: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-view .study-review-foot .study-decide { margin: 0; padding: 0; border: 0; }
+body[data-workspace-study='true'] .study-view .study-review-close, body[data-workspace-study='true'] .study-view .study-quiet-button { padding: 3px 9px; border: 0; background: transparent; color: var(--mm-text-2); }
+/* Smaller fixes from the independent review. */
+body[data-workspace-study='true'] .study-unverified { color: var(--mm-iodine, #f2b33d) !important; }
+body[data-workspace-study='true'] .study-view .study-warn { margin: 8px 0 0; font-size: 12px; color: var(--mm-iodine, #f2b33d); }
+body[data-workspace-study='true'] .study-view .study-task-recovery > summary { color: var(--mm-iodine, #f2b33d); font-size: 12px; }
+body[data-workspace-study='true'] .study-view .study-task-recovery[open] { display: grid; gap: 8px; padding: 10px 0 4px; }
+body[data-workspace-study='true'] .study-view .study-recovery-who { margin: 4px 0 0; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-review-scrim:not([hidden]) { position: absolute; top: 44px; left: 0; right: 0; bottom: 0; z-index: 4; background: rgb(0 0 0 / 38%); }
+
+/* New study, drawn toward docs/design/2026-10-23-part1-study's frame: compact fields, inputs as a pick list. */
+body[data-workspace-study='true'] dialog.study-new-study { width: min(580px, calc(100vw - 48px)); padding: 0; border-radius: 14px; }
+body[data-workspace-study='true'] .study-new-study-body { padding: 18px 20px 14px; gap: 14px; }
+body[data-workspace-study='true'] .study-new-study-body > h2 { margin: 0 0 2px; font: 600 17px/1.3 var(--mm-sans); }
+body[data-workspace-study='true'] .study-new-study .study-new-study-field { display: grid; gap: 6px; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study :is(textarea, input[type='text'], input[type='number'], input:not([type])) { font: 13px/1.45 var(--mm-sans); padding: 8px 10px; border-radius: 8px; background: rgb(0 0 0 / 24%); border: 1px solid var(--mm-line-strong); color: var(--mm-text); resize: vertical; }
+body[data-workspace-study='true'] .study-new-study .study-pick-field { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+body[data-workspace-study='true'] .study-new-study .study-pick-field > legend { padding: 0; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-pick-off { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-pick-off .study-pick-name { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-dollar { display: inline-flex; align-items: center; gap: 6px; color: var(--mm-text); font-size: 13px; }
+body[data-workspace-study='true'] .study-dollar input { width: 96px; text-align: right; }
+body[data-workspace-study='true'] .study-new-study-footer { padding: 12px 20px; }
+body[data-workspace-study='true'] .study-new-study-footer .study-quiet { background: transparent; border-color: transparent; }
+
+/* No Project open (thumbnails are 192 px wide, so pictures stay near that size): the most recent Project first, recent ones beside it, and a new one. Calm, at the app's own scale:
+ * one hero picture, cards with the Project's own thumbnail, one primary action (New project). */
+body[data-workspace-study='true'] .study-session-launcher { display: block; overflow: auto; padding: clamp(28px, 4vw, 56px) clamp(20px, 4vw, 56px) 48px; background: var(--mm-page, var(--mm-bar)); text-align: left; }
+body[data-workspace-study='true'] .study-session-launcher[hidden] { display: none; }
+body[data-workspace-study='true'] .study-session-launcher > * { width: 100%; max-width: 1040px; margin-inline: auto; }
+.study-session-launcher .launcher-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 28px; }
+.study-session-launcher .launcher-head > div:first-child { flex: 1 1 360px; min-width: 0; }
+.study-session-launcher h1 { font-size: clamp(26px, 2.6vw, 34px); font-weight: 600; letter-spacing: -0.015em; line-height: 1.1; margin: 0 0 8px; color: var(--mm-text); }
+.study-session-launcher .launcher-head p { margin: 0; max-width: 58ch; color: var(--mm-text-2); font-size: 14px; line-height: 1.5; }
+.study-session-launcher .launcher-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-btn { min-width: 0; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--mm-line-strong); background: transparent; color: var(--mm-text); font: 600 13px/1 var(--mm-sans); cursor: pointer; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-btn:hover { border-color: var(--mm-text-2); background: var(--mm-hover); }
+body[data-workspace-study='true'] .study-session-launcher .launcher-btn.primary { background: var(--mm-text); color: var(--mm-page, #111); border-color: transparent; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-btn.primary:hover { opacity: 0.88; }
+body[data-workspace-study='true'] .study-session-launcher :is(.launcher-hero, .launcher-card, .launcher-more) { min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-hero { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); border: 1px solid var(--mm-line); border-radius: 16px; overflow: hidden; background: var(--mm-card); margin-bottom: 36px; transition: border-color 0.15s; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-hero:hover { border-color: var(--mm-line-strong); }
+.study-session-launcher :is(.launcher-hero-pic, .launcher-card-pic) { display: grid; place-items: center; overflow: hidden; background: var(--mm-well, #0b0b0d); color: var(--mm-text-3); font-size: 12px; }
+.study-session-launcher .launcher-hero-pic { aspect-ratio: 16 / 9; }
+.study-session-launcher :is(.launcher-hero-pic, .launcher-card-pic) img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.study-session-launcher .launcher-hero-text { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: clamp(18px, 2.4vw, 30px); min-width: 0; }
+.study-session-launcher .launcher-kicker { color: var(--mm-text-2); font-size: 13px; font-weight: 500; }
+.study-session-launcher .launcher-hero-name { font-size: clamp(22px, 2.2vw, 28px); font-weight: 600; letter-spacing: -0.01em; line-height: 1.15; overflow-wrap: anywhere; }
+.study-session-launcher .launcher-meta { color: var(--mm-text-2); font-size: 13px; line-height: 1.45; }
+.study-session-launcher .launcher-working { display: inline-flex; align-items: center; gap: 7px; color: var(--mm-text); font-size: 13px; }
+.study-session-launcher .launcher-working::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--mm-iodine, #e8b04a); }
+.study-session-launcher .launcher-open { align-self: flex-start; margin-top: 14px; padding: 8px 15px; border-radius: 999px; background: var(--mm-text); color: var(--mm-page, #111); font-size: 13px; font-weight: 600; }
+.study-session-launcher .launcher-recent h2 { font-size: 14px; font-weight: 600; margin: 0 0 14px; color: var(--mm-text); }
+.study-session-launcher .launcher-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 22px 18px; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-card { display: flex; flex-direction: column; gap: 6px; }
+.study-session-launcher .launcher-card-pic { aspect-ratio: 4 / 3; border-radius: 12px; margin-bottom: 4px; box-shadow: inset 0 0 0 1px var(--mm-line); transition: box-shadow 0.15s; }
+.study-session-launcher .launcher-card:hover .launcher-card-pic { box-shadow: 0 0 0 2px var(--mm-text-2); }
+.study-session-launcher .launcher-card-name { font-size: 15px; font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; }
+.study-session-launcher .launcher-new-pic { background: transparent; border: 1.5px dashed var(--mm-line-strong); box-shadow: none; font-size: 30px; font-weight: 300; color: var(--mm-text-2); }
+.study-session-launcher .launcher-new:hover .launcher-new-pic { border-color: var(--mm-text-2); color: var(--mm-text); box-shadow: none; }
+body[data-workspace-study='true'] .study-session-launcher .launcher-more { margin-top: 20px; color: var(--mm-text-2); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.study-session-launcher :is(.launcher-hero, .launcher-card, .launcher-btn, .launcher-more):focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 3px; }
+@media (max-width: 760px) { body[data-workspace-study='true'] .study-session-launcher .launcher-hero { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { .study-session-launcher * { transition: none !important; } }
+
+/* The New researcher Tab's other ways to start: two quiet rows, each its title and what it does. */
+body[data-workspace-study='true'] .researcher-draft .draft-way { display: grid; gap: 3px; width: 100%; margin: 0 0 6px; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--mm-text); text-align: left; font: inherit; cursor: pointer; }
+body[data-workspace-study='true'] .researcher-draft .draft-way:hover { background: var(--mm-hover); border-color: var(--mm-line); }
+body[data-workspace-study='true'] .researcher-draft .draft-way:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 2px; }
+body[data-workspace-study='true'] .researcher-draft .draft-way strong { font-size: 13px; font-weight: 600; color: var(--mm-accent-on-soft, var(--mm-text)); }
+body[data-workspace-study='true'] .researcher-draft .draft-way span { font-size: 12.5px; line-height: 1.45; color: var(--mm-text-2); }
+
+/* New study (Will, 2026-10-23: "a lot sexier… a middle ground"): a header that says what a study is, three quiet
+ * groups, inputs as selectable cards (checked ones lit), the allowance beside its meaning. */
+body[data-workspace-study='true'] .study-new-study .study-new-study-body { padding: 0 0 8px; gap: 0; }
+body[data-workspace-study='true'] .study-new-study-head { padding: 22px 24px 18px; background: linear-gradient(180deg, var(--mm-accent-soft), transparent); border-bottom: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-new-study-head h2 { margin: 0 0 6px; font: 600 20px/1.2 var(--mm-sans); letter-spacing: -0.01em; color: var(--mm-text); }
+body[data-workspace-study='true'] .study-new-study-head p { margin: 0; max-width: 56ch; font-size: 13px; line-height: 1.5; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study-group { display: grid; gap: 12px; padding: 18px 24px 4px; }
+body[data-workspace-study='true'] .study-new-study-group > h3 { margin: 0; font: 600 13px/1.3 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-new-study fieldset.study-pick-field { max-height: none; overflow: visible; border: 0; padding: 0; }
+body[data-workspace-study='true'] .study-pick { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+body[data-workspace-study='true'] .study-pick li { border: 1px solid var(--mm-line-strong); border-radius: 10px; transition: border-color 0.12s, background 0.12s; }
+body[data-workspace-study='true'] .study-pick li:not(.study-pick-off):hover { border-color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-pick li:has(input:checked) { border-color: var(--mm-accent); background: var(--mm-accent-soft); }
+body[data-workspace-study='true'] .study-pick li:has(input:focus-visible) { outline: 2px solid var(--mm-accent); outline-offset: 2px; }
+body[data-workspace-study='true'] .study-pick-name { display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px; cursor: pointer; }
+body[data-workspace-study='true'] .study-pick-off .study-pick-name { cursor: not-allowed; }
+body[data-workspace-study='true'] .study-pick-name input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--mm-accent-fill); }
+body[data-workspace-study='true'] .study-pick-words { display: grid; gap: 2px; min-width: 0; }
+body[data-workspace-study='true'] .study-pick-words strong { font-size: 13.5px; font-weight: 600; color: var(--mm-text); overflow-wrap: anywhere; }
+body[data-workspace-study='true'] .study-pick-kind { font-size: 12px; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-pick-why { font-size: 12px; line-height: 1.45; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-pick-off .study-pick-words strong { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .study-new-study .study-allowance { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid var(--mm-line-strong); border-radius: 10px; }
+body[data-workspace-study='true'] .study-allowance-words { display: grid; gap: 2px; }
+body[data-workspace-study='true'] .study-allowance-words strong { font-size: 13.5px; font-weight: 600; color: var(--mm-text); }
+body[data-workspace-study='true'] .study-allowance-words span { font-size: 12px; line-height: 1.45; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study .study-dollar { flex: none; font-size: 15px; font-weight: 600; }
+body[data-workspace-study='true'] .study-new-study .study-dollar input { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .study-new-study-body > .study-note[role='status']:not(:empty) { margin: 12px 24px 0; }
+body[data-workspace-study='true'] .study-new-study .study-new-study-footer { padding: 14px 24px; background: var(--mm-card); }
+@media (prefers-reduced-motion: reduce) { body[data-workspace-study='true'] .study-pick li { transition: none; } }
+.study-session-launcher :is(.launcher-hero-pic, .launcher-card-pic):has(.launcher-empty-pic) { background: var(--mm-card); }
+.study-session-launcher .launcher-hero-pic:has(.launcher-empty-pic) { background: var(--mm-hover); }
+.study-session-launcher .launcher-empty-pic { display: grid; justify-items: center; gap: 8px; color: var(--mm-text-3); font-size: 12px; }
+.study-session-launcher .launcher-empty-pic img { width: 34px; height: 34px; object-fit: contain; opacity: 0.55; }
+
+/* The New researcher Tab after the review: what it can use is a quiet note under the words, not a section; a start
+ * that did not happen is marked by a heading and an amber edge, not colour alone. */
+body[data-workspace-study='true'] .researcher-draft .draft-uses { margin: 4px 0 0; font-size: 12px; line-height: 1.45; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .researcher-draft .draft-also { margin: 10px 12px 0; font-size: 12px; line-height: 1.45; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .researcher-draft .study-rail-section > h3 { padding-left: 12px; }
+body[data-workspace-study='true'] .researcher-draft .study-view-notice:empty { display: none; }
+body[data-workspace-study='true'] .researcher-draft .study-view-notice[data-tone='problem'] { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--mm-iodine, #e8b04a) 70%, transparent); border-left-width: 3px; border-radius: 8px; background: color-mix(in srgb, var(--mm-iodine, #e8b04a) 8%, transparent); color: var(--mm-text); }
+body[data-workspace-study='true'] .researcher-draft .study-view-notice[data-tone='problem'] strong { font-size: 13px; }
+body[data-workspace-study='true'] .researcher-draft .study-view-notice[data-tone='problem'] span { font-size: 12.5px; line-height: 1.45; color: var(--mm-text-2); }
+/* New study after the review: the question leads; an input that can't be used is dimmed as a whole row. */
+body[data-workspace-study='true'] .study-new-study textarea.study-question-input { font-size: 15px; line-height: 1.45; }
+body[data-workspace-study='true'] .study-pick li.study-pick-off { opacity: 0.6; }
+
+/* The New researcher Tab as one column (Will, 2026-10-23: "cleaner"). */
+body[data-workspace-study='true'] .researcher-draft .draft-page { max-width: 680px; margin: 0 auto; padding: 56px 32px 48px; display: grid; gap: 22px; box-sizing: border-box; }
+body[data-workspace-study='true'] .researcher-draft .draft-head { display: grid; gap: 6px; }
+body[data-workspace-study='true'] .researcher-draft .draft-head h1 { margin: 0; font: 600 24px/1.2 var(--mm-sans); letter-spacing: -0.015em; color: var(--mm-text); }
+body[data-workspace-study='true'] .researcher-draft .draft-head p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .researcher-draft .draft-composer { display: grid; border: 1px solid var(--mm-line-strong); border-radius: 12px; background: var(--mm-card); overflow: hidden; }
+body[data-workspace-study='true'] .researcher-draft .draft-composer:focus-within { border-color: var(--mm-text-3); }
+body[data-workspace-study='true'] .researcher-draft .draft-composer textarea { width: 100%; box-sizing: border-box; margin: 0; padding: 16px 18px 12px; border: 0; border-radius: 0; background: transparent; color: var(--mm-text); font: 15px/1.5 var(--mm-sans); resize: vertical; min-height: 140px; outline: none; }
+body[data-workspace-study='true'] .researcher-draft .draft-composer textarea::placeholder { color: var(--mm-text-3); }
+body[data-workspace-study='true'] .researcher-draft .draft-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px 10px 18px; border-top: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .researcher-draft .draft-foot .draft-uses { margin: 0; max-width: 46ch; font-size: 12px; line-height: 1.45; color: var(--mm-text-3); }
+body[data-workspace-study='true'] .researcher-draft .draft-foot .study-primary { flex: none; }
+body[data-workspace-study='true'] .researcher-draft .draft-composer > .study-view-notice { margin: 0; border-radius: 0; border-width: 1px 0 0; border-left-width: 0; }
+body[data-workspace-study='true'] .researcher-draft .draft-composer > .study-view-notice:not([data-tone]):not(:empty) { padding: 10px 18px; border-top: 1px solid var(--mm-line); font-size: 13px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .researcher-draft .draft-else { margin: 0; font-size: 13px; line-height: 1.5; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .researcher-draft .draft-link { padding: 0; border: 0; background: transparent; color: var(--mm-accent-on-soft, var(--mm-text)); font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+body[data-workspace-study='true'] .researcher-draft .draft-link:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 2px; border-radius: 3px; }
+
+/* New study, compact: the question leads, name and allowance share a row, inputs are tight rows. */
+body[data-workspace-study='true'] .study-new-study-group:first-of-type { padding-top: 16px; }
+body[data-workspace-study='true'] .study-new-study textarea.study-criteria-input { font-size: 13px; }
+body[data-workspace-study='true'] .study-new-study-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: end; }
+body[data-workspace-study='true'] .study-new-study .study-new-study-pair .study-allowance { display: grid; gap: 6px; padding: 0; border: 0; border-radius: 0; font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study-pair .study-allowance-words span { font-size: 12px; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-new-study .study-new-study-pair .study-dollar { font-size: 13px; font-weight: 500; }
+body[data-workspace-study='true'] .study-new-study .study-new-study-pair .study-dollar input { width: 88px; font-size: 13px; font-weight: 500; }
+body[data-workspace-study='true'] .study-pick { gap: 6px; }
+body[data-workspace-study='true'] .study-pick-name { padding: 9px 12px; gap: 10px; }
+body[data-workspace-study='true'] .study-pick-words { grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; }
+body[data-workspace-study='true'] .study-pick-words strong { font-size: 13px; }
+body[data-workspace-study='true'] .study-pick-kind { grid-column: 2; grid-row: 1; font-size: 11px; white-space: nowrap; }
+body[data-workspace-study='true'] .study-pick-why { grid-column: 1 / -1; }
+body[data-workspace-study='true'] .study-new-study-group .study-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--mm-text-3); }
+
+/* Tabs that feel instant (2026-10-23 audit, step 1): the row never changes height when a pill appears; research pages
+ * stay mounted and hidden; an adopted draft's new name fades in where the draft was; the leave sheet never blocks. */
+body[data-workspace-study='true'] .study-research-holder > [hidden] { display: none !important; }
+body[data-workspace-study='true'] .study-research-holder > * { contain: layout paint; }
+body[data-workspace-study='true'] dialog.study-leave { max-width: 440px; padding: 22px 24px; }
+body[data-workspace-study='true'] dialog.study-leave h2 { margin: 0 0 8px; font: 600 16px/1.3 var(--mm-sans); }
+body[data-workspace-study='true'] dialog.study-leave p { margin: 0 0 18px; font-size: 13px; line-height: 1.5; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .study-leave-actions { display: flex; justify-content: flex-end; gap: 10px; }
+body[data-workspace-study='true'] .workspace-management-note { margin: 6px 0 0; font-size: 12px; color: var(--mm-text-3); }
+
+
+/* The sheet (Will, 2026-10-23, ComfyUI's Templates: "it opens like this"): a large centred sheet over the dimmed
+ * Stage, no blur so the live view stays visible and running beneath, one 150 ms fade-and-settle, a header with the
+ * title, search and ×, a chip row, the categories column, and nested pages as a right pane. */
+body[data-workspace-study='true'] .study-overlay { width: min(1640px, calc(100vw - 120px)); height: min(920px, calc(100dvh - 96px)); border-radius: 14px; background: var(--mm-bar); border-color: var(--mm-line-strong); box-shadow: 0 24px 90px rgb(0 0 0 / 55%); }
+body[data-workspace-study='true'] .study-overlay::backdrop, body[data-workspace-study='true'] .study-overlay[data-surface='assets']::backdrop { background: rgb(0 0 0 / 55%); backdrop-filter: none; }
+@keyframes sheet-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+body[data-workspace-study='true'] .study-overlay[open] { animation: sheet-in 150ms var(--calm-ease, ease-out) both; }
+body[data-workspace-study='true'] .study-overlay .study-overlay-header { min-height: 64px; padding: 14px 20px 14px 22px; gap: 14px; background: var(--mm-bar); border-bottom: 1px solid var(--mm-line); }
+body[data-workspace-study='true'] .study-overlay .study-overlay-header h2 { font: 600 17px/1.2 var(--mm-sans); letter-spacing: -0.01em; }
+body[data-workspace-study='true'] .study-overlay .study-overlay-header .study-close { margin-left: 0; width: 32px; height: 32px; border-radius: 8px; background: transparent; }
+body[data-workspace-study='true'] .study-overlay .study-overlay-header .study-close:hover { background: var(--mm-hover); }
+body[data-workspace-study='true'] .study-overlay .study-overlay-back { padding: 6px 10px; border-radius: 8px; color: var(--mm-text-2); font: 500 13px var(--mm-sans); }
+body[data-workspace-study='true'] .study-overlay .study-overlay-back:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-overlay .study-overlay-back[hidden] { display: none; }
+body[data-workspace-study='true'] .study-overlay .study-overlay-body { padding: 18px 22px 28px; }
+@keyframes pane-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { body[data-workspace-study='true'] .study-overlay[open], body[data-workspace-study='true'] .study-overlay .tool-details { animation: none; } }
+
+/* Data: Inputs then Results (word list); a card opens; a new result rises in and stays marked until seen. */
+
+@keyframes data-card-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+@keyframes rail-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+/* First launch (#440): one calm screen, three ways in, the guided example beside them. */
+body[data-workspace-study='true'] .first-launch { max-width: 880px; margin: 0 auto; padding: 48px 24px; display: grid; gap: 28px; }
+body[data-workspace-study='true'] .first-launch-head h1 { margin: 0 0 8px; font: 600 30px/1.1 var(--mm-sans); letter-spacing: -0.015em; color: var(--mm-text); }
+body[data-workspace-study='true'] .first-launch-head p { margin: 0; max-width: 60ch; font-size: 15px; line-height: 1.5; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .first-launch-ways { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+body[data-workspace-study='true'] .first-launch-way { display: grid; gap: 8px; min-height: 150px; padding: 18px; border: 1px solid var(--mm-line-strong); border-radius: 14px; background: var(--mm-card); color: var(--mm-text); text-align: left; font: inherit; cursor: pointer; align-content: start; }
+body[data-workspace-study='true'] .first-launch-way:hover { border-color: var(--mm-text-3); }
+body[data-workspace-study='true'] .first-launch-way.primary { border-color: var(--mm-accent); box-shadow: inset 0 0 0 1px var(--mm-accent); }
+body[data-workspace-study='true'] .first-launch-way strong { font-size: 16px; font-weight: 600; }
+body[data-workspace-study='true'] .first-launch-way span { font-size: 13px; line-height: 1.45; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .first-launch-way:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 3px; }
+body[data-workspace-study='true'] .first-launch-quiet { margin: 0; font-size: 13px; line-height: 1.5; color: var(--mm-text-2); }
+
+/* From the independent review (2026-10-24): the header's × at the right whether or not search shows; sheets sized to
+ * their content; the Data empty state has its action. */
+body[data-workspace-study='true'] .study-overlay .study-overlay-header h2 { flex: 0 1 auto; margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .study-overlay .study-overlay-header .study-close { margin-left: 4px; }
+body[data-workspace-study='true'] .study-overlay[data-surface='help'] { width: min(880px, calc(100vw - 120px)); }
+body[data-workspace-study='true'] .study-overlay[data-surface='settings'], body[data-workspace-study='true'] .study-overlay[data-surface='shortcuts'] { width: min(720px, calc(100vw - 120px)); }
+
+/* Sans-serif only (#440 decision): the start page's headline and lead in the shell's own face. */
+body[data-workspace-study='true'] .session-home :is(.home-title, .home-lead, .home-add-title), body[data-workspace-study='true'] .home-add .home-add-title { font-family: var(--mm-sans) !important; font-style: normal !important; font-weight: 600; letter-spacing: -0.01em; }

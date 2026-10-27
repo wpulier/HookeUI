@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key><string>@BUNDLE_ID@</string>
+	<key>CFBundleName</key><string>@NAME@</string>
+	<key>CFBundleDisplayName</key><string>@NAME@</string>
+	<key>CFBundleExecutable</key><string>HookeUI</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>@VERSION@</string>
+	<key>CFBundleVersion</key><string>@BUILD@</string>
+	<key>CFBundleDevelopmentRegion</key><string>en</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.education</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSHumanReadableCopyright</key><string>Hooke · hookeui.org</string>
+	<key>NSCameraUsageDescription</key><string>@NAME@ reads your microscope camera for the live view.</string>
+	<key>NSMicrophoneUsageDescription</key><string>@NAME@ listens when you press Talk, so you can ask about what you see.</string>
+	<!-- The API keys file may be on the Desktop (paths.default_keys_file). Without this string macOS refuses Desktop access
+	     silently and every key reads as missing (ticket 62, F-L8-3); with it, macOS asks. -->
+	<key>NSDesktopFolderUsageDescription</key><string>@NAME@ reads your API keys file on the Desktop.</string>
+	<key>NSLocalNetworkUsageDescription</key><string>@NAME@ talks to the camera app on your iPhone over your local network.</string>
+	<!-- Blackmagic advertises its camera-control endpoint as this Bonjour service. -->
+	<key>NSBonjourServices</key><array><string>_http._tcp</string></array>
+	<!-- Its release channel (packaging/macos/channels.json, written by channels.py): the launcher's folders, ports and
+	     Keychain service, so a Beta beside Stable never shares or overwrites Stable's data, runtime or processes. -->
+	<key>HookeUIChannel</key><string>@CHANNEL@</string>
+	<key>HookeUISupportFolder</key><string>@SUPPORT@</string>
+	<key>HookeUIDataFolder</key><string>@DATA@</string>
+	<key>HookeUIKeychainService</key><string>@KEYCHAIN@</string>
+	<key>HookeUIOrchestratorPort</key><integer>@ORCH_PORT@</integer>
+	<key>HookeUICameraPort</key><integer>@CAMERA_PORT@</integer>
+	<key>HookeUIStreamPort</key><integer>@STREAM_PORT@</integer>
+	<key>HookeUISettingsPort</key><integer>@SETTINGS_PORT@</integer>
+	<key>HookeUIIsolated</key><@ISOLATED@/>
+	<!-- Automatic discovery, explicit installation. Disallow background installation even when an older
+	     release left SUAutomaticallyUpdate=true in user defaults. Signed feeds and payloads are required. -->
+	<key>SUFeedURL</key><string>@FEED@</string>
+	<key>SUPublicEDKey</key><string>@EDKEY@</string>
+	<key>SUEnableAutomaticChecks</key><true/>
+	<key>SUAutomaticallyUpdate</key><false/>
+	<key>SUAllowsAutomaticUpdates</key><false/>
+	<key>SUScheduledCheckInterval</key><integer>14400</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key><true/>
+	<key>SURequireSignedFeed</key><true/>
+	<key>NSAppTransportSecurity</key>
+	<dict><key>NSAllowsLocalNetworking</key><true/></dict>
+</dict>
+</plist>

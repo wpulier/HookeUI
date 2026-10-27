@@ -1,0 +1,23 @@
+id = "cellpose-sam-tuned"
+name = "Cellpose-SAM fine-tuned on your corrections"
+runs = "this-mac"
+version = "cellpose cpsam, fine-tuned"
+licence = ["cellpose-sam-tuned"]
+kind = "model"
+what = "Cellpose-SAM retrained here on your own corrections of its cells"
+runner = "gpu-worker"
+source = { package = "cellpose", made_here = "bench/finetune_cells.py (make finetune-cells)" }
+needs_to_get = []
+needs_to_run = ["install:cellpose", "weights:cellpose-sam-tuned"]
+credit = { authors = "Pachitariu, Rariden and Stringer (MouseLand, HHMI Janelia); tuned on your corrections", link = "https://github.com/MouseLand/cellpose" }
+workers = ["analysis"]
+host = "shared"
+documented_mb = 3550
+peak_mb = 3550  # as cellpose-sam's (not measured: it needs fine-tuned weights)
+load_limit_s = 300
+
+[[implements]]
+operation = "cells"
+impl = "cellpose-sam-tuned"
+input = "image.2d.rgb8"
+output = "labels.instance.2d"

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "three-particles-v1",
+  "kind": "synthetic geometry",
+  "description": "Three dark shapes on a light field for mechanics and Fiji parity; not a biological sample or an accuracy benchmark.",
+  "image": {
+    "file": "particles-fixture.png",
+    "format": "PNG",
+    "width": 96,
+    "height": 96,
+    "axes": "YX",
+    "dtype": "uint8",
+    "channels": 1,
+    "units": "pixels",
+    "physical_calibration": null,
+    "background": 220,
+    "foreground": 40,
+    "bytes": 455,
+    "sha256": "af1b6c90a4dc0ca7daadd18301e916c9e2645fe75e40bb04c3f193c0505f055f",
+    "pixel_sha256": "1343019a13d406a783dd80da0933f798c78b86d34886331e693ff92407767506",
+    "pixel_hash_encoding": "row-major YX uint8 decoded grayscale samples, no header"
+  },
+  "recipe": {
+    "coordinates": "zero-based (x, y) pixel indices",
+    "drawing": "OpenCV filled shapes with default LINE_8, no antialiasing",
+    "shapes": [
+      {"shape": "circle", "center": [25, 25], "radius": 10, "occupied_pixels": 317},
+      {"shape": "circle", "center": [65, 60], "radius": 7, "occupied_pixels": 149},
+      {"shape": "rectangle", "top_left": [70, 10], "bottom_right_inclusive": [85, 22], "occupied_pixels": 208}
+    ],
+    "expected_connected_particles": 3
+  },
+  "source": {
+    "project": "MicroscopeMind",
+    "path": "services/orchestrator/fiji_bindings.py",
+    "function": "fixture",
+    "commit": "19f8bdf078dad6c5dd4ae50924ebec028aa58fca",
+    "git_blob": "7426c95a49cdc7b7146925ff5fc209fc95376e91",
+    "function_source_sha256": "61ef699e312b840c14bac937fe3831dd8ee7bb5989293808a1c9d641d4abf62a",
+    "recorded_author": "Will Pulier",
+    "authorship_basis": "Git blame for the drawing recipe, introduced by 824e0f910 on 2026-10-13; not an independent copyright determination"
+  },
+  "generator": {
+    "path": "examples/three-particles/example.py",
+    "recipe_version": 1,
+    "preparation": "Codex-assisted packaging of the existing MicroscopeMind fixture, 2026-10-13",
+    "reference_dependencies": {"python": "3.13.11", "numpy": "2.5.3", "opencv-python-headless": "5.0.0.93", "opencv": "5.0.0"},
+    "dependency_lock": "services/uv.lock"
+  },
+  "rights": {
+    "publication_terms": "pending founder licence decision",
+    "external_data": [],
+    "note": "Generated shapes use no private recordings, downloaded images, accounts or models. The source recipe and generator dependency terms still require review before publication; this record grants no licence."
+  }
+}

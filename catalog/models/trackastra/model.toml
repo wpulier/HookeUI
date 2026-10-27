@@ -1,0 +1,30 @@
+# Run by its own adapter, kept apart with the other non-commercial code (services/noncommercial/trackastra_link.py).
+id = "trackastra"
+name = "Trackastra"
+runs = "cpu"
+version = "trackastra 0.5.6 general_2d"
+licence = ["trackastra", "gurobipy"]
+kind = "model"
+what = "Guesses which cells of two views are the same cell"
+runner = ""
+source = { package = "trackastra", weights = "general_2d", url = "https://github.com/weigertlab/trackastra-models/releases/download/v0.3.0/general_2d.zip" }
+pins = { adapter = "services/noncommercial/trackastra_link.py" }
+# Its pretrained general_2d, as Trackastra 0.5.6 publishes it (trackastra/model/pretrained.py): one zip, its three
+# files read by Trackastra.from_folder from the revision folder (never its own download on first use).
+files = [
+  { path = "model.pt", bytes = 43065042, sha256 = "5183fc65d759b09dad4a772ffb94c0598a8687dadf871050d41e4f5de1c37b6b", url = "https://github.com/weigertlab/trackastra-models/releases/download/v0.3.0/general_2d.zip", archive = { sha256 = "35cefd8634860d1dd43bcdcbdef7ae0caa24445f19bcfd35ec6b19039f2cd876", bytes = 39869788, member = "general_2d/model.pt" } },
+  { path = "config.yaml", bytes = 290, sha256 = "8e91395ac5a5968c22cbb31c505038a3d1be77b0971d3764bd10146b8df72102", url = "https://github.com/weigertlab/trackastra-models/releases/download/v0.3.0/general_2d.zip", archive = { sha256 = "35cefd8634860d1dd43bcdcbdef7ae0caa24445f19bcfd35ec6b19039f2cd876", bytes = 39869788, member = "general_2d/config.yaml" } },
+  { path = "train_config.yaml", bytes = 7688, sha256 = "55b8c2ae72a57278e891dc969762406a0859e4a159771cf634097df68f20d21f", url = "https://github.com/weigertlab/trackastra-models/releases/download/v0.3.0/general_2d.zip", archive = { sha256 = "35cefd8634860d1dd43bcdcbdef7ae0caa24445f19bcfd35ec6b19039f2cd876", bytes = 39869788, member = "general_2d/train_config.yaml" } },
+]
+needs_to_get = ["download"]
+needs_to_run = ["install:trackastra"]
+# Its own Python, made by the app (orchestrator/envs.py): Trackastra 0.5.6 and its 70 dependencies (Gurobi among them,
+# never called), each by its hash; it runs there (noncommercial/trackastra_server.py), never in the app's own.
+env = { python = "3.13.5", lock = "env.lock", imports = ["trackastra.model"] }
+credit = { authors = "Gallusser and Weigert", link = "https://github.com/weigertlab/trackastra" }
+
+[[implements]]
+operation = "link"
+impl = "trackastra"
+input = "labels.instance.2d"
+output = "links"

@@ -1,0 +1,12 @@
+{
+  "margins": {"left":[3,2,4,0,0],"right":[0,2,4,0,0]},
+  "projections": ["none","sum","mean","max","min"],
+  "invalid": [
+    {"name":"missing side","value":{"left":[0,0,0,0,0]}},
+    {"name":"wrong axes","value":{"left":[0,0],"right":[0,0]}},
+    {"name":"negative margin","value":{"left":[0,0,-1,0,0],"right":[0,0,0,0,0]}},
+    {"name":"boolean margin","value":{"left":[true,0,0,0,0],"right":[0,0,0,0,0]}},
+    {"name":"string margin","value":{"left":["1",0,0,0,0],"right":[0,0,0,0,0]}},
+    {"name":"extra setting","value":{"left":[0,0,0,0,0],"right":[0,0,0,0,0],"all":true}}
+  ]
+}

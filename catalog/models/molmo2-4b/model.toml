@@ -1,0 +1,41 @@
+# Pointing "molmo": not an operation's implementation, an option of POINTING (orchestrator/molmo.py).
+id = "molmo2-4b"
+name = "Molmo 2 4B"
+runs = "this-mac"
+version = "allenai/Molmo2-4B"
+licence = ["molmo2-4b"]
+kind = "model"
+what = "Points at what a request is about"
+runner = "gpu-worker"
+source = { hf = "allenai/Molmo2-4B", revision = "042abfa7a38879a376cec03d949eff0aefaa0600" }
+files = [
+  { path = "added_tokens.json", bytes = 9919, git_sha1 = "58aa40de8e0aba2fbe9839c614ac68981d7cad30" },
+  { path = "chat_template.jinja", bytes = 3169, git_sha1 = "c1149ea803d36a1b379786becf193259356464b5" },
+  { path = "config.json", bytes = 2538, git_sha1 = "c92b22184212a6d37fe92464b06bb7731f1de282" },
+  { path = "configuration_molmo2.py", bytes = 13906, git_sha1 = "2f01a6a5a3bfa903202ca11f2558dfc46f7eb245" },
+  { path = "generation_config.json", bytes = 117, git_sha1 = "d72db99246d536c0a73892e4090c19644924053d" },
+  { path = "image_processing_molmo2.py", bytes = 21116, git_sha1 = "5b78fd8c1170aec613a616225ae553755733c2a4" },
+  { path = "merges.txt", bytes = 1671853, git_sha1 = "31349551d90c7606f325fe0f11bbb8bd5fa0d7c7" },
+  { path = "model-00001-of-00004.safetensors", bytes = 4891799000, sha256 = "065ed844edb74cc3f3992415dc412cfae4c2f6e324de76dc84fffe3a652f6fd3" },
+  { path = "model-00002-of-00004.safetensors", bytes = 4844690992, sha256 = "ac1506897468e69d5af2f46127d30274eecb71c60745e7d27ea0319a27addbb4" },
+  { path = "model-00003-of-00004.safetensors", bytes = 4844691024, sha256 = "da71a15c961f92361b64c3b45f5465d370c9992f032f0f4adf544d0b208ed573" },
+  { path = "model-00004-of-00004.safetensors", bytes = 4822393416, sha256 = "519e694862a7d6d82e539424733f6f55fd8118c3c37e328c2dd942a6d4a16120" },
+  { path = "model.safetensors.index.json", bytes = 75780, git_sha1 = "591e5eec4545f50e843340b146301c88dc412e4a" },
+  { path = "modeling_molmo2.py", bytes = 71560, git_sha1 = "42c194df545edbb38b79cdd0e6b42cba8896776b" },
+  { path = "preprocessor_config.json", bytes = 555, git_sha1 = "be5230df66d867d5234f7f3e3a3859d497dcc844" },
+  { path = "processing_molmo2.py", bytes = 16627, git_sha1 = "79e601819fdd203219fc5d0408dcf69612200ead" },
+  { path = "processor_config.json", bytes = 301, git_sha1 = "f6632eec8f85922b320bff78d65376f18af8d631" },
+  { path = "special_tokens_map.json", bytes = 7908, git_sha1 = "f015e65478029a6f452e433469feec6ade3e7040" },
+  { path = "tokenizer.json", bytes = 11477017, sha256 = "95e80901c901584f416b8fd4349fd60022774b89ba4377626511f0562cc599f7" },
+  { path = "tokenizer_config.json", bytes = 64390, git_sha1 = "01f626fb7533e52397eb12c6a5c00a62d130510e" },
+  { path = "video_preprocessor_config.json", bytes = 984, git_sha1 = "4fd951126c70ebefe790d137d3999f0a88ad6bcd" },
+  { path = "video_processing_molmo2.py", bytes = 37045, git_sha1 = "3385ee99c139ee5f69fe06e1d2a99b9e33b002b9" },
+  { path = "vocab.json", bytes = 2776833, git_sha1 = "4783fe10ac3adce15ac8f358ef5462739852c569" },
+]
+needs_to_get = ["download"]
+needs_to_run = []
+credit = { authors = "Ai2", link = "https://huggingface.co/allenai/Molmo2-4B" }
+workers = ["molmo"]
+host = "own"  # its own worker process (hub.gpu_molmo)
+documented_mb = 12000
+load_limit_s = 600

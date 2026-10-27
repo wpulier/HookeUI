@@ -1,0 +1,51 @@
+# A Fiji function as a folder (ADR 0024): ImageJ's own Process > Subtract Background (the rolling-ball algorithm),
+# run headless in the managed Fiji. No app code names it.
+requires = { catalog = 2 }
+id = "fiji-subtract-background"
+name = "Subtract Background (Fiji)"
+runs = "this-mac"
+version = "1"
+licence = ["fiji"]
+kind = "tool-function"
+what = "Removes uneven background from the view with ImageJ's rolling ball"
+description = "ImageJ's Process > Subtract Background on the picture: a rolling ball of the given radius estimates the smooth background, which is subtracted, evening out uneven illumination. The result is a picture made by Fiji, never the camera's view."
+runner = "fiji"
+source = { tool = "fiji", url = "https://imagej.net/ij/docs/menus/process.html#background" }
+needs_to_run = ["install:fiji-subtract-background"]
+credit = { authors = "Wayne Rasband and ImageJ contributors (ImageJ 1.x); rolling ball after Stanley Sternberg (1983)", link = "https://imagej.net/ij/" }
+category = "Clearer picture"
+search_aliases = ["background subtraction", "rolling ball", "flatten illumination", "uneven lighting"]
+tags = ["filter", "background"]
+tests = [{ input = "example-synthetic-texture.png", params = { radius = 50, light = true }, outcome = "result" }]
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[inputs]]
+id = "radius"
+type = "int"
+default = 50
+min = 1
+max = 500
+step = 1
+unit = "px"
+label = "Rolling ball radius"
+tooltip = "Larger than the biggest object that is not background, in pixels"
+
+[[inputs]]
+id = "light"
+type = "bool"
+default = false
+label = "Light background"
+tooltip = "Yes when the background is brighter than the objects (brightfield)"
+
+[[outputs]]
+id = "subtracted"
+type = "image.2d.rgb8"
+label = "Background subtracted"
+
+[fiji]
+command = "Subtract Background..."
+options = "rolling={radius} {light}"

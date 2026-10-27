@@ -1,0 +1,21 @@
+
+
+Closer look: if the thing is too small or unclear in image 2 to name, you may ask to see part of image 2 closer instead of naming it: reply only {"closer": [ymin, xmin, ymax, xmax]}, a box on a 0-1000 scale of image 2. The app cuts it from the full-resolution camera frame and enlarges it (that adds no detail the camera did not capture). 2 closer looks left. Name it now if you can.
+---
+
+
+Image 3 is the closer look you asked for: the region boxed in cyan in image 2, cut from the full-resolution camera frame and enlarged.
+
+Closer look: if the thing is too small or unclear in image 3 to name, you may ask to see part of image 3 closer instead of naming it: reply only {"closer": [ymin, xmin, ymax, xmax]}, a box on a 0-1000 scale of image 3. The app cuts it from the full-resolution camera frame and enlarges it (that adds no detail the camera did not capture). 1 closer look left. Name it now if you can.
+---
+
+
+Image 3 is the closer look you asked for: the region boxed in cyan in image 2, cut from the full-resolution camera frame and enlarged. No more closer looks: name it now.
+---
+
+
+Closer look: if the question is about something too small to see well in image 1, you may first ask to see part of image 1 closer: reply only {"closer": [ymin, xmin, ymax, xmax]}, a box on a 0-1000 scale of image 1. The app cuts it from the full-resolution camera frame, enlarges it (that adds no detail the camera did not capture) and asks you again. 2 closer looks left. Answer now if you can.
+---
+
+
+Image 2 is the closer look you asked for, cut from the full-resolution camera frame and enlarged. Every box in your reply is still on image 1 (the whole view), never on image 2. No more closer looks: answer now.

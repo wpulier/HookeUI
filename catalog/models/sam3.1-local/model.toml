@@ -1,0 +1,26 @@
+id = "sam3.1-local"
+name = "SAM 3.1 (this Mac)"
+runs = "this-mac"
+version = "facebook/sam3.1"
+licence = ["sam3.1"]
+kind = "model"
+what = "Outlines what you box, running on this Mac"
+runner = "gpu-worker"
+source = { hf = "facebook/sam3.1", revision = "daa63191845a41281374e725f4c9e51c7a824460" }
+files = [
+  { path = "sam3.1_multiplex.pt", bytes = 3502755717, sha256 = "0567debeec80ba4ac6369540c6c248025283cb3ff2b92827509e57e2b3541cb6" },
+]
+needs_to_get = ["key:HF_TOKEN", "licence:https://huggingface.co/facebook/sam3.1", "download"]
+needs_to_run = ["install:sam3"]
+credit = { authors = "Meta AI", link = "https://huggingface.co/facebook/sam3.1" }
+workers = ["analysis"]
+host = "own"  # 5.3 GB and 18 s to load: in a worker of its own, its load blocks nothing else and letting it go stops it
+documented_mb = 5300
+peak_mb = 5800  # the leaf frame, the patched builder (an unpatched one peaks at 9.2 GB)
+load_limit_s = 600
+
+[[implements]]
+operation = "outline"
+impl = "sam3.1-local"
+input = "image.2d.rgb8"
+output = "masks.2d"

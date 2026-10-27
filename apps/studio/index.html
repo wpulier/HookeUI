@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Live microscope view with AI that outlines and explains what you see." />
+    <title>HookeUI Studio</title>
+  </head>
+  <body>
+    <!-- The icon sprite (the redesign, slice 0): 16 px symbols drawn with a 1.5 stroke in currentColor, used as
+         <svg class="icon"><use href="#i-cells"/></svg>. Hidden by .icon-sprite in style.css, not display: none. -->
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-cells" viewBox="0 0 16 16"><circle cx="5" cy="5.5" r="3"/><circle cx="11" cy="6" r="2.5"/><circle cx="8" cy="11.5" r="3"/></symbol>
+      <symbol id="i-clear" viewBox="0 0 16 16"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 8.5h5.6l.7-8.5"/></symbol>
+      <symbol id="i-frame" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><circle cx="8" cy="8" r="3"/></symbol>
+      <symbol id="i-spots" viewBox="0 0 16 16"><circle cx="4.5" cy="5" r="1.2"/><circle cx="10.5" cy="4" r="1.2"/><circle cx="7" cy="9" r="1.2"/><circle cx="12" cy="11" r="1.2"/><circle cx="4" cy="12" r="1.2"/></symbol>
+      <symbol id="i-map" viewBox="0 0 16 16"><path d="M2 4l4-1.5 4 1.5 4-1.5v9.5L10 13.5 6 12l-4 1.5z M6 2.5V12 M10 4v9.5"/></symbol>
+      <symbol id="i-sources" viewBox="0 0 16 16"><rect x="1.5" y="3" width="11" height="8.5" rx="1.5"/><path d="M6 5.6v3.3l2.8-1.65z M4 13.5h9.5a1 1 0 0 0 1-1V6"/></symbol>
+      <symbol id="i-sessions" viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4.5" rx="1.5"/><rect x="2" y="9" width="12" height="4.5" rx="1.5"/></symbol>
+      <symbol id="i-assets" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="3.5" rx="1"/><path d="M2.5 6v6.5A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5V6M6.5 9h3"/></symbol>
+      <symbol id="i-recording" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M6.5 5.8v4.4l3.8-2.2z"/></symbol>
+      <symbol id="i-picture" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1.2"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></symbol>
+      <symbol id="i-made" viewBox="0 0 16 16"><rect x="2" y="2.5" width="5" height="5" rx="1"/><rect x="9" y="2.5" width="5" height="5" rx="1"/><rect x="2" y="9.5" width="5" height="4" rx="1"/><rect x="9" y="9.5" width="5" height="4" rx="1"/></symbol>
+      <symbol id="i-researchers" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="2.6"/><path d="M3 13.5c.6-2.6 2.6-4 5-4s4.4 1.4 5 4"/></symbol>
+      <symbol id="i-activity" viewBox="0 0 16 16"><path d="M1.5 8.5h3l2-5 3 9 2-4h3"/></symbol>
+      <symbol id="i-actions" viewBox="0 0 16 16"><path d="M9 1.5L3.5 9H8l-1 5.5L12.5 7H8z"/></symbol>
+      <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></symbol>
+      <symbol id="i-eye-off" viewBox="0 0 16 16"><path d="M2.5 2.5l11 11M6.4 4c.5-.2 1-.3 1.6-.3 4.1 0 6.5 4.3 6.5 4.3s-.7 1.3-2 2.5M9.6 12.1c-.5.2-1 .4-1.6.4C3.9 12.5 1.5 8 1.5 8s.8-1.4 2.2-2.7"/></symbol>
+      <symbol id="i-more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="12.5" cy="8" r="1.1"/></symbol>
+      <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+      <symbol id="i-hide" viewBox="0 0 16 16"><path d="M4 11.5h8"/></symbol>
+      <symbol id="i-up" viewBox="0 0 16 16"><path d="M4 10l4-4 4 4"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 16 16"><path d="M9.5 2.5h4v4M13.5 2.5L9 7M6.5 13.5h-4v-4M2.5 13.5L7 9"/></symbol>
+      <symbol id="i-shrink" viewBox="0 0 16 16"><path d="M13 7H9V3M9 7l4.5-4.5M3 9h4v4M7 9l-4.5 4.5"/></symbol>
+      <symbol id="i-down" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></symbol>
+      <symbol id="i-grip" viewBox="0 0 16 16"><circle cx="6" cy="4" r=".9"/><circle cx="10" cy="4" r=".9"/><circle cx="6" cy="8" r=".9"/><circle cx="10" cy="8" r=".9"/><circle cx="6" cy="12" r=".9"/><circle cx="10" cy="12" r=".9"/></symbol>
+      <symbol id="i-add-file" viewBox="0 0 16 16"><path d="M8 10.5V2.5M5 5.5l3-3 3 3M2.5 9.5v3a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3"/></symbol>
+      <symbol id="i-camera" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="13" height="9" rx="2"/><circle cx="8" cy="9" r="2.6"/><path d="M5.5 4.5l1-2h3l1 2"/></symbol>
+      <symbol id="i-share" viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="9" rx="1.5"/><path d="M8 10V5.5M5.8 7.4L8 5.2l2.2 2.2M5 14h6"/></symbol>
+      <symbol id="i-layers" viewBox="0 0 16 16"><path d="M8 2.5l6 3-6 3-6-3z M2 8.5l6 3 6-3 M2 11.5l6 3 6-3"/></symbol>
+      <symbol id="i-link" viewBox="0 0 16 16"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1"/></symbol>
+      <symbol id="i-spoken" viewBox="0 0 16 16"><path d="M3 6.5v3M6 4.5v7M9 3v10M12 5.5v5"/></symbol>
+      <symbol id="i-datasets" viewBox="0 0 16 16"><ellipse cx="8" cy="3.8" rx="5.5" ry="2"/><path d="M2.5 3.8v8.4c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V3.8M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"/></symbol>
+      <symbol id="i-models" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5"/><path d="M6.5 1.5V4M9.5 1.5V4M6.5 12v2.5M9.5 12v2.5M1.5 6.5H4M1.5 9.5H4M12 6.5h2.5M12 9.5h2.5"/></symbol>
+      <symbol id="i-gear" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></symbol>
+      <symbol id="i-info" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v3.8M8 5v.1"/></symbol>
+    </svg>
+    <div class="studio">
+      <header class="bar">
+        <h1 class="wordmark">ObservationUI</h1>
+        <!-- On a page (All assets, Datasets, Capabilities, Models, a researcher's work): back to the session's workspace. -->
+        <a class="page-back" id="page-back" href="#" hidden title="Back to the project (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>Back</a>
+        <!-- The session you are in, top left (session-menu.ts; docs/design/2026-10-12-workspace-and-assets.md): its name
+             is the switcher. Its menu lists every session (+ New session, search), and renames this one in place. -->
+        <button type="button" class="session session-title" id="session" hidden aria-expanded="false" aria-controls="session-panel"
+          aria-haspopup="true" title="The project you are in">Project</button>
+        <section class="session-panel" id="session-panel" hidden aria-label="Projects"></section>
+        <select class="session thread-pick" id="thread" hidden aria-label="Conversation"
+          title="This project's conversations: start a new one, or go back to an earlier one (also by voice: “new topic”, “back to the blood smear”)."></select>
+        <span class="bar-gap" aria-hidden="true"></span>
+        <!-- The camera, one control (Will, 2026-10-12): its state, and a click opens its checklist, the phone's controls,
+             Reconnect and the camera page (phonepanel.ts). The live camera is no row in any list. -->
+        <button type="button" class="source camera-control" id="source" aria-expanded="false" aria-controls="phone-panel" aria-haspopup="dialog"
+          title="The camera: where the picture comes from, is it live, and its setup">Connecting…</button>
+        <section class="camera-panel phone-panel" id="phone-panel" hidden aria-label="Camera"></section>
+        <!-- Record holds its Data light: the dataset Record collects, checked as it is saved (docs/datasets.md "The Data
+             light"); the light shows only while there is one, and opens the Datasets page. -->
+        <span class="record-group" id="record-group">
+          <button type="button" class="record" id="record" data-state="idle" aria-pressed="false"
+            title="Choose a screen to record. Only enabled, available audio and camera channels are captured; channel status reports any gaps.">
+            <span class="record-dot" aria-hidden="true"></span><span class="record-label">Record</span>
+          </button>
+          <a class="data-light" id="dataset" href="#datasets" data-state="off">
+            <span class="dataset-dot" aria-hidden="true"></span><span class="dataset-label">Data</span>
+          </a>
+        </span>
+        <!-- Out of the gear, for researchers (docs/design/2026-10-13-researcher-ready.md): what Record collected, and which
+             models do each job (its picker opens under it; the Models page is a row inside). -->
+        <a class="all-assets bar-page" id="tab-datasets" href="#datasets" aria-selected="false" aria-controls="datasets"
+          title="Datasets: what Record collected, where each is and what it holds"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#i-datasets"/></svg>Datasets</a>
+        <button type="button" class="all-assets bar-page bar-models" id="models-toggle" aria-expanded="false" aria-controls="models"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#i-models"/></svg><span class="bar-models-words">Models</span></button>
+        <!-- Every session as a gallery (sessions-page.ts; Will, 2026-10-15: "a Sessions button in the nav too"). -->
+        <a class="all-assets" id="tab-sessions" href="#sessions" aria-selected="false" aria-controls="sessions-page"
+          title="Projects: every project, to open one or start another"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#i-sessions"/></svg>Projects</a>
+        <!-- The library: every recording and picture of yours, whether or not a session uses it (a page of its own). -->
+        <a class="all-assets" id="tab-assets" href="#assets" aria-selected="false" aria-controls="assets"
+          title="Library: every recording and picture of yours, to add to this project"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#i-assets"/></svg>Library</a>
+        <!-- What your current choices need (modelspage.ts chipState): shown only when something needs you; opens #models. -->
+        <button type="button" class="setup-chip" id="setup-chip" data-tone="unknown" aria-controls="models-page" hidden
+          title="Every model: what runs here and how to turn each on"><span class="setup-chip-dot" aria-hidden="true"></span><span id="setup-chip-words">Models</span></button>
+        <!-- Settings (the gear): everything an expert sets, one step away and never on screen until asked for. -->
+        <button type="button" class="gear-toggle" id="gear" aria-expanded="false" aria-controls="gear-panel" aria-haspopup="true"
+          aria-label="Settings" title="Settings: the example walkthrough, behaviour, the Toolbox, the blind test, test footage"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#i-gear"/></svg></button>
+        <section class="gear-panel" id="gear-panel" hidden aria-label="Settings">
+          <p class="feed-group">Settings</p>
+          <button type="button" class="gear-row" id="example-walkthrough">Example walkthrough</button>
+          <button type="button" class="gear-row models-toggle behaviour-toggle" id="behaviour-toggle" aria-expanded="false" aria-controls="behaviour">Behaviour</button>
+          <a class="gear-row" id="tab-capabilities" href="#toolbox" aria-selected="false" aria-controls="capabilities"
+            title="Everything the app can do, who does it, and what powers it">Models</a>
+          <button type="button" class="gear-row blind-switch" id="blind-switch" role="switch" aria-checked="false"
+            title="Blind test: every option answers the same click or question, and you pick the best before seeing names">
+            <span>Blind test</span>
+            <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+            <span class="switch-state" id="blind-state">Off</span>
+          </button>
+          <span class="gear-row workspace-share">
+            <button type="button" id="workspace-share" title="Optionally share this Studio tab when a request needs workspace pixels; the microscope remains the default">Share this Studio tab</button>
+            <button type="button" id="workspace-share-stop" hidden>Stop sharing</button>
+            <span id="workspace-share-status" role="status">Tab sharing off</span>
+          </span>
+          <p class="feed-group">Developer</p>
+          <button type="button" class="gear-row source-menu" id="source-menu" aria-expanded="false" aria-controls="camera-panel"
+            title="Test footage: plays a recording into the live feed instead of the camera">Test footage…</button>
+          <a class="gear-row" id="tab-footage" href="#footage" title="Every test recording, and adding more">Test footage library</a>
+        </section>
+        <form class="models" id="behaviour" hidden aria-label="Choose how it works with the models and with you"></form>
+        <form class="models" id="models" hidden aria-label="Choose which models do each job"></form>
+        <!-- Test footage (a developer setting): plays a recording into the live feed instead of the camera. -->
+        <section class="camera-panel" id="camera-panel" hidden aria-label="Test footage"></section>
+      </header>
+
+      <section id="example-guide" hidden></section>
+
+      <main class="stage" id="stage" aria-label="Live view">
+        <canvas id="view" aria-label="Live microscope view. Click a structure to outline it."></canvas>
+        <!-- The side bar (sidebar.ts): the session's four sections (Assets, Made, Researchers, Activity) over Actions; closed,
+             a slim rail at the left edge, open, a row of icon tabs above the section. The eyepiece glides right of it; on
+             phones it is a sheet. Its id is the sessions rail's, as it once was. -->
+        <aside class="session-rail" id="session-rail" data-open="false" aria-label="Projects"></aside>
+        <div class="notice" id="notice" hidden role="status"></div>
+        <!-- Another session opening (session-view.ts StageGate): the stage is empty and says only this until its source
+             lands, so nothing of the last session stays on it. -->
+        <p class="stage-opening" id="stage-opening" hidden role="status"></p>
+        <!-- A new session's home (session-home.ts): the live camera, a recording or a picture; the app looks at nothing
+             behind it until one is chosen. -->
+        <section class="session-home" id="session-home" hidden></section>
+        <!-- Files dragged over the studio: dropped on the stage (or the side bar's Sources), they are added and opened. -->
+        <div class="stage-drop" id="stage-drop" hidden aria-hidden="true"><p>Drop recordings or pictures to add them to this project</p></div>
+        <!-- A closer look: floats over the dark surround beside the eyepiece, never over its
+             object; the live view never shrinks for it. Drag it by its bar. -->
+        <section class="magnifier" id="magnifier" hidden aria-label="Magnifier" data-screen-title="Magnifier">
+          <div class="magnifier-bar" id="magnifier-bar" title="Drag to move. Double-click to reset placement.">
+            <p class="magnifier-caption" id="magnifier-caption"></p>
+            <details class="magnifier-controls" id="magnifier-controls">
+              <summary aria-label="Magnifier controls" title="Magnifier controls">⋯</summary>
+              <div class="magnifier-options">
+                <p class="magnifier-credit" id="magnifier-credit" hidden></p>
+                <div class="magnifier-dots" id="magnifier-dots" role="tablist" aria-label="Magnifier source"></div>
+                <div class="magnifier-zoom" id="magnifier-zoom" role="group" aria-label="Zoom">
+                  <button type="button" id="magnifier-less" aria-label="Zoom out" title="Zoom out">−</button>
+                  <button type="button" id="magnifier-fit" title="Reset zoom to fit">Fit</button>
+                  <button type="button" id="magnifier-more" aria-label="Zoom in" title="Zoom in">+</button>
+                </div>
+              </div>
+            </details>
+            <button type="button" class="magnifier-close" id="magnifier-close" aria-label="Close the magnifier" title="Close (Esc)">×</button>
+          </div>
+          <div class="magnifier-picture" id="magnifier-picture">
+            <canvas id="magnifier-live" aria-label="Live close-up of the selected object"></canvas>
+            <img id="magnifier-image" alt="" hidden />
+            <p class="magnifier-kind" id="magnifier-kind" hidden></p>
+            <figure class="magnifier-beside" id="magnifier-beside" hidden>
+              <img id="magnifier-beside-image" alt="" />
+              <figcaption class="magnifier-kind" id="magnifier-beside-kind"></figcaption>
+            </figure>
+          </div>
+          <div class="magnifier-grip" id="magnifier-grip" role="separator" aria-label="Drag to make the magnifier bigger or smaller" title="Drag to resize. Double-click the bar to put it back."></div>
+        </section>
+        <aside class="side" id="side" aria-label="Results">
+          <section class="viewer" id="viewer" hidden aria-labelledby="viewer-title" data-screen-title="Result viewer">
+            <header class="viewer-head">
+              <div>
+                <h2 id="viewer-title"></h2>
+                <p class="viewer-from" id="viewer-from"></p>
+              </div>
+              <button type="button" class="viewer-close" id="viewer-close" aria-label="Close (it stays in this project's Researchers)" title="Close (Esc). It stays in this project's Researchers.">×</button>
+            </header>
+            <div class="viewer-tabs" id="viewer-tabs" role="tablist" aria-label="What it made"></div>
+            <div class="viewer-body" id="viewer-body"></div>
+          </section>
+          <!-- Made in this session (madetoday.ts): the session's one index, by kind and title; main.ts puts it in the side
+               bar's Made. -->
+          <section class="slidemap made-today" id="made-today" hidden aria-labelledby="made-today-title" data-screen-title="Made in this project">
+            <header class="viewer-head">
+              <div>
+                <h2 id="made-today-title">Made in this project</h2>
+                <p class="viewer-from" id="made-today-note"></p>
+              </div>
+              <button type="button" class="viewer-close" id="made-today-close" aria-label="Close" title="Close (Esc)">×</button>
+            </header>
+            <div class="made-today-list" id="made-today-list"></div>
+          </section>
+          <!-- The slide map (slidemap.ts): still views pasted where they are on the slide. -->
+          <section class="slidemap" id="slidemap" hidden aria-labelledby="slidemap-title" data-screen-title="Slide map">
+            <header class="viewer-head">
+              <div>
+                <h2 id="slidemap-title">Slide map</h2>
+                <p class="viewer-from" id="slidemap-note"></p>
+              </div>
+              <button type="button" class="viewer-close" id="slidemap-close" aria-label="Close the slide map" title="Close (Esc)">×</button>
+            </header>
+            <div class="slidemap-picture">
+              <img id="slidemap-image" alt="The slide map: still views seen so far, where they are on the slide" hidden />
+              <svg id="slidemap-marks" aria-hidden="true" preserveAspectRatio="xMidYMid meet"></svg>
+            </div>
+          </section>
+        </aside>
+        <!-- The details of what you clicked: a card floating over the view, moved by its title. -->
+        <section class="description" id="description" hidden aria-live="polite" aria-labelledby="description-title" data-screen-title="Details card">
+          <header class="description-head" id="description-head" title="Drag to move">
+            <h2 id="description-title"></h2>
+            <button type="button" class="description-close" id="description-close" aria-label="Close the details" title="Close (Esc)">×</button>
+          </header>
+          <p class="description-meta" id="description-meta"></p>
+          <p class="description-seen" id="description-seen" hidden></p>
+          <p class="description-taught" id="description-taught" hidden></p>
+          <p class="description-summary" id="description-summary"></p>
+          <div class="description-extra" id="description-extra" hidden></div>
+          <div class="description-review" id="description-review"></div>
+          <div class="description-refs" id="description-refs"></div>
+          <details class="description-notes" id="description-notes" hidden>
+            <summary id="description-notes-count"></summary>
+            <ol id="description-notes-list"></ol>
+          </details>
+          <div class="description-actions">
+            <button type="button" id="description-more" aria-expanded="false" aria-controls="description-extra">More</button>
+            <!-- Look deeper (docs/design/2026-10-07-the-partner.md §2.7): asks in plain words; the app chooses how. -->
+            <button type="button" id="description-deeper" title="The app chooses: a closer look, a measurement, or a researcher">Look deeper</button>
+            <a id="description-open" href="#research" hidden>How this was found</a>
+          </div>
+        </section>
+        <!-- The shelf (shelf.ts): the Working strip's pills, researchers and runs at work or with work to open; the
+             studio shell moves it into the strip under the Stage (working-strip.ts). -->
+        <section class="strip-pills" id="shelf" hidden aria-label="Researchers and runs working now, or with work to open"></section>
+      </main>
+
+      <section class="capabilities" id="capabilities" hidden role="tabpanel" aria-labelledby="tab-capabilities"></section>
+      <section class="assets-page" id="assets" hidden role="tabpanel" aria-labelledby="tab-assets"></section>
+      <section class="assets-page" id="sessions-page" hidden aria-labelledby="sessions-title"></section>
+      <section class="assets-page" id="measurements" hidden aria-labelledby="measurements-title"></section>
+      <section class="assets" id="footage" hidden role="tabpanel" aria-labelledby="tab-footage"></section>
+      <section class="datasets" id="datasets" hidden role="tabpanel" aria-labelledby="tab-datasets"></section>
+      <section class="models-page" id="models-page" hidden aria-labelledby="models-page-heading"></section>
+      <section class="research" id="research" hidden role="tabpanel" aria-labelledby="research-heading">
+        <header class="research-head">
+          <h2 id="research-heading">Researchers</h2>
+          <p class="research-spend" id="research-spend"></p>
+          <button type="button" id="research-popout">Open in a new window</button>
+        </header>
+        <p class="research-empty" id="research-empty">No researchers yet. They work in the background while you
+          keep looking: ask "have a researcher look into how these open" or "make me a labelled picture of it".</p>
+        <ol class="research-list" id="research-list"></ol>
+        <details class="research-quick" id="research-quick" hidden>
+          <summary>Quick lookups for the descriptions under labels (<span id="research-quick-count">0</span>)</summary>
+          <ol id="research-quick-list"></ol>
+        </details>
+        <article class="research-session" id="research-session" hidden></article>
+      </section>
+
+      <aside class="activity-panel" id="activity-panel" hidden aria-label="App activity">
+        <header><strong>Activity</strong><button type="button" id="activity-close" aria-label="Close activity">×</button></header>
+        <details class="activity-settings"><summary>Diagnostic settings</summary><div class="execution-toolbar" id="execution-logging" aria-label="Execution logging"></div></details>
+        <div id="execution-history"></div>
+        <ol class="log" id="activity-log" aria-label="Actions and results"></ol>
+      </aside>
+      <aside class="notebook" id="notebook" aria-label="Conversation about the view">
+        <button type="button" class="chat-hide" id="chat-hide" aria-label="Hide the chat" title="Hide the chat (more room for the view)">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" /><path d="M9.75 2.75v10.5" /></svg>
+        </button>
+        <div class="conversation-toolbar"><button type="button" id="activity-toggle" aria-expanded="false" aria-controls="activity-panel">Activity</button></div>
+        <!-- When the model your Seeing choice uses can't run (modelspage.ts liveNote): at the top of the chat, never over the
+             view (Will, 2026-10-14). -->
+        <div class="setup-note" id="setup-note" hidden role="status"></div>
+        <ol class="log" id="log" aria-live="polite"></ol>
+        <!-- The three things the Assistant does, one each: look at the specimen, run a model on it, start a researcher.
+             data-ask is what is sent; data-fill puts words in the box to finish instead of sending. -->
+        <div class="starters" id="starters">
+          <p>Ask about what is on the Stage, run a model, or start a researcher.</p>
+          <button type="button" data-starter="look" data-ask="What am I looking at?"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><strong>What am I looking at?</strong><span>Says what is on the Stage</span></button>
+          <button type="button" data-starter="model" data-ask="Outline every cell"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="6" r="3"/><circle cx="10.5" cy="10" r="3"/><path d="M12.5 2.5v3M11 4h3"/></svg><strong>Outline every cell</strong><span>Runs a model on your specimen; the outlines are kept in Data</span></button>
+          <button type="button" data-starter="research" data-fill="Start a researcher to "><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5" r="2.25"/><path d="M2 13.5v-1A3.5 3.5 0 0 1 5.5 9h1A3.5 3.5 0 0 1 10 12.5v1"/><path d="M10.5 3a2 2 0 0 1 0 4M12 9.25a3.25 3.25 0 0 1 2 3v1.25"/></svg><strong>Start a researcher</strong><span>Longer work that keeps going while you do</span></button>
+        </div>
+        <!-- The composer (composer.ts builds it in this form: the chip line, the field #question, then +, the model chip,
+             Talk and Send). Talk is here because the voice client owns its states. -->
+        <form class="ask" id="ask">
+          <button type="button" class="talk" id="talk" aria-pressed="false" title="Talk about the view (uses the microphone)">
+            <svg class="talk-mic" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.25"/></svg>
+            <span class="talk-level" aria-hidden="true"></span><span class="talk-label">Talk</span>
+          </button>
+        </form>
+      </aside>
+
+      <button type="button" class="chat-show" id="chat-show" aria-label="Show the chat" title="Show the chat">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" /><path d="M9.75 2.75v10.5" /></svg>
+        <span class="chat-show-label">Chat</span><span class="chat-unread" id="chat-unread" hidden></span>
+      </button>
+
+      <footer class="dock">
+        <div class="player" id="feed-badge" hidden role="group" aria-label="Test footage playing">
+          <button type="button" class="play-pause" id="play-pause" aria-label="Pause" title="Pause (the picture holds, as a slide at rest)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-pause"><rect x="3.5" y="2.5" width="3" height="11" rx="0.8"/><rect x="9.5" y="2.5" width="3" height="11" rx="0.8"/></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true" class="icon-play"><path d="M4.5 2.8v10.4a.6.6 0 0 0 .9.5l8.2-5.2a.6.6 0 0 0 0-1L5.4 2.3a.6.6 0 0 0-.9.5z"/></svg>
+          </button>
+          <input class="playhead" id="playhead" type="range" min="0" max="1" step="0.1" value="0" aria-label="Position in the recording" />
+          <span class="feed-time" id="feed-time"></span>
+          <!-- While one of this session's recordings plays: "Recording of this session · Oct 12, 1:44 am" (session-view.ts). -->
+          <span class="feed-label" id="feed-label" hidden></span>
+          <button type="button" class="use-optics" id="use-optics" hidden>Use its optics</button>
+        </div>
+        <section class="blind-bar" id="showing-bar" hidden aria-label="Showing a finding">
+          <span class="blind-pill">Showing</span>
+          <p class="blind-text" id="showing-text"></p>
+          <button type="button" id="showing-stop">Stop</button>
+        </section>
+        <section class="blind-bar" id="blind-bar" hidden aria-label="Blind test">
+          <span class="blind-pill">Blind test</span>
+          <p class="blind-text">Click or ask anything: every option answers, unnamed, and you pick the best.</p>
+          <button type="button" id="compare-open">What's compared</button>
+          <button type="button" id="scores-open">Scores</button>
+        </section>
+        <section class="verdict" id="verdict" hidden aria-labelledby="verdict-question">
+          <p class="verdict-question" id="verdict-question">Which outline is best?</p>
+          <div class="verdict-choices" id="verdict-choices" role="group" aria-labelledby="verdict-question"></div>
+          <label class="visually-hidden" for="verdict-note">Why (optional)</label>
+          <input class="verdict-note" id="verdict-note" autocomplete="off" placeholder="Why? (optional)" />
+          <ol class="verdict-reveal" id="verdict-reveal" hidden></ol>
+        </section>
+        <div class="tools" role="toolbar" aria-label="View tools">
+          <button type="button" id="cells">Outline all cells</button>
+          <!-- The cells' layer, once there is one: the same verbs the brain uses, as yours (screen.py). -->
+          <span class="layer-controls" id="layer-controls" role="group" aria-label="The cell outlines" hidden>
+            <button type="button" id="layer-visible" aria-pressed="true">Cells shown</button>
+            <label class="layer-fade">Fade <input type="range" id="layer-opacity" min="0.1" max="1" step="0.05" value="1" aria-label="How strongly the cell outlines are drawn" /></label>
+            <select id="layer-colour" aria-label="Colour the cell outlines">
+              <option value="id">Own colours</option>
+              <option value="size">By size</option>
+              <option value="elongation">By elongation</option>
+              <option value="roundness">By roundness</option>
+              <option value="look groups">By look group</option>
+              <option value="your label">By nearest group you named</option>
+              <option value="yellow">All yellow</option>
+            </select>
+            <button type="button" id="layer-fill" aria-pressed="false">Fill</button>
+          </span>
+                    <button type="button" id="whole-frame" aria-pressed="false"
+            title="Show the whole camera picture, not zoomed to the eyepiece: for centring the phone on it">Whole frame</button>
+          <button type="button" id="spots" aria-pressed="false">Show detected spots</button>
+          <button type="button" id="map" aria-pressed="false" aria-controls="slidemap"
+            title="The slide map: the still views seen so far, where they are on the slide (also by voice: “show me the map”)">Slide map</button>
+          <button type="button" id="clear">Clear outlines</button>
+        </div>
+        <p class="hint" id="hint">Click anything in the view to outline it.</p>
+      </footer>
+    </div>
+    <dialog class="scores compare" id="compare" aria-labelledby="compare-title">
+      <header>
+        <h2 id="compare-title">What the blind test compares</h2>
+        <button type="button" id="compare-close">Done</button>
+      </header>
+      <p class="scores-note">Each click or question goes to every option ticked here, side by side and unnamed.</p>
+      <form class="compare-form" id="compare-body" onsubmit="return false"></form>
+    </dialog>
+    <dialog class="scores" id="scores" aria-labelledby="scores-title">
+      <header>
+        <h2 id="scores-title">Scores</h2>
+        <button type="button" id="scores-close">Close</button>
+      </header>
+      <div id="scores-body"></div>
+    </dialog>
+    <script type="module" src="/src/workspace-study.ts"></script>
+  </body>
+</html>

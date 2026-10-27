@@ -1,0 +1,15 @@
+# A reviewed template (catalog/templates/README.md): what an entry made from a Hugging Face link runs. The app copies
+# adapter.py and env.lock byte for byte into the entry it writes (orchestrator/link_recognise.py, mine.py); only the model's
+# own files (config.json, preprocessor_config.json, model.safetensors) come from the link, pinned at its commit by hash.
+id = "hf-segmentation"
+version = 4  # 4: classes.json says which numbered classes aren't things; 3: torchvision in its environment (SegFormer's processors need it in transformers 5.19)
+runs = "A Hugging Face transformers segmentation model (SegFormer, UperNet, DPT, BEiT, MobileViT, Mask2Former, MaskFormer) with safetensors weights"
+where = "Hugging Face"
+proves = "checks it on a real picture"
+runner = "python-env"
+adapter = "adapter:segment"
+env = { python = "3.13.5", lock = "env.lock", imports = ["torch", "torchvision", "transformers", "scipy"] }
+host = "own"
+documented_mb = 1500
+load_limit_s = 180
+implements = { operation = "cells", input = "image.2d.rgb8", output = "labels.instance.2d" }

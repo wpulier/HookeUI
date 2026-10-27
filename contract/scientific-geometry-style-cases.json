@@ -1,0 +1,34 @@
+{
+  "points": {"symbol": "star", "size": 7, "borderWidth": 0.2, "borderWidthIsRelative": true,
+             "face": {"mode": "cycle", "feature": "kind", "cycle": [[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 1]]},
+             "border": {"mode": "colormap", "feature": "area", "colormap": "gray", "contrastLimits": [0, 4]}},
+  "shapes": {"edgeWidth": 3, "face": {"mode": "direct", "color": null}, "edge": {"mode": "direct", "color": [1, 0, 0, 1]}},
+  "text": {"string": {"kind": "format", "value": "{kind}: {area:.1f}"}, "color": [1, 1, 0, 1]},
+  "invalidPoints": [
+    {"name": "unknown symbol", "patch": {"symbol": "circle"}},
+    {"name": "negative size", "patch": {"size": -1}},
+    {"name": "boolean size", "patch": {"size": true}},
+    {"name": "relative border above one", "patch": {"borderWidth": 1.5}},
+    {"name": "coerced relative flag", "patch": {"borderWidthIsRelative": 1}},
+    {"name": "unknown color mode", "patch": {"face": {"mode": "random"}}},
+    {"name": "direct color out of range", "patch": {"face": {"mode": "direct", "color": [2, 0, 0, 1]}}},
+    {"name": "three-value color", "patch": {"face": {"mode": "direct", "color": [1, 0, 0]}}},
+    {"name": "empty cycle", "patch": {"face": {"mode": "cycle", "feature": "kind", "cycle": []}}},
+    {"name": "cycle without feature", "patch": {"face": {"mode": "cycle", "feature": "", "cycle": [[1, 0, 0, 1]]}}},
+    {"name": "reversed limits", "patch": {"border": {"mode": "colormap", "feature": "area", "colormap": "gray", "contrastLimits": [4, 0]}}},
+    {"name": "colormap without name", "patch": {"border": {"mode": "colormap", "feature": "area", "colormap": "", "contrastLimits": null}}},
+    {"name": "unknown setting", "patch": {"shading": "none"}}
+  ],
+  "invalidShapes": [
+    {"name": "negative edge width", "patch": {"edgeWidth": -2}},
+    {"name": "string edge width", "patch": {"edgeWidth": "3"}},
+    {"name": "border instead of edge", "patch": {"border": {"mode": "direct", "color": null}}}
+  ],
+  "invalidText": [
+    {"name": "unknown kind", "patch": {"string": {"kind": "template", "value": "{a}"}}},
+    {"name": "text set in Python is not a setting", "patch": {"string": {"kind": "other", "value": ""}}},
+    {"name": "empty feature", "patch": {"string": {"kind": "feature", "value": ""}}},
+    {"name": "color out of range", "patch": {"color": [1, 1, 1, 2]}},
+    {"name": "missing color", "patch": {"color": "yellow"}}
+  ]
+}

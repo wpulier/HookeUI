@@ -1,0 +1,116 @@
+/* The camera's shared pieces (checklist.ts, phone-controls.ts), on the camera page and in the studio's Phone panel.
+   Colours come from the host: --cam-ink, --cam-muted, --cam-faint, --cam-hair, --cam-panel, --cam-raised, --cam-accent
+   (the lamp's warm light: on, held), --cam-accent-ink, --cam-fault (what needs a hand). */
+
+.cam-act {
+  appearance: none; border: 0; border-radius: 999px; padding: 7px 16px; min-height: 32px; font: inherit; font-size: 13.5px;
+  font-weight: 600; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  background: var(--cam-raised); color: var(--cam-ink); box-shadow: inset 0 0 0 1px var(--cam-hair);
+}
+.cam-act[data-strong="true"] { background: var(--cam-accent); color: var(--cam-accent-ink); box-shadow: none; }
+.cam-act:disabled { opacity: 0.45; cursor: default; }
+.cam-act[hidden] { display: none; }
+.cam-act:not(:disabled):hover { filter: brightness(1.12); }
+.cam-act:not(:disabled):active { transform: scale(0.97); }
+.cam-act { transition: transform 80ms ease, filter 120ms ease; }
+/* Running: full strength, its words say what it does, a spinner beside them. */
+.cam-act[data-busy="true"] { opacity: 1; cursor: progress; }
+.cam-act[data-busy="true"]::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: cam-spin 0.7s linear infinite; }
+@keyframes cam-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cam-act[data-busy="true"]::before { animation-duration: 2s; } }
+.cam-done { margin: 0; font-size: 13px; color: var(--cam-ink); display: flex; align-items: center; gap: 8px; }
+.cam-done::before { content: "✓"; color: var(--cam-accent); font-weight: 700; }
+.cam-off { margin: 0; font-size: 13px; line-height: 1.45; color: var(--cam-muted, inherit); }
+.cam-off[hidden] { display: none; }
+.cam-link { appearance: none; border: 0; background: none; padding: 4px 2px; font: inherit; font-size: 13px; color: var(--cam-muted); cursor: pointer; text-decoration: none; }
+.cam-link:hover { color: var(--cam-ink); }
+.cam-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cam-spacer { flex: 1; }
+
+/* The checklist. */
+.cam-checklist { display: grid; gap: 12px; }
+.cam-first { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--cam-fault) 10%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cam-fault) 28%, transparent); }
+.cam-first .cam-what { font-weight: 600; font-size: 14.5px; }
+.cam-first .cam-evidence { font-size: 12.5px; color: var(--cam-muted); font-variant-numeric: tabular-nums; }
+.cam-fix { margin: 2px 0 0; font-size: 14px; color: var(--cam-ink); }
+.cam-fold { font-size: 13px; color: var(--cam-muted); border-top: 1px solid var(--cam-hair); padding-top: 10px; }
+.cam-fold + .cam-fold { border-top: 0; padding-top: 0; margin-top: -4px; }
+.cam-fold summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.cam-fold summary::-webkit-details-marker { display: none; }
+.cam-fold summary::after { content: "Show"; margin-left: auto; color: var(--cam-faint); }
+.cam-fold[open] summary::after { content: "Hide"; }
+.cam-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cam-accent); flex: none; }
+.cam-dot[data-ok="false"] { background: var(--cam-fault); }
+.cam-checks { list-style: none; margin: 10px 0 0; padding: 0; display: grid; }
+.cam-checks li { display: grid; grid-template-columns: 16px 1fr; gap: 1px 8px; padding: 6px 0; border-top: 1px solid var(--cam-hair); }
+.cam-checks li:first-child { border-top: 0; }
+.cam-checks .cam-what { font-size: 13.5px; color: var(--cam-ink); }
+.cam-checks li[data-ok="false"] .cam-what { font-weight: 600; }
+.cam-checks .cam-evidence { grid-column: 2; font-size: 12.5px; color: var(--cam-faint); font-variant-numeric: tabular-nums; }
+.cam-checks li.cam-after { opacity: 0.5; }
+.cam-mark { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: var(--cam-faint); }
+.cam-checks li[data-ok="true"] .cam-mark { background: var(--cam-accent); }
+.cam-checks li[data-ok="false"] .cam-mark { background: var(--cam-fault); }
+/* Not connected yet: a guide, in the page's own calm colours (never the fault's red). */
+.cam-connect { display: grid; gap: 14px; }
+.cam-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; }
+.cam-steps li { counter-increment: step; display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: baseline; font-size: 13.5px; line-height: 1.4; color: var(--cam-ink); }
+.cam-steps li::before { content: counter(step); display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 600; background: var(--cam-raised); box-shadow: inset 0 0 0 1px var(--cam-hair); color: var(--cam-muted); transform: translateY(-1px); }
+.cam-waiting { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--cam-muted); }
+.cam-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--cam-accent); animation: cam-breathe 1.6s ease-in-out infinite; }
+@keyframes cam-breathe { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cam-pulse { animation: none; opacity: 0.7; } }
+.cam-help { font-size: 13px; color: var(--cam-muted); }
+.cam-help summary { cursor: pointer; width: fit-content; color: var(--cam-muted); list-style: none; }
+.cam-help summary::-webkit-details-marker { display: none; }
+.cam-help summary::after { content: " ›"; }
+.cam-help[open] summary::after { content: ""; }
+.cam-help summary:hover { color: var(--cam-ink); }
+.cam-help ul { margin: 8px 0 10px; padding-left: 18px; display: grid; gap: 4px; }
+.cam-hint { font-size: 12.5px; color: var(--cam-faint); }
+.cam-hint:empty { display: none; }
+.cam-hint[data-done="true"] { color: var(--cam-ink); }
+.cam-hint[data-done="true"]::before { content: "✓ "; color: var(--cam-accent); font-weight: 700; }
+/* Where it is up to: the step it waits on is a ring, the ones after it dim. */
+.cam-checklist[data-mode="connect"] .cam-checks li[data-ok="false"] .cam-mark { background: transparent; box-shadow: inset 0 0 0 1.5px var(--cam-accent); }
+.cam-checklist[data-mode="connect"] .cam-checks li[data-ok="false"] .cam-what { font-weight: inherit; }
+.cam-events { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-variant-numeric: tabular-nums; }
+
+/* The phone's controls: taking on top, then four groups of label-and-value lines with their slider under them. */
+.cam-controls { display: grid; }
+.cam-take { display: flex; align-items: center; gap: 10px; padding: 14px 18px; flex-wrap: wrap; }
+.cam-rec::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 2px; border-radius: 50%; background: var(--cam-fault); }
+.cam-rec[data-on="true"]::before { border-radius: 2px; }
+.cam-rec[data-on="true"] { color: var(--cam-fault); box-shadow: inset 0 0 0 1px var(--cam-fault); }
+.cam-state { font-size: 13px; color: var(--cam-muted); font-variant-numeric: tabular-nums; }
+.cam-state[data-on="true"] { color: var(--cam-fault); }
+.cam-battery { margin-left: auto; font-size: 13px; color: var(--cam-faint); font-variant-numeric: tabular-nums; }
+.cam-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--cam-hair); border-top: 1px solid var(--cam-hair); }
+.cam-controls[data-narrow="true"] .cam-groups { grid-template-columns: 1fr; }
+.cam-group { display: grid; align-content: start; gap: 14px; padding: 14px 18px 18px; background: var(--cam-panel); }
+.cam-group h3 { margin: 0; min-height: 24px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--cam-faint); letter-spacing: 0.02em; }
+.cam-group-title { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cam-field { display: grid; gap: 7px; }
+.cam-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 24px; font-size: 13.5px; }
+.cam-label { color: var(--cam-muted); }
+.cam-field output { font-variant-numeric: tabular-nums; font-size: 13.5px; color: var(--cam-ink); }
+.cam-chips { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.cam-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cam-controls input[type="range"] { width: 100%; margin: 0; accent-color: var(--cam-accent); }
+.cam-controls input[type="range"]:disabled { opacity: 0.35; }
+.cam-controls select { width: 100%; min-height: 30px; font: inherit; font-size: 13px; color: var(--cam-ink); background: var(--cam-raised); border: 1px solid var(--cam-hair); border-radius: 8px; padding: 4px 8px; }
+.cam-controls select:disabled { opacity: 0.45; }
+.cam-chip { appearance: none; border: 1px solid var(--cam-hair); background: transparent; border-radius: 999px; padding: 2px 10px; min-height: 26px; min-width: 2.6em; font: inherit; font-size: 12.5px; color: var(--cam-muted); cursor: pointer; font-variant-numeric: tabular-nums; }
+.cam-chip:hover { color: var(--cam-ink); }
+.cam-chip[aria-pressed="true"] { border-color: var(--cam-accent); color: var(--cam-accent); }
+.cam-chip:disabled { opacity: 0.4; cursor: default; }
+.cam-hold { appearance: none; border: 0; border-radius: 999px; padding: 3px 11px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--cam-accent); color: var(--cam-accent-ink); }
+.cam-hold[data-held="true"] { background: transparent; color: var(--cam-accent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cam-accent) 50%, transparent); cursor: default; opacity: 1; }
+.cam-group .cam-link { justify-self: start; font-size: 12.5px; padding: 0; }
+
+@media (min-width: 1000px) { .cam-controls:not([data-narrow="true"]) .cam-groups { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .cam-groups { grid-template-columns: 1fr; }
+  .cam-chip, .cam-act { min-height: 44px; }
+  .cam-chip { padding: 4px 13px; }
+}

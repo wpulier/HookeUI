@@ -1,0 +1,112 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Chat · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (workspace-feel plan, step 6): the production chat (chatlog.ts, its slot, researcher cards and
+     scrolling: chat-cards.ts, chat-scroll.ts) and the production composer (composer.ts) in an Assistant panel built as
+     the workspace builds it, with the workspace's own stylesheets, over synthetic server messages and researcher records
+     (no server, no model, no researcher runs). Parameters: ?state=start|start-working|chat-follow|chat-away|empty|
+     workspace, &theme=light. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:44px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;font:600 13px var(--mm-sans)}
+ .fx-rail{position:fixed;left:0;top:44px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-stage{position:fixed;left:72px;right:360px;top:120px;bottom:40px;background:#000;display:grid;place-items:center}
+ .fx-stage div{width:min(90%,708px);aspect-ratio:1;background:center/contain no-repeat}
+ .fx-strip{position:fixed;left:72px;right:0;bottom:0;height:40px;box-shadow:inset 0 1px 0 var(--mm-line);background:var(--mm-page)}
+ body[data-workspace-study='true'] .study-right-panel{position:fixed;top:44px;right:0;bottom:40px;width:360px;display:flex;flex-direction:column}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-study-layout="global">
+<div class="fx-top">Fixture: the production chat and composer over synthetic messages (design evidence only)</div>
+<nav class="fx-rail" aria-label="Fixture rail"></nav>
+<main class="fx-stage"><div id="specimen"></div></main>
+<div class="fx-strip"></div>
+<aside class="study-right-panel" aria-label="Assistant">
+ <header class="study-panel-header study-right-header mm-dhead"><h2>Assistant</h2><span id="more"></span><button type="button" class="study-close" aria-label="Close Assistant">×</button></header>
+ <aside class="notebook" id="notebook" aria-label="Conversation about the view">
+  <div class="chat-log-wrap" id="wrap"><ol class="log" id="log" aria-live="polite"></ol></div>
+  <div class="starters" id="starters">
+   <p>Ask about what is on the Stage, run a model, or start a researcher.</p>
+   <button type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg><strong>What am I looking at?</strong><span>Says what is on the Stage</span></button>
+   <button type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.5" cy="6" r="3"/><circle cx="10.5" cy="10" r="3"/><path d="M12.5 2.5v3M11 4h3"/></svg><strong>Outline every cell</strong><span>Runs a model on your specimen; the outlines are kept in Data</span></button>
+   <button type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5" r="2.25"/><path d="M2 13.5v-1A3.5 3.5 0 0 1 5.5 9h1A3.5 3.5 0 0 1 10 12.5v1"/><path d="M10.5 3a2 2 0 0 1 0 4M12 9.25a3.25 3.25 0 0 1 2 3v1.25"/></svg><strong>Start a researcher</strong><span>Longer work that keeps going while you do</span></button>
+  </div>
+  <form class="ask" id="ask">
+   <button type="button" class="talk" id="talk" aria-pressed="false"><svg class="talk-mic" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.25"/></svg><span class="talk-level" aria-hidden="true"></span><span class="talk-label">Talk</span></button>
+  </form>
+ </aside>
+</aside>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';
+import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
+import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';
+import cells from '../../design/workspace-feel/assets/human-cells.png';
+const params=new URLSearchParams(location.search),state=params.get('state')||'start';
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+document.getElementById('specimen').style.backgroundImage=`url(${cells})`;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+// A Project's id differs from its calendar day (the day's second Project), so a card scoped by the wrong one shows here.
+const DAY='2026-10-24',PROJECT='2026-10-24.2',now=Date.now()/1000;
+const sessions=new Map();
+const researcher=(rid,n,fields)=>({rid,n,name:`Researcher ${n}`,brief:'',deliverable:null,effort:'standard',engine:'GPT-6.1 Sol',purpose:'research',label:'',
+ objectId:null,status:'running',step:'',spent:0,cap:1,seconds:3600,created:now-12,started:now-12,finished:null,snapshot:cells,outputs:[],items:[],findings:[],
+ corrections:[],history:[],canFollowUp:true,sitting:PROJECT,day:DAY,thread:'t1',turnId:null,requestId:null,result:null,...fields});
+const chat=new ChatLog(document.getElementById('log'),document.getElementById('starters'),{
+ research:rid=>sessions.get(rid),show:()=>{},describe:()=>{},hint:()=>{},voiceLive:()=>false,unread:()=>{},steps:()=>{},
+ researchCards:{list:()=>sessions.values(),view:researcherCardView,open:rid=>console.log('open',rid)},
+ cells:{make:(s,l)=>litCell(s,{size:12,label:l}),set:(c,s,l)=>setLitCell(c,s,{size:12,label:l})},ResizeObserver,
+});
+document.getElementById('wrap').append(chat.newMessages);
+const composer=new Composer(document.getElementById('ask'),{fieldId:'question',label:'Message to the Assistant',placeholder:'Ask anything',
+ attach:{label:'Add a specimen',items:()=>[{label:'Choose from Data…',act:()=>{}},{label:'Open a picture or video…',act:()=>{}}]},
+ model:{words:'Gemini 3.8 Flash',title:'The Assistant answers with Gemini 3.8 Flash (cloud). Choose the models for each job',open:()=>{}},
+ extra:[document.getElementById('talk')]});
+document.getElementById('more').replaceWith(moreButton('Conversations and Activity',()=>[],'mm-dhead-more'));
+const chip=document.createElement('button');chip.type='button';chip.className='mm-composer-chip';
+const thumb=document.createElement('span');thumb.className='mm-composer-thumb';const img=document.createElement('img');img.src=cells;img.alt='';thumb.append(img);
+const name=document.createElement('span');name.className='mm-composer-chip-name';name.textContent='Human cells';chip.append(thumb,name);
+const where=document.createElement('span');where.className='mm-composer-where';where.textContent='answers go to Main';
+composer.setChips(chip,where);
+const say=m=>chat.apply(m);
+say({type:'day',id:PROJECT,label:'',active:'t1',threads:[],subjects:[],prefs:{}});
+const user=(text,turn)=>say({type:'chat',role:'user',text,thread:'t1',day:PROJECT});
+const request=(turn,state='done')=>say({type:'activity',id:`request:${PROJECT}:${turn}`,kind:'request',text:'',at:now,state,ref:{turnId:turn,channel:'chat'},thread:'t1',day:PROJECT});
+const answer=(text,turn,actions=[])=>say({type:'chat',role:'assistant',text,turnId:turn,thread:'t1',day:PROJECT,model:'Gemini 3.8 Flash',thinkMs:1800,actions});
+const start=(rid,req)=>({tool:'start_researcher',ok:true,summary:'started a researcher',ms:40,requestId:req,actionId:rid,outputs:[{kind:'resource',resource:{kind:'research-run',researcherId:rid,day:DAY,runId:'a',run:0}}]});
+const ANSWER1='A fluorescence picture of human cells with their nuclei stained. The bright ovals are nuclei; a few small, very bright ones look like cells dividing.';
+const LONG='It used Bright objects on Human cells. The picture was smoothed with a 1.0 px blur, then a threshold was set between the bright nuclei and the dark background.\n\nEvery joined region of at least 20 px² was kept: 271 regions. Touching nuclei join into one region, so 271 counts bright regions, not cells.\n\nA trained model such as Cellpose-SAM would split touching nuclei; it is ready on this Mac. Researcher 3 is writing the same steps into its presentation.';
+const research=()=>{chat.researchChanged();};
+const twoOlder=()=>{
+ user('What am I looking at?');request(1);answer(ANSWER1,1);
+ user('Have two researchers dig into it');request(2);
+ sessions.set('r3',researcher('r3',3,{turnId:2,requestId:'RUN/r2',brief:'Bright-region analysis of the fluorescent nuclei',step:'writing the presentation',started:now-3674}));
+ sessions.set('r4',researcher('r4',4,{turnId:2,requestId:'RUN/r2',brief:'Independently analyze the fluorescently stained cells',started:now-3600,requests:[{id:'q1',what:'',why:'it has worked for 60 minutes',keepGoing:true,at:now,status:'asked'}]}));
+ answer('Sure.',2,[start('r3','RUN/r2'),start('r4','RUN/r2')]);research();
+};
+if(state==='empty'){/* nothing yet: the starters */}
+if(state==='start'||state==='start-working'){
+ user('What am I looking at?');request(1);answer(ANSWER1,1);
+ user('spawn two research agents to use a model of their choice, and then return their results, two different ones');chat.sent();
+ chat.thinking(true);request(2,'running');
+ await sleep(400);
+ sessions.set('r5',researcher('r5',5,{turnId:2,requestId:'RUN/r9',brief:'Outline the nuclei with a model of its choice',step:'choosing a model',started:now-2}));research();
+ await sleep(300);
+ sessions.set('r6',researcher('r6',6,{turnId:2,requestId:'RUN/r9',brief:'Measure the nuclei with a different model',step:state==='start'?'choosing a model':'',started:now-1}));research();
+ if(state==='start'){await sleep(500);chat.thinking(false);answer('Sure.',2,[start('r5','RUN/r9'),start('r6','RUN/r9')]);chat.settled();}
+}
+if(state==='chat-follow'||state==='workspace'){
+ twoOlder();
+ if(state==='chat-follow'){user('How were the bright regions found?');chat.sent();chat.thinking(true);}
+}
+if(state==='chat-away'){
+ twoOlder();
+ user('Is Researcher 2 done?');request(3);
+ sessions.set('r2',researcher('r2',2,{status:'partial',turnId:3,requestId:'RUN/r3',brief:'Compare published methods for measuring nuclei',finished:now-600,started:now-900,result:{title:'Compare published methods for measuring nuclei'},outputs:[{kind:'report'}]}));
+ answer('It wrote up early, with partial findings. It wrote up before trying a trained model on this picture.',3,[start('r2','RUN/r3')]);research();
+ user('What does Researcher 4 need?');request(4);answer('It asks whether to keep going. It has worked for 60 minutes.',4);
+ user('How were the bright regions found?');chat.sent();chat.thinking(true);
+ await sleep(200);
+ const log=document.getElementById('log');log.scrollTop=log.scrollHeight-log.clientHeight-420;
+ await sleep(200);
+ chat.thinking(false);request(5);answer(LONG,5);chat.settled();
+}
+</script></body></html>

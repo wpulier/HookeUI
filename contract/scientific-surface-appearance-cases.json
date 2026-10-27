@@ -1,0 +1,21 @@
+{
+  "valid": {
+    "shading": "smooth", "contrastLimits": [1, 4], "gamma": 1, "autoContrast": false,
+    "wireframe": {"visible": true, "width": 1.5, "color": [1, 0, 0, 1]},
+    "faceNormals": {"visible": true, "width": 2, "length": 3, "color": [0, 1, 0, 1]},
+    "vertexNormals": {"visible": false, "width": 1, "length": 5, "color": [0, 0, 1, 1]}
+  },
+  "invalid": [
+    {"name": "zero-gamma", "patch": {"gamma": 0}},
+    {"name": "bool-gamma", "patch": {"gamma": true}},
+    {"name": "unknown-shading", "patch": {"shading": "unknown"}},
+    {"name": "equal-contrast", "patch": {"contrastLimits": [3, 3]}},
+    {"name": "reversed-contrast", "patch": {"contrastLimits": [4, 1]}},
+    {"name": "boolean-contrast", "patch": {"contrastLimits": [true, 4]}},
+    {"name": "wrong-auto", "patch": {"autoContrast": 1}},
+    {"name": "missing-wire-settings", "patch": {"wireframe": {"visible": false}}},
+    {"name": "negative-width", "patch": {"wireframe": {"visible": true, "width": -1, "color": [1, 0, 0, 1]}}},
+    {"name": "invalid-alpha", "patch": {"faceNormals": {"visible": true, "width": 1, "length": 2, "color": [0, 0, 0, 2]}}},
+    {"name": "undeclared-field", "patch": {"extra": 1}}
+  ]
+}
