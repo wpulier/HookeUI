@@ -162,3 +162,42 @@ def test_follow_clicks_retains_slow_samples_and_diagnostics_after_measurement(mo
     observed = next(o for o in out.observations if o.get('kind') == 'follow-clicks')
     assert [c['roundTripMs'] for c in observed['clicks']] == [400.0] + [100.0] * 9
     assert observed['receipts'] == [{'id': 'synthetic'}]
+
+
+@pytest.mark.parametrize('failed_phase', ['defaults', 'fresh-follow'])
+def test_cells_clicks_refuses_before_measuring_without_prepared_defaults_and_follower(monkeypatch, failed_phase):
+    from sim import cells_overlap
+    monkeypatch.setattr(harness.licences, 'edition', lambda: 'research')
+    requests, admissions = [], []
+    clock = [100.0]
+    monkeypatch.setattr(harness, 'time', SimpleNamespace(time=lambda: clock[0]))
+    async def sleep(seconds):
+        pytest.fail('A fixed sleep cannot prove follower readiness')
+    monkeypatch.setattr(harness.asyncio, 'sleep', sleep)
+    async def wait(*args, **kwargs): return True, 0.0
+    async def prepare(stack, out, **kwargs):
+        admissions.append(len(requests))
+        if not kwargs:
+            assert not requests  # Defaults precede the existing seeds.
+            return out.check('synthetic default readiness', failed_phase != 'defaults')
+        assert len(requests) == 2
+        assert kwargs['following_since'] == clock[0]  # After the final seed reply.
+        return out.check('synthetic fresh follower readiness', False)
+    async def forbid(*args, **kwargs):
+        pytest.fail('Must not admit measured cell RPC before preparation succeeds')
+    monkeypatch.setattr(harness, 'prepare_timing', prepare)
+    monkeypatch.setattr(cells_overlap, 'wait_started', forbid)
+    class Viewer:
+        settings = {'cells': 'cellpose-sam'}
+        candidates = [{'x': n, 'y': n} for n in range(4)]
+        results = []
+        def latest(self): return clock[0], {'id': len(requests), 'fov': None}, b''
+        async def send(self, request): requests.append(request)
+        async def result_for(self, *args):
+            clock[0] += 0.1
+            return {'ok': True}
+    out = asyncio.run(harness.scenario_cells_clicks(SimpleNamespace(wait=wait), Viewer()))
+    assert not out.passed
+    assert admissions == ([0] if failed_phase == 'defaults' else [0, 2])
+    assert len(requests) == (0 if failed_phase == 'defaults' else 2)
+    assert all(request['type'] == 'click' for request in requests)

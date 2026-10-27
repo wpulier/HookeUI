@@ -40,7 +40,7 @@ turns that option on. Never treat timing measured under unrelated heavy work as
 performance qualification. The full gate and affected tests are described in
 [the testing contract](../services/tests/AGENTS.md).
 
-Steady-state click and model-load baselines wait at most 120 seconds for the default
+Steady-state follow-click, cells-click and model-load baselines wait at most 120 seconds for the default
 models to be resident and no longer loading before seeding outlines. Following
 measurements also require a completed follower step after the final seed reply. Preparation time and the last
 observed state are retained separately; a timeout fails the scenario. Admission
@@ -57,3 +57,8 @@ cache writes; this isolates saved scientific state, not the whole filesystem.
 No new model installation or provider request is made by this preparation.
 `test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
 qualify model performance.
+
+The cells-click scenario admits the same loaded cells RPC after setup, retains its
+first measured click, and still requires ten complete successful click intervals
+inside that exact RPC. Default-model residency and a fresh follower step replace
+setup races; no cell-finding run is added as a warm-up.

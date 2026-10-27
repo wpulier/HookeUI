@@ -1642,6 +1642,8 @@ async def scenario_cells_clicks(stack: Stack, viewer: Viewer) -> Outcome:
     loaded, _ = await stack.wait(lambda h: resident_worker(h, model) is not None, 120, "Cellpose resident")
     if not out.check("selected Cellpose is resident before admission", loaded):
         return out
+    if not await prepare_timing(stack, out):
+        return out
     _, header, _ = viewer.latest()
     fov = header["fov"]
     spots = [c for c in viewer.candidates if fov is None or np.hypot(c["x"] - fov[0], c["y"] - fov[1]) < 0.6 * fov[2]]
@@ -1652,7 +1654,8 @@ async def scenario_cells_clicks(stack: Stack, viewer: Viewer) -> Outcome:
         since = len(viewer.results)
         await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"], "identify": False})
         await viewer.result_for("click", since)
-    await asyncio.sleep(2.0)
+    if not await prepare_timing(stack, out, following_since=time.time()):
+        return out
     since_cells = len(viewer.results)
     started = time.time()
     steps_before = ((await stack.orch_health()).get("follow") or {}).get("steps", 0)

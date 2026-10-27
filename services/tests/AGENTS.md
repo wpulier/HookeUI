@@ -85,6 +85,8 @@ research extensions in both child processes. Explicit cloud scenarios require `-
 waits for actual default-model residency before seeding outlines, then a fresh follower
 step after the final seed reply when requested, with a bounded timeout that fails. It never waits for a favorable latency sample.
 Preparation is recorded separately from the unchanged cold/load timing phases.
+Cells-clicks uses the same default-residency and fresh-follower boundaries before
+its existing cells RPC; all measured clicks and exact-RPC overlap checks remain.
 Following tests retain chronological click round trips and optional existing worker
 diagnostics after measurement; slow samples remain failures.
 `test_sim_admission.py` covers synthetic credential isolation and readiness refusals;
