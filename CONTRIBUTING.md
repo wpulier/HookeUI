@@ -15,10 +15,36 @@ For capabilities, see [the contribution guide](docs/contributing/README.md).
 Use synthetic or permission-cleared fixtures. Never submit keys, private recordings,
 patient information, personal filesystem inventories or private cloud configuration.
 
-Create your branch from `dev` and target `wpulier/HookeUI:dev` when opening a pull
-request. Maintainers review and merge contributions into `dev`. Only the repository
-owner promotes accepted Beta source to `main` for a Stable release.
+## Reviews and maintainer access
 
-Will Pulier maintains the official repository. Changes require review and relevant
-passing checks. Community proposals and forks do not imply official endorsement.
-See [the code of conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).
+Create your branch from `dev` and target **`wpulier/HookeUI:dev`**. Maintainers review
+and merge contributions after the relevant checks pass. Will Pulier (`@wpulier`)
+appoints maintainers; contributing, forking or submitting a review does not grant
+write access. Approved reviewers are recorded in [.github/CODEOWNERS](.github/CODEOWNERS).
+
+Anyone may comment or review a public PR. **An outside contributor's approval does
+not satisfy the required maintainer approval.** Merging into `dev` requires an
+approval from a code owner with repository write access, approval of the latest
+reviewable push by someone other than its pusher, and resolution of review threads.
+New code changes dismiss stale approvals. A PR author cannot approve their own PR.
+The CODEOWNERS file on the target branch governs review, so changing that file in
+a PR does not grant the author approval rights over that PR.
+
+Ownership/review-policy changes and GitHub workflows require Will's approval.
+Both `dev` and `main` reject direct pushes, force-pushes and branch deletion under
+the configured rules. Will retains a **PR-only administrator bypass** for owner
+maintenance, including while there is only one maintainer; other contributors
+and maintainers have no bypass. This exception is not a second person's review.
+
+## Beta and Stable
+
+**PR → `dev` → publish Beta → Will accepts → promote to `main` → publish Stable.**
+
+Maintainers can merge reviewed work into `dev`. Only Will can merge the promotion
+PR into `main`. Releases use fixed commits and explicit publication; a merge or
+tag does not update installed apps. Maintainer access to the public repository
+does not itself grant access to official signing keys or release publication.
+See [the release policy](packaging/macos/RELEASING.md) for the handoff between roles.
+
+Community proposals and forks do not imply official endorsement. See
+[the code of conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).

@@ -23,6 +23,12 @@ Do not waive failures or remove scientific coverage to make cleanup pass. Docume
 intended golden changes. Keep source, weights, data and service terms separate.
 Public API names and stored formats may retain historical identifiers for compatibility.
 
+Release and review authority: read `packaging/macos/RELEASING.md` and
+`CONTRIBUTING.md` before release work. Contributions target `dev`; only Will may
+promote an accepted Beta's exact source to `main`. Never infer owner acceptance
+or publication authorization from a merge, tag or passing check. Official commands
+and credentials belong to the private publisher, not this core repository.
+
 Component contracts (read the relevant file before editing):
 - `apps/studio/AGENTS.md`
 - `catalog/AGENTS.md`
