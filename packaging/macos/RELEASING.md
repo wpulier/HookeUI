@@ -47,7 +47,8 @@ in the private Hooke platform repository.
   this repository are not the official release entry point.
 
 GitHub requires PRs for both branches and restricts updates to `main` to the
-owner's PR-only bypass. Maintainer approval alone cannot merge into `main`.
+owner's PR-only bypass. Every PR into `dev` must also pass the `tests` check, which no
+bypass skips; a release candidate is a commit of `dev` that reached it this way. Maintainer approval alone cannot merge into `main`.
 Public review comments remain welcome but do not grant authority to approve or
 ship a release. The owner controls repository settings and maintainer appointments.
 

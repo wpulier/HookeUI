@@ -30,6 +30,11 @@ New code changes dismiss stale approvals. A PR author cannot approve their own P
 The CODEOWNERS file on the target branch governs review, so changing that file in
 a PR does not grant the author approval rights over that PR.
 
+Every PR into `dev` runs the `tests` check (`.github/workflows/tests.yml`: the Python suite,
+the Studio's type check and tests, and the native checks), and it must pass before the PR
+merges; no bypass skips it. A first-time contributor's PR waits for a maintainer to approve
+its workflow runs, which use a read-only token and no secrets.
+
 Ownership/review-policy changes and GitHub workflows require Will's approval.
 Both `dev` and `main` reject direct pushes, force-pushes and branch deletion under
 the configured rules. Will retains a **PR-only administrator bypass** for owner

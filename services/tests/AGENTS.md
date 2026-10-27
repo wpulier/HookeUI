@@ -32,9 +32,10 @@ ownership, retention, admission, recovery or update checks with a cosmetic smoke
 `make check` remains the frozen integrated candidate gate: full Python, Studio types/
 Vitest, native checks where available, and non-cloud simulations. `make check` clears
 `SIM_ONLY` so an edit-loop selector cannot silently narrow this gate. `make test` remains
-its full non-simulation stage. The paid `tests` workflow is **manual dispatch only**:
-run once on the candidate branch and record the resolved SHA. Reuse an unchanged
-passing CI stage instead of rerunning it locally or on the merge commit. Repeat only
+its full non-simulation stage. The `tests` workflow (`make-test`) runs on **every PR into
+`dev`** and must pass before it merges, with no bypass; it also runs by dispatch on a frozen
+candidate branch (record the resolved SHA). It never runs again on the merge commit: reuse an
+unchanged passing run instead of rerunning it locally or after the merge. Repeat only
 affected checks after a repair; broad shared-boundary changes can invalidate wider
 evidence and require a new combined gate. Applicable actual capability, package and
 owner acceptance remain distinct. No checks are silently marked passed by this policy.
