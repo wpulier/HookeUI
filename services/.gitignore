@@ -1,11 +1,10 @@
 # Derived from the (Git-ignored) recordings; regenerate with: python -m bench.extract_frames
 bench/frames/
-# Generated benchmark images and run logs; JSON summaries are kept
-bench/results/**/*.jpg
+# Generated benchmark evidence is private, including JSON summaries
+bench/results/
 logs/
-# Flight recordings from failed simulation scenarios
-sim/results/flight-*/
-sim/results/*.jpg
+# Simulation receipts and flight recordings remain private
+sim/results/
 # Researcher sessions (snapshots, outputs, fetched pictures) and the findings ledger
 /research/
 # Snapshots of the view the user asked for (snapshot tool): kept, never committed

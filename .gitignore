@@ -64,3 +64,13 @@ packaging/macos/build*/
 
 # Private development profiles, evidence and VM artifacts
 .scratch/
+
+# Generated private diagnostics and credentials are never source.
+/output/
+/services/sim/results/
+/services/bench/results/
+.env
+.env.*
+!.env.example
+.vercel/
+.railway/
