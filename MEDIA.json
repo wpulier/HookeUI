@@ -119,6 +119,13 @@
       "license": "CC0-1.0",
       "provenance": "assets/examples/NOTICE.md",
       "note": "Bundled specimen or derived crop; David Root attribution retained"
+    },
+    {
+      "path": "docs/images/hookeui-workspace.webp",
+      "sha256": "c271b4c58afef788ae5c476763f71986f22f29c5454f7e2ff68512214039ea38",
+      "license": "Apache-2.0 AND CC0-1.0",
+      "provenance": "docs/images/README.md",
+      "note": "Actual local HookeUI viewport with David Root CC0 microscopy example and real bright-region measurements; no personal data or generated UI."
     }
   ]
 }

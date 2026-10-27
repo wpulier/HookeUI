@@ -13,6 +13,11 @@ HookeUI runs locally and **requires no Hooke account**.
 [Community](https://hookeui.discourse.group) ·
 [Contribute](#contribute)
 
+![HookeUI showing a microscopy image with colored bright-region outlines, workspace navigation, and a table of area and perimeter measurements.](docs/images/hookeui-workspace.webp)
+
+*The built-in microscopy example, with bright-region outlines and pixel measurements.
+Image: David Root, [CC0](assets/examples/NOTICE.md). [Capture details](docs/images/README.md).*
+
 ## What you can do
 
 - **Explore your images.** Work with pictures, recordings, scientific arrays and
