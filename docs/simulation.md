@@ -31,7 +31,18 @@ outputs, recordings and credentials out of Git. Results live in the ignored
 model configuration and measured timing scope.
 
 Cloud scenarios require the explicit harness `--cloud` option and authorized
-provider credentials/spending. Neither `make check` nor the contributor check
+provider credentials/spending, including when selected with `--only`. Owned non-cloud
+stacks remove provider environment keys and disable file/Keychain lookup and research
+extensions in both child processes. `--attach` uses an externally managed stack;
+it cannot isolate that stack's credentials or saved data. Use an owned stack for
+the full gate. Neither `make check` nor the contributor check
 turns that option on. Never treat timing measured under unrelated heavy work as
 performance qualification. The full gate and affected tests are described in
 [the testing contract](../services/tests/AGENTS.md).
+
+Steady-state click and model-load baselines wait at most 120 seconds for the default
+models to be resident and no longer loading before seeding outlines. Following
+measurements also require a completed follower step after the final seed reply. Preparation time and the last
+observed state are retained separately; a timeout fails the scenario. Admission
+does not inspect latency or retry slow samples. Cold-model loads, concurrent load
+phases and their original latency thresholds remain part of the gate.

@@ -63,18 +63,33 @@ def overlay_opacity(recent_speeds: list[float]) -> float:
     return 1.0 - min(1.0, max(0.0, t))
 
 
+def simulation_environment(inherited: dict[str, str], paths: Paths, *, cloud: bool) -> dict[str, str]:
+    """Isolate run data and, unless explicitly opted in, every provider credential source."""
+    from orchestrator.keys import APPLIED, KNOWN_KEYS
+
+    env = {k: v for k, v in inherited.items() if k not in OVERRIDES.values() or k == "MICROMIND_KEYS_FILE"}
+    env.update(MICROMIND_HOME=str(paths.home), MICROMIND_RECORDINGS_DIR=str(paths.recordings),
+               MICROMIND_CATALOG_AUTO="0")
+    if not cloud:
+        for name in (*KNOWN_KEYS, APPLIED, "HOOKEUI_RESEARCH_EXTENSION"):
+            env.pop(name, None)
+        env.update(MICROMIND_KEYS_FILE=str(paths.home / "no-provider-keys"), MICROMIND_KEYCHAIN="off")
+    return env
+
+
 # --- stack -----------------------------------------------------------------------------
 
 class Stack:
     """The bridge (simulated phone) and orchestrator as separate processes."""
 
-    def __init__(self, video: Path, bridge_port: int, orch_port: int, start_frame: int, attach: bool) -> None:
+    def __init__(self, video: Path, bridge_port: int, orch_port: int, start_frame: int, attach: bool, *, cloud: bool = False) -> None:
         self.video = video
         self.bridge_url = f"http://127.0.0.1:{bridge_port}"
         self.orch_url = f"http://127.0.0.1:{orch_port}"
         self.ws_url = f"ws://127.0.0.1:{orch_port}/ws"
         self.start_frame = start_frame
         self.attach = attach
+        self.cloud = cloud
         self.procs: list[subprocess.Popen] = []
         self.teardown: list[dict] = []
         self.http = httpx.AsyncClient(timeout=15.0)
@@ -102,25 +117,22 @@ class Stack:
             # datasets or recordings (the bridge's recordings go there too).
             self.home = tempfile.mkdtemp(prefix="micromind-sim-")
             paths = self.paths = Paths.under(self.home)
+            env = simulation_environment(dict(os.environ), paths, cloud=self.cloud)
             self._bridge_args = dict(
                 args=["python3", str(BRIDGE_SCRIPT), "--port", bridge_port, "--simulate", str(self.video),
                       "--simulate-start-frame", str(self.start_frame), "--footage-dir", str(self.footage),
                       "--recording-dir", str(paths.recordings), "--datasets-dir", str(paths.datasets),
                       # The run's own snapshots and clearer pictures, playable as a session's sources (source=asset).
                       "--media-root", str(paths.snapshots), "--media-root", str(paths.results)],
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.STDOUT, env=env,
             )
             self.procs.append(subprocess.Popen(**self._bridge_args, stdout=open(self.log_dir / "sim-bridge.log", "w")))
             global INTERACTIONS
             INTERACTIONS = paths.interaction_log
-            # A path override left in the shell must not send the run's files elsewhere; keys still load.
-            env = {k: v for k, v in os.environ.items() if k not in OVERRIDES.values() or k == "MICROMIND_KEYS_FILE"}
             self._orch_args = dict(
                 args=[sys.executable, "-m", "orchestrator.server", "--port", orch_port, "--bridge-url", self.bridge_url],
                 cwd=SERVICES, stderr=subprocess.STDOUT,
-                # The catalog is never checked online from a run (catalog_news.py): it reads this Mac's catalog only.
-                env={**env, "MICROMIND_HOME": str(paths.home), "MICROMIND_RECORDINGS_DIR": str(paths.recordings),
-                     "MICROMIND_CATALOG_AUTO": "0"},
+                env=env,
             )
             self.procs.append(subprocess.Popen(**self._orch_args, stdout=open(self.log_dir / "sim-orchestrator.log", "w")))
         await self.wait(lambda h: h.get("state") == "live" and h["gpu"]["ready"], timeout=120, what="stack ready")
@@ -472,6 +484,36 @@ class Outcome:
         return all(c.ok for c in self.checks)
 
 
+async def prepare_timing(stack: Stack, out: Outcome, *, following_since: float | None = None) -> bool:
+    """Admit steady-state measurements on observed residency, never on latency or a sleep.
+
+    Cold-model phases remain measured separately. A preparation timeout fails the scenario;
+    it cannot turn a slow measurement into a retry or discard a measured sample.
+    """
+    required = {"micromind-gpu": {"edgetam"}, "micromind-gpu-follow": {"edgetam-video"},
+                "micromind-gpu-heavy": {"dinov2-small"}}
+    if licences.edition() == "research":
+        required["micromind-gpu-heavy"].add("cellpose-sam")
+    observed = {}
+
+    def ready(health):
+        observed.update(workers=health.get("workers", []), follow=health.get("follow", {}))
+        workers = {w["name"]: w for w in observed["workers"]}
+        for name, models in required.items():
+            worker = workers.get(name, {})
+            if (not worker.get("ready") or worker.get("hung") or worker.get("loading")
+                    or not models.issubset(worker.get("resident", []))):
+                return False
+        follow = observed["follow"]
+        return following_since is None or (follow.get("steps", 0) > 0
+                                           and follow.get("lastStepAt", 0) >= following_since)
+
+    ok, elapsed = await stack.wait(ready, 120, "default models and follower ready for timing")
+    out.observations.append({"kind": "timing-preparation", "elapsedS": round(elapsed, 3),
+                             "ready": ok, "followingSince": following_since, **observed})
+    return out.check("default models and requested follower ready before timing", ok, f"{elapsed:.1f} s")
+
+
 async def scenario_live_feed(stack: Stack, viewer: Viewer) -> Outcome:
     out = Outcome("live feed looks like the phone")
     bridge = await stack.bridge_health()
@@ -804,6 +846,8 @@ async def _model_load(stack: Stack, viewer: Viewer, spots: list[dict]) -> Outcom
     at its priority); one real model loaded cold, micro-sam where it is installed, else SAM 2.1, for one click,
     while the clicks around it use the default outline model."""
     out = Outcome("nothing freezes while a model loads")
+    if not await prepare_timing(stack, out):
+        return out
     ok, _ = await stack.wait(lambda h: h["state"] == "live" and h["motion"] and h["motion"]["tracked"], 15, "live")
     await asyncio.sleep(1.0)
     if not out.check("labelled structures on the held view", len(spots) >= 2, f"{len(spots)}"):
@@ -813,7 +857,8 @@ async def _model_load(stack: Stack, viewer: Viewer, spots: list[dict]) -> Outcom
         _, header, _ = viewer.latest()
         await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"], "identify": False})
         await viewer.result_for("click", since)
-    await asyncio.sleep(3.0)  # the follower's worker starts and loads EdgeTAM's video model
+    if not await prepare_timing(stack, out, following_since=time.time()):
+        return out
 
     ids = iter(range(1, 10**6))
 
@@ -1397,6 +1442,8 @@ async def scenario_follow_clicks(stack: Stack, viewer: Viewer) -> Outcome:
     model on the heavy GPU worker, clicks stay fast (the main worker serves them), and the
     follower really ran."""
     out = Outcome("clicks stay fast while outlines are followed")
+    if not await prepare_timing(stack, out):
+        return out
     ok, _ = await stack.wait(lambda h: h["state"] == "live" and h["motion"] and h["motion"]["tracked"], 15, "live")
     await asyncio.sleep(1.0)
     _, header, _ = viewer.latest()
@@ -1409,18 +1456,24 @@ async def scenario_follow_clicks(stack: Stack, viewer: Viewer) -> Outcome:
         _, header, _ = viewer.latest()
         await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"]})
         await viewer.result_for("click", since)
-    await asyncio.sleep(3.0)  # the follower starts on the heavy worker (model load) and steps
+    if not await prepare_timing(stack, out, following_since=time.time()):
+        return out
     measured_from = time.time()
-    times = []
-    for c in (inner * 3)[4:14]:
+    times, observations = [], []
+    for c in (inner * 4)[4:14]:
         _, header, _ = viewer.latest()
         since = len(viewer.results)
+        sent_at = time.time()
         t0 = time.perf_counter()
         await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"]})
         reply = await viewer.result_for("click", since)
+        elapsed = (time.perf_counter() - t0) * 1000
         if reply and reply.get("ok"):
-            times.append((time.perf_counter() - t0) * 1000)
+            times.append(elapsed)
+        observations.append({"sentAt": sent_at, "receivedAt": time.time(), "frameId": header["id"],
+                             "ok": bool(reply and reply.get("ok")), "roundTripMs": round(elapsed, 3)})
         await asyncio.sleep(0.4)
+    finished = time.time()
     times.sort()
     p95 = times[min(len(times) - 1, int(0.95 * len(times)))] if times else None
     out.check("clicks answered", len(times) >= 8, f"{len(times)} of 10")
@@ -1440,6 +1493,11 @@ async def scenario_follow_clicks(stack: Stack, viewer: Viewer) -> Outcome:
     # The leaf does not swim: a trail that says it went somewhere is a still thing reported as moving.
     said = [f"{t['id']}: {t['words']}" for t in trails if t.get("words")]
     out.check("no trail says the still leaf moved on its own", not said, "; ".join(said) or f"own paths {paths} px")
+    observation = {"kind": "follow-clicks", "clicks": observations}
+    if os.environ.get("MICROMIND_CLICK_DIAGNOSTICS") == "1":
+        from .click_diagnostics import collect
+        observation.update(await collect(stack, observations, measured_from, finished))
+    out.observations.append(observation)
     return out
 
 
@@ -3555,6 +3613,8 @@ async def scenario_dataset(stack: Stack, viewer: Viewer) -> Outcome:
         return test()
 
     await stack.wait(lambda h: h["state"] == "live", 15, "live")
+    if not await prepare_timing(stack, out):
+        return out
     since = len(viewer.results)
     await viewer.send({"type": "dataset", "on": True})
     reply = await viewer.result_for("dataset", since)
@@ -4322,9 +4382,11 @@ async def main() -> int:
 
     all_scenarios = {**SCENARIOS, **CLOUD_SCENARIOS, **LONG_SCENARIOS}
     chosen = [s for s in args.only.split(",") if s] or list(SCENARIOS) + (list(CLOUD_SCENARIOS) if args.cloud else [])
+    if not args.cloud and any(name in CLOUD_SCENARIOS for name in chosen):
+        parser.error("Cloud scenarios require explicit --cloud and authorized provider credentials/spending.")
     outcomes: list[Outcome] = []
     started = time.time()
-    async with Stack(Path(args.video), args.bridge_port, args.orch_port, args.start_frame, args.attach) as stack:
+    async with Stack(Path(args.video), args.bridge_port, args.orch_port, args.start_frame, args.attach, cloud=args.cloud) as stack:
         viewer = Viewer(stack.ws_url)
         viewer_task = asyncio.create_task(viewer.run())
         try:

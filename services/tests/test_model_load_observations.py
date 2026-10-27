@@ -47,7 +47,7 @@ def test_failed_model_load_retains_each_existing_phase_sample_without_extra_poll
             self.http = self
 
         async def wait(self, *_):
-            return True, {}
+            return True, 0.0
 
         async def orch_health(self):
             result = {'latestFrameId': len(self.health), 'skipped': len(self.health) * 2,
@@ -91,7 +91,7 @@ def test_failed_model_load_retains_each_existing_phase_sample_without_extra_poll
     stack, viewer = Stack(), Viewer()
     out = asyncio.run(harness._model_load(stack, viewer, [{'x': 1, 'y': 2}, {'x': 3, 'y': 4}]))
     assert not out.passed  # The slow synthetic frames must still fail the existing gate.
-    saved = json.loads(json.dumps(out.observations))
+    saved = json.loads(json.dumps([row for row in out.observations if row.get("kind") != "timing-preparation"]))
     assert [phase['phase'] for phase in saved] == ['baseline', 'outside load', 'test load',
                                                  'sam2.1-tiny loading', 'all at once']
     observed_health = []
