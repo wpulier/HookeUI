@@ -15,6 +15,10 @@ For capabilities, see [the contribution guide](docs/contributing/README.md).
 Use synthetic or permission-cleared fixtures. Never submit keys, private recordings,
 patient information, personal filesystem inventories or private cloud configuration.
 
+Create your branch from `dev` and target `wpulier/HookeUI:dev` when opening a pull
+request. Maintainers review and merge contributions into `dev`. Only the repository
+owner promotes accepted Beta source to `main` for a Stable release.
+
 Will Pulier maintains the official repository. Changes require review and relevant
 passing checks. Community proposals and forks do not imply official endorsement.
 See [the code of conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).
