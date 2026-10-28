@@ -470,6 +470,10 @@ def test_real_specimen_cross_project_correction_export_and_reopen(tmp_path):
                 region=tuple(slice(i*c,min((i+1)*c,n)) for i,c,n in zip(idx,native.chunks,native.shape))
                 edit.write(list(idx),corrected[region])
             result=edit.commit()
+            # Native results have no borrowed viewer runtime. Their named input must
+            # advance with the edited resource so downstream work reads this revision.
+            assert result.document['state']['scientificView']['inputs']['output'] in result.document['resources']
+            assert np.array_equal(driver.array(result,'instance-labels')[1].read(tuple(slice(0,n) for n in native.shape)),corrected)
         w.review(r.id,s.session,review['attempt']['id'],identity(result),True,'b'*32)
         while (c:=w.claim(r.id,s.session)) is not None:w.finish(c,driver.execute(c))
         status=w.status(r.id,s.session);assert status['status']=='completed'

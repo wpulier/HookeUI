@@ -141,3 +141,7 @@ borrowing an external viewer runtime from the input. Its versioned algorithm pro
 in provenance. Runtime-free retained image/label documents can be copied for measurement;
 external worker output capture still requires its declared retained runtime. The same workflow
 therefore accepts native images retained from saved populations, including corrected revisions.
+
+Correcting a native workflow result advances its named scientific input reference
+with the accepted array resource in the same atomic publication. Review, measurement
+and export then read that exact corrected revision; the prior revision stays intact.
