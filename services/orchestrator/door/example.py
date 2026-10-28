@@ -58,6 +58,13 @@ def takeover(app, doing: str = "the example", actor: str | None = None) -> Refus
                    next="ask the researcher to open a new empty Project in Hooke (or close Hooke's window), then try again")
 
 
+WINDOW_WAIT_TICKS = 200  # 20 s
+
+
+def _window_open(app) -> bool:
+    return any(getattr(c, "kind", None) == "studio" for c in getattr(getattr(app, "hub", None), "clients", None) or ())
+
+
 def page(result: dict, session: str) -> str:
     return f"#measurements/{result['id']}?session={session}&revision={result['revision']}"
 
@@ -70,12 +77,24 @@ async def run(app, record: dict, progress) -> dict:
 
     ACTOR.set(record["by"])
     guide = onboarding.of(app)
+    # Just after Hooke opens (or updates), its workspace answers before the window has connected, and the example opens
+    # in that window: wait for it a little (found on a fresh Mac, an example run right after an update).
+    for _ in range(WINDOW_WAIT_TICKS):
+        if _window_open(app):
+            break
+        await asyncio.sleep(0.1)
     busy = takeover(app, actor=record["by"])  # checked again now that it starts: the researcher may have opened something meanwhile
     if busy is not None:
         raise busy
     try:
         await progress(1, 3, "Opening the example image in its own Project")
-        await guide.command(None, {"action": "start"})
+        try:
+            await guide.command(None, {"action": "start"})
+        except ToolFailed:
+            if _window_open(app):
+                raise
+            raise Refused(409, "no-window", "Hooke's window isn't open, and the example opens in it.",
+                          next="bring Hooke's window forward with hooke open, then run the example again") from None
         sid, asset = guide.state["session"], guide.state["assetId"]
         # The analysis runs on what is on stage; give the bridge a moment to land the example image there.
         for _ in range(100):
