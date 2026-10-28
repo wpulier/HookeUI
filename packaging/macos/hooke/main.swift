@@ -208,7 +208,9 @@ func request(_ method: String, _ path: String, query: [URLQueryItem] = [], body:
     }
     let done = DispatchSemaphore(value: 0)
     var result = Reply(status: 0, body: [:])
-    URLSession.shared.dataTask(with: req) { data, response, error in
+    let transport = AgentDoorTransport.session()
+    defer { transport.invalidateAndCancel() }
+    transport.dataTask(with: req) { data, response, error in
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         let json = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
         result = Reply(status: status, body: error != nil && json.isEmpty ? ["says": error!.localizedDescription] : json)
@@ -563,7 +565,9 @@ func downloadResource() {
     let done = DispatchSemaphore(value: 0)
     var failure: String? = nil
     var bytes: Int64 = 0
-    URLSession.shared.downloadTask(with: req) { temporary, response, error in
+    let transport = AgentDoorTransport.session()
+    defer { transport.invalidateAndCancel() }
+    transport.downloadTask(with: req) { temporary, response, error in
         defer { done.signal() }
         guard error == nil, let temporary, let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             failure = error?.localizedDescription ?? "Hooke refused the download (HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0))."; return

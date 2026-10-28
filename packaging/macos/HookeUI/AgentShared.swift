@@ -99,3 +99,18 @@ final class AgentConfirmKey {
         Data("hooke-agent-connect\n\(pending)\n\(code)\n\(answer)".utf8)
     }
 }
+
+/// The agent door is a fixed local authority. A redirect must never carry a request,
+/// body or connection credential to another route, process or host.
+final class AgentDoorTransport: NSObject, URLSessionTaskDelegate {
+    static func session() -> URLSession {
+        URLSession(configuration: .ephemeral, delegate: AgentDoorTransport(), delegateQueue: nil)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+}
