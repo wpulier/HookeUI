@@ -154,9 +154,13 @@ reads retain the original author; request keys remain per connection. A second a
 reads an existing operation by ID, rather than reusing another agent's request key.
 
 Settings → Connected agents → Project access is the owner's source-Studio grant
-interface. It requires explicit `HOOKE_DEV_CONFIRM=1` and refuses packaged instances
-with a native confirmation key until the native grant dialog is separately qualified.
-A bearer token is never sufficient to grant. This development boundary, like source
+interface. Source Studio requires explicit `HOOKE_DEV_CONFIRM=1`. A packaged window
+uses `hookeProjectGrant`: the server prepares a bounded, expiring one-use choice,
+the native dialog displays its canonical Project and stable connection ID, and
+signs exactly that choice with this launch's key. Only a verified signature grants
+or revokes access; replay, changed roles, expired choices and revoked connections
+refuse. Preparation alone changes no authority. A bearer token is never sufficient
+to grant. Packaged interactive qualification is recorded separately from unit tests. This development boundary, like source
 connection confirmation, does not isolate against an agent with unrestricted shell.
 
 The thin CLI's `api GET|POST <relative-path> [json]` and

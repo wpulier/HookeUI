@@ -10,6 +10,7 @@ from orchestrator.origin import studio_origin
 from orchestrator.scientific_projects import ProjectStore
 from tests.test_agent_door import connect, bearer, BASE, HEADER, STUDIO, window_key
 from tests.waiting import until
+from tests.test_scientific_project_api import web  # noqa: F401
 
 @pytest.fixture
 def project_door(tmp_path):
@@ -103,6 +104,12 @@ def test_import_read_and_download_retain_full_source_and_scope(project_door,tmp_
     assert first['document']['state']['sourceImport']['producer']=={
         'kind':'agent-import','actor':'agent:'+a['connection']['id'],
         'label':result['byLabel'],'operation':result['id']}
+    from orchestrator.resources import Index, maker_of
+    saved = built.hub.resources.projects.read(ref['id'], sid, revision=ref['revision'])
+    indexed = Index.project_entry(saved)
+    assert indexed.made_by == {'actor':'agent:'+a['connection']['id'], 'operation':result['id']}
+    assert maker_of(indexed.kind, indexed.id, indexed.made_by) == {
+        'kind':'agent', 'id':a['connection']['id'], 'name':result['byLabel']}
     assert first['content']['text']==content[:65536].decode()
     assert first['content']['nextOffset']==65536
     rest=run(client,h,'artifact.read',{'reference':ref,'offset':65536},'corpus-read-002',sid)['outcome']
@@ -145,3 +152,16 @@ def test_registry_size_refusal_preserves_previous_permissions(tmp_path,monkeypat
     with pytest.raises(Exception,match='storage is full'):
         registry.grant('2026-10-28','agent:ac_'+'b'*24,'read',authority='development')
     assert registry.path.read_bytes()==original
+
+
+def test_unattributed_documents_remain_readable_in_resource_context(web):
+    client, built = web
+    index = built.hub.resources
+    saved = index.projects.create(built.day.sid, {
+        'kind':'text-file', 'title':'Existing protocol', 'state':{'text':'Retained before agent intake'},
+        'resources':[], 'runtimes':[]})
+    entry = index.get(saved.id, built.day.sid)
+    assert entry.made_by == {} and entry.maker is None
+    assert 'Existing protocol' in index.read_full(saved.id, built.day.sid)
+    assert index.chronology(entry)['producer'] is None
+    assert any(row['kind'] == 'project' for row in index.summary(built.day.sid)['kinds'])

@@ -90,8 +90,27 @@ final class AgentConfirmKey {
         (SecKeyCreateSignature(privateKey, .ecdsaSignatureMessageX962SHA256, message as CFData, nil) as Data?)?.base64EncodedString()
     }
 
+    static func projectGrant(id: String, session: String, connection: String, role: String, cancel: Bool = false) -> Data {
+        Data(("hooke-project-grant\n\(id)\n\(session)\n\(connection)\n\(role)" + (cancel ? "\ncancel" : "")).utf8)
+    }
+
     /// What is signed: the exact request, its code and the answer (the same bytes as door/native.py `message`).
     static func message(pending: String, code: String, answer: String) -> Data {
         Data("hooke-agent-connect\n\(pending)\n\(code)\n\(answer)".utf8)
+    }
+}
+
+/// The agent door is a fixed local authority. A redirect must never carry a request,
+/// body or connection credential to another route, process or host.
+final class AgentDoorTransport: NSObject, URLSessionTaskDelegate {
+    static func session() -> URLSession {
+        URLSession(configuration: .ephemeral, delegate: AgentDoorTransport(), delegateQueue: nil)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
     }
 }
