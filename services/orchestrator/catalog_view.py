@@ -38,6 +38,9 @@ def _home(path: Path | str) -> str:
     return str(path).replace(str(Path.home()), "~")
 
 
+home_path = _home  # a path as the page says it: "~/MicroscopeMind/catalog/mine/models"
+
+
 def _link(m: catalog.Manifest) -> str:
     if m.source.get("hf"):
         return f"https://huggingface.co/{m.source['hf']}"

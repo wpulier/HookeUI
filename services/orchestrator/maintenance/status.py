@@ -22,6 +22,18 @@ from . import discover, pins, policy, prepare, promote
 STATES = ("none", "available", "preparing", "checking", "ready-to-apply", "applied", "needs-review", "fix-pending",
           "failed", "unavailable", "pinned")
 STALE_S = 2 * discover.EVERY_S
+# An entry from a shared file (share.py) has no online revisions: opening a newer file adds a channel, and so an entry, of
+# its own (channels.update refuses to move one), so it is never said to be up to date.
+SHARED_FILE = "From a shared file: it doesn't update itself. A newer shared file is added as its own entry"
+
+
+def shared_file(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> bool:
+    """Whether the entry came from a shared file (its channel's source; a cheap read of channels.json)."""
+    if not m.channel:
+        return False
+    from .. import channels
+
+    return channels.source(m.channel, environ) == "shared-file"
 
 
 def _check(key: str, environ: Mapping[str, str]) -> dict:
@@ -110,6 +122,7 @@ def _of(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict:
         "candidate": None,
         "held": held,
         "next": None,
+        **({"sharedFile": True} if (shared := shared_file(m, environ)) else {}),
     }
     out["defect"], out["maintained"] = _notices(m, active, environ)
     out["affected"] = _affected(m, active, environ)
@@ -214,6 +227,8 @@ def _of(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict:
         undo = any(p.get("kind") == "rollback" and p.get("owner") == last["to"] for p in held)
         return said("applied", f"Updated to {last.get('version') or active.m.version} ({_when(last['at'])})",
                     "undo" if undo else None)
+    if shared:  # nothing online to check against, so never "Up to date"
+        return said("none", SHARED_FILE)
     if out["check"]["state"] == "ok":  # its last check found nothing newer (ticket 67: only Activity said so)
         return said("none", f"Up to date · checked {_when(out['check']['at'])}")
     return said("none", "")

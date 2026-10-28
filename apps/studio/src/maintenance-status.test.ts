@@ -119,3 +119,53 @@ describe('Details → Updates', () => {
     expect(box.querySelectorAll('button')).toHaveLength(0);
   });
 });
+
+// The thesis check on 0.5.2 (Part 1, "see its maintenance state"): the update line was squeezed into a one-letter column
+// beside Updates and pushed Details sideways; "Checking … for an update" stayed under "Ready to apply"; and a tool from a
+// shared file said "Up to date" though a newer shared file is added as its own entry.
+describe('Details → Updates on the thesis check', () => {
+  const none = vi.fn(async () => ({}));
+  const commands = { policy: none, check: none, apply: none, undo: none, stop: none, accept: none, merge: none };
+  it('is a block the width of Details, never a card’s one-row action', async () => {
+    vi.stubGlobal('document', { createElement: (tag: string) => new TestElement(tag) });
+    const box = maintenanceNode('m', update({ state: 'applied', says: 'Updated to 2 (Oct 28, 2:57 am)', next: 'undo' }), commands) as unknown as TestElement;
+    // The overlay draws `.model-card-action` as one row that never wraps (workspace-feel.css): the line got one letter.
+    expect(box.classList.contains('model-card-action')).toBe(false);
+    expect(box.classList.contains('model-maintenance')).toBe(true);
+    expect(box.querySelector('.model-maintenance-says')?.textContent).toBe('Updated to 2 (Oct 28, 2:57 am)');
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('./modelspage.css', import.meta.url), 'utf8');
+    const rule = (selector: string) => new RegExp(`${selector.replace(/[.[\]]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css)?.[1] ?? '';
+    expect(rule('.model-maintenance')).toMatch(/flex-direction:\s*column/);
+    expect(rule('.model-maintenance')).toMatch(/min-width:\s*0/);
+    expect(rule('.model-maintenance-policy')).toMatch(/max-width:\s*100%/); // its widest choice never widens the pane
+    expect(rule('.model-versions')).toMatch(/flex-wrap:\s*wrap/);
+  });
+  it('lets a reply go once the update state moves on', async () => {
+    vi.stubGlobal('document', { createElement: (tag: string) => new TestElement(tag) });
+    const memory = new Map<string, MaintenanceMemory>();
+    const check = vi.fn(async () => ({ says: 'Checking Spot shape (lab) for an update', update: { state: 'none' as const } }));
+    const first = maintenanceNode('lab', update({}), { ...commands, check }, memory) as unknown as TestElement;
+    fire(first.querySelectorAll('button').find(b => b.textContent === 'Check for an update')!, 'click');
+    await settleMicrotasks();
+    expect(first.textContent).toContain('Checking Spot shape (lab) for an update');
+    const same = maintenanceNode('lab', update({}), { ...commands, check }, memory) as unknown as TestElement;
+    expect(same.textContent).toContain('Checking Spot shape (lab) for an update'); // still what is happening
+    const ready = maintenanceNode('lab', update({ state: 'ready-to-apply', says: 'Ready to apply: 2', next: 'apply' }),
+      { ...commands, check }, memory) as unknown as TestElement;
+    expect(ready.textContent).toContain('Ready to apply: 2');
+    expect(ready.textContent).not.toContain('Checking');
+    expect(memory.get('lab')?.said).toBeUndefined();
+  });
+  it('says a shared file’s tool never updates itself, with nothing to check or choose', () => {
+    vi.stubGlobal('document', { createElement: (tag: string) => new TestElement(tag) });
+    const says = 'From a shared file: it doesn\'t update itself. A newer shared file is added as its own entry';
+    const shared = update({ says, sharedFile: true });
+    const box = maintenanceNode('shared-1/spot-shape', shared, commands) as unknown as TestElement;
+    expect(box.textContent).toContain(says);
+    expect(box.textContent).not.toContain('Up to date');
+    expect(box.querySelectorAll('select')).toHaveLength(0);
+    expect(box.querySelectorAll('button').map(b => b.textContent)).not.toContain('Check for an update');
+    expect(maintenanceFacts(shared)).toEqual(['Running 1, installed Oct 19, 10:00 am']); // no "Last checked"
+  });
+});

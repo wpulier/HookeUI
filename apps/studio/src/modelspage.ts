@@ -18,7 +18,7 @@ import { toolboxBand, type AddWay } from './keystrip';
  */
 import './modelspage.css';
 import { spaceSection, type SpaceCommands } from './capabilityspace';
-import { maintenanceNode, type MaintenanceCommands, type MaintenanceMemory } from './maintenance-status';
+import { maintenanceNode, readableTime, type MaintenanceCommands, type MaintenanceMemory } from './maintenance-status';
 import { openAddKey, sourceWords, keyForm, type KeyForm } from './addkey';
 import { downloadControl, type Downloader } from './capabilities';
 import { needs as volumeNeeds, volumesSection, type VolumeCommands, type VolumeEntry } from './volumespanel';
@@ -29,6 +29,7 @@ import { keyOf, MODEL_SECTIONS, modelSection, type ModelSection } from './run-sp
 import { litCell } from './lit-cell';
 import { tabMark, type TabMark } from './tab-marks';
 import { starterOffer } from './starter-models';
+import { filePicker } from './file-picker';
 export { whereWords, firstStepWords } from './model-status';
 
 export type Group = ModelRow['group'];
@@ -1050,8 +1051,15 @@ export class ModelsPage {
     return box;
   }
 
+  /** Running <version>, with Use the newest or Go back to <older>. An update maintenance prepared and has not applied
+   * is not one of them (its Apply is in Updates, with its first check), and newest and older are by when each was made:
+   * the catalog's pin can be behind an applied update (maintenance/AGENTS.md), so list order alone said "Go back to 2"
+   * before 2 was ever used, and "Use the newest" for the version an update replaced. */
   private versionsNode(row: ModelRow): HTMLElement | null {
-    const kept = row.versions ?? [];
+    const update = this.wire?.setup?.maintenance?.[row.id];
+    const pending = update && !update.builtIn ? update.candidate?.generation : undefined;
+    const kept = (row.versions ?? []).filter((v) => v.inUse || v.generation !== pending)
+      .sort((a, b) => (a.at && b.at ? b.at.localeCompare(a.at) : 0)); // newest made first; the server's order when unknown
     if (!kept.length || (kept.length === 1 && kept[0].inUse) || !this.commands.setVersion) return null;
     const using = kept.find((v) => v.inUse);
     const chosen = kept.some((v) => v.chosen);
@@ -1063,7 +1071,7 @@ export class ModelsPage {
         .catch((error: unknown) => { button.disabled = false; said.textContent = error instanceof Error ? error.message : String(error); said.hidden = false; });
     };
     const line = el('p', { class: 'model-how' }, `Running ${using?.version ?? 'none'}${chosen ? ' (your choice)' : ''}.`);
-    const box = el('div', { class: 'model-card-action' }, line);
+    const box = el('div', { class: 'model-versions' }, line);
     if (!kept[0].inUse) {
       const newest = el('button', { type: 'button', class: 'mm-control model-action-quiet' }, 'Use the newest') as HTMLButtonElement;
       newest.addEventListener('click', () => press(kept[0].generation, newest));
@@ -2044,7 +2052,7 @@ export class ModelsPage {
     if (detailed) {
       if (setup.check) box.append(el('p', { class: 'tool-check' },
         `${setup.check.state}${setup.check.earlierBuild ? ' (an earlier build)' : ''}`,
-        setup.check.at ? ` · ${setup.check.at}` : '', setup.check.ms !== undefined ? ` · ${setup.check.ms} ms` : '',
+        setup.check.at ? ` · ${readableTime(setup.check.at)}` : '', setup.check.ms !== undefined ? ` · ${setup.check.ms} ms` : '',
         setup.check.detail ? ` · ${setup.check.detail}` : '', ' · Functional check; scientific qualification is separate.'));
       if (setup.canTry) box.append(button(`Try ${setup.title} with this tool`, 'tool-try', () => commands.tryIt(setup.role, setup.option)));
     }
@@ -2242,7 +2250,8 @@ export class ModelsPage {
         });
         li.append(' ', check);
       }
-      if (!c.reviewed && !c.url) li.append(' ', el('span', {}, 'To update, import a newer shared file.'));
+      // A shared file never updates itself: a newer one opened is an entry of its own (channels.py `update`).
+      if (!c.reviewed && !c.url) li.append(' ', el('span', {}, 'It doesn’t update itself: a newer shared file is added as its own entry.'));
       if (!c.reviewed && this.commands.channelRemove) {
         const drop = el('button', { type: 'button', class: 'model-fact-act' }, 'Remove');
         drop.addEventListener('click', () => { drop.setAttribute('disabled', ''); void this.commands.channelRemove!(c.name).catch(() => drop.removeAttribute('disabled')); });
@@ -2372,7 +2381,8 @@ export class ModelsPage {
       el('p', {}, 'Paste a model or tool link, add a supported file, or ask for an adapter draft. ',
         'Set it up for comparison on one of your pictures, compare the results, then press ', el('strong', {}, 'Use it'), ' to add the choice.'),
       el('div', { 'data-model-editor': 'model-add' }, form, drop), found, said, follow,
-      el('p', { class: 'models-own-where' }, 'Yours live in ', el('code', {}, '~/MicroscopeMind/catalog/mine/models/<name>/'),
+      // This instance's own folder (the server's mine_root), never a fixed ~/MicroscopeMind that a Beta or a test home isn't.
+      el('p', { class: 'models-own-where' }, 'Yours live in ', el('code', {}, `${this.wire?.setup?.mineFolder ?? '~/MicroscopeMind/catalog/mine/models'}/<name>/`),
         ', each with a ', el('code', {}, 'model.toml'), ' (catalog/README.md shows one). A GitHub repository or release holding a bioimage.io model the reviewed runner takes is added ready to set up; any other link is kept as a skeleton that says what it holds and lacks.'),
       ...problemGroups(problems).map((g) => el('div', { class: 'models-problems' }, el('h4', {}, g.title),
         el('ul', {}, ...g.rows.map((p) => el('li', {}, el('code', {}, p.entry), `: ${p.problems.join('; ')}`))))));
@@ -2444,17 +2454,9 @@ export function ownTrialTitle(t: OwnTrial, all: OwnTrial[]): string {
 /** Catalog kinds are wire identifiers; cards use familiar names without changing readiness. */
 
 
-/** A channel in a line: "reviewed catalog at 3f2a1c9 · 31 entries", "lab-models at 9e1d0b2 · 4 entries · not reviewed here". */
-/** A file input drawn as the studio's own control (ticket 67: comparing on your picture showed a raw "Choose File / No
- * file chosen"): the input itself, visually hidden and still focusable, inside a label that reads as a button and names
- * the file chosen. */
-export function filePicker(input: HTMLInputElement, prompt = 'Choose a picture', none = 'No picture chosen'): HTMLElement {
-  input.classList.add('visually-hidden');
-  const name = el('span', { class: 'file-picker-name' }, input.files?.[0]?.name ?? none);
-  input.addEventListener('change', () => { name.textContent = input.files?.[0]?.name ?? none; });
-  return el('label', { class: 'file-picker' }, input, el('span', { class: 'mm-control file-picker-button' }, prompt), name);
-}
+export { filePicker }; // the studio's own file control (file-picker.ts), where it was first made
 
+/** A channel in a line: "reviewed catalog at 3f2a1c9 · 31 entries", "lab-models at 9e1d0b2 · 4 entries · not reviewed here". */
 export function channelWords(c: ChannelRow): string {
   const shared = c.source ? c.source === 'shared-file' : !c.reviewed && !c.url;
   const source = shared ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;

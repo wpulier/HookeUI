@@ -138,10 +138,17 @@ in MT4 through the same package.
   (`status.built_in`): "Updated with Hooke 0.5.2" (`build_info.version`, packaged.json; a source checkout says it comes
   with this copy), `builtIn: true`, no policy, check or action: it is updated when Hooke is. `status.of` still covers
   only entries with their own Python.
+- An entry from a shared file (`status.shared_file`: its channel's source) has no online revisions: opening a newer
+  shared file adds an entry of its own (`channels.update` refuses to move one). It is never "Up to date": its line is
+  `status.SHARED_FILE` ("From a shared file: it doesn't update itself. A newer shared file is added as its own entry"),
+  with `sharedFile: true`, so the studio offers no policy or Check and says no check fact; its Check
+  (`maintenance-check`) answers the same. Wiring a newer shared file as an update of the first is not done.
 - The card's existing update line reads the same words (`env_runner.update_waiting`).
 - The studio's line is `apps/studio/src/maintenance-status.ts`. Details → Updates stays open, and keeps its last reply
-  to Check or a policy, while the page draws it again (the page's `maintenanceMemory`); its facts' times are readable
-  (`readableTime`); a built-in shows its line and nothing to choose.
+  to Check or a policy, while the page draws it again (the page's `maintenanceMemory`), until the update state moves on
+  from the one the reply came with (the command's `update.state`): "Checking … for an update" goes once it is Ready to
+  apply. Its facts' times are readable (`readableTime`); a built-in shows its line and nothing to choose. The block is a
+  column the width of Details (`.model-maintenance`, modelspage.css), never a card's one-row `model-card-action`.
 - The agent's model answer adds the same line (`brain/toolbox/catalog.py`).
 - The commands are `maintenance-policy`, `-check`, `-apply`, `-undo`, `-stop`, `-accept` and `-merge`
   (`commands.py` here).

@@ -1710,9 +1710,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Fiji, Allow (its sheet), Continue setup while a setup works, Retry when one failed; a step nobody can press here says
   why on its facts line ("Made from your corrections"); an install only the person can carry out is How to install
   (its Details); a contribution waiting for its review keeps Review comparison, Choose a comparison picture or Review
-  results, never Use it here. The comparison picture is chosen with the studio's own control (`modelspage.ts`
+  results, never Use it here. The comparison picture is chosen with the studio's own control (`file-picker.ts`
   `filePicker`: "Choose a picture" and the chosen file's name, the browser's input hidden but focusable), never a raw
-  "Choose File / No file chosen"; each comparison row (`.own-trial`) is a grid, so its thumbnail and Compare on my
+  "Choose File / No file chosen", and so is a brain volume (`volumespanel.ts`: "Choose a volume"); Add your own says
+  where yours live on this instance (`setup.mineFolder`, the server's `mine_root`), never a fixed ~/MicroscopeMind; each comparison row (`.own-trial`) is a grid, so its thumbnail and Compare on my
   picture never overlap. Outside the workspace (no run page) a ready card keeps its setup step. The amber stripe on
   Needs you cards is gone (the needs cell says it). **Details** (the mock's `modelDetail()`): its name and a 28 px ×
   ("Close details"), what it is and does, then **Tasks**, one row per task a person runs here (by name, once), each with
@@ -1722,6 +1723,12 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   recorded on this Mac; trying it on your picture does not record it, Check it here in its setup does); then Size, Licence (its short name) and Pictures. A candidate's Prepare for review stays in view; everything
   else (every capability, the Assistant's too, demonstrations, trial and setup controls, alternatives, facts and files,
   versions, updates, Turn off, Remove, Share, Report) is under a closed "More about this model" (How to install opens it).
+  Its check line says its time as people read it ("works · Oct 28, 2:46 am · 1700 ms", `readableTime`), never ISO. Its
+  versions (`model-versions`) and Updates (`model-maintenance`, maintenance-status.ts) are blocks the pane's width that
+  wrap, never `model-card-action`, which the overlay draws as one row that never wraps (the thesis check on 0.5.2: the
+  update line was one letter wide and the pane scrolled sideways). Versions leave out an update maintenance prepared and
+  has not applied (its Apply is in Updates), and newest and older are by when each was made, since the catalog's pin
+  can be behind an applied update: "Go back to 2" before 2 ran, or "Use the newest" for the version it replaced, was wrong.
   The pane stands sticky beside the grid at the body's visible height, so its hairline runs top to bottom; under 1100 px
   it takes the grid's place, opening at its top and giving back the grid's scroll when it closes. Escape closes Details
   alone, as it does a setup sheet. **Storage** rows are `capability-space-item` (their own flat rows, never a card), and
@@ -1730,7 +1737,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   tool** (`capability-entry.ts`, the mock's `addSheet()`): from a header it opens on three plain choices (Find it in the
   catalog, I have a link or file, Have AI build it: a mark, a title, one line, a chevron), with "Advanced contribution
   controls" under them (Models' older Add your own and its friends, opened as the side's Advanced contribution, through
-  `hooke-models-category`); once one is chosen the three are a quiet switch above it, and `#models/add-<way>` opens a way
+  `hooke-models-category`; that category also shows From the community, whose Where entries come from holds Add channel,
+  the route by which a brought-in tool is offered updates: `workspace-study-v2.css` hides every other body section there,
+  and the catalog categories hide all sections without cards); once one is chosen the three are a quiet switch above it, and `#models/add-<way>` opens a way
   directly as before (`#models/add`, Tools' Add model or tool, opens the choices, every time it is pressed: the guard that
   lets the workspace's second dispatch of its initial route open it once is reset when Models hides). From Tools
   (`#toolbox/add…`) the sheet stands alone over the Project, like a setup sheet opened from outside Models (`sheetAlone`,
@@ -1745,8 +1754,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   and Change source side by side. A search with only close guesses says so in a quiet line. Every endpoint and route stays. The find results are
   `capability-entry-result`, never `model-card` (Models' filters count only catalog cards, `.model-card[data-section]`).
   `models.fixture.html` shows the sheet, the add sheet's link step, review and ready states (Ready reached the Add way),
-  a download filling and a stopped one, Details, Can be set up, Not on this Mac, Storage, and light, over synthetic rows
-  (fixture only).
+  a download filling and a stopped one, Details, Can be set up, Not on this Mac, Storage, a brought-in tool's versions
+  and Updates after Apply (`?state=maintenance`), a shared file's tool (`shared`), Advanced contribution's channels
+  (`channels`), and light, over synthetic rows (fixture only); `scripts/audit-shots.mjs`'s `models-fixture*` scenes shoot
+  them with only the studio's Vite server running.
 
 Live Tab restoration waits at most three seconds for the first bridge health observation.
 A startup `waiting` state with a recorded bridge health error and no live bridge is

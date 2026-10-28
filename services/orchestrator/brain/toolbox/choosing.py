@@ -529,6 +529,8 @@ class Compared:
             self.timer = asyncio.get_running_loop().call_later(KEPT_COMPARISON_S, self.release)
         except RuntimeError:
             self.timer = None
+        if kept.get("operation") == "cells":  # each arm's cells are a population kept in Data, whatever this hold does
+            return "; each result is kept in Data"
         return "; each result is kept for 5 minutes to keep one on the board"
 
     async def keep(self, services, ctx: ToolContext, which: str, *, expected: str | None = None) -> str:

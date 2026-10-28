@@ -85,6 +85,11 @@ const scenes={
  'researcher-tab-fixture':async page=>{await fixture(page,'workspace-researcher.fixture.html?state=writing');},
  'researcher-report-fixture':async page=>{await fixture(page,'workspace-researcher.fixture.html?state=report');},
  'models-fixture':async page=>{await fixture(page,'models.fixture.html');},
+ // A brought-in tool's maintenance (the thesis check): Details → versions and Updates after Apply, a shared file's tool,
+ // and Advanced contribution's Where entries come from (Add channel).
+ 'models-fixture-maintenance':async page=>{await fixture(page,'models.fixture.html?state=maintenance');},
+ 'models-fixture-shared':async page=>{await fixture(page,'models.fixture.html?state=shared');},
+ 'models-fixture-channels':async page=>{await fixture(page,'models.fixture.html?state=channels');},
  'help':async page=>{await rail(page,'Help');await sleep(600);},
  'settings':async page=>{await rail(page,'Settings');await sleep(600);},
  'launcher':async page=>{for(let i=0;i<8;i++){const closed=await page.evaluate(()=>{const narrow=document.querySelector('.study-project-close');const wide=document.querySelector('.study-tab-close');const b=narrow&&getComputedStyle(narrow).display!=='none'?narrow:wide;if(!b||!document.querySelectorAll('.study-session-tab, .study-project-switcher option[value]').length)return false;b.click();return true;});if(!closed)break;await sleep(700);if(await page.evaluate(()=>!document.querySelector('.study-session-launcher')?.hidden))break;}await sleep(800);},
@@ -99,7 +104,8 @@ for(const [w,h] of sizes){
  const page=await context.newPage();
  for(const [name,run] of Object.entries(scenes)){
   if(only.length&&!only.includes(name))continue;
-  try{await within(60000,(async()=>{await home(page);await run(page);const file=path.join(out,`${name}@${w}.png`);await page.screenshot({path:file});})());results.push([name,w,'ok']);}
+  // A fixture page stands alone: it needs neither the workspace nor a running app (only the studio's Vite server).
+  try{await within(60000,(async()=>{if(!name.startsWith('models-fixture'))await home(page);await run(page);const file=path.join(out,`${name}@${w}.png`);await page.screenshot({path:file});})());results.push([name,w,'ok']);}
   catch(error){results.push([name,w,`failed: ${error.message.split('\n')[0]}`]);}
   console.error(`${name}@${w}\t${results[results.length-1][2]}`);
  }

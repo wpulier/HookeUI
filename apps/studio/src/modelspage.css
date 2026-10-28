@@ -131,6 +131,16 @@ body.studio-shell[data-view='models'] .dock { display: none; }
   color: var(--mm-text-2); font: 400 var(--mm-12)/1.45 ui-monospace, 'SF Mono', Menlo, monospace; overflow-wrap: anywhere;
 }
 
+/* Details → its versions and Updates (maintenance-status.ts): blocks the pane's width, never a card's one-row action, so
+   the update line ("Up to date · checked …", "Updated to 2 …") reads as a line and nothing pushes the pane sideways. */
+.model-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.model-maintenance { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; max-width: 100%; }
+.model-maintenance > button { align-self: flex-start; }
+.model-maintenance-details[open] { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.model-maintenance-details > .model-how { align-self: stretch; }
+.model-maintenance-policy { max-width: 100%; }
+.model-maintenance-said { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+
 /* Why? and Details. */
 .model-why, .model-details { border-top: 0.5px solid var(--mm-line); padding-top: 6px; }
 .model-why summary, .model-details summary {

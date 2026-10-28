@@ -128,7 +128,8 @@ def test_opening_a_shared_package_needs_no_git_or_other_external_program(home, m
     assert readiness.model(model.key, {}).steps[0].kind == 'trust'
     assert share.open_file(path)['says'].endswith('from a file shared earlier')
     update = channels.update(opened['channel'])
-    assert 'newer file' in update['says']
+    # Never "import the newer file" as if it updated this one: a newer shared file is an entry of its own.
+    assert "doesn't update itself" in update['says'] and 'A newer shared file is added as its own entry' in update['says']
     assert not (share.root() / 'repos').exists()
 
 

@@ -411,6 +411,22 @@ def test_a_community_channel_is_checked_for_updates_from_its_row_and_the_cli_pin
     assert catalog.get("upstream/dark-spots").version == "dark-spots 0.1"
 
 
+def test_a_channel_of_one_entry_is_said_as_one_entry(home, monkeypatch):
+    """The thesis check on 0.5.2: "Added the community channel lab at d6c1022: 1 entries"."""
+    lab = home / "lab"
+    (lab / "catalog" / "models").mkdir(parents=True)
+    _git("init", "-q", "-b", "main", cwd=lab)
+    (home / "upstream").rename(home / "upstream-reviewed")
+    lab.rename(home / "upstream")
+    publish(home, "dark-spots", ENTRY.format().replace('"install:dark-spots"', '"install:upstream/dark-spots"'))
+    app = _app()
+    added = app.run("channel-add", url=str(home / "upstream"))
+    assert ": 1 entry, not reviewed here" in added["says"] and "entries" not in added["says"], added["says"]
+    again = app.run("channel-update", name="upstream")
+    assert again["says"].endswith("(1 entry)"), again["says"]
+    assert channels.entries_words(3) == "3 entries" and channels.entries_words(0) == "0 entries"
+
+
 def test_uninstall_reports_owned_work_refusal_at_command_boundary(home, monkeypatch):
     from orchestrator import generation_leases
     from orchestrator.brain.registry import ToolFailed
