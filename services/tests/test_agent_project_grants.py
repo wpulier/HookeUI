@@ -87,3 +87,54 @@ def test_repeated_cancel_releases_capacity_without_granting(shared):
     assert 'agent:'+peer['connection']['id'] not in access(built).rows()[value['session']]['grants']
     choice = client.post('/api/agent-project-access/prepare',json=value).json()['choice']
     assert client.post('/api/agent-project-access/confirm',json=sign(choice)).status_code == 200
+
+
+def test_user_project_requires_owner_confirmation_and_keeps_creator(project_door):
+    client, built = project_door
+    peer = connect(client, label='Outside researcher')
+    sid = built.day.sid
+    actor = 'agent:' + peer['connection']['id']
+    headers = bearer(peer['token'])
+    assert sid not in access(built).rows()
+    listing = client.get('/api/agent-project-access', headers=STUDIO).json()
+    assert any(p['session'] == sid and p['by'] == 'user' for p in listing['projects'])
+    assert sid not in access(built).rows()  # viewing Settings creates no grant
+    assert run(client, headers, 'project.list', {}, 'before-grant-list')['outcome']['projects'] == []
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'read'}
+    choice = client.post('/api/agent-project-access/prepare', json=value).json()['choice']
+    assert sid not in access(built).rows()  # preparing consent grants nothing
+    assert client.post('/api/agent-project-access/confirm', json=sign(choice)).status_code == 200
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert access(built).role(sid, actor) == 'read'
+    assert run(client, headers, 'project.read', {}, 'after-grant-read', sid)['outcome']['project']['session'] == sid
+    assert built.day.sid == sid
+    revoke = client.post('/api/agent-project-access/prepare', json={**value, 'role': None}).json()['choice']
+    assert client.post('/api/agent-project-access/confirm', json=sign(revoke)).status_code == 200
+    assert access(built).role(sid, actor) is None
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert built.day.catalogue.get(sid) is not None
+    assert run(client, headers, 'project.list', {}, 'after-revoke-list')['outcome']['projects'] == []
+
+
+@pytest.mark.parametrize('sid', [None, '../outside', '1999-01-01'])
+def test_missing_or_invalid_user_project_does_not_gain_registry_record(project_door, sid):
+    client, built = project_door
+    peer = connect(client)
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'contribute'}
+    assert client.post('/api/agent-project-access/prepare', json=value).status_code in (400, 404)
+    assert access(built).rows() == {}
+
+
+def test_source_owner_can_share_existing_user_project_without_navigation(project_door, monkeypatch):
+    client, built = project_door
+    peer = connect(client)
+    sid = built.day.sid
+    monkeypatch.delenv('HOOKE_CONFIRM_KEY'); monkeypatch.setenv('HOOKE_DEV_CONFIRM', '1')
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'contribute'}
+    assert client.post('/api/agent-project-access', json=value, headers=STUDIO).status_code == 200
+    actor = 'agent:' + peer['connection']['id']
+    assert access(built).role(sid, actor) == 'contribute'
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert built.day.sid == sid
+    # A token alone cannot use the owner route, even when it already contributes.
+    assert client.post('/api/agent-project-access', json={**value, 'role':'read'}, headers=bearer(peer['token'])).status_code == 403

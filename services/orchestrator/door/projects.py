@@ -37,7 +37,7 @@ class ProjectAccess:
             if type(rows) is not dict:
                 raise ValueError('registry object required')
             for sid, row in rows.items():
-                if not is_sid(sid) or type(row) is not dict or not _actor(row.get('by')):
+                if not is_sid(sid) or type(row) is not dict or not (row.get('by') == 'user' or _actor(row.get('by'))):
                     raise ValueError('invalid Project owner')
                 grants = row.get('grants', {})
                 if type(grants) is not dict or any(not _actor(actor) or role not in _ROLES
@@ -107,16 +107,22 @@ class ProjectAccess:
             raise Refused(403, 'workflow-access-refused', 'That workflow is not available in this Project.',
                           next='create or select a workflow associated with this Project')
 
-    def grant(self, project, actor, role, *, authority):
+    def grant(self, project, actor, role, *, authority, user_project=False):
         """Only the trusted owner transport calls this, never a door action."""
         if authority not in ('native', 'development') or role not in (*_ROLES, None):
             raise ValueError('An owner-confirmed read/contribute grant or revocation is required')
-        if not _actor(actor):
-            raise ValueError('Select a stable connection ID')
+        if not isinstance(project, str) or not is_sid(project) or not _actor(actor):
+            raise ValueError('Select an exact Project and stable connection ID')
         with _LOCK:
             rows = self._read()
             if project not in rows:
-                raise Refused(404, 'unknown-project', 'This Project is not registered for agents.', next='choose an agent Project')
+                if not user_project:
+                    raise Refused(404, 'unknown-project', 'This Project is not registered for agents.', next='choose an existing Project in owner access settings')
+                # The owner transport already verified the retained Project. Listing or preparing
+                # consent never registers it. A revoke of absent authority needs no new record.
+                if role is None:
+                    return
+                rows[project] = {'by': 'user', 'at': time.time(), 'grants': {}, 'history': []}
             row = rows[project]
             if row['by'] == actor:
                 raise ValueError('The creator keeps its original ownership; disconnect it to revoke its credential')
@@ -136,3 +142,12 @@ class ProjectAccess:
 
 def access(built):
     return ProjectAccess(built.paths.home)
+
+
+def owner_project(built, session):
+    """Resolve owner-selected retained input without creating/opening a Project on stage."""
+    if not isinstance(session, str) or not is_sid(session):
+        raise ValueError('Choose an exact retained Project')
+    if built.day.catalogue.get(session) is None:
+        raise Refused(404, 'unknown-project', 'This Project is not available.', next='choose an existing Project')
+    return built.day.elsewhere(session)

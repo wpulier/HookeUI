@@ -19,7 +19,7 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
     type Row = { session: string; name: string; by: string; grants?: Record<string, string> };
     const projects: Row[] = data.projects.filter((p: unknown): p is Row => !!p && typeof p === 'object' &&
       'session' in p && typeof p.session === 'string' && 'name' in p && typeof p.name === 'string' && 'by' in p && typeof p.by === 'string');
-    if (!projects.length) { status.textContent = 'No agent Project exists yet. Create a Project through the connector first.'; return; }
+    if (!projects.length) { status.textContent = 'No retained Project is available yet. Open or create a Project in Hooke first.'; return; }
     const choose = document.createElement('select'); choose.setAttribute('aria-label', 'Project to share');
     const option = (label: string, value: string) => { const o = document.createElement('option'); o.textContent = label; o.value = value; return o; };
     for (const p of projects) choose.append(option(`${p.name || 'Untitled project'} (${p.session})`, p.session));

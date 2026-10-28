@@ -431,11 +431,12 @@ def register(app, built, studio_origin, header: str) -> Connections:
         from .projects import access
         try:
             studio(request, writes=False)
-            rows = access(built).rows()
-            result = []
-            for sid, row in rows.items():
-                owner = built.day.elsewhere(sid)
-                result.append({'session': sid, 'name': owner.name, **row})
+            def owner_choices():
+                rows = access(built).rows()
+                return [{'session': project.id, 'name': project.name,
+                         **rows.get(project.id, {'by': 'user', 'grants': {}})}
+                        for project in built.day.catalogue.list()]
+            result = await asyncio.to_thread(owner_choices)
             return _no_store({'ok': True, 'projects': result,
                              'editable': native.public_key() is not None or os.environ.get('HOOKE_DEV_CONFIRM') == '1',
                              'confirmation': 'native' if native.public_key() is not None else 'development'})
@@ -479,8 +480,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
             candidates = {c.id: c for c in connections.connections() if c.revoked_at is None}
             if value['connection'] not in candidates:
                 raise ValueError('Choose a live confirmed connection')
-            built.day.elsewhere(value['session'])
-            access(built).grant(value['session'], 'agent:' + value['connection'], value['role'], authority='development')
+            from .projects import owner_project
+            owner_project(built, value['session'])
+            access(built).grant(value['session'], 'agent:' + value['connection'], value['role'], authority='development', user_project=True)
             return _no_store({'ok': True})
         except (Refused, ValueError, OSError, KeyError) as error:
             return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',

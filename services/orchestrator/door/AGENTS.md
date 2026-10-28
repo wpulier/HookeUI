@@ -168,3 +168,10 @@ The thin CLI's `api GET|POST <relative-path> [json]` and
 selected Keychain connection. Downloads stream to a new file and never overwrite an
 existing output. `artifact.read` returns the download locator and exact retained
 metadata. File bytes require Project authorization, rechecked during streaming.
+
+
+Owner access settings list retained UI-created and agent-created Projects from the
+canonical session catalogue. Unshared user Projects are not added to the agent registry
+until an explicit owner-confirmed grant succeeds; their creator is recorded as `user`.
+Agents do not see the owner's catalogue. Revocation preserves the Project and history.
+Preparation and confirmation both require a real retained Project; neither opens it on stage.
