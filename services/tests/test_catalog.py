@@ -16,9 +16,17 @@ def environment_owner(m):
     envs.install prepares/import-checks it; no fake RGB adapter or scientific
     operation is required merely to own a reusable Python environment.
     """
-    return (m.kind == 'tool' and not m.runner and {'python', 'lock', 'imports'} <= set(m.env)
+    return (m.kind == 'runtime' and not m.runner and {'python', 'lock', 'imports'} <= set(m.env)
             and any(other.id != m.id and f'install:{m.id}' in other.needs_to_run
                     for other in manifests().values()))
+
+
+def test_environment_owner_requires_runtime_kind_and_a_declared_consumer():
+    from dataclasses import replace
+    runtime = manifests()['matrix-cpu-runtime']
+    assert environment_owner(runtime)
+    assert not environment_owner(replace(runtime, kind='tool'))
+    assert not environment_owner(replace(runtime, id='unreferenced-runtime'))
 
 
 def local_models():
