@@ -105,13 +105,13 @@ def test_arbitrary_worker_exception_is_not_an_input_refusal(monkeypatch, command
 def test_a_tool_that_does_not_open_says_why_in_its_own_words(monkeypatch):
     # The Cellpose-SAM panel's own refusal reached the window as "The scientific interaction failed; reopen its private
     # review after correcting the integration" (final052, Open session on retained image and labels).
-    from orchestrator.scientific_host import ToolFailed
+    from orchestrator.scientific_host import ToolNotOpened
     from orchestrator.scientific_review_api import error_response
     import json
     worker, _ = startup_worker(monkeypatch, {'op': 'starting', 'step': 'code'}, {'op': 'starting', 'step': 'tool'},
                                {'ok': False, 'error': 'Select one retained 2D intensity image for this rehearsal'})
     worker.prepared = SimpleNamespace(m=SimpleNamespace(name='Segment cells with Cellpose-SAM'))
-    with pytest.raises(ToolFailed) as caught:
+    with pytest.raises(ToolNotOpened) as caught:
         worker._exchange({'op': 'open', 'inputs': {}})
     response = error_response(caught.value)
     body = json.loads(response.body)
@@ -123,11 +123,11 @@ def test_a_tool_that_does_not_open_says_why_in_its_own_words(monkeypatch):
 
 
 def test_a_later_worker_error_keeps_the_contained_failure(monkeypatch):
-    from orchestrator.scientific_host import Failed, ToolFailed
+    from orchestrator.scientific_host import Failed, ToolNotOpened
     worker, _ = startup_worker(monkeypatch, {'ok': False, 'error': 'Select one retained 2D intensity image'})
     with pytest.raises(Failed, match='scientific interaction failed') as caught:
         worker._exchange({'op': 'layer-inventory'})
-    assert not isinstance(caught.value, ToolFailed)
+    assert not isinstance(caught.value, ToolNotOpened)
 
 
 @pytest.mark.parametrize('said,shown', [

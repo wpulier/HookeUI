@@ -11,7 +11,7 @@ from .jobs import MemoryRefused as JobMemoryRefused
 from .day.sid import is_sid
 from .scientific_workspace import ReviewOrigin
 from .scientific_history import HistoryUnavailable
-from .scientific_host import ChangeRefused, ControlFailed, InputRefused, ToolFailed
+from .scientific_host import ChangeRefused, ControlFailed, InputRefused, ToolNotOpened
 from .scientific_saves import SaveConflict, SaveUnavailable, SaveNotStarted
 from .workspace_observation import ObservationError
 
@@ -67,7 +67,7 @@ def error_response(error):
     elif isinstance(error, InputRefused):
         status, code, says = 422, 'SCIENTIFIC_INPUT_REFUSED', str(error)
         next_step = error.next_step
-    elif isinstance(error, ToolFailed):
+    elif isinstance(error, ToolNotOpened):
         status, code, says = 422, 'SCIENTIFIC_TOOL_FAILED', str(error)
         next_step = 'Saved work is unchanged. Choose an input it accepts or another tool; its full error is in this Mac’s logs.'
     elif isinstance(error, ChangeRefused):

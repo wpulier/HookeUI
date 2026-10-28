@@ -76,7 +76,7 @@ class CaptureRefused(Failed):
     """No native chunk was sent; private work stays available for correction."""
 
 
-class ToolFailed(Failed):
+class ToolNotOpened(Failed):
     """The tool did not open, in its own words made safe to show (`shown_words`); saved work is unchanged."""
 
 
@@ -561,7 +561,7 @@ class ReviewWorker:
                         raise Failed('Saved movie rendering failed. The saved tool is unchanged. ' + header['error'])
                     if (request.get('op') == 'open' and not body and set(header) == {'ok', 'error'}
                             and type(header['error']) is str and (words := shown_words(header['error']))):
-                        raise ToolFailed(f'{self._tool_name()} did not open: “{words}”')
+                        raise ToolNotOpened(f'{self._tool_name()} did not open: “{words}”')
                     if staging is not None:
                         staging.refuse(header, body)
                     raise Failed('The scientific interaction failed; reopen its private review after correcting the integration')

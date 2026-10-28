@@ -596,7 +596,7 @@ payload and revalidates both fields. HTTP returns 422 with the reason and recove
 The failed attempt closes its worker and grants without publishing a result or changing
 accepted Project data. Malformed refusal messages retain the contained generic failure, and
 arbitrary `ValueError` text never becomes user guidance. A tool that fails while opening for
-any other reason is said in its own words, apart from the guidance (`scientific_host.ToolFailed`,
+any other reason is said in its own words, apart from the guidance (`scientific_host.ToolNotOpened`,
 HTTP 422 `SCIENTIFIC_TOOL_FAILED`: "<tool> did not open: “…”"): only its
 first line, with every path, key and token removed and no control character, at most 300
 characters (`shown_words`, `report.py`'s rule). The worker's stderr goes with its temporary
