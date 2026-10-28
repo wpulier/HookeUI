@@ -2462,7 +2462,8 @@
         "command": "session",
         "control": "session",
         "also": [
-          "view"
+          "view",
+          "sessions-reveal"
         ]
       },
       "pair": "new-session",
