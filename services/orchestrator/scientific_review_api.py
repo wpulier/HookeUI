@@ -11,7 +11,7 @@ from .jobs import MemoryRefused as JobMemoryRefused
 from .day.sid import is_sid
 from .scientific_workspace import ReviewOrigin
 from .scientific_history import HistoryUnavailable
-from .scientific_host import ChangeRefused, ControlFailed, InputRefused
+from .scientific_host import ChangeRefused, ControlFailed, InputRefused, ToolFailed
 from .scientific_saves import SaveConflict, SaveUnavailable, SaveNotStarted
 from .workspace_observation import ObservationError
 
@@ -67,6 +67,10 @@ def error_response(error):
     elif isinstance(error, InputRefused):
         status, code, says = 422, 'SCIENTIFIC_INPUT_REFUSED', str(error)
         next_step = error.next_step
+    elif isinstance(error, ToolFailed):
+        status, code, says = 422, 'SCIENTIFIC_TOOL_FAILED', str(error)
+        next_step = ('Your saved work is unchanged. Choose an input this tool accepts, or another tool; '
+                     'what it said in full is kept in this Mac’s logs.')
     elif isinstance(error, ChangeRefused):
         status, code, says = 409, 'SCIENTIFIC_CHANGE_NOT_APPLIED', str(error)
         next_step = 'Choose Check current view, review the fresh preview, then correct your request. Your private variables and unsaved work are kept.'

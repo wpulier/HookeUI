@@ -162,6 +162,30 @@ def restore_state(widget, state, bindings, input_key, next_output):
     return state['nextOutput']
 
 
+MAX_INPUT_BYTES = 1 << 20
+
+
+def retained_image(context):
+    """The one saved intensity image this rehearsal segments, by its declared meaning.
+
+    A document kept with Retain labels for tools holds the original image and the corrected labels made from it;
+    the labels are a result, not segmentation input, and stay in their saved revision. Several images are ambiguous,
+    so the person chooses a document that holds only the one to segment."""
+    images = {key: resource for key, resource in context.inputs.items()
+              if resource.descriptor.get('semantic') == 'intensity'}
+    if len(images) != 1:
+        context.refuse_input(
+            'This tool segments one saved intensity image; this input has '
+            + (f'{len(images)} ({", ".join(sorted(images))})' if images else 'none') + '.',
+            'Open a saved document that holds only the image to segment, or choose another tool for this input.')
+    key, resource = next(iter(images.items()))
+    if (len(resource.shape) != 2
+            or np.prod(resource.shape) * np.dtype(resource.dtype).itemsize > MAX_INPUT_BYTES):
+        context.refuse_input('This tool takes one scalar 2D intensity image up to 1 MiB.',
+                             'Open a smaller single-plane image, or choose another tool for this input.')
+    return key, resource
+
+
 def bind_result(context, image, layer, key):
     """Only the pinned plugin's known outputs declare the actual input pixel grid."""
     role = layer.name.removeprefix(image.name + '_cp_').rsplit('_', 1)[0]
@@ -197,12 +221,7 @@ def open_host(context):
     if version('napari-cellposesam') != '0.1.1' or version('cellpose') != '4.2.1.1':
         raise ValueError('This candidate needs its pinned Cellpose-SAM runtime')
     if context.restored_layers is None:
-        if len(context.inputs) != 1:
-            raise ValueError('Select one retained 2D intensity image for this rehearsal')
-        key, resource = next(iter(context.inputs.items()))
-        if (resource.descriptor.get('semantic') != 'intensity' or len(resource.shape) != 2
-                or np.prod(resource.shape) * np.dtype(resource.dtype).itemsize > 1 << 20):
-            raise ValueError('This rehearsal takes one scalar 2D intensity image up to 1 MiB')
+        key, resource = retained_image(context)
         values = resource.read([[0, n] for n in resource.shape])
         kwargs = {'axis_labels': resource.axes}
         calibration = resource.descriptor.get('calibration')
@@ -217,8 +236,9 @@ def open_host(context):
         bindings = dict(context.restored_layers)
         images = [layer for key,layer in bindings.items() if not key.startswith('cellpose_result_') and isinstance(layer, Image)]
         if (len(images) != 1 or images[0].ndim != 2 or images[0].rgb
-                or type(images[0].data) is not np.ndarray or images[0].data.nbytes > 1 << 20):
-            raise ValueError('Select a scene with one scalar 2D image up to 1 MiB; other modes remain unqualified')
+                or type(images[0].data) is not np.ndarray or images[0].data.nbytes > MAX_INPUT_BYTES):
+            context.refuse_input('This tool segments one scalar 2D image up to 1 MiB; this saved scene has another set of images.',
+                                 'Open a saved document that holds only the image to segment, or choose another tool for this input.')
         image = images[0]
 
     input_key = next(key for key,layer in bindings.items() if layer is image)

@@ -3,7 +3,7 @@ requires = { catalog = 4 }
 id = "cellposesam-panel"
 name = "Cellpose-SAM · interactive segmentation"
 runs = "cpu"
-version = "0.1.1-cpsam-v2-2d-beta-8"
+version = "0.1.1-cpsam-v2-2d-beta-9"
 licence = ["cellposesam-panel"]
 runner = "python-env"
 example = "example-probe-mitosis.png"  # the device self-check's probe (adapter.py): CC0 human_mitosis crop

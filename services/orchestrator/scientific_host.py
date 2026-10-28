@@ -6,7 +6,7 @@ bind requests to Project, Tab, placement, incarnation and rendered-frame receipt
 """
 from __future__ import annotations
 
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, suppress
 from contextvars import ContextVar
 from dataclasses import replace
 import json
@@ -74,6 +74,55 @@ class RestoreRefused(ChangeRefused):
 
 class CaptureRefused(Failed):
     """No native chunk was sent; private work stays available for correction."""
+
+
+class ToolFailed(Failed):
+    """The tool did not open, in its own words made safe to show (`shown_words`); saved work is unchanged."""
+
+
+# A path in a tool's words: from the start, a space, a quote or a bracket, never a "Y/X" or "and/or" inside a word.
+PATH_WORDS = re.compile(r"(?<![\w.~/])(?:~|\.{1,2})?/[^\s'\"“”‘’`<>()\[\]]*")
+SHOWN_CHARACTERS = 300
+
+
+def shown_words(text):
+    """A tool's own words as the window may show them (services/orchestrator/report.py's rule): its first line, with
+    no key, token or path and no control character, at most SHOWN_CHARACTERS; '' when nothing is left to say."""
+    from .report import redact
+    line = next((part.strip() for part in str(text or '').splitlines() if part.strip()), '')
+    line = PATH_WORDS.sub('[path]', redact(line))
+    line = ''.join(character for character in line if character.isprintable()).strip()
+    return line if len(line) <= SHOWN_CHARACTERS else line[:SHOWN_CHARACTERS - 1].rstrip() + '…'
+
+
+FAILURE_LOG_BYTES = 64 << 10
+
+
+def keep_failure(work, entry, environ=os.environ):
+    """Keep the tail of a worker's stderr when it did not open: its temporary folder goes with the review, so the
+    words would go too. Kept with the dated performance logs (logs/tool-failures/<day>/, pruned by make logs-prune),
+    keys and tokens removed; on this Mac only, never shown or reported (report.local_details reads them apart)."""
+    from datetime import datetime
+    from .paths import Paths
+    from .report import redact
+    try:
+        with (Path(work) / 'stderr.log').open('rb') as errors:
+            errors.seek(0, os.SEEK_END)
+            errors.seek(max(0, errors.tell() - FAILURE_LOG_BYTES))
+            words = errors.read().decode('utf-8', 'replace')
+        now = datetime.now()
+        folder = Paths.from_env(environ).logs / 'tool-failures' / now.strftime('%Y-%m-%d')
+        folder.mkdir(parents=True, exist_ok=True)
+        kept = folder / f"{now.strftime('%H%M%S')}-{failure_name(entry)}.log"
+        kept.write_text(redact(words), encoding='utf-8')
+        return kept
+    except OSError:
+        return None
+
+
+def failure_name(entry):
+    """A catalog entry's key as a file name (a bundle's key holds '/' and '#')."""
+    return re.sub(r'[^A-Za-z0-9_.-]', '_', str(entry))[:160]
 
 
 def admit_header(value):
@@ -397,6 +446,10 @@ class ReviewWorker:
         if header != {'ok': True, 'ready': prepared.m.adapter} or body:
             raise Failed('The scientific candidate did not initialize its declared interaction')
 
+    def _tool_name(self):
+        name = getattr(getattr(getattr(self, 'prepared', None), 'm', None), 'name', None)
+        return name if type(name) is str and name.strip() else 'The tool'
+
     def _allowed(self):
         owner = catalog.get(self.prepared.m.owner.key)
         if owner is None or not channels.trusted(owner, self.environ):
@@ -506,6 +559,9 @@ class ReviewWorker:
                             and header['code'] == 'SCIENTIFIC_SEQUENCE_FAILED'
                             and type(header['error']) is str and 0 < len(header['error']) <= 2000):
                         raise Failed('Saved movie rendering failed. The saved tool is unchanged. ' + header['error'])
+                    if (request.get('op') == 'open' and not body and set(header) == {'ok', 'error'}
+                            and type(header['error']) is str and (words := shown_words(header['error']))):
+                        raise ToolFailed(f'{self._tool_name()} did not open this input. It said: “{words}”')
                     if staging is not None:
                         staging.refuse(header, body)
                     raise Failed('The scientific interaction failed; reopen its private review after correcting the integration')
@@ -908,7 +964,15 @@ this first boundary admits one active frame, not a movie or saved scientific out
                               retained_tool=retained_tool, initialize_tool=initialize_tool, recipe_tool=recipe_tool, files=file_grants, artifacts=artifacts, limits=limits)
         from .scientific_saves import reserve_workspace
         worker.save_workspace = stack.enter_context(reserve_workspace())
-        worker.start()
+        try:
+            worker.start()
+        except Failed:
+            # Its own traceback lands in stderr as it exits; wait briefly, then keep it beyond this temporary folder.
+            if worker.process is not None:
+                with suppress(subprocess.TimeoutExpired):
+                    worker.process.wait(timeout=2)
+            keep_failure(work, prepared.m.owner.key, environ)
+            raise
         yield worker
     except BaseException as error:
         primary = error

@@ -31,7 +31,7 @@ CHECK_CONTENT_BYTES = 50 * 1024 * 1024  # files smaller than this are compared b
 KEPT_LOGS = ("votes.jsonl", "corrections.jsonl")  # judgments people made, in the old logs folder
 # By day: crops/<YYYY-MM-DD>, screens/<YYYY-MM-DD>, transcripts/<YYYY-MM-DD> (researchers' model transcripts),
 # saved/<YYYYMMDD-HHMMSS>.
-DATED_LOGS = ("crops", "screens", "transcripts", "saved")
+DATED_LOGS = ("crops", "screens", "transcripts", "saved", "tool-failures")
 
 
 def old_layout() -> Paths:
