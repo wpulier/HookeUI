@@ -62,6 +62,12 @@ other files.
   studio's camera menu and footage badge talk to the bridge's `/feed` directly. Ground
   truth for tests lives only on the bridge's `/sim/*` endpoints. Run `make sim-test`
   after changing the bridge, orchestrator, scene or studio drawing.
+  - **Its titles and optics** (`footage_media.Library`): a recording listed in a manifest is titled and grouped by it
+    ("Real microscope", "Camera, not on the microscope") with its optics, which the player's "Use its optics" sets. The
+    manifests are the repository's `assets/manifest.json` (public: it lists no one's own recordings) and the assets
+    store's private `manifest.json` (`bridge_common.PRIVATE_MANIFEST`, `$MICROMIND_ASSETS/manifest.json`, untracked),
+    read over it by file. Anything else under footage/ plays under "Other", titled by its file name (thesis check,
+    2026-10-27: the owner's recordings fell there once the repository went public).
   - **A session's own recording plays the same way** (`docs/simulation.md`): the bridge reads the app's datasets
     (`--datasets-dir`, from `python -m orchestrator.paths datasets` in `scripts/studio.sh`; the sim passes its own),
     and `POST /feed?source=recording&dataset=<id>&part=<n>[&paused=1][&at=<s>]` plays a Record dataset's camera video

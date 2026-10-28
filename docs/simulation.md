@@ -17,7 +17,9 @@ models, including the models selected by the research edition. The distributed
 asset manifest is intentionally empty: personal footage and internal backups are
 private. Obtain appropriate authorized test material separately. `SIM_MANIFEST` reads an
 external manifest only in the harness; it never copies it into Git or changes the
-production app. Its file paths resolve against the local asset store. `SIM_VIDEO`
+production app. Its file paths resolve against the local asset store. The store's own private
+`manifest.json` (`assets/README.md`) is read over either one, so recordings listed there resolve without
+`SIM_MANIFEST`. `SIM_VIDEO`
 can select another video for scenarios that support it, but labelled scenarios
 still require the matching qualified manifest. An arbitrary or
 synthetic clip cannot qualify specimen-specific assertions. The dataset and

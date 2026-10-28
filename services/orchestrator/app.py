@@ -508,7 +508,7 @@ class App:
         # The library (library.py; ADR 0022): every recording and picture of the user's own, each an asset with its
         # metadata; a session's sources are those opened or made in it (sources.py). Test footage is never one.
         from .assets import store as assets_store
-        from .paths import ASSETS_MANIFEST, CORPUS_MANIFEST
+        from .paths import CORPUS_MANIFEST, assets_manifest
 
         def origin_of(kind: str, ident: str, at: float | None = None) -> str | None:
             """The session a dataset was made in: the one whose journal says so, else its date's (the index's rule)."""
@@ -521,7 +521,8 @@ class App:
             except Exception:
                 return None
 
-        library = Library(paths.library, footage=assets_store().footage, manifest=ASSETS_MANIFEST, corpus=CORPUS_MANIFEST,
+        # Its real recordings from the repository's manifest and the store's private one (the owner's, untracked).
+        library = Library(paths.library, footage=assets_store().footage, manifest=assets_manifest(), corpus=CORPUS_MANIFEST,
                           datasets=paths.datasets,
                           snapshots=paths.snapshots, origin_of=origin_of)
         hub.library = library

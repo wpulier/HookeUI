@@ -1,19 +1,24 @@
-"""Test assets: one store outside every checkout, one manifest in git (assets/README.md).
+"""Test assets: one store outside every checkout, and two manifests read as one (assets/README.md).
 
 The store (`MICROMIND_ASSETS`, default ~/MicroscopeMind) holds everything too big or too private
 for git, shared by every checkout, worktree, bench and the camera bridge:
 
+    manifest.json      the store's private manifest (untracked): its owner's real recordings, each with
+                       its title, specimen, optics, checksum and backup. The repository's
+                       assets/manifest.json is public and lists none; readers take both, the private
+                       one over it (paths.layered_manifest), and add, adopt and set write only here
     footage/real/      real recordings from the iPhone on the microscope: one of a kind, so each is
-                       in assets/manifest.json with its checksum and backed up to the repo's private
-                       GitHub release `test-assets`
+                       in the private manifest with its checksum and backed up to the destination its
+                       `backup` names (a private GitHub release)
     footage/corpus/    eyepiece tours rendered from the public corpus, each with a .truth.json
                        (rebuilt: make corpus-tours)
     footage/           anything else dropped here plays too (listed under "Other")
     sources/corpus/    the public corpus as downloaded (services/bench/corpus/corpus.json; make corpus FETCH=1)
     bench/<name>/      inputs benches make or fetch (bench/naming, bench/tracking, bench/frames...)
 
-Everything under footage/ shows in the studio's camera menu (the bridge lists it). The manifest says
-what each real recording is; the corpus manifest says what each public item is and its licence.
+Everything under footage/ shows in the studio's camera menu (the bridge lists it). The manifests say
+what each real recording is (a file in neither is listed under "Other", by its file name, with no
+optics); the corpus manifest says what each public item is and its licence.
 
     python -m orchestrator.assets status [--verify]   what is here, missing, changed or not backed up
     python -m orchestrator.assets fetch [--corpus]    real recordings from the release (and the corpus)
@@ -44,7 +49,7 @@ from pathlib import Path
 from typing import Mapping
 
 from .paths import ASSETS_MANIFEST as MANIFEST
-from .paths import CORPUS_MANIFEST, REPO, assets_root
+from .paths import CORPUS_MANIFEST, REPO, assets_root, layered_manifest, private_manifest
 VIDEO_SUFFIXES = (".mp4", ".mov", ".m4v", ".mkv")
 
 
@@ -86,7 +91,7 @@ class Store:
         for item in load_manifest()["real"]:
             if item["id"] == asset_id:
                 return self.root / item["file"]
-        raise KeyError(f"no real recording {asset_id!r} in {MANIFEST}")
+        raise KeyError(f"no real recording {asset_id!r} in {MANIFEST} or {private_manifest()}")
 
 
 def store() -> Store:
@@ -95,12 +100,31 @@ def store() -> Store:
 
 # --- the manifest ------------------------------------------------------------------------------
 def load_manifest(path: Path | None = None) -> dict:
-    return json.loads((path or MANIFEST).read_text())
+    """`path` alone when given; else what every reader sees: the repository's manifest (`MANIFEST`, which the sim
+    harness may replace with its --asset-manifest) with the store's private one read over it."""
+    if path is not None:
+        return json.loads(path.read_text())
+    return layered_manifest(json.loads(MANIFEST.read_text()), load_private())
+
+
+def load_private() -> dict:
+    """The store's private manifest (paths.private_manifest), or an empty one: what add, adopt and set change."""
+    path = private_manifest()
+    try:
+        manifest = json.loads(path.read_text())
+    except FileNotFoundError:
+        return {"real": []}
+    if not isinstance(manifest, dict) or not isinstance(manifest.setdefault("real", []), list):
+        raise ValueError(f"{path} is not an assets manifest (an object with a \"real\" list)")
+    return manifest
 
 
 def save_manifest(manifest: dict, path: Path | None = None) -> None:
+    """Written to `path`, else to the store's private manifest: never into the repository's."""
     manifest["real"].sort(key=lambda r: r["id"])
-    (path or MANIFEST).write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n")
+    target = path or private_manifest()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(manifest, indent=1, ensure_ascii=False) + "\n")
 
 
 def sha256(path: Path, chunk: int = 1 << 20) -> str:
@@ -229,7 +253,7 @@ def cmd_fetch(args) -> int:
         print("All listed recordings are present.")
     if pending and not b:
         print("No backup destination configured. Restore these recordings locally, or configure "
-              "a backup in assets/manifest.json before fetching:")
+              f"a backup in {private_manifest()} before fetching:")
         for item in pending:
             print(f"  {real_status(s, item):<8} {item['id']}")
         failed = len(pending)
@@ -265,12 +289,12 @@ def optics_from(args, base: dict | None = None) -> dict:
 def backup_next_step(manifest: dict) -> str:
     if not manifest.get("backup"):
         return ("No backup destination configured; recordings are local only. Back them up separately, "
-                "or configure a backup in assets/manifest.json before running make assets-backup.")
-    return "Next: commit assets/manifest.json, then back it up: make assets-backup"
+                f"or configure a backup in {private_manifest()} before running make assets-backup.")
+    return f"Listed in {private_manifest()} (never committed). Next: back it up: make assets-backup"
 
 
 def cmd_add(args) -> int:
-    s, manifest = store(), load_manifest()
+    s, manifest, private = store(), load_manifest(), load_private()
     source = Path(args.file).expanduser()
     if not source.is_absolute() and not source.exists():
         source = REPO / source  # make runs this from services/; a path from the repo root works too
@@ -290,22 +314,22 @@ def cmd_add(args) -> int:
     dest = s.real / f"{asset_id}{source.suffix.lower()}"
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, dest)
-    manifest["real"].append({
+    private["real"].append({
         "id": asset_id, "file": str(dest.relative_to(s.root)),
         "title": args.title or f"{args.specimen[:1].upper()}{args.specimen[1:]}, {date} ({span(length)})",
         "specimen": args.specimen, "date": date, "seconds": length, "bytes": dest.stat().st_size,
         "sha256": sha256(dest), "microscope": not args.not_microscope, "origin": str(source), "notes": args.notes or "",
         "optics": optics_from(args),
     })
-    save_manifest(manifest)
+    save_manifest(private)
     print(f"added {asset_id} -> {dest}\n{backup_next_step(manifest)}")
     return 0
 
 
 def cmd_adopt(args) -> int:
     """Recordings added from the studio (footage/added/, a .json beside each) into footage/real/ and the
-    manifest, with the title, specimen and checksum the studio recorded (checked again here)."""
-    s, manifest = store(), load_manifest()
+    store's private manifest, with the title, specimen and checksum the studio recorded (checked again here)."""
+    s, manifest, private = store(), load_manifest(), load_private()
     sides = sorted(s.added.glob("*.json")) if s.added.is_dir() else []
     if not sides:
         print("nothing added in the studio waits to be adopted")
@@ -324,7 +348,7 @@ def cmd_adopt(args) -> int:
         dest = s.real / video.name
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(video), str(dest))
-        manifest["real"].append({
+        private["real"].append({
             "id": asset_id, "file": str(dest.relative_to(s.root)), "title": meta.get("title") or asset_id,
             "specimen": meta.get("specimen", ""), "date": meta.get("date", ""), "seconds": meta.get("seconds", 0),
             "bytes": dest.stat().st_size, "sha256": meta["sha256"], "microscope": bool(meta.get("microscope", True)),
@@ -334,23 +358,28 @@ def cmd_adopt(args) -> int:
         side.unlink()  # its facts are in the manifest now
         adopted += 1
         print(f"adopted {asset_id}")
-    save_manifest(manifest)
+    save_manifest(private)
     if adopted:
         print(backup_next_step(manifest))
     return 0
 
 
 def cmd_set(args) -> int:
-    """What a real recording was filmed with (its optics), filled in or corrected."""
-    manifest = load_manifest()
-    for item in manifest["real"]:
-        if item["id"] == args.id:
-            item["optics"] = optics_from(args, item.get("optics"))
-            save_manifest(manifest)
-            print(f"{args.id}: " + ", ".join(f"{k} {v}" for k, v in item["optics"].items() if v not in (None, "")))
-            return 0
-    print(f"no real recording {args.id!r} (make assets lists them)")
-    return 1
+    """What a real recording was filmed with (its optics), filled in or corrected, in the store's private manifest
+    (one the repository's lists is copied there with its new optics, which then read over it)."""
+    item = next((r for r in load_manifest()["real"] if r["id"] == args.id), None)
+    if item is None:
+        print(f"no real recording {args.id!r} (make assets lists them)")
+        return 1
+    private = load_private()
+    own = next((r for r in private["real"] if r.get("id") == args.id), None)
+    if own is None:
+        own = json.loads(json.dumps(item))
+        private["real"].append(own)
+    own["optics"] = optics_from(args, item.get("optics"))
+    save_manifest(private)
+    print(f"{args.id}: " + ", ".join(f"{k} {v}" for k, v in own["optics"].items() if v not in (None, "")))
+    return 0
 
 
 def cmd_backup(args) -> int:
