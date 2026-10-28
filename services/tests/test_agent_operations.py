@@ -174,3 +174,62 @@ def test_the_door_starts_the_example_once_per_key_and_opens_only_known_pages(tmp
         assert client.post("/api/agent/v1/open", json={"page": page}, headers=bearer(token)).json()["shown"] is False
 
         refused(client.get(f"/api/agent/v1/operations/{op['id']}"), 401, "not-connected")
+
+
+def test_a_cancel_right_after_admission_never_damages_the_record_or_frees_its_key(tmp_path):
+    """Review B2: a cancel's write and the work's progress writes ran at once through one shared temporary file, so a
+    record could be damaged; after a restart its key was free and the same key made a second operation."""
+    async def go():
+        ops = Operations(tmp_path)
+
+        async def busy(record, progress):
+            for step in range(50):
+                await progress(step, 50, f"step {step}")
+            return {"says": "done"}
+
+        made = []
+        for n in range(20):
+            record, _ = await admit(ops, busy, key=f"concurrent-{n:04d}")
+            await ops.cancel(record["id"])
+            made.append(record)
+        await settle(ops)
+        return made
+
+    made = asyncio.run(go())
+    again = Operations(tmp_path)  # a restart
+    assert again.operations(limit=100)["unreadable"] == []
+    assert not list((tmp_path / "agents" / "operations").glob("*.tmp"))
+    for n, record in enumerate(made):
+        assert again.get(record["id"])["state"] in ("cancelled", "succeeded")
+
+        async def nothing(record_, progress):
+            return {}
+        same, made_now = asyncio.run(admit(again, nothing, key=f"concurrent-{n:04d}"))
+        assert not made_now and same["id"] == record["id"]  # the key still means that one request
+
+
+def test_a_cancel_before_or_at_the_start_ends_the_record_as_cancelled(tmp_path):
+    """Review B1: `_run` overwrote cancelRequested with running, and a cancel landing on its first save left the
+    record running until a restart, with its task still listed."""
+    async def go():
+        ops = Operations(tmp_path)
+
+        async def slow(record, progress):
+            await asyncio.sleep(30)
+
+        before, _ = await admit(ops, slow, key="cancel-before-start")
+        asked = await ops.cancel(before["id"])  # before the task has run at all
+        assert asked["state"] == "cancelRequested"
+        at_start, _ = await admit(ops, slow, key="cancel-at-the-start")
+        await asyncio.sleep(0)  # the task begins and reaches its first save
+        await ops.cancel(at_start["id"])
+        await settle(ops)
+        for _ in range(20):
+            await asyncio.sleep(0.01)  # the ending's own write
+        return ops, before["id"], at_start["id"]
+
+    ops, first, second = asyncio.run(go())
+    for op_id in (first, second):
+        assert ops.get(op_id)["state"] == "cancelled"
+        assert op_id not in ops._tasks
+        assert Operations(tmp_path).get(op_id)["state"] == "cancelled"  # and so on disk

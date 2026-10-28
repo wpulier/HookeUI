@@ -37,7 +37,9 @@ def request_digest(tool: str, project: str, input_revision, generation, params: 
 
 def _write(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
+    # A temporary file of its own for every write: two writes of one record never share one (a shared name let a
+    # cancel's write and a progress write interleave into a damaged record).
+    temporary = path.with_name(f".{path.name}.{secrets.token_hex(6)}.tmp")
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, "w") as stream:
         json.dump(value, stream, indent=1)
@@ -61,6 +63,7 @@ class Operations:
         self._records: dict[str, dict] = {}
         self._keys: dict[str, str] = {}
         self._tasks: dict[str, asyncio.Task] = {}
+        self._saving: dict[str, asyncio.Lock] = {}  # one record's writes in order, one at a time
         self._lock = asyncio.Lock()
         self.unreadable: list[str] = []
         self._load()
@@ -93,7 +96,10 @@ class Operations:
             self._keys[record["requestKey"]] = record["id"]
 
     async def _save(self, record: dict) -> None:
-        await asyncio.to_thread(_write, self._path(record["id"]), dict(record))
+        """Writes the record as it is when its turn comes: writes of one record never overlap, and the last one wins."""
+        lock = self._saving.setdefault(record["id"], asyncio.Lock())
+        async with lock:
+            await asyncio.to_thread(_write, self._path(record["id"]), dict(record))
 
     async def admit(self, *, by: str, label: str, tool: str, project: str, input_revision, generation, params: dict,
                     request_key, work: Work) -> tuple[dict, bool]:
@@ -122,17 +128,28 @@ class Operations:
                               next="check free disk space, then try again with the same request key") from None
             self._records[record["id"]] = record
             self._keys[request_key] = record["id"]
-            self._tasks[record["id"]] = asyncio.create_task(self._run(record, work))
+            task = asyncio.create_task(self._run(record, work))
+            self._tasks[record["id"]] = task
+            task.add_done_callback(lambda done, record=record: self._ended(record, done))
             return wire(record), True
+
+    def _ended(self, record: dict, task: asyncio.Task) -> None:
+        """A task cancelled before its work began never runs `_run`'s ending: end its record here, said truly."""
+        self._tasks.pop(record["id"], None)
+        if task.cancelled() and record["state"] not in TERMINAL:
+            record["state"], record["endedAt"] = "cancelled", self.clock()
+            record["outcome"] = {**(record.get("outcome") or {}), "says": "Stopped before it started."}
+            asyncio.get_running_loop().create_task(self._save(record))
 
     async def _run(self, record: dict, work: Work) -> None:
         async def progress(done: float, of: float | None, says: str) -> None:
             record["progress"] = {"done": done, "of": of, "says": says}
             await self._save(record)
 
-        record["state"] = "running"
-        await self._save(record)
         try:
+            if record["state"] == "admitted":  # a cancel asked before this point stays asked
+                record["state"] = "running"
+            await self._save(record)
             outcome = await work(record, progress)
         except asyncio.CancelledError:
             record["state"] = "cancelled"
@@ -150,7 +167,7 @@ class Operations:
                 record["outcome"] = {**outcome, "note": "It finished before it could stop."}
         record["endedAt"] = self.clock()
         try:
-            await self._save(record)
+            await asyncio.shield(self._save(record))  # the ending is written even if a cancel arrives now
         finally:
             self._tasks.pop(record["id"], None)
 
