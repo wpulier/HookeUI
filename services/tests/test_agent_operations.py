@@ -511,6 +511,8 @@ def test_a_cloud_model_named_in_the_arguments_is_refused_and_runs_stay_local(tmp
         work.check_models({"implementations": [local[0], cloud[0]]}, places)
     assert refused.value.code == "cloud-argument" and cloud[0] in refused.value.says
     work.check_models({"implementations": [local[0]], "note": "any words"}, places)  # words aren't models
+    for word in ("check", "model", "web", "relay", "rewrite"):
+        work.check_models({"label": word}, places)  # an ordinary word is never taken for a model
 
     unknown_tool = SimpleNamespace(uses=("a-model-the-licence-table-does-not-know",))
     assert listing.locality({"roles": []}, unknown_tool, {}) == "unknown"

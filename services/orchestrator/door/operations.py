@@ -205,7 +205,8 @@ class Operations:
     def operations(self, limit: int = 20, by: str | None = None) -> dict:
         mine = [r for r in self._records.values() if by is None or r.get("by") == by]
         rows = sorted(mine, key=lambda r: r["at"], reverse=True)[: max(1, min(limit, 100))]
-        return {"operations": [wire(r) for r in rows], "unreadable": list(self.unreadable)}
+        # Unreadable records can't say whose they were, so only the app itself (by None) is told their names.
+        return {"operations": [wire(r) for r in rows], "unreadable": list(self.unreadable) if by is None else []}
 
     async def cancel(self, op_id: str, by: str | None = None) -> dict:
         record = self._own(op_id, by)

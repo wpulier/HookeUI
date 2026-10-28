@@ -14,6 +14,8 @@ a list of names here.
 """
 from __future__ import annotations
 
+import re
+
 
 WORKSPACE = {"type": "workspace", "label": "the agent's open Project and what is on its stage"}
 
@@ -103,7 +105,10 @@ def model_places(built) -> dict[str, str]:
     places: dict[str, str] = {}
 
     def put(key, where):
-        if key:
+        # Only ids shaped like a model's (a digit, a dash, an underscore or a dot in them): an ordinary word an
+        # argument happens to use ("check", "web") is never taken for a model. The run itself is held to local work
+        # (api_usage.local_only) whatever is named.
+        if key and re.search(r"[0-9._-]", str(key)):
             places[str(key)] = "cloud" if where in ("cloud", "both", "unknown") else "mac"
 
     for component, facts in licences.COMPONENTS.items():
