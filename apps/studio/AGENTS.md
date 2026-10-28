@@ -1704,7 +1704,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Fiji, Allow (its sheet), Continue setup while a setup works, Retry when one failed; a step nobody can press here says
   why on its facts line ("Made from your corrections"); an install only the person can carry out is How to install
   (its Details); a contribution waiting for its review keeps Review comparison, Choose a comparison picture or Review
-  results, never Use it here. Outside the workspace (no run page) a ready card keeps its setup step. The amber stripe on
+  results, never Use it here. The comparison picture is chosen with the studio's own control (`modelspage.ts`
+  `filePicker`: "Choose a picture" and the chosen file's name, the browser's input hidden but focusable), never a raw
+  "Choose File / No file chosen"; each comparison row (`.own-trial`) is a grid, so its thumbnail and Compare on my
+  picture never overlap. Outside the workspace (no run page) a ready card keeps its setup step. The amber stripe on
   Needs you cards is gone (the needs cell says it). **Details** (the mock's `modelDetail()`): its name and a 28 px ×
   ("Close details"), what it is and does, then **Tasks**, one row per task a person runs here (by name, once), each with
   Try it on <specimen> where it can run (`served`, `specimen`: actions-panel.ts `served` and `stageName`, wired in
