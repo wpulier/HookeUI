@@ -602,3 +602,8 @@ separate before/after-deadline tests preserve confirmation policy. Scientific st
 cleanup tests replace their module clock, never the shared Python time module, so
 unrelated writer threads keep their own clocks. Reservation tests exercise queued
 ownership and cancellation without asserting scheduling speed.
+
+`test_agent_transport.py` compiles the shared Swift transport and exercises real
+loopback HTTP servers with synthetic credentials: redirects never reach another
+endpoint in either JSON or streamed-download mode, and direct responses still work.
+This is transport qualification, not real Keychain access or a connected-agent journey.

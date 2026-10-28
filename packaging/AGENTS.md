@@ -167,3 +167,7 @@ and signs that one-use choice with the same launch-scoped key as connection
 confirmation. Cancel is the default. It grants only read/contribute (or removes
 access), never credentials, spending or membership administration. The source
 browser's development confirmation is not a packaged grant fallback.
+
+The agent CLI uses `AgentDoorTransport` for JSON calls and streamed downloads. All HTTP
+redirects are refused, including same-host redirects; a local response cannot choose
+a new endpoint for a connection credential or request body.

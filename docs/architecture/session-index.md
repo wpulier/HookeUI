@@ -164,3 +164,7 @@ not independent samples. Method groups do not establish matched object pairs.”
 still uses the shared path and rechecks each source's captured input and implementation. The table's accepted
 source revisions remain authoritative if later corrections differ from the original Compare Tab selection.
 Display and exports must carry the warning; the method column is not an inferred pair key.
+
+Imported source documents expose the intake publisher’s retained `sourceImport` actor
+and operation as Data’s `madeBy`. Older documents without recorded provenance stay
+unattributed; the active connection never becomes the inferred author.

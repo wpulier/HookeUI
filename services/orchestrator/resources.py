@@ -2379,8 +2379,15 @@ class Index:
     @staticmethod
     def project_entry(item) -> Entry:
         document = item.document
+        imported = document['state'].get('sourceImport', {})
+        producer = imported.get('producer', {}) if isinstance(imported, dict) else {}
+        # The intake publisher owns sourceImport; generic document edits cannot forge it.
+        made = ({"actor": producer['actor'], "operation": producer['operation']}
+                if isinstance(producer, dict) and producer.get('kind') == 'agent-import'
+                and isinstance(producer.get('actor'), str) and isinstance(producer.get('operation'), str)
+                else None)
         return Entry(item.id, "project", document['title'], item.session, item.at,
-                     version=item.revision, state="saved", untrusted=True,
+                     version=item.revision, state="saved", untrusted=True, made_by=made,
                      summary=f"{document['kind']} project · revision {item.revision}",
                      source={"sha256": item.digest, "parent": item.parent,
                              "resources": document['resources'], "runtimes": document['runtimes']},
