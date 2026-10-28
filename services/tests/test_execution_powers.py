@@ -48,7 +48,7 @@ def test_app_action_and_blind_inspection_do_not_invent_models():
         with execution.span("tool:close_magnifier", provider="app"):
             pass
     power = log.inspect(root.id)["powers"][0]
-    assert power["label"] == "ObservationUI"
+    assert power["label"] == "HookeUI"
     assert power["capability"] == "Close the magnifier"
     log._roots[root.id].trial_id = "trial1"
     assert "powers" not in log.inspect(root.id)

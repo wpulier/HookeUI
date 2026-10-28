@@ -2117,7 +2117,8 @@ test('scientific controls keep exact input and recorded selected tool visible wi
  const state={scientificView:{},scientificToolChoice:{format:1,name:'Cellpose-SAM',capability:'mine/cellpose#viewer',generation:'b'.repeat(16),source:{id:saved.resource.id,session:'origin',revision:1,digest:'c'.repeat(64)}}};
  vi.mocked(fetch).mockResolvedValueOnce(reply({project:{id:saved.resource.id,session:'origin',revision:2,document:{kind:'scene',title:'Human mitosis',state}}}));
  await openStudyScientific(saved);
- expect(fixture.renamed).toHaveBeenCalledWith(fixture.window,'Human mitosis','Human mitosis');
+ // Each tool chosen for one input opens its own window: its name tells them apart.
+ expect(fixture.renamed).toHaveBeenCalledWith(fixture.window,'Human mitosis','Human mitosis · Cellpose-SAM');
  const context=fixture.window.querySelector('.scientific-input-context')!;
  expect(context.textContent).toContain('Input: Human mitosis');
  expect(context.textContent).toContain('Tool: Cellpose-SAM');

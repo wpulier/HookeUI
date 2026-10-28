@@ -23,6 +23,7 @@ from typing import Mapping
 from gpu_worker import manifests as catalog
 
 REPO = catalog.ROOT.parent.parent
+BASE_BRANCH = "dev"  # the official catalog takes pull requests into dev only; main is promoted to (CONTRIBUTING.md)
 FORBIDDEN = (  # what a python-env entry's own code may not do: get anything at run time
     (re.compile(r"\bpip\b[^\n]*\binstall\b"), "installs packages at run time (pin them in its lockfile)"),
     (re.compile(r"\b(?:urllib\.request|requests\.(?:get|post)|httpx\.|urlopen\()"), "fetches from the network at run time "
@@ -451,7 +452,7 @@ def _submit(id_: str, package: Path, repo: Path) -> str:
 
 
 def propose(id_: str, push: bool = False, remote: str = "origin", environ: Mapping[str, str] = os.environ,
-            repo: Path | None = None, *, base_remote: str | None = None, base_branch: str = "main",
+            repo: Path | None = None, *, base_remote: str | None = None, base_branch: str = BASE_BRANCH,
             output: Path | None = None, package: Path | None = None, signoff: bool = False) -> str:
     """Prepare exact files and proof locally. Publishing is a separate explicit step over that reviewed package."""
     repo = repo or REPO
@@ -488,7 +489,7 @@ def main(argv: list[str] | None = None) -> int:
                         "your configured Git name/email become public (read docs/contributing/DCO.txt)")
     parser.add_argument("--remote", default="origin", help="contributor head/push remote for preparation")
     parser.add_argument("--base-remote", help="official base remote (default: --remote)")
-    parser.add_argument("--base", default="main", help="official base branch already fetched locally")
+    parser.add_argument("--base", default=BASE_BRANCH, help="official base branch already fetched locally")
     parser.add_argument("--output", type=Path, help="new local review-package folder")
     parser.add_argument("--package", type=Path, help="previously prepared and reviewed package to publish")
     args = parser.parse_args(argv)

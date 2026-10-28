@@ -159,11 +159,11 @@ describe('Fiji plugins', () => {
 describe('entries the app won’t run', () => {
   it('says one made for another version of the app apart from one that can’t be read', () => {
     const groups = problemGroups([
-      { entry: 'cool-model', problems: ['needs a newer ObservationUI: it is written in catalog format 2'], incompatible: true },
+      { entry: 'cool-model', problems: ['needs a newer HookeUI: it is written in catalog format 2'], incompatible: true },
       { entry: 'mine/typo', problems: ['unknown key `rnner`'] },
     ]);
     expect(groups.map((g) => [g.title, g.rows.map((r) => r.entry)])).toEqual([
-      ['Made for another version of ObservationUI', ['cool-model']],
+      ['Made for another version of HookeUI', ['cool-model']],
       ['Entries that can’t be read', ['mine/typo']],
     ]);
     expect(problemGroups([])).toEqual([]);
@@ -176,6 +176,9 @@ describe('channels', () => {
     expect(whereWords({ ...base, mine: true })).toBe('yours · on this Mac');
     expect(whereWords({ ...base, channel: 'reviewed' })).toBe('new in the catalog · on this Mac');
     expect(whereWords({ ...base, channel: 'lab-models' })).toBe('community: lab-models · on this Mac');
+    expect(whereWords({ ...base, channel: 'lab-models', channelSource: 'git', channelLabel: 'Lab models' })).toBe('community: Lab models · on this Mac');
+    // A file someone shared is a channel of its own named shared-<hash>: said as what it is (ticket 67).
+    expect(whereWords({ ...base, channel: 'shared-1a2b3c4d', channelSource: 'shared-file', channelLabel: "Maya's shared file" })).toBe('from a shared file · on this Mac');
     expect(whereWords(base)).toBe('on this Mac');
   });
   it('says a community channel is not reviewed here, and whether its code is allowed', () => {

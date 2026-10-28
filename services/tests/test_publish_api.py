@@ -20,6 +20,7 @@ class GitHub:
         self.calls, self.name, self.exists = [], name, exists
         self.blobs, self.base = {}, BASE
         self.fork_ready = False
+        self.fork_branches = {"dev"}  # a new fork copies the official default branch, dev
 
     def call(self, method, path, payload=None):
         self.calls.append((method, path, payload))
@@ -27,17 +28,17 @@ class GitHub:
             return 200, {"login": "maya", "id": 7, "name": self.name}
         if path == "/user/emails":
             return 200, [{"email": "maya@lab.example", "primary": True, "verified": True, "visibility": "public"}]
-        if path.endswith("/git/ref/heads/main"):
+        if path.startswith("/repos/wpulier/HookeUI/git/ref/heads/") and path.rsplit("/", 1)[1] in ("dev", "main"):
             return 200, {"object": {"sha": self.base}}
         if "/contents/catalog/models/" in path:
             return (200, {}) if self.exists else (404, {"message": "Not Found"})
         if path.endswith("/forks"):
-            return 202, {"full_name": "maya/ObservationUI"}
+            return 202, {"full_name": "maya/HookeUI"}
         if path.endswith(f"/git/commits/{BASE}"):
             ready, self.fork_ready = self.fork_ready, True  # ready on the second look, as a new fork is
             return (200, {"tree": {"sha": "t" * 40}}) if ready else (404, {})
         if path.endswith("/merge-upstream"):
-            return 200, {}
+            return (200, {}) if payload["branch"] in self.fork_branches else (422, {"message": "Branch not found"})
         if path.endswith("/git/blobs"):
             sha = f"blob{len(self.blobs)}"
             self.blobs[sha] = base64.b64decode(payload["content"])
@@ -47,6 +48,7 @@ class GitHub:
         if path.endswith("/git/commits"):
             return 201, {"sha": "c" * 40}
         if path.endswith("/git/refs"):
+            self.fork_branches.add(payload["ref"].removeprefix("refs/heads/"))
             return 201, {"ref": payload["ref"]}
         if method == "GET" and "/pulls?" in path:
             return 200, []
@@ -93,7 +95,7 @@ def test_the_exact_package_is_prepared_here_and_sent_only_as_it_was_reviewed(hom
     assert commit["parents"] == [BASE] and commit["author"]["name"] == "Maya Okafor"
     assert commit["message"].endswith("Signed-off-by: Maya Okafor <maya@lab.example>")
     pull = next(b for method, p, b in api.calls if method == "POST" and p.endswith("/pulls"))
-    assert pull["head"].startswith("maya:catalog/dark-spots-") and pull["base"] == "main"
+    assert pull["head"].startswith("maya:catalog/dark-spots-") and pull["base"] == "dev"  # never main (CONTRIBUTING.md)
     package = made["package"]
     proposal = json.loads((__import__("pathlib").Path(package) / "proposal.json").read_text())
     assert sorted(api.blobs.values()) == sorted((__import__("pathlib").Path(package) / f).read_bytes()
@@ -177,7 +179,7 @@ class RecoverableGitHub(GitHub):
                 return 422, {"message": "Pull request already exists"}
             pull = {"html_url": "https://github.com/wpulier/HookeUI/pull/42", "number": 42,
                     "title": payload["title"], "body": payload["body"], "state": "open",
-                    "head": {"sha": "c" * 40}, "base": {"ref": "main"}}
+                    "head": {"sha": "c" * 40}, "base": {"ref": payload["base"]}}
             self.pulls.append(pull)
             if self.lose == "pull":
                 self.lose = None
@@ -361,3 +363,42 @@ def test_command_binds_the_prepared_package_to_the_requested_model(home, monkeyp
     with pytest.raises(ToolFailed, match="another model"):
         asyncio.run(model_publish_submit(None, None, {"model": "mine/another-model", "package": made["package"], "signoff": True}))
     assert not any(method != "GET" for method, _path, _body in api.calls)
+
+
+def test_reviews_go_to_dev_and_both_routes_default_to_it():
+    # HookeUI takes pull requests into dev only; main is promoted to from an accepted Beta (CONTRIBUTING.md).
+    import inspect
+
+    assert publish.BASE_BRANCH == "dev"
+    assert inspect.signature(publish.propose).parameters["base_branch"].default == publish.BASE_BRANCH
+
+
+def test_a_fork_made_before_dev_was_the_default_gets_dev_before_anything_is_written(home, monkeypatch):
+    proven(home, monkeypatch)
+    api = GitHub()
+    api.fork_branches = {"main"}  # an older copy of the catalog: main only
+    made = publish_api.prepare("dark-spots", http=api)
+    sent = publish_api.submit(made["package"], signoff=True, http=api, model="dark-spots", wait=lambda s: None)
+    assert sent["number"] == 42
+    fork = next(b for method, p, b in api.calls if method == "POST" and p.endswith("/forks"))
+    assert fork == {"default_branch_only": True}  # the official default branch is dev: only that is copied
+    made_dev = [b for method, p, b in api.calls if method == "POST" and p == "/repos/maya/HookeUI/git/refs"]
+    assert made_dev[0] == {"ref": "refs/heads/dev", "sha": BASE}, "dev made at the reviewed base before the entry's branch"
+
+
+def test_a_package_prepared_for_main_is_prepared_again_but_its_sent_review_is_still_followed(home, monkeypatch):
+    proven(home, monkeypatch)
+    monkeypatch.setattr(publish, "BASE_BRANCH", "main")  # as 0.5.1 prepared it
+    api = RecoverableGitHub("pull")
+    old = publish_api.prepare("dark-spots", http=api)
+    sent = publish_api.prepare("dark-spots", http=api)
+    with pytest.raises(OSError, match="response lost"):
+        publish_api.submit(sent["package"], signoff=True, http=api, wait=lambda _: None, model="dark-spots")
+    monkeypatch.setattr(publish, "BASE_BRANCH", "dev")
+    boundary = len(api.calls)
+    with pytest.raises(publish.CantPublish, match="main.*prepare and review it again"):
+        publish_api.submit(old["package"], signoff=True, http=api, wait=lambda _: None, model="dark-spots")
+    assert not any(method == "POST" for method, _p, _b in api.calls[boundary:]), "nothing is sent to main"
+    followed = publish_api.status(sent["package"], http=api)  # its review on main was opened by 0.5.1: still followed
+    assert followed["state"] == "open" and followed["url"].endswith("/pull/42")
+    assert publish_api.prepare("dark-spots", http=api)["base"]["branch"] == "dev"

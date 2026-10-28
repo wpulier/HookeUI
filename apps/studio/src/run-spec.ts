@@ -36,7 +36,7 @@ export const MODEL_SECTIONS: readonly (readonly [ModelSection, string])[] = [
 
 /** An entry's section from the server's own words: its group (needs-you: a choice of yours it can't run) and its
  * card's face state (catalog_view.face). */
-export function modelSection(row: Pick<ModelRow, 'group' | 'status'> & { face?: { state: string } }): ModelSection {
+export function modelSection(row: { group?: string; status: string; face?: { state: string } }): ModelSection {
   if (row.group === 'needs-you') return 'needs';
   // A row without a face (an older server): its readiness alone.
   if (!row.face) return row.status === 'ready' ? 'ready' : row.status === 'unavailable' || row.group === 'unavailable' ? 'away' : 'setup';
@@ -45,6 +45,25 @@ export function modelSection(row: Pick<ModelRow, 'group' | 'status'> & { face?: 
   if (face === 'on' || face === 'obtained') return 'ready';
   if (face === 'unchecked' || face === 'ready') return 'unchecked';
   return 'setup';
+}
+
+/** A model that can run here but Hooke's own check has not run on (Models' Not checked), said the one way: "Downloaded ·
+ * not checked" for one whose files are here, else "Not checked". A run of yours is not that check (contract/AGENTS.md). */
+export function uncheckedWords(entry: { runs?: string; size?: number }): string {
+  return entry.runs !== 'cloud' && (entry.size ?? 0) > 0 ? 'Downloaded · not checked' : 'Not checked';
+}
+
+/** The word for a model that can run, wherever one is said (the small-models offer, Tools, the settings picker, a status
+ * in words): "Ready" only in Models' Ready section; Not checked as `uncheckedWords`. With no catalog row (an older
+ * server, the app's own method) its readiness alone: Ready. One meaning of Ready (ticket 67). */
+export function runnableWords(entry: { group?: string; status: string; runs?: string; size?: number; face?: { state: string } } | undefined): string {
+  return entry && modelSection(entry) === 'unchecked' ? uncheckedWords(entry) : 'Ready';
+}
+
+/** The catalog row a role's option runs: the model it names (a behaviour's first), else the option itself. */
+export function optionEntry(wire: CapabilitiesWire | null | undefined, option: Pick<RoleOption, 'id' | 'models'>): ModelRow | undefined {
+  const id = option.models?.[0] ?? option.id;
+  return wire?.models?.find((m) => m.id === id);
 }
 
 /** A section's lit cell and its word (the cell's accessible name). */
@@ -264,8 +283,9 @@ function choiceFor(wire: CapabilitiesWire, task: RunTask, role: Role | undefined
   const step = whole.step;
   // A step only the person can take (their key, a licence to accept) is theirs: the needs cell, whatever its section.
   const person = !runnable && !!step && (step.kind === 'key' || step.kind === 'licence');
+  // Its section's own cell and word, as Models draws it: never "Ready" for a model Models files elsewhere (ticket 67).
   const look = download ? { cell: 'setup' as LitCellState, word: 'Downloading' } : person ? { cell: 'needs' as LitCellState, word: 'Needs you' }
-    : runnable && section !== 'ready' && section !== 'unchecked' ? { cell: 'ready' as LitCellState, word: 'Ready' } : sectionCell(section);
+    : sectionCell(section);
   const face = entry?.face?.action;
   const check = section === 'unchecked' && face?.kind === 'check' ? runStep({ kind: 'check', says: face.says, how: face.how ?? '' } as ReadinessStep, entry!.id).step : null;
   const own = entry?.newKind && entry.newKind.operation === roleId ? ownRow(rows, entry) : entry && !role ? ownRow(rows, entry) : undefined;

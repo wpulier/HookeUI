@@ -48,7 +48,7 @@ RUNNERS = ("gpu-worker", "cloud", "cellpose-file", "fiji", "python-env", "builti
 # What an entry may be made for (`requires`, phase 3's E4): the manifest format this app reads, and each runner's contract
 # (python-env's: services/env_worker/server.py's wire, the picture in and a label map or polygons out; fiji's: a
 # binding in fiji_bindings.py) as the oldest and newest version this app runs. An entry made for another is listed with
-# why ("needs a newer ObservationUI", "made for an older runner"), never run.
+# why ("needs a newer HookeUI", "made for an older runner"), never run.
 CATALOG_FORMAT = 4  # 4: portable wheel recipes; 3: bundle members; 2: typed capability contract (ADR 0024)
 RUNNER_CONTRACTS = {runner: (1, 1) for runner in RUNNERS}
 REQUIRES_KEYS = {"catalog", "runner"}
@@ -429,12 +429,12 @@ def incompatible(data: dict) -> str:
         return ""  # said as a problem of its own (_problems)
     fmt, contract, runner = requires.get("catalog", 1), requires.get("runner", 1), data.get("runner") or ""
     if isinstance(fmt, int) and fmt > CATALOG_FORMAT:
-        return (f"needs a newer ObservationUI: it is written in catalog format {fmt}, and this app reads format "
+        return (f"needs a newer HookeUI: it is written in catalog format {fmt}, and this app reads format "
                 f"{CATALOG_FORMAT}")
     if isinstance(contract, int) and runner in RUNNER_CONTRACTS:
         oldest, newest = RUNNER_CONTRACTS[runner]
         if contract > newest:
-            return (f"needs a newer ObservationUI: it is made for version {contract} of the {runner} runner, and this "
+            return (f"needs a newer HookeUI: it is made for version {contract} of the {runner} runner, and this "
                     f"app runs version {newest}")
         if contract < oldest:
             return (f"made for an older {runner} runner (version {contract}): this app runs versions {oldest} to "
@@ -1010,6 +1010,11 @@ def problems(environ=os.environ) -> dict[str, list[str]]:
 
 # --- channels (orchestrator/channels.py writes them; read here, metadata only) ------------------------------------------
 REVIEWED_CHANNEL = "reviewed"
+REVIEWED_URL = "https://github.com/wpulier/HookeUI.git"
+# Where the reviewed catalog lived before the repository split (2026-10-27). A Mac that updated it then saved one of
+# these in channels.json; it is read as the current address, and saved so at the next update.
+FORMER_REVIEWED_URLS = frozenset({"https://github.com/wpulier/ObservationUI.git",
+                                  "https://github.com/wpulier/microscope-mind.git"})
 CHANNEL_RUNNERS = ("python-env", "fiji")  # what a channel can bring: entries whose code is in their own folder
 
 
@@ -1023,9 +1028,13 @@ def channels(environ=os.environ) -> list[dict]:
 
     try:
         found = json.loads((channels_root(environ) / "channels.json").read_text())
-        return [c for c in found if isinstance(c, dict) and c.get("name")]
+        found = [c for c in found if isinstance(c, dict) and c.get("name")]
     except (OSError, ValueError):
         return []
+    for c in found:
+        if c["name"] == REVIEWED_CHANNEL and c.get("url") in FORMER_REVIEWED_URLS:
+            c["url"] = REVIEWED_URL
+    return found
 
 
 def snapshot(c: dict, environ=os.environ) -> Path | None:

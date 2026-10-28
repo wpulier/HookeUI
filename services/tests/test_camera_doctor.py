@@ -29,7 +29,7 @@ def doctor(monkeypatch):
 
 LIVE = {"running": True, "devicePresent": True, "captureFrames": 900, "lastFrameAge": 0.03, "fps": 30.0,
         "frameSize": [1280, 720], "targetSize": [1280, 720], "frozenFor": 0.0, "readers": 1, "loadPerCore": 0.4}
-PHONE = {"reachable": True, "name": "A", "addresses": {"wifi": "srt://192.168.50.109:9710", "usb": None},
+PHONE = {"reachable": True, "name": "A", "addresses": {"wifi": "srt://192.0.2.10:9710", "usb": None},
          "server": "This Mac (Wi-Fi)", "quality": "Streaming High", "streamStatus": "Streaming", "streaming": True}
 
 
@@ -223,13 +223,13 @@ def test_polling_the_camera_leaves_the_log_alone(bridge_module, tmp_path, cleanu
 
 
 def test_blackmagic_says_which_way_the_phone_reaches_this_mac(doctor):
-    phone = {**PHONE, "addresses": {"wifi": "srt://192.168.50.109:9710", "usb": "srt://172.20.10.3:9710"}}
+    phone = {**PHONE, "addresses": {"wifi": "srt://192.0.2.10:9710", "usb": "srt://172.20.10.3:9710"}}
     result, failing = first(doctor, source="blackmagic", link="usb", phone=phone, **LIVE)
     item = next(i for i in result["items"] if i["id"] == "link")
     assert result["live"] and item["ok"] and item["evidence"] == "over the cable" and "172.20.10.3" in item["detail"]
     result, _ = first(doctor, source="blackmagic", link="wifi", phone={**PHONE}, **LIVE)
     item = next(i for i in result["items"] if i["id"] == "link")
-    assert item["ok"] and item["evidence"] == "over Wi-Fi" and "192.168.50.109" in item["detail"]
+    assert item["ok"] and item["evidence"] == "over Wi-Fi" and "192.0.2.10" in item["detail"]
     assert "Hotspot" not in json.dumps(result)  # never mentioned when it works
 
 
@@ -256,7 +256,7 @@ def test_the_settings_qr_code_reads_back_and_the_phone_gets_only_the_file(bridge
     sys.path.insert(0, str(SCRIPTS))
     import qr
 
-    for text in ("http://192.168.50.109:8767/MicroscopeMind.xml", "http://10.0.0.5:8767/" + "a" * 70):
+    for text in ("http://192.0.2.10:8767/MicroscopeMind.xml", "http://10.0.0.5:8767/" + "a" * 70):
         modules = np.array(qr.matrix(text), dtype=np.uint8)
         image = cv2.resize(np.pad((1 - modules) * 255, 4, constant_values=255).astype(np.uint8), None, fx=8, fy=8,
                            interpolation=cv2.INTER_NEAREST)
@@ -284,7 +284,7 @@ def test_the_checklist_speaks_plainly_and_keeps_the_details_for_whoever_helps(br
              "provenVersions": ["3.5.200045"],
              "phone": {"reachable": True, "name": "A", "app": "3.5.200045", "server": "This Mac (USB) .3",
                        "quality": "Streaming High", "streamStatus": "Streaming",
-                       "addresses": {"usb": "srt://172.20.10.3:9710", "wifi": "srt://192.168.50.109:9710"}}}
+                       "addresses": {"usb": "srt://172.20.10.3:9710", "wifi": "srt://192.0.2.10:9710"}}}
     result = camera_doctor.checklist(facts)
     shown = " ".join(item["title"] + " " + item["evidence"] for item in result["items"])
     for jargon in ("172.20", "API", "server", "3.5.200045", "1280x720", "per core", "reader", "Streaming High", "fps",

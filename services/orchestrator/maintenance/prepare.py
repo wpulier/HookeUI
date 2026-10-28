@@ -346,5 +346,5 @@ def _machine(m: catalog.Manifest, environ: Mapping[str, str]) -> str:
     if why := readiness.misfit(m):
         return why
     if not channels.trusted(m, environ):
-        return f"code from the community channel {m.channel} isn't allowed here any more"
+        return f"code from {channels.said(m.channel, environ)} isn't allowed here any more"
     return local_problem(m) or ""

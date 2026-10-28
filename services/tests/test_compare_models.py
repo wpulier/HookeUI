@@ -155,6 +155,8 @@ def test_comparing_cells_reuses_the_cells_shown_records_it_and_keeps_its_populat
     assert f"Cellpose-SAM: 6 instances segmented in the view ({first.id}), reused from its run at" in said
     assert "micro-sam (light microscopy): 6 instances segmented in the view (e" in said
     assert "6 found by both Cellpose-SAM and micro-sam (light microscopy)" in said
+    # Each arm's cells are a population kept in Data, as the comparison panel says: never "kept for 5 minutes".
+    assert said.endswith("; each result is kept in Data") and "5 minutes" not in said, said
     assert any(r.get("kind") == "execution-use" and r.get("reused") and r.get("from") == "evidence"
                and r.get("execution") == first.made_by["execution"] for r in logged)
     other = [p for p in world.evidence.items.values() if p is not first][-1]

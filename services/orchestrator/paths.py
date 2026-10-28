@@ -27,8 +27,11 @@ SERVICES = Path(__file__).resolve().parents[1]
 REPO = SERVICES.parent
 
 # The test assets store (orchestrator/assets.py, assets/README.md): outside every checkout, so the
-# live app, each worktree, the benches and the sim harness share one copy. Its manifests are in git.
+# live app, each worktree, the benches and the sim harness share one copy. The corpus manifest is in git, and so is the
+# assets manifest, which lists no personal recordings (the repository is public): the owner's own recordings are listed
+# in the store's private manifest, read over it (`assets_manifest`).
 ASSETS_MANIFEST = REPO / "assets" / "manifest.json"
+PRIVATE_MANIFEST = "manifest.json"  # in the assets store, never in git
 CORPUS_MANIFEST = SERVICES / "bench" / "corpus" / "corpus.json"
 # The bundled, rights-cleared examples the first example reads (orchestrator/examples.py): in the checkout, read-only,
 # shipped with the app (never a save).
@@ -38,6 +41,56 @@ EXAMPLES = REPO / "assets" / "examples"
 def assets_root(environ: Mapping[str, str] = os.environ) -> Path:
     """MICROMIND_ASSETS, or ~/MicroscopeMind."""
     return Path(environ.get("MICROMIND_ASSETS") or Path.home() / "MicroscopeMind").expanduser()
+
+
+def private_manifest(environ: Mapping[str, str] = os.environ) -> Path:
+    """The assets store's own manifest (untracked): the recordings of whoever owns the store, with their titles and
+    optics; `make assets-add`, `assets-adopt` and `assets-set` write there, never into the repository."""
+    return assets_root(environ) / PRIVATE_MANIFEST
+
+
+def layered_manifest(public: dict, private: dict | None) -> dict:
+    """The repository's manifest with the private one read over it: the private one's keys replace the public ones
+    (its `backup`, say), and its real recordings are added to the public list, one of the same file (else id)
+    replacing it. Sorted by id, as `assets.save_manifest` keeps them."""
+    if not isinstance(private, dict) or not private:
+        return public
+    out = {**public, **{k: v for k, v in private.items() if k != "real"}}
+    real: dict[str, dict] = {}
+    for item in [*(public.get("real") or []), *(private.get("real") or [])]:
+        if isinstance(item, dict):
+            real[str(item.get("file") or item.get("id"))] = item
+    out["real"] = sorted(real.values(), key=lambda item: str(item.get("id") or item.get("file") or ""))
+    return out
+
+
+@dataclass(frozen=True)
+class AssetsManifest:
+    """The assets manifest as its readers see it (`layered_manifest`): the repository's, with the store's private one
+    over it when there is one. It reads like the one file it stands for (`read_text`), so the library reads both."""
+
+    public: Path
+    private: Path
+
+    def read(self) -> dict:
+        import json
+
+        public = json.loads(self.public.read_text())
+        try:
+            private = json.loads(self.private.read_text())
+        except FileNotFoundError:
+            private = None
+        return layered_manifest(public, private)
+
+    def read_text(self) -> str:
+        import json
+
+        return json.dumps(self.read())
+
+
+def assets_manifest(environ: Mapping[str, str] = os.environ) -> AssetsManifest:
+    """The manifest the library lists the user's real recordings from (their titles, specimens and optics)."""
+    return AssetsManifest(ASSETS_MANIFEST, private_manifest(environ))
 
 # The three homes: what kind of save each path is (datasets, performance logs, the user's assets), and
 # judgments people made (votes, verdicts) that are kept for good though they sit with the logs.

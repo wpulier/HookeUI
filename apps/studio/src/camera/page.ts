@@ -1,5 +1,5 @@
 // The camera page (served by the camera bridge at /camera/): get the picture live and keep it so, with nothing else
-// of ObservationUI running. The picture leads; beside it, what is true now and the one thing to do; under it, the
+// of HookeUI running. The picture leads; beside it, what is true now and the one thing to do; under it, the
 // phone's own controls. The same checklist and controls are the studio's Phone panel (checklist.ts, phone-controls.ts).
 
 import './camera.css';

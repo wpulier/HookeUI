@@ -48,12 +48,17 @@ def _configured() -> list[str]:
     return sorted({v for v in values if len(v) >= 8}, key=len, reverse=True)
 
 
-def scrub(text: object, environ: Mapping[str, str] = os.environ) -> str:
-    """No key, token or home path in what is reported (see the module's docstring)."""
+def redact(text: object) -> str:
+    """No configured key's value and no key- or token-shaped string; all of it kept, home paths too (a log on this Mac)."""
     out = str(text or "")
     for value in _configured():
         out = out.replace(value, "[removed]")
-    out = SECRETS.sub("[removed]", out)
+    return SECRETS.sub("[removed]", out)
+
+
+def scrub(text: object, environ: Mapping[str, str] = os.environ) -> str:
+    """No key, token or home path in what is reported (see the module's docstring)."""
+    out = redact(text)
     home = os.path.expanduser("~")
     if home and home != "/":
         out = out.replace(os.path.realpath(home), "~").replace(home, "~")
@@ -62,14 +67,14 @@ def scrub(text: object, environ: Mapping[str, str] = os.environ) -> str:
 
 def facts(key: str, environ: Mapping[str, str] = os.environ) -> dict:
     """What the report says (see the module's docstring)."""
-    from . import envs
+    from . import channels, envs
 
     m = catalog.get(key)
     if m is None:
         raise KeyError(key)
     out: dict = {"capability": m.name, "entry": m.key, "version": m.version,
-                 "from": "one of yours" if m.namespace == "mine" else (f"community catalog {m.channel}" if m.channel
-                                                                       else "the reviewed catalog"),
+                 "from": channels.said(m.channel, environ) if m.channel else ("one of yours" if m.namespace == "mine"
+                                                                              else "the reviewed catalog"),
                  "runner": m.runner or "none", "link": (m.credit or {}).get("link") or m.source.get("url") or ""}
     if m.runner == "python-env" or envs.spec(m):
         from . import env_runner
@@ -126,6 +131,8 @@ def local_details(key: str, environ: Mapping[str, str] = os.environ) -> list[str
     m = catalog.get(key)
     if m is None:
         return []
+    if not (m.runner == "python-env" or envs.spec(m)):
+        return []  # no environment of its own (a built-in in the GPU worker): nothing installed here to have failed
     out = []
     for d, _receipt in envs.generations(m, environ):
         proof = env_runner._proof_of(d) if m.runner == "python-env" else None
@@ -136,7 +143,23 @@ def local_details(key: str, environ: Mapping[str, str] = os.environ) -> list[str
         out.append(str(json.loads(failed.read_text()).get("why"))[:2000])
     except (OSError, ValueError, AttributeError):
         pass
+    tool_failure = last_tool_failure(m.key, environ)
+    if tool_failure:
+        out.append(tool_failure)
     return out
+
+
+def last_tool_failure(key: str, environ: Mapping[str, str] = os.environ) -> str:
+    """What its interactive tool last said on this Mac when it did not open (scientific_host.keep_failure), its end."""
+    from .paths import Paths
+    from .scientific_host import failure_name
+
+    kept = sorted(Paths.from_env(environ).logs.glob(f"tool-failures/*/*-{failure_name(key)}.log"),
+                  key=lambda p: (p.parent.name, p.name))
+    try:
+        return kept[-1].read_text(encoding="utf-8", errors="replace")[-2000:] if kept else ""
+    except OSError:
+        return ""
 
 
 def where(m: catalog.Manifest) -> str:
@@ -148,7 +171,7 @@ def where(m: catalog.Manifest) -> str:
 
         c = next((c for c in catalog.channels() if c["name"] == m.channel), {})
         url = str(c.get("url") or "")
-        if channels.label(m.channel).endswith("shared file") or not url.startswith("https://github.com/"):
+        if channels.source(m.channel) == "shared-file" or not url.startswith("https://github.com/"):
             return ""
         return url.removesuffix(".git").rstrip("/") + "/issues/new"
     return ISSUES
@@ -175,7 +198,7 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ) -> dict:
         lines.append(f"Its last install failed: {found['install failed']}")
     mac = found["this Mac"]
     lines.append(f"This Mac: macOS {mac['macOS']}, {mac['chip']}, {mac['edition']} edition")
-    lines.append("(Prepared by ObservationUI's Report it from controlled facts only: no error text, pictures, sessions, "
+    lines.append("(Prepared by HookeUI's Report it from controlled facts only: no error text, pictures, sessions, "
                  "keys or paths are in it.)")
     text = scrub("\n".join(lines), environ)
     url = where(m)

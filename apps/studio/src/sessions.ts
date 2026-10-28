@@ -55,10 +55,21 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** "Saved in ~/MicroscopeMind/sessions": where every Project is kept on this Mac, as the sessions wire names it ("" from an
+ * older server, which names none). Beside it, Show in Finder (thesis question 12). */
+export function savedWhereWords(root: string | undefined): string {
+  return root ? `Saved in ${root}` : '';
+}
+
 /** What a session holds, in words: "3 inputs · 5 results · 2 researchers · 3 conversations". A count of nothing is left
  * out, but the conversations always stay (a session always has one), so the line is never empty. Its assets are the
  * recordings and pictures added to it (ADR 0022's sources; the live camera is never counted); an older server sends
  * none. */
+/** A Project's line in the Projects list: its counts in words ("1 input · 1 conversation"), and whether it is open. */
+export function projectRowWords(counts: SessionCounts | undefined, open: boolean): string {
+  return [...countWords(counts), ...(open ? ['Open project'] : [])].join(' · ');
+}
+
 export function countWords(counts: SessionCounts | undefined): string[] {
   const c = counts ?? { made: 0, researchers: 0, conversations: 0 };
   const words: string[] = [];
@@ -251,6 +262,16 @@ export class SessionsModel {
     if (this.error === READ_FAILED) this.error = '';
     for (const row of list.sessions) if (this.renamed.get(row.id) === row.name) this.renamed.delete(row.id);
     this.changed();
+  }
+
+  /** Where every Project is saved on this Mac, as the server's list names it ("" until it does). */
+  root(): string {
+    return this.list?.root ?? '';
+  }
+
+  /** Show in Finder: the folder every Project is saved in (false when offline). */
+  reveal(): boolean {
+    return this.send({ type: 'sessions-reveal' });
   }
 
   /** Read the list once when a view opens and no `sessions` message came yet; says so when it can't. */

@@ -46,7 +46,7 @@ test('catalog refresh preserves the focused description and values without start
 
 test('one file input routes weights and packages to their existing checks without claiming readiness', async () => {
   const { actions, root, file, button } = mount('add');
-  const weights = new File(['weights'], 'model.pt'), packageFile = new File(['package'], 'tool.observationui.zip');
+  const weights = new File(['weights'], 'model.pt'), packageFile = new File(['package'], 'tool.hookeui.zip');
   file('Model or tool package', weights); expect(actions.inspect).not.toHaveBeenCalled();
   fire(button('Review'), 'click'); await settleMicrotasks();
   expect(actions.inspect).toHaveBeenLastCalledWith({ kind: 'model-file', file: weights }, expect.any(Function));
@@ -164,7 +164,7 @@ test('upload progress is bounded, retained on failure, and the same selected fil
 test('dropping a package is an explicit pending selection and a multi-file drop is refused', async () => {
   const { actions, root, button } = mount('add');
   const drop = root.querySelector('.capability-import-drop')!;
-  const file = new File(['zip'], 'tool.observationui.zip');
+  const file = new File(['zip'], 'tool.hookeui.zip');
   fire(drop, 'drop', { dataTransfer: { files: [file, file] }, stopPropagation() {} });
   expect(root.textContent).toContain('Add one model or tool package'); expect(actions.inspect).not.toHaveBeenCalled();
   fire(drop, 'drop', { dataTransfer: { files: [file] }, stopPropagation() {} });
@@ -266,5 +266,5 @@ test('Review asks for a link or a file first; the review is the candidate\'s own
   fire(button('Change source'), 'click');
   expect(root.querySelector('nav')!.hidden).toBe(false);
   expect(sourceWords({ kind: 'link', url: 'https://github.com/lab/tool' })).toBe('From github.com · lab/tool');
-  expect(sourceWords({ kind: 'file', name: 'tool.observationui.zip' })).toBe('From your file · tool.observationui.zip');
+  expect(sourceWords({ kind: 'file', name: 'tool.hookeui.zip' })).toBe('From your file · tool.hookeui.zip');
 });

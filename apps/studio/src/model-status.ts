@@ -56,12 +56,21 @@ export function kindWords(row: Pick<ModelRow, 'kind' | 'runs'>): string {
   return 'Tool';
 }
 
-/** "yours · on this Mac", "community: lab-models · on this Mac": whose entry it is, beside where it runs. */
+/** Whose entry it is and where it came from, the one way a card names it: "yours", "new in the catalog", "from a shared
+ * file", "community: lab-models"; "" for the app's own. A shared file's channel (shared-<hash>) is never said: the server's
+ * sentences name it by the same rule (channels.py `said`). */
+export function sourceWords(row: Pick<ModelRow, 'mine' | 'draftedByAi' | 'channel' | 'channelSource' | 'channelLabel'>): string {
+  if (row.mine) return `yours${row.draftedByAi ? ' · drafted by AI' : ''}`;
+  if (row.channel === 'reviewed' || row.channelSource === 'reviewed') return 'new in the catalog';
+  if (row.channelSource === 'shared-file') return 'from a shared file';
+  if (row.channel) return `community: ${row.channelLabel || row.channel}`;
+  return '';
+}
+
+/** "yours · on this Mac", "from a shared file · on this Mac": whose entry it is, beside where it runs. */
 export function whereWords(row: ModelRow): string {
-  if (row.mine) return `yours${row.draftedByAi ? ' · drafted by AI' : ''} · ${row.where}`;
-  if (row.channel === 'reviewed') return `new in the catalog · ${row.where}`;
-  if (row.channel) return `community: ${row.channel} · ${row.where}`;
-  return row.where;
+  const source = sourceWords(row);
+  return source ? `${source} · ${row.where}` : row.where;
 }
 
 // --- A Models card (workspace-feel step 8; the mock's mcard()) -------------------------------------------------------
@@ -94,7 +103,8 @@ export function cardKindWords(row: ModelRow, wire: CapabilitiesWire | null): str
   const kind = kindWords(row).replace(/^Local method$/, 'Method');
   if (row.runs === 'cloud') {
     const key = keyOf(wire, row);
-    const whose = row.mine ? ' · yours' : row.channel === 'reviewed' ? ' · new in the catalog' : row.channel ? ` · community: ${row.channel}` : '';
+    const source = sourceWords(row);
+    const whose = source ? ` · ${source}` : '';
     return `${kind}, ${key?.short || row.where || 'in the cloud'}${whose}`;
   }
   return `${kind}, ${whereWords(row)}`;

@@ -1,13 +1,13 @@
 # Saves: three homes, and how long each is kept
 
-Everything ObservationUI saves is one of three kinds, kept apart so nothing is lost, broken or
+Everything HookeUI saves is one of three kinds, kept apart so nothing is lost, broken or
 mistaken for something else (`orchestrator/paths.py`: `KINDS`, `LIFETIMES`; a test fails if a save has
 no kind):
 
 | Kind | What | Where, once moved | Kept |
 |---|---|---|---|
 | **Datasets** | What Record collected, for later analysis (docs/datasets.md) | `~/MicroscopeMind/datasets/` | Until you delete one (the Datasets tab moves it to `datasets/.trash/`) |
-| **Performance logs** | For us, to audit a session and find problems: the interaction log, the chat export, the pictures models were shown (`crops/`), the workspace pictures `look_at_screen` took (`screens/`), each researcher's conversation with its model, round by round (`transcripts/<day>/<rid>.jsonl`: an audit trail of why it did what it did, with web pages as they came; its work itself is an asset), saved logs, the servers' logs, and the app's own check of each model (`checks.jsonl`: works or broken and why, made again by Check now or `make capability-check`) | `~/MicroscopeMind/logs/` | Temporary: pruned once used (`make logs-prune`) |
+| **Performance logs** | For us, to audit a session and find problems: the interaction log, the chat export, the pictures models were shown (`crops/`), the workspace pictures `look_at_screen` took (`screens/`), each researcher's conversation with its model, round by round (`transcripts/<day>/<rid>.jsonl`: an audit trail of why it did what it did, with web pages as they came; its work itself is an asset), what an interactive tool said when it did not open (`tool-failures/<day>/`, keys removed; Report it shows it apart), saved logs, the servers' logs, and the app's own check of each model (`checks.jsonl`: works or broken and why, made again by Check now or `make capability-check`) | `~/MicroscopeMind/logs/` | Temporary: pruned once used (`make logs-prune`) |
 | **Assets** | Yours, to share, review and play: the session journals (`sessions/<sid>/journal.jsonl`: a session is the project, ADR 0017) and their conversations, your preferences (below), researchers' work, recordings, snapshots, evidence (what a cell finder or a matcher found, below), results' pictures (below), taught labels, what was seen today, bookmarks (places on the slide you kept, with a picture), fine-tuned models (below), identity (things followed over time: which outlines and cells are one thing, how that is known, and what was measured of them, `identity/<day>/events.jsonl`), volumes and jobs (a whole-brain volume you added, with its axes, voxel sizes and orientation and where each came from, and each registration run on it: its request, log, outputs and record, `jobs/<date>/`) | `~/MicroscopeMind/assets/` | Until you delete them |
 
 **Kept for good.** Votes, corrections and capability verdicts are judgments people made. They sit
@@ -84,7 +84,7 @@ make logs-prune DAYS=30 APPLY=1
 ```
 
 - **What it removes:** only the performance logs' dated folders (`crops/<day>`, `screens/<day>`, `transcripts/<day>`,
-  `saved/<time>`).
+  `tool-failures/<day>`, `saved/<time>`).
   Never kept judgments, assets or datasets.
 - **The two growing logs** (`interactions.jsonl`, `conversation.jsonl`) are single files. Splitting
   them by day is a later step.

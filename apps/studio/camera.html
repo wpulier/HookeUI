@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ObservationUI Camera</title>
+    <title>HookeUI Camera</title>
     <!-- The camera page: served by the camera bridge at /camera/, built from apps/studio/src/camera (vite.camera.config.ts).
-         It works on its own, without the rest of ObservationUI, so the picture can always be got back from here. -->
+         It works on its own, without the rest of HookeUI, so the picture can always be got back from here. -->
   </head>
   <body>
     <div class="page">
       <header class="top">
-        <div class="name">ObservationUI Camera</div>
+        <div class="name">HookeUI Camera</div>
         <nav class="sources" id="sources" aria-label="Where the picture comes from"></nav>
         <span class="top-dot" id="topDot" data-state="work" role="status" aria-label="Connecting"></span>
       </header>
@@ -75,10 +75,10 @@
               <li id="setup3">
                 <span class="tick"></span>
                 <div class="step">
-                  <p class="step-title">Give it ObservationUI's settings</p>
+                  <p class="step-title">Give it HookeUI's settings</p>
                   <div class="step-body">
                     <p>Scan this code with the iPhone's Camera app and tap the link. Safari asks to download <b>MicroscopeMind.xml</b>: tap Download.</p>
-                    <div class="qr"><img id="setupQr" alt="QR code for ObservationUI's settings file" />
+                    <div class="qr"><img id="setupQr" alt="QR code for HookeUI's settings file" />
                       <p>The file goes to Downloads, in the Files app. Nothing else is installed.</p></div>
                     <p>Then, in Blackmagic Camera, open:</p>
                     <p class="path"><span>Settings</span><span>Live Stream</span><span>Platform</span><span>Import Stream Settings</span></p>
@@ -97,7 +97,7 @@
                 <div class="step">
                   <p class="step-title">Choose the saved platform</p>
                   <div class="step-body">
-                    <p>ObservationUI keeps the earlier MicroscopeMind platform name so existing phone settings keep working. Still in Live Stream, choose:</p>
+                    <p>HookeUI keeps the earlier MicroscopeMind platform name so existing phone settings keep working. Still in Live Stream, choose:</p>
                     <p class="choices"><span>Platform: MicroscopeMind</span><span>Quality: Standard</span></p>
                     <p>That's all. The picture comes in by itself, and from now on it does every time the app is open.</p>
                     <details class="stuck"><summary>Not ticking? Try these</summary>

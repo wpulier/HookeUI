@@ -1284,7 +1284,10 @@ export async function openStudyScientific(requested: StudyRetainedView, presenta
         &&origin&&typeof origin.id==='string'&&Number.isSafeInteger(origin.revision)
         ? `Retained labels · ${origin.id} · revision ${origin.revision}` : null;
       const readerContext=selectedScientificReader(document,ref.day);
-      const displayTitle=document.kind==='population-labels'&&title===generated?'Image and labels':title;
+      // A chosen tool is in the window's name: each choice opens its own window on the same input, so the windows differ.
+      const chosenTool=document.kind==='scene'?selectedScientificTool(document.state,{...ref,version:Number(ref.version)}):null;
+      const shortTitle=title===generated?'Image and labels':title;
+      const displayTitle=document.kind==='population-labels'?shortTitle:chosenTool?`${shortTitle} · ${chosenTool.name}`:title;
       studyArtifacts().documentTitle(root,title,displayTitle);
       const identity=node('details');identity.append(node('summary','Document identity'),node('p',`${title} · ${role} · saved revision ${ref.version}`),node('p',`Project ${ref.day} · ${ref.id}`));
       content.replaceChildren(identity);

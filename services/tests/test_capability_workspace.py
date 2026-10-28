@@ -176,7 +176,7 @@ def test_unsafe_candidate_file_or_reused_identity_cannot_be_packaged(bad, enviro
             path.write_bytes(b"x" * (share.MAX_FILE + 1))
     with pytest.raises(workspaces.WorkspaceError):
         workspaces.package(item.id, environ=environ)
-    assert not list(item.folder.glob("*.observationui.zip"))
+    assert not list(item.folder.glob("*.hookeui.zip"))
 
 
 def test_fiji_handoff_is_possible_but_packaging_remains_explicitly_gated(environ, monkeypatch):
@@ -219,7 +219,7 @@ def test_an_unfinished_candidate_is_not_a_successful_package(environ):
     path.write_text(path.read_text() + "\n# TODO implement the requested measurement\n")
     with pytest.raises(workspaces.WorkspaceError, match="finish the capability"):
         workspaces.package(item.id, environ=environ)
-    assert not list(item.folder.glob("*.observationui.zip"))
+    assert not list(item.folder.glob("*.hookeui.zip"))
 
 
 def test_redirected_candidate_directory_cannot_export_an_unrelated_folder(environ, tmp_path):

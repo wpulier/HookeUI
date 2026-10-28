@@ -12,6 +12,10 @@ other files.
     something swimming in.
   - A change of light, focus or a whole-view vibration is not new content.
   - At most 4 such looks a minute. Each decision is logged as `still-change`.
+  - Each look is a paid vision call, so time alone never buys one: a minute after its last look it looks again only
+    if the picture changed since (`FrameInfo.changed_at`, `quality.Content`: a change of light or focus). An
+    unchanged picture, a still on the Stage or a frozen feed, is looked at once (Beta 0.5.1 took a Gemini look every
+    60 s on a still picture).
 - The slide map (`orchestrator/slidemap.py`, W5-4): each steady, unblurred frame's eyepiece disc is
   pasted at quarter size at its offset into one map per motion epoch (at most 4, each at most 1536 px
   a side), on its own thread; nothing is blended or invented. `where_is` says where an outline is from
@@ -354,7 +358,8 @@ other files.
   every cell of the same view), raw unless the full route is asked for; the app draws what each made side
   by side on that view's pixels in the magnifier and measures it (areas, IoU; counts and cells both
   found), and says when a result was reused (when it was made; its time not counted). Not the blind test.
-  Its view is held (the unsaved allowance) for 5 minutes, until the next comparison or a keep: `keep=<id>`
+  Its view is held (the unsaved allowance) for 5 minutes, until the next comparison or a keep (an outline comparison
+  says so; a cells comparison says each result is kept in Data, as its populations are): `keep=<id>`
   ("keep the SAM 2.1 one") puts that model's outline on the board, made by that arm's execution, in place of
   the app's earlier outline of that thing (never the user's), or shows that arm's cells; cells are framed on
   the whole view when it has no eyepiece circle. A cells comparison the user runs by hand from the workspace's

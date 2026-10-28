@@ -1,4 +1,4 @@
-ObservationUI optional model integrations
+HookeUI optional model integrations
 
 This directory contains wrappers, adapters and helper processes for optional
 model components. The directory name and the application's edition tiers do

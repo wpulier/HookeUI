@@ -1,5 +1,6 @@
-"""Test assets (orchestrator/assets.py, assets/README.md): one store outside every checkout, one
-manifest in git; the camera bridge lists the store's footage in groups for the camera menu."""
+"""Test assets (orchestrator/assets.py, assets/README.md): one store outside every checkout, the repository's manifest
+(public, listing no one's own recordings) with the store's private one read over it; the camera bridge lists the
+store's footage in groups for the camera menu."""
 import importlib.util
 import json
 import re
@@ -167,7 +168,9 @@ def test_add_copies_a_recording_in_with_its_checksum_and_never_twice(tmp_path, m
     args = SimpleNamespace(file=str(source), specimen="Onion epidermis", title=None, date="2026-10-07", notes="", not_microscope=False)
     assert assets.cmd_add(args) == 0
     assert "No backup destination configured" in capsys.readouterr().out
-    (entry,) = json.loads(manifest.read_text())["real"]
+    # Listed in the store's private manifest, never in the repository's (public: it lists no one's own recordings).
+    (entry,) = json.loads((tmp_path / "store" / "manifest.json").read_text())["real"]
+    assert json.loads(manifest.read_text())["real"] == []
     assert entry["id"] == "2026-10-07-onion-epidermis-2s" and entry["file"] == "footage/real/2026-10-07-onion-epidermis-2s.mp4"
     copied = tmp_path / "store" / entry["file"]
     assert copied.read_bytes() == source.read_bytes() and entry["sha256"] == assets.sha256(copied) and entry["microscope"]
@@ -260,7 +263,8 @@ def test_a_recording_added_in_the_studio_is_listed_then_adopted_into_the_manifes
     monkeypatch.setenv("MICROMIND_ASSETS", str(store_root))
     assert assets.cmd_adopt(SimpleNamespace()) == 0
     assert "No backup destination configured" in capsys.readouterr().out
-    (entry,) = json.loads(manifest.read_text())["real"]
+    (entry,) = json.loads((store_root / "manifest.json").read_text())["real"]
+    assert json.loads(manifest.read_text())["real"] == []
     assert entry["id"] == Path(item["name"]).stem and entry["file"] == f"footage/real/{Path(item['name']).name}"
     assert (store_root / entry["file"]).read_bytes() == data and entry["specimen"] == "Onion epidermis"
     assert not any((footage / "added").glob("*.json"))  # its facts are in the manifest now
@@ -333,15 +337,19 @@ def test_requested_media_is_fair_and_preempts_prefetch_without_duplicate_jobs(br
 
 def test_what_a_recording_was_filmed_with_is_set_kept_and_listed(bridge, tmp_path, monkeypatch):
     """Optics are data in the manifest (for tests and benches; the app is never told them from the
-    footage). `set` fills them in; the bridge lists them with the recording."""
+    footage). `set` fills them in, in the store's private manifest (one the repository's lists is copied there and
+    read over it); the bridge lists them with the recording."""
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"backup": {}, "real": [{"id": "r1", "file": "footage/real/r1.mp4", "title": "Leaf", "microscope": True,
                                                             "seconds": 1.0, "optics": {"camera": "iPhone"}}], "bench": []}))
     monkeypatch.setattr(assets, "MANIFEST", manifest)
+    monkeypatch.setenv("MICROMIND_ASSETS", str(tmp_path / "store"))
     args = SimpleNamespace(id="r1", camera=None, microscope="Olympus CX23", objective=40.0, eyepiece=10.0, field_number=18.0,
                            um_per_px=None, optics_notes=None)
     assert assets.cmd_set(args) == 0
-    (entry,) = json.loads(manifest.read_text())["real"]
+    assert json.loads(manifest.read_text())["real"][0]["optics"] == {"camera": "iPhone"}  # the repository's is unchanged
+    (entry,) = json.loads((tmp_path / "store" / "manifest.json").read_text())["real"]
+    assert entry["title"] == "Leaf"
     assert entry["optics"] == {"camera": "iPhone", "microscope": "Olympus CX23", "objective": 40.0, "eyepiece": 10.0,
                                "fieldNumber": 18.0, "umPerPx": None, "notes": ""}
     assert assets.cmd_set(SimpleNamespace(**{**vars(args), "id": "nope"})) == 1
@@ -349,6 +357,7 @@ def test_what_a_recording_was_filmed_with_is_set_kept_and_listed(bridge, tmp_pat
     footage = tmp_path / "footage"
     video(footage / "real" / "r1.mp4", frames=2)
     monkeypatch.setattr(bridge, "ASSETS_MANIFEST", manifest)
+    monkeypatch.setattr(bridge, "PRIVATE_MANIFEST", tmp_path / "store" / "manifest.json")
     monkeypatch.setattr(bridge, "CORPUS_MANIFEST", tmp_path / "none.json")
     (item,) = bridge.footage_library(footage)
     assert item["optics"]["objective"] == 40.0 and item["optics"]["microscope"] == "Olympus CX23"
@@ -489,3 +498,64 @@ def test_an_upload_in_the_background_is_added_as_before(bridge, tmp_path):
     assert item["group"] == "Added here" and (footage / item["name"]).read_bytes() == data
     with pytest.raises(ValueError):
         in_background(lambda: library.receive(io.BytesIO(b"not a video"), 11, "notes.mp4", "", "x", True))
+
+
+def _owners_store(tmp_path):
+    """An assets store as its owner has it: a recording of their own, a file dropped beside it, and the store's private
+    manifest (untracked) saying what the recording is and what it was filmed with. The repository's manifest, public,
+    lists none (as HookeUI's does)."""
+    root = tmp_path / "store"
+    video(root / "footage" / "real" / "2026-06-14-leaf-epidermis-3m43s.mp4", frames=2)
+    video(root / "footage" / "dropped.mp4", frames=2)
+    optics = {"camera": "iPhone 15 Pro", "microscope": "Olympus CX23", "objective": 40.0, "eyepiece": 10.0,
+              "fieldNumber": 18.0, "umPerPx": None, "notes": ""}
+    (root / "manifest.json").write_text(json.dumps({"backup": {"kind": "github-release", "repo": "owner/private-assets",
+                                                               "tag": "test-assets"}, "real": [{
+        "id": "2026-06-14-leaf-epidermis-3m43s", "file": "footage/real/2026-06-14-leaf-epidermis-3m43s.mp4",
+        "title": "Leaf epidermis, 14 June (3m43s)", "specimen": "leaf epidermis", "date": "2026-06-14", "seconds": 222.8,
+        "microscope": True, "optics": optics}]}))
+    public = tmp_path / "public-manifest.json"
+    public.write_text(json.dumps({"backup": {}, "real": [], "bench": []}))
+    return root, public, optics
+
+
+def test_the_owners_recordings_keep_their_titles_and_optics_from_the_stores_private_manifest(bridge, tmp_path, monkeypatch):
+    """HookeUI's manifest lists no personal recordings, so the owner's own fell to "Other", titled by file name, with no
+    optics for "Use its optics" (thesis check, 2026-10-27). The store's private manifest is read over it: by the camera
+    bridge's footage list, by the app's library and by the assets commands, with nothing written into the repository."""
+    root, public, optics = _owners_store(tmp_path)
+    monkeypatch.setenv("MICROMIND_ASSETS", str(root))
+    # The camera bridge: the camera menu, the Test footage page and the player's "Use its optics".
+    monkeypatch.setattr(bridge, "ASSETS_MANIFEST", public)
+    monkeypatch.setattr(bridge, "PRIVATE_MANIFEST", root / "manifest.json", raising=False)
+    monkeypatch.setattr(bridge, "CORPUS_MANIFEST", tmp_path / "none.json")
+    listed = {i["name"]: i for i in bridge.footage_library(root / "footage")}
+    leaf = listed["real/2026-06-14-leaf-epidermis-3m43s.mp4"]
+    assert (leaf["group"], leaf["title"], leaf.get("optics"), leaf["seconds"]) == (
+        "Real microscope", "Leaf epidermis, 14 June (3m43s)", optics, 222.8)
+    assert (listed["dropped.mp4"]["group"], listed["dropped.mp4"]["title"]) == ("Other", "dropped.mp4")
+    # The app's library (All assets, a session's sources): the owner's recording is an asset with its title and optics.
+    from tests.standin_workers import build_app
+
+    built = build_app(tmp_path / "home")
+    (asset,) = [a for a in built.hub.library.assets(fresh=True).values() if a.group == "recording"]
+    assert (asset.title_now(), asset.specimen_now()) == ("Leaf epidermis, 14 June (3m43s)", "leaf epidermis")
+    assert asset.scale_optics() == {"objective": 40.0, "eyepiece": 10.0, "fieldNumber": 18.0}
+    # The assets commands and the sim harness read both: its id resolves and its backup is the private one's.
+    monkeypatch.setattr(assets, "MANIFEST", public)
+    assert assets.store().real_file("2026-06-14-leaf-epidermis-3m43s") == root / "footage/real/2026-06-14-leaf-epidermis-3m43s.mp4"
+    assert assets.load_manifest()["backup"]["repo"] == "owner/private-assets"
+    assert json.loads(public.read_text())["real"] == []
+
+
+def test_a_private_entry_reads_over_the_repositorys_own(tmp_path):
+    from orchestrator.paths import layered_manifest
+
+    public = {"about": "public", "backup": {}, "real": [{"id": "b", "file": "footage/real/b.mp4", "title": "public b"},
+                                                       {"id": "c", "file": "footage/real/c.mp4", "title": "public c"}]}
+    private = {"backup": {"repo": "o/r"}, "real": [{"id": "b", "file": "footage/real/b.mp4", "title": "mine"},
+                                                    {"id": "a", "file": "footage/real/a.mp4", "title": "mine too"}]}
+    layered = layered_manifest(public, private)
+    assert [(r["id"], r["title"]) for r in layered["real"]] == [("a", "mine too"), ("b", "mine"), ("c", "public c")]
+    assert (layered["about"], layered["backup"]) == ("public", {"repo": "o/r"})
+    assert layered_manifest(public, None) is public

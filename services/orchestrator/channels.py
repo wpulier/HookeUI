@@ -38,7 +38,7 @@ from typing import Mapping
 
 from gpu_worker import manifests as catalog
 
-REVIEWED_URL = "https://github.com/wpulier/HookeUI.git"
+REVIEWED_URL = catalog.REVIEWED_URL
 CATALOG_PATH = "catalog/models"
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
@@ -270,9 +270,10 @@ def update(name: str = catalog.REVIEWED_CHANNEL, environ: Mapping[str, str] = os
     before, was = _ids(c, environ), c.get("commit", "")
     if c.get('source') == 'shared-file':
         if commit and commit != was:
-            raise CantDo('a shared file has no online revisions; import the newer file to review its changes')
+            raise CantDo('a shared file has no online revisions; a newer shared file is added as its own entry')
         return {'name': name, 'commit': was, 'was': was, 'entries': len(before), 'added': [], 'later': [],
-                'says': 'This is a shared file, not an online catalog. Import a newer file to review its changes.'}
+                'says': "This is a shared file, not an online catalog: it doesn't update itself. A newer shared file "
+                        "is added as its own entry."}
     target = commit or newest(c["url"])
     n = fetch(c["url"], target, snapshot_dir(name, target, environ), c.get("path", CATALOG_PATH))
     c.update(commit=target, checked=time.strftime("%Y-%m-%dT%H:%M:%S"))
@@ -285,10 +286,40 @@ def update(name: str = catalog.REVIEWED_CHANNEL, environ: Mapping[str, str] = os
             "later": sorted(i for i in new - listed if f"{name}/{i}" in catalog.problems(environ))}
 
 
+def entries_words(n: int) -> str:
+    """How many entries, said: "1 entry", "3 entries"."""
+    return f"{n} {'entry' if n == 1 else 'entries'}"
+
+
 def label(name: str, environ: Mapping[str, str] = os.environ) -> str:
-    """How a channel is said to people: its label ("Maya Okafor's shared file", share.py), else its name."""
+    """A channel's short name, for a button: its label ("Maya Okafor's shared file", share.py), else its name."""
     c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
     return str((c or {}).get("label") or name)
+
+
+def source(name: str, environ: Mapping[str, str] = os.environ) -> str:
+    """Where a channel's entries come from: "reviewed" (this repository's reviewed catalog), "shared-file" (a file
+    someone shared, opened with share.py) or "git" (a community repository); "" when there is no such channel."""
+    c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
+    if c is None:
+        return ""
+    if c.get("reviewed"):
+        return "reviewed"
+    return "shared-file" if c.get("source") == "shared-file" else "git"
+
+
+def said(name: str, environ: Mapping[str, str] = os.environ) -> str:
+    """A channel named in a sentence, the one way every message names it: "Maya Okafor's shared file" (or "a shared
+    file"), "the reviewed catalog", a community repository's label, else "the community channel lab-models". A shared
+    file's own name (shared-<hash>) is never said. The studio's `sourceWords` (model-status.ts) names it on a card."""
+    c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
+    if c is None:
+        return f"the community channel {name}"
+    if c.get("source") == "shared-file":
+        return str(c.get("label") or "a shared file")
+    if c.get("reviewed"):
+        return "the reviewed catalog"
+    return str(c.get("label") or f"the community channel {name}")
 
 
 def add(url: str, name: str = "", commit: str = "", path: str = CATALOG_PATH,
@@ -355,7 +386,8 @@ def wire(environ: Mapping[str, str] = os.environ) -> list[dict]:
     """The channels for the Models page: each with its address, commit, when checked and how many entries."""
     out = []
     for c in catalog.channels(environ):
-        out.append({"name": c["name"], "label": c.get("label") or c["name"], "url": c.get("url", ""), "commit": c.get("commit", ""),
+        out.append({"name": c["name"], "label": c.get("label") or c["name"], "source": source(c["name"], environ),
+                    "url": c.get("url", ""), "commit": c.get("commit", ""),
                     "reviewed": bool(c.get("reviewed")), "trusted": bool(c.get("reviewed") or c.get("trusted")),
                     "checked": c.get("checked", c.get("added", "")), "entries": len(_ids(c, environ))})
     return out
@@ -375,15 +407,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "update":
             # --commit pins that commit (C7 Window B: the CLI ignored it, so only Python could pin a channel back).
             r = update(args.target or catalog.REVIEWED_CHANNEL, commit=args.commit or None)
-            print(f"{r['name']}: at {r['commit'][:12]}, {r['entries']} entries"
+            print(f"{r['name']}: at {r['commit'][:12]}, {entries_words(r['entries'])}"
                   + (f"; new: {', '.join(r['added'])}" if r["added"] else ""))
         elif args.action == "add":
             r = add(args.target, args.name, args.commit)
-            print(f"{r['name']}: added at {r['commit'][:12]}, {r['entries']} entries (community, not reviewed here; "
+            print(f"{r['name']}: added at {r['commit'][:12]}, {entries_words(r['entries'])} (community, not reviewed here; "
                   "nothing of it runs until you allow code from it)")
         else:
             for c in wire():
-                print(f"{c['name']}: {c['url']} at {c['commit'][:12]}, {c['entries']} entries"
+                print(f"{c['name']}: {c['url']} at {c['commit'][:12]}, {entries_words(c['entries'])}"
                       + ("" if c["reviewed"] else " (community" + (", allowed)" if c["trusted"] else ", not allowed)")))
     except CantDo as exc:
         print(str(exc))

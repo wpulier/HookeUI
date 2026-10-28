@@ -124,6 +124,10 @@ other files.
   - **Otherwise it is kept on the original image** and nothing is drawn, as before: the Stage shows another input or the
     live camera ("kept on the original image; open the saved result to inspect its particles"), or the Stage's picture
     did not match ("does not match the original image they were found on").
+  - **A Project opened again shows it again** when its landing puts that still on stage (`App.reopen_layer`; the
+    session journals which population its layer showed: `services/orchestrator/day/AGENTS.md`, "What opening brings
+    back"). It is the same layer and the same check: nothing is drawn until a frame of that still verifies it, and the
+    live camera never gets it.
   - **No window of its own once drawn there** (Will's call, 2026-10-25, for a This Tab run): the run's window waits on
     the check, never on the asset's name alone. Shown on the Stage's still, the run journals `workspace-specimen`
     "checking" before the population's save is filed, so `workspace_views.reconcile` places nothing for it yet (and the

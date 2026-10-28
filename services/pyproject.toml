@@ -1,7 +1,7 @@
 [project]
 name = "microscope-mind-services"
 version = "0.1.0"
-description = "Realtime perception, scene, and AI agents for ObservationUI"
+description = "Realtime perception, scene, and AI agents for HookeUI"
 requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.1",

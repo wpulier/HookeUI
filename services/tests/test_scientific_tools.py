@@ -57,6 +57,53 @@ def test_concurrent_edit_refuses_choice_without_overwriting_or_rebasing(tmp_path
     assert store.read(saved.id, saved.session) == newer
 
 
+@pytest.fixture
+def two_tools(member, monkeypatch):
+    """The fixture's tool and a second one, as Cellpose-SAM and napari-animation for one retained input (final052)."""
+    second = {**RAW, 'id': 'animate', 'name': 'Second tool'}
+    owner = SimpleNamespace(**vars(OWNER), members=(RAW, second))
+    parsed = {member.id: member, 'animate': parse_members([second], OWNER)[0]}
+    @contextmanager
+    def prepared(key, generation, environ):
+        if key not in (KEY, SECOND) or generation != GEN:
+            raise ValueError('Wrong prepared generation')
+        yield SimpleNamespace(m=view(owner, parsed[key.split('#')[1]]))
+    monkeypatch.setattr(tools.prepared_bundles, 'prepared_member', prepared)
+
+
+SECOND = 'mine/next-tool#animate'
+
+
+def test_a_second_tool_chosen_from_the_same_input_revision_follows_the_first(tmp_path, two_tools):
+    # final052: Cellpose was chosen from the retained image and labels; Continue with napari-animation in the same window
+    # then refused "This project changed" and nothing opened.
+    from orchestrator.scientific_provenance import resolve
+    store = ProjectStore(tmp_path); saved, _, ref = saved_view(store)
+    first = tools.bind(store, saved.id, saved.session, saved.revision, KEY, GEN)
+    second = tools.bind(store, saved.id, saved.session, saved.revision, SECOND, GEN)
+    assert second.revision == first.revision + 1 and store.read(saved.id, saved.session) == second
+    assert store.read(saved.id, saved.session, revision=first.revision) == first
+    view = second.document['state']['scientificView']
+    assert view['runtime'] == {'bundle': 'mine/next-tool', 'generation': GEN, 'operation': 'animate'}
+    assert view['inputs'] == saved.document['state']['scientificView']['inputs']
+    assert second.document['state']['scientificToolChoice']['source'] == {
+        'id': saved.id, 'session': saved.session, 'revision': first.revision, 'digest': first.digest}
+    explained = resolve(store, saved.id, saved.session, second.revision)
+    assert explained['problems'] == [] and explained['inputSelection']['capability'] == SECOND
+    # A retried request is already the latest choice: nothing new is saved.
+    assert tools.bind(store, saved.id, saved.session, saved.revision, SECOND, GEN) == second
+    assert store.read(saved.id, saved.session) == second
+
+
+def test_a_choice_never_follows_later_work_that_changed_the_input(tmp_path, two_tools):
+    store = ProjectStore(tmp_path); saved, _, _ = saved_view(store)
+    first = tools.bind(store, saved.id, saved.session, saved.revision, KEY, GEN)
+    edited = store.save(saved.id, saved.session, {**first.document, 'title': 'Other accepted work'}, expected_revision=first.revision)
+    with pytest.raises(Conflict):
+        tools.bind(store, saved.id, saved.session, saved.revision, SECOND, GEN)
+    assert store.read(saved.id, saved.session) == edited
+
+
 def test_cancellation_or_unprepared_generation_leaves_all_saved_work_unchanged(tmp_path, member):
     store = ProjectStore(tmp_path); saved, _, _ = saved_view(store)
     with pytest.raises(ValueError, match='Wrong prepared'):

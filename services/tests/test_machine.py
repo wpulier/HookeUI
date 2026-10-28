@@ -122,7 +122,7 @@ def test_our_workers_are_named_by_their_role_and_what_is_loading():
 
     names = {101: worker_name({"role": "analysis worker", "loading": "micro-sam"})}
     top = parse_ps(PS, own=100, n=6, names=names)
-    assert {"name": "ObservationUI: analysis worker (loading micro-sam)", "cpu": 38, "memMb": 400, "ours": True} in top
+    assert {"name": "HookeUI: analysis worker (loading micro-sam)", "cpu": 38, "memMb": 400, "ours": True} in top
     assert parse_pids("  101  38.1  409600\n  103 40.0 285696\nbad\n") == {101: (38.1, 400.0), 103: (40.0, 279.0)}
 
 
@@ -139,7 +139,7 @@ def test_our_workers_are_sampled_on_every_tick_with_their_role_and_state(monkeyp
                                {"pid": 999, "role": "outline worker"}]  # gone since: left out
     ours = sampler.sample()["ours"]
     assert ours == [{"pid": 201, "role": "analysis worker", "loading": "micro-sam", "cpu": 190, "memMb": 2400,
-                     "name": "ObservationUI: analysis worker (loading micro-sam)"}]
+                     "name": "HookeUI: analysis worker (loading micro-sam)"}]
 
 
 def test_a_machine_record_when_a_reading_crosses_a_line():

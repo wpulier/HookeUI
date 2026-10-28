@@ -88,6 +88,10 @@ other files.
   - **On what:** the live view now, or a sample the session still keeps (`input`): a population's view, or a held
     clip's frames (`frame`). A sample no longer kept is said so ("that view is not kept any more"), never captured
     again in its place; anything else is refused with what it is.
+  - **Said as the Stage showed it:** with no kept input, the researcher's own step names "the picture on the Stage"
+    (`researcher.STAGE`: its process can't tell a still from the camera), and the app's reply names which
+    (`hands.stage_words`): "segmented the picture on the Stage" when its frames carry a still's original (as
+    population.py says it), else "the live view". Counts are in words ("Checked the 1 entry it cites in this Project").
   - **What it makes:** a population entry ("Cell outlines, for Researcher 2"), a result entry with its picture
     ("Clearer picture, for Researcher 2", `Results.add(made_for=)`, the "for" in its own fields too) or a tracks
     item ("Motion, for Researcher 2"). Each is read with the session tool and never shown. It is never what a request

@@ -32,9 +32,10 @@ ownership, retention, admission, recovery or update checks with a cosmetic smoke
 `make check` remains the frozen integrated candidate gate: full Python, Studio types/
 Vitest, native checks where available, and non-cloud simulations. `make check` clears
 `SIM_ONLY` so an edit-loop selector cannot silently narrow this gate. `make test` remains
-its full non-simulation stage. The paid `tests` workflow is **manual dispatch only**:
-run once on the candidate branch and record the resolved SHA. Reuse an unchanged
-passing CI stage instead of rerunning it locally or on the merge commit. Repeat only
+its full non-simulation stage. The `tests` workflow (`make-test`) runs on **every PR into
+`dev`** and must pass before it merges, with no bypass; it also runs by dispatch on a frozen
+candidate branch (record the resolved SHA). It never runs again on the merge commit: reuse an
+unchanged passing run instead of rerunning it locally or after the merge. Repeat only
 affected checks after a repair; broad shared-boundary changes can invalidate wider
 evidence and require a new combined gate. Applicable actual capability, package and
 owner acceptance remain distinct. No checks are silently marked passed by this policy.
@@ -255,17 +256,18 @@ against the board at that moment (it must never come first), and how soon each t
 happened. The live failures of 2026-10-04 are cases in it; a case marked `xfail` says which PR
 fixes it (`docs/design/2026-10-05-acting-layer.md`, ADR 0006). Cases marked `beginner` are also scanned
 for words the user never used (model names, ids, the app's machinery): a reported column, never a failure.
-With `--models real` it runs `live_cases.json` with the real models, in real time, on real pictures whose things
-are labelled boxes (the user's words of 2026-10-07 and 10-10; the face picture is private, in the assets store):
-settings compared as `--arm`s that take turns, 3 attempts a case, every attempt and prompt kept, a frozen hash of
-the cases and scoring, `--report` for the table (`docs/bench/acting.md`). Defaults that change how a request is
-answered are chosen there.
+With `--models real` it runs the live cases with the real models, in real time, on real pictures whose things
+are labelled boxes: settings compared as `--arm`s that take turns, 3 attempts a case, every attempt and prompt kept, a
+frozen hash of the cases and scoring, `--report` for the table (`docs/bench/acting.md`). Defaults that change how a
+request is answered are chosen there. The maintainers' live cases are their own words and pictures from live
+sessions, kept privately: the run takes `live_cases.json` beside `run.py` (ignored by Git) or `--cases FILE`, and
+without either says so and skips.
 
-The user's testing reference for the end of the effort is `docs/testing/2026-10-07-human-interaction-testing-playbook.md`
-(the Human Interaction Testing Playbook, verbatim; the PDF beside it). Agents use it to test as the user does: the live
-app by voice and typing in the user's casual wording, comparing at each step what was asked, what the workspace shows
-and what the records prove, then fixing and retesting (its section 47). It is a tester's document: never put it into
-the app's prompts. When and how: the partner plan's "The end of the effort" (`docs/design/2026-10-07-the-partner.md`).
+The testing reference for the end of an effort is the maintainers' Human Interaction Testing Playbook, kept
+privately. In short: agents test as the user does, the live app by voice and typing in the user's casual wording,
+comparing at each step what was asked, what the workspace shows and what the records prove, then fixing and
+retesting. It is a tester's document: never put it into the app's prompts. When and how: the partner plan's "The end
+of the effort" (`docs/design/2026-10-07-the-partner.md`).
 The user's live cases of 2026-10-07 are crucial acceptance cases there (the partner plan's §5 lists them).
 
 Isolated-profile browser checks (`tests/scientific_browser.py`) build the production Studio from the tree when its

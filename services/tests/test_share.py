@@ -54,6 +54,59 @@ def test_a_capability_travels_as_one_small_file_and_opens_as_a_community_catalog
     assert mine.add(str(path))["says"].endswith("from a file shared earlier")
 
 
+def test_a_shared_file_is_named_for_hookeui_and_one_named_before_the_rename_still_opens(home, monkeypatch, tmp_path):
+    path = share.export(yours(home), by="Maya Okafor")
+    assert path.name == "dark-spots.hookeui.zip"
+    older = tmp_path / "dark-spots.observationui.zip"  # sent by an app from before the rename
+    older.write_bytes(path.read_bytes())
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "another-mac"))
+    catalog.manifests.cache_clear()
+    opened = mine.add(str(older))
+    assert opened["kind"] == "shared" and opened["model"].endswith("/dark-spots") and "Maya Okafor" in opened["says"]
+
+
+def test_a_shared_file_is_named_as_one_wherever_it_is_named(home, monkeypatch, tmp_path):
+    # Thesis check, ticket 67: its card said "community: shared-1a2b3c…". The row now carries the channel's source and
+    # label, and every server sentence names it by one helper (channels.said).
+    from orchestrator import catalog_view, env_runner, envs
+
+    path = share.export(yours(home), by="Maya Okafor")
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "another-mac"))
+    catalog.manifests.cache_clear()
+    opened = mine.add(str(path))
+    m = catalog.get(opened["model"])
+    assert channels.source(m.channel) == "shared-file" and channels.said(m.channel) == "Maya Okafor's shared file"
+    row = next(r for r in catalog_view.rows({}, {}, {}) if r["id"] == m.key)
+    assert (row["channel"], row["channelSource"], row["channelLabel"]) == (m.channel, "shared-file", "Maya Okafor's shared file")
+    entry = next(f for f in row["facts"] if f["kind"] == "entry")
+    assert entry["says"] == "From Maya Okafor's shared file: not reviewed here", "no content hash for a person to read"
+    assert env_runner.ready(m) == "code from Maya Okafor's shared file isn't allowed here (it isn't reviewed here)"
+    with pytest.raises(envs.Failed) as refused:
+        envs.install(m)
+    assert str(refused.value).startswith("Dark spots comes from Maya Okafor's shared file, not reviewed here")
+    assert m.channel not in str(refused.value)
+    how = readiness.model(m.key, {}).steps[0].how
+    assert "Maya Okafor's shared file" in how and m.channel not in how
+    from orchestrator import report
+
+    assert report.facts(m.key)["from"] == "Maya Okafor's shared file" and report.where(m) == ""
+
+
+def test_a_community_repository_is_still_named_as_a_channel(home):
+    from orchestrator import catalog_view
+
+    found = catalog.channels()
+    found.append({"name": "lab-models", "url": "https://github.com/lab/models", "commit": "9" * 40, "reviewed": False,
+                  "trusted": False})
+    channels._save(found, __import__("os").environ)
+    assert channels.source("lab-models") == "git" and channels.said("lab-models") == "the community channel lab-models"
+    found[-1]["label"] = "Lab models"
+    channels._save(found, __import__("os").environ)
+    assert channels.said("lab-models") == "Lab models"
+    assert channels.source("reviewed") in ("reviewed", "") and channels.said("nowhere") == "the community channel nowhere"
+    assert all("channelSource" not in r for r in catalog_view.rows({}, {}, {}) if not r.get("channel"))
+
+
 def test_weights_only_on_this_mac_never_travel(home):
     files = 'files = [{ path = "w.pt", bytes = 10, sha256 = "' + "a" * 64 + '", url = "file:///Users/me/w.pt" }]'
     key = yours(home, files)
@@ -75,7 +128,8 @@ def test_opening_a_shared_package_needs_no_git_or_other_external_program(home, m
     assert readiness.model(model.key, {}).steps[0].kind == 'trust'
     assert share.open_file(path)['says'].endswith('from a file shared earlier')
     update = channels.update(opened['channel'])
-    assert 'newer file' in update['says']
+    # Never "import the newer file" as if it updated this one: a newer shared file is an entry of its own.
+    assert "doesn't update itself" in update['says'] and 'A newer shared file is added as its own entry' in update['says']
     assert not (share.root() / 'repos').exists()
 
 

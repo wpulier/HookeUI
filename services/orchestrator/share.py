@@ -1,8 +1,8 @@
 """Share a capability as a file, with no account (docs/design/2026-10-13-capabilities-for-everyone.md, C5).
 
 **Sharing** (`export`): a Python adapter (format 1), a proven Fiji function (format 2), or a bundle (format 3) becomes one small file,
-`<id>.observationui.zip`: its manifest, its adapter, its lockfile and its picture, laid out as a catalog
-(`catalog/models/<id>/…`), with `SHARED.json` saying who shared it, when, and its proof here. Never its weights: each is
+`<id>.hookeui.zip` (one named `.observationui.zip`, from before the rename, still opens): its manifest, its adapter,
+its lockfile and its picture, laid out as a catalog (`catalog/models/<id>/…`), with `SHARED.json` saying who shared it, when, and its proof here. Never its weights: each is
 fetched from where its manifest pins it, checked by its hash, so an entry whose weights are only on this Mac (a file
 added from a path) is refused with what to do. The file goes any way people send files: AirDrop, email, a forum post.
 
@@ -34,7 +34,11 @@ from gpu_worker import wheel_recipe
 from . import bounded_files
 from .bundle_admission import integration_problem
 
-SUFFIX = ".observationui.zip"
+SUFFIX = ".hookeui.zip"  # what Share a file writes
+FORMER_SUFFIX = ".observationui.zip"  # its name before the app was HookeUI: still opened
+SUFFIXES = (SUFFIX, FORMER_SUFFIX)
+# A copy kept by its content hash (a result's retained entry, a dataset's capabilities/): a stored format, kept as it was
+STORED_SUFFIX = FORMER_SUFFIX
 FORMAT = 1
 FIJI_FORMAT = 2
 BUNDLE_FORMAT = 3

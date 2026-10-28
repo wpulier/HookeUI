@@ -404,7 +404,7 @@ def ready(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> str:
     from . import channels
 
     if not channels.trusted(m, environ):
-        return f"code from the community channel {m.channel} isn't allowed here (it isn't reviewed here)"
+        return f"code from {channels.said(m.channel, environ)} isn't allowed here (it isn't reviewed here)"
     if turned_off(m, environ) and installed_any(m, environ):
         return "you turned it off: Turn on makes it a choice again with the version it had (nothing is installed again)"
     from .bundle_admission import local_workflow

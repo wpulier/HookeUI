@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# ObservationUI: start, stop or check every server in one place (the Makefile calls this).
+# HookeUI: start, stop or check every server in one place (the Makefile calls this).
 #
 #   scripts/studio.sh start [--dev]   the live microscope app (add --dev for hot reload)
-#   scripts/studio.sh stop            stop everything of ObservationUI, on any port
+#   scripts/studio.sh stop            stop everything of HookeUI, on any port
 #   scripts/studio.sh status          what is running, and where
 #
 # Servers:
@@ -11,7 +11,7 @@
 #   orchestrator    :8770  perception, scene, AI; serves the studio web app; runs the GPU worker
 #   dev studio      :5180  only with --dev: the web app with hot reload (Vite), same backend
 #
-# One place to turn it on and off. Starting first stops whatever of ObservationUI is already
+# One place to turn it on and off. Starting first stops whatever of HookeUI is already
 # running (any port), so there is only ever one copy. Stopping (make stop, Ctrl-C, or closing
 # the terminal that ran start) ends every server and worker. Only processes from this checkout
 # are touched (a worktree in .claude/worktrees is another checkout); another program on one of
@@ -102,7 +102,7 @@ health() { curl -s -m 2 "$1" 2>/dev/null || true; }
 is_bridge() { health "$CAMERA_URL/api/health" | grep -q '"targetDevice"'; }
 feed_footage() { health "$CAMERA_URL/feed" | sed -n 's/.*"footage": "\(.*\)",*$/\1/p' | head -1; }
 is_orchestrator() { health "$ORCH_URL/api/health" | grep -q '"microscope-mind-orchestrator"'; }
-is_dev_studio() { health "http://127.0.0.1:$DEV_PORT/" | grep -Eq '<title>(ObservationUI|MicroscopeMind) Studio</title>'; }
+is_dev_studio() { health "http://127.0.0.1:$DEV_PORT/" | grep -Eq '<title>(HookeUI|ObservationUI|MicroscopeMind) Studio</title>'; }
 is_cv() { health "http://127.0.0.1:$CV_PORT/api/health" | grep -q '"iphone-cv-consumer"'; }
 pids_on() { lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true; }
 
@@ -133,7 +133,7 @@ in_checkout() { # command cwd
   return 1
 }
 
-# Every ObservationUI process from this checkout, on any port: launchers, camera bridges (and
+# Every HookeUI process from this checkout, on any port: launchers, camera bridges (and
 # their ffmpeg), orchestrators (and their GPU and research workers), dev studios, the edge
 # dashboard and scenario-test stacks. Matched by command line and working directory, so
 # nothing outside this checkout is ever touched.
@@ -173,19 +173,19 @@ stop_everything() {
 }
 
 cmd_stop() {
-  echo "Stopping ObservationUI"
+  echo "Stopping HookeUI"
   stop_everything
   local left="" port
   [ -n "$(ours)" ] && left=" (some processes would not stop: $(ours | tr '\n' ' '))"
   for port in "$DEV_PORT" "$ORCH_PORT" "$CAMERA_PORT"; do
     [ -n "$(pids_on "$port")" ] && left="$left :$port is used by another program"
   done
-  if [ -n "$left" ]; then echo "  stopped, except$left"; else echo "  all stopped; nothing of ObservationUI is running"; fi
+  if [ -n "$left" ]; then echo "  stopped, except$left"; else echo "  all stopped; nothing of HookeUI is running"; fi
 }
 
 cmd_status() {
   line() { printf '  %-15s %-5s %s\n' "$1" "$2" "$3"; }
-  echo "ObservationUI"
+  echo "HookeUI"
   if is_bridge; then
     local footage live
     footage="$(feed_footage)"
@@ -202,8 +202,8 @@ cmd_status() {
   if is_dev_studio; then line "dev studio" "up" "http://127.0.0.1:$DEV_PORT/  (hot reload)"; else line "dev studio" "down" "(only with make dev)"; fi
   if is_cv; then line "edge dashboard" "up" "http://127.0.0.1:$CV_PORT/  (original pipeline)"; fi
   local n; n="$(ours | wc -l | tr -d ' ')"
-  if [ "$n" -gt 0 ]; then echo "  $n ObservationUI process(es) running in all (servers and workers; make stop stops every one)"
-  else echo "  nothing of ObservationUI is running"; fi
+  if [ "$n" -gt 0 ]; then echo "  $n HookeUI process(es) running in all (servers and workers; make stop stops every one)"
+  else echo "  nothing of HookeUI is running"; fi
   return 0
 }
 
@@ -215,7 +215,7 @@ cleanup() {
   [ -f "$LAUNCHER_PID" ] && [ "$(cat "$LAUNCHER_PID")" = "$$" ] && rm -f "$LAUNCHER_PID"
   if [ "${#children[@]}" -gt 0 ]; then
     echo
-    echo "Stopping ObservationUI"
+    echo "Stopping HookeUI"
     for i in "${!children[@]}"; do
       kill "${children[$i]}" 2>/dev/null && echo "  stopped ${names[$i]}" || true
     done
@@ -276,7 +276,7 @@ cmd_start() {
 
   # One copy only: whatever of MicroscopeMind is already running (any port) is stopped first.
   if [ -n "$(ours)" ]; then
-    echo "Stopping the ObservationUI that is already running"
+    echo "Stopping the HookeUI that is already running"
     stop_everything
   fi
   [ -n "$(pids_on "$ORCH_PORT")" ] && foreign "$ORCH_PORT" "the orchestrator" ORCH_PORT
@@ -334,9 +334,9 @@ cmd_start() {
 
   echo
   if health "$CAMERA_URL/api/health" | grep -q '"ok": true'; then
-    echo "ObservationUI is running on the live camera"
+    echo "HookeUI is running on the live camera"
   else
-    echo "ObservationUI is running. No camera frames yet: in the studio, add a recording or picture,"
+    echo "HookeUI is running. No camera frames yet: in the studio, add a recording or picture,"
     echo "or press Connect live camera (it opens the camera console below)."
   fi
   if [ -n "$dev" ]; then

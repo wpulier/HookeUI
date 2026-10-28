@@ -36,13 +36,13 @@ STUDIO := CAMERA_PORT=$(CAMERA_PORT) CAMERA_TARGET="$(CAMERA_TARGET)" $(if $(CAM
 	cv-setup cv cv-open cv-stop cv-health cv-smoke camera-cv camera-cv-stop
 
 help:
-	@echo "ObservationUI"
+	@echo "HookeUI"
 	@echo "  make setup         Once: install the Python services and the web app"
 	@echo "  make start         Start the live microscope app: http://127.0.0.1:8770/"
-	@echo "                     (stops any ObservationUI already running first: one copy only)"
+	@echo "                     (stops any HookeUI already running first: one copy only)"
 	@echo "                     (test footage from footage/ is picked in the studio's camera menu)"
 	@echo "  make dev           The same, plus the web app with hot reload at http://127.0.0.1:5180/"
-	@echo "  make stop          Stop everything of ObservationUI, on any port (also Ctrl-C or closing"
+	@echo "  make stop          Stop everything of HookeUI, on any port (also Ctrl-C or closing"
 	@echo "                     the terminal that ran make start)"
 	@echo "  make status        Show what is running and where"
 	@echo "  make save-logs     Save today's logs into one folder (NOTE=\"what went wrong\")"
@@ -301,7 +301,7 @@ catalog-check:
 	cd services && .venv/bin/python -m orchestrator.catalog_view
 
 catalog-pr:
-	@test -n "$(ID)" || (echo "Usage: make catalog-pr ID=<your entry's id> [REMOTE=origin] [BASE_REMOTE=origin] [BASE=main] [OUTPUT=folder] or PACKAGE=folder PUSH=1 SIGNOFF=1"; exit 2)
+	@test -n "$(ID)" || (echo "Usage: make catalog-pr ID=<your entry's id> [REMOTE=origin] [BASE_REMOTE=origin] [BASE=dev] [OUTPUT=folder] or PACKAGE=folder PUSH=1 SIGNOFF=1"; exit 2)
 	cd services && .venv/bin/python -m orchestrator.publish "$(ID)" $(if $(filter 1,$(PUSH)),--push,) $(if $(filter 1,$(SIGNOFF)),--signoff,) $(if $(REMOTE),--remote "$(REMOTE)",) $(if $(BASE_REMOTE),--base-remote "$(BASE_REMOTE)",) $(if $(BASE),--base "$(BASE)",) $(if $(OUTPUT),--output "$(OUTPUT)",) $(if $(PACKAGE),--package "$(PACKAGE)",)
 
 catalog-install:

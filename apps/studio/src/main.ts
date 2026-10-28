@@ -87,6 +87,7 @@ import { ExampleGuide, type OnboardingState } from './onboarding';
 import { LibraryPage } from './library-page';
 import { SessionsPage } from './sessions-page';
 import { GearMenu } from './gear';
+import { agentConnections } from './agent-connections';
 import { ActionsPanel, type ToolList } from './actions-panel';
 import { MeasurementsPage, measurementsHash, measurementsTarget, measurementsPin, type MeasurementPin } from './measurements';
 
@@ -1104,6 +1105,9 @@ function handleMessage(message: ServerMessage): void {
   const beforeTracksLayer = view.tracksLayer;
   view.observeOverlayMessage(message);
   switch (message.type) {
+    case 'agent-connections': // an outside agent asked to connect, or the list changed (ADR 0026)
+      agentConnections.message(message);
+      break;
     case 'presentation-admitted': // WorkspaceSession owns placement correlation.
     case 'workspace-ready': // Link owns correlated settlement; runtime installation is separate.
       break;
@@ -2009,7 +2013,7 @@ function renderStatus(): void {
     hideNoPicture();
   } else if (health.state === 'bridge_offline') {
     hideNoPicture();
-    showNotice('bridge', 'The camera bridge is not running', ['Restart ObservationUI (make start in Terminal).']);
+    showNotice('bridge', 'The camera bridge is not running', ['Restart HookeUI (make start in Terminal).']);
   } else if (feed.busy === 'switching' || footage) {
     // Keyed by what starts: a session's opening may switch from one recording to another while this shows.
     hideNoPicture();
@@ -2615,7 +2619,7 @@ function renderCameraPanel(): void {
   const title = Object.assign(document.createElement('h2'), { textContent: 'Camera' });
   children.push(title);
   if (!state) {
-    children.push(Object.assign(document.createElement('p'), { className: 'panel-note', textContent: "The camera bridge isn't answering. Start ObservationUI (make start in Terminal)." }));
+    children.push(Object.assign(document.createElement('p'), { className: 'panel-note', textContent: "The camera bridge isn't answering. Start HookeUI (make start in Terminal)." }));
     cameraPanel.replaceChildren(...children);
     return;
   }
@@ -3421,7 +3425,7 @@ export function workspaceStudyBridge() {
   if (document.body.dataset.workspaceStudy !== 'true') throw new Error('The workspace study requires its separate entrypoint.');
   const state = (): import('./workspace-study-model').StudySnapshot => {
     const onStage = sourcesModel.state?.onStage ?? null;
-    return { connected, ready: connected && !document.body.dataset.workspaceInputOpening && !document.body.dataset.workspaceInputUnavailable && !studyTransition && !staging && !switchAsked && !stageGate.holding(performance.now()), session: sessionsModel.current, title: currentSessionName(), projects: sessionsModel.rows(),
+    return { connected, ready: connected && !document.body.dataset.workspaceInputOpening && !document.body.dataset.workspaceInputUnavailable && !studyTransition && !staging && !switchAsked && !stageGate.holding(performance.now()), session: sessionsModel.current, title: currentSessionName(), projects: sessionsModel.rows(), projectsRoot: sessionsModel.root(),
       sources: sourcesModel.rows(), source: sourcesModel.rows().find(source => source.id === onStage) ?? null,
       onStage, heard: sourcesModel.state != null, selection: view.selected ? { id: view.selected, label: view.labelOf(view.selected) || view.selected } : null,
       frame: onStage && onStage !== 'live' ? null : view.header ? { id: view.header.id, boot: view.header.boot, w: view.header.w, h: view.header.h } : null, held: viewHeld };

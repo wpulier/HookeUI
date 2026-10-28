@@ -86,7 +86,7 @@ export function checksSummary(doctor: Doctor): { ok: boolean; text: string } {
 }
 
 /** The first-time Blackmagic Camera setup, four steps: get the app (the user says so, or the app answers), let the
- * Mac reach it (its API answers), import ObservationUI's settings, choose them. Done from the checklist's own facts;
+ * Mac reach it (its API answers), import HookeUI's settings, choose them. Done from the checklist's own facts;
  * never shown over a live picture (the phone's API can be found a few seconds after its picture arrives), and never
  * again once it has been set up on this Mac (the app closed is then only "open it"). */
 export function setupSteps(doctor: Doctor | null, haveApp = false): { show: boolean; done: boolean[]; now: number } {

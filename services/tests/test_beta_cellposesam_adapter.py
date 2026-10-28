@@ -187,3 +187,36 @@ def test_pinned_result_declares_actual_input_after_full_geometry_copy(role):
         assert calls == [{'version':2, 'layer':layer, 'key':'result', 'coordinates_from':image,
             'meaning':{'semantic':'instance-labels' if role in ('masks','outlines') else 'intensity',
                        'axes':['y','x']}}]
+
+
+class Resource:
+    """A saved native input as the host grants it: its meaning, shape and dtype, never its values here."""
+    def __init__(self, semantic, shape=(64, 64), dtype='uint8'):
+        self.descriptor, self.shape, self.dtype = {'semantic': semantic}, shape, dtype
+
+
+def opening(inputs):
+    """The host's opening context around the adapter's input choice, with its real refusal contract."""
+    from types import SimpleNamespace
+    from env_worker.scientific_host import Context
+    return SimpleNamespace(inputs=inputs, refuse_input=Context(None, {}, None, None).refuse_input)
+
+
+def test_retained_image_and_its_labels_give_the_panel_the_image():
+    # Retain labels for tools keeps the original image beside the corrected labels made from it (population_native);
+    # the panel segments the image and leaves the labels in their saved revision.
+    image, labels = Resource('intensity'), Resource('instance-labels', dtype='uint16')
+    assert adapter().retained_image(opening({'image': image, 'labels': labels})) == ('image', image)
+
+
+@pytest.mark.parametrize('inputs,says', [
+    ({'labels': Resource('instance-labels', dtype='uint16')}, 'this input has none'),
+    ({'a': Resource('intensity'), 'b': Resource('intensity')}, 'this input has 2 (a, b)'),
+    ({'image': Resource('intensity', shape=(4, 64, 64))}, 'scalar 2D intensity image up to 1 MiB'),
+    ({'image': Resource('intensity', shape=(2048, 2048))}, 'scalar 2D intensity image up to 1 MiB'),
+])
+def test_an_input_the_panel_cannot_segment_is_refused_in_its_own_words(inputs, says):
+    from env_worker.scientific_input_refusal import InputRefused
+    with pytest.raises(InputRefused) as refused:
+        adapter().retained_image(opening(inputs))
+    assert says in str(refused.value) and refused.value.next_step.startswith('Open a ')

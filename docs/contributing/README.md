@@ -4,7 +4,7 @@ Help build the full successor to Fiji/ImageJ with methods, adapters, examples,
 reproducible failures, documentation and scientific review. Will Pulier (`wpulier`)
 is the accountable reviewer for these routes and may explicitly delegate review.
 Official inclusion and releases follow that review; contributors retain their rights.
-The repository is `wpulier/HookeUI`; the initial candidate remains private until review.
+The public repository is `wpulier/HookeUI`; open contribution PRs against `dev`.
 
 First-party contributions use Apache-2.0 plus DCO. Third-party material retains
 its own notices and terms; see THIRD_PARTY.md. Each component's code, weights, data and services keep their
@@ -141,7 +141,7 @@ contributors and original scientific authors in the accepted material.
 
 For scientific review, state the exact method/version, input and reference,
 measurement definitions, units, calibration, comparisons and limits. For an upstream
-bug, first reduce it to the same upstream engine without ObservationUI, keeping
+bug, first reduce it to the same upstream engine without HookeUI, keeping
 parameters and actual outputs. Remove private inputs, paths and keys; retain
 upstream notices and citation. Submit upstream only with the relevant contributor's
 authorization, and link the eventual upstream issue/fix without claiming credit for

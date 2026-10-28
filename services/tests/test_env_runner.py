@@ -367,7 +367,7 @@ def test_an_entry_made_for_another_version_of_the_app_is_listed_with_why(home, m
     contribute(home, extra=f'requires = {{ catalog = {future} }}\nshiny_new_key = "future format"\n')
     assert catalog.get("dark-spots") is None
     row = next(p for p in catalog_view.problems() if p["entry"] == "dark-spots")
-    assert row["incompatible"] and "needs a newer ObservationUI" in row["problems"][0] and f"format {future}" in row["problems"][0]
+    assert row["incompatible"] and "needs a newer HookeUI" in row["problems"][0] and f"format {future}" in row["problems"][0]
     contribute(home, extra='requires = { runner = 1 }\n')
     assert catalog.get("dark-spots") is not None
     monkeypatch.setitem(catalog.RUNNER_CONTRACTS, "python-env", (2, 2))

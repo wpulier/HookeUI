@@ -2,6 +2,9 @@
 
 Read README.md, docs/CORE-BOUNDARY.md and the nearest directory's AGENTS.md before
 editing. CONTEXT.md is the domain glossary; docs/adr contains architectural decisions.
+The maintained user handbook is https://hookeui.org/docs/; its Fumadocs source
+lives in hooke-web/documentation. Core architecture and component docs stay here.
+Do not recreate a second user-handbook build in this repository.
 
 The scientific core runs locally without a Hooke account. Keep official brand assets,
 hosted authentication, billing, managed-cloud implementation, private configuration,
@@ -23,6 +26,12 @@ Do not waive failures or remove scientific coverage to make cleanup pass. Docume
 intended golden changes. Keep source, weights, data and service terms separate.
 Public API names and stored formats may retain historical identifiers for compatibility.
 
+Release and review authority: read `packaging/macos/RELEASING.md` and
+`CONTRIBUTING.md` before release work. Contributions target `dev`; only Will may
+promote an accepted Beta's exact source to `main`. Never infer owner acceptance
+or publication authorization from a merge, tag or passing check. Official commands
+and credentials belong to the private publisher, not this core repository.
+
 Component contracts (read the relevant file before editing):
 - `apps/studio/AGENTS.md`
 - `catalog/AGENTS.md`
@@ -36,6 +45,7 @@ Component contracts (read the relevant file before editing):
 - `packaging/AGENTS.md`
 - `services/gpu_worker/AGENTS.md`
 - `services/orchestrator/AGENTS.md`
+- `services/orchestrator/door/AGENTS.md` (outside agents' one door, ADR 0026)
 - `services/orchestrator/brain/AGENTS.md`
 - `services/orchestrator/datasets/AGENTS.md`
 - `services/orchestrator/day/AGENTS.md`

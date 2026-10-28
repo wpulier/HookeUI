@@ -131,6 +131,16 @@ body.studio-shell[data-view='models'] .dock { display: none; }
   color: var(--mm-text-2); font: 400 var(--mm-12)/1.45 ui-monospace, 'SF Mono', Menlo, monospace; overflow-wrap: anywhere;
 }
 
+/* Details → its versions and Updates (maintenance-status.ts): blocks the pane's width, never a card's one-row action, so
+   the update line ("Up to date · checked …", "Updated to 2 …") reads as a line and nothing pushes the pane sideways. */
+.model-versions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.model-maintenance { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; max-width: 100%; }
+.model-maintenance > button { align-self: flex-start; }
+.model-maintenance-details[open] { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+.model-maintenance-details > .model-how { align-self: stretch; }
+.model-maintenance-policy { max-width: 100%; }
+.model-maintenance-said { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+
 /* Why? and Details. */
 .model-why, .model-details { border-top: 0.5px solid var(--mm-line); padding-top: 6px; }
 .model-why summary, .model-details summary {
@@ -291,7 +301,19 @@ body.studio-shell .models-all-link:hover { background: var(--mm-ctl-fill-hover);
 .own-comparison figure { margin: 0; min-width: 0; }
 .own-comparison img { width: 100%; object-fit: contain; max-height: 24rem; }
 .own-comparison pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.own-input-preview { max-width: 12rem; max-height: 8rem; object-fit: contain; }
+/* A comparison's row: its title, its picture and its buttons one under another, never on top of each other (ticket 67). */
+.own-trial { display: grid; gap: 8px; justify-items: start; margin-top: 12px; }
+.own-trial h4 { margin: 0; }
+.own-input-preview { display: block; max-width: 12rem; max-height: 8rem; object-fit: contain; border-radius: 6px; }
+
+/* A file chosen through the studio's own control (modelspage.ts `filePicker`), not the browser's raw one. */
+.file-picker { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; cursor: pointer; }
+.file-picker-button { display: inline-flex; align-items: center; white-space: nowrap; }
+.file-picker:focus-within .file-picker-button { outline: 2px solid var(--mm-accent); outline-offset: 2px; }
+.file-picker-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--mm-text-3); font: 400 var(--mm-12)/1.4 var(--mm-sans);
+}
 @media (max-width: 600px) { .own-comparison { grid-template-columns: 1fr; } }
 
 .models-advanced-add { margin: 1rem 0; }

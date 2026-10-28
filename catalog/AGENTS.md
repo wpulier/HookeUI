@@ -167,7 +167,11 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     the exact code, locked packages, pinned files and origins, every try and the preflight's checks) and with that review's
     digest, so what is admitted is what was read; every pinned file is adopted, and a failure leaves nothing half-made.
   - **Share** (`share.py`, C5): a file with no account (never weights), opened as a community catalog of its own, allowed
-    once by the sharer's name; Share with everyone through publish.py's review package and the user's DCO sign-off.
+    once by the sharer's name. Its channel's own name (`shared-<hash>`) is never said: its row carries `channelSource`
+    and `channelLabel`, a card says "from a shared file" (`model-status.ts` `sourceWords`) and every server sentence
+    names it by `channels.said` ("Maya Okafor's shared file", "the community channel lab-models"). A shared file doesn't
+    update itself: a newer one opened is an entry of its own, and its Details and channel row say so (never "Up to date"
+    or "import a newer file" to update it; `maintenance/status.py` `SHARED_FILE`). Share with everyone through publish.py's review package and the user's DCO sign-off.
     One-click GitHub sign-in (`github_signin.py`, the device flow, its token in the Keychain) is prepared and says it
     isn't set up until the project's GitHub app is registered (`CLIENT_ID`); signed in, Share with everyone goes through
     GitHub's API with no Git or gh (`publish_api.py`: the exact reviewed package, sent only on the user's sign-off). **Made with** (`made_with.py`): what really ran
@@ -294,7 +298,11 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     - **Shown in brainreg's downsampled space,** a product in the index (kind `job`).
 - **Publishing** (`orchestrator/publish.py`, `make catalog-pr ID= [PUSH=1]`; `catalog/README.md` "Publish it"): only
   an entry that pins what it gets, names its licence and is proven on this Mac; its pull request is made from
-  origin/main in a worktree of its own, pushed only with PUSH=1. The repository checks it
+  origin/dev in a worktree of its own, pushed only with PUSH=1. Both routes, this one and Share with everyone's
+  (`publish_api.py`), open it against `dev` (`publish.BASE_BRANCH`): the repository takes pull requests into dev only.
+  Share with everyone's copy of the catalog is made with dev (the official default branch), and an older copy without
+  dev gets it at the reviewed base. A package an older app prepared for `main` is prepared and reviewed again before
+  anything is sent; a review it already opened is still followed. The repository checks it
   (`.github/workflows/catalog.yml`, `bench/catalog_ci.py`, `make catalog-ci`); CODEOWNERS reviews `catalog/`.
 - **Channels** (`orchestrator/channels.py`; `catalog/README.md` "Channels"): a git repository's catalog at a pinned
   commit, fetched (manifests and adapters only) into `<catalog>/channels/<name>/<commit>/`, read-only.
@@ -302,8 +310,9 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     lists entries merged since the app was made, with no app update; bundled entries update with the app.
   - **Community channels** (`channel-add`, `make channel-add URL=`): keyed `<channel>/<id>`, said "not reviewed
     here", and nothing of them runs until the user allows its code (`channel-trust`; readiness step `trust`); its
-    row's Check for updates (`channel-update`) pins its newest commit, said, and `make catalog-update CHANNEL= COMMIT=`
-    pins the commit given.
+    row's Check for updates (`channel-update`) pins its newest commit, said (its count as "1 entry" or "N entries",
+    `channels.entries_words`), and `make catalog-update CHANNEL= COMMIT=` pins the commit given. On the Models sheet
+    the channels (Where entries come from, with Add channel) are under the side's Advanced contribution.
   - **Only runner `python-env`** comes through a channel (`manifests.CHANNEL_RUNNERS`); any other is listed as coming
     with an app update.
 - **Maintenance** (`services/orchestrator/maintenance/AGENTS.md`; ADR 0025; ticket 59): an entry already turned on can

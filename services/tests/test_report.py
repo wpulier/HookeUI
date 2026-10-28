@@ -43,3 +43,14 @@ def test_one_of_yours_is_reported_to_a_person_not_a_page():
     from types import SimpleNamespace
 
     assert report.where(SimpleNamespace(namespace="mine", channel="")) == ""
+
+
+def test_a_built_in_model_in_the_gpu_worker_is_reported(tmp_path, monkeypatch):
+    # Cellpose-SAM and EdgeTAM have no environment of their own; reading one made Report a problem say "there is no
+    # such entry to report" for them (found by the 0.5.1 VM check).
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "catalog"))
+    monkeypatch.setenv("MICROMIND_HOME", str(tmp_path))
+    for key in ("cellpose-sam", "edgetam"):
+        prepared = report.prepare(key)
+        assert prepared["url"] == "https://github.com/wpulier/HookeUI/issues/new"
+        assert prepared["local"] == [] and prepared["text"] and prepared["title"]

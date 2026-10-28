@@ -1810,7 +1810,7 @@ async def model_build(app, client, msg) -> dict:
     if guided and msg.get("session") != app.day.sid:
         await asyncio.to_thread(drafts.finish, did, "refused")
         raise ToolFailed("The session changed; the build did not start", next="reopen Create or adapt with AI")
-    brief = (f"Create a capability in ObservationUI for {own_trials.JOBS[job][0]}. "
+    brief = (f"Create a capability in HookeUI for {own_trials.JOBS[job][0]}. "
              f"Input image.2d.rgb8; output {own_trials.JOBS[job][1]}. Read its pages, pin its weights, draft "
              "its adapter and try it on the retained input, or say plainly why it cannot do this job.")
     brief += "\nUser request and optional source (task context): " + json.dumps({"request": description, "source": link})
@@ -2148,7 +2148,7 @@ async def channel_add(app, client, msg) -> dict:
                                     str(msg.get("commit") or ""))
     except channels.CantDo as exc:
         raise ToolFailed(str(exc), next=None) from exc  # no next: its words say what to give
-    says = (f"Added the community channel {r['name']} at {r['commit'][:7]}: {r['entries']} entries, not reviewed here. "
+    says = (f"Added the community channel {r['name']} at {r['commit'][:7]}: {channels.entries_words(r['entries'])}, not reviewed here. "
             "None runs until you allow its code.")
     activity.activity(app.hub, "command", says)
     app.catalog_changed()
@@ -2190,9 +2190,9 @@ async def channel_update(app, client, msg) -> dict:
     if r.get('says'):
         says = r['says']
     elif r["commit"] == r["was"]:
-        says = f"Checked {label}: already at its newest commit, {r['commit'][:7]} ({r['entries']} entries)"
+        says = f"Checked {label}: already at its newest commit, {r['commit'][:7]} ({channels.entries_words(r['entries'])})"
     else:
-        says = (f"Checked {label}: now at {r['commit'][:7]} (was {r['was'][:7] or 'none'}), {r['entries']} entries"
+        says = (f"Checked {label}: now at {r['commit'][:7]} (was {r['was'][:7] or 'none'}), {channels.entries_words(r['entries'])}"
                 + (f"; new: {', '.join(r['added'])}" if r["added"] else "")
                 + ". An update of one you installed waits for its own Install")
     activity.activity(app.hub, "command", says)
@@ -3046,6 +3046,20 @@ async def dataset_reveal(app, client, msg) -> dict:
     folder = store.find(app.paths.datasets, str(msg.get("id") or "")) if app.datasets is not None else None
     if folder is None:
         raise tools.ToolError("no such dataset", next="reload the Datasets tab")
+    if sys.platform != "darwin":
+        return {"ok": False, "error": f"the folder is {folder}", "path": str(folder)}
+    subprocess.Popen(["open", "-R", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True, "path": str(folder)}
+
+
+@command("sessions-reveal")
+async def sessions_reveal(app, client, msg) -> dict:
+    """The Projects page's Show in Finder: the folder every Project is saved in (`app.paths.sessions`, the sessions
+    wire's `root`), shown in the Finder as dataset-reveal shows a dataset's (thesis question 12)."""
+    import subprocess
+    import sys
+
+    folder = app.paths.sessions
     if sys.platform != "darwin":
         return {"ok": False, "error": f"the folder is {folder}", "path": str(folder)}
     subprocess.Popen(["open", "-R", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

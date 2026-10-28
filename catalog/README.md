@@ -1,6 +1,6 @@
 # The catalog: every model, tool and service, one folder each
 
-Everything ObservationUI can use is a folder here. The app reads these folders to know what exists, what each one does
+Everything HookeUI can use is a folder here. The app reads these folders to know what exists, what each one does
 and takes, what it needs to get and to run, and whether it can run on this machine. The design is
 `docs/design/2026-10-12-the-open-catalog.md`; the decision is ADR 0018.
 
@@ -585,8 +585,8 @@ app's code (`orchestrator/env_runner.py`; InstanSeg's `catalog/models/instanseg-
   card (**Go back to …**, command `model-version`; `env_runner.choose`). The choice is kept beside its environments
   across restarts, the newer one's worker is stopped at once (the register that follows retires a worker whose
   generation is no longer in use) and never used again, and **Use the newest** undoes it.
-- **Made for another version of the app** (`requires`): listed under "Made for another version of ObservationUI" with
-  why ("needs a newer ObservationUI", "made for an older python-env runner"), never run. Runner `python-env`'s contract
+- **Made for another version of the app** (`requires`): listed under "Made for another version of HookeUI" with
+  why ("needs a newer HookeUI", "made for an older python-env runner"), never run. Runner `python-env`'s contract
   (version 1) is `services/env_worker/server.py`'s: the picture in, a label map or polygons out.
 
 Yours can start in `~/MicroscopeMind/catalog/mine/models/<id>/`: Install and its proof work there the same way.
@@ -810,7 +810,7 @@ file** (`orchestrator/share.py`; formats 1, 2, 3 and 4). Private scientific-host
 and independent qualification before public export. The portable paths preserve the existing permission and proof gates:
 
 - **Sharing:** its card's Details has **Share it**: type your name (said where it is opened) and download
-  `<id>.observationui.zip`. It holds the entry's manifest, adapter, lockfile and picture, laid out as a catalog, with
+  `<id>.hookeui.zip` (one named `.observationui.zip`, from before the rename, still opens). It holds the entry's manifest, adapter, lockfile and picture, laid out as a catalog, with
   `SHARED.json` (who, when, its proof here). Applicable `LICENSE`, `LICENCE`, `NOTICE` and `COPYING` siblings (including `.txt`, `.md` and `.rst`) retain their exact bytes; the same file-size and link restrictions apply. **Never its weights:** each is fetched from where its manifest pins it, checked
   by its hash, so one whose weights are only on this Mac is refused with what to do (put them on Hugging Face first).
 - **Sending:** any way you send files: AirDrop, email, a message, a forum post.
@@ -818,8 +818,8 @@ and independent qualification before public export. The portable paths preserve 
   own**, pinned by its complete content hash, "not reviewed here": nothing of its code runs until you allow code from it (the button names
   who shared it, "Allow code from Maya Okafor's shared file"), then only after its own Install and proof. Removing the
   channel takes it away. Import needs no Git or developer tools. Older Git-backed imports and their identities remain
-  readable; new imports publish read-only snapshots directly into the existing channel store. To update a shared file,
-  import a newer file; it has no online update feed. The legacy channel `commit` field holds its SHA-256 snapshot identity.
+  readable; new imports publish read-only snapshots directly into the existing channel store. A shared file doesn't
+  update itself: it has no online update feed, and a newer file opened is added as its own entry. The legacy channel `commit` field holds its SHA-256 snapshot identity.
 - **Refused whole:** a file holding anything a catalog entry doesn't (another entry, a script, a link, a path out of its
   folder), one too big (weights never travel), or one that says nothing of what it is.
 
@@ -864,10 +864,11 @@ today, and GitHub is never asked. The API publisher is implemented and tested wi
 
 First configure the official repository and your contribution remote with ordinary Git. For a fork, use an
 `upstream` remote for the official repository and `origin` for your fork, both with explicit GitHub HTTPS or SSH URLs.
-Fetch the intended base beforehand, for example `git fetch upstream main`. Preparation itself makes no network call.
+Fetch the intended base beforehand, for example `git fetch upstream dev`: the official repository takes pull requests
+into `dev` only (`publish.BASE_BRANCH`; `main` is promoted to from an accepted Beta). Preparation itself makes no network call.
 
 ```bash
-make catalog-pr ID=<id> BASE_REMOTE=upstream BASE=main REMOTE=origin OUTPUT=/path/to/new-review-folder
+make catalog-pr ID=<id> BASE_REMOTE=upstream BASE=dev REMOTE=origin OUTPUT=/path/to/new-review-folder
 ```
 
 This checks the runner, fetchable pinned files, declared component terms, hashed lockfile, prohibited runtime-fetch
@@ -875,7 +876,7 @@ patterns and current-version proof. It then prepares the actual `catalog/models/
 `body.md`, `proposal.json` (official base repository/branch/commit and contributor head repository/branch), and the
 proof receipt/input in that private local folder. The source checkout stays unchanged. Missing remotes, ambiguous
 URLs, unavailable base refs and missing/changed proof inputs fail with a next step. `OUTPUT` must be new; omitted,
-it uses the configured catalog's `contributions/` folder. `BASE_REMOTE` defaults to `REMOTE`, and `BASE` to `main`;
+it uses the configured catalog's `contributions/` folder. `BASE_REMOTE` defaults to `REMOTE`, and `BASE` to `dev`;
 check the printed destinations, especially when using a fork.
 
 Inspect the files, diff, recorded evidence, credit and destinations. Component declarations and technical checks do

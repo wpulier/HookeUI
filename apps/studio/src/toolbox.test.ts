@@ -1,6 +1,7 @@
 // Synthetic navigation seam: old links keep their exact hash while both pages belong to one Toolbox.
 import { expect, test } from 'vitest';
 import { fijiWords, readinessSaid, toolboxTarget } from './toolbox';
+import type { ModelRow } from './protocol';
 
 test('routes the catalog and complete atlas as two tabs, retaining every legacy deep link', () => {
   expect(toolboxTarget('#toolbox')).toEqual({ tab: 'tools', id: null });
@@ -46,4 +47,14 @@ test('readinessSaid says each status in one sentence, needs setup never as not a
       .toBe('Broken: Its last check failed: it answered nothing');
     expect(readinessSaid(null, 'not wired in this build')).toBe('Unavailable here: not wired in this build');
   }
+});
+
+
+// Ticket 67, fix 4: a status in words says Not checked where Models does.
+test('a ready status in words is Ready only once Hooke has checked the model here', () => {
+  const ready = { status: 'ready' as const, word: 'Ready', next: null };
+  const row = (state: string) => ({ group: 'ready', status: 'ready', runs: 'this-mac', size: 10, face: { state, says: '', action: null, also: [] } }) as unknown as ModelRow;
+  expect(readinessSaid(ready, '', row('unchecked'))).toBe('Downloaded · not checked');
+  expect(readinessSaid(ready, '', row('on'))).toBe('Ready');
+  expect(readinessSaid(ready)).toBe('Ready');
 });

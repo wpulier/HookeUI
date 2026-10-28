@@ -6,6 +6,8 @@ publish.py stays the route for a checkout with Git and `gh`; this one needs only
   `catalog/models/<id>/`: proof inputs stay here), the pull request's title and body (publish.body), the commit message
   with its DCO sign-off line, the identity it will be signed as (the GitHub account's name and its verified or noreply
   email, read now), the official base (its repository, branch and commit) and every file's sha256. Nothing leaves the Mac.
+  The base branch is `dev` (`publish.BASE_BRANCH`): HookeUI takes pull requests into dev only. A package prepared for
+  `main` by an older app is prepared again before anything is sent; a review it already opened is still followed.
 - **Submit** (`submit`) sends exactly that package and only with the user's own sign-off (`signoff=True`, the
   certification read): every file is checked against its sha256, the identity and the base are read again and must be
   what was reviewed before any new write. An exact existing review is recovered read-only even if the base advanced.
@@ -40,6 +42,8 @@ from .publish import CantPublish, body, certification, problems
 API = "https://api.github.com"
 OFFICIAL = "wpulier/HookeUI"  # the reviewed catalog's repository (channels.REVIEWED_URL)
 FORK_WAIT_S = 60.0
+COMMUNITY = "HookeUI-community"  # the publisher's own public community catalog
+FORMER_COMMUNITY = "ObservationUI-community"  # its name before the rename; one made then is still the one used
 
 
 class _Api:
@@ -92,7 +96,14 @@ def identity(http) -> dict:
     return {"login": str(user.get("login")), "name": name, "email": email}
 
 
-def _base(http, repository: str = OFFICIAL, branch: str = "main") -> dict:
+def _official_branch() -> str:
+    from . import publish
+
+    return publish.BASE_BRANCH
+
+
+def _base(http, repository: str = OFFICIAL, branch: str | None = None) -> dict:
+    branch = branch or _official_branch()
     ref = _ok(*http.call("GET", f"/repos/{repository}/git/ref/heads/{branch}"), "reading the catalog's newest commit")
     return {"repository": repository, "branch": branch, "commit": ref["object"]["sha"]}
 
@@ -135,11 +146,14 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ, http=None, *, des
         (package / path).write_bytes(data)
     (package / "body.md").write_text(body(m, environ) + "\n")
     from . import envs
+    community = _community_repository(http, who["login"]) if destination == "community" else None
     proposal = {"format": 1, "route": "api", "destination": destination, "entryDigest": envs.entry_digest(m, environ),
                 "id": m.id, "name": m.name, "base": base, "branch": branch,
                 "title": f"Catalog: {m.name}", "message": message, "identity": who,
                 "files": {path: hashlib.sha256(data).hexdigest() for path, data in files.items()},
                 "body": hashlib.sha256((package / "body.md").read_bytes()).hexdigest()}
+    if community:
+        proposal["community"] = community
     if evidence:
         proposal['evidence'] = {path: hashlib.sha256(data).hexdigest() for path, data in evidence.items()}
     proposal_bytes = (json.dumps(proposal, indent=2) + "\n").encode()
@@ -153,7 +167,7 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ, http=None, *, des
               f"\"{proposal['title']}\" to {base['repository']} (its {base['branch']} at {base['commit'][:7]}), signed off "
               f"as {who['name']} <{who['email']}> (public in the commit). Nothing has left this Mac.\n\n" + certification())
     if destination == "community":
-        review = (f"Prepared {package} for your public community catalog {who['login']}/ObservationUI-community: "
+        review = (f"Prepared {package} for your public community catalog {community}: "
                   f"{len(files)} files under catalog/models/{m.id}/. Only these files form the published snapshot; "
                   f"no weights or proof input. Signed off as {who['name']} <{who['email']}> (public). "
                   "Publishing returns a pinned community link immediately, without an official review. "
@@ -216,7 +230,9 @@ def _read(package: Path, model: str | None = None, environ: Mapping[str, str] = 
             raise ValueError("the proposal changed since you reviewed it")
         proposal = json.loads(raw)
         if (proposal.get("format") != 1 or proposal.get("route") != "api"
-                or proposal["base"]["repository"] != OFFICIAL or proposal["base"]["branch"] != "main"
+                or proposal["base"]["repository"] != OFFICIAL
+                # main: prepared by an app before 0.5.2; readable so a review it opened is still followed
+                or proposal["base"]["branch"] not in (_official_branch(), "main")
                 or "mine/" + proposal["id"] != binding["model"]):
             raise ValueError("the package's identity changed")
         files = {}
@@ -326,6 +342,16 @@ def _remote_progress(http, proposal: dict, text: str, progress: dict) -> tuple[d
     return None, True
 
 
+def _community_repository(http, login: str) -> str:
+    """The publisher's community catalog: an existing one under the current or the former name, else the current name
+    (made on the first publish)."""
+    for name in (COMMUNITY, FORMER_COMMUNITY):
+        code, repository = http.call("GET", f"/repos/{login}/{name}")
+        if code == 200 and isinstance(repository, dict) and repository.get("full_name") == f"{login}/{name}":
+            return f"{login}/{name}"
+    return f"{login}/{COMMUNITY}"
+
+
 def _remember_community(package: Path, proposal: dict, progress: dict) -> dict:
     repository, commit = progress["fork"], progress["commit"]
     acquire = {"url": f"https://github.com/{repository}", "commit": commit, "entry": proposal["id"]}
@@ -387,16 +413,22 @@ def _submit(package: Path, signoff: bool, http=None, wait=time.sleep, *, model: 
         return _remember_community(package, proposal, progress)
     if pull is not None:
         return _sent_result(_remember_review(package, progress, pull))
+    if proposal["base"]["branch"] != _official_branch():
+        raise CantPublish(f"this package was prepared for the catalog's {proposal['base']['branch']} branch, and reviews "
+                          f"now go to {_official_branch()}: prepare and review it again")
     base = _base(http, proposal["base"]["repository"], proposal["base"]["branch"])
     if base["commit"] != proposal["base"]["commit"]:
         raise CantPublish("the catalog moved on since you prepared it: prepare and review it again")
     repo = proposal["base"]["repository"]
     community = proposal.get("destination") == "community"
     if community:
-        fork_name = f"{who['login']}/ObservationUI-community"
+        # the one named in the reviewed proposal; a package prepared before the rename was reviewed with the old name
+        fork_name = proposal.get("community") or f"{who['login']}/{FORMER_COMMUNITY}"
+        if fork_name not in (f"{who['login']}/{COMMUNITY}", f"{who['login']}/{FORMER_COMMUNITY}"):
+            raise CantPublish("the community repository is not the public publisher-owned destination you reviewed")
         code, repository = http.call("GET", f"/repos/{fork_name}")
         if code == 404:
-            repository = _ok(*http.call("POST", "/user/repos", {"name": "ObservationUI-community", "private": False,
+            repository = _ok(*http.call("POST", "/user/repos", {"name": fork_name.split("/", 1)[1], "private": False,
                                                                "auto_init": True}), "making your public community catalog")
         else:
             _ok(code, repository, "reading your community catalog")
@@ -409,7 +441,9 @@ def _submit(package: Path, signoff: bool, http=None, wait=time.sleep, *, model: 
         while http.call("GET", f"/repos/{fork_name}/git/commits/{base['commit']}")[0] != 200:
             if time.monotonic() > deadline:
                 raise CantPublish("your copy of the catalog isn't ready on GitHub yet: send it again in a minute")
-            http.call("POST", f"/repos/{fork_name}/merge-upstream", {"branch": base["branch"]})
+            code, _ = http.call("POST", f"/repos/{fork_name}/merge-upstream", {"branch": base["branch"]})
+            if code in (404, 422):  # a copy made before dev was the catalog's default has no dev: make it at the base
+                http.call("POST", f"/repos/{fork_name}/git/refs", {"ref": f"refs/heads/{base['branch']}", "sha": base["commit"]})
             wait(2.0)
     commit = progress.get("commit")
     stamp = progress.get("at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -485,7 +519,7 @@ def _status(package: Path, http=None) -> dict:
             if not branch_exists:
                 return {"state": "not sent", "says": "The approved commit is retained; send again to finish its branch and review"}
             base = _base(http, proposal["base"]["repository"], proposal["base"]["branch"])
-            if base["commit"] != proposal["base"]["commit"]:
+            if base["commit"] != proposal["base"]["commit"] or proposal["base"]["branch"] != _official_branch():
                 return {"state": "needs review", "says": "Your approved branch exists, but the catalog moved on: prepare and review again before sending"}
             return {"state": "branch ready", "says": "Your approved branch exists; send again to open its review"}
         sent = _remember_review(package, progress, pull)

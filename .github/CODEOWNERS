@@ -1,2 +1,9 @@
-# A person reviews every change to the catalog (catalog/README.md "Publish it").
-/catalog/ @wpulier
+# Will appoints maintainers and grants write access before adding their handles here.
+# Default reviewers for every contribution (currently the founder only).
+* @wpulier
+
+# The owner retains control of review policy and executable GitHub workflows.
+# Keep these overrides last when adding maintainers to the default pattern.
+/.github/ @wpulier
+/CONTRIBUTING.md @wpulier
+/packaging/macos/RELEASING.md @wpulier

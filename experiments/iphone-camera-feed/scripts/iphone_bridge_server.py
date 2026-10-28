@@ -24,7 +24,8 @@ from pathlib import Path
 # The modules beside this one (the script's own folder is on sys.path). Their names are imported here so that what
 # this module always offered stays importable from it.
 from bridge_common import (  # noqa: F401
-    ASSETS_FOOTAGE, ASSETS_MANIFEST, CAMERA_PAGE_DIR, CORPUS_MANIFEST, REPO_DIR, ROOT_DIR, STDERR_LOG_LINES, STDERR_TAIL_LINES, ModuleView,
+    ASSETS_FOOTAGE, ASSETS_MANIFEST, CAMERA_PAGE_DIR, CORPUS_MANIFEST, PRIVATE_MANIFEST, REPO_DIR, ROOT_DIR, STDERR_LOG_LINES,
+    STDERR_TAIL_LINES, ModuleView,
     drain_stderr, ffmpeg_path, jpeg_size, wall_timestamp, with_stderr,
 )
 from bridge_feed import DATASET_ID, SwitchSteps, asset_file, dataset_recording, media_roots, recording_started  # noqa: F401
@@ -1073,7 +1074,7 @@ def library_for(folder: Path):
 
     key = str(folder)
     if key not in _LIBRARIES:
-        _LIBRARIES[key] = Library(folder, ASSETS_MANIFEST, CORPUS_MANIFEST,
+        _LIBRARIES[key] = Library(folder, (ASSETS_MANIFEST, PRIVATE_MANIFEST), CORPUS_MANIFEST,
                                   Worker(pace=media_pace) if MEDIA_PACE == "follow" else None)
     return _LIBRARIES[key]
 
@@ -1086,7 +1087,8 @@ def media_pace(requested: bool) -> int:
 
 def footage_library(folder: Path) -> list[dict[str, object]]:
     """Every recording under the footage folder, grouped for the camera menu and the Assets view: the
-    real microscope recordings (assets/manifest.json), recordings added from the studio, the corpus
+    real microscope recordings (the manifests: the store's private one over assets/manifest.json), recordings added
+    from the studio, the corpus
     tours by specimen, then anything else; each with a title, its length when known and whether it
     has a per-frame truth beside it (benches only; the app never reads it)."""
     if not folder.is_dir():

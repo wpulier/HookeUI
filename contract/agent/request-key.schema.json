@@ -1,0 +1,7 @@
+{
+  "$id": "hooke:agent/request-key",
+  "title": "A caller's request key",
+  "description": "Chosen by the caller for one request. The same key with the same request (tool, project, input revision, generation, parameters) returns the same operation; the same key with any other request is a conflict, never a second run.",
+  "type": "string",
+  "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+}

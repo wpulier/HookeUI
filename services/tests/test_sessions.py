@@ -468,3 +468,23 @@ def test_recall_reads_another_session_the_user_names_without_opening_it(tmp_path
     assert built.day.sid != first and built.day.name == "Leaf epidermis"  # nothing was opened
     here = ask({"query": "platelet green"})
     assert "no conversation or research text matches" in here and "other sessions are searched only when named" in here
+
+
+def test_the_sessions_wire_says_where_projects_are_saved_and_finder_shows_it(tmp_path, monkeypatch):
+    # Thesis question 12 (ticket 67, fix 10): nothing on screen said where Projects are saved, or offered Show in Finder.
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    built = build(tmp_path / "MicroscopeMind")
+    assert built.sessions_wire()["root"] == "~/MicroscopeMind/sessions"
+    opened = []
+    monkeypatch.setattr(subprocess, "Popen", lambda args, **kw: opened.append(args))
+    monkeypatch.setattr(sys, "platform", "darwin")
+    reply = asyncio.run(COMMANDS["sessions-reveal"](built, None, {"type": "sessions-reveal"}))
+    assert reply == {"ok": True, "path": str(built.paths.sessions)}
+    assert opened == [["open", "-R", str(built.paths.sessions)]]
+    monkeypatch.setattr(sys, "platform", "linux")
+    elsewhere = asyncio.run(COMMANDS["sessions-reveal"](built, None, {"type": "sessions-reveal"}))
+    assert elsewhere["ok"] is False and str(built.paths.sessions) in elsewhere["error"]

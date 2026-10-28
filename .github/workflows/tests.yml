@@ -1,9 +1,11 @@
-# Explicit frozen-candidate gate. Routine edits use focused local checks; do not run
-# the same full paid Mac suite for a PR push and again for its unchanged merge.
-# Dispatch on the exact candidate branch; record the resolved SHA/run in ticket 62.
-# No publishing or secrets. Quiet simulated-camera checks remain local.
+# The full check of every PR into dev, required before it merges (no bypass skips it), and by dispatch on a frozen
+# candidate branch. A merge commit is not checked again: its PR was. GitHub's macOS runners are free for this public
+# repository. A fork's PR runs with a read-only token and no secrets; a first-time contributor's waits for a
+# maintainer to approve the run. No publishing or secrets. Quiet simulated-camera checks remain local.
 name: tests
 on:
+  pull_request:
+    branches: [dev]
   workflow_dispatch:
 permissions:
   contents: read

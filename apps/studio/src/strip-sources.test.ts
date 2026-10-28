@@ -278,3 +278,18 @@ test('a download is Ready only when its model is: with an install still to come 
   shown[0].open();
   expect(opened).toEqual(['swin2sr-enlarge']); // its run page, whose primary names the next step
 });
+
+
+// Ticket 67, fix 4: a finished download whose model Hooke has not checked yet is not "Ready" (Models says Not checked).
+test('a finished download says Downloaded · not checked until Hooke has checked its model', async () => {
+  const { DownloadPills } = await import('./strip-sources');
+  let shown: StripPill[] = [];
+  const pills = new DownloadPills(() => {}, (next) => { shown = next; }, () => T);
+  const row = (state: string) => ({ model: 'cellpose-sam', name: 'Cellpose-SAM', state, got: 1e9, total: 1e9, says: '' });
+  const model = (face: string) => [{ id: 'cellpose-sam', status: 'ready', group: 'ready', runs: 'this-mac', size: 1e9, face: { state: face } }];
+  pills.update([row('downloading')], model('unchecked'));
+  pills.update([row('done')], model('unchecked'));
+  expect(shown[0]).toMatchObject({ cell: 'idle', words: 'Downloaded · not checked' });
+  pills.update([row('done')], model('on'));
+  expect(shown[0]).toMatchObject({ cell: 'ready', words: 'Ready' });
+});

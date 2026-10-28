@@ -1,4 +1,4 @@
-"""ObservationUI orchestrator HTTP/WebSocket server: the routes on top of the App (app.py).
+"""HookeUI orchestrator HTTP/WebSocket server: the routes on top of the App (app.py).
 
   GET  /api/health        service, source, motion, GPU and scene status, how the computer is doing
   GET  /api/machine/top   the programs using the most CPU (the performance meter's panel)
@@ -153,6 +153,8 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     add_capability_journey_routes(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_project_api import register as add_scientific_project_routes
     add_scientific_project_routes(app, built, studio_origin, ARCHIVE_HEADER)
+    from .door.api import register as add_agent_door  # outside agents' one door (ADR 0026)
+    add_agent_door(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_import_transaction import ImportPending
 
     @app.exception_handler(ImportPending)
@@ -1170,7 +1172,7 @@ async def _send_loop(client: Client) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ObservationUI orchestrator")
+    parser = argparse.ArgumentParser(description="HookeUI orchestrator")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--bridge-url", default="http://127.0.0.1:8765")

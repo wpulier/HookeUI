@@ -24,6 +24,8 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', tex
   const el = document.createElement(tag); if (className) el.className = className; if (text) el.textContent = text; return el;
 };
 const field = (label: string, control: HTMLElement) => { const checkbox = control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox'; const row = node('label', checkbox ? 'study-new-study-field study-choice' : 'study-new-study-field'); if (checkbox) row.append(control, node('span', '', label)); else row.append(node('span', '', label), control); return row; };
+// The core without a research service (effort_api.UNAVAILABLE says the same) lists no researchers: a Study can't start.
+export const STUDY_UNAVAILABLE = 'Running a Study needs a research service this app does not have. You can still write, save and reopen a Study.';
 const details = (title: string, value: unknown) => { const box = node('details', 'study-evidence-details'); box.append(node('summary', '', title), node('pre', '', JSON.stringify(value, null, 2))); return box; };
 export function experimentName(request: string, spec: Record<string, unknown> | undefined): string {
   const named = spec && (spec.title ?? spec.name ?? spec.kind);
@@ -533,8 +535,10 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   log.append(question, notice);
   if (over > 0) log.append(node('p', 'study-warn', `Spent and held are ${dollars(over)} more than the allowance. Nothing new can start until holds are released.`));
   log.append(...steps);
-  if (!tasks.length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : 'None yet. Prepare the inputs, choose a researcher, then Start research.'));
+  if (!tasks.length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : providers.length ? 'None yet. Prepare the inputs, choose a researcher, then Start research.' : 'None yet.'));
   if (anyMove) log.append(moves);
+  // Where Start would be, rather than a Study that can't run without a word.
+  if (!providers.length && study.status === 'active') log.append(node('p', 'm-note study-view-unavailable', STUDY_UNAVAILABLE));
   if (composer && !tasks.length) log.append(composer);
   else if (composer) { const next = launchSlot(); if (next) log.append(next); log.append(composer); }
   const centreBody = node('div', 'rconv-body'); centreBody.append(log);

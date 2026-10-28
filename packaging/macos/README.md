@@ -272,6 +272,11 @@ source promoted to a separately verified Stable artifact. `release-channel.py` u
 `publish.sh` from a pinned source with monotonically increasing build numbers. It never rebuilds during publication.
 `NOTES=/path/to/notes.md` supplies release notes. `TOOLS=/path/to/cache` reuses cached build tools.
 
+**Signing:** `build.sh` signs with the Developer ID that `SIGN_IDENTITY` names. Unset (or `-`), the app and dmg are
+ad-hoc signed and not notarized, so anyone can build from this repository or a fork without a certificate: such a build
+runs on the Mac that built it, and Gatekeeper refuses a downloaded copy. Official downloads are built by the
+maintainers' own release tooling with their Developer ID and notarized.
+
 The release Mac already has its Developer ID and notarization profile. Hosted CI is optional and currently disabled:
 required-reviewer environments are unavailable on the current private-repository plan, and CI signing/publishing
 credentials are incomplete. Do not upload a broad personal token or enable unprotected publishing to work around it.

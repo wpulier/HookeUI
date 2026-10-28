@@ -37,7 +37,8 @@ def test_missing_execution_has_explicit_response_and_cannot_start_work(web):
                            json={'session': built.day.sid})
     assert response.status_code == 503
     assert response.json()['ok'] is False
-    assert 'extension' in response.json()['says'].lower()
+    from orchestrator.research.effort_api import UNAVAILABLE
+    assert response.json()['says'] == UNAVAILABLE  # plain words: no research service here, the Study is kept
 
 
 def test_extension_is_operator_selected_and_invalid_configuration_fails_closed(monkeypatch, tmp_path):

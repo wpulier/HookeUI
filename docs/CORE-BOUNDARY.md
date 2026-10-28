@@ -10,7 +10,9 @@ are separate. The standalone source contains no managed provider deployment,
 service IAM, tenant authentication or official artwork.
 
 The Study HTTP adapter saves and reopens local documents without managed execution.
-Readiness returns an empty provider list when no extension is installed. Attempts
+Readiness returns an empty provider list when no extension is installed, and the
+Study page says where Start would be that running a Study needs a research service
+this app does not have (`effort_api.UNAVAILABLE`). Attempts
 to execute unavailable work return an explicit refusal; existing external task
 receipts and held allowances are never silently settled. Local tasks, the Assistant
 and user-configured scientific providers retain their own execution paths.
@@ -21,8 +23,9 @@ and `app.state.research_lifecycle`, with `start()` and asynchronous `stop()`.
 Configuration errors fail startup. The extension is executable application code,
 not a user upload or an account setting. No HTTP request or document may set it.
 
-Generic desktop packaging accepts a supplied icon via `ICNS`; the core otherwise
-uses its neutral icon. Existing update-feed URLs and public verification keys are
+Generic desktop packaging accepts a supplied icon via `ICNS`, and the studio build a
+supplied mark for its menu button via `HOOKEUI_MARK_DARK` and `HOOKEUI_MARK_LIGHT`;
+the core otherwise uses its neutral icon and mark. Existing update-feed URLs and public verification keys are
 compatibility information, not access to official signing. Official release
 orchestration and signing credentials are maintained outside this repository.
 Forks must use their own release identity, keys and feed before distributing updates.

@@ -9,9 +9,13 @@
 # does).
 # OUT (default packaging/macos/build, or build-<channel>) holds the results; TOOLS (default packaging/macos/build)
 # keeps FFmpeg, uv and Sparkle between builds of every channel.
-# SIGN_IDENTITY: the Developer ID that signs everything. NOTARY_PROFILE (default "notary"): the notarytool keychain
+# SIGN_IDENTITY: the Developer ID that signs everything. Unset (or "-"), everything is ad-hoc signed: no certificate,
+# so a fork builds with no one's identity, and nothing is notarized (it runs on the Mac that built it; Gatekeeper
+# refuses a downloaded copy). NOTARY_PROFILE (default "notary"): the notarytool keychain
 # profile (NOTARY_KEYCHAIN: a keychain other than the login one, as in CI); without it the app and dmg are signed but
-# not notarized, and the script says so. ICNS: optional custom app icon supplied by the builder. SPARKLE_KEY_FILE (default
+# not notarized, and the script says so. ICNS: optional custom app icon supplied by the builder. HOOKEUI_MARK_DARK and
+# HOOKEUI_MARK_LIGHT: optional SVG marks for the studio's menu button, supplied the same way (apps/studio/vite.config.ts;
+# without them the core's mark). SPARKLE_KEY_FILE (default
 # ~/.config/hookeui-release/sparkle_ed25519.key, or sparkle_ed25519-<channel>.key): the channel's update-signing key;
 # NOTES: this version's release notes.
 # FEED_URL: where installed apps look for updates (the latest GitHub release's appcast.xml on the channel's releases
@@ -30,7 +34,7 @@ while IFS='=' read -r key value; do
 done <<<"$CHANNEL_ENV"
 TOOLS="${TOOLS:-$HERE/build}"
 if [ "$CHANNEL" = stable ]; then OUT="${OUT:-$HERE/build}"; else OUT="${OUT:-$HERE/build-$CHANNEL}"; fi
-IDENTITY="${SIGN_IDENTITY:-Developer ID Application: WILLIAM PULIER (SY7TABCD5M)}"
+IDENTITY="${SIGN_IDENTITY:--}"  # unset or "-": ad-hoc signed, never notarized
 PROFILE="${NOTARY_PROFILE:-notary}"
 UV_VERSION=0.7.19
 UV_SHA256=698d24883fd441960fb4bc153b7030b89517a295502017ff3fdbba2fb0a0aa67
@@ -142,7 +146,7 @@ cp "$TOOLS/uv/LICENSE-MIT" "$C/Resources/NOTICES/uv-LICENSE-MIT"
 cp "$TOOLS/uv/LICENSE-APACHE" "$C/Resources/NOTICES/uv-LICENSE-APACHE"
 cp "$TOOLS/sparkle/LICENSE" "$C/Resources/NOTICES/Sparkle-LICENSE"
 
-say "Signing with $IDENTITY"
+if [ "$IDENTITY" = - ]; then say "Signing ad-hoc (no SIGN_IDENTITY)"; else say "Signing with $IDENTITY"; fi
 sign() { codesign --force --timestamp --options runtime --sign "$IDENTITY" "$@"; }
 sign "$C/Helpers/uv"
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$C/Helpers/ffmpeg" "$C/Helpers/ffprobe"
@@ -167,7 +171,9 @@ notarize() { # file: submit, wait, and fail unless Apple accepted it
   fi
 }
 NOTARIZED=0
-if xcrun notarytool history --keychain-profile "$PROFILE" ${NOTARY_KEYCHAIN:+--keychain "$NOTARY_KEYCHAIN"} >/dev/null 2>&1; then
+if [ "$IDENTITY" = - ]; then
+  say "Ad-hoc signed (no SIGN_IDENTITY): the app and dmg are NOT notarized"
+elif xcrun notarytool history --keychain-profile "$PROFILE" ${NOTARY_KEYCHAIN:+--keychain "$NOTARY_KEYCHAIN"} >/dev/null 2>&1; then
   say "Notarizing the app"
   ditto -c -k --keepParent "$APP" "$OUT/$CHANNEL_FILE_STEM.zip"
   notarize "$OUT/$CHANNEL_FILE_STEM.zip"

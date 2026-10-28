@@ -698,4 +698,4 @@ def test_workspace_package_cannot_outgrow_its_admitted_snapshot_budget(web, home
         json={'session': 'session-a', 'action': 'package'}, headers=headers())
     assert response.status_code == 400, response.text
     assert observed_limits and max(observed_limits) <= share.MAX_TOTAL + len(b'small synthetic wheel')
-    assert not list(item.folder.glob('*.observationui.zip'))
+    assert not list(item.folder.glob('*.hookeui.zip'))

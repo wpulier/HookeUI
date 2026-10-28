@@ -57,6 +57,17 @@ establish ownership across a Project switch.
     bookmarks and snapshots come back as history. Its live outlines never do, and one app-notice says so ("Back in
     'Leaf epidermis' (last used yesterday 8:12 pm). Its outlines are in its pictures; the live view starts fresh.":
     `App.say_resumed`).
+    - **Its cells' layer on their picture does** (ticket 67; the thesis check found a Project gone back to with no
+      outline layer, so nothing in Data said "On this Tab"). Each session journals which population its layer shows
+      (`layer-shown` events, `SessionStore.record_layer`, told by `population.Layer.journal`), in that population's own
+      session while it is open: hiding it because another session opened is not a change in the session left, while
+      a clear, a hide or another source on stage journals none. A session switched back to, or the one a restart
+      comes back to, shows that population again once (`App.reopen_layer`, off the landing: its retained files are
+      checked in a thread, then `apply` scope `cell`, as Data's Show on picture shows one), and only when its first
+      landing puts on stage the picture the cells were found on (`sourceImage`). On the live camera or any other
+      source it starts fresh (ADR 0010), and a picture put on stage after that first landing is the user's own choice.
+      The layer then draws it only where its check on the still verifies it (`docs/architecture/freshness-and-overlay.md`).
+      `tests/test_population_reopen.py` checks it through the real app, journals and evidence.
   - **Opening is using it:** an `opened` line is written in its journal, so its last use is now and today becomes one
     of its days (the title's menu lists sessions by when each began, so opening one only marks its row).
   - **The view follows the session** (`apps/studio/src/session-view.ts` decides, from `session-cleared`'s `why` and the
@@ -122,8 +133,12 @@ establish ownership across a Project switch.
       - **Yours:** the user's own (`GET /api/library?scope=mine`), and the examples a session has used (`Library.used`,
         the catalogue's sources), newest first, with Recordings and Pictures; Add files and files dropped on the page join
         them, never a session.
-      - **Examples:** the public corpus's recordings (`scope=example`, about 1,500), by specimen inside a category (each
-        with how many; `specimens` on the route), a few dozen at a time with Show more (`offset`, `limit`).
+      - **Examples:** the public corpus's recordings (`scope=example`, about 1,500, once fetched), by specimen inside a
+        category (each with how many; `specimens` on the route), a few dozen at a time with Show more (`offset`, `limit`).
+        The example that comes with the app (`examples.py`, Human cells) is there from the first launch, so the empty
+        Stage's "open the examples in the Library" is true before any download: `Library._bundled` copies it to
+        `snapshots/examples/human-mitosis-v1/` (a folder the bridge plays from) and registers it once under the
+        walkthrough's key (`examples.KEY`), so the walkthrough opens the same asset.
       - **Categories first** (`categories` on the route: CONTEXT.md "Category"): the library's fixed top level
         (`library.CATEGORIES`) with each one's newest as its cover and how many, "Not sure yet" last (opened at once when
         it is all there is); a category's assets under the names the looks gave them (`category=` on the route).
@@ -169,6 +184,9 @@ establish ownership across a Project switch.
   (opened and not removed, counted; those that joined on their own need the library's scan, so the list leaves them
   out; its scientific inputs, imported files and folders, are added by `App.sessions_wire` from the scientific store,
   F-L8-6), its researchers and what it made (`product_of`, the one rule: the products Made in this session lists).
+  The `sessions` wire also says where every Project is saved (`root`: `paths.sessions` with `~`), so All projects (the
+  workspace's and `sessions-page.ts`) says "Saved in ~/… · Show in Finder" (`sessions.ts` `savedWhereWords`), and Help
+  says All Projects names it (thesis question 12); Show in Finder is `sessions-reveal` (`open -R`, as `dataset-reveal`).
   Every "made" event is also its claim (`Info.claims`), product or not, so a Record dataset is known to be its. Footage
   held for a researcher is memory only, so the list never counts it; the open session's own wire adds what is held now.
   The studio shows it in one place, the session's title (`session-menu.ts`, the `sessions` wire): the title is the

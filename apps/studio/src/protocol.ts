@@ -5,6 +5,7 @@ import type { TrailsMessage } from './trail';
 import type { WorkspaceViewport } from './workspace-runtime';
 import type { MotionTracksWire, TracksLayerWire } from './motiontracks';
 import type { ResearchCapture } from './research-captures';
+import type { AgentConnectionsMessage } from './agent-connections';
 // Wire protocol shared with services/orchestrator (hub.py, scene.py, server.py), both ways:
 // ServerMessage is what the server sends, ClientCommand what the studio sends
 // (services/orchestrator/commands.py has one handler per kind).
@@ -142,7 +143,7 @@ export interface MachineState {
 export interface OurWorker {
   pid: number;
   role: string; // "analysis worker", "micro-sam (analysis worker)"
-  name: string; // "ObservationUI: analysis worker (loading micro-sam)"
+  name: string; // "HookeUI: analysis worker (loading micro-sam)"
   cpu: number; // % of one core
   memMb: number;
   loading?: string;
@@ -153,7 +154,7 @@ export interface TopProgram {
   name: string;
   cpu: number; // % of one core
   memMb: number;
-  ours: boolean; // ObservationUI's own
+  ours: boolean; // HookeUI's own
 }
 
 /** What a session holds, counted by the server: the header chip, its menu and the sessions rail say the same numbers
@@ -253,6 +254,7 @@ export interface SessionsList {
   type: 'sessions';
   current: string; // the sid open now
   sessions: SessionRow[];
+  root?: string; // where every Project is saved on this Mac, with ~ ("~/MicroscopeMind/sessions"); an older server sends none
 }
 
 /** The session's conversations (orchestrator/day/store.py). `id` is the session id (sid), opaque. */
@@ -725,6 +727,8 @@ export type ServerMessage =
   | { type: 'presentation-admitted'; requestId: string; executionRequestId: string; client: WorkspaceReady['client']; appRunId: string }
   | { type: 'workspace-tabs'; id:string; session:string; action:Record<string,unknown>; workspacePin:{client:Record<string,unknown>;id:string;rootId:string;kind:string;lifetimeGeneration:string|number;sourceGeneration:number} }
   | { type: 'open-page'; id: string; page: string } // the agent opens a page (open_models): answered by page-opened
+  // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
+  | AgentConnectionsMessage
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;
   // orchestrator/data_reader.py): done once the screen report shows it. `entry` is the item as Data lists it.
   | ReaderRequestMessage
@@ -853,8 +857,11 @@ export interface KeyFacts {
 /** Where catalog entries come from besides the app's own (channels.py): the reviewed catalog, or a community one. */
 export interface ChannelRow {
   name: string; url: string; commit: string; reviewed: boolean; trusted: boolean; checked: string; entries: number;
-  label?: string;
+  label?: string; source?: ChannelSource;
 }
+
+/** Where a channel's entries come from (channels.py `source`): the reviewed catalog, a file someone shared, a repository. */
+export type ChannelSource = 'reviewed' | 'shared-file' | 'git' | '';
 /** The last "Check for catalog updates": running, done (with what it added) or failed. */
 export interface ChannelUpdate { state: 'running' | 'done' | 'failed'; says: string; }
 
@@ -880,7 +887,7 @@ export interface ToolTrial { role: string; option: string; title: string; try: {
 export interface ModelRow extends Readiness {
   id: string; name: string; runs: string; where: string; what: string; kind: string; version: string;
   credit: { authors?: string; link?: string; paper?: string; cite?: string }; link: string; licence: string; tier: string;
-  mine: boolean; channel?: string; draftedByAi?: boolean; group: 'needs-you' | 'ready' | 'available' | 'unavailable'; inUse: boolean; chosen: boolean;
+  mine: boolean; channel?: string; channelSource?: ChannelSource; channelLabel?: string; draftedByAi?: boolean; group: 'needs-you' | 'ready' | 'available' | 'unavailable'; inUse: boolean; chosen: boolean;
   facts: ModelFact[]; usedFor: ModelUse[]; size: number; files: { path: string; bytes: number }[]; folder: string;
   demonstration?: import('./capabilityshelf').ShelfCard['demonstration']; setups?: ToolSetup[]; abilities?: ToolAbility[]; face?: ToolFace; tries?: ToolTrial[];
   installFolder?: string; // installer-owned destination; Fiji generations are created inside this folder
@@ -969,10 +976,11 @@ export interface CapabilitiesWire {
   agentText: string;
   setup?: { edition: string; options: Record<string, string | null>; counts?: SetupCounts; keys?: Record<string, KeyFacts>;
     downloads?: DownloadRow[]; installs?: InstallRow[];
-    maintenance?: Record<string, import('./maintenance-status').MaintenanceUpdate>; // each maintained entry's update state (maintenance/status.py)
+    maintenance?: Record<string, import('./maintenance-status').EntryUpdate>; // each maintained entry's update state, and each built-in's line (maintenance/status.py)
     disk?: { freeBytes?: number; spareBytes?: number }; // the models folder's disk (downloads.disk): Turn on's sheet says whether a plan fits
     channels?: ChannelRow[]; channelUpdate?: ChannelUpdate; catalogProblems?: { entry: string; problems: string[]; incompatible?: boolean }[];
     loose?: { path: string; name: string; bytes: number }[]; // files dropped straight into your folder (mine.py)
+    mineFolder?: string; // where your own entries live on this instance ("~/MicroscopeMind/catalog/mine/models"; manifests.mine_root)
     turning?: Record<string, import('./capabilityshelf').Turning>; // exact owned job and entry setup intents
     news?: import('./capabilityshelf').News; shelf?: import('./capabilityshelf').Shelf;
     ownTrials?: OwnTrial[];
@@ -1558,6 +1566,7 @@ export type ClientCommand =
   | { type: 'dataset'; on: boolean }
   | { type: 'dataset-rename'; id: string; name: string }
   | { type: 'dataset-reveal'; id: string }
+  | { type: 'sessions-reveal' } // Show in Finder: the folder every Project is saved in
   | { type: 'dataset-trash'; id: string } // after the user confirmed: moved to datasets/.trash/
   | { type: 'rig'; field: string; value: string | number | null } // a fact about the microscope
   // researchers

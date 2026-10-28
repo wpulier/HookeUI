@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "ObservationUI Studio: the live microscope view with AI overlays",
+  "description": "HookeUI Studio: the live microscope view with AI overlays",
   "engines": {
     "node": "^22.12.0 || ^24.0.0 || >=26.0.0"
   },

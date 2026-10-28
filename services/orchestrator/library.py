@@ -8,6 +8,8 @@ store.py `source` events, and what it made); this module knows only what each as
   studio (`footage/added/`, each with its .json), every Record dataset's camera video (each part), snapshots (their
   clean picture, `<date>/clean/<name>.png`, when the app drew outlines on one) and clearer pictures (enhance results, registered when made).
   Example data, the public corpus's recordings, are assets too (group "example"), opened from the side bar's Assets.
+  The example that comes with the app (examples.py, Human cells) is one of them before anything is downloaded: copied
+  where the bridge plays from and registered once under the walkthrough's own key, so both open the same asset.
   Test footage played from the camera menu (the corpus there, bench clips, camera tests off the microscope) stands for
   the live camera and the app never knows it (AGENTS.md "Architecture").
 - **Ids** (`a1`, `a2`...) are given once per stable key and never reused, in `library.jsonl` (an asset):
@@ -51,6 +53,13 @@ SCAN_S = 5.0  # how long a scan is reused before the folders are read again
 # one and names what it is below it. "Other" holds what fits none.
 CATEGORIES = ("Plant tissue", "Blood", "Human & animal tissue", "Invertebrates", "Protists & algae", "Bacteria & fungi", "Other")
 NOT_SURE = "Not sure yet"  # the card of what has had no look yet, or one that could not tell
+
+
+def _registration(path: Path, title: str, at: float, origin: str | None, optics: dict | None, group: str,
+                  specimen: str = "") -> dict:
+    """A registered asset's facts, as library.jsonl keeps them (`register`)."""
+    return {"path": str(path), "title": title, "at": round(at, 3), "origin": origin, "group": group,
+            **({"optics": optics} if optics else {}), **({"specimen": specimen} if specimen else {})}
 
 
 def is_asset_id(value) -> bool:
@@ -230,11 +239,9 @@ class Library:
 
     # --- registering what is made now ---------------------------------------------------------------------------
     def register(self, key: str, path: Path, *, title: str, at: float, origin: str | None, optics: dict | None = None,
-                 group: str = "clearer") -> str:
+                 group: str = "clearer", specimen: str = "") -> str:
         """An asset made now that no folder scan finds (a clearer picture): its facts kept with its id."""
-        facts = {"path": str(path), "title": title, "at": round(at, 3), "origin": origin, "group": group,
-                 **({"optics": optics} if optics else {})}
-        aid = self.id_for(key, facts)
+        aid = self.id_for(key, _registration(path, title, at, origin, optics, group, specimen))
         with self.lock:
             self._scan = None
             self._scan_revision += 1
@@ -502,11 +509,32 @@ class Library:
                                  {k: _number(optics.get(k)) for k in OPTICS}, None, str(meta.get("specimen") or "")))
         return out
 
+    def _bundled(self) -> None:
+        """The example that comes with the app (examples.py): copied where the camera bridge plays from and registered
+        once under the walkthrough's key, so Examples lists it before any download (ticket 67: the empty Stage says
+        "open the examples in the Library") and the walkthrough opens this same asset. Listed by `_registered_found`."""
+        from . import examples
+
+        if self.snapshots is None:
+            return  # no folder the bridge plays from (a test library)
+        facts = self._registered.get(examples.KEY)
+        if facts is not None and Path(str(facts.get("path") or "")).is_file():
+            return
+        image, _ = examples.placed(self.snapshots)
+        if facts is None:
+            self.id_for(examples.KEY, _registration(image, examples.TITLE, 0, None, None, "example", examples.SPECIMEN))
+        elif facts.get("path") != str(image):
+            self.relocate_registered(self._ids[examples.KEY], image)  # refused while in the trash: it stays there
+
     def _examples(self) -> list[Asset]:
         """Example data: the public corpus's recordings (footage/corpus/, services/bench/corpus/corpus.json), each with its
         specimen and, where its source says, its scale. Opened from the side bar's Assets, one is a session's source like
         any other (ADR 0022's amendment); played from the camera menu's test footage it still stands for the live
-        camera."""
+        camera. The bundled example is registered here first (`_bundled`)."""
+        try:
+            self._bundled()
+        except (OSError, ValueError):
+            pass  # damaged or missing: the walkthrough says so when asked; the corpus is still listed
         out: list[Asset] = []
         if self.footage is None or self.corpus is None or not (self.footage / "corpus").is_dir():
             return out
@@ -604,7 +632,8 @@ class Library:
             optics = facts.get("optics") or {}
             out.append(Asset(self._ids[key], key, kind, path, str(facts.get("group") or "clearer"),
                              str(facts.get("title") or path.stem), _number(facts.get("at")), None, "", None,
-                             {k: _number(optics.get(k)) for k in OPTICS}, facts.get("origin"), ""))
+                             {k: _number(optics.get(k)) for k in OPTICS}, facts.get("origin"),
+                             str(facts.get("specimen") or "")))
         return out
 
 

@@ -237,6 +237,7 @@ COMMANDS = {
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",
     "dataset-reveal": "none: shows a dataset in the Finder",
+    "sessions-reveal": "none: shows the folder every Project is saved in, in the Finder",
     "rig": "calibration",
     "scale": "calibration",
     "arena": "temporary: a blind trial's outlines, until its vote",

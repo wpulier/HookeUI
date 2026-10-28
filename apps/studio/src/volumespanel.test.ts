@@ -122,3 +122,26 @@ describe('adding a volume by its path', () => {
     }
   });
 });
+
+// The thesis check on 0.5.2: Models → Advanced contribution's brain volume showed the browser's raw "Choose File".
+describe('choosing a volume', () => {
+  it('is the studio’s own control, as a comparison picture’s is', async () => {
+    const { volumesSection } = await import('./volumespanel');
+    const { syntheticDOM, fire } = await import('./workspace-windows.test-support');
+    const dom = syntheticDOM();
+    vi.stubGlobal('document', dom.document);
+    const commands = { upload: vi.fn(async () => ({ ok: true, says: 'Added' })), add: vi.fn(), describe: vi.fn(), start: vi.fn(),
+      cancel: vi.fn(), again: vi.fn(), open: vi.fn() };
+    const section = volumesSection([], commands, '', () => {}) as unknown as import('./workspace-windows.test-support').TestElement;
+    const picker = section.querySelector('[data-model-editor="volume-file"]')!;
+    expect(picker.tagName).toBe('LABEL');
+    expect(picker.classList.contains('file-picker')).toBe(true);
+    expect(picker.querySelector('.file-picker-button')?.textContent).toBe('Choose a volume');
+    expect(picker.querySelector('.file-picker-name')?.textContent).toBe('No volume chosen');
+    const input = picker.querySelector('input')!;
+    expect(input.classList.contains('visually-hidden')).toBe(true);
+    Object.assign(input, { files: [{ name: 'brain.tif' }] }); fire(input, 'change');
+    expect(picker.querySelector('.file-picker-name')?.textContent).toBe('brain.tif');
+    expect(commands.upload).toHaveBeenCalledTimes(1);
+  });
+});

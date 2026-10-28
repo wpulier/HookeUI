@@ -14,7 +14,7 @@ from pathlib import Path
 from .brain.registry import ToolFailed
 
 VERSION = 1
-GUIDE = "human-mitosis-v1"
+from .examples import GUIDE  # the bundled example's own folder and key (examples.py), the Library's too
 NAME = "Example: Human cells"
 
 
@@ -116,23 +116,16 @@ class Onboarding:
 
     async def start(self, client, restart=False):
         from . import commands
-        from .examples import human_mitosis
+        from . import examples
 
         # Verify before opening anything. Copy lossless pixels to this profile so a
         # checkout move/removal cannot strand its session. Original TIFF and attribution
-        # remain in the shipped example package.
+        # remain in the shipped example package. The Library lists this same copy (library.py `_bundled`).
         before = self.app.day.sid
         try:
-            verified = await asyncio.to_thread(human_mitosis, preview=True)
-            data = await asyncio.to_thread(verified.read_bytes)
+            image, data = await asyncio.to_thread(examples.placed, self.app.paths.snapshots)
         except (OSError, ValueError):
             raise ToolFailed("The example image is missing or damaged.", next="reinstall this release to restore the example") from None
-        image = self.app.paths.snapshots / "examples" / GUIDE / "human_mitosis.png"
-        if not image.exists() or await asyncio.to_thread(image.read_bytes) != data:
-            image.parent.mkdir(parents=True, exist_ok=True)
-            temporary = image.with_suffix(".tmp")
-            await asyncio.to_thread(temporary.write_bytes, data)
-            temporary.replace(image)
         voice = self.app.brain.voice
         if voice is not None and not voice.closed:
             await voice.close()  # finish the old stream before any example image is opened
@@ -163,8 +156,8 @@ class Onboarding:
             self.app.switch_session(sid)
         if not self.app.day.local_only:
             raise ToolFailed("The example session's local policy is missing.", next="restart the walkthrough")
-        asset_id = await asyncio.to_thread(self.app.hub.library.register, "onboarding:" + GUIDE, image,
-                                           title="Human cells · David Root (CC0)", at=0, origin=None, group="example")
+        asset_id = await asyncio.to_thread(self.app.hub.library.register, examples.KEY, image, title=examples.TITLE, at=0,
+                                           origin=None, group="example", specimen=examples.SPECIMEN)
         # Registration is authoritative even when the old file is missing (and
         # therefore absent from library.get). Keep its identity while restoring
         # verified pixels inside the bridge's existing media roots.

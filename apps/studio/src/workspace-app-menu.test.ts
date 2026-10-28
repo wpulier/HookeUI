@@ -60,3 +60,16 @@ test('closing Projects clears its own expanded state before the queued toggle ev
   expect(projects.getAttribute('aria-expanded')).toBe('false');
   expect(opener.getAttribute('aria-expanded')).toBe('false');
 });
+
+// Ticket 67: the menu said "Earlier tool sessions" for the sheet that lists the running ones, titled Scientific sessions.
+test('the menu names the scientific sessions sheet by its own title', () => {
+  const dom = syntheticDOM();
+  vi.stubGlobal('document', Object.assign(dom.document, { documentElement: new TestElement('html') }));
+  vi.stubGlobal('window', new EventTarget());
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {} });
+  const menu = new WorkspaceAppMenu({ opener: new TestElement('button') as unknown as HTMLButtonElement, storageKey: 'test',
+    sessions: () => [], newSession: () => {}, openSession: () => {}, navigate: () => {}, scientificSessions: () => {} });
+  const text = (menu.root as unknown as TestElement).textContent;
+  expect(text).toContain('Scientific sessions');
+  expect(text).not.toContain('Earlier tool sessions');
+});

@@ -453,7 +453,7 @@ def model_steps(m: catalog.Manifest, have: Callable[[str], bool], environ: Mappi
                 from .channels import label as channel_label
 
                 steps.append(Step("trust", f"Allow code from {channel_label(m.channel)}",
-                                  f"{m.name} comes from the community channel {m.channel}, not reviewed here: allowing it "
+                                  f"{m.name} comes from {channels.said(m.channel, environ)}, not reviewed here: allowing it "
                                   "lets its entries run code on this Mac with your permissions, each after its own "
                                   "Install and proof", model=m.key, channel=m.channel))
                 continue
@@ -762,7 +762,7 @@ def doctor(environ: Mapping[str, str] = os.environ) -> str:
     from .keys import load_keys
 
     keys = load_keys()
-    lines = ["ObservationUI: every model in the catalog (catalog/models), and what each needs here", ""]
+    lines = ["HookeUI: every model in the catalog (catalog/models), and what each needs here", ""]
     rows: dict[str, list[str]] = {g: [] for g in ("Ready", "Needs setup", "Unavailable here")}
     entries = {**catalog.manifests(), **catalog.mine(environ)}
     for key, m in sorted(entries.items(), key=lambda kv: kv[1].name.lower()):

@@ -8,6 +8,7 @@ export type UpdateState = 'none' | 'available' | 'preparing' | 'checking' | 'rea
 export type Policy = 'manual' | 'review' | 'auto' | 'pin';
 
 export interface MaintenanceUpdate {
+  builtIn?: false;
   state: UpdateState;
   says: string;
   next: 'apply' | 'undo' | 'retry' | 'stop' | 'accept' | 'merge' | null;
@@ -26,16 +27,46 @@ export interface MaintenanceUpdate {
   conflicts?: string[];
   maintained?: { state: 'unmaintained' | 'attention'; why?: string; since?: string } | null;
   defect?: { version: string; why: string; link: string; severity: 'warn' | 'block' } | null;
+  sharedFile?: boolean; // from a shared file: it never updates itself, so there is no check or policy to offer (status.py)
+}
+
+/** An entry that comes with the app (maintenance/status.py `built_in`): updated with Hooke, no policy or check here. */
+export interface BuiltInUpdate {
+  builtIn: true; state: 'none'; says: string; next: null; version?: string;
+  workflowReview?: undefined;
+}
+
+/** What the wire's setup.maintenance holds for one entry. */
+export type EntryUpdate = MaintenanceUpdate | BuiltInUpdate;
+
+/** What Updates keeps while the page draws it again (one per page, as Add your own keeps its last word, `ownSaid`):
+ * whether it is open, and the last reply to Check, a policy or an action, with the update state it was said in: once the
+ * state moves on ("Checking … for an update", then Ready to apply), the reply is no longer what is happening and goes. */
+export interface MaintenanceMemory { open?: boolean; said?: { words: string; ok: boolean; state?: UpdateState } }
+
+/** A maintenance command's answer: its words and the entry's update state as status.of said it then. */
+export type MaintenanceReply = { says?: string; update?: { state?: UpdateState } };
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** A kept time ("2026-10-27T23:42:00", the Mac's local time, as the server writes it) as people read it ("Oct 27,
+ * 11:42 pm", the server's own `when_words`); anything else as given. */
+export function readableTime(stamp: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(stamp);
+  if (!m) return stamp;
+  const hour = Number(m[4]), month = MONTHS[Number(m[2]) - 1];
+  if (!month) return stamp;
+  return `${month} ${Number(m[3])}, ${hour % 12 || 12}:${m[5]} ${hour < 12 ? 'am' : 'pm'}`;
 }
 
 export interface MaintenanceCommands {
-  policy: (model: string, policy: Policy) => Promise<{ says?: string }>;
-  check: (model: string) => Promise<{ says?: string }>;
-  apply: (model: string, receipt?: {generation:string;digest:string}) => Promise<{ says?: string }>;
-  undo: (model: string) => Promise<{ says?: string }>;
-  stop: (model: string) => Promise<{ says?: string }>;
-  accept: (model: string, fingerprint: string) => Promise<{ says?: string }>;
-  merge: (model: string) => Promise<{ says?: string }>;
+  policy: (model: string, policy: Policy) => Promise<MaintenanceReply>;
+  check: (model: string) => Promise<MaintenanceReply>;
+  apply: (model: string, receipt?: {generation:string;digest:string}) => Promise<MaintenanceReply>;
+  undo: (model: string) => Promise<MaintenanceReply>;
+  stop: (model: string) => Promise<MaintenanceReply>;
+  accept: (model: string, fingerprint: string) => Promise<MaintenanceReply>;
+  merge: (model: string) => Promise<MaintenanceReply>;
 }
 
 export const POLICIES: { id: Policy; label: string }[] = [
@@ -49,17 +80,19 @@ const ACTIONS: Record<NonNullable<MaintenanceUpdate['next']>, string> = {
   apply: 'Apply', undo: 'Undo', retry: 'Retry', stop: 'Stop', accept: 'Accept and continue', merge: 'Use the merged version',
 };
 
-/** The facts kept apart from the state, each with its own date: never one ambiguous "last updated". */
+/** The facts kept apart from the state, each with its own date: never one ambiguous "last updated". A shared file's
+ * entry has no check of its own to report (it never updates itself). */
 export function maintenanceFacts(u: MaintenanceUpdate): string[] {
   const out: string[] = [];
-  if (u.active) out.push(`Running ${u.active.version}` + (u.active.installedAt ? `, installed ${u.active.installedAt}` : '')
-    + (u.active.promotedAt ? `, made active ${u.active.promotedAt}` : ''));
+  const when = (stamp?: string) => readableTime(stamp ?? '');
+  if (u.active) out.push(`Running ${u.active.version}` + (u.active.installedAt ? `, installed ${when(u.active.installedAt)}` : '')
+    + (u.active.promotedAt ? `, made active ${when(u.active.promotedAt)}` : ''));
   const check = u.check;
-  out.push(check.state === 'never' ? 'Not checked for updates yet'
+  if (!u.sharedFile) out.push(check.state === 'never' ? 'Not checked for updates yet'
     : check.state === 'off' ? 'Automatic checks are off'
-      : check.state === 'failed' ? `Last check failed ${check.at ?? ''}: ${check.why ?? ''}`.trim()
-        : `Last checked ${check.at ?? ''}${check.state === 'stale' ? ' (a while ago)' : ''}`);
-  if (u.maintained?.state === 'unmaintained') out.push(`Not maintained${u.maintained.since ? ` since ${u.maintained.since}` : ''}: ${u.maintained.why ?? ''}`.trim());
+      : check.state === 'failed' ? `Last check failed ${when(check.at)}: ${check.why ?? ''}`.trim()
+        : `Last checked ${when(check.at)}${check.state === 'stale' ? ' (a while ago)' : ''}`);
+  if (u.maintained?.state === 'unmaintained') out.push(`Not maintained${u.maintained.since ? ` since ${when(u.maintained.since)}` : ''}: ${u.maintained.why ?? ''}`.trim());
   if (u.defect) out.push(`Known problem in ${u.defect.version}: ${u.defect.why}${u.defect.link ? ` (${u.defect.link})` : ''}`);
   if (u.setup) out.push(`Before it can run: ${u.setup}`);
   if (u.conflicts?.length && u.derived) out.push(`Resolve ${u.conflicts.join(', ')} in ${u.derived}`);
@@ -85,21 +118,46 @@ function node(tag: string, cls: string, text = ''): HTMLElement {
   return one;
 }
 
-/** The card's maintenance block, or null for an entry maintenance doesn't cover. */
-export function maintenanceNode(model: string, u: MaintenanceUpdate | undefined, commands: MaintenanceCommands | undefined)
-  : HTMLElement | null {
+/** Updates for an entry that comes with the app: its one line, and that it is updated when Hooke is (no policy or
+ * check of its own to offer). */
+function builtInNode(u: BuiltInUpdate): HTMLElement {
+  const box = node('div', 'model-maintenance');
+  box.setAttribute('data-state', 'built-in');
+  box.append(node('p', 'model-how model-maintenance-says', u.says));
+  const details = document.createElement('details');
+  details.className = 'model-maintenance-details';
+  details.append(node('summary', '', 'Updates'), node('p', 'model-how', 'It comes with Hooke, so it is updated when Hooke is.'));
+  box.append(details);
+  return box;
+}
+
+/** The card's maintenance block, or null for an entry maintenance doesn't cover. `memory` (the page's own) keeps Updates
+ * open and its last reply while the page draws it again after Check (ticket 67), until the update state moves on. It is
+ * a column the width of Details (modelspage.css `.model-maintenance`), never a card's one-row action. */
+export function maintenanceNode(model: string, u: EntryUpdate | undefined, commands: MaintenanceCommands | undefined,
+  memory?: Map<string, MaintenanceMemory>): HTMLElement | null {
+  if (u?.builtIn) return builtInNode(u);
   if (!u || !commands) return null;
   const view = maintenanceView(u);
-  const box = node('div', 'model-card-action model-maintenance');
+  const box = node('div', 'model-maintenance');
   box.setAttribute('data-state', u.state);
   if (view.says) box.append(node('p', 'model-how model-maintenance-says', view.says));
   for (const line of view.review) box.append(node('p', 'model-how model-maintenance-review', line));
-  const said = node('span', 'cap-download-why');
-  said.hidden = true;
-  const run = (button: HTMLButtonElement, call: () => Promise<{ says?: string }>) => {
+  const said = node('span', 'cap-download-why model-maintenance-said');
+  const kept = memory?.get(model) ?? {};
+  const remember = (more: MaintenanceMemory) => { Object.assign(kept, more); memory?.set(model, kept); };
+  const say = (words: string, ok: boolean, state: UpdateState = u.state) => {
+    said.textContent = words; said.hidden = !words; said.dataset.ok = String(ok);
+    remember({ said: words ? { words, ok, state } : undefined });
+  };
+  // A reply said in another state than the one shown now is about what was, not what is: it goes.
+  if (kept.said?.state && kept.said.state !== u.state) remember({ said: undefined });
+  said.hidden = !kept.said;
+  if (kept.said) { said.textContent = kept.said.words; said.dataset.ok = String(kept.said.ok); }
+  const run = (button: HTMLButtonElement, call: () => Promise<MaintenanceReply>) => {
     button.disabled = true;
-    void call().then((r) => { said.textContent = r.says ?? ''; said.hidden = !r.says; })
-      .catch((error: unknown) => { said.textContent = error instanceof Error ? error.message : String(error); said.hidden = false; })
+    void call().then((r) => say(r.says ?? '', true, r.update?.state ?? u.state))
+      .catch((error: unknown) => say(error instanceof Error ? error.message : String(error), false))
       .finally(() => { button.disabled = false; });
   };
   if (u.next && view.action) {
@@ -122,19 +180,22 @@ export function maintenanceNode(model: string, u: MaintenanceUpdate | undefined,
   }
   choose.addEventListener('change', () => {
     choose.disabled = true;
-    void commands.policy(model, choose.value as Policy).then((r) => { said.textContent = r.says ?? ''; said.hidden = !r.says; })
+    void commands.policy(model, choose.value as Policy).then((r) => say(r.says ?? '', true, r.update?.state ?? u.state))
       .catch((error: unknown) => {
-        said.textContent = error instanceof Error ? error.message : String(error); said.hidden = false;
+        say(error instanceof Error ? error.message : String(error), false);
         choose.value = u.policy.policy;
       })
       .finally(() => { choose.disabled = false; });
   });
   const check = node('button', 'mm-control model-action-quiet', 'Check for an update') as HTMLButtonElement;
   check.type = 'button';
-  check.addEventListener('click', () => run(check, () => commands.check(model)));
+  check.addEventListener('click', () => { remember({ open: true }); run(check, () => commands.check(model)); });
   const details = document.createElement('details');
   details.className = 'model-maintenance-details';
-  details.append(node('summary', '', 'Updates'), choose, check,
+  details.open = kept.open === true; // open as the person left it, never closed by the page drawing again
+  details.addEventListener('toggle', () => remember({ open: details.open }));
+  // A shared file's entry never updates itself (status.py `SHARED_FILE`): no policy to choose and nothing to check.
+  details.append(node('summary', '', 'Updates'), ...(u.sharedFile ? [] : [choose, check]),
     ...view.facts.map((line) => node('p', 'model-how', line)));
   box.append(details, said);
   return box;

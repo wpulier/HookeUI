@@ -18,10 +18,13 @@ REPO_DIR = ROOT_DIR.parents[1]
 CAMERA_PAGE_DIR = REPO_DIR / "apps" / "studio" / "dist-camera"
 CAMERA_PAGE_MISSING = (b"<!doctype html><meta charset=utf-8><title>Camera</title><body style='font:15px -apple-system,sans-serif;"
                        b"background:#1c1e20;color:#edeeef;padding:32px'><h1 style='font-size:20px'>The camera page isn't built</h1>"
-                       b"<p>Start ObservationUI with <code>make start</code> (it builds the page), then reload.</p>")
+                       b"<p>Start HookeUI with <code>make start</code> (it builds the page), then reload.</p>")
 # The test assets store, shared by every checkout (services/orchestrator/assets.py, assets/README.md).
 ASSETS_FOOTAGE = Path(os.environ.get("MICROMIND_ASSETS") or Path.home() / "MicroscopeMind").expanduser() / "footage"
+# Its recordings' titles, specimens and optics: the repository's manifest (public: it lists none of anyone's own), and
+# the store's private one (untracked: its owner's recordings), read over it (footage_media.Library).
 ASSETS_MANIFEST = REPO_DIR / "assets" / "manifest.json"
+PRIVATE_MANIFEST = ASSETS_FOOTAGE.parent / "manifest.json"
 CORPUS_MANIFEST = REPO_DIR / "services" / "bench" / "corpus" / "corpus.json"
 # FFmpeg's stderr: the last lines of each capture are kept for /api/health, and the first
 # ones are logged (an FFmpeg that repeats a warning every frame must not flood the log).

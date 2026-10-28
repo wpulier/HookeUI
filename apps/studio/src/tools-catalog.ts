@@ -11,16 +11,20 @@
 //   to trust is the Assistant's to judge ("The models judge; code gives them facts").
 import type { CapabilitiesWire, ModelRow, Role } from './protocol';
 import type { NewItem } from './capabilityshelf';
+import { modelSection } from './run-spec';
 
-/** The workspace's Tools, one to one with Models: ready to use here, to set up (red), not on this Mac, and New. */
-export interface ToolEntries { ready: ModelRow[]; setup: ModelRow[]; unavailable: ModelRow[]; news: NewItem[] }
+/** The workspace's Tools, one to one with Models and in its sections (run-spec.ts `modelSection`: one meaning of Ready):
+ * ready to use here, not checked here yet, to set up (red, Needs you too), not on this Mac, and New. */
+export interface ToolEntries { ready: ModelRow[]; unchecked: ModelRow[]; setup: ModelRow[]; unavailable: ModelRow[]; news: NewItem[] }
 
 export function toolEntries(wire: CapabilitiesWire | null): ToolEntries {
   const rows = wire?.models ?? [];
+  const section = (r: ModelRow) => modelSection(r);
   return {
-    ready: rows.filter((r) => r.status === 'ready'),
-    setup: rows.filter((r) => r.status === 'needs-setup' || r.status === 'broken'),
-    unavailable: rows.filter((r) => r.status === 'unavailable'),
+    ready: rows.filter((r) => section(r) === 'ready'),
+    unchecked: rows.filter((r) => section(r) === 'unchecked'),
+    setup: rows.filter((r) => section(r) === 'setup' || section(r) === 'needs'),
+    unavailable: rows.filter((r) => section(r) === 'away'),
     news: wire?.setup?.news?.new ?? [],
   };
 }

@@ -18,7 +18,7 @@ import { toolboxBand, type AddWay } from './keystrip';
  */
 import './modelspage.css';
 import { spaceSection, type SpaceCommands } from './capabilityspace';
-import { maintenanceNode, type MaintenanceCommands } from './maintenance-status';
+import { maintenanceNode, readableTime, type MaintenanceCommands, type MaintenanceMemory } from './maintenance-status';
 import { openAddKey, sourceWords, keyForm, type KeyForm } from './addkey';
 import { downloadControl, type Downloader } from './capabilities';
 import { needs as volumeNeeds, volumesSection, type VolumeCommands, type VolumeEntry } from './volumespanel';
@@ -29,6 +29,7 @@ import { keyOf, MODEL_SECTIONS, modelSection, type ModelSection } from './run-sp
 import { litCell } from './lit-cell';
 import { tabMark, type TabMark } from './tab-marks';
 import { starterOffer } from './starter-models';
+import { filePicker } from './file-picker';
 export { whereWords, firstStepWords } from './model-status';
 
 export type Group = ModelRow['group'];
@@ -293,7 +294,7 @@ export interface ModelsPageCommands {
 
 }
 
-/** Share it as a file (share.py, C5): one small file anyone can open in their ObservationUI (never its weights), with
+/** Share it as a file (share.py, C5): one small file anyone can open in their HookeUI (never its weights), with
  * the name you give said where it is opened. No account. */
 function shareFold(row: ModelRow, commands: ModelsPageCommands): HTMLElement {
   const name = el('input', { type: 'text', class: 'mm-control model-share-name', placeholder: 'Your name (said where it is opened)',
@@ -303,7 +304,7 @@ function shareFold(row: ModelRow, commands: ModelsPageCommands): HTMLElement {
   name.addEventListener('input', href);
   href();
   const fold = el('div', { class: 'model-share', 'data-model-editor': `share:${row.id}:${row.revision}:${row.version}` }, el('strong', {}, 'Share it'),
-    el('p', {}, 'One small file to send any way you like: whoever opens it in ObservationUI gets this capability, '
+    el('p', {}, 'One small file to send any way you like: whoever opens it in HookeUI gets this capability, '
       + 'allows its code once, and turns it on. Its weights are fetched from where they are pinned, never sent.'), name, link);
   if (row.mine && commands.publishPrepare && commands.publishSubmit) {
     // Share with everyone: the reviewed catalog (publish.py). Prepared here first, read, then sent only on your sign-off.
@@ -483,6 +484,7 @@ export class ModelsPage {
   private ownCandidate: { link: string; model?: string; kind?: string; trial?: string; job?: string } | null = null;
   private ownBusy = false;
   private ownSaid: { words: string; ok: boolean } | null = null; // Add your own's last word, kept across updates
+  private readonly maintenanceMemory = new Map<string, MaintenanceMemory>(); // each Updates: open, and its last reply
   private fiji: FijiInventory | null = null; // the Fiji extensions, asked for when their section first opens
   private fijiOpen = false; // the full extension list's fold
   private fijiAsked = false;
@@ -697,7 +699,7 @@ export class ModelsPage {
     if (!trials.length) return null;
     return el('section', { class: 'models-own' }, el('h3', {}, 'Compare before using'), ...trials.map(t => {
       const said = el('p', { role: 'status' }, this.comparisonMessages.get(t.id) ?? '');
-      const row = el('article', { 'data-own-trial': t.id, 'data-model': t.model }, el('h4', {}, ownTrialTitle(t, trials)),
+      const row = el('article', { class: 'own-trial', 'data-own-trial': t.id, 'data-model': t.model }, el('h4', {}, ownTrialTitle(t, trials)),
         el('p', {}, `Job: ${t.job}. Your selected picture stays on this Mac.`),
         el('img', { class: 'own-input-preview', src: `/api/own-trials/${t.id}/input`, alt: 'Your selected comparison picture', loading: 'lazy' }));
       const act = (label: string, run: () => Promise<unknown>) => {
@@ -1049,8 +1051,15 @@ export class ModelsPage {
     return box;
   }
 
+  /** Running <version>, with Use the newest or Go back to <older>. An update maintenance prepared and has not applied
+   * is not one of them (its Apply is in Updates, with its first check), and newest and older are by when each was made:
+   * the catalog's pin can be behind an applied update (maintenance/AGENTS.md), so list order alone said "Go back to 2"
+   * before 2 was ever used, and "Use the newest" for the version an update replaced. */
   private versionsNode(row: ModelRow): HTMLElement | null {
-    const kept = row.versions ?? [];
+    const update = this.wire?.setup?.maintenance?.[row.id];
+    const pending = update && !update.builtIn ? update.candidate?.generation : undefined;
+    const kept = (row.versions ?? []).filter((v) => v.inUse || v.generation !== pending)
+      .sort((a, b) => (a.at && b.at ? b.at.localeCompare(a.at) : 0)); // newest made first; the server's order when unknown
     if (!kept.length || (kept.length === 1 && kept[0].inUse) || !this.commands.setVersion) return null;
     const using = kept.find((v) => v.inUse);
     const chosen = kept.some((v) => v.chosen);
@@ -1062,7 +1071,7 @@ export class ModelsPage {
         .catch((error: unknown) => { button.disabled = false; said.textContent = error instanceof Error ? error.message : String(error); said.hidden = false; });
     };
     const line = el('p', { class: 'model-how' }, `Running ${using?.version ?? 'none'}${chosen ? ' (your choice)' : ''}.`);
-    const box = el('div', { class: 'model-card-action' }, line);
+    const box = el('div', { class: 'model-versions' }, line);
     if (!kept[0].inUse) {
       const newest = el('button', { type: 'button', class: 'mm-control model-action-quiet' }, 'Use the newest') as HTMLButtonElement;
       newest.addEventListener('click', () => press(kept[0].generation, newest));
@@ -1295,11 +1304,11 @@ export class ModelsPage {
         body.append(el('details', {}, el('summary', {}, 'Read the instructions'), el('pre', {}, workspace.instructions)));
       } else body.append(el('p', {}, this.workspaceReading ? 'Reading your workspace…' : 'The workspace could not be read.'),
         button('Read workspace again', async () => { this.entryMessage = ''; this.render(); }));
-      const input = el('input', { type: 'file', accept: '.observationui.zip,.zip', 'aria-label': 'Completed capability package',
+      const input = el('input', { type: 'file', accept: '.hookeui.zip,.observationui.zip,.zip', 'aria-label': 'Completed capability package',
         'data-model-editor': `completed-package:${open.workspace}` });
       body.append(el('label', {}, 'Completed capability package', input), button('Import completed capability', async () => {
         const file = [...this.root.querySelectorAll<HTMLInputElement>('input')].find(node => node.getAttribute('aria-label') === 'Completed capability package')?.files?.[0];
-        if (!file) throw new Error('Choose the .observationui.zip file returned by your coding tool.');
+        if (!file) throw new Error('Choose the .hookeui.zip file returned by your coding tool.');
         const result = await this.inspectSource({ kind: 'capability-package', file });
         if (result.kind !== 'candidate') throw new Error(result.says);
         if (this.sheet === open) await this.selectEntry(result.candidate); else this.retainEntry(open, { model: result.candidate, role: '', option: '' });
@@ -1587,9 +1596,9 @@ export class ModelsPage {
           } else if (row.execution?.action === 'compare') {
             const comparisons = this.ownTrialsSection(row.id); if (comparisons) body.append(comparisons);
           } else if (row.execution?.action === 'choose-comparison-input' && this.commands.ownPicture && this.commands.turnOnModel) {
-            const picture = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Comparison picture',
-              'data-model-editor': `setup-picture:${row.id}:${open.session}` });
-            const holder = el('div', {}, picture);
+            const picture = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Comparison picture' }) as HTMLInputElement;
+            const holder = filePicker(picture);
+            holder.dataset.modelEditor = `setup-picture:${row.id}:${open.session}`; // the chosen file is kept across renders
             body.append(holder, press('Prepare comparison', async () => {
               const file = this.root.querySelector<HTMLInputElement>('[aria-label="Comparison picture"]')?.files?.[0];
               if (!file) throw new Error('Choose a PNG or JPEG comparison picture first.');
@@ -1848,7 +1857,7 @@ export class ModelsPage {
     more.append(el('h4', {}, 'Facts and files'), this.facts(row, keys, row.facts.filter(f => !preparationFacts.includes(f))), this.details(row));
     const versions = this.versionsNode(row); if (versions) more.append(versions);
     const update = this.wire?.setup?.maintenance?.[row.id];
-    const kept = maintenanceNode(row.id, update, this.commands.maintenance); if (kept) more.append(kept);
+    const kept = maintenanceNode(row.id, update, this.commands.maintenance, this.maintenanceMemory); if (kept) more.append(kept);
     const updateSetup = row.setups?.find(setup => setup.role === `model:${row.id}`);
     if (update?.workflowReview && updateSetup && this.commands.reviewBundle) {
       const review = el('button', {type:'button',class:'mm-control'}, 'Review update results');
@@ -2043,7 +2052,7 @@ export class ModelsPage {
     if (detailed) {
       if (setup.check) box.append(el('p', { class: 'tool-check' },
         `${setup.check.state}${setup.check.earlierBuild ? ' (an earlier build)' : ''}`,
-        setup.check.at ? ` · ${setup.check.at}` : '', setup.check.ms !== undefined ? ` · ${setup.check.ms} ms` : '',
+        setup.check.at ? ` · ${readableTime(setup.check.at)}` : '', setup.check.ms !== undefined ? ` · ${setup.check.ms} ms` : '',
         setup.check.detail ? ` · ${setup.check.detail}` : '', ' · Functional check; scientific qualification is separate.'));
       if (setup.canTry) box.append(button(`Try ${setup.title} with this tool`, 'tool-try', () => commands.tryIt(setup.role, setup.option)));
     }
@@ -2241,7 +2250,8 @@ export class ModelsPage {
         });
         li.append(' ', check);
       }
-      if (!c.reviewed && !c.url) li.append(' ', el('span', {}, 'To update, import a newer shared file.'));
+      // A shared file never updates itself: a newer one opened is an entry of its own (channels.py `update`).
+      if (!c.reviewed && !c.url) li.append(' ', el('span', {}, 'It doesn’t update itself: a newer shared file is added as its own entry.'));
       if (!c.reviewed && this.commands.channelRemove) {
         const drop = el('button', { type: 'button', class: 'model-fact-act' }, 'Remove');
         drop.addEventListener('click', () => { drop.setAttribute('disabled', ''); void this.commands.channelRemove!(c.name).catch(() => drop.removeAttribute('disabled')); });
@@ -2289,9 +2299,9 @@ export class ModelsPage {
       ...[['find', 'Find or count things'], ['name', 'Describe or name things'], ['measure', 'Measure things'], ['clear', 'Clear up a picture']]
         .map(([value, label]) => el('option', { value }, label)));
     job.value = this.ownCandidate?.job ?? 'find';
-    const example = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Your comparison picture', class: 'own-picture' });
+    const example = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Your comparison picture', class: 'own-picture' }) as HTMLInputElement;
     const add = el('button', { type: 'submit', class: 'mm-control models-own-add' }, 'Add');
-    const form = el('form', { class: 'models-own-form' }, input, job, example,
+    const form = el('form', { class: 'models-own-form' }, input, job, filePicker(example),
       el('span', { class: 'models-own-hint' }, 'Your picture (PNG or JPEG, up to 4 million pixels) is needed only to set up a comparison or have an AI draft it. Following motion needs a recording workflow.'), add);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -2371,7 +2381,8 @@ export class ModelsPage {
       el('p', {}, 'Paste a model or tool link, add a supported file, or ask for an adapter draft. ',
         'Set it up for comparison on one of your pictures, compare the results, then press ', el('strong', {}, 'Use it'), ' to add the choice.'),
       el('div', { 'data-model-editor': 'model-add' }, form, drop), found, said, follow,
-      el('p', { class: 'models-own-where' }, 'Yours live in ', el('code', {}, '~/MicroscopeMind/catalog/mine/models/<name>/'),
+      // This instance's own folder (the server's mine_root), never a fixed ~/MicroscopeMind that a Beta or a test home isn't.
+      el('p', { class: 'models-own-where' }, 'Yours live in ', el('code', {}, `${this.wire?.setup?.mineFolder ?? '~/MicroscopeMind/catalog/mine/models'}/<name>/`),
         ', each with a ', el('code', {}, 'model.toml'), ' (catalog/README.md shows one). A GitHub repository or release holding a bioimage.io model the reviewed runner takes is added ready to set up; any other link is kept as a skeleton that says what it holds and lacks.'),
       ...problemGroups(problems).map((g) => el('div', { class: 'models-problems' }, el('h4', {}, g.title),
         el('ul', {}, ...g.rows.map((p) => el('li', {}, el('code', {}, p.entry), `: ${p.problems.join('; ')}`))))));
@@ -2443,9 +2454,12 @@ export function ownTrialTitle(t: OwnTrial, all: OwnTrial[]): string {
 /** Catalog kinds are wire identifiers; cards use familiar names without changing readiness. */
 
 
+export { filePicker }; // the studio's own file control (file-picker.ts), where it was first made
+
 /** A channel in a line: "reviewed catalog at 3f2a1c9 · 31 entries", "lab-models at 9e1d0b2 · 4 entries · not reviewed here". */
 export function channelWords(c: ChannelRow): string {
-  const source = !c.reviewed && !c.url ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;
+  const shared = c.source ? c.source === 'shared-file' : !c.reviewed && !c.url;
+  const source = shared ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;
   return `${source} · ${c.entries} ${c.entries === 1 ? 'entry' : 'entries'}`
     + (c.reviewed ? '' : c.trusted ? ' · not reviewed here, its code allowed' : ' · not reviewed here, its code not allowed');
 }
@@ -2455,7 +2469,7 @@ type CatalogProblem = { entry: string; problems: string[]; incompatible?: boolea
 /** Entries the app won't run, each said under why: made for another version of the app, or can't be read. */
 export function problemGroups(problems: CatalogProblem[]): { title: string; rows: CatalogProblem[] }[] {
   return [
-    { title: 'Made for another version of ObservationUI', rows: problems.filter((p) => p.incompatible) },
+    { title: 'Made for another version of HookeUI', rows: problems.filter((p) => p.incompatible) },
     { title: 'Entries that can’t be read', rows: problems.filter((p) => !p.incompatible) },
   ].filter((g) => g.rows.length);
 }

@@ -2,6 +2,7 @@
 listed at "Check for catalog updates", with no app update; a community channel's are listed as not reviewed here and run
 nothing until the user allows its code; only entries with their own adapter come through either. A scratch upstream
 repository, a stand-in uv (tests/test_envs.fake_uv)."""
+import json
 import os
 import shutil
 import subprocess
@@ -410,6 +411,22 @@ def test_a_community_channel_is_checked_for_updates_from_its_row_and_the_cli_pin
     assert catalog.get("upstream/dark-spots").version == "dark-spots 0.1"
 
 
+def test_a_channel_of_one_entry_is_said_as_one_entry(home, monkeypatch):
+    """The thesis check on 0.5.2: "Added the community channel lab at d6c1022: 1 entries"."""
+    lab = home / "lab"
+    (lab / "catalog" / "models").mkdir(parents=True)
+    _git("init", "-q", "-b", "main", cwd=lab)
+    (home / "upstream").rename(home / "upstream-reviewed")
+    lab.rename(home / "upstream")
+    publish(home, "dark-spots", ENTRY.format().replace('"install:dark-spots"', '"install:upstream/dark-spots"'))
+    app = _app()
+    added = app.run("channel-add", url=str(home / "upstream"))
+    assert ": 1 entry, not reviewed here" in added["says"] and "entries" not in added["says"], added["says"]
+    again = app.run("channel-update", name="upstream")
+    assert again["says"].endswith("(1 entry)"), again["says"]
+    assert channels.entries_words(3) == "3 entries" and channels.entries_words(0) == "0 entries"
+
+
 def test_uninstall_reports_owned_work_refusal_at_command_boundary(home, monkeypatch):
     from orchestrator import generation_leases
     from orchestrator.brain.registry import ToolFailed
@@ -437,3 +454,18 @@ def test_turn_off_is_refused_while_a_run_uses_it_and_changes_nothing(home, monke
     assert env_runner.turned_off(m) and env_runner.in_use(m) is None
     with generation_leases.use(found.folder):
         pass  # the version itself is kept and usable again by Turn on: no withdrawal left behind
+
+
+def test_a_reviewed_catalog_saved_at_its_former_address_is_read_at_the_current_one(tmp_path, monkeypatch):
+    # A Mac that updated the reviewed catalog before the repository split (2026-10-27) saved the old address; reading
+    # it there would fetch from a repository that no longer exists. Another channel at such an address is left alone.
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "catalog"))
+    saved = catalog.channels_root() / "channels.json"
+    saved.parent.mkdir(parents=True)
+    old = "https://github.com/wpulier/ObservationUI.git"
+    saved.write_text(json.dumps([{"name": "reviewed", "url": old, "commit": "a" * 40, "reviewed": True},
+                                 {"name": "someones", "url": old}]))
+    found = {c["name"]: c for c in catalog.channels()}
+    assert found["reviewed"]["url"] == channels.REVIEWED_URL == "https://github.com/wpulier/HookeUI.git"
+    assert found["reviewed"]["commit"] == "a" * 40, "only the address changes"
+    assert found["someones"]["url"] == old

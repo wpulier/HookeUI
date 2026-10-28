@@ -136,6 +136,8 @@ def add_catalog_tools(registry: Registry, services) -> None:
         one: the user does, on the screen."""
         if not update:
             return ""
+        if update.get("builtIn"):  # comes with the app: no policy of its own (maintenance/status.py `built_in`)
+            return f" Updates: {update['says']}."
         policy = update.get("policy") or {}
         line = f" Maintenance: {policy.get('words', 'Update when I choose')}"
         if policy.get("less"):
