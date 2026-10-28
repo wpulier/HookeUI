@@ -2749,7 +2749,8 @@
    "family": "conversation",
    "how": {
     "also": [
-     "view"
+     "view",
+     "sessions-reveal"
     ],
     "command": "session",
     "control": "session"
