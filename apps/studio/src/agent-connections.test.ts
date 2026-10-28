@@ -119,7 +119,8 @@ describe('Settings → Connected agents', () => {
     expect((calls[1].init?.headers as Record<string, string>)['X-MicroscopeMind']).toBe('agent-connections');
     expect(settings.textContent).toContain('No agent is connected');
     // The channel's own page (found on a fresh Mac: Beta pointed at Stable's page, which isn't there yet).
-    expect(settings.textContent).toContain('fetch hookeui.org/get-started-beta.md');
+    expect(settings.textContent).toContain('Use Copy setup prompt');
+    expect(settings.textContent).not.toContain('fetch hookeui.org');
   });
 
   it('shows only a hookeui.org page as the one to follow, and the time each agent connected', () => {
@@ -175,6 +176,20 @@ describe('Project connection entrance', () => {
     expect(writeText.mock.calls[0][0]).toContain('Do not create a replacement Project');
     expect(calls).toHaveLength(1); expect(calls[0].init?.method).toBeUndefined();
     expect(host.textContent).toContain('nothing has been sent');
+  });
+
+  it('ignores an older copy reply after copying for the next Project', async () => {
+    const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
+    const replies: Array<(value: Response) => void> = [];
+    const request = vi.fn(() => new Promise<Response>(resolve => replies.push(resolve)));
+    const connections = new AgentConnections(request as unknown as typeof fetch);
+    const writeText = vi.fn(async (_text: string) => {}); vi.stubGlobal('navigator', { clipboard: { writeText } });
+    let project = 'p1'; const host = new TestElement('div');
+    connections.mountEntry(host as unknown as HTMLElement, () => {}, () => project);
+    const first = buttons(host)[0].onclick(); project = 'p2'; const second = buttons(host)[0].onclick();
+    const response = () => ({ ok: true, json: async () => ({ pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' }) }) as Response;
+    replies[1](response()); await second; replies[0](response()); await first;
+    expect(writeText).toHaveBeenCalledOnce(); expect(writeText.mock.calls[0][0]).toContain('existing Project p2');
   });
 
   it('offers selectable text when clipboard permission is unavailable', async () => {

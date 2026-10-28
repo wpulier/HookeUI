@@ -96,6 +96,7 @@ export class AgentConnections {
   private entryStatus: HTMLElement | null = null;
   private loaded = false;
   private readError = false;
+  private copySequence = 0;
 
   private readonly request: typeof fetch;
   private readonly makeSheet: () => SheetLike;
@@ -230,6 +231,9 @@ export class AgentConnections {
     prompt.setAttribute('aria-label', 'Agent setup prompt');
     const status = document.createElement('span'); status.setAttribute('role', 'status');
     copy.onclick = async () => {
+      const sequence = ++this.copySequence;
+      status.textContent = 'Reading setup instructions…';
+      prompt.hidden = true;
       let playbook: string | undefined;
       let channel: string | undefined;
       const id = project();
@@ -240,7 +244,9 @@ export class AgentConnections {
         const latest = parseAgentConnections(await response.json());
         playbook = latest.playbook; channel = latest.channel;
       }
-      catch { status.textContent = 'Setup instructions could not be read. Try again.'; return; }
+      catch { if (sequence === this.copySequence) status.textContent = 'Setup instructions could not be read. Try again.'; return; }
+      if (sequence !== this.copySequence) return;
+      if (id !== project()) { status.textContent = 'The Project changed. Copy again for the current Project.'; return; }
       if (!playbook) { status.textContent = 'This copy has not supplied setup instructions.'; return; }
       prompt.value = (channel === 'development'
         ? 'Connect me to this running Hooke development checkout. Read docs/testing/agent-connection.md and .agents/skills/hooke/SKILL.md in the checkout. Use its development CLI and configured HOOKE_DOOR_URL. Do not install or switch to Stable or Beta. If the checkout or CLI location is missing, ask for it.'
@@ -300,8 +306,7 @@ export class AgentConnections {
       list.append(li);
     }
     const none = document.createElement('p'); none.className = 'agent-none';
-    const page = (this.state.playbook ?? 'https://hookeui.org/get-started.md').replace(/^https:\/\//, '');
-    none.textContent = `No agent is connected. To connect one, ask it to fetch ${page} and follow it.`;
+    none.textContent = !this.loaded ? 'Reading connected agents…' : 'No agent is connected. Use Copy setup prompt to connect one to this copy of Hooke.';
     section.replaceChildren(heading, intro, this.setupControl(), live.length ? list : none);
   }
 }
