@@ -1864,3 +1864,29 @@ test('a setup that is only its check is said as the check: its title, one line, 
   m.page.update(m.wire);
   expect(m.root.querySelector('.tool-setup-sheet')!.querySelector('h3')!.textContent).toBe('Check Cellpose-SAM on this Mac');
 });
+
+// Ticket 67, fix 8: comparing on your picture showed a raw "Choose File / No file chosen", and its "Compare on my picture"
+// overlapped the picture's thumbnail.
+test('choosing a comparison picture is a studio control that names the file chosen', () => {
+  const { root, page, wire } = mounted([], { setup: { edition: 'open', options: {}, drafts: [] } });
+  page.update(wire);
+  const input = root.querySelector('.own-picture')!;
+  const picker = input.closest('.file-picker')!;
+  expect(picker.tagName).toBe('LABEL');
+  expect(input.classList.contains('visually-hidden')).toBe(true);
+  expect(picker.querySelector('.file-picker-button')?.textContent).toBe('Choose a picture');
+  expect(picker.querySelector('.file-picker-name')?.textContent).toBe('No picture chosen');
+  Object.assign(input, { files: [{ name: 'cells.png' }] }); fire(input, 'change');
+  expect(picker.querySelector('.file-picker-name')?.textContent).toBe('cells.png');
+});
+
+test('a comparison row lays its picture and its buttons out apart', async () => {
+  const { root } = mounted([], { setup: { edition: 'open', options: {}, ownTrials: [{ id: 'trial', model: 'mine/tool', job: 'find', name: 'My tool' }] } });
+  const row = root.querySelector('[data-own-trial]')!;
+  expect(row.classList.contains('own-trial')).toBe(true);
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('./modelspage.css', import.meta.url), 'utf8');
+  const rule = /\.own-trial\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  expect(rule).toMatch(/display:\s*grid/); expect(rule).toMatch(/gap:/);
+  expect(/\.own-input-preview\s*\{[^}]*display:\s*block/.test(css)).toBe(true);
+});

@@ -697,7 +697,7 @@ export class ModelsPage {
     if (!trials.length) return null;
     return el('section', { class: 'models-own' }, el('h3', {}, 'Compare before using'), ...trials.map(t => {
       const said = el('p', { role: 'status' }, this.comparisonMessages.get(t.id) ?? '');
-      const row = el('article', { 'data-own-trial': t.id, 'data-model': t.model }, el('h4', {}, ownTrialTitle(t, trials)),
+      const row = el('article', { class: 'own-trial', 'data-own-trial': t.id, 'data-model': t.model }, el('h4', {}, ownTrialTitle(t, trials)),
         el('p', {}, `Job: ${t.job}. Your selected picture stays on this Mac.`),
         el('img', { class: 'own-input-preview', src: `/api/own-trials/${t.id}/input`, alt: 'Your selected comparison picture', loading: 'lazy' }));
       const act = (label: string, run: () => Promise<unknown>) => {
@@ -1587,9 +1587,9 @@ export class ModelsPage {
           } else if (row.execution?.action === 'compare') {
             const comparisons = this.ownTrialsSection(row.id); if (comparisons) body.append(comparisons);
           } else if (row.execution?.action === 'choose-comparison-input' && this.commands.ownPicture && this.commands.turnOnModel) {
-            const picture = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Comparison picture',
-              'data-model-editor': `setup-picture:${row.id}:${open.session}` });
-            const holder = el('div', {}, picture);
+            const picture = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Comparison picture' }) as HTMLInputElement;
+            const holder = filePicker(picture);
+            holder.dataset.modelEditor = `setup-picture:${row.id}:${open.session}`; // the chosen file is kept across renders
             body.append(holder, press('Prepare comparison', async () => {
               const file = this.root.querySelector<HTMLInputElement>('[aria-label="Comparison picture"]')?.files?.[0];
               if (!file) throw new Error('Choose a PNG or JPEG comparison picture first.');
@@ -2289,9 +2289,9 @@ export class ModelsPage {
       ...[['find', 'Find or count things'], ['name', 'Describe or name things'], ['measure', 'Measure things'], ['clear', 'Clear up a picture']]
         .map(([value, label]) => el('option', { value }, label)));
     job.value = this.ownCandidate?.job ?? 'find';
-    const example = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Your comparison picture', class: 'own-picture' });
+    const example = el('input', { type: 'file', accept: 'image/png,image/jpeg', 'aria-label': 'Your comparison picture', class: 'own-picture' }) as HTMLInputElement;
     const add = el('button', { type: 'submit', class: 'mm-control models-own-add' }, 'Add');
-    const form = el('form', { class: 'models-own-form' }, input, job, example,
+    const form = el('form', { class: 'models-own-form' }, input, job, filePicker(example),
       el('span', { class: 'models-own-hint' }, 'Your picture (PNG or JPEG, up to 4 million pixels) is needed only to set up a comparison or have an AI draft it. Following motion needs a recording workflow.'), add);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -2444,6 +2444,16 @@ export function ownTrialTitle(t: OwnTrial, all: OwnTrial[]): string {
 
 
 /** A channel in a line: "reviewed catalog at 3f2a1c9 · 31 entries", "lab-models at 9e1d0b2 · 4 entries · not reviewed here". */
+/** A file input drawn as the studio's own control (ticket 67: comparing on your picture showed a raw "Choose File / No
+ * file chosen"): the input itself, visually hidden and still focusable, inside a label that reads as a button and names
+ * the file chosen. */
+export function filePicker(input: HTMLInputElement, prompt = 'Choose a picture', none = 'No picture chosen'): HTMLElement {
+  input.classList.add('visually-hidden');
+  const name = el('span', { class: 'file-picker-name' }, input.files?.[0]?.name ?? none);
+  input.addEventListener('change', () => { name.textContent = input.files?.[0]?.name ?? none; });
+  return el('label', { class: 'file-picker' }, input, el('span', { class: 'mm-control file-picker-button' }, prompt), name);
+}
+
 export function channelWords(c: ChannelRow): string {
   const shared = c.source ? c.source === 'shared-file' : !c.reviewed && !c.url;
   const source = shared ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;
