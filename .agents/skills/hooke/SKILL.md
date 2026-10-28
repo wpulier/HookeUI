@@ -122,3 +122,23 @@ Studio grant route or alter files to gain access. A refusal is a real boundary.
 against retained hashes before packaging. Reimport external validation receipts
 through `project.import`; never edit Project storage directly. Keep source, synthetic
 checks, real computations and official scientific acceptance distinct.
+
+
+## Other agents and external orchestrators
+
+An external orchestrator or a client such as a Grok-based bot can use the same local
+CLI if it can run commands on this Mac. Use `--agent other --connection <assignment-name>`
+consistently; choose a descriptive `--label` when connecting. Each separately named
+connection requires its own owner confirmation. Labels describe the actor; they are
+not verified provider identities, and naming a client does not qualify its compatibility.
+
+Start with status, discover tools, then use the existing Project and Study locators.
+Do not create a replacement Project because permission is missing. Ask the owner for
+that connection's Project access; no agent can grant itself membership. Retrieve
+original operation handles after reconnecting, and preserve earlier authorship.
+
+Remote-only bots cannot directly reach this loopback door. They need a separately
+qualified local client/bridge; do not expose the port, copy credentials to a remote
+service or infer hosted support. The same API and retained evidence apply regardless
+of which compatible client orchestrates the work. Qualify an actual client before
+claiming Grok, Hermes or another orchestrator has passed an end-to-end journey.

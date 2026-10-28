@@ -1,3 +1,10 @@
+The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
+It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
+Settings owns connection and Project grants. Copy setup prompt uses the channel's returned playbook,
+adds the current Project locator at click time and sends nothing. Clipboard failure shows selectable text;
+unreadable setup never guesses a channel. Example Assistant remains off and opens the Project chooser,
+rather than offering an implicit new Project. This is client-neutral; named providers are not compatibility proof.
+
 # The studio
 
 A Study's home is laid out as a researcher's Tab (workspace-feel step 7, the mock's `studyHome()`; `study-view.ts`

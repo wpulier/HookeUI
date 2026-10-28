@@ -34,7 +34,8 @@ clients of this door. They hold no scientific logic and no list of capabilities:
      request and names the agent "as it calls itself". It shows the code, says what connecting allows (including that
      what the agent reads may go to its provider), and offers Don't connect and Connect.
    - The sheet closes when the request is answered elsewhere or expires.
-   - Settings → Connected agents lists live connections with Disconnect.
+   - Settings → Connected agents lists live connections with Disconnect. Studio connection snapshots also identify
+     the channel, so its setup-copy control never directs a development checkout to an installed Stable/Beta app.
 3. `POST /api/agent/v1/connect/{id}/claim {secret}`:
    - 202 while unanswered.
    - 403 `declined`, or `wrong-secret`.
