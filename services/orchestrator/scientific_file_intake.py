@@ -38,7 +38,7 @@ def retry_cleanup():
 
 
 class FileIntake:
-    def __init__(self,store,session,request,*,name,size,max_bytes,retained_source=None):
+    def __init__(self,store,session,request,*,name,size,max_bytes,retained_source=None,producer=None):
         _identity(session,'session')
         files._name(name)
         if (type(request) is not str or not REQUEST.fullmatch(request)
@@ -51,6 +51,8 @@ class FileIntake:
                 or retained_source.store is not store or retained_source.session!=session
                 or retained_source.name!=name or retained_source.size!=size):
             raise InvalidProject('Retain an accepted source owned by this Project store and session')
+        from .scientific_provenance import frozen
+        self.producer = frozen(producer) if producer is not None else None
         self.retained_source=retained_source
         self.verified_files=()
         # One public retry key binds the same destination, independently of a lost
@@ -79,9 +81,12 @@ class FileIntake:
 
     def document(self,ref):
         """Server-owned description; derived reader intake retains the same file owner."""
-        return {'kind':'source-file','title':self.name,'state':{'sourceFile':{
+        document = {'kind':'source-file','title':self.name,'state':{'sourceFile':{
             'format':1,'name':self.name,'size':self.size,'sha256':self.retained_source.sha256 if self.retained_source is not None else self.writer.digest.hexdigest(),
             'reference':ref}},'resources':[ref],'runtimes':[]}
+        if self.producer is not None:
+            document['state']['sourceImport'] = {'format': 1, 'producer': self.producer}
+        return document
 
     def acceptance(self):
         """An optional source owner boundary, only at final visible publication."""

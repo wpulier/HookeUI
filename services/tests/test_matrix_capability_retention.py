@@ -117,3 +117,20 @@ def test_retained_matrix_result_downloads_exact_bytes_and_refuses_other_projects
     doc=saved.document;doc['title']='Reviewed model'
     store.save(saved.id,session,doc,expected_revision=1)
     assert client.get('/api/scientific-files/'+saved.id,params={'session':session,'revision':1}).content==body
+
+
+def test_resources_are_rechecked_after_shared_slot_wait(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    store = ProjectStore(tmp_path / 'projects'); ref = kept(store)
+    free = [2 << 30]
+    @contextmanager
+    def acquired(*args, **kwargs):
+        free[0] = 0
+        yield
+    monkeypatch.setattr(runs, 'heavy_work', acquired)
+    monkeypatch.setattr(runs.shutil, 'disk_usage', lambda _: SimpleNamespace(free=free[0]))
+    monkeypatch.setattr(runs, '_compute', lambda *a: pytest.fail('Disk changed while waiting'))
+    with pytest.raises(InvalidProject, match='after waiting'):
+        runs.run_matrix(**arguments(store, ref), wait_seconds=3600)
+    assert len(store.list('s1')) == 1

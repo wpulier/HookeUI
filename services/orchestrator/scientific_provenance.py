@@ -73,7 +73,7 @@ def guard(previous, document):
     reserved = ('scientific-workflow-run', 'scientific-workflow-attempt', 'scientific-workflow-late-result', 'workflow-invocation')
     if document.get('kind') in reserved or previous is not None and previous.document.get('kind') in reserved:
         raise InvalidProject('Workflow execution records are written only by the workflow service')
-    for key in (*KEYS, 'methodEvidence', 'methodSummary', 'methodAdmission', 'populationSource', 'sourceReader', 'researchEffort', 'researchFindings', 'matrixOperation', 'workflowRun', 'workflowAttempt', 'workflowLate', 'workflowOutput', 'workflowInvocation'):
+    for key in (*KEYS, 'methodEvidence', 'methodSummary', 'methodAdmission', 'populationSource', 'sourceReader', 'sourceImport', 'researchEffort', 'researchFindings', 'matrixOperation', 'workflowRun', 'workflowAttempt', 'workflowLate', 'workflowOutput', 'workflowInvocation'):
         if state.get(key) != before.get(key):
             raise InvalidProject('Producing provenance is written only when Hooke accepts the work; '
                                  'a document save cannot add, change or remove it')

@@ -1089,3 +1089,9 @@ coordinate checks and atomic publication with worker outputs but retaining their
 producer instead of borrowing an input viewer runtime. External worker `OutputSave` still
 requires its retained runtime. Native inputs/layers without a runtime may be copied for
 measurement; this does not authorize execution or replay.
+
+Matrix workflow steps wait up to one hour for the shared machine compute reservation,
+retaining the original running attempt and a waiting progress note. Stop or service
+shutdown prevents a waiting step from acquiring compute; no other owner’s lock is
+reclaimed. The admission rechecks disk and the pinned generation after acquiring the slot;
+the scientific worker retains its memory guard.

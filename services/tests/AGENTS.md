@@ -596,3 +596,9 @@ categorical axes, merge compatibility and a prepared-runtime confined operation 
 The evaluator tests refuse malformed sparse pointer layouts and oversized categorical
 or string metadata before upstream decoding. These are synthetic fixtures, not source
 data conversion or a biological validation result.
+
+Workspace arrangement geometry checks inject only the server observation clock;
+separate before/after-deadline tests preserve confirmation policy. Scientific stack
+cleanup tests replace their module clock, never the shared Python time module, so
+unrelated writer threads keep their own clocks. Reservation tests exercise queued
+ownership and cancellation without asserting scheduling speed.

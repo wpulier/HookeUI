@@ -65,7 +65,9 @@ def _import(built, record, stopped):
                                                  'agent source import')
         with room:
             intake = FileIntake(store, session, request, name=path.name, size=info.st_size,
-                                max_bytes=CHUNK_BYTES * MAX_CHUNKS)
+                                max_bytes=CHUNK_BYTES * MAX_CHUNKS, producer={
+                                    'kind':'agent-import', 'actor':actor, 'label':record['byLabel'],
+                                    'operation':record['id']})
             try:
                 while data := source.read(CHUNK_BYTES):
                     if stopped():

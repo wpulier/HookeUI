@@ -130,7 +130,7 @@ def _compute(capability, sources, params, work, check, executable, runtime_folde
     return result, value['summary']
 
 
-def run_matrix(store, session, capability, generation, inputs, params, request, check=lambda: None):
+def run_matrix(store, session, capability, generation, inputs, params, request, check=lambda: None, wait_seconds=0, waiting=lambda value: None):
     current = descriptor(capability)
     if generation != current['generation']:
         raise InvalidProject('The scientific capability generation or runtime changed; admit a new attempt')
@@ -161,10 +161,16 @@ def run_matrix(store, session, capability, generation, inputs, params, request, 
     if shutil.disk_usage(store.root).free < sum(v.size for v in sources.values()) * 2 + (512 << 20):
         raise InvalidProject('Insufficient disk space to materialize and retain this scientific operation')
     executable, runtime_folder = execution_runtime(current['runtime'])
-    with heavy_work(f'{capability}: {request}'), generation_leases.use(runtime_folder), tempfile.TemporaryDirectory(prefix='.matrix-operation-', dir=store.root) as scratch:
+    with heavy_work(f'{capability}: {request}', wait_seconds=wait_seconds, check=check, waiting=waiting), generation_leases.use(runtime_folder), tempfile.TemporaryDirectory(prefix='.matrix-operation-', dir=store.root) as scratch:
         previous = previous_result()
         if previous is not None:
             return previous
+        # Another workload may have consumed disk while this attempt waited.
+        check()
+        if shutil.disk_usage(store.root).free < sum(v.size for v in sources.values()) * 2 + (512 << 20):
+            raise InvalidProject('Insufficient disk space after waiting for scientific compute')
+        if descriptor(capability)['generation'] != generation:
+            raise InvalidProject('Scientific code or runtime changed while waiting; admit a new attempt')
         path, summary = _compute(capability, sources, values, Path(scratch), check, executable, runtime_folder)
         check()
         if descriptor(capability)['generation'] != generation:

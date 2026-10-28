@@ -100,6 +100,9 @@ def test_import_read_and_download_retain_full_source_and_scope(project_door,tmp_
     assert result['outcome']['source']['sha256']==hashlib.sha256(content).hexdigest()
     assert built.day.sid != sid  # import never navigated the workspace
     first=run(client,h,'artifact.read',{'reference':ref},'corpus-read-001',sid)['outcome']
+    assert first['document']['state']['sourceImport']['producer']=={
+        'kind':'agent-import','actor':'agent:'+a['connection']['id'],
+        'label':result['byLabel'],'operation':result['id']}
     assert first['content']['text']==content[:65536].decode()
     assert first['content']['nextOffset']==65536
     rest=run(client,h,'artifact.read',{'reference':ref,'offset':65536},'corpus-read-002',sid)['outcome']

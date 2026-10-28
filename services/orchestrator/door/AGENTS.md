@@ -141,7 +141,8 @@ history. Credentials and assignment identities are distinct from display names.
 file, and read exact artifact revisions with bounded text. They appear in tools
 without new CLI-specific scientific logic. Creation uses `SessionStore.create_retained`
 without changing the active Project, stage or resume preference. Intake reuses
-FileIntake, memory admission, hashes and immutable chunks. Results retain operation
+FileIntake, memory admission, hashes and immutable chunks. Each imported document retains its source-import actor, label and operation ID,
+so provenance survives independently of the operation listing. Results retain operation
 attribution. Live-stage capabilities retain their creator/open-Project restrictions.
 
 `studies.py` scopes Study reads, evidence, claims, controls, workflow associations

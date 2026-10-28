@@ -99,6 +99,7 @@ class WorkflowService:
 
     async def close(self):
         self.closing=True
+        self.steps.closing=True
         tasks=list(self.tasks.values())
         for task in tasks:task.cancel()
         if tasks:await asyncio.gather(*tasks,return_exceptions=True)

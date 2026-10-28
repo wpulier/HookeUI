@@ -54,7 +54,7 @@ Never assume a capability exists. Read `hooke tools --json` and choose from it b
 `state`.
 
 - **Bring in their file:** `hooke open '<full path to their image or video>'` adds it to Hooke's library and opens it
-  in a Project of your own, and prints that Project's id. You work only there, never in the researcher's Projects.
+  in a Project of your own, and prints that Project's id. Live-stage runs remain creator-only. Newer retained research actions also allow explicit owner-granted Projects, as described below.
 - **Run a capability:** `hooke run <id> '<json args>' --project <your Project's id> --key <request key>`.
   - Use the `id` from `hooke tools` (only ones whose `state` is `available`), and give exactly the arguments its
     `inputSchema` lists.

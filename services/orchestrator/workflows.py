@@ -272,6 +272,17 @@ class Workflows:
         doc['resources']=[reference(exact(self.store,r,saved.session)) for r in refs if r is not None]
         return self.store.save(saved.id,saved.session,doc,expected_revision=saved.revision)
 
+    def progress(self, claim, note):
+        """Update the original attempt's observation; waiting is not another attempt."""
+        with self.locked(claim['run'], claim['session']):
+            saved = self.store.read(claim['attempt']['id'], claim['session'])
+            state = saved.document['state']['workflowAttempt']
+            if state['status'] != 'running':
+                raise InvalidProject('The original workflow attempt no longer owns this work')
+            if state.get('note') != note:
+                state['note'] = note
+                self._save_attempt(saved, state)
+
     def finish(self,claim,outcome):
         with self.locked(claim['run'],claim['session']):
             saved=self.store.read(claim['attempt']['id'],claim['session']);state=saved.document['state']['workflowAttempt']

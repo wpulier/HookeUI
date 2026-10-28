@@ -67,6 +67,8 @@ class ScientificSteps:
         self.workflows,self.store,self.hub=workflows,workflows.store,hub
 
     def check(self,claim):
+        if getattr(self, 'closing', False):
+            raise InvalidProject('Hooke is stopping; no further scientific work was started')
         if self.workflows.run(claim['run'],claim['session']).document['state']['workflowRun']['control']=='stop':
             raise InvalidProject('Workflow stop requested; retained results remain')
 
@@ -172,7 +174,8 @@ class ScientificSteps:
             refs=dict(zip(node['needs'],claim['inputs']))
             saved=run_matrix(self.store,claim['session'],s['capability'],s['generation'],
                 {port:refs[dependency] for port,dependency in mapping.items()},s['parameters'],
-                token(claim['attempt'])[:32],check=lambda:self.check(claim))
+                token(claim['attempt'])[:32],check=lambda:self.check(claim), wait_seconds=3600,
+                waiting=lambda busy:self.workflows.progress(claim, 'Waiting for shared compute' if busy else 'Running scientific capability'))
         elif node['kind']=='tool':
             check=self.validate({'nodes':[node]},claim['inputs'],claim['session'])
             if not check['available']:raise InvalidProject(check['steps'][0]['reason'])

@@ -182,3 +182,32 @@ def test_native_save_uses_shared_memory_admission_and_retries_without_losing_wor
     assert memory.peak['analysis'] == SAVE_WORKING_BYTES and memory.reserved['analysis'] == 0
     reopened = store.array_source(item['id'], item['session'], 2, reference)
     assert reopened.read((slice(0, 2), slice(0, 3))).tolist() == [[65000] * 3] * 2
+
+
+def test_import_attribution_cannot_be_fabricated_replaced_or_removed(web):
+    import copy
+    from orchestrator.scientific_file_intake import FileIntake
+    client, built = web
+    producer = {'kind': 'agent-import', 'actor': 'agent:ac_' + 'a' * 24,
+                'label': 'Original importer', 'operation': 'op_original'}
+    forged = document()
+    forged['state']['sourceImport'] = {'format': 1, 'producer': producer}
+    response = create(client, built, document=forged)
+    assert response.status_code == 400 and 'provenance' in response.json()['says']
+    intake = FileIntake(built.hub.resources.projects, built.day.sid,
+                        'attribution-import-012345', name='protocol.md', size=4,
+                        max_bytes=4, producer=producer)
+    try:
+        intake.write(b'text'); saved = intake.publish()
+    finally:
+        intake.close()
+    for remove in (False, True):
+        changed = copy.deepcopy(saved.document)
+        if remove:
+            del changed['state']['sourceImport']
+        else:
+            changed['state']['sourceImport']['producer']['actor'] = 'agent:ac_' + 'b' * 24
+        response = client.put('/api/scientific-projects/' + saved.id, headers=HEADERS,
+                              json={'session': saved.session, 'expectedRevision': 1, 'document': changed})
+        assert response.status_code == 400 and 'provenance' in response.json()['says']
+    assert built.hub.resources.projects.read(saved.id, saved.session).digest == saved.digest
