@@ -969,7 +969,7 @@ export interface CapabilitiesWire {
   agentText: string;
   setup?: { edition: string; options: Record<string, string | null>; counts?: SetupCounts; keys?: Record<string, KeyFacts>;
     downloads?: DownloadRow[]; installs?: InstallRow[];
-    maintenance?: Record<string, import('./maintenance-status').MaintenanceUpdate>; // each maintained entry's update state (maintenance/status.py)
+    maintenance?: Record<string, import('./maintenance-status').EntryUpdate>; // each maintained entry's update state, and each built-in's line (maintenance/status.py)
     disk?: { freeBytes?: number; spareBytes?: number }; // the models folder's disk (downloads.disk): Turn on's sheet says whether a plan fits
     channels?: ChannelRow[]; channelUpdate?: ChannelUpdate; catalogProblems?: { entry: string; problems: string[]; incompatible?: boolean }[];
     loose?: { path: string; name: string; bytes: number }[]; // files dropped straight into your folder (mine.py)

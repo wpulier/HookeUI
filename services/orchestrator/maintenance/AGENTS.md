@@ -132,9 +132,16 @@ in MT4 through the same package.
 
 **Surfaces.**
 - The capabilities wire carries `setup.maintenance` (`status.wire`): each installed entry's update state, policy, last
-  check, active generation, candidate and holds.
+  check, active generation, candidate and holds. A check that found nothing newer says so: "Up to date · checked Oct
+  27, 11:42 pm" (state `none`); every time a line says is readable (`status._when`), never ISO.
+- Each built-in entry (the app's own catalog, not cloud, no environment of its own) gets one line instead
+  (`status.built_in`): "Updated with Hooke 0.5.2" (`build_info.version`, packaged.json; a source checkout says it comes
+  with this copy), `builtIn: true`, no policy, check or action: it is updated when Hooke is. `status.of` still covers
+  only entries with their own Python.
 - The card's existing update line reads the same words (`env_runner.update_waiting`).
-- The studio's line is `apps/studio/src/maintenance-status.ts`.
+- The studio's line is `apps/studio/src/maintenance-status.ts`. Details → Updates stays open, and keeps its last reply
+  to Check or a policy, while the page draws it again (the page's `maintenanceMemory`); its facts' times are readable
+  (`readableTime`); a built-in shows its line and nothing to choose.
 - The agent's model answer adds the same line (`brain/toolbox/catalog.py`).
 - The commands are `maintenance-policy`, `-check`, `-apply`, `-undo`, `-stop`, `-accept` and `-merge`
   (`commands.py` here).

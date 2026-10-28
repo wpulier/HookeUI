@@ -40,6 +40,17 @@ def _check(key: str, environ: Mapping[str, str]) -> dict:
     return {"state": state, "at": rec.get("at", ""), **({"why": rec["why"]} if rec.get("why") else {})}
 
 
+def _when(stamp: str) -> str:
+    """A kept time ("2026-10-27T23:42:00", this Mac's local time) as people read it ("Oct 27, 11:42 pm"); as given when it
+    isn't one."""
+    from ..library import when_words
+
+    try:
+        return when_words(time.mktime(time.strptime(stamp, "%Y-%m-%dT%H:%M:%S"))) or stamp
+    except ValueError:
+        return stamp
+
+
 def _current(m: catalog.Manifest, environ: Mapping[str, str]) -> str:
     from .. import envs
 
@@ -201,8 +212,10 @@ def _of(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict:
         return said("fix-pending", f"Fix identified — compatible build pending ({known['issue']})")
     if last.get("action") == "promote" and active is not None and last.get("to") == active.folder.name:
         undo = any(p.get("kind") == "rollback" and p.get("owner") == last["to"] for p in held)
-        return said("applied", f"Updated to {last.get('version') or active.m.version} ({last['at']})",
+        return said("applied", f"Updated to {last.get('version') or active.m.version} ({_when(last['at'])})",
                     "undo" if undo else None)
+    if out["check"]["state"] == "ok":  # its last check found nothing newer (ticket 67: only Activity said so)
+        return said("none", f"Up to date · checked {_when(out['check']['at'])}")
     return said("none", "")
 
 
@@ -257,6 +270,18 @@ def _older_than(stamp: str, seconds: float) -> bool:
         return False
 
 
+def built_in(m: catalog.Manifest) -> dict:
+    """An entry that comes with the app and is updated with it, not maintained here (no policy, no check of its own):
+    one line for its Details (ticket 67: built-in Cellpose-SAM said nothing about its updates). {} for any other."""
+    if m.namespace or m.channel or m.runner == "python-env" or m.runs == "cloud":
+        return {}  # yours, a channel's, maintained here (of), or a provider's model
+    from .. import build_info
+
+    hooke = build_info.version()
+    return {"state": "none", "says": f"Updated with Hooke {hooke}" if hooke else "Updated with Hooke: it comes with this "
+            "copy of the app", "next": None, "builtIn": True, "version": m.version}
+
+
 def words(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> str:
     """The one line a card or the agent says for the entry's update state ("" when there is nothing to say)."""
     return of(m, environ).get("says", "")
@@ -264,11 +289,14 @@ def words(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> str:
 
 def wire(environ: Mapping[str, str] = os.environ) -> dict[str, dict]:
     """The update state of every entry maintenance covers and that is installed here, by key (the capabilities wire's
-    setup.maintenance): the card's update line, its policy choice and its next action."""
+    setup.maintenance): the card's update line, its policy choice and its next action; and each built-in entry's one
+    line, that it is updated with Hooke (`built_in`)."""
     from .. import env_runner
 
     out = {}
     for m in [*catalog.manifests().values(), *catalog.mine(environ).values()]:
         if m.runner == "python-env" and env_runner.installed_any(m, environ):
             out[m.key] = of(m, environ)
+        elif line := built_in(m):
+            out[m.key] = line
     return out
