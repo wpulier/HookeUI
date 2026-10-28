@@ -294,7 +294,11 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     - **Shown in brainreg's downsampled space,** a product in the index (kind `job`).
 - **Publishing** (`orchestrator/publish.py`, `make catalog-pr ID= [PUSH=1]`; `catalog/README.md` "Publish it"): only
   an entry that pins what it gets, names its licence and is proven on this Mac; its pull request is made from
-  origin/main in a worktree of its own, pushed only with PUSH=1. The repository checks it
+  origin/dev in a worktree of its own, pushed only with PUSH=1. Both routes, this one and Share with everyone's
+  (`publish_api.py`), open it against `dev` (`publish.BASE_BRANCH`): the repository takes pull requests into dev only.
+  Share with everyone's copy of the catalog is made with dev (the official default branch), and an older copy without
+  dev gets it at the reviewed base. A package an older app prepared for `main` is prepared and reviewed again before
+  anything is sent; a review it already opened is still followed. The repository checks it
   (`.github/workflows/catalog.yml`, `bench/catalog_ci.py`, `make catalog-ci`); CODEOWNERS reviews `catalog/`.
 - **Channels** (`orchestrator/channels.py`; `catalog/README.md` "Channels"): a git repository's catalog at a pinned
   commit, fetched (manifests and adapters only) into `<catalog>/channels/<name>/<commit>/`, read-only.

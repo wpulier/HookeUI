@@ -864,10 +864,11 @@ today, and GitHub is never asked. The API publisher is implemented and tested wi
 
 First configure the official repository and your contribution remote with ordinary Git. For a fork, use an
 `upstream` remote for the official repository and `origin` for your fork, both with explicit GitHub HTTPS or SSH URLs.
-Fetch the intended base beforehand, for example `git fetch upstream main`. Preparation itself makes no network call.
+Fetch the intended base beforehand, for example `git fetch upstream dev`: the official repository takes pull requests
+into `dev` only (`publish.BASE_BRANCH`; `main` is promoted to from an accepted Beta). Preparation itself makes no network call.
 
 ```bash
-make catalog-pr ID=<id> BASE_REMOTE=upstream BASE=main REMOTE=origin OUTPUT=/path/to/new-review-folder
+make catalog-pr ID=<id> BASE_REMOTE=upstream BASE=dev REMOTE=origin OUTPUT=/path/to/new-review-folder
 ```
 
 This checks the runner, fetchable pinned files, declared component terms, hashed lockfile, prohibited runtime-fetch
@@ -875,7 +876,7 @@ patterns and current-version proof. It then prepares the actual `catalog/models/
 `body.md`, `proposal.json` (official base repository/branch/commit and contributor head repository/branch), and the
 proof receipt/input in that private local folder. The source checkout stays unchanged. Missing remotes, ambiguous
 URLs, unavailable base refs and missing/changed proof inputs fail with a next step. `OUTPUT` must be new; omitted,
-it uses the configured catalog's `contributions/` folder. `BASE_REMOTE` defaults to `REMOTE`, and `BASE` to `main`;
+it uses the configured catalog's `contributions/` folder. `BASE_REMOTE` defaults to `REMOTE`, and `BASE` to `dev`;
 check the printed destinations, especially when using a fork.
 
 Inspect the files, diff, recorded evidence, credit and destinations. Component declarations and technical checks do
