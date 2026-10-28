@@ -16,10 +16,12 @@ from fastapi.responses import JSONResponse
 
 from .connections import Connections, Refused
 from .contract import CONTRACT, describe
+from .operations import Operations
 
 PREFIX = "/api/agent/v1"
 INTERFACE = 1  # this door's version; the CLI and skill say which they need
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+PAGE = __import__("re").compile(r"^#(measurements|models|toolbox|assets|sessions)(/[A-Za-z0-9_.-]+)?(\?[A-Za-z0-9=&._%-]*)?$")
 PAGE_SIZE = 20
 STATES = {"ready": "available", "needs-setup": "setup", "unavailable": "unavailable", "broken": "broken"}
 
@@ -101,9 +103,25 @@ def listing(environ=os.environ) -> list[dict]:
     return out
 
 
+def example_identity() -> tuple[str | None, str | None]:
+    """The example's input revision (its image's SHA-256) and the generation of the capability it runs."""
+    import hashlib
+    from gpu_worker import manifests as catalog
+    from .. import examples
+    from ..capability_identity import generation_of
+    try:
+        digest = hashlib.sha256(examples.human_mitosis(preview=True).read_bytes()).hexdigest()  # what the guide analyses
+    except (OSError, ValueError, KeyError):
+        digest = None  # damaged or missing: the guide itself refuses and says so
+    m = catalog.get("basic-bright-objects")
+    return digest, (generation_of(m) if m is not None else None)
+
+
 def register(app, built, studio_origin, header: str) -> Connections:
     connections = Connections(built.paths.home)
     built.agent_connections = connections
+    operations = Operations(built.paths.home)
+    built.agent_operations = operations
 
     def announce() -> None:
         """Tell open studios what is waiting and who is connected (the confirm sheet and the list draw from it)."""
@@ -208,6 +226,76 @@ def register(app, built, studio_origin, header: str) -> Connections:
         page = min(max(1, page), pages)
         return _no_store({"ok": True, "contract": CONTRACT, "tools": found[(page - 1) * per: page * per],
                           "total": len(found), "page": page, "pages": pages, "perPage": per, "query": q})
+
+    # --- operations: work an agent starts ---------------------------------------------------------------------------
+    @app.post(f"{PREFIX}/operations")
+    async def start(request: Request) -> JSONResponse:
+        try:
+            c = connected(request)
+            value = await body(request)
+            tool, args = value.get("tool"), value.get("args") or {}
+            if tool != "example":
+                raise Refused(400, "unknown-tool", f"This version of Hooke's door runs only the example, not {tool!r}.",
+                              next="run tool example; list what Hooke can do with GET tools")
+            if not isinstance(args, dict) or args:
+                raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
+            from . import example
+            revision, generation = await asyncio.to_thread(example_identity)
+            record, made = await operations.admit(
+                by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
+                generation=generation, params={}, request_key=value.get("requestKey"),
+                work=lambda record, progress: example.run(built, record, progress))
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)
+
+    @app.get(f"{PREFIX}/operations")
+    async def list_operations(request: Request, limit: int = 20) -> JSONResponse:
+        try:
+            connected(request)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, **operations.operations(limit)})
+
+    @app.get(PREFIX + "/operations/{op_id}")
+    async def get_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            connected(request)
+            record = operations.get(op_id)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(PREFIX + "/operations/{op_id}/cancel")
+    async def cancel_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            connected(request)
+            record = await operations.cancel(op_id)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(f"{PREFIX}/open")
+    async def open_in_hooke(request: Request) -> JSONResponse:
+        """Show a page in the Hooke window (an exact result's measurements). Done only when a window says it shows it."""
+        try:
+            connected(request)
+            value = await body(request)
+            page = value.get("page")
+            if not isinstance(page, str) or not PAGE.match(page):
+                raise Refused(400, "bad-page", "That is not a page Hooke can open for an agent.",
+                              next="use the page an operation gave, such as #measurements/<id>?session=…&revision=…")
+            opener = getattr(built, "open_page", None)
+            reply = await opener(None, page) if opener is not None else None
+        except Refused as error:
+            return _refusal(error)
+        if reply is None:
+            return _no_store({"ok": True, "shown": False, "says": "No Hooke window answered, so it isn't shown yet.",
+                              "next": "open Hooke (hooke open), then ask again"})
+        visible = reply.get("visible") is not False
+        return _no_store({"ok": True, "shown": visible,
+                          "says": "Hooke shows it." if visible else "Hooke opened it, but its window is in the background.",
+                          **({} if visible else {"next": "bring the Hooke window forward"})})
 
     # --- the studio's side --------------------------------------------------------------------------------------------
     @app.get("/api/agent-connections")

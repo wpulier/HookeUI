@@ -728,8 +728,10 @@ async def run_tool(app, name: str, args: dict, *, question: str = '', client=Non
     with using(request):
         try:
             info = app.hub.latest_info
+            from .door import actor as door_actor
             ctx = ToolContext("system", 0, info.id if info else None, question=question, asked=app.conversation.here(),
-                              admission=request.admission, client=client, actor="you")
+                              admission=request.admission, client=client,
+                              actor=door_actor.current() or "you")  # an outside agent's work is its own (ADR 0026)
             stop = user_stop.STOP.get()
             if stop is not None and stop.requested:
                 raise asyncio.CancelledError  # the user pressed Stop between the steps of their action: none starts after it

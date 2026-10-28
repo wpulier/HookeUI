@@ -130,6 +130,14 @@ export class ExampleGuide {
     } catch { /* reconnect will retry; no automatic takeover of the workspace */ }
   }
 
+  /** An agent ran the example through Hooke's door (ADR 0026): read where the walkthrough is and, when its result is
+   *  kept but this window hasn't drawn it through the guide, show it as Retry would, so the card moves on. */
+  async agentAdvanced(): Promise<void> {
+    await this.refresh();
+    if (!this.busy && this.waitingForDrawing && this.state?.status === 'active' && this.state.session === this.deps.session())
+      await this.run('start');
+  }
+
   sessionChanged(): void {
     if (this.lastSession === this.deps.session()) return;
     this.lastSession = this.deps.session();

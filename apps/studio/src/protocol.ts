@@ -729,6 +729,8 @@ export type ServerMessage =
   | { type: 'open-page'; id: string; page: string } // the agent opens a page (open_models): answered by page-opened
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
+  // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
+  | { type: 'onboarding-changed' }
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;
   // orchestrator/data_reader.py): done once the screen report shows it. `entry` is the item as Data lists it.
   | ReaderRequestMessage
