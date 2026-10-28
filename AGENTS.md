@@ -2,6 +2,9 @@
 
 Read README.md, docs/CORE-BOUNDARY.md and the nearest directory's AGENTS.md before
 editing. CONTEXT.md is the domain glossary; docs/adr contains architectural decisions.
+The maintained user handbook is https://hookeui.org/docs/; its Fumadocs source
+lives in hooke-web/documentation. Core architecture and component docs stay here.
+Do not recreate a second user-handbook build in this repository.
 
 The scientific core runs locally without a Hooke account. Keep official brand assets,
 hosted authentication, billing, managed-cloud implementation, private configuration,

@@ -74,6 +74,3 @@ packaging/macos/build*/
 !.env.example
 .vercel/
 .railway/
-
-# Generated public documentation
-docs/guide/_build/
