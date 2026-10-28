@@ -1,3 +1,5 @@
+import { ROLE_SECTIONS, sectionWords } from './data-roles';
+
 /** Help as a newcomer needs it (L7e, rows 6, 23, 24): find a tool by describing the task, the four steps of
  * ordinary work, where work belongs, and what to do when something goes wrong. Every button opens an existing
  * place (Tools, the Assistant, Inputs, Data, Activity, Models); none runs, retries or prepares anything. */
@@ -22,13 +24,15 @@ const action = (text: string, click: () => void, className = 'study-guide-action
 /** Plain words a newcomer can try, each a task a ready or preparable tool does. */
 export const TASK_EXAMPLES = ['segment the nuclei', 'measure cell sizes', 'track moving cells', 'make a clearer picture'] as const;
 
+const SECTIONS = ROLE_SECTIONS.map(([, words]) => words);
+
 export const WHERE_WORK_BELONGS: readonly (readonly [string, string])[] = [
   ['Project', 'A Project owns its inputs, results, notes and conversations. Open Projects are along the top; Projects ▾ and All Projects return to earlier ones. Every Project is saved on this Mac: All Projects says where, with Show in Finder.'],
   ['Tab', 'Tabs arrange windows inside one Project. Closing a Tab or a window keeps its results in Data; All Tabs (⌄ at the end of the Tab row) reopens it.'],
   ['Runs', 'A run keeps the input and Project it started with, even when you switch tabs or Projects. Its Project shows Running, then Done, and the result is placed in the tab it started from.'],
-  ['Data', 'Everything this Project made: masks, measurements, notes and research. Opening a result shows the saved one; nothing is rerun.'],
+  ['Data', `Everything this Project holds, under ${SECTIONS.slice(0, -1).join(', ')} and ${SECTIONS[SECTIONS.length - 1]}. Opening a result shows the saved one; nothing is rerun.`],
   ['Library', 'Your recordings and pictures across every Project. Open in this Project makes one an input here without changing other Projects.'],
-  ['Researchers', 'Researchers work in the background, each as a Tab in the row. Closing its Tab never stops its work; its results land in Data under Research.'],
+  ['Researchers', `Researchers work in the background, each as a Tab in the row. Closing its Tab never stops its work; what it writes lands in Data under ${sectionWords('writeup')}, what it measures under ${sectionWords('analysis')} and the pages it cites under ${sectionWords('source')}.`],
 ];
 
 export const WHEN_SOMETHING_FAILS: readonly string[] = [

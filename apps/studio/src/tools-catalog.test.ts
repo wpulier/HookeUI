@@ -49,8 +49,8 @@ describe('one list in two places', () => {
     expect(tools.unavailable.map((m) => m.id)).toEqual(['fiji-gaussian-blur']);
     expect(tools.news.map((n) => n.key)).toEqual(['mine/lab-counter']);
     // One to one: every entry of Models once, none of Tools' own.
-    expect([...tools.ready, ...tools.setup, ...tools.unavailable].map((m) => m.id).sort()).toEqual(models.map((m) => m.id).sort());
-    expect(toolEntries(null)).toEqual({ ready: [], setup: [], unavailable: [], news: [] });
+    expect([...tools.ready, ...tools.unchecked, ...tools.setup, ...tools.unavailable].map((m) => m.id).sort()).toEqual(models.map((m) => m.id).sort());
+    expect(toolEntries(null)).toEqual({ ready: [], unchecked: [], setup: [], unavailable: [], news: [] });
   });
 });
 
@@ -147,4 +147,14 @@ describe('a comparison says facts; the Assistant judges', () => {
     }
     expect(new Set(COMPARE_COLOURS).size).toBe(3);
   });
+});
+
+
+// Ticket 67, fix 4: Tools files an entry as Models does (one meaning of Ready).
+test('Tools lists a model as Ready only once Hooke has checked it here', () => {
+  const face = (state: string) => ({ state, says: '', action: null, also: [] });
+  const wire = { models: [entry({ id: 'checked', face: face('on') }), entry({ id: 'downloaded', face: face('unchecked') }),
+    entry({ id: 'to-set-up', status: 'needs-setup', group: 'available' })] } as unknown as CapabilitiesWire;
+  const tools = toolEntries(wire);
+  expect([tools.ready, tools.unchecked, tools.setup].map((list) => list.map((r) => r.id))).toEqual([['checked'], ['downloaded'], ['to-set-up']]);
 });

@@ -2,6 +2,7 @@ import type { Panel } from './panels';
 import { openAddKey, sourceWords } from './addkey';
 import type { ArenaKind, ArenaState, CapabilitiesWire, KeyFacts, OptionGroup, Role, RoleOption, Settings } from './protocol';
 import { optionNote, readinessWords } from './readiness';
+import { optionEntry, runnableWords } from './run-spec';
 
 type Group = { key: keyof Settings; from: OptionGroup; title: string; hint: string };
 
@@ -166,8 +167,9 @@ export class SettingsPicker implements Panel {
         const name = group.querySelector<HTMLElement>('.model-current');
         const readiness = group.querySelector<HTMLElement>('.model-readiness');
         if (name) name.textContent = current?.said ?? current?.label ?? (key === 'compare' ? 'No comparison' : String(values[key] ?? 'Not chosen'));
+        // Ready only once Hooke has checked its model here, as Models says it (run-spec.ts `runnableWords`).
         if (readiness) readiness.textContent = current
-          ? current.available ? 'Ready' : current.readiness?.word || current.why || 'Needs setup' : '';
+          ? current.available ? runnableWords(optionEntry(wire, current)) : current.readiness?.word || current.why || 'Needs setup' : '';
       }
     }
     for (const input of this.form.querySelectorAll<HTMLInputElement>('input')) {

@@ -32,6 +32,11 @@ export const ROLE_SECTIONS: readonly (readonly [DataRole, string])[] = [
   ['acquired', 'Pictures and recordings'], ['analysis', 'Analyses'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['other', 'Other'],
 ];
 
+/** A section's heading as Data shows it ("Write-ups"): Help and every message that points into Data say it this way. */
+export function sectionWords(role: DataRole): string {
+  return ROLE_SECTIONS.find(([r]) => r === role)?.[1] ?? 'Other';
+}
+
 /** The section an entry is listed in: the server's role (S1), or null for a kind Data does not list. An index from before
  * ticket 66 sends no role: its inputs are Pictures and recordings, an outcome is left out (as Data left it out), and the
  * rest is Other, so nothing it lists becomes unreachable. */

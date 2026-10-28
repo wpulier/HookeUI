@@ -1,4 +1,5 @@
 import type { ModelRow, Readiness } from './protocol';
+import { runnableWords } from './run-spec';
 
 /** One area, two complete views. Legacy links remain aliases so original-client page acknowledgements stay exact. */
 export function toolboxTarget(hash: string): { tab: 'tools' | 'all'; id: string | null } | null {
@@ -60,10 +61,11 @@ export function fijiWords(c: FijiCounts, rows: readonly Pick<ModelRow, 'id' | 's
 /** A readiness as one sentence, the server's own (readiness.said / said_wire, ADR 0019): "Ready", "Needs setup:
  * Download 1.2 GB", "Unavailable here: Not on this Mac (it runs on …)", "Broken: Its last check failed: …". Every
  * surface that says a status in words says this, never "not available" for something that only needs setup (L7b). */
-export function readinessSaid(readiness: Pick<Readiness, 'status' | 'word' | 'next'> | null | undefined, why = ''): string {
+export function readinessSaid(readiness: Pick<Readiness, 'status' | 'word' | 'next'> | null | undefined, why = '',
+  entry?: ModelRow): string {
   if (!readiness) return why ? `Unavailable here: ${why}` : 'Ready';
   const { status } = readiness;
-  if (status === 'ready') return 'Ready';
+  if (status === 'ready') return runnableWords(entry); // Ready only once Hooke has checked it here, as Models says
   const group = status === 'broken' ? 'Broken' : status === 'needs-setup' ? 'Needs setup' : 'Unavailable here';
   const word = status === 'broken' && readiness.next?.says ? readiness.next.says : readiness.word;
   let detail = word && word !== group && word !== 'Broken' ? word : '';
