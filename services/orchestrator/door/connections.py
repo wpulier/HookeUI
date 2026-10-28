@@ -26,7 +26,7 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 class Refused(Exception):
     """A refusal said as the contract says (contract/agent/refusal.schema.json), with its HTTP status."""
 
-    def __init__(self, status: int, code: str, says: str, next: str):
+    def __init__(self, status: int, code: str, says: str, *, next: str):
         super().__init__(says)
         self.status, self.code, self.says, self.next = status, code, says, next
 
@@ -132,7 +132,7 @@ class Connections:
     def _usable(self) -> None:
         if self.broken:
             raise Refused(503, "connections-unreadable", "Hooke's list of connected agents could not be read.",
-                          f"restore {self.path} from a backup, or move it aside to start the list again")
+                          next=f"restore {self.path} from a backup, or move it aside to start the list again")
 
     # --- asking, confirming, claiming -----------------------------------------------------------------------------
     def _expire(self) -> None:
@@ -144,14 +144,14 @@ class Connections:
         """A pending connection: nothing is allowed until the researcher confirms it in Hooke."""
         if not isinstance(secret_sha256, str) or not _HEX64.match(secret_sha256):
             raise Refused(400, "bad-request", "The connection request needs the SHA-256 of a secret the command made.",
-                          "update the hooke command, then run hooke connect again")
+                          next="update the hooke command, then run hooke connect again")
         self._usable()
         with self._lock:
             self._expire()
             waiting = [p for p in self._pending.values() if p.state == "pending"]
             if len(waiting) >= MOST_PENDING:
                 raise Refused(429, "too-many-pending", "Several agents are already waiting to connect.",
-                              "answer them in Hooke, or wait ten minutes, then run hooke connect again")
+                              next="answer them in Hooke, or wait ten minutes, then run hooke connect again")
             code = "".join(secrets.choice(_CODE_LETTERS) for _ in range(3)) + "-" + "".join(
                 secrets.choice(_CODE_LETTERS) for _ in range(3))
             p = Pending(id="pc_" + secrets.token_hex(12), label=clean_label(label),
@@ -170,7 +170,7 @@ class Connections:
         p = self._pending.get(pid)
         if p is None:
             raise Refused(410, "connection-expired", "That connection request has expired or is unknown.",
-                          "run hooke connect again")
+                          next="run hooke connect again")
         return p
 
     def answer(self, pid: str, connect: bool) -> Pending:
@@ -179,7 +179,7 @@ class Connections:
             p = self._waiting(pid)
             if p.state != "pending":
                 raise Refused(409, "already-answered", "That connection request was already answered.",
-                              "run hooke connect again if you meant to connect")
+                              next="run hooke connect again if you meant to connect")
             p.state = "confirmed" if connect else "declined"
             return p
 
@@ -191,16 +191,16 @@ class Connections:
             p = self._waiting(pid)
             if not isinstance(secret, str) or not secrets.compare_digest(sha256(secret), p.secret_sha256):
                 raise Refused(403, "wrong-secret", "This command did not ask for that connection.",
-                              "run hooke connect again from the same command")
+                              next="run hooke connect again from the same command")
             if p.state == "pending":
                 return p, None, None
             if p.state == "declined":
                 del self._pending[pid]
                 raise Refused(403, "declined", "The connection was declined in Hooke.",
-                              "run hooke connect again if you want to connect")
+                              next="run hooke connect again if you want to connect")
             if p.state == "claimed":
                 raise Refused(409, "already-claimed", "That connection's token was already collected.",
-                              "run hooke connect again")
+                              next="run hooke connect again")
             token = "hk_local_" + secrets.token_urlsafe(32)
             c = Connection(id="ac_" + secrets.token_hex(12), label=p.label, kind=p.kind, at=self.clock(),
                            token_sha256=sha256(token))
@@ -211,7 +211,7 @@ class Connections:
             except OSError:
                 del self._by_id[c.id], self._by_token[c.token_sha256]
                 raise Refused(503, "not-saved", "Hooke could not save the connection.",
-                              "check free disk space, then run hooke connect again") from None
+                              next="check free disk space, then run hooke connect again") from None
             p.state, p.connection = "claimed", c.id
             del self._pending[pid]
             return p, c, token
@@ -221,7 +221,7 @@ class Connections:
         self._usable()
         token = (authorization or "")[7:].strip() if (authorization or "").lower().startswith("bearer ") else ""
         if not token:
-            raise Refused(401, "not-connected", "This agent is not connected to Hooke.", "run hooke connect")
+            raise Refused(401, "not-connected", "This agent is not connected to Hooke.", next="run hooke connect")
         digest = sha256(token)
         with self._lock:
             c = self._by_token.get(digest)
@@ -230,15 +230,15 @@ class Connections:
             revoked = next((x for x in self._by_id.values() if x.token_sha256 == digest), None)
         if revoked is not None:
             raise Refused(401, "disconnected", "This agent was disconnected in Hooke.",
-                          "run hooke connect and confirm it in Hooke to connect again")
-        raise Refused(401, "not-connected", "This agent is not connected to Hooke.", "run hooke connect")
+                          next="run hooke connect and confirm it in Hooke to connect again")
+        raise Refused(401, "not-connected", "This agent is not connected to Hooke.", next="run hooke connect")
 
     def disconnect(self, cid: str) -> Connection:
         self._usable()
         with self._lock:
             c = self._by_id.get(cid)
             if c is None:
-                raise Refused(404, "unknown-connection", "There is no such connection.", "reload the list")
+                raise Refused(404, "unknown-connection", "There is no such connection.", next="reload the list")
             if c.revoked_at is None:
                 c.revoked_at = self.clock()
                 self._by_token.pop(c.token_sha256, None)
@@ -247,7 +247,7 @@ class Connections:
                 except OSError:
                     # The token stays refused in memory for this run; say the record could not be kept.
                     raise Refused(503, "not-saved", "Disconnected for now, but Hooke could not save that.",
-                                  "free some disk space, then disconnect it again") from None
+                                  next="free some disk space, then disconnect it again") from None
             return c
 
     def connections(self) -> list[Connection]:

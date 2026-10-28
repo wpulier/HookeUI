@@ -43,14 +43,14 @@ def guard(request: Request) -> None:
     """What every door request must be, before its token is even read."""
     if _host(request) not in LOOPBACK_HOSTS:
         raise Refused(403, "not-local", "Hooke's agent door answers only on this Mac's loopback address.",
-                      "connect through the hooke command on this Mac")
+                      next="connect through the hooke command on this Mac")
     if request.headers.get("origin") is not None:
         raise Refused(403, "browser-refused", "Web pages cannot use Hooke's agent door.",
-                      "use the hooke command, not a web page")
+                      next="use the hooke command, not a web page")
     asked = request.headers.get("hooke-contract")
     if asked is not None and asked != CONTRACT:
         raise Refused(400, "contract-version", f"This copy of Hooke speaks contract {CONTRACT}, not {asked}.",
-                      "update the hooke command or Hooke so they match")
+                      next="update the hooke command or Hooke so they match")
 
 
 def app_version() -> str | None:
@@ -118,11 +118,11 @@ def register(app, built, studio_origin, header: str) -> Connections:
 
     def studio(request: Request, writes: bool) -> None:
         if _host(request) not in LOOPBACK_HOSTS:
-            raise Refused(403, "not-local", "Only this Mac's Hooke window may do that.", "use Hooke on this Mac")
+            raise Refused(403, "not-local", "Only this Mac's Hooke window may do that.", next="use Hooke on this Mac")
         if writes and (not studio_origin(request.headers.get("origin"), request.url.port)
                        or request.headers.get(header) != "agent-connections"):
             raise Refused(403, "studio-only", "Only the Hooke window may answer or end a connection.",
-                          "use Hooke on this Mac")
+                          next="use Hooke on this Mac")
 
     async def body(request: Request) -> dict:
         try:
@@ -130,7 +130,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except ValueError:
             value = None
         if not isinstance(value, dict):
-            raise Refused(400, "bad-request", "The request needs a JSON object.", "update the hooke command")
+            raise Refused(400, "bad-request", "The request needs a JSON object.", next="update the hooke command")
         return value
 
     # --- connecting ---------------------------------------------------------------------------------------------------
@@ -197,7 +197,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
             found = await asyncio.to_thread(listing)
         except Exception as error:  # the catalog couldn't be read: say so, never an empty list
             return _refusal(Refused(503, "catalog-unreadable", f"Hooke's catalog could not be read: {error}",
-                                    "restart Hooke; if it persists, report a problem from Hooke"))
+                                    next="restart Hooke; if it persists, report a problem from Hooke"))
         terms = [t for t in q.lower().split() if t]
         if terms:
             found = [t for t in found if all(term in " ".join((t["id"], t["name"], t["task"], t.get("description", ""),
@@ -225,7 +225,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
             studio(request, writes=True)
             value = await body(request)
             if value.get("answer") not in ("connect", "decline"):
-                raise Refused(400, "bad-request", "The answer is connect or decline.", "reload the workspace")
+                raise Refused(400, "bad-request", "The answer is connect or decline.", next="reload the workspace")
             p = connections.answer(pid, value["answer"] == "connect")
         except Refused as error:
             return _refusal(error)
