@@ -9,8 +9,11 @@ Two testing states sit on top of the live app and are independent of each other:
   microscope, so judgments made on footage carry over to live use. Footage, the public corpus
   and bench inputs live in one assets store outside every checkout (`~/MicroscopeMind`,
   `MICROMIND_ASSETS`), listed in `assets/manifest.json` and `services/bench/corpus/corpus.json`
-  and documented in `assets/README.md`: real recordings are one of a kind (checksummed, backed up
-  to the private GitHub release `test-assets`, added with `make assets-add`), the corpus is rebuilt
+  and documented in `assets/README.md`. The repository's manifest is public and lists no one's own recordings; the
+  store's private `manifest.json` lists its owner's and is read over it (`orchestrator.paths.layered_manifest` for the
+  app, the assets commands and the sim harness; `footage_media.Library` with `bridge_common.PRIVATE_MANIFEST` for the
+  bridge): real recordings are one of a kind (checksummed, backed up to the destination its `backup` names, added with
+  `make assets-add`, which writes only to the private manifest), the corpus is rebuilt
   from its manifest, and code reaches all of it only through `orchestrator.assets.store()`.
   `make assets` says what is there, missing or not backed up. The studio's Test footage page (`#footage`) shows them
   all as thumbnails (and adds new ones); the test footage menu shows each row's thumbnail. Media work

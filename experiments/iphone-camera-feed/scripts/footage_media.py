@@ -32,7 +32,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from simulated_camera import STILL_SUFFIXES, VIDEO_SUFFIXES
 
@@ -208,8 +208,12 @@ class Worker:
 class Library:
     """The footage folder as the camera menu and the Assets view show it, cached."""
 
-    def __init__(self, folder: Path, manifest: Path, corpus: Path, worker: Optional[Worker] = None) -> None:
-        self.folder, self.manifest, self.corpus = folder, manifest, corpus
+    def __init__(self, folder: Path, manifest: Union[Path, Sequence[Path]], corpus: Path,
+                 worker: Optional[Worker] = None) -> None:
+        # The manifests its real recordings are listed in, each read over the one before (the repository's, then the
+        # store's private one: bridge_common.PRIVATE_MANIFEST). One missing is no recording listed there.
+        self.folder, self.corpus = folder, corpus
+        self.manifests = (manifest,) if isinstance(manifest, Path) else tuple(manifest)
         self.worker = worker or Worker()
         self._items: List[dict] = []
         self._version = ""
@@ -250,11 +254,12 @@ class Library:
 
     def _catalogue(self):
         real, corpus = {}, {}
-        try:
-            for item in json.loads(self.manifest.read_text()).get("real", []):
-                real[str(Path(item["file"]).relative_to("footage"))] = item
-        except (OSError, ValueError, KeyError):
-            pass
+        for manifest in self.manifests:
+            try:
+                for item in json.loads(manifest.read_text()).get("real", []):
+                    real[str(Path(item["file"]).relative_to("footage"))] = item
+            except (OSError, ValueError, KeyError, AttributeError):
+                pass
         self._corpus_optics = {}
         try:
             for item in json.loads(self.corpus.read_text()).get("items", []):

@@ -21,7 +21,10 @@ CAMERA_PAGE_MISSING = (b"<!doctype html><meta charset=utf-8><title>Camera</title
                        b"<p>Start ObservationUI with <code>make start</code> (it builds the page), then reload.</p>")
 # The test assets store, shared by every checkout (services/orchestrator/assets.py, assets/README.md).
 ASSETS_FOOTAGE = Path(os.environ.get("MICROMIND_ASSETS") or Path.home() / "MicroscopeMind").expanduser() / "footage"
+# Its recordings' titles, specimens and optics: the repository's manifest (public: it lists none of anyone's own), and
+# the store's private one (untracked: its owner's recordings), read over it (footage_media.Library).
 ASSETS_MANIFEST = REPO_DIR / "assets" / "manifest.json"
+PRIVATE_MANIFEST = ASSETS_FOOTAGE.parent / "manifest.json"
 CORPUS_MANIFEST = REPO_DIR / "services" / "bench" / "corpus" / "corpus.json"
 # FFmpeg's stderr: the last lines of each capture are kept for /api/health, and the first
 # ones are logged (an FFmpeg that repeats a warning every frame must not flood the log).
