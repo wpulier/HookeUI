@@ -269,3 +269,28 @@ def test_the_example_never_takes_over_what_the_researcher_sees(tmp_path, monkeyp
         refused(client.post("/api/agent/v1/operations", json={"tool": "example", "requestKey": KEY}, headers=bearer(token)),
                 409, "hooke-busy")
         assert client.get("/api/agent/v1/operations", headers=bearer(token)).json()["operations"] == []
+
+
+def test_hooke_stopping_interrupts_work_it_never_calls_it_cancelled(tmp_path):
+    """Found by test_hooke_command: a server shutdown cancels in-flight tasks, and that was recorded as "cancelled",
+    though nobody asked. Only a cancel someone asked for is cancelled; Hooke stopping is interrupted."""
+    async def go():
+        ops = Operations(tmp_path)
+        started = asyncio.Event()
+
+        async def slow(record, progress):
+            started.set()
+            await asyncio.sleep(30)
+
+        record, _ = await admit(ops, slow, key="shutdown-0001")
+        await started.wait()
+        for task in list(ops._tasks.values()):
+            task.cancel()  # what the server's shutdown does
+        await settle(ops)
+        for _ in range(20):
+            await asyncio.sleep(0.01)
+        return ops, record["id"]
+
+    ops, op_id = asyncio.run(go())
+    done = ops.get(op_id)
+    assert done["state"] == "interrupted" and "Hooke stopped" in done["outcome"]["says"]

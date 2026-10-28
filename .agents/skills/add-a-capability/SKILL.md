@@ -1,6 +1,6 @@
 ---
 name: add-a-capability
-description: Add a capability to ObservationUI (a Hugging Face or other model, a Python algorithm, a Fiji/ImageJ function), or make your own version of one, as one catalog folder that every actor (the user's Actions panel and Try, the agent, researchers) gets with no app code. Use when asked to add, wrap, port, contribute or adapt a model, algorithm, plugin or ImageJ command, or to make an existing capability do something different.
+description: Add a capability to HookeUI (a Hugging Face or other model, a Python algorithm, a Fiji/ImageJ function), or make your own version of one, as one catalog folder that every actor (the user's Actions panel and Try, the agent, researchers) gets with no app code. Use when asked to add, wrap, port, contribute or adapt a model, algorithm, plugin or ImageJ command, or to make an existing capability do something different.
 ---
 
 # Add a capability

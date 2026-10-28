@@ -23,9 +23,13 @@ clients of this door. They hold no scientific logic and no list of capabilities:
    - The command prints the code; the Hooke window shows the same code.
    - At most 5 requests wait at once, each for 10 minutes.
    - Open studios get `{"type": "agent-connections", pending, connections}` over the WebSocket.
-2. The researcher answers in Hooke: `POST /api/agent-connections/pending/{id} {answer: connect|decline}`. This takes
-   the studio's Origin and `X-MicroscopeMind: agent-connections`.
-   - The studio's side is `apps/studio/src/agent-connections.ts`. The confirm sheet opens for the first waiting
+2. The researcher answers in Hooke: `POST /api/agent-connections/pending/{id} {answer: connect|decline, signature}`.
+   - The answer counts only when signed by the Mac app's native dialog with this launch's key (`native.py`;
+     `packaging/AGENTS.md`). The signed message is `hooke-agent-connect`, the request id, the code and the answer.
+   - The studio's Origin and header, which any local program can copy, are not enough.
+   - Without the app's key (a source checkout), the studio's own answer counts only with `HOOKE_DEV_CONFIRM=1`.
+   - The studio's side is `apps/studio/src/agent-connections.ts`. In the Mac app it hands the request to the native
+     dialog (`hookeConnect`) and shows nothing of its own. In a browser its confirm sheet opens for the first waiting
      request and names the agent "as it calls itself". It shows the code, says what connecting allows (including that
      what the agent reads may go to its provider), and offers Don't connect and Connect.
    - The sheet closes when the request is answered elsewhere or expires.
@@ -87,8 +91,20 @@ clients of this door. They hold no scientific logic and no list of capabilities:
 The `hooke` command, the app's state file, its links and attention are described in `packaging/AGENTS.md` ("Outside
 agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
 
+## Sockets and the screen
+- **WebSockets** (`origin.socket_kind`, both `/ws` and `/ws/voice`):
+  - In the Mac app only the window's studio token makes a socket the studio's.
+  - In a source checkout's browser a loopback Origin does.
+  - Scripts present `Authorization: Bearer <data home>/agents/local-token` (`origin.script_headers`).
+  - Anything else is refused. `status.studio.open` counts only studio sockets.
+- **The example never takes over what the researcher sees** (`example.takeover`). It is refused (409 `hooke-busy`)
+  while Talk is live, or while a Hooke window shows a Project that isn't empty (nothing opened, made or asked) and
+  isn't the example's own. It is checked at the door and again as it starts.
+- **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
+
 ## Still to build (ADR 0026)
 - **More tools on the same operations:** run a capability on a file, results (with the full table only when asked,
   marked), compare, batch, add capabilities.
 - **Built-in tools:** list the app's own built-in tools alongside catalog entries.
-- **WebSocket:** a token for WS clients that send no Origin (`origin.allowed_origin`).
+- **The studio's other HTTP routes** still trust its Origin and header, which a local program can copy (ADR 0026
+  says so).

@@ -137,8 +137,10 @@ class Operations:
         """A task cancelled before its work began never runs `_run`'s ending: end its record here, said truly."""
         self._tasks.pop(record["id"], None)
         if task.cancelled() and record["state"] not in TERMINAL:
-            record["state"], record["endedAt"] = "cancelled", self.clock()
-            record["outcome"] = {**(record.get("outcome") or {}), "says": "Stopped before it started."}
+            asked = bool(record.get("cancelAskedAt"))
+            record["state"], record["endedAt"] = ("cancelled" if asked else "interrupted"), self.clock()
+            record["outcome"] = {**(record.get("outcome") or {}),
+                                 "says": "Stopped before it started." if asked else "Hooke stopped before this started."}
             asyncio.get_running_loop().create_task(self._save(record))
 
     async def _run(self, record: dict, work: Work) -> None:
@@ -152,8 +154,14 @@ class Operations:
             await self._save(record)
             outcome = await work(record, progress)
         except asyncio.CancelledError:
-            record["state"] = "cancelled"
-            record["outcome"] = {**(record.get("outcome") or {}), "says": "Stopped before it finished."}
+            if record.get("cancelAskedAt"):
+                record["state"] = "cancelled"
+                record["outcome"] = {**(record.get("outcome") or {}), "says": "Stopped before it finished."}
+            else:  # nobody asked it to stop: Hooke is stopping (quit, restart, update), so it was interrupted
+                record["state"] = "interrupted"
+                record["outcome"] = {**(record.get("outcome") or {}),
+                                     "says": "Hooke stopped while this ran. Anything it finished is kept in its Project.",
+                                     "next": "check its Project, or run it again with a new request key"}
         except Refused as error:
             record["state"], record["outcome"] = "failed", {"code": error.code, "says": error.says, "next": error.next}
         except Exception as error:  # the work's own failure, said as it is (ADR 0006)

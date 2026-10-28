@@ -1054,7 +1054,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopForTermination(_ window: NSWindow) {
         quitting = true
-        agentState("stopped", "Hooke was quit.")
+        // An update's restart: the hooke command waits for it rather than opening Hooke over the install.
+        if updates.installing { agentState("updating", "Hooke is updating and will open again.") }
+        else { agentState("stopped", "Hooke was quit.") }
         studio?.folderBridge.close()
         studio?.cameraNetwork.close()
         window.contentView = setup

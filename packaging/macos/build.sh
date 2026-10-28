@@ -149,7 +149,8 @@ cp "$TOOLS/sparkle/LICENSE" "$C/Resources/NOTICES/Sparkle-LICENSE"
 
 say "Signing with $IDENTITY"
 sign() { codesign --force --timestamp --options runtime --sign "$IDENTITY" "$@"; }
-sign "$C/Helpers/uv" "$C/Helpers/hooke"
+sign "$C/Helpers/uv"
+sign --identifier "$CHANNEL_BUNDLE_ID.hooke" "$C/Helpers/hooke"  # each channel's helper its own identity
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$C/Helpers/ffmpeg" "$C/Helpers/ffprobe"
 sign --entitlements "$HERE/HookeUI/camera.entitlements" "$CAMERA"
 # Sparkle's own parts, inside out, as its documentation signs them for a Developer ID app.

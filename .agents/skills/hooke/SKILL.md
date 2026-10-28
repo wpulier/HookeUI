@@ -19,14 +19,18 @@ Project, recorded as done by you, and visible to the researcher in the Hooke win
 - Beta: `/Applications/HookeUI Beta.app/Contents/Helpers/hooke`
 
 If both are installed, ask the researcher which one they use. Call it by its full path, and quote the path because it
-may contain a space. Below, `hooke` means that path.
+may contain a space.
+
+Pass `--agent <claude-code|codex|cursor|other>` on every command: it says which connection is yours. Below, `hooke`
+means the path with your `--agent`.
 
 ## Start every session the same way
 
 1. `hooke status --wait --json` opens Hooke if needed and says whether you're connected.
    - A first launch asks the researcher to click **Download and Open** in the Hooke window. Tell them, and wait.
-2. If you aren't connected, run `hooke connect --agent <claude-code|codex|cursor|other>`.
-   - It prints a code. Tell the researcher to check that the Hooke window shows the same code and to click **Connect**.
+2. If you aren't connected, run `hooke connect`.
+   - It prints a code. Tell the researcher that Hooke shows a dialog with the same code, and to click **Connect** if it
+     matches.
    - The connection is kept; you don't connect again in later sessions.
    - If the researcher disconnected you in Hooke, `hooke` says so. Connect again only if they ask.
 3. `hooke tools --json` lists what Hooke can do here: each capability's inputs, outputs, parameters (`inputSchema`),
@@ -62,4 +66,6 @@ may contain a space. Below, `hooke` means that path.
 
 ## Updating
 
-`hooke skill update --agent <kind>` refreshes this skill from the installed Hooke. It doesn't touch the connection.
+`hooke skill update` refreshes this skill from the installed Hooke. It doesn't touch the connection, and it never
+replaces a folder named `hooke` that Hooke didn't install. `hooke status` says when the skill is older than Hooke asks
+for.

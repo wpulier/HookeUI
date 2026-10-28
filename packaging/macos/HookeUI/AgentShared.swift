@@ -12,7 +12,8 @@ struct AgentState: Codable, Equatable {
     var urlScheme: String
     var version: String
     var build: String
-    /// asking (the first launch's download waits for a click), downloading, starting, ready, failed, stopped.
+    /// asking (the first launch's download waits for a click), downloading, starting, ready, failed, stopped, updating
+    /// (quit to install an update; Sparkle opens it again).
     var phase: String
     var says: String
     var port: Int?
@@ -20,7 +21,7 @@ struct AgentState: Codable, Equatable {
     var at: Double
 
     static let file = "agent-state.json"
-    static let phases: Set<String> = ["asking", "downloading", "starting", "ready", "failed", "stopped"]
+    static let phases: Set<String> = ["asking", "downloading", "starting", "ready", "failed", "stopped", "updating"]
 
     func write(to folder: URL) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
