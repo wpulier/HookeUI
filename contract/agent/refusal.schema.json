@@ -1,0 +1,13 @@
+{
+  "$id": "hooke:agent/refusal",
+  "title": "A refusal or failure, said",
+  "description": "Every refusal says what happened and what to do next, in words an agent can pass on (ADR 0006: never claim what did not happen). `code` is stable for programs; `says` and `next` are for people.",
+  "type": "object",
+  "required": ["ok", "code", "says", "next"],
+  "properties": {
+    "ok": {"enum": [false]},
+    "code": {"type": "string", "pattern": "^[a-z][a-z0-9-]{1,48}$"},
+    "says": {"type": "string", "minLength": 1},
+    "next": {"type": "string"}
+  }
+}

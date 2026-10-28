@@ -5,6 +5,7 @@ import type { TrailsMessage } from './trail';
 import type { WorkspaceViewport } from './workspace-runtime';
 import type { MotionTracksWire, TracksLayerWire } from './motiontracks';
 import type { ResearchCapture } from './research-captures';
+import type { AgentConnectionsMessage } from './agent-connections';
 // Wire protocol shared with services/orchestrator (hub.py, scene.py, server.py), both ways:
 // ServerMessage is what the server sends, ClientCommand what the studio sends
 // (services/orchestrator/commands.py has one handler per kind).
@@ -726,6 +727,8 @@ export type ServerMessage =
   | { type: 'presentation-admitted'; requestId: string; executionRequestId: string; client: WorkspaceReady['client']; appRunId: string }
   | { type: 'workspace-tabs'; id:string; session:string; action:Record<string,unknown>; workspacePin:{client:Record<string,unknown>;id:string;rootId:string;kind:string;lifetimeGeneration:string|number;sourceGeneration:number} }
   | { type: 'open-page'; id: string; page: string } // the agent opens a page (open_models): answered by page-opened
+  // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
+  | AgentConnectionsMessage
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;
   // orchestrator/data_reader.py): done once the screen report shows it. `entry` is the item as Data lists it.
   | ReaderRequestMessage

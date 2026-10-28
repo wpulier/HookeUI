@@ -1,0 +1,25 @@
+{
+  "$id": "hooke:agent/operation",
+  "title": "One admitted piece of work",
+  "description": "Written to disk at admission, before any work starts. It names exactly what runs; what the studio shows later never changes it. States: admitted (written, not started), running, succeeded, failed, cancelRequested (asked to stop, not yet confirmed), cancelled (confirmed stopped), interrupted (the app stopped while it ran; `outcome` says what it left).",
+  "type": "object",
+  "required": ["id", "requestKey", "state", "tool", "project", "by", "at"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^op_[0-9a-f]{16,32}$"},
+    "requestKey": {"$ref": "request-key.schema.json"},
+    "state": {"enum": ["admitted", "running", "succeeded", "failed", "cancelRequested", "cancelled", "interrupted"]},
+    "tool": {"type": "string", "minLength": 1},
+    "project": {"type": "string", "minLength": 1},
+    "inputRevision": {"type": ["string", "null"]},
+    "generation": {"type": ["string", "null"]},
+    "params": {"type": "object"},
+    "by": {"type": "string", "pattern": "^(agent:ac_[0-9a-f]{16,32}|you|hosted:.+)$"},
+    "at": {"type": "number"},
+    "progress": {
+      "type": ["object", "null"],
+      "properties": {"done": {"type": "number"}, "of": {"type": ["number", "null"]}, "says": {"type": "string"}}
+    },
+    "outcome": {"type": ["object", "null"]},
+    "resumable": {"type": "boolean"}
+  }
+}

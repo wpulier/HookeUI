@@ -4,6 +4,7 @@ import { scientificAskSelection, clearScientificAsk } from './scientific-ask-inp
 import { configureControlDeck, dockControls, parkControls, type ControlDeck } from './capability-controls';
 import { expectSideMotion, holdUntilLanded, playSideMotion, sideLeaving, sideTracks, type SideColumn, type Sides } from './side-motion';
 import { mountAppUpdates } from './app-updates';
+import { agentConnections } from './agent-connections';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
 import { daysAgo, monthDay, projectRowWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
@@ -1253,6 +1254,7 @@ settingsButton.title='Settings';settingsButton.setAttribute('aria-haspopup','dia
 // What restarting Hooke to update, or quitting it, would stop or lose, read from each kind of work's own source
 // (restart-readiness.ts): the Mac app's sheet names it. A source that can't be read makes the whole answer unreadable.
 const readJSON=async(url:string):Promise<unknown>=>{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(`${url} could not be read.`);return response.json();};
+agentConnections.mountSettings(settings); // Settings → Connected agents (ADR 0026)
 mountAppUpdates(utilities,settings,async()=>{
   if(!bridge.state().connected)return {blockers:[DISCONNECTED],running:[]};
   const work=bridge.restartWork(),current=bridge.state(),owner=workspaceViews.tabOwner().session;

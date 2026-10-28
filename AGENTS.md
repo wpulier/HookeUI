@@ -45,6 +45,7 @@ Component contracts (read the relevant file before editing):
 - `packaging/AGENTS.md`
 - `services/gpu_worker/AGENTS.md`
 - `services/orchestrator/AGENTS.md`
+- `services/orchestrator/door/AGENTS.md` (outside agents' one door, ADR 0026)
 - `services/orchestrator/brain/AGENTS.md`
 - `services/orchestrator/datasets/AGENTS.md`
 - `services/orchestrator/day/AGENTS.md`

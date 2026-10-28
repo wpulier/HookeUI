@@ -1,0 +1,14 @@
+{
+  "$id": "hooke:agent/connection",
+  "title": "One agent's connection to this copy of Hooke",
+  "description": "Its id is stable and is what effects are recorded under (agent:<id>); its label is the agent's own name for itself, never a verified identity. A connection with revokedAt is disconnected for good.",
+  "type": "object",
+  "required": ["id", "label", "kind", "at"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^ac_[0-9a-f]{16,32}$"},
+    "label": {"type": "string", "minLength": 1, "maxLength": 40},
+    "kind": {"enum": ["claude-code", "codex", "cursor", "other"]},
+    "at": {"type": "number"},
+    "revokedAt": {"type": ["number", "null"]}
+  }
+}

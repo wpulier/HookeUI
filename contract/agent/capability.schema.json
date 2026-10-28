@@ -1,0 +1,45 @@
+{
+  "$id": "hooke:agent/capability",
+  "title": "A capability as an agent is told it",
+  "description": "Shared by the local door (/api/agent/v1/tools) and the hosted listing (/api/v1/tools, MCP tools/list). Every field comes from the capability's catalog declaration (ADR 0024); `generation` names the exact code that runs.",
+  "type": "object",
+  "required": ["id", "name", "task", "inputs", "outputs", "inputSchema", "generation", "state"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,127}$"},
+    "name": {"type": "string", "minLength": 1},
+    "task": {"type": "string"},
+    "description": {"type": "string"},
+    "inputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+    "outputs": {"type": "array", "items": {"$ref": "#/$defs/port"}},
+    "inputSchema": {
+      "type": "object",
+      "required": ["type", "properties", "required", "additionalProperties"],
+      "properties": {
+        "type": {"enum": ["object"]},
+        "properties": {"type": "object"},
+        "required": {"type": "array", "items": {"type": "string"}},
+        "additionalProperties": {"enum": [false]}
+      }
+    },
+    "credit": {"type": "object"},
+    "licence": {"type": "array", "items": {"type": "string"}},
+    "generation": {"$ref": "generation.schema.json"},
+    "state": {
+      "description": "available: runs now. setup: can run here after the steps in `next`. unavailable: cannot run here. broken: was checked and failed. budget, capacity, activate: hosted only (allowance, runtime down, needs activating).",
+      "enum": ["available", "setup", "unavailable", "broken", "budget", "capacity", "activate"]
+    },
+    "why": {"type": "string"},
+    "next": {"type": "string"}
+  },
+  "$defs": {
+    "port": {
+      "type": "object",
+      "required": ["type", "label"],
+      "properties": {
+        "id": {"type": "string"},
+        "type": {"type": "string", "minLength": 1},
+        "label": {"type": "string"}
+      }
+    }
+  }
+}
