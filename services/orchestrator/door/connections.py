@@ -176,6 +176,15 @@ class Connections:
                           next="run hooke connect again")
         return p
 
+    def waiting(self, pid: str) -> Pending:
+        """The request still waiting for an answer (its code is part of what the window signs)."""
+        with self._lock:
+            p = self._waiting(pid)
+            if p.state != "pending":
+                raise Refused(409, "already-answered", "That connection request was already answered.",
+                              next="run hooke connect again if you meant to connect")
+            return p
+
     def answer(self, pid: str, connect: bool) -> Pending:
         """The researcher's answer in the Hooke window."""
         with self._lock:

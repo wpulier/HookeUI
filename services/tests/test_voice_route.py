@@ -66,7 +66,7 @@ def app_with(monkeypatch, moment=None, sight=None):
 
 def test_relay_starts_at_once_and_takes_microphone_audio(monkeypatch):
     client, logged = app_with(monkeypatch)
-    with client.websocket_connect("/ws/voice?rate=24000") as ws:
+    with client.websocket_connect("/ws/voice?rate=24000", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         hello = json.loads(ws.receive_text())
         assert hello["kind"] == "model"
         ws.send_bytes(b"\x00\x00" * 480)
@@ -78,7 +78,7 @@ def test_relay_starts_at_once_and_takes_microphone_audio(monkeypatch):
 
 def test_webrtc_waits_for_the_offer_and_answers_with_the_sdp(monkeypatch):
     client, logged = app_with(monkeypatch)
-    with client.websocket_connect("/ws/voice?link=webrtc") as ws:
+    with client.websocket_connect("/ws/voice?link=webrtc", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         ws.send_text(json.dumps({"type": "offer", "sdp": "v=0 offer"}))
         answer = json.loads(ws.receive_text())
         assert answer == {"type": "voice", "kind": "answer", "data": {"sdp": "v=0 answer"}}
@@ -155,7 +155,7 @@ def test_the_route_ends_a_reply_only_when_the_voice_went_quiet_and_files_what_is
     client, logged = app_with(monkeypatch)
     monkeypatch.setattr(route, "SpokenRequests", Recorder)
     monkeypatch.setattr(FakeSession, "events", scripted)
-    with client.websocket_connect("/ws/voice?rate=24000") as ws:
+    with client.websocket_connect("/ws/voice?rate=24000", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         while json.loads(ws.receive_text()).get("kind") != "closed":
             pass
     spoken = [c for c in calls if c[0] in ("said", "heard", "reply_done", "close")]
@@ -169,7 +169,7 @@ def test_a_session_logs_the_instructions_it_was_given_by_their_hash_and_its_reca
     import hashlib
 
     client, logged = app_with(monkeypatch)
-    with client.websocket_connect("/ws/voice?rate=24000") as ws:
+    with client.websocket_connect("/ws/voice?rate=24000", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         assert json.loads(ws.receive_text())["kind"] == "model"
     record = [r for r in logged if r["kind"] == "voice-session"][0]
     assert record["instructions"] == {"sha256": hashlib.sha256(b"prompt").hexdigest()[:12], "chars": len("prompt")}
@@ -197,7 +197,7 @@ def test_a_view_note_says_why_it_was_sent_and_how_old_its_look_and_frame_are(mon
     monkeypatch.setattr(route.context, "view_key", lambda m: next(keys, "changed view"))
     monkeypatch.setattr(route.context, "view_note", lambda m: "View notes: a leaf.")
     monkeypatch.setattr(FakeSession, "idle", float("inf"))
-    with client.websocket_connect("/ws/voice?rate=24000") as ws:
+    with client.websocket_connect("/ws/voice?rate=24000", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         assert json.loads(ws.receive_text())["kind"] == "model"
         session = FakeSession.made[0]
         until(lambda: session.injected, every=0.05)
@@ -221,7 +221,7 @@ def test_provider_audio_write_failure_reports_recovery_and_closes_owned_session(
 
     monkeypatch.setattr(FakeSession, 'events', waiting)
     monkeypatch.setattr(FakeSession, 'send_audio', failed)
-    with client.websocket_connect('/ws/voice?rate=24000') as ws:
+    with client.websocket_connect('/ws/voice?rate=24000', headers={'origin': 'http://127.0.0.1:8770'}) as ws:
         assert ws.receive_json()['kind'] == 'model'
         assert ws.receive_json()['kind'] == 'ready'
         ws.send_bytes(b'\0\0' * 480)
@@ -247,7 +247,7 @@ def test_response_task_failure_is_reported_instead_of_silently_ending_talk(monke
 
     monkeypatch.setattr(route.WebSocket, 'send_text', record)
     monkeypatch.setattr(FakeSession, 'events', broken)
-    with client.websocket_connect('/ws/voice?rate=24000') as ws:
+    with client.websocket_connect('/ws/voice?rate=24000', headers={'origin': 'http://127.0.0.1:8770'}) as ws:
         assert ws.receive_json()['kind'] == 'model'
         assert ws.receive_json()['kind'] == 'ready'
         until(lambda: FakeSession.made[0].closed)
@@ -294,7 +294,7 @@ def test_startup_view_is_not_replayed_after_the_same_recap(monkeypatch, requeste
     monkeypatch.setattr(FakeSession, 'idle', float('inf'))
     monkeypatch.setattr(route.context, 'view_key', view_key)
     monkeypatch.setattr(route.context, 'view_note', lambda moment: 'Changed selection: guard cell.')
-    with client.websocket_connect('/ws/voice?rate=24000') as ws:
+    with client.websocket_connect('/ws/voice?rate=24000', headers={'origin': 'http://127.0.0.1:8770'}) as ws:
         assert ws.receive_json()['kind'] == 'model'
         session = FakeSession.made[0]
         until(lambda: session.injected or len(reads) >= 2)

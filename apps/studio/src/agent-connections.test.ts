@@ -45,7 +45,8 @@ describe('the words', () => {
     expect(words.lead).toContain('calling itself Claude Code');
     expect(words.lead).toContain('KX7-M3P');
     expect(words.access.join(' ')).toContain('may be sent to the company that runs Claude Code');
-    expect(words.access.join(' ')).toContain('can’t delete anything');
+    expect(words.access.join(' ')).toContain('no way to read your keys, change your settings or delete anything');
+    expect(words.access.join(' ')).toContain('connect only agents you trust');
     expect(words.access.join(' ')).toContain('Settings → Connected agents');
   });
 
@@ -116,5 +117,19 @@ describe('Settings → Connected agents', () => {
     expect(calls[1].url).toBe('/api/agent-connections/ac_1/disconnect');
     expect((calls[1].init?.headers as Record<string, string>)['X-MicroscopeMind']).toBe('agent-connections');
     expect(settings.textContent).toContain('No agent is connected');
+  });
+});
+
+describe('in the Mac app', () => {
+  it('hands the request to the native dialog and shows no web sheet', async () => {
+    const { connections, sheet, calls } = rig();
+    const posted: unknown[] = [];
+    connections.native = () => ({ postMessage: async (value: unknown) => { posted.push(value); return { answer: 'connect', ok: true }; } });
+    connections.apply({ pending: [pending()], connections: [] });
+    expect(sheet.shown).toBeNull();
+    expect(posted).toEqual([{ id: 'pc_1', label: 'Claude Code', code: 'KX7-M3P' }]);
+    expect(calls).toEqual([]);  // the workspace sends no answer of its own
+    connections.apply({ pending: [pending()], connections: [] });
+    expect(posted).toHaveLength(1);  // asked once
   });
 });

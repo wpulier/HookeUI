@@ -9,7 +9,7 @@ from orchestrator.door import actor, api, schema
 from orchestrator.door.connections import Refused
 from orchestrator.door.operations import Operations, request_digest
 from orchestrator.resources import maker_of
-from tests.test_agent_door import BASE, bearer, build, connect, refused
+from tests.test_agent_door import BASE, bearer, build, connect, refused, window_key  # noqa: F401 (autouse)
 
 AGENT = "agent:ac_" + "1" * 24
 KEY = "first-request-0001"
@@ -233,3 +233,39 @@ def test_a_cancel_before_or_at_the_start_ends_the_record_as_cancelled(tmp_path):
         assert ops.get(op_id)["state"] == "cancelled"
         assert op_id not in ops._tasks
         assert Operations(tmp_path).get(op_id)["state"] == "cancelled"  # and so on disk
+
+
+def test_the_example_never_takes_over_what_the_researcher_sees(tmp_path, monkeypatch):
+    """Review B3: the example opens its own Project and stage. It runs only when that takes nothing from anyone: Talk
+    isn't live, and no Hooke window shows a Project with the researcher's work (empty and the example's own are fine).
+    A refusal records no operation."""
+    from types import SimpleNamespace
+    from orchestrator import examples
+    from orchestrator.door import example
+
+    studio = SimpleNamespace(kind="studio")
+    def app(day, clients=(studio,), voice=None):
+        return SimpleNamespace(day=day, hub=SimpleNamespace(clients=list(clients)), brain=SimpleNamespace(voice=voice))
+
+    empty = SimpleNamespace(sources={}, on_stage=None, ids_used={}, last_user=0, guide=None, name="")
+    working = SimpleNamespace(sources={"a1": 1.0}, on_stage="a1", ids_used={"e": 2}, last_user=5.0, guide=None,
+                              name="Blood smear")
+    own = SimpleNamespace(**{**vars(working), "guide": examples.GUIDE})
+    assert example.takeover(app(empty)) is None
+    assert example.takeover(app(own)) is None
+    assert example.takeover(app(working, clients=())) is None  # no window: nobody's view
+    assert example.takeover(app(working, clients=(SimpleNamespace(kind="script"),))) is None  # a script isn't a view
+    busy = example.takeover(app(working))
+    assert busy.code == "hooke-busy" and "Blood smear" in busy.says
+    talking = example.takeover(app(empty, voice=SimpleNamespace(closed=False)))
+    assert talking.code == "hooke-busy" and "Talk" in talking.says
+
+    # Through the door: refused before anything is admitted.
+    monkeypatch.setattr(api, "example_identity", lambda: ("r1", "abc.0123456789abcdef"))
+    web, built, _ = build(tmp_path)
+    built.day = working
+    with TestClient(web, base_url=BASE) as client:
+        token = connect(client)["token"]
+        refused(client.post("/api/agent/v1/operations", json={"tool": "example", "requestKey": KEY}, headers=bearer(token)),
+                409, "hooke-busy")
+        assert client.get("/api/agent/v1/operations", headers=bearer(token)).json()["operations"] == []

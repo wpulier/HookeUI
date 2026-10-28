@@ -37,6 +37,15 @@ struct Channel {
 
 let channel = Channel()
 let appName = channel.name
+/// This launch's key for signing the researcher's answer to an agent (ADR 0026; AgentShared.swift). Never written down.
+let agentConfirmKey = AgentConfirmKey()
+/// This launch's studio token (ADR 0026): given to the server in its environment and to this window's page only, so a
+/// script copying the studio's Origin can't open the studio's WebSocket. Never served over HTTP, never written down.
+let studioToken: String = {
+    var bytes = [UInt8](repeating: 0, count: 32)
+    _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+    return bytes.map { String(format: "%02x", $0) }.joined()
+}()
 
 struct Places {
     let bundle = Bundle.main.bundleURL
@@ -304,6 +313,8 @@ final class Services {
         env["MICROMIND_ASSETS"] = places.data.path
         env["MICROMIND_KEYCHAIN_SERVICE"] = channel.keychainService
         env["HOOKE_CHANNEL"] = channel.id  // what the agent door's status says (services/orchestrator/door)
+        if let key = agentConfirmKey?.publicBase64 { env["HOOKE_CONFIRM_KEY"] = key }  // only the public half
+        env["HOOKE_STUDIO_TOKEN"] = studioToken  // the window's sockets present it (apps/studio protocol.ts studioSocketURL)
         env["MICROMIND_BLACKMAGIC_PORT"] = String(channel.streamPort)
         env["MICROMIND_CAMERA_SETTINGS_PORT"] = String(channel.settingsPort)
         if channel.isolated {
@@ -511,6 +522,12 @@ final class Studio: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDele
         updates.origin = url
         configuration.userContentController.addScriptMessageHandler(updates, contentWorld: .page, name: "hookeUpdates")
         configuration.userContentController.add(AgentAttention(origin: url), contentWorld: .page, name: "hookeAttention")
+        configuration.userContentController.addScriptMessageHandler(AgentConnect(origin: url), contentWorld: .page,
+                                                                    name: "hookeConnect")
+        // The studio token, for this window's page only (main frame, before its scripts run).
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: "window.hookeStudioToken = \(String(reflecting: studioToken));",
+            injectionTime: .atDocumentStart, forMainFrameOnly: true))
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         webView = WKWebView(frame: .zero, configuration: configuration)
@@ -1136,5 +1153,73 @@ final class AgentAttention: NSObject, WKScriptMessageHandler {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first { $0.contentView is WKWebView }?.makeKeyAndOrderFront(nil)
         }
+    }
+}
+
+
+/// The researcher's answer to an agent asking to connect (ADR 0026): asked in a native dialog, not the web page, and
+/// sent to the server signed with this launch's key (door/native.py). The workspace only says a request is waiting.
+final class AgentConnect: NSObject, WKScriptMessageHandlerWithReply {
+    let origin: URL
+    private var asking: Set<String> = []
+    init(origin: URL) { self.origin = origin }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler reply: @escaping (Any?, String?) -> Void) {
+        let source = message.frameInfo.request.url
+        guard message.frameInfo.isMainFrame, source?.scheme == origin.scheme, source?.host == origin.host,
+              source?.port == origin.port, let body = message.body as? [String: Any],
+              let id = body["id"] as? String, let label = body["label"] as? String, let code = body["code"] as? String,
+              id.range(of: #"^pc_[0-9a-f]{24}$"#, options: .regularExpression) != nil
+        else { reply(nil, "Not a connection request from this workspace."); return }
+        guard !asking.contains(id) else { reply(["state": "asking"], nil); return }
+        guard let key = agentConfirmKey else { reply(nil, "This Hooke has no confirm key; restart Hooke."); return }
+        asking.insert(id)
+        DispatchQueue.main.async { [self] in
+            NSApp.activate(ignoringOtherApps: true)
+            let window = NSApp.windows.first { $0.contentView is WKWebView }
+            window?.makeKeyAndOrderFront(nil)
+            let alert = NSAlert()
+            alert.messageText = "Connect \(label) to Hooke?"
+            alert.informativeText = Self.words(label: label, code: code)
+            alert.addButton(withTitle: "Don’t connect")  // the default: a stray Return never connects an agent
+            alert.addButton(withTitle: "Connect").keyEquivalent = ""
+            let answered: (NSApplication.ModalResponse) -> Void = { [self] response in
+                let answer = response == .alertSecondButtonReturn ? "connect" : "decline"
+                self.send(id: id, code: code, answer: answer, key: key) { ok, says in
+                    self.asking.remove(id)
+                    reply(["answer": answer, "ok": ok, "says": says], nil)
+                }
+            }
+            if let window { alert.beginSheetModal(for: window, completionHandler: answered) }
+            else { answered(alert.runModal()) }
+        }
+    }
+
+    /// Only what the door enforces. An agent that runs commands on this Mac can already reach what any program can.
+    static func words(label: String, code: String) -> String {
+        "An agent on this Mac calling itself \(label) asked to connect. Check that it shows the code \(code).\n\n"
+        + "Through Hooke’s agent connection it can see what Hooke can do and work in your Projects on this Mac: open files, "
+        + "run tools and keep results, recorded as done by it. That connection gives it no way to read your keys, change "
+        + "your settings or delete. What it reads may be sent to the company that runs \(label).\n\n"
+        + "An agent that runs commands on your Mac can already reach your files as any program you run can, so connect only "
+        + "agents you trust. You can disconnect it at any time in Settings → Connected agents."
+    }
+
+    private func send(id: String, code: String, answer: String, key: AgentConfirmKey,
+                      done: @escaping (Bool, String) -> Void) {
+        guard let signature = key.sign(AgentConfirmKey.message(pending: id, code: code, answer: answer)) else {
+            done(false, "Hooke couldn’t sign the answer."); return
+        }
+        var request = URLRequest(url: origin.appendingPathComponent("api/agent-connections/pending/\(id)"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["answer": answer, "signature": signature])
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let body = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
+            let says = body["says"] as? String ?? error?.localizedDescription ?? ""
+            DispatchQueue.main.async { done(status == 200, says) }
+        }.resume()
     }
 }

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from .connections import Connections, Refused
 from .contract import CONTRACT, describe
+from . import native
 from .operations import Operations
 
 PREFIX = "/api/agent/v1"
@@ -208,7 +209,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
                     "revision": build.get("revision"), "sourceDigest": build.get("sourceDigest")},
             "interface": {"version": INTERFACE, "minCli": 1, "minSkill": 1},
             "connection": c.wire(),
-            "studio": {"open": bool(getattr(hub, "clients", None))},
+            "studio": {"open": any(getattr(c, "kind", None) == "studio" for c in (getattr(hub, "clients", None) or ()))},
             "project": {"session": getattr(day, "sid", None)},
         })
 
@@ -247,6 +248,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
             if not isinstance(args, dict) or args:
                 raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
             from . import example
+            busy = example.takeover(built)  # never under the researcher's eyes (review B3)
+            if busy is not None:
+                raise busy
             revision, generation = await asyncio.to_thread(example_identity)
             record, made = await operations.admit(
                 by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
@@ -316,12 +320,19 @@ def register(app, built, studio_origin, header: str) -> Connections:
 
     @app.post("/api/agent-connections/pending/{pid}")
     async def studio_answer(pid: str, request: Request) -> JSONResponse:
+        """The researcher's answer. It counts only when the Hooke app's native dialog signed it (door/native.py): an
+        Origin and header any local program can copy are not enough."""
         try:
-            studio(request, writes=True)
+            studio(request, writes=False)  # a loopback Host; the signature below is what makes it the researcher's
             value = await body(request)
-            if value.get("answer") not in ("connect", "decline"):
+            answer = value.get("answer")
+            if answer not in ("connect", "decline"):
                 raise Refused(400, "bad-request", "The answer is connect or decline.", next="reload the workspace")
-            p = connections.answer(pid, value["answer"] == "connect")
+            waiting = connections.waiting(pid)
+            native.check(pid, waiting.code, answer, value.get("signature"),
+                         studio_ok=studio_origin(request.headers.get("origin"), request.url.port)
+                         and request.headers.get(header) == "agent-connections")
+            p = connections.answer(pid, answer == "connect")
         except Refused as error:
             return _refusal(error)
         announce()

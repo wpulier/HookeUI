@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from orchestrator.door import api, schema
+from orchestrator.door import api, native, schema
 from orchestrator.door.connections import Connections, PENDING_SECONDS
 from orchestrator.origin import studio_origin
 
@@ -17,7 +17,37 @@ STUDIO = {"Origin": BASE, HEADER: "agent-connections"}
 SECRET = "a-secret-the-command-made-" + "x" * 20
 
 
+def _window_key():
+    """The key the Mac app makes for each launch (main.swift AgentConfirm), here made by the test."""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    key = ec.generate_private_key(ec.SECP256R1())
+    raw = key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    return key, base64.b64encode(raw).decode()
+
+
+WINDOW, WINDOW_PUBLIC = _window_key()
+
+
+@pytest.fixture(autouse=True)
+def window_key(monkeypatch):
+    monkeypatch.setenv("HOOKE_CONFIRM_KEY", WINDOW_PUBLIC)
+    monkeypatch.delenv("HOOKE_DEV_CONFIRM", raising=False)
+
+
+def signed(pending, answer, key=None):
+    """The answer as the Hooke window's native dialog sends it."""
+    import base64
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
+    signature = (key or WINDOW).sign(native.message(pending["id"], pending["code"], answer), ec.ECDSA(hashes.SHA256()))
+    return {"answer": answer, "signature": base64.b64encode(signature).decode()}
+
+
 class Offers:
+    kind = "studio"  # a studio's socket (origin.socket_kind); a script's doesn't count as an open studio
+
     def __init__(self):
         self.sent = []
 
@@ -48,8 +78,7 @@ def ask(client, label="Claude Code", kind="claude-code", secret=SECRET):
 
 def connect(client, label="Claude Code", secret=SECRET):
     pending = ask(client, label, secret=secret).json()["pending"]
-    assert client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"},
-                       headers=STUDIO).status_code == 200
+    assert client.post(f"/api/agent-connections/pending/{pending['id']}", json=signed(pending, "connect")).status_code == 200
     claimed = client.post(f"/api/agent/v1/connect/{pending['id']}/claim", json={"secret": secret})
     assert claimed.status_code == 200, claimed.text
     return claimed.json()
@@ -79,13 +108,20 @@ def test_connecting_takes_a_confirm_in_hooke_and_the_askers_secret(door):
     assert waiting.status_code == 202 and "token" not in waiting.json()
     refused(client.post(f"/api/agent/v1/connect/{pending['id']}/claim", json={"secret": "someone else"}),
             403, "wrong-secret")
-    # Only the Hooke window may answer: no Origin, another page or a missing header is refused.
-    for headers in ({}, {"Origin": "http://127.0.0.1:9999", HEADER: "agent-connections"}, {"Origin": BASE}):
+    # Only the Hooke window's own dialog may answer: the studio's Origin and header, which any local program can copy,
+    # are not enough, nor is an answer signed for something else or by another key.
+    for headers in ({}, STUDIO, {"Origin": "http://127.0.0.1:9999", HEADER: "agent-connections"}):
         refused(client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"},
-                            headers=headers), 403, "studio-only")
+                            headers=headers), 403, "native-confirm-required")
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}",
+                        json={"answer": "connect", "signature": signed(pending, "decline")["signature"]}), 403, "bad-confirm")
+    other, _ = _window_key()
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}", json=signed(pending, "connect", other)),
+            403, "bad-confirm")
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}",
+                        json={**signed(pending, "connect"), "signature": "not base64!"}), 403, "bad-confirm")
 
-    assert client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"},
-                       headers=STUDIO).status_code == 200
+    assert client.post(f"/api/agent-connections/pending/{pending['id']}", json=signed(pending, "connect")).status_code == 200
     claimed = client.post(f"/api/agent/v1/connect/{pending['id']}/claim", json={"secret": SECRET}).json()
     assert claimed["token"].startswith("hk_local_")
     assert schema.problems(claimed["connection"], "connection") == []
@@ -109,7 +145,7 @@ def test_connecting_takes_a_confirm_in_hooke_and_the_askers_secret(door):
 def test_a_declined_request_gives_no_token(door):
     client, _, _ = door
     pending = ask(client).json()["pending"]
-    client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "decline"}, headers=STUDIO)
+    client.post(f"/api/agent-connections/pending/{pending['id']}", json=signed(pending, "decline"))
     refused(client.post(f"/api/agent/v1/connect/{pending['id']}/claim", json={"secret": SECRET}), 403, "declined")
 
 
@@ -220,3 +256,57 @@ def test_the_shared_schemas_load_and_check():
                             "project": "p", "by": "agent:ac_" + "1" * 24, "at": 1.0}, "operation") == []
     assert schema.problems({"id": "op_" + "0" * 16, "requestKey": "key-12345", "state": "running", "tool": "t",
                             "project": "p", "by": "someone", "at": 1.0}, "operation")
+
+
+def test_without_the_apps_key_only_a_developer_can_answer(door, monkeypatch):
+    """A source checkout has no Mac app and so no window key: answering then takes HOOKE_DEV_CONFIRM=1, set knowingly."""
+    client, _, _ = door
+    monkeypatch.delenv("HOOKE_CONFIRM_KEY")
+    pending = ask(client).json()["pending"]
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"}, headers=STUDIO),
+            403, "native-confirm-required")
+    monkeypatch.setenv("HOOKE_DEV_CONFIRM", "1")
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"}), 403,
+            "native-confirm-required")  # even then, only the studio's own page
+    assert client.post(f"/api/agent-connections/pending/{pending['id']}", json={"answer": "connect"},
+                       headers=STUDIO).status_code == 200
+
+
+def test_an_unreadable_window_key_refuses_every_answer(door, monkeypatch):
+    client, _, _ = door
+    monkeypatch.setenv("HOOKE_CONFIRM_KEY", "bm90IGEga2V5")
+    pending = ask(client).json()["pending"]
+    refused(client.post(f"/api/agent-connections/pending/{pending['id']}", json=signed(pending, "connect")), 503,
+            "confirm-key-unreadable")
+
+
+def test_a_socket_opens_only_for_the_studio_or_a_script_with_the_local_token(tmp_path, monkeypatch):
+    """ADR 0026: an Origin alone can't tell the studio from a script. With the Mac app's studio token set, only a socket
+    presenting it is the studio; without one (a source checkout's browser), a loopback Origin is; a script presents the
+    data home's local token; anything else is refused."""
+    from orchestrator import origin
+    monkeypatch.delenv("HOOKE_STUDIO_TOKEN", raising=False)
+    token = origin.local_token(tmp_path)
+    assert origin.local_token(tmp_path) == token  # made once
+    assert (tmp_path / "agents" / "local-token").stat().st_mode & 0o077 == 0
+    script = {"authorization": f"Bearer {token}"}
+    assert origin.socket_kind({"origin": BASE}, {}, tmp_path) == "studio"
+    assert origin.socket_kind({}, {}, tmp_path) is None  # no Origin and no token: refused (it was allowed before)
+    assert origin.socket_kind({"origin": "https://evil.example"}, {}, tmp_path) is None
+    assert origin.socket_kind(script, {}, tmp_path) == "script"
+    assert origin.socket_kind({"authorization": "Bearer wrong"}, {}, tmp_path) is None
+    monkeypatch.setenv("HOOKE_STUDIO_TOKEN", "the-windows-token")
+    assert origin.socket_kind({"origin": BASE}, {}, tmp_path) is None  # in the Mac app a copied Origin is not the studio
+    assert origin.socket_kind({"origin": BASE}, {"studio": "the-windows-token"}, tmp_path) == "studio"
+    assert origin.socket_kind({}, {"studio": "a-guess"}, tmp_path) is None
+    assert origin.socket_kind(script, {}, tmp_path) == "script"
+
+
+def test_status_counts_only_the_real_studio_as_open(tmp_path):
+    app, built, offers = build(tmp_path)
+    with TestClient(app, base_url=BASE) as client:
+        token = connect(client)["token"]
+        offers.kind = "script"
+        assert client.get("/api/agent/v1/status", headers=bearer(token)).json()["studio"]["open"] is False
+        offers.kind = "studio"
+        assert client.get("/api/agent/v1/status", headers=bearer(token)).json()["studio"]["open"] is True

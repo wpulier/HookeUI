@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 // What the Mac app and the `hooke` command share (ADR 0026; services/orchestrator/door/AGENTS.md): the state file the
 // app writes as it starts, the pages an agent may open in Hooke, and the "Open in Hooke" links. Compiled into both.
@@ -59,5 +60,37 @@ enum AgentLinks {
               let page = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "page" })?.value,
               isPage(page) else { return nil }
         return page
+    }
+}
+
+// MARK: - The researcher's answer, signed by this launch's window (door/native.py)
+
+/// A P-256 key pair made in memory each time the app launches, never written anywhere. The server gets only the public
+/// half (HOOKE_CONFIRM_KEY, in the environment it is started with), and only this app can sign an answer.
+final class AgentConfirmKey {
+    private let privateKey: SecKey
+
+    init?() {
+        let attributes: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+                                         kSecAttrKeySizeInBits as String: 256,
+                                         kSecPrivateKeyAttrs as String: [kSecAttrIsPermanent as String: false]]
+        guard let key = SecKeyCreateRandomKey(attributes as CFDictionary, nil) else { return nil }
+        privateKey = key
+    }
+
+    /// The raw X9.63 public point, base64: what the server reads.
+    var publicBase64: String? {
+        guard let publicKey = SecKeyCopyPublicKey(privateKey),
+              let raw = SecKeyCopyExternalRepresentation(publicKey, nil) as Data? else { return nil }
+        return raw.base64EncodedString()
+    }
+
+    func sign(_ message: Data) -> String? {
+        (SecKeyCreateSignature(privateKey, .ecdsaSignatureMessageX962SHA256, message as CFData, nil) as Data?)?.base64EncodedString()
+    }
+
+    /// What is signed: the exact request, its code and the answer (the same bytes as door/native.py `message`).
+    static func message(pending: String, code: String, answer: String) -> Data {
+        Data("hooke-agent-connect\n\(pending)\n\(code)\n\(answer)".utf8)
     }
 }

@@ -26,6 +26,34 @@ def _tell_studios(app) -> None:
         client.offer(json.dumps({"type": "onboarding-changed"}))
 
 
+def takeover(app) -> Refused | None:
+    """Why running the example now would change what the researcher sees, or None when it wouldn't (review B3; the
+    plan's "the researcher's view is never taken over"). The example opens its own Project and puts its image on the
+    stage, so it runs only when that takes nothing from anyone:
+    - Talk isn't live (opening the example would end it);
+    - no Hooke window is open, or the one open shows an empty Project (nothing opened, made or asked) or the example's
+      own."""
+    from .. import examples
+    voice = getattr(getattr(app, "brain", None), "voice", None)
+    if voice is not None and not getattr(voice, "closed", True):
+        return Refused(409, "hooke-busy", "Talk is on in Hooke, and running the example would end it.",
+                       next="ask the researcher to stop Talk in Hooke, then run the example")
+    clients = getattr(getattr(app, "hub", None), "clients", None) or ()
+    if not any(getattr(c, "kind", None) == "studio" for c in clients):
+        return None
+    day = app.day
+    if getattr(day, "guide", None) == examples.GUIDE:
+        return None
+    empty = not getattr(day, "sources", None) and getattr(day, "on_stage", None) is None \
+        and not getattr(day, "ids_used", None) and not getattr(day, "last_user", 0)
+    if empty:
+        return None
+    name = getattr(day, "name", "") or "a Project"
+    return Refused(409, "hooke-busy", f"Hooke shows {name!r} with the researcher's work in it, and the example would "
+                   "switch it to the example's own Project.",
+                   next="ask the researcher to open a new empty Project in Hooke (or close Hooke's window), then run it")
+
+
 def page(result: dict, session: str) -> str:
     return f"#measurements/{result['id']}?session={session}&revision={result['revision']}"
 
@@ -38,6 +66,9 @@ async def run(app, record: dict, progress) -> dict:
 
     ACTOR.set(record["by"])
     guide = onboarding.of(app)
+    busy = takeover(app)  # checked again now that it starts: the researcher may have opened something meanwhile
+    if busy is not None:
+        raise busy
     try:
         await progress(1, 3, "Opening the example image in its own Project")
         await guide.command(None, {"action": "start"})

@@ -329,7 +329,10 @@ class Viewer:
             raise ConnectionError(self._connection_error)
 
     async def _run(self) -> None:
-        async with websockets.connect(self.url, max_size=None) as ws:
+        # The viewer stands in for the studio, so it connects as a browser's studio does: with its loopback Origin
+        # (a source checkout has no studio token; origin.socket_kind, ADR 0026).
+        origin = self.url.replace("ws://", "http://", 1).split("/ws", 1)[0]
+        async with websockets.connect(self.url, max_size=None, origin=origin) as ws:
             self.ws = ws
             await ws.send(json.dumps({"type": "debug", "candidates": True}))
             self._connection_settled.set()
@@ -2220,7 +2223,8 @@ async def scenario_voice(stack: Stack, viewer: Viewer, model: str = "") -> Outco
     before = set(viewer.scene)
     events: list[tuple[float, dict]] = []
     audio_at: list[float] = []
-    async with websockets.connect(stack.ws_url + "/voice" + (f"?model={model}" if model else ""), max_size=None) as ws:
+    async with websockets.connect(stack.ws_url + "/voice" + (f"?model={model}" if model else ""), max_size=None,
+                                  origin=stack.ws_url.replace("ws://", "http://", 1).split("/ws", 1)[0]) as ws:
         async def mic() -> None:
             chunk = 640  # 40 ms at 16 kHz, like the studio
             silence = np.zeros(chunk, np.int16).tobytes()
@@ -2548,7 +2552,8 @@ class Talk:
         self.queue: asyncio.Queue = asyncio.Queue()
 
     async def __aenter__(self) -> "Talk":
-        self.ws = await websockets.connect(self.stack.ws_url + "/voice", max_size=None)
+        self.ws = await websockets.connect(self.stack.ws_url + "/voice", max_size=None,
+                                           origin=self.stack.ws_url.replace("ws://", "http://", 1).split("/ws", 1)[0])
         self.tasks = [asyncio.create_task(self._mic()), asyncio.create_task(self._listen())]
         return self
 
