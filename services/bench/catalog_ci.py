@@ -97,6 +97,13 @@ def check(entry: str, static: bool, environ: dict) -> list[str]:
             if need.startswith("data:"):
                 print(f"{entry}: downloading its data {need[5:]} and checking each file")
                 downloads.download(catalog.get(need[5:]), environ=environ)
+        if m.kind == "runtime":
+            print(f"{entry}: preparing its hashed environment and checking declared imports")
+            envs.build(m, environ, say=lambda s: print(f"{entry}: {s}"))
+            if envs.python(m, environ) is None:
+                return ["its prepared environment has no usable receipt and Python"]
+            print(f"{entry}: runtime import checks passed; not operation or scientific qualification")
+            return []
         if m.runner == "python-env":
             print(f"{entry}: making its environment from its lockfile")
             envs.build(m, environ, say=lambda s: print(f"{entry}: {s}"))

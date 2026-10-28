@@ -60,7 +60,7 @@ from the folder unless it says otherwise. Behaviour settings that run no one mod
 | `runs` | `this-mac`, `cloud` or `cpu`. |
 | `version` | Its weights: a repository, or what names them. Each implementation it runs has this version. |
 | `licence` | Its `orchestrator/licences.py` components; the edition gate and the licences page read these. |
-| `kind` | `model`, `tool` (a program with functions: Fiji), `tool-function`, `cloud-model` or `data` (files another entry reads, never run). |
+| `kind` | `model`, `tool` (a program with functions: Fiji), `tool-function`, `cloud-model` `data` (files another entry reads, never run), or `runtime` (a pinned CPU Python environment, with import checks and no operations). |
 | `what` | What it does, in at most 12 words, for the catalog and the Models menu. |
 | `runner` | How it is run: `gpu-worker` (the app's own GPU workers), `cloud` (the app's own provider clients), `cellpose-file` (Cellpose's code on your weights), `fiji` (Fiji and its bindings), `builtin-cpu` (an algorithm bundled with the app) or `python-env` (its own adapter in its own environment: "Add a model with its own adapter" below). `""` with `pins.adapter` naming its own adapter in the app's code (Trackastra's, kept with the non-commercial code). |
 | `env` | The Python of its own the app makes for it: `python` (the version), `lock` (a lockfile beside the manifest, every package by its hash) and `imports` (what its install proves). |

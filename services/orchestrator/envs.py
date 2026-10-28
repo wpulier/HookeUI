@@ -110,6 +110,11 @@ def _generation_from_files(m, environ, *, wheel_preparation=1):
     if spec(m).get("wheels") and wheel_preparation == 1:
         # Materialization changes create a new generation beside retained versions.
         h.update(b"\0hooke-portable-wheels-origin-v1")
+    if m.kind == "runtime":
+        # An environment-only entry has no adapter proof: its declared import and
+        # command checks are part of preparation identity, never reused after edits.
+        h.update(b"\0hooke-runtime-checks-v1\0")
+        h.update(json.dumps(spec(m), sort_keys=True, separators=(",", ":")).encode())
     if m.runner == "python-env":
         h.update(entry_digest(m, environ).encode())
     return h.hexdigest()[:16]
