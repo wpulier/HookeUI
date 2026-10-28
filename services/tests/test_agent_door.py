@@ -336,3 +336,10 @@ def test_status_counts_only_the_real_studio_as_open(tmp_path):
         assert client.get("/api/agent/v1/status", headers=bearer(token)).json()["studio"]["open"] is False
         offers.kind = "studio"
         assert client.get("/api/agent/v1/status", headers=bearer(token)).json()["studio"]["open"] is True
+
+
+def test_the_studio_names_the_playbook_of_its_own_channel():
+    """Found on a fresh Mac: Beta's Settings said to fetch hookeui.org/get-started.md, Stable's page, not yet there."""
+    assert api.playbook({"HOOKE_CHANNEL": "beta"}) == "https://hookeui.org/get-started-beta.md"
+    assert api.playbook({"HOOKE_CHANNEL": "stable"}) == "https://hookeui.org/get-started.md"
+    assert api.playbook({}) == "https://hookeui.org/get-started.md"

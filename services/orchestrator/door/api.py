@@ -64,6 +64,12 @@ def build_identity() -> dict:
     return identity()
 
 
+def playbook(environ=os.environ) -> str:
+    """The page an agent follows to connect to this app's channel: Beta has its own (hooke-web site/get-started-beta.md)."""
+    return ("https://hookeui.org/get-started-beta.md" if environ.get("HOOKE_CHANNEL") == "beta"
+            else "https://hookeui.org/get-started.md")
+
+
 def app_version() -> str | None:
     from ..build_info import PACKAGED
     try:
@@ -114,7 +120,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         if not clients:
             return
         message = json.dumps({"type": "agent-connections", "pending": [p.wire() for p in connections.pending()],
-                              "connections": [c.wire() for c in connections.connections()]})
+                              "connections": [c.wire() for c in connections.connections()], "playbook": playbook()})
         for client in list(clients):
             client.offer(message)
 
@@ -346,7 +352,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "pending": [p.wire() for p in connections.pending()],
-                          "connections": [c.wire() for c in connections.connections()]})
+                          "connections": [c.wire() for c in connections.connections()], "playbook": playbook()})
 
     @app.post("/api/agent-connections/pending/{pid}")
     async def studio_answer(pid: str, request: Request) -> JSONResponse:

@@ -7,7 +7,7 @@ import { StudioSheet } from './sheet';
 
 export interface PendingAgent { id: string; label: string; kind: string; code: string; at: number; expiresAt: number; state: string }
 export interface AgentConnection { id: string; label: string; kind: string; at: number; revokedAt: number | null }
-export interface AgentConnectionsState { pending: PendingAgent[]; connections: AgentConnection[] }
+export interface AgentConnectionsState { pending: PendingAgent[]; connections: AgentConnection[]; playbook?: string }
 export interface AgentConnectionsMessage extends AgentConnectionsState { type: 'agent-connections' }
 
 /** What the connection sheet needs of StudioSheet (sheet.ts); a test gives its own. */
@@ -47,7 +47,10 @@ export function parseAgentConnections(value: unknown): AgentConnectionsState {
     if (!isObject(c) || !str(c.id) || !str(c.label) || !str(c.kind) || !num(c.at) || !(c.revokedAt === null || num(c.revokedAt))) throw new Error('Connected agents could not be read.');
     return { id: c.id, label: c.label, kind: c.kind, at: c.at, revokedAt: c.revokedAt } as AgentConnection;
   });
-  return { pending, connections };
+  // The page an agent follows to connect to this app's channel (door api.playbook); only a hookeui.org page is shown.
+  const playbook = str(value.playbook) && /^https:\/\/hookeui\.org\/[\w./-]+\.md$/.test(value.playbook as string)
+    ? value.playbook as string : undefined;
+  return { pending, connections, ...(playbook ? { playbook } : {}) };
 }
 
 /** What the confirm sheet says: who asks, the code to match, and what connecting allows, including that what the agent
@@ -65,7 +68,8 @@ export function confirmWords(p: PendingAgent): { title: string; lead: string; ac
   };
 }
 
-const day = (seconds: number) => new Date(seconds * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+// With the time: two connections of one agent on one day (a reconnect) are told apart.
+const day = (seconds: number) => new Date(seconds * 1000).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
 /** One row of Settings' list. */
 export function connectionWords(c: AgentConnection): string {
@@ -227,7 +231,8 @@ export class AgentConnections {
       list.append(li);
     }
     const none = document.createElement('p'); none.className = 'agent-none';
-    none.textContent = 'No agent is connected. To connect one, ask it to fetch hookeui.org/get-started.md and follow it.';
+    const page = (this.state.playbook ?? 'https://hookeui.org/get-started.md').replace(/^https:\/\//, '');
+    none.textContent = `No agent is connected. To connect one, ask it to fetch ${page} and follow it.`;
     section.replaceChildren(heading, intro, live.length ? list : none);
   }
 }
