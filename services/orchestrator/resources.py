@@ -2385,7 +2385,7 @@ class Index:
         made = ({"actor": producer['actor'], "operation": producer['operation']}
                 if isinstance(producer, dict) and producer.get('kind') == 'agent-import'
                 and isinstance(producer.get('actor'), str) and isinstance(producer.get('operation'), str)
-                else None)
+                else {})
         return Entry(item.id, "project", document['title'], item.session, item.at,
                      version=item.revision, state="saved", untrusted=True, made_by=made,
                      summary=f"{document['kind']} project · revision {item.revision}",
