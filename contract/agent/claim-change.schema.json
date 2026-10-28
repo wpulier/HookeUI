@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "required": [
+    "request",
+    "claim",
+    "reason",
+    "evidence",
+    "by",
+    "byLabel",
+    "at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "request": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "$ref": "evidence-reference.schema.json"
+      }
+    },
+    "by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "byLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "at": {
+      "type": "number"
+    }
+  },
+  "$id": "hooke:agent/claim-change"
+}

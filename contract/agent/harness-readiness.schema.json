@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "required": [
+    "id",
+    "available",
+    "reason",
+    "controls"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "available": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "controls": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "start",
+          "observe",
+          "stop",
+          "continue"
+        ]
+      }
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$id": "hooke:agent/harness-readiness"
+}

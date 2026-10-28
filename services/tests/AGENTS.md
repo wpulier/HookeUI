@@ -571,3 +571,34 @@ transport/snapshot are inert; it claims no researcher/model or ordinary-UI accep
 `test_comparison_datatables.py` uses synthetic population metadata/rows with real workspace journals and table
 publication to check exact comparison selection, Method values, warning/reopen and stale/foreign/input/method
 refusals. It does not establish an actual A/B/C UI workflow or scientific independence.
+
+`test_workflows.py` covers synthetic exact references with real Project storage, frozen definitions, sequential batches, named inputs, actor continuation, review/correction, uncertain recovery and shared HTTP/researcher admission. The capability matrix and voice/chat parity checks discover the actual catalog descriptors and save a frozen definition through the shared registry, with scripted provider transport; those rows execute no scientific model. Managed report execution is explicitly unavailable in standalone core; private provider-deadline qualification remains in its service repository. Workflow Studio tests use synthetic forms/transport. None establishes actual external-agent interoperability, full-size fitting, packaged UI or biological accuracy.
+
+`test_study_workflows.py`, `test_study_door.py` and `test_study_local_researcher.py` cover retained
+Study/operation identities, lost admission without replay, stop/restart observation, exact evidence,
+connection attribution, Project-switch refusal, original-attempt accounting and late usage receipts.
+Local harness tests use synthetic manager receipts and do not call a model provider. Workflow tests
+include actual tiny numerical computation where the pinned scientific runtime is prepared; that
+is distinct from official benchmark scoring, full-size matrices, biological accuracy, browser use,
+two actual agent families and the hosted runtime assembled from its accepted core pin.
+
+`test_matrix_research_capabilities.py`, `test_matrix_capability_retention.py` and
+`test_cell_evaluation_capability.py` use tiny synthetic matrices and actual retained files.
+Numerical tests use optional installed AnnData/upstream evaluation libraries or explicitly
+skip their unavailable cases. Default retention tests substitute only runtime admission;
+`HOOKE_MATRIX_TEST_CATALOG` selects an actually prepared isolated catalog and its confined
+interpreter instead. Neither establishes full-size inference, biological accuracy, sealed
+labels, actual agent reasoning or competition acceptance. See
+`docs/architecture/scientific-matrices.md` for the scientific and execution boundaries.
+`test_aggregate_profiles.py` checks weighted-mean equivalence to explicit cells,
+normalization independent of selected output genes, explicit coverage, legacy
+categorical axes, merge compatibility and a prepared-runtime confined operation chain.
+The evaluator tests refuse malformed sparse pointer layouts and oversized categorical
+or string metadata before upstream decoding. These are synthetic fixtures, not source
+data conversion or a biological validation result.
+
+Workspace arrangement geometry checks inject only the server observation clock;
+separate before/after-deadline tests preserve confirmation policy. Scientific stack
+cleanup tests replace their module clock, never the shared Python time module, so
+unrelated writer threads keep their own clocks. Reservation tests exercise queued
+ownership and cancellation without asserting scheduling speed.

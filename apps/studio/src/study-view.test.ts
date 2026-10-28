@@ -282,3 +282,36 @@ it('keeps a standalone local study readable without empty managed setup controls
   expect(root.querySelector('.study-setup')).toBe(null);
   expect(root.textContent).toContain(study.objective);
 });
+
+it('keeps attributed claims, challenges and exact evidence visible without automatic acceptance', async () => {
+  vi.stubGlobal('document', syntheticDOM().document);
+  const root = new TestElement('article'), openFile = vi.fn();
+  renderStudy(root as unknown as HTMLElement, { ...study, tasks: {}, claims: [{request:'c1',
+    statement:'The first fitted model reduced error.',byLabel:'Researcher 2',limitations:'Synthetic inputs only',dependsOn:[],
+    evidence:[{relation:'supports',artifact:{id:'p-evidence',revision:3}}]}],
+    claimChanges:[{claim:'c1',reason:'The holdout was not independent.',byLabel:'Reviewer'}]}, {control:vi.fn(),openFile});
+  expect(root.textContent).toContain('Researcher 2: The first fitted model reduced error.');
+  expect(root.textContent).toContain('Reviewer challenges this: The holdout was not independent.');
+  expect(root.textContent).toContain('Synthetic inputs only');
+  fire(byText(root,'Open supports evidence · v3')!, 'click'); await Promise.resolve();
+  expect(openFile).toHaveBeenCalledWith({id:'p-evidence',revision:3}, 'Claim evidence');
+});
+
+it('does not call a finished local researcher accepted and retains its day-specific link', () => {
+  const {root,text} = draw({...study, tasks:{a:{...study.tasks.a,status:'completed',chargedMicrousd:10,
+    execution:{provider:'local-researcher',id:'r123456',day:'2026-10-28',runId:'original'}}},findings:[],
+    controlProblems:['Termination of another run remains unconfirmed']});
+  expect(text()).toContain('Finished · findings not yet reviewed');
+  expect(text()).toContain('Stop needs checking: Termination of another run remains unconfirmed');
+  expect(root.querySelector('a')?.getAttribute('href') ?? (root.querySelector('a') as unknown as {href?:string})?.href)
+    .toBe('#research/r123456?day=2026-10-28');
+});
+
+it('does not say no work ran when an agent admitted workflow experiments', () => {
+  const {root, text} = draw({...study, tasks: {}, findings: [], experiments: {
+    first: {operation:'op_first',byLabel:'Agent A',execution:{id:'run_first',session:study.session}},
+  }});
+  expect(root.querySelector('.spill')?.textContent).toBe('Active');
+  expect(text()).toContain('Workflow experiments are shown in the Study.');
+  expect(text()).not.toContain('None yet. Prepare the inputs');
+});

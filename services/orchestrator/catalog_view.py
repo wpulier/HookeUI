@@ -351,6 +351,9 @@ def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
     if r.status == "ready":
         keys = [n.split(":", 1)[1] for n in (*m.needs_to_get, *m.needs_to_run) if n.startswith("key:")]
         change = [{"kind": "change-key", "says": "Change key", "key": k} for k in keys]
+        if m.kind == "runtime":
+            return {"state": "obtained", "says": "Dependencies prepared; declared import checks passed (no operation proof)",
+                    "action": None, "also": change}
         if m.kind == "data":
             return {"state": "obtained", "says": "Downloaded and checked by its files (data runs nothing)", "action": None,
                     "also": change}

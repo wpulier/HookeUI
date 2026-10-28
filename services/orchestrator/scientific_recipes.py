@@ -219,7 +219,7 @@ def inputs(store,session,environ=os.environ):
         try: tools.scene(store,saved.id,session,saved.revision)
         except (ValueError,OSError):continue
         rows.append({'input':identity(saved),'title':saved.document['title'],
-                     'layers':len(view.get('layers',[])),'tool':tool_name(view['runtime'],environ)})
+                     'layers':len(view.get('layers',[])),'tool':tool_name(view['runtime'],environ) if isinstance(view.get('runtime'),dict) else None})
         if len(rows)==64:break
     return rows
 

@@ -10,6 +10,25 @@ from gpu_worker import manifests as catalog
 from gpu_worker.manifests import DATA_TYPES, HOSTS, RUNS, WORKERS, local, manifests, services
 
 
+def environment_owner(m):
+    """A pinned shared setup entry, referenced by another catalog capability.
+
+    envs.install prepares/import-checks it; no fake RGB adapter or scientific
+    operation is required merely to own a reusable Python environment.
+    """
+    return (m.kind == 'runtime' and not m.runner and {'python', 'lock', 'imports'} <= set(m.env)
+            and any(other.id != m.id and f'install:{m.id}' in other.needs_to_run
+                    for other in manifests().values()))
+
+
+def test_environment_owner_requires_runtime_kind_and_a_declared_consumer():
+    from dataclasses import replace
+    runtime = manifests()['matrix-cpu-runtime']
+    assert environment_owner(runtime)
+    assert not environment_owner(replace(runtime, kind='tool'))
+    assert not environment_owner(replace(runtime, id='unreferenced-runtime'))
+
+
 def local_models():
     """(operation, implementation) of every model an operation runs on one of this Mac's GPU workers."""
     from orchestrator.operations import OPERATIONS
@@ -72,7 +91,7 @@ def test_what_a_manifest_names_exists():
     for m in manifests().values():
         through = m.runner == "python-env" or (m.contract and m.runner in door)
         assert set(m.licence) <= components, f"{m.id}: licence {m.licence} not in licences.COMPONENTS"
-        assert not m.installed or m.installed in INSTALLED or through, (  # its own env or proof: kinds.backends
+        assert not m.installed or m.installed in INSTALLED or through or environment_owner(m), (  # own env or proof
             f"{m.id}: installed {m.installed!r} is no INSTALLED key")
         for i in m.implements:  # a python-env entry's implementation is registered once proven (env_runner.register)
             assert i.operation in JOB_OPERATIONS or (through and (i.output in KIND_OUTPUTS or m.contract)) or (
@@ -93,7 +112,7 @@ def test_what_a_manifest_names_exists():
 
 def test_every_reviewed_entry_says_what_it_is_where_it_comes_from_and_who_made_it():
     for m in manifests().values():
-        assert m.what and (m.runner or m.pins.get("adapter") or m.kind == "data") and m.source, (
+        assert m.what and (m.runner or m.pins.get("adapter") or m.kind == "data" or environment_owner(m)) and m.source, (
             f"{m.id}: what it is, how it runs (a data entry runs nothing), its source")
         assert m.credit.get("authors") and m.credit.get("link"), f"{m.id}: its credit"
         assert (m.runs == "cloud" or "download" in m.needs_to_get or m.source.get("made_here")
@@ -269,6 +288,7 @@ def test_every_catalog_model_is_used_by_something():
                 or any(o.source.get("tool") == m.id for o in manifests().values())
                 or m.runner == "python-env"  # its own adapter: a choice once proven, or a job
                 or (m.contract and m.runner in kinds.backends())  # a capability through the one door (ADR 0024)
+                or environment_owner(m)
                 or any(f"data:{m.id}" in o.needs_to_run for o in manifests().values())), f"{m.id}: nothing uses it"
 
 

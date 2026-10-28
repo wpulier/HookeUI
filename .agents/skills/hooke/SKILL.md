@@ -54,7 +54,7 @@ Never assume a capability exists. Read `hooke tools --json` and choose from it b
 `state`.
 
 - **Bring in their file:** `hooke open '<full path to their image or video>'` adds it to Hooke's library and opens it
-  in a Project of your own, and prints that Project's id. You work only there, never in the researcher's Projects.
+  in a Project of your own, and prints that Project's id. Live-stage runs remain creator-only. Newer retained research actions also allow explicit owner-granted Projects, as described below.
 - **Run a capability:** `hooke run <id> '<json args>' --project <your Project's id> --key <request key>`.
   - Use the `id` from `hooke tools` (only ones whose `state` is `available`), and give exactly the arguments its
     `inputSchema` lists.
@@ -94,3 +94,31 @@ Never assume a capability exists. Read `hooke tools --json` and choose from it b
 `hooke skill update` refreshes this skill from the installed Hooke. It doesn't touch the connection, and it never
 replaces a folder named `hooke` that Hooke didn't install. `hooke status` says when the skill is older than Hooke asks
 for.
+
+## Retained research Projects (discover support first)
+
+Newer Hooke source versions list `project.create`, `project.list`, `project.read`,
+`project.import` and `artifact.read` in `hooke tools`. Use their declared schemas with
+`hooke run`; Project-scoped calls pass `--project`. These actions retain material
+without moving the live stage. A source import is not proof that a scientific reader
+or model is ready. Read exact artifact references; bounded text returns a continuation
+offset. Read all relevant pages, not just titles.
+
+The generic resource transport is `hooke api GET|POST <relative-path> [json]`.
+For example, `hooke api GET 'studies?session=<project>'`. Study creation uses POST
+`studies` with session, requestKey, title, objective, criteria, budgetUsd and inputs.
+Workflow discovery uses `workflows?session=<project>` and `workflows/capabilities`.
+To author a workflow, POST `workflows/command` with `project` and the declared frozen
+workflow command fields. Execution is `hooke run workflow` with study, session,
+workflow, revision and inputs. Read original operation IDs after disconnection;
+request keys are local to your connection and must not impersonate another agent.
+
+Project membership is the owner's choice in Settings → Connected agents → Project
+access. Read-only access never authorizes an experiment or a finding. Do not call a
+Studio grant route or alter files to gain access. A refusal is a real boundary.
+
+`artifact.read` gives a download locator for a retained file. Use
+`hooke download '<locator>' --output <new-file>` to retrieve it. Verify returned bytes
+against retained hashes before packaging. Reimport external validation receipts
+through `project.import`; never edit Project storage directly. Keep source, synthetic
+checks, real computations and official scientific acceptance distinct.

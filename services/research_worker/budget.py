@@ -103,7 +103,7 @@ REVISE_ONLY = "revise"  # an effort that never starts a researcher of its own
 # The app's own operations a researcher can run for its reading (run; orchestrator/research/hands.py), here
 # so the research process and the app read them without importing each other.
 # What each does, said with the view it runs on ("the picture on the Stage", or a kept sample's id).
-RUN_OPERATIONS = {"segment": "segment every cell in {view} and measure them",
+RUN_OPERATIONS = {"workflow": "invoke or inspect a named scientific workflow", "segment": "segment every cell in {view} and measure them",
                   "enhance": "make a clearer picture of {view} from real frames",
                   "measure_saved_objects": "measure the explicitly selected saved labels",
                   "motion": "measure what moves on the Stage over its last seconds"}

@@ -111,9 +111,9 @@ describe('Settings → Connected agents', () => {
     ]);
     const settings = new TestElement('section');
     connections.mountSettings(settings as unknown as HTMLElement);
-    await vi.waitFor(() => expect(buttons(settings)).toHaveLength(1));
+    await vi.waitFor(() => expect(buttons(settings)).toHaveLength(2));
     expect(settings.textContent).not.toContain('Old agent');
-    const [disconnect] = buttons(settings);
+    const disconnect = buttons(settings).find(b => b.textContent === 'Disconnect')!;
     await disconnect.onclick();
     expect(calls[1].url).toBe('/api/agent-connections/ac_1/disconnect');
     expect((calls[1].init?.headers as Record<string, string>)['X-MicroscopeMind']).toBe('agent-connections');

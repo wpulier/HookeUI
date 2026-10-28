@@ -109,10 +109,8 @@ class OutputSave:
             raise InvalidProject('A new output needs its exact initiating revision and request')
         try: self.meaning = outputs.declaration(meaning)
         except ValueError as error: raise InvalidProject(str(error)) from error
-        spec = saved.document['state'].get('scientificView')
-        if type(spec) is not dict or spec.get('runtime') not in saved.document['runtimes']:
-            raise InvalidProject('A new output needs its retained scientific runtime')
-        self.runtime = copy.deepcopy(spec['runtime'])
+        self.runtime = self.retained_runtime(saved)
+        self.runtimes = [self.runtime] if self.runtime is not None else []
         self.store,self.saved,self.identity,self.layer = store,saved,identity,layer
         self.producer = frozen(producer)
         self.target = 'p'+secrets.token_hex(16)
@@ -134,6 +132,13 @@ class OutputSave:
         self.tool = tool
         self.tool_snapshot = None
         self.publication_bytes = arrays.MAX_NEW_BYTES
+
+    @staticmethod
+    def retained_runtime(saved):
+        spec = saved.document['state'].get('scientificView')
+        if type(spec) is not dict or spec.get('runtime') not in saved.document['runtimes']:
+            raise InvalidProject('A new output needs its retained scientific runtime')
+        return copy.deepcopy(spec['runtime'])
 
     def calibration(self):
         if self.items:
@@ -211,7 +216,7 @@ class OutputSave:
                 self.stage = Path(tempfile.mkdtemp(prefix='.scientific-output-',dir=self.store.root))
                 self.private = ProjectStore(self.stage)
                 seed = self.private.create(self.saved.session, {'kind':'scene','title':self.info['name'],
-                    'state':{},'resources':[],'runtimes':[self.runtime]},identity=self.target)
+                    'state':{},'resources':[],'runtimes':self.runtimes},identity=self.target)
                 for index,(item,components) in enumerate(zip(self.items,parts)):
                     capture_bound.check()
                     prefix = '' if len(self.items)==1 else f'layer{index+1}_'
@@ -327,7 +332,7 @@ class OutputSave:
         if any('coordinatesFrom' in item for item in self.items):
             provenance['coordinateMeaning'] = ('Explicit same-input-grid declarations retain the exact admitted source '
                 'reference and value proof; its geometry was checked. Other layers retain their independent spaces.')
-        state={'scientificView':{'runtime':self.runtime,'inputs':self.references,'layers':layers},'hookeOutput':provenance}
+        state={'scientificView':{**({'runtime':self.runtime} if self.runtime is not None else {}),'inputs':self.references,'layers':layers},'hookeOutput':provenance}
         if self.tool:
             from env_worker.scientific_tool_document import snapshot
             state['scientificView']['tool'] = snapshot(self.tool_snapshot, layers)
@@ -348,7 +353,7 @@ class OutputSave:
         title = (self.saved.document['title'] if self.tool else
                  self.info['name'] if len(layers)==1 else self.info['name'][:240-len(suffix)]+suffix)
         return _document({'kind':'scene','title':title,
-                          'resources':list(self.references.values()),'runtimes':[self.runtime],'state':state})
+                          'resources':list(self.references.values()),'runtimes':self.runtimes,'state':state})
 
     def publish(self, stopping=lambda:False):
         if self.receipt is not None: return self.status()
@@ -409,3 +414,26 @@ class OutputSave:
         # Acceptance is final; an empty staging directory that cannot be removed
         # must not kill the worker or its unrelated private layers/variables.
         return self.close()
+
+
+class BuiltinOutputSave(OutputSave):
+    """Parent-owned algorithm output; no external viewer runtime is borrowed from its input.
+
+    Only trusted in-process adapters construct this class. Worker/API output capture
+    continues using OutputSave and its retained-runtime admission. Native publication,
+    provenance, coordinate validation and bounded chunk grants remain identical.
+    """
+    def __init__(self, *args, producer, **kwargs):
+        if (type(producer) is not dict
+                or not isinstance(producer.get('implementation'), str) or not producer['implementation']
+                or not isinstance(producer.get('version'), str) or not producer['version']
+                or kwargs.get('tool')):
+            raise InvalidProject('Built-in output requires an identified versioned producer, not external tool capture')
+        super().__init__(*args, producer=producer, **kwargs)
+
+    @staticmethod
+    def retained_runtime(saved):
+        spec = saved.document['state'].get('scientificView')
+        if type(spec) is not dict or type(spec.get('inputs')) is not dict:
+            raise InvalidProject('Built-in output requires retained native inputs')
+        return None

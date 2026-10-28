@@ -1,0 +1,66 @@
+# App-owned file capability; matrix_capability_runs performs retained-file admission.
+# The ordinary RGB path refuses these types. Readiness comes from the shared matrix descriptor.
+requires = { catalog = 2 }
+id = "matrix-evaluate"
+name = "Compare expression means"
+runs = "cpu"
+version = "1"
+licence = ["matrix-evaluate"]
+kind = "tool-function"
+what = "Compare complete matching panels with explicit local diagnostic metrics"
+runner = "builtin-cpu"
+source = { made_here = "General explicit count and response operations; no pretrained weights" }
+credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Bundled scientific count operation", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "matrix-evaluate"
+category = "Research"
+experimental = true
+outcomes = { empty = "No input observations", unsupported = "An unqualified runtime, incompatible scientific meaning or excessive resource request" }
+
+[[inputs]]
+id = "prediction"
+type = "matrix.anndata"
+label = "Prediction"
+
+[[inputs]]
+id = "reference"
+type = "matrix.anndata"
+label = "Reference"
+
+[[inputs]]
+id = "context_column"
+type = "string"
+default = "context"
+label = "Context Column"
+
+[[inputs]]
+id = "target_column"
+type = "string"
+default = "target_gene"
+label = "Target Column"
+
+[[inputs]]
+id = "normalization_total"
+type = "number"
+default = 10000
+label = "Normalization Total"
+min = 1
+max = 1000000
+
+[[inputs]]
+id = "profile"
+type = "choice"
+default = "expression-mean-v1"
+label = "Profile"
+options = ["expression-mean-v1"]
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Retained result"

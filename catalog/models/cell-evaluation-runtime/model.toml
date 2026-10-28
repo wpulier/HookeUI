@@ -1,0 +1,17 @@
+id = "cell-evaluation-runtime"
+name = "Cell evaluation (CPU runtime)"
+runs = "cpu"
+version = "1"
+licence = ["cell-evaluation-runtime"]
+kind = "runtime"
+what = "Prepares the upstream cell-eval2 metrics and CPU differential expression"
+source = { made_here = "Pinned upstream CPU libraries; no pretrained weights", url = "https://github.com/ArcInstitute/cell-eval2" }
+credit = { authors = "Arc Institute, scverse, NumPy, SciPy, h5py and pandas contributors", link = "https://github.com/ArcInstitute/cell-eval2" }
+component = { what = "Upstream cell-eval2 0.20.0 and CPU dependencies", licence = "MIT (cell-eval2); BSD-3-Clause (scientific libraries); transitive packages retain their own terms", url = "https://github.com/ArcInstitute/cell-eval2/blob/main/LICENSE", tier = "open" }
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy", "anndata", "h5py", "pandas", "cell_eval2"] }
+needs_to_get = []
+needs_to_run = ["install:cell-evaluation-runtime"]
+workers = []
+host = "own-python"
+documented_mb = 512
+load_limit_s = 30

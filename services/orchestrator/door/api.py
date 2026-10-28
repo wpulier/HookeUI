@@ -82,7 +82,9 @@ async def listing(built) -> list[dict]:
     """Everything this Hooke may run for an agent (listing.py): gathered on the event loop, described in a thread."""
     from .listing import describe_all, gather
     gathered = gather(built)
-    return await asyncio.to_thread(describe_all, gathered, build_identity())
+    from .project_actions import descriptors
+    build = build_identity()
+    return await asyncio.to_thread(describe_all, gathered, build) + descriptors(build)
 
 
 async def _listed(built) -> list[dict]:
@@ -112,6 +114,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
     built.agent_connections = connections
     operations = Operations(built.paths.home)
     built.agent_operations = operations
+    if getattr(built, 'hub', None) is not None:
+        built.hub.agent_operations = operations
+        built.hub.study_research_manager = getattr(built, 'research', None)
 
     def announce() -> None:
         """Tell open studios what is waiting and who is connected (the confirm sheet and the list draw from it)."""
@@ -174,6 +179,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
         guard(request)
         return connections.authenticate(request.headers.get("authorization"))
 
+    from .studies import register as register_studies
+    register_studies(app, built, connected, body, _no_store, _refusal)
+
     @app.get(f"{PREFIX}/status")
     async def status(request: Request) -> JSONResponse:
         try:
@@ -231,7 +239,35 @@ def register(app, built, studio_origin, header: str) -> Connections:
             if not isinstance(args, dict):
                 raise Refused(400, "bad-request", "The arguments are one JSON object.", next="send args as an object")
             key = value.get("requestKey")
-            if tool == "example":
+            from . import project_actions
+            if tool in project_actions.SCHEMAS:
+                from .schema import validate
+                project_actions.authorize(built, tool, value.get('project') or 'new', c.actor)
+                declared = next(r for r in project_actions.descriptors(build_identity()) if r['id'] == tool)
+                validate(args, declared['inputSchema'])
+                project = value.get('project') or 'new'
+                project_actions.authorize(built, tool, project, c.actor)
+                again = operations.known(key, tool, args, c.actor)
+                if again is not None:
+                    if again['project'] != project:
+                        raise Refused(409, 'request-key-conflict', 'That key names a different Project.', next='use a new request key')
+                    return _no_store({'ok': True, 'operation': again, 'made': False})
+                record, made = await operations.admit(by=c.actor, label=c.label, tool=tool, project=project,
+                    input_revision=None, generation=declared['generation'], params=args, request_key=key,
+                    work=lambda record, progress: project_actions.run(built, record, progress))
+            elif tool == 'workflow':
+                from ..research.studies import service
+                from .projects import access
+                from .. import agent_runnable
+                if not agent_runnable.door_resource('workflow.write'):
+                    raise Refused(403, 'action-not-admitted', 'Workflow admission is unavailable.', next='discover available tools')
+                if (not {'study', 'session', 'workflow', 'revision', 'inputs'} <= set(args)
+                        or set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings'}):
+                    raise ValueError('A workflow operation needs its Study, Project, frozen definition and exact inputs')
+                access(built).require(args['session'], c.actor, write=True)
+                access(built).require_workflow(args['session'], args['workflow'])
+                record, made = await service(built).start_workflow(**args, request=key, actor=c.actor, label=c.label)
+            elif tool == "example":
                 if args:
                     raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
                 again = operations.known(key, tool, {}, c.actor)  # a retry finds its work before anything else is checked
@@ -263,8 +299,11 @@ def register(app, built, studio_origin, header: str) -> Connections:
                     work=lambda record, progress: work.open_file(built, record, progress, str(path)))
             else:
                 project = value.get("project")
+                from .projects import access
                 again = operations.known(key, tool, args, c.actor)  # a retry finds its work before anything else is checked
                 if again is not None:
+                    if again['project'] != project:
+                        raise Refused(409, 'request-key-conflict', 'That key names another Project.', next='use a new request key')
                     return _no_store({"ok": True, "operation": again, "made": False})
                 listed = {t["id"]: t for t in await _listed(built)}
                 found = listed.get(tool)
@@ -294,7 +333,24 @@ def register(app, built, studio_origin, header: str) -> Connections:
                                                                       progress, name, preset, args))
         except Refused as error:
             return _refusal(error)
+        except (ValueError, OSError, KeyError) as error:
+            return _refusal(Refused(400, 'research-refused', str(error), next='inspect the declared inputs and Project access'))
         return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)
+
+    def operation_access(record, caller, write=False):
+        from ..day.sid import is_sid
+        from .projects import access
+        project = record.get('project')
+        if is_sid(project):
+            access(built).require(project, caller.actor, write=write)
+        elif record.get('by') != caller.actor:
+            raise Refused(404, 'unknown-operation', 'There is no such operation.', next='list your operations')
+
+    async def observed(record):
+        if record.get('execution'):
+            from ..research.studies import service
+            return await service(built).operation(record)
+        return record
 
     @app.get(f"{PREFIX}/operations")
     async def list_operations(request: Request, limit: int = 20) -> JSONResponse:
@@ -302,13 +358,27 @@ def register(app, built, studio_origin, header: str) -> Connections:
             c = connected(request)
         except Refused as error:
             return _refusal(error)
-        return _no_store({"ok": True, **operations.operations(limit, c.actor)})
+        def visible(record):
+            try:
+                operation_access(record, c)
+                return True
+            except Refused as error:
+                if error.status in (403, 404):
+                    return False
+                raise
+        try:
+            rows = operations.operations(limit, visible=visible)['operations']
+            return _no_store({'ok': True, 'operations': [await observed(row) for row in rows], 'unreadable': []})
+        except Refused as error:
+            return _refusal(error)
 
     @app.get(PREFIX + "/operations/{op_id}")
     async def get_operation(op_id: str, request: Request) -> JSONResponse:
         try:
             c = connected(request)
-            record = operations.get(op_id, c.actor)
+            record = operations.get(op_id)
+            operation_access(record, c)
+            record = await observed(record)
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record})
@@ -317,7 +387,16 @@ def register(app, built, studio_origin, header: str) -> Connections:
     async def cancel_operation(op_id: str, request: Request) -> JSONResponse:
         try:
             c = connected(request)
-            record = await operations.cancel(op_id, c.actor)
+            record = operations.get(op_id)
+            operation_access(record, c, True)
+            if record.get('execution'):
+                from ..research.studies import service
+                execution = record['execution']
+                await service(built).workflows.command({'action': 'stop', 'run': execution['id'],
+                                                      'session': execution['session']}, actor=c.actor)
+                record = await observed(record)
+            else:
+                record = await operations.cancel(op_id)
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record})
@@ -345,6 +424,45 @@ def register(app, built, studio_origin, header: str) -> Connections:
                           **({} if visible else {"next": "bring the Hooke window forward"})})
 
     # --- the studio's side --------------------------------------------------------------------------------------------
+    @app.get('/api/agent-project-access')
+    async def project_access_list(request: Request):
+        from .projects import access
+        try:
+            studio(request, writes=False)
+            rows = access(built).rows()
+            result = []
+            for sid, row in rows.items():
+                owner = built.day.elsewhere(sid)
+                result.append({'session': sid, 'name': owner.name, **row})
+            return _no_store({'ok': True, 'projects': result,
+                             'editable': native.public_key() is None and os.environ.get('HOOKE_DEV_CONFIRM') == '1'})
+        except (Refused, ValueError, OSError, KeyError) as error:
+            return _refusal(error if isinstance(error, Refused) else Refused(503, 'project-access-unreadable',
+                str(error), next='reopen the Project before changing access'))
+
+    @app.post('/api/agent-project-access')
+    async def project_access_change(request: Request):
+        from .projects import access
+        try:
+            studio(request, writes=True)
+            # Source UI has the same explicit development-confirm boundary as connections.
+            # Packaged grants await a separately qualified native confirmation dialog.
+            if native.public_key() is not None or os.environ.get('HOOKE_DEV_CONFIRM') != '1':
+                raise Refused(403, 'native-grant-required', 'Project grants need a qualified owner confirmation.',
+                              next='use the isolated development Studio with development confirmation enabled')
+            value = await body(request)
+            if set(value) != {'session', 'connection', 'role'}:
+                raise ValueError('Choose a Project, connection and role')
+            candidates = {c.id: c for c in connections.connections() if c.revoked_at is None}
+            if value['connection'] not in candidates:
+                raise ValueError('Choose a live confirmed connection')
+            built.day.elsewhere(value['session'])
+            access(built).grant(value['session'], 'agent:' + value['connection'], value['role'], authority='development')
+            return _no_store({'ok': True})
+        except (Refused, ValueError, OSError, KeyError) as error:
+            return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',
+                str(error), next='inspect the selected Project and connection'))
+
     @app.get("/api/agent-connections")
     async def studio_list(request: Request) -> JSONResponse:
         try:

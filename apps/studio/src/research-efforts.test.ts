@@ -98,3 +98,12 @@ it('reconnects only the explicit original session using the existing Study mutat
   expect(init?.method).toBe('POST');
   expect(JSON.parse(String(init?.body))).toEqual({session:'owner',providerSession:'sesn_original'});
 });
+
+it('counts workflow admissions without calling them accepted, and retains finished local researchers', () => {
+  const experiments = { first: { operation: 'op_first', byLabel: 'Agent A', execution: { id: 'run_first', session: study.session } } };
+  const linked = { ...study, tasks: {}, experiments };
+  expect(taskCounts(linked)).toBe('1 workflow experiment');
+  expect(studyState(linked)).toBe('Active');
+  expect(taskCounts({tasks: {local: {...study.tasks.a, status: 'completed', execution: {provider: 'local-researcher'}}}}))
+    .toBe('1 finished · findings not yet reviewed');
+});

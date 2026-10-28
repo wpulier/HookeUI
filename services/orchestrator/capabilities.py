@@ -552,6 +552,15 @@ def contributed(live: set[str] | None) -> list[dict]:
                 "why": inline(why, CONTRIBUTED_MAX * 2), "verdict": None,
                 # Its readiness as the Toolbox says it, when that is why it can't run (kinds._not_ready, L7b).
                 **({"said": inline(k["said"], CONTRIBUTED_MAX * 2)} if why and k.get("said") else {})}
+        if k.get('executionRoute')=='workflow':
+            say=inline(f"run {k['name'].lower()} on retained Project files",CONTRIBUTED_MAX)
+            href=f"#workflows?capability={k['key']}"
+            rows += [{**base,'id':f"catalog:{k['key']}",'actor':'agent',
+                      'how':{'tool':'find_workflows','args':{'capabilities':True},'say':say,'href':href}},
+                     {**base,'id':f"catalog:{k['key']}:you",'actor':'you','how':{'href':href}},
+                     {**base,'id':f"catalog:{k['key']}:researcher",'actor':'researcher',
+                      'how':{'process':'workflow','say':f'have a researcher {say}','href':href}}]
+            continue
         say = inline(f"run {k['name'].lower()} on the view", CONTRIBUTED_MAX)
         rows += [{**base, "id": f"catalog:{k['key']}", "actor": "agent",
                   "how": {"tool": "run_capability", "args": {"capability": k["key"]}, "say": say}},
@@ -605,6 +614,8 @@ def models_text(w: dict, c: dict) -> str:
 def _unavailable(c: dict) -> str:
     """Why a capability can't run, as the agent reads it: its readiness in the Toolbox's words when that is the reason
     ("Needs setup: Download 1.2 GB (not downloaded yet: 1.2 GB)"), else the reason itself (a setting, this build)."""
+    if c.get('how',{}).get('href','').startswith('#workflows?'):
+        return f"; {c['why']}"
     return f"; {c['said']}" if c.get("said") else f"; NOT AVAILABLE here: {c['why']}"
 
 

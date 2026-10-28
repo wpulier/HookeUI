@@ -1,0 +1,47 @@
+# App-owned file capability; matrix_capability_runs performs retained-file admission.
+# The ordinary RGB path refuses these types. Readiness comes from the shared matrix descriptor.
+requires = { catalog = 2 }
+id = "response-combine"
+name = "Combine response models"
+runs = "cpu"
+version = "1"
+licence = ["response-combine"]
+kind = "tool-function"
+what = "Combine fitted effects on identical ordered target and gene axes"
+runner = "builtin-cpu"
+source = { made_here = "General explicit count and response operations; no pretrained weights" }
+credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Bundled scientific count operation", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "response-combine"
+category = "Research"
+experimental = true
+outcomes = { empty = "No input observations", unsupported = "An unqualified runtime, incompatible scientific meaning or excessive resource request" }
+
+[[inputs]]
+id = "left"
+type = "artifact.response-model"
+label = "Left"
+
+[[inputs]]
+id = "right"
+type = "artifact.response-model"
+label = "Right"
+
+[[inputs]]
+id = "left_weight"
+type = "number"
+default = 0.5
+label = "Left Weight"
+min = 0
+max = 1
+
+[[outputs]]
+id = "result"
+type = "artifact.response-model"
+label = "Retained result"

@@ -15,7 +15,7 @@ from .efforts import Efforts, summary, KIND
 
 HEADERS = {'Cache-Control': 'no-store'}
 # Said in the studio too (study-view.ts STUDY_UNAVAILABLE).
-UNAVAILABLE = 'Running a Study needs a research service this app does not have. You can still write, save and reopen a Study.'
+UNAVAILABLE = 'Managed cloud research is unavailable here. Use a connected agent, the configured local researcher, or scientific workflows.'
 
 
 class LocalLifecycle:
@@ -70,7 +70,7 @@ def register(app, built, studio_origin, header):
             def listed():
                 return [{'id': s.id, 'revision': s.revision, 'digest': s.digest,
                          'title': s.document['title'], 'kind': s.document['kind'],
-                         'managedFileEligible': False, 'scientificInputEligible': False,
+                         'managedFileEligible': False, 'scientificInputEligible': False, 'localInputEligible': True,
                          'limitation': UNAVAILABLE, 'scientificLimitation': UNAVAILABLE}
                         for s in service.store.list(session) if s.document['kind'] != KIND]
             return JSONResponse({'ok': True, 'inputs': await _owned(listed)}, headers=HEADERS)
@@ -88,7 +88,8 @@ def register(app, built, studio_origin, header):
     @app.get('/api/research-efforts/{effort}')
     async def read_effort(effort: str, session: str):
         try:
-            return JSONResponse({'ok': True, 'effort': summary(await _owned(service.read, effort, session))}, headers=HEADERS)
+            from .studies import service as studies
+            return JSONResponse({'ok': True, 'effort': await _owned(studies(built).read, effort, session)}, headers=HEADERS)
         except (ValueError, OSError) as error:
             return _error(error)
 
@@ -96,7 +97,8 @@ def register(app, built, studio_origin, header):
     async def create_effort(request: Request):
         try:
             body = await admitted(request, {'session', 'request', 'title', 'objective', 'criteria', 'budgetUsd', 'inputs'})
-            saved = await _owned(service.create, body['session'], request=body['request'], title=body['title'],
+            from .studies import service as studies
+            saved = await _owned(studies(built).create, body['session'], actor='studio', label='You', request=body['request'], title=body['title'],
                                  objective=body['objective'], criteria=body['criteria'],
                                  budget_usd=body['budgetUsd'], inputs=body['inputs'])
             return JSONResponse({'ok': True, 'effort': summary(saved),
@@ -109,8 +111,9 @@ def register(app, built, studio_origin, header):
         try:
             body = await admitted(request, {'session', 'action'})
             # Existing external work remains cancel_requested, never falsely settled.
-            saved = await _owned(service.control, effort, body['session'], body['action'])
-            return JSONResponse({'ok': True, 'effort': summary(saved)}, headers=HEADERS)
+            from .studies import service as studies
+            result = await studies(built).control(effort, body['session'], body['action'], actor='studio')
+            return JSONResponse({'ok': True, 'effort': result['study'], 'controlProblems': result['controlProblems']}, headers=HEADERS)
         except (ValueError, OSError) as error:
             return _error(error)
 
@@ -121,6 +124,46 @@ def register(app, built, studio_origin, header):
             saved = await _owned(service.finding, effort, body['session'], request=body['request'],
                                  statement=body['statement'], tasks=body['tasks'])
             return JSONResponse({'ok': True, 'effort': summary(saved)}, headers=HEADERS)
+        except (ValueError, OSError) as error:
+            return _error(error)
+
+    @app.get('/api/research-efforts/{effort}/workflows')
+    async def workflow_evidence(effort: str, session: str):
+        try:
+            from .studies import service as studies
+            return JSONResponse({'ok': True, **await studies(built).evidence(effort, session)}, headers=HEADERS)
+        except (ValueError, OSError) as error:
+            return _error(error)
+
+    @app.get('/api/research-efforts/{effort}/local-researcher')
+    async def local_readiness(effort: str, session: str):
+        try:
+            from .study_researchers import readiness
+            from research_worker.budget import EFFORTS
+            return JSONResponse({'ok': True, 'harness': await _owned(readiness, built, effort, session),
+                'efforts': [{'id': name, 'maximumUsd': EFFORTS[name].cap_usd} for name in ('quick', 'standard', 'deep')]}, headers=HEADERS)
+        except (ValueError, OSError) as error:
+            return _error(error)
+
+    @app.post('/api/research-efforts/{effort}/local-researcher')
+    async def local_start(effort: str, request: Request):
+        from .policy import ResearchRefused
+        try:
+            body = await admitted(request, {'session', 'request', 'brief', 'effort'})
+            from .study_researchers import start
+            return JSONResponse({'ok': True, **await start(built, effort, **body)}, headers=HEADERS)
+        except ResearchRefused as error:
+            return JSONResponse({'ok': False, 'says': str(error), 'next': error.next}, status_code=409, headers=HEADERS)
+        except (ValueError, OSError) as error:
+            return _error(error)
+
+    @app.post('/api/research-efforts/{effort}/workflows')
+    async def workflow_start(effort: str, request: Request):
+        try:
+            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings'})
+            from .studies import service as studies
+            record, made = await studies(built).start_workflow(effort, actor='studio', label='You', **body)
+            return JSONResponse({'ok': True, 'operation': record, 'made': made}, headers=HEADERS)
         except (ValueError, OSError) as error:
             return _error(error)
 

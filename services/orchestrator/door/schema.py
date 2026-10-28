@@ -1,12 +1,13 @@
 """The shared agent contract's JSON schemas (contract/agent/, ADR 0026) and a checker for them.
 
 The checker understands only what those files use: type, enum, required, properties, additionalProperties: false,
-items, pattern, minLength, maxLength and $ref (to `#/$defs/...` or a sibling file). It is small on purpose, so the
+items, minItems, maxItems, uniqueItems, minimum, maximum, pattern, minLength, maxLength and $ref (to `#/$defs/...` or a sibling file). It is small on purpose, so the
 private hosted service can check its answers against the same files with the same code, without a new dependency.
 """
 from __future__ import annotations
 
 import json
+import math
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -14,7 +15,9 @@ from pathlib import Path
 from ..paths import REPO
 
 FOLDER = REPO / "contract" / "agent"
-NAMES = ("capability", "connection", "generation", "operation", "refusal", "request-key")
+NAMES = ("capability", "connection", "generation", "operation", "refusal", "request-key",
+         "artifact-reference", "study-reference", "annotated-matrix", "experiment-reference",
+         "operation-execution", "harness-readiness", "evidence-reference", "claim", "claim-change", "workflow-capability", "project-reference")
 
 _TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
 
@@ -38,11 +41,19 @@ def check(value, name: str, folder: Path = FOLDER) -> None:
         raise ValueError(f"not a valid {name}: " + "; ".join(found))
 
 
+def validate(value, declared: dict) -> None:
+    """Validate a discovered input contract, including shared artifact references."""
+    out = []
+    _check(value, declared, declared, '', out, FOLDER)
+    if out:
+        raise ValueError('; '.join(out))
+
+
 def _is(value, kind: str) -> bool:
     if kind == "integer":
         return isinstance(value, int) and not isinstance(value, bool)
     if kind == "number":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
     return isinstance(value, _TYPES[kind]) and not (kind != "boolean" and isinstance(value, bool))
 
 
@@ -69,6 +80,16 @@ def _check(value, schema: dict, root: dict, path: str, out: list[str], folder: P
             return
     if "enum" in schema and value not in schema["enum"]:
         out.append(f"{where} should be one of {schema['enum']}")
+    if type(value) in (int, float):
+        if 'minimum' in schema and value < schema['minimum']:
+            out.append(f'{where} is below its minimum')
+        if 'maximum' in schema and value > schema['maximum']:
+            out.append(f'{where} exceeds its maximum')
+    if isinstance(value, list):
+        if len(value) < schema.get('minItems', 0) or len(value) > schema.get('maxItems', len(value)):
+            out.append(f'{where} has an unsupported number of items')
+        if schema.get('uniqueItems') and len({json.dumps(v, sort_keys=True) for v in value}) != len(value):
+            out.append(f'{where} contains duplicate items')
     if isinstance(value, str):
         if len(value) < schema.get("minLength", 0):
             out.append(f"{where} is too short")

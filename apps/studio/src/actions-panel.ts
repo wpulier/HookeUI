@@ -207,12 +207,20 @@ function inUse(role: Role): { label: string; name: string; runs: string; step: R
   return option ? { label: option.said || option.label, name: option.label, runs: option.runs ?? '', step: option.readiness?.next ?? null } : null;
 }
 
+/** File capabilities open their exact-input form; they never dispatch a live-view action. */
+export function workflowTools(wire:CapabilitiesWire|null,query:string):Capability[] {
+  const words=query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return (wire?.capabilities??[]).filter(c=>c.actor==='you'&&/^#workflows\?capability=[a-z0-9-]+$/.test(c.how.href??'')
+    &&words.every(w=>`${c.title} ${c.what}`.toLowerCase().includes(w)));
+}
+
 /** Every action the panel offers, in its groups' order, from the capability list and the agent's tools here. A
  * capability whose tool is not here (what it acts on does not exist in this app) is left out. */
 export function actionRows(wire: CapabilitiesWire, tools: ToolList): ActionRow[] {
   const order = new Map(ACTION_GROUPS.map((g, i) => [g.family, i]));
   const rows: ActionRow[] = [];
   for (const capability of wire.capabilities) {
+    if(capability.how.href?.startsWith('#workflows?'))continue; // File inputs use the linked retained-file form.
     const name = capability.how.tool;
     if (capability.actor !== 'agent' || !name || !order.has(capability.family) || AGENT_ONLY.has(capability.id)) continue;
     const tool = tools[name];
@@ -807,6 +815,14 @@ export class ActionsPanel {
       const rows = ready.filter((r) => r.group === group.family && !COMMON.includes(r.id));
       if (rows.length) groups.push(this.section(group.title, rows.map((r) => this.drawRow(r))));
     }
+    const fileTools=workflowTools(this.wire,this.search.value);
+    if(fileTools.length)groups.push(this.section('Scientific files',fileTools.map(c=>{
+      const link=el('a',{className:'trow-hit','aria-label':`Open ${c.title}`,href:c.how.href!});
+      return el('div',{className:'trow','data-action':c.id,'data-available':String(c.available)},
+        el('span',{className:'trow-lead'},tabMark('output')),
+        el('span',{className:'trow-words'},el('span',{className:'trow-title',textContent:c.title}),
+          el('span',{className:'trow-sub',textContent:'Retained Project files · check inputs and readiness'})),link);
+    })));
     // Can be set up: tasks that can't run here yet, each with its one step, and catalog kinds not set up yet (the mock's
     // "Can be set up" waits at the bottom).
     const waiting = shown.filter((r) => !r.available);

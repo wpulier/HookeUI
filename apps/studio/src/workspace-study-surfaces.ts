@@ -2,7 +2,7 @@ import { studyArtifacts } from './workspace-study-artifacts';
 import { surfaceTrail } from './workspace-study-navigation';
 import { tabMark } from './tab-marks';
 interface Surface { page: string; hash: string; node: HTMLElement | null }
-const titles: Record<string, string> = { models: 'Models', capabilities: 'Capabilities', assets: 'Library', sessions: 'All projects',
+const titles: Record<string, string> = { workflows: 'Workflows', models: 'Models', capabilities: 'Capabilities', assets: 'Library', sessions: 'All projects',
   footage: 'Test footage', datasets: 'Datasets', measurements: 'Measurements', research: 'Research', researchers: 'Researchers', settings: 'Settings', help: 'Help', shortcuts: 'Keyboard shortcuts', detail: 'Details' };
 /** Models' side: All models, then the sections run-spec.ts names (the ones Tools By model counts: Needs you, Ready, Not
  * checked, Can be set up, Not on this Mac; a section with nothing in it is not listed), then Keys and Storage. Add model or

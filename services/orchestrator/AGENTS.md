@@ -939,8 +939,9 @@ channel event sidecar. Legacy requests default to workspace; other scopes refuse
 Annotated means the input canvas and its drawn overlays, not a device grant or whole workspace.
 Scope is intent; channel observations and actual finalized media establish what was captured.
 
-`scientific_chunk_intake` provides bounded selected-folder transport over the existing
-`DirectoryTransfer`/`FileIntake` transaction. At most four opaque, origin-gated upload
+`scientific_chunk_intake` provides bounded individual-file and selected-folder transport over the existing
+`DirectoryTransfer`/`FileIntake` transaction. File and directory routes share one registry; source-kind
+checks prevent one route from consuming or stopping the other route’s admitted transfer. At most four opaque, origin-gated upload
 leases reserve fixed buffers/metadata and outstanding disk space. One request transfers
 at most 1 MiB at its exact offset; retrying the last acknowledged bytes is idempotent.
 Complete source bytes alone may publish, with the original captured Project/request.
@@ -1080,3 +1081,17 @@ Project-relative snapshot path, ID/version and hash; newer records also retain a
 explicit `session`. Journal `day` is the calendar save date, never Project identity.
 This preserves suffixed/reopened Projects while foreign paths, sessions and derivative
 source owners still refuse. Export/reopen never refresh or recompute accepted values.
+
+Scientific workflows use `workflow_service.py` for Studio, local researchers and connected agents. Definitions are personal immutable versions; runs and separate attempts belong to their captured Project. Named file inputs are exact revisions, not paths. `matrix_capability_runs` executes catalog operations without owning another task ledger. Reads do not dispatch; explicit recovery never replays uncertain attempts. See `docs/architecture/scientific-workflows.md`.
+
+Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
+coordinate checks and atomic publication with worker outputs but retaining their own versioned
+producer instead of borrowing an input viewer runtime. External worker `OutputSave` still
+requires its retained runtime. Native inputs/layers without a runtime may be copied for
+measurement; this does not authorize execution or replay.
+
+Matrix workflow steps wait up to one hour for the shared machine compute reservation,
+retaining the original running attempt and a waiting progress note. Stop or service
+shutdown prevents a waiting step from acquiring compute; no other owner’s lock is
+reclaimed. The admission rechecks disk and the pinned generation after acquiring the slot;
+the scientific worker retains its memory guard.

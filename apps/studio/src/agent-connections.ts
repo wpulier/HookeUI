@@ -1,4 +1,5 @@
 import './agent-connections.css';
+import { mountProjectAccess } from './agent-project-access';
 import { StudioSheet } from './sheet';
 
 /** Outside agents' connections (ADR 0026; services/orchestrator/door/AGENTS.md): the sheet that asks the researcher to
@@ -227,7 +228,10 @@ export class AgentConnections {
           end.disabled = false;
         }
       };
-      li.append(name, when, end, status);
+      const projects = document.createElement('button'); projects.type = 'button'; projects.textContent = 'Project access';
+      projects.setAttribute('aria-label', `Project access for ${c.label}`);
+      projects.onclick = () => { projects.disabled = true; void mountProjectAccess(li, c, this.request); };
+      li.append(name, when, projects, end, status);
       list.append(li);
     }
     const none = document.createElement('p'); none.className = 'agent-none';

@@ -61,7 +61,7 @@ test('Stop aborts only this request and retry can recover accepted work', async 
 });
 
 test('oversized input is refused before upload; wrong-Project response is never opened', async () => {
-  const large = new File([], 'native.npy'); Object.defineProperty(large, 'size', { value: 64 * 1024 * 1024 + 1 });
+  const large = new File([], 'native.npy'); Object.defineProperty(large, 'size', { value: 64 * 1024 * 1024 * 1024 + 1 });
   select(large); fire(button('Save source to Project'), 'click'); await settle();
   expect(request).not.toHaveBeenCalled(); expect(root.textContent).toContain('has not been uploaded');
   select(); request.mockResolvedValue(response('other')); fire(button('Save source to Project'), 'click'); await settle();

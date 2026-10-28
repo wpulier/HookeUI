@@ -50,6 +50,8 @@ RUNNABLE: dict[str, str] = {
 
 # Not runnable, with why. Every other tool of the Assistant is declared here.
 NOT_RUNNABLE: dict[str, str] = {
+    "find_workflows": "use Project-scoped workflow discovery through the door",
+    "workflow": "use Project-scoped workflow admission through a Study",
     "add_asset": "puts the researcher's library assets on stage; agents bring files with open",
     "assets": "reads the researcher's whole library",
     "annotate_resource": "writes notes on any retained evidence, the researcher's too",
@@ -130,3 +132,21 @@ NEVER_ARGUMENTS = ("thread", "researcher")
 
 def runnable(tool_name: str) -> bool:
     return tool_name in RUNNABLE
+
+# Door-native resources use the same deliberate, default-deny declaration boundary.
+# These are not Assistant stage tools: each has its own explicit Project contract.
+DOOR_RESOURCES = {
+    'project.create': 'creates a local-only retained Project without moving the stage',
+    'project.list': 'lists only Projects this connection may read',
+    'project.read': 'reads the exact authorized Project and retained corpus index',
+    'project.import': 'retains one explicitly supplied local file in an authorized Project',
+    'artifact.read': 'reads an exact authorized retained revision, with bounded source text',
+    'study.read': 'reads questions, results, failures and original authors in an authorized Project',
+    'study.write': 'creates or continues Studies and publishes attributed findings in an authorized Project',
+    'workflow.read': 'discovers reusable workflow definitions and capability contracts',
+    'workflow.write': 'authors a new reusable definition or admits work in an authorized Project',
+}
+
+
+def door_resource(name: str) -> bool:
+    return name in DOOR_RESOURCES

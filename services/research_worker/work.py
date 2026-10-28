@@ -410,7 +410,8 @@ SCHEMAS: dict[str, dict] = {
                        "table in that Project through the same operation as Tools, without segmentation or camera input. "
                        "Use it only when the user's research request authorizes measuring saved work.",
         "parameters": {"type": "object", "properties": {
-            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects"]},
+            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects", "workflow"]},
+            "params": {"type":"object","description":"operation workflow: Study actions: study-list(), study-create(request,title,objective,criteria,budgetUsd,inputs), study-read(study), study-evidence(study,reference), study-claim(study,request,statement,evidence,dependsOn,limitations), study-run(study,request,workflow,revision,inputs[,bindings]). Read actual evidence before claims. Other command action capabilities(), capability(capability,generation,inputs,parameters,request), list(query), inspect(workflow,revision), status(run), create(name,graph,request), capture(source,revision,name,request), or start/validate(workflow,revision,inputs[,bindings,request]). Inputs are exact retained references. Preserve request identity. Never approve reviews or launch paid researcher nodes."},
             "selection": {"type": "object", "additionalProperties": False,
                 "description": "measure_saved_objects only: exact accepted labels from the session entry; no other input fields",
                 "properties": {"project": {"type": "string", "description": "saved scientific document id from the session entry (p…), not a workspace or owning Project id"},

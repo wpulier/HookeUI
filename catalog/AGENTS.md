@@ -426,3 +426,25 @@ installed Fiji generation's proof. It neither registers nor replaces that adapte
 The same row formatter/settings checks serve UI and agent callers. Built-in Fiji
 entries without `[fiji]` are declarations only; namespaced contributions still need
 their own confined function contract. Unknown declarations gain no execution path.
+
+## Scientific matrix operations
+
+Bundled matrix operations use format-2 named retained-file ports and the shared
+`scientific_compute.catalog` descriptors. `matrix-cpu-runtime` and optional
+`cell-evaluation-runtime` are prepared through ordinary catalog install; app-environment
+packages do not make them ready. WorkflowService and the manual Tools action use the same
+`matrix_capability_runs` adapter and exact runtime generation. Runtime preparation is not
+scientific-quality proof. See `docs/architecture/scientific-matrices.md` for meaning,
+resource ownership, evaluator configuration and remaining scale/holdout gates.
+Aggregate profiles use the separate `aggregate-profile-prepare` retained-JSON protocol;
+the raw-count reader is not relaxed for fractional means. `response-effects-merge`
+joins compatible prepared context/target rows and refuses duplicates or unspecified
+normalization. Both use the same catalog runtime, file admission and workflow attempts.
+
+Environment-only dependencies declare `kind = "runtime"`, their own CPU Python and
+a hashed lockfile with nonempty import checks. They declare no runnable adapter,
+ports, members or workers. Ordinary Install prepares them; catalog CI verifies the
+lock and performs the same environment/import checks. This is dependency readiness,
+not an operation proof or scientific qualification. Consumers retain their own
+capability contract and exact runtime generation. Unknown kinds fail closed in
+older apps; runtime entries do not gain a community-channel execution path.

@@ -15,17 +15,23 @@ export interface EffortTask {
   problem?: string | null;
   collectionProblem?: string | null;
   observation?: { sealedEvidence?: boolean; providerStatus?: string; evidence?: { sha256: string }; listCostMicrousd?: number | null; archivedAt?: string | null; continuationRequired?: boolean };
-  execution?: { provider?: string; session?: string };
+  execution?: { provider?: string; session?: string; id?: string; runId?: string; day?: string };
   managedActions?: { archive?: string };
 }
 export interface EffortFinding { request: string; statement: string; tasks: string[] }
+export interface EffortClaim { request:string; statement:string; byLabel:string; limitations?:string;
+  evidence:{artifact:{id:string;revision:number};relation:string}[]; dependsOn:string[] }
 export interface Effort {
   id: string; session: string; revision: number; digest: string;
   stopPending?: boolean; title?: string; objective: string; criteria: string; status: EffortStatus | string;
+  controlProblems?: string[];
   capMicrousd: number; spentMicrousd: number; heldMicrousd: number; availableMicrousd: number;
   inputs: { id: string; revision: number; digest: string }[];
   tasks: Record<string, EffortTask>;
+  experiments?: Record<string, {operation:string; byLabel:string; execution:{id:string;session:string}}> ;
   findings: EffortFinding[];
+  claims?: EffortClaim[];
+  claimChanges?: {claim:string;reason:string;byLabel:string}[];
 }
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'research-effort' };
@@ -82,14 +88,16 @@ export function studySpending(e: Pick<Effort, 'capMicrousd' | 'spentMicrousd' | 
 }
 
 /** Its experiments counted by state, in the order they matter ("1 needs checking · 2 running · 3 finished"). */
-export function taskCounts(e: Pick<Effort, 'tasks'>): string {
-  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'completed', 'cancelled'];
+export function taskCounts(e: Pick<Effort, 'tasks' | 'experiments'>): string {
+  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'finished', 'completed', 'cancelled'];
   const counts = new Map<string, number>();
   for (const task of Object.values(e.tasks ?? {})) {
     if(task.specification?.provider==='scientific-gcp-grant')continue;
     const phase = taskPhase(task); counts.set(phase, (counts.get(phase) ?? 0) + 1);
   }
   const words = order.filter(phase => counts.get(phase)).map(phase => `${counts.get(phase)} ${phaseWords(phase).toLowerCase()}`);
+  const workflows = Object.keys(e.experiments ?? {}).length;
+  if (workflows) words.push(`${workflows} workflow experiment${workflows === 1 ? '' : 's'}`);
   return words.length ? words.join(' · ') : 'No experiments yet';
 }
 
@@ -113,7 +121,7 @@ export function studyName(e: Pick<Effort, 'objective' | 'title'>): string {
 
 export interface StudyInputRef { id: string; revision: number; digest: string }
 export interface StudyInput extends StudyInputRef {
-  title: string; kind: string; managedFileEligible: boolean; scientificInputEligible?: boolean; limitation?: string | null;
+  title: string; kind: string; managedFileEligible: boolean; scientificInputEligible?: boolean; localInputEligible?: boolean; limitation?: string | null;
   context?: { layers: { name: string; kind?: string | null }[]; arrays: { shape: number[]; axes: string[]; dtype: string; semantic?: string | null }[]; savedAt: number };
 }
 /** Only accepted metadata describes an input; names never imply a guessed producer. */
@@ -166,6 +174,7 @@ export function retainStudyFinding(id: string, session: string, request: string,
 }
 /** A single observed lifecycle drives the list, summary and available actions. */
 export function taskPhase(task: EffortTask): string {
+  if (task.execution?.provider === 'local-researcher' && task.status === 'completed') return 'finished';
   if (task.status === 'cancel_requested' || task.status === 'unknown' || task.chargedMicrousd != null) return task.status;
   const seen = task.observation;
   if (seen?.sealedEvidence && ((task.execution?.provider === 'gemini-google' && seen.providerStatus === 'returned')
@@ -173,12 +182,12 @@ export function taskPhase(task: EffortTask): string {
   if (task.status === 'running' && seen?.providerStatus === 'idle') return 'waiting';
   return task.status;
 }
-function phaseWords(phase: string): string { return ({ review: 'Ready for review', waiting: 'Waiting, not finished' } as Record<string, string>)[phase] ?? TASK_WORDS[phase] ?? phase; }
+function phaseWords(phase: string): string { return ({ finished: 'Finished · findings not yet reviewed', review: 'Ready for review', waiting: 'Waiting, not finished' } as Record<string, string>)[phase] ?? TASK_WORDS[phase] ?? phase; }
 export function taskState(task: EffortTask): string { return phaseWords(taskPhase(task)); }
 export function providerName(provider?: string): string { return ({ 'claude-managed-google': 'Claude', 'gemini-google': 'Gemini' } as Record<string, string>)[provider ?? ''] ?? 'Researcher'; }
 export function studyState(study: Effort): string {
   if (study.stopPending || (study.status === 'stopped' && Object.values(study.tasks).some(t => t.chargedMicrousd == null))) return 'Stop requested — awaiting confirmation';
-  if (study.status === 'active' && !Object.keys(study.tasks).length) return 'Not started';
+  if (study.status === 'active' && !Object.keys(study.tasks).length && !Object.keys(study.experiments ?? {}).length) return 'Not started';
   return STUDY_WORDS[study.status] ?? study.status;
 }
 

@@ -152,3 +152,10 @@ qualify an installed large-folder workflow.
   - `services/tests/test_hooke_command.py`: the real command against a real door (macOS with a login keychain).
   - `services/tests/test_mac_channels.py`.
 
+
+The connector CLI supports generic `api GET|POST <relative-resource-path> [json]`
+and `download <relative-resource-path> --output <new-file>`. Paths stay inside the
+agent door, never Studio/private routes or another host. Both use the selected named
+connection. Downloads stream through URLSession's temporary file, verify advertised
+length and move to a previously absent destination. Resource contracts and scientific
+semantics stay server-owned; adding a resource needs no new CLI tool-name list.

@@ -48,7 +48,8 @@ export class WorkspaceAppMenu {
       b.addEventListener('click', action); this.main.append(b); return b;
     };
     const closeThen = (action: () => void) => { this.close(); action(); };
-    add('New project', () => closeThen(opts.newSession), '+'); this.main.append(node('hr'));
+    add('New project', () => closeThen(opts.newSession), '+');
+    add('Workflows', () => closeThen(() => opts.navigate('#workflows'))); this.main.append(node('hr'));
     const sessions = this.sessionsItem = add('All Projects', () => closeThen(() => opts.navigate('#sessions')), '›');
     const theme = add('Theme', () => this.openBranch('theme', theme, true), '›');
     for (const [button, branch] of [[sessions, 'sessions'], [theme, 'theme']] as const) {

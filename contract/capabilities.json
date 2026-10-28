@@ -4200,6 +4200,36 @@
       "parts": [
         "workspace-tabs"
       ]
+    },
+    {
+      "id": "find-workflows",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Find saved workflows",
+      "what": "Reads personal methods and retained workflow runs",
+      "how": {
+        "tool": "find_workflows",
+        "say": "find my saved workflows"
+      },
+      "roles": [],
+      "parts": [
+        "scientific-workflows"
+      ]
+    },
+    {
+      "id": "workflow",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Run a saved workflow",
+      "what": "Runs a frozen method on explicitly selected Project inputs",
+      "how": {
+        "tool": "workflow",
+        "say": "run this workflow on these images"
+      },
+      "roles": [],
+      "parts": [
+        "scientific-workflows"
+      ]
     }
   ],
   "roles": [
@@ -5376,6 +5406,13 @@
       "kind": "app",
       "purpose": "Acknowledges named Tab actions in the original Studio opening",
       "source": "services/orchestrator/workspace_tabs.py"
+    },
+    {
+      "id": "scientific-workflows",
+      "title": "Scientific workflows",
+      "kind": "app",
+      "purpose": "Versioned reusable methods and Project-owned execution receipts",
+      "source": "services/orchestrator/workflow_service.py"
     }
   ],
   "preferences": [

@@ -29,6 +29,13 @@ const WIRE: CapabilitiesWire = {
   agentText: '',
 };
 
+it('opens the retained-file capability form without claiming live-view execution readiness',async()=>{
+ const {discoveryAction}=await import('./capabilities');
+ expect(discoveryAction(cap('catalog:response-fit','you',{catalog:'response-fit',available:false,
+  how:{href:'#workflows?capability=response-fit'}}),WIRE))
+  .toEqual({label:'Open scientific workflow',href:'#workflows?capability=response-fit'});
+});
+
 describe('the atlas', () => {
   it('puts one ability done by different actors on one line, and stacks the rest in their columns', () => {
     const [outlining] = layout(WIRE, emptyFilter());

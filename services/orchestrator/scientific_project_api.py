@@ -118,6 +118,8 @@ def register(app, built, studio_origin, header):
     register_recipes(app,built,studio_origin,header)
     from .scientific_movie_api import register as register_movies
     register_movies(app,built,studio_origin,header)
+    from .workflow_api import register as register_workflows
+    register_workflows(app,built,studio_origin,header)
     store = built.hub.resources.projects
 
     def save_admitted(project, session, document, expected_revision=None, check=lambda:None):

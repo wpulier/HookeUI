@@ -1,0 +1,13 @@
+{
+  "$id": "hooke:agent/project-reference",
+  "title": "An authorized retained Project",
+  "type": "object",
+  "required": ["session", "name", "role", "localOnly"],
+  "properties": {
+    "session": {"type":"string","minLength":1},
+    "name": {"type":"string"},
+    "role": {"enum":["owner","read","contribute"]},
+    "localOnly": {"type":"boolean"}
+  },
+  "additionalProperties": false
+}

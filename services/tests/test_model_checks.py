@@ -150,9 +150,13 @@ def test_what_cannot_run_here_is_said_without_running_it(monkeypatch):
         "not-installed", "not installed here (sam3: `make sam3-setup`)")
     monkeypatch.setitem(operations.INSTALLED, "sam3", lambda: "")
     monkeypatch.setitem(model_checks.__dict__, "weights_here", lambda model, environ=None: False)
-    state, why = before(find("outline", "sam3.1-local"), environ={})
+    # Exercise the checker's own weight gate independently of catalog readiness.
+    # The selectable option may already refuse its missing download/key first.
+    from dataclasses import replace
+    weight_probe = replace(find("outline", "sam3.1-local"), group_option=None)
+    state, why = before(weight_probe, environ={})
     assert state == "not-installed" and "not downloaded here yet" in why
-    assert before(find("outline", "sam3.1-local"), environ={}, download=True) == ("", "")
+    assert before(weight_probe, environ={}, download=True) == ("", "")
     monkeypatch.setitem(operations.INSTALLED, "micro-sam", lambda: "not installed here (micro-sam's own Python)")
     assert before(find("outline", "micro-sam-lm"), environ={})[0] == "not-installed"
     keys = {"OPENAI_API_KEY": "x", "GEMINI_API_KEY": "x"}
@@ -160,8 +164,9 @@ def test_what_cannot_run_here_is_said_without_running_it(monkeypatch):
     assert before(find("fixed:video", "model"), environ=keys)[0] == "not-checked"
     assert before(find("fixed:video", "model"), environ=keys, video=True) == ("", "")
     monkeypatch.setitem(model_checks.__dict__, "weights_here", lambda model, environ=None: True)
-    assert before(find("track", "objects"), environ={}, live=True)[0] == "not-checked"  # the follower's own session
-    assert before(find("track", "objects"), environ={}) == ("", "")
+    track_probe = replace(find("track", "objects"), group_option=None)
+    assert before(track_probe, environ={}, live=True)[0] == "not-checked"  # the follower's own session
+    assert before(track_probe, environ={}) == ("", "")
 
 
 def test_the_wire_carries_the_last_check_beside_the_verdict_and_the_agent_hears_of_broken_ones(tmp_path):
@@ -358,3 +363,12 @@ def test_a_cloud_model_answers_through_the_apps_own_provider(app, monkeypatch):
     lines = run_check(app, [model_checks.find("vision", "gemini-3.8-flash"), model_checks.find("fast", "gemini-3.8-flash")])
     assert [l["state"] for l in lines] == ["works", "works"] and len(asked) == 1  # one call for both
     assert lines[0]["detail"] == "answered: leaf cells" and lines[0]["costUsd"] > 0
+
+
+@pytest.mark.parametrize('download', [False, True])
+def test_catalog_readiness_refusal_precedes_checker_weight_probe(monkeypatch, download):
+    from orchestrator import options
+    monkeypatch.setattr(options, 'unavailable', lambda *a, **k: 'not downloaded yet: needs a reviewed download')
+    monkeypatch.setattr(model_checks, 'weights_here', lambda *a, **k: pytest.fail('Catalog refusal must win'))
+    assert before(model_checks.find('outline', 'sam3.1-local'), environ={}, download=download) == (
+        'not-installed', 'not downloaded yet: needs a reviewed download')

@@ -23,11 +23,15 @@ def scene(store, project, session, revision):
     if type(revision) is not int or revision < 1:
         raise InvalidProject('Choose an exact saved scientific document revision before choosing its tools')
     saved = store.read(project, session, revision=revision)
-    if saved.document['kind'] == 'population-labels':
-        spec = saved.document['state'].get('scientificView')
-        if type(spec) is not dict or set(spec) != {'inputs'}:
+    spec = saved.document['state'].get('scientificView')
+    if (saved.document['kind'] == 'population-labels'
+            or saved.document['kind'] == 'scene' and type(spec) is dict and 'runtime' not in spec):
+        if type(spec) is not dict or set(spec) not in ({'inputs'}, {'inputs', 'layers'}):
             raise InvalidProject('Retained native data needs exact named inputs before choosing a tool')
-        native_inputs(store, saved, spec['inputs'])
+        sources = native_inputs(store, saved, spec['inputs'])
+        if 'layers' in spec:
+            from env_worker.scientific_output_wire import retained_scene
+            retained_scene(spec['layers'], sources)
         return saved
     saved, _, sources = _resolve(store, project, session, revision)
     if saved.document['kind'] != 'scene' or not sources or saved.document['state']['scientificView'].get('files'):

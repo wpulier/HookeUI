@@ -316,3 +316,13 @@ def test_context_advertises_streamed_image_save_without_mutable_host_limits():
     description['maximum_bytes']=1
     assert context.streamed_image_publication['maximum_bytes']==MAX_STREAMED_BYTES
     with pytest.raises(AttributeError):context.streamed_image_publication=description
+
+
+def test_worker_output_still_requires_runtime_when_native_inputs_have_none(scene):
+    from orchestrator.scientific_projects import InvalidProject
+    store,saved,_,_=scene
+    doc=saved.document;doc['runtimes']=[]
+    doc['state']['scientificView']={'inputs':{'labels':doc['resources'][0]}}
+    saved=store.save(saved.id,saved.session,doc,expected_revision=saved.revision)
+    with pytest.raises(InvalidProject,match='retained scientific runtime'):
+        OutputSave(store,saved,'request-1234567890123','a'*32,{'semantic':'instance-labels','axes':['z','x']})
