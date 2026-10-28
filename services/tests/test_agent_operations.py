@@ -692,3 +692,48 @@ def test_open_says_a_blocked_folder_and_a_bridge_that_stops_as_what_they_are(tmp
         return ops.get(a["id"]), ops.get(b["id"])
     interrupted, failed = asyncio.run(go())
     assert interrupted["state"] == "interrupted" and failed["state"] == "failed"
+
+
+def test_the_example_waits_for_hookes_window_and_says_when_there_is_none(tmp_path, monkeypatch):
+    """Found on a fresh Mac (Beta 0.6.0 VM run, after an update): an example run as soon as Hooke said it was ready
+    failed with "no studio is showing the view now", because the window was still loading. Now it waits for the window,
+    and with none it says so with what to do."""
+    from types import SimpleNamespace
+    from orchestrator import onboarding
+    from orchestrator.brain.registry import ToolFailed
+    from orchestrator.door import example
+
+    clients = []
+    day = SimpleNamespace(sources={}, on_stage=None, ids_used={}, last_user=0, guide=None, name="", sid="s")
+    app = SimpleNamespace(day=day, hub=SimpleNamespace(clients=clients), brain=SimpleNamespace(voice=None),
+                          paths=SimpleNamespace(home=tmp_path))
+    started = []
+
+    class Guide:
+        state = {}
+        async def command(self, _client, body):
+            if not any(getattr(c, "kind", None) == "studio" for c in clients):
+                raise ToolFailed("no studio is showing the view now", next="open the studio")
+            started.append(body["action"])
+            raise RuntimeError("stop here")  # far enough: it started with the window there
+    monkeypatch.setattr(onboarding, "of", lambda app: Guide())
+    monkeypatch.setattr(example, "WINDOW_WAIT_TICKS", 5)
+    record = {"by": "agent:ac_" + "1" * 24}
+
+    async def progress(*_):
+        pass
+
+    with pytest.raises(Refused) as none:
+        asyncio.run(example.run(app, record, progress))
+    assert none.value.code == "no-window" and "hooke open" in none.value.next
+
+    async def window_arrives():
+        async def connect():
+            await asyncio.sleep(0.2)
+            clients.append(SimpleNamespace(kind="studio"))
+        asyncio.get_running_loop().create_task(connect())
+        await example.run(app, record, progress)
+    monkeypatch.setattr(example, "WINDOW_WAIT_TICKS", 50)
+    with pytest.raises(RuntimeError):
+        asyncio.run(window_arrives())
+    assert started == ["start"]
