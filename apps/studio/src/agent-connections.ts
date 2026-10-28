@@ -13,6 +13,23 @@ export interface AgentConnectionsMessage extends AgentConnectionsState { type: '
 /** What the connection sheet needs of StudioSheet (sheet.ts); a test gives its own. */
 export interface SheetLike { open(content: HTMLElement): void; close(notify?: boolean): void; onDismiss: () => void }
 
+type NativeConnect = { postMessage(value: unknown): Promise<unknown> };
+/** The Mac app asks in its own dialog and signs the answer (packaging/macos main.swift AgentConnect; ADR 0026); a
+ *  browser has no such bridge, and only a developer's checkout (HOOKE_DEV_CONFIRM=1) accepts the web sheet's answer. */
+function nativeConnect(): NativeConnect | undefined {
+  const host = (typeof window === 'undefined' ? undefined : window) as unknown as
+    { webkit?: { messageHandlers?: { hookeConnect?: NativeConnect } } } | undefined;
+  return host?.webkit?.messageHandlers?.hookeConnect;
+}
+
+/** In the Mac app, bring Hooke forward so the researcher sees the confirm (packaging/macos main.swift AgentAttention).
+ *  A browser has no such bridge, and nothing happens. */
+function attention(): void {
+  const host = (typeof window === 'undefined' ? undefined : window) as unknown as
+    { webkit?: { messageHandlers?: { hookeAttention?: { postMessage(value: unknown): void } } } } | undefined;
+  try { host?.webkit?.messageHandlers?.hookeAttention?.postMessage({ why: 'agent-connect' }); } catch { /* best effort */ }
+}
+
 const HEADERS = { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'agent-connections' };
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
@@ -40,10 +57,10 @@ export function confirmWords(p: PendingAgent): { title: string; lead: string; ac
     title: `Connect ${p.label} to Hooke?`,
     lead: `An agent on this Mac calling itself ${p.label} asked to connect. Check that it shows the code ${p.code}.`,
     access: [
-      'It can see what Hooke can do, and work in your Projects on this Mac: open files, run tools and keep results. What it does is recorded as done by it.',
-      'It can’t read your keys or change your settings, and it can’t delete anything.',
+      'Through Hooke’s agent connection it can see what Hooke can do, and work in your Projects on this Mac: open files, run tools and keep results. What it does is recorded as done by it.',
+      'That connection gives it no way to read your keys, change your settings or delete anything.',
       `What it reads may be sent to the company that runs ${p.label}, as anything you share with it is.`,
-      'You can disconnect it at any time in Settings → Connected agents.',
+      'An agent that runs commands on your Mac can already reach your files as any program you run can, so connect only agents you trust. You can disconnect it at any time in Settings → Connected agents.',
     ],
   };
 }
@@ -74,6 +91,8 @@ export class AgentConnections {
 
   private readonly request: typeof fetch;
   private readonly makeSheet: () => SheetLike;
+  /** The Mac app's confirm bridge, when there is one (a test gives its own). */
+  native: () => NativeConnect | undefined = nativeConnect;
 
   constructor(request: typeof fetch = (...args) => fetch(...args), makeSheet: () => SheetLike = () => new StudioSheet('Connect an agent')) {
     this.request = request;
@@ -121,6 +140,13 @@ export class AgentConnections {
   }
 
   private ask(p: PendingAgent): void {
+    const native = this.native();
+    if (native) {
+      // The Mac app's own dialog asks and answers; the workspace shows nothing of its own.
+      this.answered.add(p.id);
+      void native.postMessage({ id: p.id, label: p.label, code: p.code }).catch(() => { this.answered.delete(p.id); });
+      return;
+    }
     const words = confirmWords(p);
     const title = document.createElement('h3'); title.textContent = words.title;
     const lead = document.createElement('p'); lead.textContent = words.lead;
@@ -151,6 +177,7 @@ export class AgentConnections {
     this.body.replaceChildren(title, lead, code, list, status, actions);
     this.showing = p.id;
     this.sheet.open(this.body);
+    attention();
     const left = p.expiresAt * 1000 - Date.now();
     if (this.expiry) clearTimeout(this.expiry);
     this.expiry = setTimeout(() => { if (this.showing === p.id) { this.answered.add(p.id); this.closeSheet(); } }, Math.max(0, left));

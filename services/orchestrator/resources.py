@@ -322,6 +322,9 @@ def maker_of(kind: str, eid: str, made_by: dict | None, researchers: Researchers
     actor = made.get("actor")
     if actor == "you":
         return dict(YOU)
+    from .door import actor as door_actor
+    if door_actor.is_agent(actor):  # an outside agent's work, by its label as it names itself (ADR 0026)
+        return door_actor.maker(actor)
     if actor == "assistant":
         return dict(ASSISTANT)
     made_for = made.get("for")

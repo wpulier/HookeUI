@@ -729,6 +729,8 @@ export type ServerMessage =
   | { type: 'open-page'; id: string; page: string } // the agent opens a page (open_models): answered by page-opened
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
+  // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
+  | { type: 'onboarding-changed' }
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;
   // orchestrator/data_reader.py): done once the screen report shows it. `entry` is the item as Data lists it.
   | ReaderRequestMessage
@@ -1778,7 +1780,7 @@ export class Connection extends Link {
         if (this.socket !== null) return; // the status consumer opened a newer socket
       }
     }
-    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+    const url = studioSocketURL('/ws');
     const socket = new WebSocket(url); this.socket = socket;
     let ended = false;
     const owns = () => this.socket === socket;
@@ -1860,4 +1862,16 @@ export interface BundleReview {
     inputs?: Record<string, unknown>; referenceSha256?: string;
     saved?: Record<string, unknown>; reopened?: Record<string, unknown>;
     artifacts: Record<'input' | 'actual' | 'reference', { kind: 'image' | 'json'; sha256: string; bytes: number; preview?: string; truncated?: boolean }> }[];
+}
+
+
+/** A WebSocket address for the studio (ADR 0026): in the Mac app it carries the studio token the app gave this window
+ *  (main.swift injects `hookeStudioToken`), which the server never serves, so a script copying an Origin can't pass as
+ *  the studio. A browser on a source checkout has none, and its loopback Origin is what marks it as the studio. */
+export function studioSocketURL(path: string, query = ''): string {
+  const token = (globalThis as { hookeStudioToken?: unknown }).hookeStudioToken;
+  const params = new URLSearchParams(query.replace(/^\?/, ''));
+  if (typeof token === 'string' && token) params.set('studio', token);
+  const rest = params.size ? `?${params}` : '';
+  return `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}${rest}`;
 }

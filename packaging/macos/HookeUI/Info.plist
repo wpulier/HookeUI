@@ -34,6 +34,12 @@
 	<key>HookeUIStreamPort</key><integer>@STREAM_PORT@</integer>
 	<key>HookeUISettingsPort</key><integer>@SETTINGS_PORT@</integer>
 	<key>HookeUIIsolated</key><@ISOLATED@/>
+	<!-- "Open in Hooke" links from an outside agent (ADR 0026): this channel's own scheme, so a link opens only its app.
+	     The app only navigates to the page a link names; a link never acts. -->
+	<key>HookeUIURLScheme</key><string>@URL_SCHEME@</string>
+	<key>CFBundleURLTypes</key>
+	<array><dict><key>CFBundleURLName</key><string>@BUNDLE_ID@.open</string>
+		<key>CFBundleURLSchemes</key><array><string>@URL_SCHEME@</string></array></dict></array>
 	<!-- Automatic discovery, explicit installation. Disallow background installation even when an older
 	     release left SUAutomaticallyUpdate=true in user defaults. Signed feeds and payloads are required. -->
 	<key>SUFeedURL</key><string>@FEED@</string>

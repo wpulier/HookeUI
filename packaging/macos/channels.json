@@ -13,7 +13,8 @@
     "feedURL": "https://github.com/wpulier/hookeui.org/releases/latest/download/appcast.xml",
     "edPublicKey": "sparkle-public-key.txt",
     "streamPort": 9710,
-    "settingsPort": 8767
+    "settingsPort": 8767,
+    "urlScheme": "hookeui"
   },
   "beta": {
     "name": "HookeUI Beta",
@@ -29,6 +30,7 @@
     "feedURL": "https://github.com/wpulier/hookeui-beta/releases/latest/download/appcast.xml",
     "edPublicKey": "sparkle-public-key-beta.txt",
     "streamPort": 9810,
-    "settingsPort": 8867
+    "settingsPort": 8867,
+    "urlScheme": "hookeui-beta"
   }
 }

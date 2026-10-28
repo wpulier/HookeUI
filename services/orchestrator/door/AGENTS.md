@@ -23,9 +23,13 @@ clients of this door. They hold no scientific logic and no list of capabilities:
    - The command prints the code; the Hooke window shows the same code.
    - At most 5 requests wait at once, each for 10 minutes.
    - Open studios get `{"type": "agent-connections", pending, connections}` over the WebSocket.
-2. The researcher answers in Hooke: `POST /api/agent-connections/pending/{id} {answer: connect|decline}`. This takes
-   the studio's Origin and `X-MicroscopeMind: agent-connections`.
-   - The studio's side is `apps/studio/src/agent-connections.ts`. The confirm sheet opens for the first waiting
+2. The researcher answers in Hooke: `POST /api/agent-connections/pending/{id} {answer: connect|decline, signature}`.
+   - The answer counts only when signed by the Mac app's native dialog with this launch's key (`native.py`;
+     `packaging/AGENTS.md`). The signed message is `hooke-agent-connect`, the request id, the code and the answer.
+   - The studio's Origin and header, which any local program can copy, are not enough.
+   - Without the app's key (a source checkout), the studio's own answer counts only with `HOOKE_DEV_CONFIRM=1`.
+   - The studio's side is `apps/studio/src/agent-connections.ts`. In the Mac app it hands the request to the native
+     dialog (`hookeConnect`) and shows nothing of its own. In a browser its confirm sheet opens for the first waiting
      request and names the agent "as it calls itself". It shows the code, says what connecting allows (including that
      what the agent reads may go to its provider), and offers Don't connect and Connect.
    - The sheet closes when the request is answered elsewhere or expires.
@@ -51,23 +55,76 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - its revision and source digest
   - the interface version with the minimum CLI and skill
   - the connection, whether a studio is open, and the current session
-- `GET tools?q=&page=&perPage=`:
-  - Every catalog capability with a door entry (`kinds.door_entry`): what runs now (`kinds.available`), then reviewed
-    entries that could run after setup, with their next step (`readiness.model`).
-  - Community and personal entries are added through the Toolbox, and appear once they run.
-  - The app's own built-in tools (`contract/capabilities.json`, e.g. Cellpose outlines through `outline_cells`) are not
-    listed yet.
+- `GET tools?q=&page=&perPage=`: **what an agent may run here** (`listing.py`). The door names no capability.
+  - **What's in it:** the one list's agent rows (`App.capabilities_wire()`: `contract/capabilities.json` and the
+    catalog's proven entries, `catalog:<key>`), limited to tools declared runnable for agents in
+    `orchestrator/agent_runnable.py`. The default is no, and a test fails on any undeclared tool. A tool that changes a
+    setting never shows (`Tool.sets`).
+  - **How each is described:** from its own declaration (a tool's parameter schema and `produces`, or a catalog
+    manifest), with `runsOn` (this Mac or a cloud service, read from the models its roles use now) and `cost`.
+  - **State:** cloud work is `unavailable` with `LOCAL_ONLY`. The rows are gathered on the event loop and described in
+    a thread.
+
+## Operations (`operations.py`, `example.py`, `actor.py`)
+- **Starting work:** `POST operations {tool, args, requestKey}`.
+  - The record is written (fsynced) before the work starts. A new operation answers 202 with `made: true`.
+  - The same key with the same request answers 200 with the same operation (`made: false`).
+  - The same key with any other request is 409 `request-key-conflict`. The key is bound to `request_digest` (tool,
+    project, input revision, generation, parameters): the same meaning as the hosted service's.
+- **Reading and stopping:** `GET operations/{id}`, `GET operations`, `POST operations/{id}/cancel`.
+  - A cancel is `cancelRequested` until the work's own end says how it stopped.
+  - After a restart, unfinished records are `interrupted` with what they say they left. Unreadable files are listed,
+    never overwritten.
+  - Request keys, reading, listing and cancelling are each connection's own.
+- **What can be started:** `tool` is a capability id of the listing, or one of the door's own actions
+  (`DOOR_ACTIONS`):
+  - **`open {file}`** (`work.open_file`): the agent's file goes to the library through the camera bridge's own upload,
+    then opens on the stage of a new Project of the agent's own (`agents/projects.json`).
+  - **Any listed capability** (`work.run_capability`):
+    - **Where:** only in a Project the calling connection made (`project`, from `open`), and only while it is open
+      (`own_project`). Otherwise it is refused: `project-required`, `not-your-project` or `project-not-open`.
+    - **Arguments:** exactly the ones its `inputSchema` offers (`bad-arguments`). None may name another session, a
+      conversation or a researcher, and none may name a cloud model (`cloud-argument`, from `listing.model_places`).
+    - **Local only:** the run is held to local work (`api_usage.local_only`), so no paid provider and no cloud model
+      runs, whatever a fallback chooses.
+    - **Catalog rows:** only reviewed entries (`agent_runnable.catalog_runnable`).
+    - **How it runs:** by its own tool through `commands.run_tool`, as the agent. It doesn't go through the Actions
+      path, whose runs read "You".
+    - **Outcome:** when it measured something, a table preview and the page.
+    - **Retries:** a retried request key returns its operation before anything else is checked.
+  - **`example`:** the guided example (`onboarding.py` as it is).
+    - Its steps: opening the bundled image in its own local-only Project, finding its bright regions (the example's own
+      capability: no key, no download), then reading the table.
+    - Its outcome: the Project, the result id and revision, the count, the columns, a 5-row preview (`truncated`),
+      whether Hooke showed it (`shownInHooke`), and the `page` to open.
+    - Open windows get `onboarding-changed`, so the walkthrough card catches up (`onboarding.ts` `agentAdvanced`).
+- **Who did it:** the operation sets `actor.ACTOR`.
+  - `commands.run_tool` and `operations._actor_now` record it, so the execution's and the result's `madeBy.actor` is
+    `agent:<id>`.
+  - Data's maker is the agent's label (`resources.maker_of`), with "a:<label>" in Made by (`data-roles.ts`).
+  - The app's own example run by a person records no actor today: that is unchanged here.
+- **Opening a page:** `POST open {page}` shows a page in the Hooke window (only `#measurements`, `#models`,
+  `#toolbox`, `#assets`, `#sessions`).
+  - It answers `shown: true` only when a window says it shows it; otherwise it says why.
+
+## The command and the app
+The `hooke` command, the app's state file, its links and attention are described in `packaging/AGENTS.md` ("Outside
+agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
+
+## Sockets and the screen
+- **WebSockets** (`origin.socket_kind`, both `/ws` and `/ws/voice`):
+  - In the Mac app only the window's studio token makes a socket the studio's.
+  - In a source checkout's browser a loopback Origin does.
+  - Scripts present `Authorization: Bearer <data home>/agents/local-token` (`origin.script_headers`).
+  - Anything else is refused. `status.studio.open` counts only studio sockets.
+- **The example never takes over what the researcher sees** (`example.takeover`). It is refused (409 `hooke-busy`)
+  while Talk is live, or while a Hooke window shows a Project that isn't empty (nothing opened, made or asked) and
+  isn't the example's own. It is checked at the door and again as it starts.
+- **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
 
 ## Still to build (ADR 0026)
-- **Operations:**
-  - request keys bound to a digest of tool, project, input revision, generation and parameters (409 on a mismatch)
-  - admission written before work starts
-  - `operation`, `operations`, `cancel` (`cancelRequested` until confirmed), and `interrupted` after a restart
-- **Actor:** effects recorded with actor `agent:<id>`, through `commands.run_tool` (today `actor="you"`), evidence and
-  provenance.
-- **The window comes forward:** the Mac app should bring Hooke forward when a request waits, so the researcher
-  sees the sheet.
-- **Tools:** `example` (the onboarding flow), `open_in_hooke`, then run, results, compare, batch and adding
-  capabilities.
-- **Responses:** no image bytes or full tables unless asked, and marked when given.
-- **WebSocket:** a token for WS clients that send no Origin (`origin.allowed_origin`).
+- **Off-screen runs on a saved input:** today every run uses the stage of the agent's own Project. A capability
+  that takes a saved input could run without staging anything, but that path isn't checked yet.
+- **Full results:** full tables only when asked for, and marked.
+- **The studio's other HTTP routes** still trust its Origin and header, which a local program can copy (ADR 0026
+  says so).

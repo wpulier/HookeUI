@@ -1108,6 +1108,9 @@ function handleMessage(message: ServerMessage): void {
     case 'agent-connections': // an outside agent asked to connect, or the list changed (ADR 0026)
       agentConnections.message(message);
       break;
+    case 'onboarding-changed': // an agent moved the walkthrough on (the door's example): its card rereads where it is
+      void exampleGuide.agentAdvanced();
+      break;
     case 'presentation-admitted': // WorkspaceSession owns placement correlation.
     case 'workspace-ready': // Link owns correlated settlement; runtime installation is separate.
       break;

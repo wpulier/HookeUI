@@ -220,6 +220,12 @@ native-test:
 	@out="$$(mktemp -d)/setup-words" && \
 		swiftc -swift-version 5 packaging/macos/HookeUI/SetupWords.swift packaging/macos/HookeUI/SetupView.swift \
 			packaging/macos/tests/setup-words/main.swift -o "$$out" && "$$out"
+	@out="$$(mktemp -d)/agent-links" && \
+		swiftc -swift-version 5 packaging/macos/HookeUI/AgentShared.swift packaging/macos/tests/agent-links/main.swift \
+			-o "$$out" && "$$out"
+	@out="$$(mktemp -d)/hooke" && \
+		swiftc -swift-version 5 packaging/macos/hooke/main.swift packaging/macos/HookeUI/AgentShared.swift -o "$$out" && \
+		"$$out" version
 	@out="$$(mktemp -d)/termination" && \
 		swiftc -swift-version 5 packaging/macos/HookeUI/Termination.swift packaging/macos/tests/termination/main.swift \
 			-o "$$out" && "$$out" nested && "$$out" deferred && "$$out" event && \

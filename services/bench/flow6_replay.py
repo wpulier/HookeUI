@@ -31,7 +31,9 @@ async def main():
     before = json.loads(urllib.request.urlopen(BRIDGE + "/feed", timeout=15).read())
     restore = (f"/feed?source=footage&footage={before['footage']}" if before.get("source") == "footage" and before.get("footage")
                else "/feed?source=camera")
-    async with websockets.connect(WS, max_size=None) as ws:
+    from orchestrator.origin import script_headers
+    # A script presents the data home's local token (ADR 0026): an Origin alone opens no socket.
+    async with websockets.connect(WS, max_size=None, additional_headers=script_headers()) as ws:
         async def reader():
             async for msg in ws:
                 t = round(time.time() - t0, 3)

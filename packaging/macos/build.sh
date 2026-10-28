@@ -116,6 +116,9 @@ mkdir -p "$C/MacOS" "$C/Resources/NOTICES" "$C/Helpers" "$C/Frameworks"
 swiftc -O -swift-version 5 -target arm64-apple-macos14.0 -F "$TOOLS/sparkle" -framework Sparkle \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks "$HERE/HookeUI/"*.swift -o "$C/MacOS/HookeUI"
 ditto "$TOOLS/sparkle/Sparkle.framework" "$C/Frameworks/Sparkle.framework"
+# The command an outside agent runs to use this app (ADR 0026; packaging/macos/hooke): it reads this bundle's Info.plist.
+swiftc -O -swift-version 5 -target arm64-apple-macos14.0 "$HERE/hooke/main.swift" "$HERE/HookeUI/AgentShared.swift" \
+  -o "$C/Helpers/hooke"
 python3 "$HERE/channels.py" plist "$CHANNEL" --template "$HERE/HookeUI/Info.plist" --version "$VERSION" \
   --build "$BUILD_NUMBER" --feed "$FEED_URL" --edkey "$ED_PUBLIC" --out "$C/Info.plist"
 if [ -n "${ICNS:-}" ]; then
@@ -149,6 +152,7 @@ cp "$TOOLS/sparkle/LICENSE" "$C/Resources/NOTICES/Sparkle-LICENSE"
 if [ "$IDENTITY" = - ]; then say "Signing ad-hoc (no SIGN_IDENTITY)"; else say "Signing with $IDENTITY"; fi
 sign() { codesign --force --timestamp --options runtime --sign "$IDENTITY" "$@"; }
 sign "$C/Helpers/uv"
+sign --identifier "$CHANNEL_BUNDLE_ID.hooke" "$C/Helpers/hooke"  # each channel's helper its own identity
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$C/Helpers/ffmpeg" "$C/Helpers/ffprobe"
 sign --entitlements "$HERE/HookeUI/camera.entitlements" "$CAMERA"
 # Sparkle's own parts, inside out, as its documentation signs them for a Developer ID app.
@@ -158,6 +162,7 @@ sign --preserve-metadata=entitlements "$SP/XPCServices/Downloader.xpc"
 sign "$SP/Autoupdate" "$SP/Updater.app"
 sign "$C/Frameworks/Sparkle.framework"
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$APP"
+codesign --verify --strict --verbose=2 "$C/Helpers/hooke"  # the agent command, checked on its own too
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 notarize() { # file: submit, wait, and fail unless Apple accepted it

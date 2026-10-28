@@ -110,3 +110,43 @@ transport admission, not reader or full-size workflow qualification. Server acce
 remains the shared immutable Project intake, separate from native selection. The
 snapshot fixture checks small real files, retry reads and refusal/cleanup; it does not
 qualify an installed large-folder workflow.
+
+## Outside agents (ADR 0026)
+
+- **`Contents/Helpers/hooke`** (`macos/hooke/main.swift`, with `macos/HookeUI/AgentShared.swift`): the command a
+  researcher's own coding agent runs.
+  - It reads its own bundle's Info.plist, so it talks only to its own channel's app. It's signed with its own
+    identifier, `<bundle id>.hooke`.
+  - Every command names its agent (`--agent` or `HOOKE_AGENT`). Options may come anywhere on the line.
+  - **Opening Hooke:** it opens this copy by its own path and checks that macOS opened it. It waits on the app's state
+    file, so `status --wait` works on a Mac where Hooke never ran. It waits through `updating` rather than opening over
+    an install.
+  - **Restarts:** door calls ride out a restart (the port is read again) and retry safely with their request key.
+    `follow` keeps finding Hooke and says `interrupted` when that's what happened.
+  - **Connecting:** the researcher confirms once in Hooke's native dialog. The token goes in the Keychain
+    (`org.hookeui.agent.<channel>`, account = agent kind).
+  - **The skill:** it installs or refreshes the Hooke skill (`.agents/skills/hooke/`, in the snapshot). That never
+    touches a connection, and it never replaces a `hooke` folder that lacks Hooke's `.installed-by-hooke` marker.
+  - No scientific logic: everything goes through the orchestrator's door (`services/orchestrator/door/`).
+  - **`HOOKE_DOOR_URL`** (a loopback source checkout's door) works only for a copy built outside an app. A copy inside
+    an app never sends its token anywhere but its own app.
+- **The confirm key and the studio token:** each launch the app makes them in memory, and neither is written down.
+  - The server gets the confirm key's public half (`HOOKE_CONFIRM_KEY`) and the studio token (`HOOKE_STUDIO_TOKEN`) in
+    the environment it is started with.
+  - The window gets the studio token through a `WKUserScript`.
+  - `AgentConnect` asks in a native dialog ("Don't connect" is the default button) and posts the signed answer.
+  - `AgentAttention` only brings Hooke forward.
+- **State file:** `~/Library/Application Support/<support folder>/agent-state.json`. It holds the channel, version,
+  phase (`asking`, `downloading`, `starting`, `ready`, `failed`, `stopped`, `updating`), what the setup screen says, the
+  port once open, and the pid. A file whose pid isn't this app's executable says nothing about now.
+- **Links:** each channel has its own scheme (`urlScheme` in `channels.json`: `hookeui`, `hookeui-beta`), declared in
+  Info.plist. `hookeui://open?page=#measurements/…` only navigates the workspace to an allowed page and brings Hooke
+  forward; a link never acts.
+- **Releases:** official builds come from hooke-web's `desktop-release` builder. It has to know `urlScheme` and build,
+  sign and notarize `Contents/Helpers/hooke` exactly as `macos/build.sh` here does, before any Beta carries this.
+- **Checks:**
+  - `make native-test`: `macos/tests/agent-links`, and builds `hooke`.
+  - `services/tests/test_agent_confirm_native.py`: the app's own signing code, checked by the server.
+  - `services/tests/test_hooke_command.py`: the real command against a real door (macOS with a login keychain).
+  - `services/tests/test_mac_channels.py`.
+

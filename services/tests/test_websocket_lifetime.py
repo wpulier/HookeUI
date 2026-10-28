@@ -21,6 +21,7 @@ def test_interrupted_initial_snapshot_releases_only_its_own_client(tmp_path, mon
 
         class Socket:
             headers = {'origin': 'http://127.0.0.1:8770'}
+            query_params = {}  # origin.socket_kind reads the studio token from the query (ADR 0026)
 
             def __init__(self, interrupted_snapshot):
                 self.interrupted_snapshot = interrupted_snapshot

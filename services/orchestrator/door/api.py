@@ -16,10 +16,13 @@ from fastapi.responses import JSONResponse
 
 from .connections import Connections, Refused
 from .contract import CONTRACT, describe
+from . import native
+from .operations import Operations
 
 PREFIX = "/api/agent/v1"
 INTERFACE = 1  # this door's version; the CLI and skill say which they need
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+PAGE = __import__("re").compile(r"^#(measurements|models|toolbox|assets|sessions)(/[A-Za-z0-9_.-]+)?(\?[A-Za-z0-9=&._%-]*)?$")
 PAGE_SIZE = 20
 STATES = {"ready": "available", "needs-setup": "setup", "unavailable": "unavailable", "broken": "broken"}
 
@@ -53,6 +56,14 @@ def guard(request: Request) -> None:
                       next="update the hooke command or Hooke so they match")
 
 
+@__import__("functools").lru_cache(maxsize=1)
+def build_identity() -> dict:
+    """This process's source identity, read once: it is fixed at startup (build_info.identity), and a source checkout
+    hashes every file to say it."""
+    from ..build_info import identity
+    return identity()
+
+
 def app_version() -> str | None:
     from ..build_info import PACKAGED
     try:
@@ -61,49 +72,40 @@ def app_version() -> str | None:
         return None
 
 
-def listing(environ=os.environ) -> list[dict]:
-    """Every catalog capability an agent could use here, with its state: what runs now, then what could after setup.
-    It reads files and hashes entry folders: call it in a thread."""
-    from gpu_worker import manifests as catalog
-    from .. import kinds, readiness
+async def listing(built) -> list[dict]:
+    """Everything this Hooke may run for an agent (listing.py): gathered on the event loop, described in a thread."""
+    from .listing import describe_all, gather
+    gathered = gather(built)
+    return await asyncio.to_thread(describe_all, gathered, build_identity())
 
-    out, seen = [], set()
-    with kinds.read_once(), readiness.batch():
-        rows, manifests = kinds.available_with_manifests(environ)
-        for row in rows:
-            m = manifests.get(row.get("key"))
-            entry = kinds.door_entry(m) if m is not None else None
-            if m is None or entry is None or m.id in seen:
-                continue
-            seen.add(m.id)
-            if row.get("runnable", True) and not row.get("why"):
-                out.append(describe(m, entry, state="available"))
-            else:
-                out.append(describe(m, entry, state="unavailable", why=str(row.get("why") or "it cannot run here now")))
-        for m in sorted(catalog.manifests().values(), key=lambda m: (m.name.lower(), m.id)):
-            if m.id in seen or m.namespace:
-                continue  # listed above, or a community or personal entry: those are added through the Toolbox
-            entry = kinds.door_entry(m)
-            if entry is None:
-                continue
-            seen.add(m.id)
-            try:
-                r = readiness.model(m.id, environ=environ)
-            except Exception as error:  # one entry's facts can't be read: say so for it, list the rest
-                out.append(describe(m, entry, state="unavailable", why=f"its readiness could not be read: {error}"))
-                continue
-            state = STATES.get(r.status, "unavailable")
-            if state == "available":
-                state = "setup"  # ready to turn on, but not on yet: it isn't in what runs now
-            step = r.next
-            out.append(describe(m, entry, state=state, why=r.why or r.word,
-                                next=(step.says if step is not None else "turn it on in Hooke's Toolbox")))
-    return out
+
+async def _listed(built) -> list[dict]:
+    found = listing(built)
+    return await found if hasattr(found, "__await__") else found
+
+
+DOOR_ACTIONS = ("example", "open")  # the door's own actions; every other `tool` is a capability of the listing
+
+
+def example_identity() -> tuple[str | None, str | None]:
+    """The example's input revision (its image's SHA-256) and the generation of the capability it runs."""
+    import hashlib
+    from gpu_worker import manifests as catalog
+    from .. import examples
+    from ..capability_identity import generation_of
+    try:
+        digest = hashlib.sha256(examples.human_mitosis(preview=True).read_bytes()).hexdigest()  # what the guide analyses
+    except (OSError, ValueError, KeyError):
+        digest = None  # damaged or missing: the guide itself refuses and says so
+    m = catalog.get("basic-bright-objects")
+    return digest, (generation_of(m) if m is not None else None)
 
 
 def register(app, built, studio_origin, header: str) -> Connections:
     connections = Connections(built.paths.home)
     built.agent_connections = connections
+    operations = Operations(built.paths.home)
+    built.agent_operations = operations
 
     def announce() -> None:
         """Tell open studios what is waiting and who is connected (the confirm sheet and the list draw from it)."""
@@ -172,8 +174,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
             c = connected(request)
         except Refused as error:
             return _refusal(error)
-        from ..build_info import identity
-        build = await asyncio.to_thread(identity)
+        build = await asyncio.to_thread(build_identity)
         day = getattr(built, "day", None)
         hub = getattr(built, "hub", None)
         return _no_store({
@@ -183,7 +184,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
                     "revision": build.get("revision"), "sourceDigest": build.get("sourceDigest")},
             "interface": {"version": INTERFACE, "minCli": 1, "minSkill": 1},
             "connection": c.wire(),
-            "studio": {"open": bool(getattr(hub, "clients", None))},
+            "studio": {"open": any(getattr(c, "kind", None) == "studio" for c in (getattr(hub, "clients", None) or ()))},
             "project": {"session": getattr(day, "sid", None)},
         })
 
@@ -194,9 +195,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except Refused as error:
             return _refusal(error)
         try:
-            found = await asyncio.to_thread(listing)
-        except Exception as error:  # the catalog couldn't be read: say so, never an empty list
-            return _refusal(Refused(503, "catalog-unreadable", f"Hooke's catalog could not be read: {error}",
+            found = await _listed(built)
+        except Exception as error:  # the list couldn't be read: say so, never an empty list
+            return _refusal(Refused(503, "catalog-unreadable", f"What Hooke can do could not be read: {error}",
                                     next="restart Hooke; if it persists, report a problem from Hooke"))
         terms = [t for t in q.lower().split() if t]
         if terms:
@@ -208,6 +209,128 @@ def register(app, built, studio_origin, header: str) -> Connections:
         page = min(max(1, page), pages)
         return _no_store({"ok": True, "contract": CONTRACT, "tools": found[(page - 1) * per: page * per],
                           "total": len(found), "page": page, "pages": pages, "perPage": per, "query": q})
+
+    # --- operations: work an agent starts ---------------------------------------------------------------------------
+    @app.post(f"{PREFIX}/operations")
+    async def start(request: Request) -> JSONResponse:
+        """Work an agent starts: the guided example, opening its own file, or running any capability of the listing.
+        Each is admitted to disk before it starts (operations.py) and never takes over what the researcher sees."""
+        from . import example, work
+        try:
+            c = connected(request)
+            value = await body(request)
+            tool, args = value.get("tool"), value.get("args") or {}
+            if not isinstance(tool, str) or not tool:
+                raise Refused(400, "bad-request", "Say which capability to run.", next="list them with GET tools")
+            if not isinstance(args, dict):
+                raise Refused(400, "bad-request", "The arguments are one JSON object.", next="send args as an object")
+            key = value.get("requestKey")
+            if tool == "example":
+                if args:
+                    raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
+                busy = example.takeover(built)  # never under the researcher's eyes (review B3)
+                if busy is not None:
+                    raise busy
+                revision, generation = await asyncio.to_thread(example_identity)
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
+                    generation=generation, params={}, request_key=key,
+                    work=lambda record, progress: example.run(built, record, progress))
+            elif tool == "open":
+                path = work.checked_file(args.get("file"))
+                if set(args) - {"file"}:
+                    raise Refused(400, "bad-request", "open takes only the file's path.", next='send args {"file": "/full/path"}')
+                busy = work.takeover(built, c.actor)
+                if busy is not None:
+                    raise busy
+                stat = path.stat()
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project="new",
+                    input_revision=f"{path}:{stat.st_size}:{int(stat.st_mtime)}", generation=None,
+                    params={"file": str(path)}, request_key=key,
+                    work=lambda record, progress: work.open_file(built, record, progress, str(path)))
+            else:
+                project = value.get("project")
+                again = operations.known(key, tool, args, c.actor)  # a retry finds its work before anything else is checked
+                if again is not None:
+                    return _no_store({"ok": True, "operation": again, "made": False})
+                listed = {t["id"]: t for t in await _listed(built)}
+                found = listed.get(tool)
+                if found is None:
+                    raise Refused(404, "unknown-capability", f"This Hooke has no capability {tool!r} an agent can run.",
+                                  next="list what it has with GET tools")
+                if found["state"] != "available":
+                    raise Refused(409, "not-ready", f"{found['name']} can't run through the door now: {found.get('why') or found['state']}",
+                                  next=found.get("next") or "the researcher can run or set it up in Hooke")
+                work.check_args(found["inputSchema"], args, project)
+                from .listing import model_places
+                work.check_models(args, model_places(built))
+                refused = work.own_project(built, project, c.actor)
+                if refused is not None:
+                    raise refused
+                row = next((r for r in built.capability_status()["capabilities"] if r.get("id") == tool), None)
+                how = (row or {}).get("how") or {}
+                if not how.get("tool"):
+                    raise Refused(409, "unknown-capability", f"{tool!r} isn't on Hooke's list any more.",
+                                  next="list what it has with GET tools")
+                name, preset = how["tool"], dict(how.get("args") or {})
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project=project,
+                    input_revision=getattr(built.day, "on_stage", None), generation=found["generation"],
+                    params=args, request_key=key,
+                    work=lambda record, progress: work.run_capability(built, {**record, "capabilityName": found["name"]},
+                                                                      progress, name, preset, args))
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)
+
+    @app.get(f"{PREFIX}/operations")
+    async def list_operations(request: Request, limit: int = 20) -> JSONResponse:
+        try:
+            c = connected(request)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, **operations.operations(limit, c.actor)})
+
+    @app.get(PREFIX + "/operations/{op_id}")
+    async def get_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            c = connected(request)
+            record = operations.get(op_id, c.actor)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(PREFIX + "/operations/{op_id}/cancel")
+    async def cancel_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            c = connected(request)
+            record = await operations.cancel(op_id, c.actor)
+        except Refused as error:
+            return _refusal(error)
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(f"{PREFIX}/open")
+    async def open_in_hooke(request: Request) -> JSONResponse:
+        """Show a page in the Hooke window (an exact result's measurements). Done only when a window says it shows it."""
+        try:
+            connected(request)
+            value = await body(request)
+            page = value.get("page")
+            if not isinstance(page, str) or not PAGE.match(page):
+                raise Refused(400, "bad-page", "That is not a page Hooke can open for an agent.",
+                              next="use the page an operation gave, such as #measurements/<id>?session=…&revision=…")
+            opener = getattr(built, "open_page", None)
+            reply = await opener(None, page) if opener is not None else None
+        except Refused as error:
+            return _refusal(error)
+        if reply is None:
+            return _no_store({"ok": True, "shown": False, "says": "No Hooke window answered, so it isn't shown yet.",
+                              "next": "open Hooke (hooke open), then ask again"})
+        visible = reply.get("visible") is not False
+        return _no_store({"ok": True, "shown": visible,
+                          "says": "Hooke shows it." if visible else "Hooke opened it, but its window is in the background.",
+                          **({} if visible else {"next": "bring the Hooke window forward"})})
 
     # --- the studio's side --------------------------------------------------------------------------------------------
     @app.get("/api/agent-connections")
@@ -221,12 +344,19 @@ def register(app, built, studio_origin, header: str) -> Connections:
 
     @app.post("/api/agent-connections/pending/{pid}")
     async def studio_answer(pid: str, request: Request) -> JSONResponse:
+        """The researcher's answer. It counts only when the Hooke app's native dialog signed it (door/native.py): an
+        Origin and header any local program can copy are not enough."""
         try:
-            studio(request, writes=True)
+            studio(request, writes=False)  # a loopback Host; the signature below is what makes it the researcher's
             value = await body(request)
-            if value.get("answer") not in ("connect", "decline"):
+            answer = value.get("answer")
+            if answer not in ("connect", "decline"):
                 raise Refused(400, "bad-request", "The answer is connect or decline.", next="reload the workspace")
-            p = connections.answer(pid, value["answer"] == "connect")
+            waiting = connections.waiting(pid)
+            native.check(pid, waiting.code, answer, value.get("signature"),
+                         studio_ok=studio_origin(request.headers.get("origin"), request.url.port)
+                         and request.headers.get(header) == "agent-connections")
+            p = connections.answer(pid, answer == "connect")
         except Refused as error:
             return _refusal(error)
         announce()

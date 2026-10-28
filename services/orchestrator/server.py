@@ -176,7 +176,7 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     add_recording_routes(app, built.paths.recordings, keep=built.datasets.keep_screen if built.datasets else None,
                          made=lambda pid: built.day.made("recording", pid),
                          resolve=lambda rid, sid: resources_of(hub).get(rid, sid), library=getattr(hub, "library", None))
-    add_voice_route(app, hub, built.brain, built.dialogue, built.workspace_transport)
+    add_voice_route(app, hub, built.brain, built.dialogue, built.workspace_transport, home=built.paths.home)
 
     @app.get("/api/presentation-sources/{token}")
     async def presentation_source(token: str, request: Request) -> Response:
@@ -1118,11 +1118,14 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
 
     @app.websocket("/ws")
     async def ws(websocket: WebSocket) -> None:
-        if not allowed_origin(websocket.headers.get("origin")):
+        from .origin import socket_kind
+        kind = socket_kind(websocket.headers, websocket.query_params, built.paths.home)  # ADR 0026: no Origin alone
+        if kind is None:
             await websocket.close(code=1008)
             return
         await websocket.accept()
         client = Client(websocket)
+        client.kind = kind  # "studio" or "script": the door's status counts only the studio
         snapshot = built.snapshot(client)  # taken before joining, so nothing arrives twice
         hub.clients.add(client)
         sender = None

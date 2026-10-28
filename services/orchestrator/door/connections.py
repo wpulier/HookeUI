@@ -16,6 +16,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .actor import remember
+
 PENDING_SECONDS = 600
 MOST_PENDING = 5
 KINDS = ("claude-code", "codex", "cursor", "other")
@@ -113,6 +115,7 @@ class Connections:
             c = Connection(id=row["id"], label=row["label"], kind=row["kind"], at=row["at"],
                            token_sha256=row["tokenSha256"], revoked_at=row.get("revokedAt"))
             self._by_id[c.id] = c
+            remember(c.id, c.label)
             if c.revoked_at is None:
                 self._by_token[c.token_sha256] = c
 
@@ -173,6 +176,15 @@ class Connections:
                           next="run hooke connect again")
         return p
 
+    def waiting(self, pid: str) -> Pending:
+        """The request still waiting for an answer (its code is part of what the window signs)."""
+        with self._lock:
+            p = self._waiting(pid)
+            if p.state != "pending":
+                raise Refused(409, "already-answered", "That connection request was already answered.",
+                              next="run hooke connect again if you meant to connect")
+            return p
+
     def answer(self, pid: str, connect: bool) -> Pending:
         """The researcher's answer in the Hooke window."""
         with self._lock:
@@ -206,6 +218,7 @@ class Connections:
                            token_sha256=sha256(token))
             self._by_id[c.id] = c
             self._by_token[c.token_sha256] = c
+            remember(c.id, c.label)
             try:
                 self._write()
             except OSError:

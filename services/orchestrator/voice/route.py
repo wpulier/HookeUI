@@ -34,7 +34,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from ..options import VOICE
 from .. import execution
-from ..origin import allowed_origin
 from ..prompts import LIVE_VOICE_DELEGATE
 from .diagnostics import VoiceDiagnostics
 from .base import ToolSpec, VoiceConfig, VoiceEvent
@@ -68,10 +67,11 @@ def passive_workspace_pin(screen, client):
                       max_report_age_ms=REPORT_FRESH_S * 1000)
 
 
-def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None) -> None:
+def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None, home=None) -> None:
     @app.websocket("/ws/voice")
     async def voice(websocket: WebSocket) -> None:
-        if not allowed_origin(websocket.headers.get("origin")):
+        from ..origin import socket_kind
+        if socket_kind(websocket.headers, websocket.query_params, home) is None:  # ADR 0026: no Origin alone
             await websocket.close(code=1008)
             return
         await websocket.accept()

@@ -4,6 +4,7 @@
 // resampler, so speech reaches the model's transcription without aliasing. Speech back: "MMA1" + 16-bit mono
 // PCM at 24 kHz, played gap-free and flushed the moment the model is interrupted. The model
 // sees the eyepiece through the orchestrator, not through the browser.
+import { studioSocketURL } from './protocol';
 
 export interface VoiceEvent {
   type: 'voice';
@@ -242,8 +243,7 @@ export class VoiceClient {
         if (!offer?.sdp) throw new Error('Missing voice offer');
         params.set('link', 'webrtc');
       }
-      const query = params.size ? `?${params}` : '';
-      const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/voice${query}`);
+      const socket = new WebSocket(studioSocketURL('/ws/voice', params.toString()));
       socket.binaryType = 'arraybuffer';
       socket.onopen = () => {
         if (attempt !== this.connectionAttempt) { socket.close(); return; }
