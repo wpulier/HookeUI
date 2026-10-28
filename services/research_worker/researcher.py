@@ -85,6 +85,11 @@ LABEL_NAME_MAX = 40  # characters of a label drawn on a picture
 
 
 
+# What a run with no kept input works on, said before the app answers: the Stage may show the live camera or a still
+# picture, and this process can't tell which, so it names the Stage (the app's reply names which: research/hands.py).
+STAGE = "the picture on the Stage"
+
+
 def said_words(words) -> str:
     """The app's words about a run, for the card: the ids it names for the researcher (e3, m2, k1...) left out."""
     import re as _re
@@ -720,13 +725,13 @@ class Researcher:
         except (TypeError, ValueError):
             return {"error": "seconds is how long motion watches: a number, 4 if not given"}, None
         what = (f"run {next(c['name'] for c in capabilities if c['key'] == capability)} on "
-                + ("a retained result" if resource is not None else "the live view")
-                if operation == "capability" else RUN_OPERATIONS[operation].format(view=sample or "the live view"))
+                + ("a retained result" if resource is not None else STAGE)
+                if operation == "capability" else RUN_OPERATIONS[operation].format(view=sample or STAGE))
         if operation == "motion" and sample:
             what = f"measure what moves in retained clip {sample}"
         # Said without the kept sample's id; the id and its reason go with the step's detail.
         said_what = what if operation == "capability" else RUN_OPERATIONS[operation].format(
-            view="a view kept earlier" if sample else "the live view")
+            view="a view kept earlier" if sample else STAGE)
         if operation == "motion" and sample:
             said_what = "measure what moves in a clip kept earlier"
         self.step(f"Asking the app to {said_what}", detail=what + (f" ({why})" if why else ""))
@@ -1732,7 +1737,9 @@ class Researcher:
         found = sum(r.get("found") is True for r in resolved.values())
         gone = sum(r.get("found") is False for r in resolved.values())
         unread = sum(r.get("found") is None for r in resolved.values())
-        self.step(f"Checked the {len(ids)} session entries it cites: {found} found, {gone} not in today's session"
+        cited = f"{len(ids)} {'entry' if len(ids) == 1 else 'entries'}"
+        self.step(f"Checked the {cited} it cites in this Project: {found} found"
+                  + (f", {gone} not in this Project" if gone else "")
                   + (f", {unread} could not be checked" if unread else ""), "claims")
 
     def tidy(self) -> None:

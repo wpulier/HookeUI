@@ -6,7 +6,7 @@ import { expectSideMotion, holdUntilLanded, playSideMotion, sideLeaving, sideTra
 import { mountAppUpdates } from './app-updates';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, rowView, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, rowView, sessionName, sortSessions, type SessionRowView } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -1175,7 +1175,7 @@ function renderSessionBrowser():void {
   for(const row of snapshot.projects.filter(row=>(sessionName(row, Date.now()/1000)).toLowerCase().includes(query))){
     const item=button('',()=>void changeSession(row.id),'study-session-row');
     if(row.thumb){const img=el('img');img.src=row.thumb;img.alt='';item.append(img);}
-    const words=el('span');words.append(el('strong','',sessionName(row, Date.now()/1000)),el('small','',`${row.counts?.sources??0} inputs · ${row.counts?.conversations??0} conversations${tabs?.order.includes(row.id)?' · Open project':''}`));item.append(words);sessionList.append(item);
+    const words=el('span');words.append(el('strong','',sessionName(row, Date.now()/1000)),el('small','',projectRowWords(row.counts,!!tabs?.order.includes(row.id))));item.append(words);sessionList.append(item);
   }
   if(!sessionList.children.length)sessionList.append(el('p','study-note','No projects match.'));
   appMenu.refresh();

@@ -247,7 +247,9 @@ Library is the global asset library. Datasets package assets with Project metada
 Data, Tools and Researchers retain their existing service owners. A new work Tab shows the
 shared specimen feed; changing Tabs never changes analysis input or acquisition.
 
-Projects opens Recent projects from the header at every supported width. The Tabs row owns
+Projects opens Recent projects from the header at every supported width; each row's line counts in words
+(`sessions.ts` `projectRowWords`: "1 input · 1 conversation"). The Hooke menu's Scientific sessions opens the sheet of
+that title (the running tool sessions and earlier-window recovery). The Tabs row owns
 the single new-Tab control; closing a Tab offers Reopen and keeps it under Closed in ⌄ All Tabs
 without deleting its arrangement. Controls dock beside the left rail, leaving navigation
 reachable. Rail counts come from current Project results, active work and actual readiness;

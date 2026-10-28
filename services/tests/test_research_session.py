@@ -679,3 +679,21 @@ def test_a_population_pictures_title_is_its_own_and_another_days_stores_are_neve
     monkeypatch.setattr(results, "get", lambda eid, day=None: (asked.append(day), real_get(eid, day))[1])
     manager._event({"event": "looked", "rid": "r5", "id": "d1", "how": "picture 0", "title": "", "kind": ""})
     assert asked == [] and other.working[-1]["kind"] == "result"  # another day's results: never read here, on the loop
+
+
+@pytest.mark.parametrize("cited, said", [
+    (["e3"], "Checked the 1 entry it cites in this Project: 1 found"),
+    (["e3", "e4", "e9"], "Checked the 3 entries it cites in this Project: 1 found, 1 not in this Project, 1 could not be checked"),
+])
+def test_the_evidence_step_counts_in_words(monkeypatch, cited, said):
+    # Ticket 67: a researcher's step said "Checked the 1 session entries it cites".
+    from research_worker import researcher as R
+
+    steps = []
+    me = SimpleNamespace(result={"evidence": cited}, session_index=None, session_seen=None,
+                         step=lambda words, kind=None, **_: steps.append(words))
+    found = {"e3": True, "e4": False, "e9": None}
+    monkeypatch.setattr(R.evidence_check, "resolve", lambda ids, index, seen=None: {i: {"found": found[i]} for i in ids})
+    monkeypatch.setattr(R.evidence_check, "apply", lambda result, resolved: None)
+    asyncio.run(R.Researcher.check_evidence(me))
+    assert steps == [said]

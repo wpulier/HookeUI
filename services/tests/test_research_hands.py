@@ -118,7 +118,7 @@ def test_the_researchers_run_tool_asks_the_app_and_reads_its_answer():
     assert result["ok"] and result["id"] == "e7" and "session tool" in result["note"] and picture is None
     assert asked == [("run", {"rid": "r2", "operation": "segment", "why": "sizes", "wait": 185.0, "timeout": 185.0})]
     # Plain on its card (Slice 7, 2026-10-11): the researcher's reason and the entry's id are in each step's detail.
-    assert steps == ["Asking the app to segment every cell in the live view and measure them",
+    assert steps == ["Asking the app to segment every cell in the picture on the Stage and measure them",
                      "The app outlined and measured 46 cells in the live view (Cell outlines · 18:04)"]
 
     async def refused(op, **payload):
@@ -567,3 +567,20 @@ def test_the_researchers_named_cell_finder_reaches_the_hands(tmp_path, world):
                                   "implementation": "micro-sam-lm"}))
     asyncio.run(manager._request({"op": "run", "rid": s.rid, "operation": "segment", "why": "w"}))
     assert got == [("segment", "micro-sam-lm"), ("segment", None)]
+
+
+def test_a_still_on_the_stage_is_said_as_the_picture_not_the_live_view(world, monkeypatch):
+    # Ticket 67: a researcher's step said "The app segmented the live view" while the Stage showed a still picture.
+    from orchestrator import population as P
+
+    real = P.segment
+
+    async def on_a_still(*args, **kwargs):
+        made = await real(*args, **kwargs)
+        made.view["sourceImage"] = {"resource": {"id": "a1", "day": "2026-10-27"}}  # found on the Stage's still
+        return made
+
+    monkeypatch.setattr(P, "segment", on_a_still)
+    reply = asyncio.run(Hands(world, log=lambda r: None).run(session(), "segment", "sizes"))
+    assert reply["words"].startswith("segmented the picture on the Stage: ")
+    assert "live view" not in reply["words"]

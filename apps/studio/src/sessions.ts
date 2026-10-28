@@ -59,6 +59,11 @@ export function plural(n: number, one: string, many = `${one}s`): string {
  * out, but the conversations always stay (a session always has one), so the line is never empty. Its assets are the
  * recordings and pictures added to it (ADR 0022's sources; the live camera is never counted); an older server sends
  * none. */
+/** A Project's line in the Projects list: its counts in words ("1 input · 1 conversation"), and whether it is open. */
+export function projectRowWords(counts: SessionCounts | undefined, open: boolean): string {
+  return [...countWords(counts), ...(open ? ['Open project'] : [])].join(' · ');
+}
+
 export function countWords(counts: SessionCounts | undefined): string[] {
   const c = counts ?? { made: 0, researchers: 0, conversations: 0 };
   const words: string[] = [];
