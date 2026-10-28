@@ -165,6 +165,17 @@ def test_a_fresh_mac_opens_hooke_instead_of_looping(hooke, tmp_path):
     assert waited.returncode != 0
     assert "Opening Hooke Test" in waited.stdout and "couldn't open" in waited.stderr
     assert "run hooke status --wait" not in waited.stderr
+    # Called through a link on PATH, it still finds its own app (its executable's real path, not argv[0]).
+    on_path = tmp_path / "bin"
+    on_path.mkdir()
+    (on_path / "hooke").symlink_to(inside)
+    linked = subprocess.run(["hooke", "status"], env={**env, "PATH": f"{on_path}:/usr/bin:/bin"}, capture_output=True,
+                            text=True, timeout=60)
+    assert "isn't running" in linked.stdout and "No Hooke app here" not in linked.stderr, linked.stdout + linked.stderr
+    # An option it doesn't know is refused (a mistyped --key would start a fresh request); --name=value works.
+    typo = run(inside, env, "status", "--kye", "abc")
+    assert typo.returncode == 2 and "there is no option --kye" in typo.stderr
+    assert run(inside, env, "status", "--agent=claude-code").returncode == 0
     # A copy inside an app never uses HOOKE_DOOR_URL, even on loopback.
     pinned = run(inside, {**env, "HOOKE_DOOR_URL": "http://127.0.0.1:9"}, "status")
     assert "isn't running" in pinned.stdout

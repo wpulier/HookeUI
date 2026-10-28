@@ -55,12 +55,16 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - its revision and source digest
   - the interface version with the minimum CLI and skill
   - the connection, whether a studio is open, and the current session
-- `GET tools?q=&page=&perPage=`:
-  - Every catalog capability with a door entry (`kinds.door_entry`): what runs now (`kinds.available`), then reviewed
-    entries that could run after setup, with their next step (`readiness.model`).
-  - Community and personal entries are added through the Toolbox, and appear once they run.
-  - The app's own built-in tools (`contract/capabilities.json`, e.g. Cellpose outlines through `outline_cells`) are not
-    listed yet.
+- `GET tools?q=&page=&perPage=`: **everything this Hooke can run for an agent** (`listing.py`). The door names no
+  capability.
+  - **What's in it:** the one list's agent rows (`App.capability_status()`: `contract/capabilities.json` and the
+    catalog's proven entries, `catalog:<key>`), whatever is configured here, built in or added, local or cloud.
+  - **How each is described:** from its own declaration. A built-in one is described from the Assistant's tool: its
+    parameters' JSON schema, `reads` (a query), `uses` (its models), and outputs from `produces.py`; its generation is
+    the app's source identity. A catalog one is described from its manifest (`contract.describe`).
+  - **State:** `available`, or `unavailable` with why.
+  - **Left out:** a tool that changes a setting or preference (`Tool.sets`, or its `produces` declaration), by that
+    declared property, never by name.
 
 ## Operations (`operations.py`, `example.py`, `actor.py`)
 - **Starting work:** `POST operations {tool, args, requestKey}`.
@@ -72,12 +76,19 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - A cancel is `cancelRequested` until the work's own end says how it stopped.
   - After a restart, unfinished records are `interrupted` with what they say they left. Unreadable files are listed,
     never overwritten.
-- **Tools:** this version runs one, `example`: the guided example (`onboarding.py` as it is) for the agent.
-  - The steps and their progress: opening the image in its own local-only Project, then `basic-bright-objects` (no key,
-    no download), then reading the table.
-  - The outcome: the Project, the result id and revision, the count, the columns, a 5-row preview (`truncated`), whether
-    Hooke showed it (`shownInHooke`), and the `page` to open.
-  - Open windows get `onboarding-changed`, so the walkthrough card catches up (`onboarding.ts` `agentAdvanced`).
+- **What can be started:** `tool` is a capability id of the listing, or one of the door's own actions
+  (`DOOR_ACTIONS`):
+  - **`open {file}`** (`work.open_file`): the agent's file goes to the library through the camera bridge's own upload,
+    then opens on the stage of a new Project of the agent's own (`agents/projects.json`).
+  - **Any listed capability** (`work.run_capability`): admitted with the open Project, what is on its stage and its
+    generation. It runs through `commands.action` as the agent. If what was open changed, it is refused. When it
+    measured something, the outcome carries the table preview and page.
+  - **`example`:** the guided example (`onboarding.py` as it is).
+    - Its steps: opening the bundled image in its own local-only Project, finding its bright regions (the example's own
+      capability: no key, no download), then reading the table.
+    - Its outcome: the Project, the result id and revision, the count, the columns, a 5-row preview (`truncated`),
+      whether Hooke showed it (`shownInHooke`), and the `page` to open.
+    - Open windows get `onboarding-changed`, so the walkthrough card catches up (`onboarding.ts` `agentAdvanced`).
 - **Who did it:** the operation sets `actor.ACTOR`.
   - `commands.run_tool` and `operations._actor_now` record it, so the execution's and the result's `madeBy.actor` is
     `agent:<id>`.
@@ -103,8 +114,8 @@ agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
 - **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
 
 ## Still to build (ADR 0026)
-- **More tools on the same operations:** run a capability on a file, results (with the full table only when asked,
-  marked), compare, batch, add capabilities.
-- **Built-in tools:** list the app's own built-in tools alongside catalog entries.
+- **Off-screen runs on a saved input:** today every run uses the stage of the agent's own Project. A capability
+  that takes a saved input could run without staging anything, but that path isn't checked yet.
+- **Full results:** full tables only when asked for, and marked.
 - **The studio's other HTTP routes** still trust its Origin and header, which a local program can copy (ADR 0026
   says so).

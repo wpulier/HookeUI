@@ -43,7 +43,10 @@ let agentConfirmKey = AgentConfirmKey()
 /// script copying the studio's Origin can't open the studio's WebSocket. Never served over HTTP, never written down.
 let studioToken: String = {
     var bytes = [UInt8](repeating: 0, count: 32)
-    _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+    guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+        // Never an empty or predictable token: two random UUIDs (each from the system's random source) instead.
+        return (UUID().uuidString + UUID().uuidString).replacingOccurrences(of: "-", with: "").lowercased()
+    }
     return bytes.map { String(format: "%02x", $0) }.joined()
 }()
 

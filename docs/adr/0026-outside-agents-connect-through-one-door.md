@@ -37,10 +37,17 @@
 - **Disconnect is final for that connection.** Disconnecting in Hooke revokes it at once. The next call is refused
   with "disconnected in Hooke". Only a new `hooke connect` with a new confirm restores access, and nothing reconnects
   on its own. Refreshing the Hooke skill (`hooke skill update`) touches no connection.
-- **What a connection may do.** Through the door it may discover capabilities and read and work in local projects.
-  The door has no route to keys or settings, no route that deletes, and none that reaches another channel. An agent
-  that also runs commands on the Mac has the researcher's own access to their files, as any program they run does:
-  the door neither adds that nor takes it away. Each channel (Stable, Beta) keeps its own
+- **What a connection may do.** It may list everything this Hooke can run and run it, and it may open its own files.
+  - **The listing** (`door/listing.py`) names no capability. It is whatever this researcher's Hooke has, built in or
+    added, local or cloud: every agent capability of the one list, each described from its own declaration. A tool
+    that changes a setting or preference (`Tool.sets`, or its `produces` declaration) isn't offered, by that declared
+    property, never by a name.
+  - **Opening and running** (`door/work.py`): `open` adds the agent's file to the library and opens it in a Project of
+    the agent's own. Running a listed capability uses the Actions panel's path on that Project's stage. Both change
+    the stage, so both run only when the researcher's own work isn't on screen.
+  - **What the door has no route to:** API keys, settings and other channels. An agent that also runs commands on the
+    Mac has the researcher's own access to their files, as any program they run does: the door neither adds that nor
+    takes it away. Each channel (Stable, Beta) keeps its own
   data home and so its own connections. Trusting a community channel (unreviewed code) still takes a click in Hooke
   (ADR 0021).
 - **Every door request is checked:**
@@ -81,14 +88,20 @@
   - web pages (Origin and Host checks);
   - other users of the Mac (loopback and mode-0600 files);
   - agents that were disconnected;
-  - local programs that copy the studio's Origin and header to answer a connection request, or, in the Mac app, to
-    open the studio's socket.
+  - local programs that copy the studio's Origin and header to answer a connection request. The answer must be signed
+    by the Mac app's window.
+- **The socket tokens stop browsers and other users, not programs running as the researcher.** In the Mac app, the
+  studio token keeps a page or a copied Origin from passing as the studio. But the local token is a mode-0600 file,
+  and any program running as the researcher can read it and open a script's socket, which can do what the studio can.
 - **It does not protect against software that already acts with the researcher's full access.** That includes
   software that drives the Mac's interface with Accessibility permission (it could click the dialog), and software
   that reads other processes' environment or memory. Such software can read the researcher's files without any door,
   and no local design changes that.
-- **The studio's other HTTP routes are unchanged.** They still trust the studio's Origin and header, which a local
-  program can copy. This record doesn't make them stronger.
+- **Known limits, accepted (Will, 2026-10-28):**
+  - Programs running as the researcher can read the local token, and can edit `agents/connections.json`. That could
+    give them a working token, or keep a disconnected connection alive after a restart.
+  - The studio's other HTTP routes (Disconnect among them) still trust its Origin and header, which a local program
+    can copy. That predates this record, which doesn't make those routes stronger.
 
 **Cost.**
 - **One confirm click.** A researcher clicks once per agent, in Hooke's native dialog, and a CLI is shipped in the app

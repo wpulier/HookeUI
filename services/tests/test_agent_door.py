@@ -227,24 +227,37 @@ def test_tools_need_a_connection_and_answer_in_the_shared_shape(door, monkeypatc
                "outputs": [{"id": "out", "type": "table", "label": "a table"}],
                "inputSchema": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
                "credit": {}, "licence": ["MIT"], "generation": "abc1234.0123456789abcdef", "state": "available"}
-    monkeypatch.setattr(api, "listing", lambda: [fixture, {**fixture, "id": "other", "name": "Other", "task": "x"}])
+    monkeypatch.setattr(api, "listing", lambda built: [fixture, {**fixture, "id": "other", "name": "Other", "task": "x"}])
     value = client.get("/api/agent/v1/tools", params={"q": "spots"}, headers=bearer(token)).json()
     assert value["total"] == 1 and value["tools"][0]["id"] == "spot-measure"
 
-    def unreadable():
+    def unreadable(built):
         raise OSError("catalog gone")
     monkeypatch.setattr(api, "listing", unreadable)
     refused(client.get("/api/agent/v1/tools", headers=bearer(token)), 503, "catalog-unreadable")
 
 
-def test_the_real_catalog_lists_in_the_shared_shape():
-    """Every capability the door lists, read from the catalog itself, fits contract/agent/capability.schema.json; so a
-    new catalog entry reaches agents with no change to the door."""
-    listed = api.listing()
-    assert listed, "the catalog lists nothing"
+def test_the_real_listing_is_everything_hooke_can_run_in_the_shared_shape(tmp_path):
+    """The listing names no capability: it is whatever this Hooke has (the one list's agent rows and the catalog's
+    proven entries), each described from its own declaration, in contract/agent/capability.schema.json's shape. A tool
+    that changes a setting is never offered, by the property it declares (Tool.sets), never by name."""
+    from orchestrator.door.listing import changes_settings, everything
+    from tests.capability_rig import Rig
+    built = Rig(tmp_path).app
+    listed = everything(built, {"revision": "0123456789abcdef", "sourceDigest": "f" * 64})
+    assert len(listed) > 20, len(listed)
     for tool in listed:
         assert schema.problems(tool, "capability") == [], tool["id"]
-    assert len({t["id"] for t in listed}) == len(listed)
+    ids = [t["id"] for t in listed]
+    assert len(set(ids)) == len(ids)
+    assert not set(ids) & set(api.DOOR_ACTIONS)  # the door's own actions never shadow a capability
+    assert any(i.startswith("catalog:") for i in ids)  # what the catalog added
+    assert any(not i.startswith("catalog:") for i in ids)  # what Hooke has built in
+    registry = built.brain.registry
+    setting_rows = [r["id"] for r in built.capability_status()["capabilities"]
+                    if r.get("actor") == "agent" and (r.get("how") or {}).get("tool") in registry.tools
+                    and changes_settings(registry.tools[r["how"]["tool"]])]
+    assert setting_rows and not set(setting_rows) & set(ids)
 
 
 def test_the_shared_schemas_load_and_check():

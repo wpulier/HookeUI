@@ -72,44 +72,13 @@ def app_version() -> str | None:
         return None
 
 
-def listing(environ=os.environ) -> list[dict]:
-    """Every catalog capability an agent could use here, with its state: what runs now, then what could after setup.
-    It reads files and hashes entry folders: call it in a thread."""
-    from gpu_worker import manifests as catalog
-    from .. import kinds, readiness
+def listing(built) -> list[dict]:
+    """Everything this Hooke can run for an agent (listing.py): call it on the event loop."""
+    from .listing import everything
+    return everything(built, build_identity())
 
-    out, seen = [], set()
-    with kinds.read_once(), readiness.batch():
-        rows, manifests = kinds.available_with_manifests(environ)
-        for row in rows:
-            m = manifests.get(row.get("key"))
-            entry = kinds.door_entry(m) if m is not None else None
-            if m is None or entry is None or m.id in seen:
-                continue
-            seen.add(m.id)
-            if row.get("runnable", True) and not row.get("why"):
-                out.append(describe(m, entry, state="available"))
-            else:
-                out.append(describe(m, entry, state="unavailable", why=str(row.get("why") or "it cannot run here now")))
-        for m in sorted(catalog.manifests().values(), key=lambda m: (m.name.lower(), m.id)):
-            if m.id in seen or m.namespace:
-                continue  # listed above, or a community or personal entry: those are added through the Toolbox
-            entry = kinds.door_entry(m)
-            if entry is None:
-                continue
-            seen.add(m.id)
-            try:
-                r = readiness.model(m.id, environ=environ)
-            except Exception as error:  # one entry's facts can't be read: say so for it, list the rest
-                out.append(describe(m, entry, state="unavailable", why=f"its readiness could not be read: {error}"))
-                continue
-            state = STATES.get(r.status, "unavailable")
-            if state == "available":
-                state = "setup"  # ready to turn on, but not on yet: it isn't in what runs now
-            step = r.next
-            out.append(describe(m, entry, state=state, why=r.why or r.word,
-                                next=(step.says if step is not None else "turn it on in Hooke's Toolbox")))
-    return out
+
+DOOR_ACTIONS = ("example", "open")  # the door's own actions; every other `tool` is a capability of the listing
 
 
 def example_identity() -> tuple[str | None, str | None]:
@@ -220,9 +189,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except Refused as error:
             return _refusal(error)
         try:
-            found = await asyncio.to_thread(listing)
-        except Exception as error:  # the catalog couldn't be read: say so, never an empty list
-            return _refusal(Refused(503, "catalog-unreadable", f"Hooke's catalog could not be read: {error}",
+            found = listing(built)
+        except Exception as error:  # the list couldn't be read: say so, never an empty list
+            return _refusal(Refused(503, "catalog-unreadable", f"What Hooke can do could not be read: {error}",
                                     next="restart Hooke; if it persists, report a problem from Hooke"))
         terms = [t for t in q.lower().split() if t]
         if terms:
@@ -238,24 +207,59 @@ def register(app, built, studio_origin, header: str) -> Connections:
     # --- operations: work an agent starts ---------------------------------------------------------------------------
     @app.post(f"{PREFIX}/operations")
     async def start(request: Request) -> JSONResponse:
+        """Work an agent starts: the guided example, opening its own file, or running any capability of the listing.
+        Each is admitted to disk before it starts (operations.py) and never takes over what the researcher sees."""
+        from . import example, work
         try:
             c = connected(request)
             value = await body(request)
             tool, args = value.get("tool"), value.get("args") or {}
-            if tool != "example":
-                raise Refused(400, "unknown-tool", f"This version of Hooke's door runs only the example, not {tool!r}.",
-                              next="run tool example; list what Hooke can do with GET tools")
-            if not isinstance(args, dict) or args:
-                raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
-            from . import example
-            busy = example.takeover(built)  # never under the researcher's eyes (review B3)
-            if busy is not None:
-                raise busy
-            revision, generation = await asyncio.to_thread(example_identity)
-            record, made = await operations.admit(
-                by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
-                generation=generation, params={}, request_key=value.get("requestKey"),
-                work=lambda record, progress: example.run(built, record, progress))
+            if not isinstance(tool, str) or not tool:
+                raise Refused(400, "bad-request", "Say which capability to run.", next="list them with GET tools")
+            if not isinstance(args, dict):
+                raise Refused(400, "bad-request", "The arguments are one JSON object.", next="send args as an object")
+            key = value.get("requestKey")
+            if tool == "example":
+                if args:
+                    raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
+                busy = example.takeover(built)  # never under the researcher's eyes (review B3)
+                if busy is not None:
+                    raise busy
+                revision, generation = await asyncio.to_thread(example_identity)
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
+                    generation=generation, params={}, request_key=key,
+                    work=lambda record, progress: example.run(built, record, progress))
+            elif tool == "open":
+                path = work.checked_file(args.get("file"))
+                if set(args) - {"file"}:
+                    raise Refused(400, "bad-request", "open takes only the file's path.", next='send args {"file": "/full/path"}')
+                busy = work.takeover(built)
+                if busy is not None:
+                    raise busy
+                stat = path.stat()
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project="new",
+                    input_revision=f"{path}:{stat.st_size}:{int(stat.st_mtime)}", generation=None,
+                    params={"file": str(path)}, request_key=key,
+                    work=lambda record, progress: work.open_file(built, record, progress, str(path)))
+            else:
+                listed = {t["id"]: t for t in listing(built)}
+                found = listed.get(tool)
+                if found is None:
+                    raise Refused(404, "unknown-capability", f"This Hooke has no capability {tool!r} an agent can run.",
+                                  next="list what it has with GET tools")
+                if found["state"] != "available":
+                    raise Refused(409, "not-ready", f"{found['name']} can't run here now: {found.get('why') or found['state']}.",
+                                  next=found.get("next") or "set it up in Hooke's Toolbox, then try again")
+                busy = work.takeover(built)
+                if busy is not None:
+                    raise busy
+                record, made = await operations.admit(
+                    by=c.actor, label=c.label, tool=tool, project=built.day.sid,
+                    input_revision=getattr(built.day, "on_stage", None), generation=found["generation"],
+                    params=args, request_key=key,
+                    work=lambda record, progress: work.run_capability(built, record, progress, tool, args))
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)

@@ -160,6 +160,7 @@ sign --preserve-metadata=entitlements "$SP/XPCServices/Downloader.xpc"
 sign "$SP/Autoupdate" "$SP/Updater.app"
 sign "$C/Frameworks/Sparkle.framework"
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$APP"
+codesign --verify --strict --verbose=2 "$C/Helpers/hooke"  # the agent command, checked on its own too
 codesign --verify --deep --strict --verbose=2 "$APP"
 
 notarize() { # file: submit, wait, and fail unless Apple accepted it

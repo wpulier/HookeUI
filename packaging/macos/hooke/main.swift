@@ -17,17 +17,26 @@ var words: [String] = []
 var options: [String: String] = [:]
 var flags: Set<String> = []
 let valued: Set<String> = ["agent", "channel", "key", "label"]
+let switches: Set<String> = ["json", "wait", "follow", "no-skill", "help"]
 do {
+    // An option it doesn't know is refused, never ignored: a mistyped --key would otherwise start a fresh request.
+    func refuse(_ says: String) -> Never { FileHandle.standardError.write("hooke: \(says)\n  Next: hooke help\n".data(using: .utf8)!); exit(2) }
     var rest = Array(CommandLine.arguments.dropFirst())
     while !rest.isEmpty {
         let arg = rest.removeFirst()
-        if arg.hasPrefix("--") {
-            let name = String(arg.dropFirst(2))
-            if valued.contains(name) {
-                guard !rest.isEmpty else { FileHandle.standardError.write("hooke: --\(name) needs a value\n".data(using: .utf8)!); exit(2) }
-                options[name] = rest.removeFirst()
-            } else { flags.insert(name) }
-        } else { words.append(arg) }
+        guard arg.hasPrefix("--") else { words.append(arg); continue }
+        var name = String(arg.dropFirst(2))
+        var inline: String?
+        if let equals = name.firstIndex(of: "=") { inline = String(name[name.index(after: equals)...]); name = String(name[..<equals]) }
+        if valued.contains(name) {
+            if let inline { options[name] = inline; continue }
+            guard !rest.isEmpty else { refuse("--\(name) needs a value") }
+            options[name] = rest.removeFirst()
+        } else if switches.contains(name) && inline == nil {
+            flags.insert(name)
+        } else {
+            refuse("there is no option --\(name)")
+        }
     }
 }
 let jsonOutput = flags.contains("json")
@@ -59,7 +68,8 @@ struct HookeApp {
     let urlScheme: String
 
     static func mine() -> HookeApp {
-        let me = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        // Its own executable's real path (not argv[0], which names whatever was typed or found on PATH).
+        let me = (Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])).resolvingSymlinksInPath()
         let contents = me.deletingLastPathComponent().deletingLastPathComponent()
         if contents.lastPathComponent == "Contents",
            let data = try? Data(contentsOf: contents.appendingPathComponent("Info.plist")),
@@ -102,8 +112,8 @@ func state() -> AgentState? {
     return s
 }
 
-/// A source checkout's door, only for a copy built outside an app, and only on this Mac's loopback: a signed app's hooke
-/// never sends its token anywhere but its own app.
+/// A source checkout's door, only for a copy built outside an app (found from its own executable's real path), and only
+/// on this Mac's loopback. A copy inside an app reads its door only from its own app's state file.
 func developmentDoor() -> URL? {
     guard app.bundle == nil, let raw = ProcessInfo.processInfo.environment["HOOKE_DOOR_URL"], let url = URL(string: raw),
           url.scheme == "http", ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "") else { return nil }
@@ -441,7 +451,13 @@ func cancel() {
 
 func openPage() {
     let token = connected()
-    guard let page = words.first else { _ = waitUntilReady(); launch(); say("Brought Hooke forward."); return }
+    guard let target = words.first else { _ = waitUntilReady(); launch(); say("Brought Hooke forward."); return }
+    if !target.hasPrefix("#") {
+        // A file of the researcher's: into Hooke's library, opened in a Project of the agent's own.
+        let path = URL(fileURLWithPath: (target as NSString).expandingTildeInPath).standardizedFileURL.path
+        call("open", arguments: ["file": path])
+    }
+    let page = target
     let reply = door("POST", "api/agent/v1/open", body: ["page": page], token: token)
     guard reply.status == 200 else { refused(reply) }
     if jsonOutput { printJSON(reply.body); return }
@@ -457,9 +473,11 @@ hooke: use the Hooke app this command ships in, from your coding agent. Every co
   hooke skill update                     Refresh the Hooke skill; changes no connection.
   hooke tools [words]                    What Hooke can do here, and what each needs.
   hooke example [--key K]                Run the guided example; prints the result and an Open in Hooke link.
-  hooke call <tool> ['{json}'] [--key K] Start work and follow it to its end.
+  hooke open <file>                      Add a file to Hooke and open it in a Project of your own.
+  hooke run <capability> ['{json}'] [--key K]
+                                         Run any capability hooke tools lists, on what your Project has open.
   hooke operations | operation <id> [--follow] | cancel <id>
-  hooke open [page]                      Show a page (an operation's) in Hooke, or bring Hooke forward.
+  hooke open <page> | open               Show a page (an operation's) in Hooke, or bring Hooke forward.
 
   --json for machine-readable output.
 """
@@ -475,7 +493,7 @@ case "skill":
     if jsonOutput { printJSON(["ok": true, "skill": path]) } else { say("The Hooke skill is up to date at \(path).") }
 case "tools": tools()
 case "example": call("example", arguments: [:])
-case "call":
+case "call", "run":
     guard let tool = words.first else { fail("Say which tool.", next: "hooke tools lists them") }
     var arguments: [String: Any] = [:]
     if words.count > 1 {

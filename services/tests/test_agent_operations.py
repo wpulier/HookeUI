@@ -137,12 +137,13 @@ def test_the_door_starts_the_example_once_per_key_and_opens_only_known_pages(tmp
 
     monkeypatch.setattr(example, "run", fake_run)
     monkeypatch.setattr(api, "example_identity", lambda: ("r1", "abc.0123456789abcdef"))
+    monkeypatch.setattr(api, "listing", lambda built: [])
     app, built, _ = build(tmp_path)
     with TestClient(app, base_url=BASE) as client:
         claimed = connect(client)
         token, cid = claimed["token"], claimed["connection"]["id"]
         refused(client.post("/api/agent/v1/operations", json={"tool": "outline", "requestKey": KEY}, headers=bearer(token)),
-                400, "unknown-tool")
+                404, "unknown-capability")
         refused(client.post("/api/agent/v1/operations", json={"tool": "example", "args": {"x": 1}, "requestKey": KEY},
                             headers=bearer(token)), 400, "bad-request")
         started = client.post("/api/agent/v1/operations", json={"tool": "example", "requestKey": KEY}, headers=bearer(token))
@@ -294,3 +295,91 @@ def test_hooke_stopping_interrupts_work_it_never_calls_it_cancelled(tmp_path):
     ops, op_id = asyncio.run(go())
     done = ops.get(op_id)
     assert done["state"] == "interrupted" and "Hooke stopped" in done["outcome"]["says"]
+
+
+CAPABILITY = {"id": "measure-things", "name": "Measure things", "task": "Measures what is open", "description": "",
+              "inputs": [{"type": "workspace", "label": "the open Project"}], "outputs": [],
+              "inputSchema": {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+              "credit": {}, "licence": [], "generation": "app-0123.0123456789abcdef", "state": "available"}
+
+
+def test_any_listed_capability_runs_through_the_door_as_the_agent(tmp_path, monkeypatch):
+    """The door names no capability: `tool` is any id of the listing. Unknown and not-ready ones are refused; each run
+    is admitted with the open Project, what is on its stage and the capability's generation, and runs as the agent."""
+    from orchestrator.door import work
+    ran = []
+
+    async def fake(app, record, progress, capability, args):
+        ran.append((capability, args, record["by"], record["project"], record["inputRevision"], record["generation"]))
+        return {"says": "Measured 3 things.", "project": record["project"]}
+
+    monkeypatch.setattr(work, "run_capability", fake)
+    monkeypatch.setattr(work, "takeover", lambda app: None)
+    monkeypatch.setattr(api, "listing", lambda built: [CAPABILITY, {**CAPABILITY, "id": "needs-setup", "state": "setup",
+                                                                    "why": "Download 16 MB", "next": "Download it"}])
+    web, built, _ = build(tmp_path)
+    built.day.on_stage = "asset-1"
+    with TestClient(web, base_url=BASE) as client:
+        claimed = connect(client)
+        token, cid = claimed["token"], claimed["connection"]["id"]
+        refused(client.post("/api/agent/v1/operations", json={"tool": "nothing-like-it", "requestKey": KEY},
+                            headers=bearer(token)), 404, "unknown-capability")
+        not_ready = refused(client.post("/api/agent/v1/operations", json={"tool": "needs-setup", "requestKey": KEY},
+                                        headers=bearer(token)), 409, "not-ready")
+        assert "Download 16 MB" in not_ready["says"] and not_ready["next"] == "Download it"
+        started = client.post("/api/agent/v1/operations", json={"tool": "measure-things", "args": {"size": 3},
+                                                                 "requestKey": KEY}, headers=bearer(token))
+        assert started.status_code == 202, started.text
+        op = started.json()["operation"]
+        for _ in range(100):
+            got = client.get(f"/api/agent/v1/operations/{op['id']}", headers=bearer(token)).json()["operation"]
+            if got["state"] == "succeeded":
+                break
+        assert got["outcome"]["says"] == "Measured 3 things."
+        assert ran == [("measure-things", {"size": 3}, f"agent:{cid}", "2026-10-28.1", "asset-1", "app-0123.0123456789abcdef")]
+
+
+def test_open_takes_a_real_file_and_never_takes_over_the_screen(tmp_path, monkeypatch):
+    from orchestrator.door import work
+    opened = []
+
+    async def fake(app, record, progress, path):
+        opened.append(path)
+        return {"says": "Opened it.", "project": "2026-10-28.2"}
+
+    monkeypatch.setattr(work, "open_file", fake)
+    picture = tmp_path / "cells.png"
+    picture.write_bytes(b"not empty")
+    web, built, _ = build(tmp_path)
+    with TestClient(web, base_url=BASE) as client:
+        token = connect(client)["token"]
+        refused(client.post("/api/agent/v1/operations", json={"tool": "open", "args": {"file": "cells.png"},
+                                                               "requestKey": KEY}, headers=bearer(token)), 400, "bad-request")
+        refused(client.post("/api/agent/v1/operations", json={"tool": "open", "args": {"file": str(tmp_path / "gone.png")},
+                                                               "requestKey": KEY}, headers=bearer(token)), 404, "no-such-file")
+        monkeypatch.setattr(work, "takeover", lambda app: Refused(409, "hooke-busy", "Busy.", next="wait"))
+        refused(client.post("/api/agent/v1/operations", json={"tool": "open", "args": {"file": str(picture)},
+                                                               "requestKey": KEY}, headers=bearer(token)), 409, "hooke-busy")
+        monkeypatch.setattr(work, "takeover", lambda app: None)
+        started = client.post("/api/agent/v1/operations", json={"tool": "open", "args": {"file": str(picture)},
+                                                                 "requestKey": KEY}, headers=bearer(token))
+        assert started.status_code == 202, started.text
+        for _ in range(100):
+            if opened:
+                break
+            import time; time.sleep(0.01)
+        assert opened == [str(picture)]
+
+
+def test_a_project_an_agent_made_is_its_own_place_to_work(tmp_path):
+    from types import SimpleNamespace
+    from orchestrator.door import work
+    working = SimpleNamespace(sid="2026-10-28.5", sources={"a1": 1.0}, on_stage="a1", ids_used={"e": 2}, last_user=5.0,
+                              guide=None, name="Claude Code: cells")
+    app = SimpleNamespace(paths=SimpleNamespace(home=tmp_path), day=working,
+                          hub=SimpleNamespace(clients=[SimpleNamespace(kind="studio")]), brain=SimpleNamespace(voice=None))
+    assert work.takeover(app).code == "hooke-busy"  # someone's work, open in a window
+    work._remember_project(app, "2026-10-28.5", "agent:ac_" + "1" * 24)
+    assert work.takeover(app) is None  # but a Project an agent made through the door is its own
+    app.brain.voice = SimpleNamespace(closed=False)
+    assert work.takeover(app).code == "hooke-busy"  # never while Talk is live
