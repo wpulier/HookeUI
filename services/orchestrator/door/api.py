@@ -127,7 +127,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         if not clients:
             return
         message = json.dumps({"type": "agent-connections", "pending": [p.wire() for p in connections.pending()],
-                              "connections": [c.wire() for c in connections.connections()], "playbook": playbook()})
+                              "connections": [c.wire() for c in connections.connections()], "playbook": playbook(), "channel": os.environ.get("HOOKE_CHANNEL") or "development"})
         for client in list(clients):
             client.offer(message)
 
@@ -493,7 +493,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "pending": [p.wire() for p in connections.pending()],
-                          "connections": [c.wire() for c in connections.connections()], "playbook": playbook()})
+                          "connections": [c.wire() for c in connections.connections()], "playbook": playbook(), "channel": os.environ.get("HOOKE_CHANNEL") or "development"})
 
     @app.post("/api/agent-connections/pending/{pid}")
     async def studio_answer(pid: str, request: Request) -> JSONResponse:

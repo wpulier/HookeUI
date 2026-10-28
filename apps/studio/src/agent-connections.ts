@@ -8,7 +8,7 @@ import { StudioSheet } from './sheet';
 
 export interface PendingAgent { id: string; label: string; kind: string; code: string; at: number; expiresAt: number; state: string }
 export interface AgentConnection { id: string; label: string; kind: string; at: number; revokedAt: number | null }
-export interface AgentConnectionsState { pending: PendingAgent[]; connections: AgentConnection[]; playbook?: string }
+export interface AgentConnectionsState { pending: PendingAgent[]; connections: AgentConnection[]; playbook?: string; channel?: string }
 export interface AgentConnectionsMessage extends AgentConnectionsState { type: 'agent-connections' }
 
 /** What the connection sheet needs of StudioSheet (sheet.ts); a test gives its own. */
@@ -51,7 +51,7 @@ export function parseAgentConnections(value: unknown): AgentConnectionsState {
   // The page an agent follows to connect to this app's channel (door api.playbook); only a hookeui.org page is shown.
   const playbook = str(value.playbook) && /^https:\/\/hookeui\.org\/[\w./-]+\.md$/.test(value.playbook as string)
     ? value.playbook as string : undefined;
-  return { pending, connections, ...(playbook ? { playbook } : {}) };
+  return { pending, connections, ...(playbook ? { playbook } : {}), ...(str(value.channel) ? { channel: value.channel as string } : {}) };
 }
 
 /** What the confirm sheet says: who asks, the code to match, and what connecting allows, including that what the agent
@@ -93,6 +93,9 @@ export class AgentConnections {
   private expiry: ReturnType<typeof setTimeout> | null = null;
   private readonly answered = new Set<string>();
   private section: HTMLElement | null = null;
+  private entryStatus: HTMLElement | null = null;
+  private loaded = false;
+  private readError = false;
 
   private readonly request: typeof fetch;
   private readonly makeSheet: () => SheetLike;
@@ -121,6 +124,8 @@ export class AgentConnections {
   /** A server message or a fresh read. */
   apply(state: AgentConnectionsState): void {
     this.state = state;
+    this.loaded = true; this.readError = false;
+    this.renderEntry();
     this.renderList();
     const waiting = state.pending.filter(p => p.state === 'pending' && !this.answered.has(p.id));
     if (this.showing && !waiting.some(p => p.id === this.showing)) this.closeSheet();  // answered elsewhere or expired
@@ -132,9 +137,13 @@ export class AgentConnections {
   }
 
   async refresh(): Promise<void> {
-    const response = await this.request('/api/agent-connections', { cache: 'no-store' });
-    if (!response.ok) throw new Error(await refusalWords(response, 'Connected agents could not be read.'));
-    this.apply(parseAgentConnections(await response.json()));
+    try {
+      const response = await this.request('/api/agent-connections', { cache: 'no-store' });
+      if (!response.ok) throw new Error(await refusalWords(response, 'Connected agents could not be read.'));
+      this.apply(parseAgentConnections(await response.json()));
+    } catch (error) {
+      this.readError = true; this.renderEntry(); throw error;
+    }
   }
 
   private closeSheet(): void {
@@ -188,6 +197,62 @@ export class AgentConnections {
     this.expiry = setTimeout(() => { if (this.showing === p.id) { this.answered.add(p.id); this.closeSheet(); } }, Math.max(0, left));
   }
 
+  /** A Project entrance, not another connection store or a claim that a client is running. */
+  mountEntry(host: HTMLElement, manage: () => void, project: () => string | undefined): void {
+    const entry = document.createElement('section'); entry.className = 'agent-project-entry';
+    entry.setAttribute('aria-label', 'Continue with your agent');
+    const status = document.createElement('p'); status.setAttribute('role', 'status');
+    this.entryStatus = status;
+    const access = document.createElement('p'); access.className = 'agent-entry-hint';
+    access.textContent = 'Project access is managed separately. Work and results stay with their Project.';
+    const controls = document.createElement('div'); controls.className = 'agent-entry-actions';
+    const manageButton = document.createElement('button'); manageButton.type = 'button';
+    manageButton.textContent = 'Manage connections'; manageButton.onclick = manage;
+    controls.append(this.setupControl(project), manageButton);
+    entry.append(status, access, controls); host.append(entry); this.renderEntry();
+  }
+
+  private renderEntry(): void {
+    if (!this.entryStatus) return;
+    const live = this.state.connections.filter(c => c.revokedAt === null);
+    this.entryStatus.textContent = this.readError ? 'Connection status unavailable. Open Settings to retry.'
+      : !this.loaded ? 'Checking agent connections…'
+      : live.length ? `Connected to Hooke: ${live.map(c => c.label).join(', ')}`
+      : 'Continue with your own agent';
+  }
+
+  /** Same setup invitation as the website, using this app channel's returned playbook.
+   * Copying sends nothing, grants nothing and never starts another Project. */
+  private setupControl(project: () => string | undefined = () => undefined): HTMLElement {
+    const group = document.createElement('div'); group.className = 'agent-setup-control';
+    const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy setup prompt';
+    const prompt = document.createElement('textarea'); prompt.readOnly = true; prompt.hidden = true;
+    prompt.setAttribute('aria-label', 'Agent setup prompt');
+    const status = document.createElement('span'); status.setAttribute('role', 'status');
+    copy.onclick = async () => {
+      let playbook: string | undefined;
+      let channel: string | undefined;
+      const id = project();
+      // Refresh before copying so an unreadable channel cannot silently choose Stable's instructions.
+      try {
+        const response = await this.request('/api/agent-connections', { cache: 'no-store' });
+        if (!response.ok) throw new Error('unavailable');
+        const latest = parseAgentConnections(await response.json());
+        playbook = latest.playbook; channel = latest.channel;
+      }
+      catch { status.textContent = 'Setup instructions could not be read. Try again.'; return; }
+      if (!playbook) { status.textContent = 'This copy has not supplied setup instructions.'; return; }
+      prompt.value = (channel === 'development'
+        ? 'Connect me to this running Hooke development checkout. Read docs/testing/agent-connection.md and .agents/skills/hooke/SKILL.md in the checkout. Use its development CLI and configured HOOKE_DOOR_URL. Do not install or switch to Stable or Beta. If the checkout or CLI location is missing, ask for it.'
+        : `Connect me to Hooke. Fetch ${playbook} and follow it.`)
+        + (id ? ` Continue in my existing Project ${id}. Check your access first; if access is missing, explain what is needed. Do not create a replacement Project.` : '')
+        + ' Discover the available capabilities through Hooke and keep work and results in the Project.';
+      try { await navigator.clipboard.writeText(prompt.value); status.textContent = 'Copied. Paste into your agent; nothing has been sent.'; }
+      catch { prompt.hidden = false; prompt.focus(); prompt.select(); status.textContent = 'Copy the selected prompt and paste it into your agent.'; }
+    };
+    group.append(copy, prompt, status); return group;
+  }
+
   /** Settings → Connected agents: each agent with when it connected and Disconnect. */
   mountSettings(settings: HTMLElement): void {
     const section = document.createElement('section'); section.className = 'agent-connections-settings';
@@ -207,7 +272,7 @@ export class AgentConnections {
     if (!section) return;
     const heading = document.createElement('h3'); heading.textContent = 'Connected agents';
     const intro = document.createElement('p');
-    intro.textContent = 'Coding agents you connected with the hooke command, such as Claude Code or Codex. Each works in your Projects on this Mac, and what it does is recorded as done by it.';
+    intro.textContent = 'Agents and orchestrators connected through Hooke’s supported interface. Each has its own identity and Project access. Connected means authorized here, not currently running. Client compatibility must be checked; a model name alone is not a connection.';
     const live = this.state.connections.filter(c => c.revokedAt === null);
     const list = document.createElement('ul');
     for (const c of live) {
@@ -237,7 +302,7 @@ export class AgentConnections {
     const none = document.createElement('p'); none.className = 'agent-none';
     const page = (this.state.playbook ?? 'https://hookeui.org/get-started.md').replace(/^https:\/\//, '');
     none.textContent = `No agent is connected. To connect one, ask it to fetch ${page} and follow it.`;
-    section.replaceChildren(heading, intro, live.length ? list : none);
+    section.replaceChildren(heading, intro, this.setupControl(), live.length ? list : none);
   }
 }
 

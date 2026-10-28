@@ -343,3 +343,13 @@ def test_the_studio_names_the_playbook_of_its_own_channel():
     assert api.playbook({"HOOKE_CHANNEL": "beta"}) == "https://hookeui.org/get-started-beta.md"
     assert api.playbook({"HOOKE_CHANNEL": "stable"}) == "https://hookeui.org/get-started.md"
     assert api.playbook({}) == "https://hookeui.org/get-started.md"
+
+
+@pytest.mark.parametrize('channel', ['beta', 'stable', 'development'])
+def test_studio_setup_reports_actual_channel(door, monkeypatch, channel):
+    client, _built, offers = door
+    monkeypatch.setenv('HOOKE_CHANNEL', channel)
+    data = client.get('/api/agent-connections', headers=STUDIO).json()
+    assert data['channel'] == channel
+    ask(client)
+    assert offers.sent[-1]['channel'] == channel
