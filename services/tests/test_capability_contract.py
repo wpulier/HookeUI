@@ -82,7 +82,7 @@ def test_format_two_says_it_is_format_two(tmp_path):
 def test_an_older_app_says_it_needs_an_update_instead_of_misreading_it(tmp_path, monkeypatch):
     monkeypatch.setattr(catalog, "CATALOG_FORMAT", 1)
     _m, problems = entry(tmp_path, HEAD + PORTS)
-    assert problems and isinstance(problems[0], catalog.Incompatible) and "needs a newer ObservationUI" in problems[0]
+    assert problems and isinstance(problems[0], catalog.Incompatible) and "needs a newer HookeUI" in problems[0]
 
 
 @pytest.mark.parametrize("change, said", [

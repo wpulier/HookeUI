@@ -1,6 +1,6 @@
 ---
 name: add-a-capability
-description: Add a capability to ObservationUI (a Hugging Face or other model, a Python algorithm, a Fiji/ImageJ function), or make your own version of one, as one catalog folder that every actor (the user's Actions panel and Try, the agent, researchers) gets with no app code. Use when asked to add, wrap, port, contribute or adapt a model, algorithm, plugin or ImageJ command, or to make an existing capability do something different.
+description: Add a capability to HookeUI (a Hugging Face or other model, a Python algorithm, a Fiji/ImageJ function), or make your own version of one, as one catalog folder that every actor (the user's Actions panel and Try, the agent, researchers) gets with no app code. Use when asked to add, wrap, port, contribute or adapt a model, algorithm, plugin or ImageJ command, or to make an existing capability do something different.
 ---
 
 # Add a capability
@@ -215,7 +215,7 @@ A scaffold is unfinished. Supply real behavior, a permitted example and checks f
 cases. For an operation, package only after those checks pass. A declared scientific-host integration can be
 packaged for review after preflight passes, with its unverified status and remaining scientific checks explicit;
 the RGB operation proof does not test interactive tools. The package includes neither runtime nor activation receipts. Return
-the `.observationui.zip` through **Import completed capability** in the guided sheet. The app creates a new
+the `.hookeui.zip` through **Import completed capability** in the guided sheet. The app creates a new
 candidate and requires permission and its bridge-specific checks; an active version stays intact. Scientific-host
 candidates return through Models preparation and the ordinary scientific workspace review, with no automatic
 activation or claim of qualified results. Operation capabilities require local proof and comparison before enabling.

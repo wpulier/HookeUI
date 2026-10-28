@@ -42,6 +42,8 @@ from .publish import CantPublish, body, certification, problems
 API = "https://api.github.com"
 OFFICIAL = "wpulier/HookeUI"  # the reviewed catalog's repository (channels.REVIEWED_URL)
 FORK_WAIT_S = 60.0
+COMMUNITY = "HookeUI-community"  # the publisher's own public community catalog
+FORMER_COMMUNITY = "ObservationUI-community"  # its name before the rename; one made then is still the one used
 
 
 class _Api:
@@ -144,11 +146,14 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ, http=None, *, des
         (package / path).write_bytes(data)
     (package / "body.md").write_text(body(m, environ) + "\n")
     from . import envs
+    community = _community_repository(http, who["login"]) if destination == "community" else None
     proposal = {"format": 1, "route": "api", "destination": destination, "entryDigest": envs.entry_digest(m, environ),
                 "id": m.id, "name": m.name, "base": base, "branch": branch,
                 "title": f"Catalog: {m.name}", "message": message, "identity": who,
                 "files": {path: hashlib.sha256(data).hexdigest() for path, data in files.items()},
                 "body": hashlib.sha256((package / "body.md").read_bytes()).hexdigest()}
+    if community:
+        proposal["community"] = community
     if evidence:
         proposal['evidence'] = {path: hashlib.sha256(data).hexdigest() for path, data in evidence.items()}
     proposal_bytes = (json.dumps(proposal, indent=2) + "\n").encode()
@@ -162,7 +167,7 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ, http=None, *, des
               f"\"{proposal['title']}\" to {base['repository']} (its {base['branch']} at {base['commit'][:7]}), signed off "
               f"as {who['name']} <{who['email']}> (public in the commit). Nothing has left this Mac.\n\n" + certification())
     if destination == "community":
-        review = (f"Prepared {package} for your public community catalog {who['login']}/ObservationUI-community: "
+        review = (f"Prepared {package} for your public community catalog {community}: "
                   f"{len(files)} files under catalog/models/{m.id}/. Only these files form the published snapshot; "
                   f"no weights or proof input. Signed off as {who['name']} <{who['email']}> (public). "
                   "Publishing returns a pinned community link immediately, without an official review. "
@@ -337,6 +342,16 @@ def _remote_progress(http, proposal: dict, text: str, progress: dict) -> tuple[d
     return None, True
 
 
+def _community_repository(http, login: str) -> str:
+    """The publisher's community catalog: an existing one under the current or the former name, else the current name
+    (made on the first publish)."""
+    for name in (COMMUNITY, FORMER_COMMUNITY):
+        code, repository = http.call("GET", f"/repos/{login}/{name}")
+        if code == 200 and isinstance(repository, dict) and repository.get("full_name") == f"{login}/{name}":
+            return f"{login}/{name}"
+    return f"{login}/{COMMUNITY}"
+
+
 def _remember_community(package: Path, proposal: dict, progress: dict) -> dict:
     repository, commit = progress["fork"], progress["commit"]
     acquire = {"url": f"https://github.com/{repository}", "commit": commit, "entry": proposal["id"]}
@@ -407,10 +422,13 @@ def _submit(package: Path, signoff: bool, http=None, wait=time.sleep, *, model: 
     repo = proposal["base"]["repository"]
     community = proposal.get("destination") == "community"
     if community:
-        fork_name = f"{who['login']}/ObservationUI-community"
+        # the one named in the reviewed proposal; a package prepared before the rename was reviewed with the old name
+        fork_name = proposal.get("community") or f"{who['login']}/{FORMER_COMMUNITY}"
+        if fork_name not in (f"{who['login']}/{COMMUNITY}", f"{who['login']}/{FORMER_COMMUNITY}"):
+            raise CantPublish("the community repository is not the public publisher-owned destination you reviewed")
         code, repository = http.call("GET", f"/repos/{fork_name}")
         if code == 404:
-            repository = _ok(*http.call("POST", "/user/repos", {"name": "ObservationUI-community", "private": False,
+            repository = _ok(*http.call("POST", "/user/repos", {"name": fork_name.split("/", 1)[1], "private": False,
                                                                "auto_init": True}), "making your public community catalog")
         else:
             _ok(code, repository, "reading your community catalog")

@@ -318,7 +318,7 @@ def test_a_carried_entry_keeps_its_proof_and_is_packed_once_until_its_files_chan
     first = result_entries.retain(m, Memory(), proof=proof)
     again = result_entries.retain(m, Memory(), proof=proof)
     assert first == again and len(packs) == 1, 'packed once for the same entry as it stands'
-    packed = share.root() / 'results' / (first['sha256'] + share.SUFFIX)
+    packed = share.root() / 'results' / (first['sha256'] + share.STORED_SUFFIX)
     with zipfile.ZipFile(packed) as z:
         shared = json.loads(z.read('SHARED.json'))
     assert shared['proof'] == proof

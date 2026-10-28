@@ -159,11 +159,11 @@ describe('Fiji plugins', () => {
 describe('entries the app won’t run', () => {
   it('says one made for another version of the app apart from one that can’t be read', () => {
     const groups = problemGroups([
-      { entry: 'cool-model', problems: ['needs a newer ObservationUI: it is written in catalog format 2'], incompatible: true },
+      { entry: 'cool-model', problems: ['needs a newer HookeUI: it is written in catalog format 2'], incompatible: true },
       { entry: 'mine/typo', problems: ['unknown key `rnner`'] },
     ]);
     expect(groups.map((g) => [g.title, g.rows.map((r) => r.entry)])).toEqual([
-      ['Made for another version of ObservationUI', ['cool-model']],
+      ['Made for another version of HookeUI', ['cool-model']],
       ['Entries that can’t be read', ['mine/typo']],
     ]);
     expect(problemGroups([])).toEqual([]);

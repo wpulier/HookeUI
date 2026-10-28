@@ -62,7 +62,7 @@ test('reused masks and existing outlines are reuse, without inventing a new mode
   ] };
   expect(executionContributions(data).map(r => [r.capability, r.label, r.outcome])).toEqual([
     ['Reusing an outline', 'edgetam', 'reused'],
-    ['Reusing an outline', 'ObservationUI', 'reused'],
+    ['Reusing an outline', 'HookeUI', 'reused'],
   ]);
 });
 

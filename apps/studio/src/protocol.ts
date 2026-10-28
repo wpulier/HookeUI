@@ -142,7 +142,7 @@ export interface MachineState {
 export interface OurWorker {
   pid: number;
   role: string; // "analysis worker", "micro-sam (analysis worker)"
-  name: string; // "ObservationUI: analysis worker (loading micro-sam)"
+  name: string; // "HookeUI: analysis worker (loading micro-sam)"
   cpu: number; // % of one core
   memMb: number;
   loading?: string;
@@ -153,7 +153,7 @@ export interface TopProgram {
   name: string;
   cpu: number; // % of one core
   memMb: number;
-  ours: boolean; // ObservationUI's own
+  ours: boolean; // HookeUI's own
 }
 
 /** What a session holds, counted by the server: the header chip, its menu and the sessions rail say the same numbers

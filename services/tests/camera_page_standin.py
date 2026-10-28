@@ -18,13 +18,13 @@ from urllib.parse import parse_qs, urlparse
 PAGE = Path(__file__).resolve().parents[2] / "apps" / "studio" / "dist-camera"
 
 CHECKS = [("app", "Blackmagic Camera is open on the phone", "it answered"), ("link", "The phone can reach this Mac", "over Wi-Fi"),
-          ("settings", "ObservationUI is set up in the app", "it streams to this Mac"),
+          ("settings", "HookeUI is set up in the app", "it streams to this Mac"),
           ("quality", "Its stream quality is safe", "it doesn't crash the app"),
           ("proven", "Its settings can be changed from here", "checked on this version of the app"),
           ("streaming", "The phone is streaming", "yes"), ("arriving", "The picture is arriving", "30 a second"),
           ("size", "The picture is the right size", "the size the app is built for"),
           ("moving", "The picture isn't frozen", "each picture is new"),
-          ("app-reading", "ObservationUI is showing the picture", "yes"), ("room", "This Mac has room", "mostly idle")]
+          ("app-reading", "HookeUI is showing the picture", "yes"), ("room", "This Mac has room", "mostly idle")]
 
 
 def make_state(name: str) -> dict:
@@ -51,7 +51,7 @@ def make_state(name: str) -> dict:
         items[2].update(ok=False, evidence="the app doesn't know where to send the picture", fix="Import the settings file.",
                         action="settings-file")
         del items[3:]
-        doctor.update(live=False, first="settings", headline="Not live: ObservationUI's connection isn't set up in the app")
+        doctor.update(live=False, first="settings", headline="Not live: HookeUI's connection isn't set up in the app")
         health.update(ok=False)
         phone.update(streaming=False, streamStatus="Idle")
     if name == "fresh":  # Blackmagic chosen, the app not installed or not reachable yet: the setup's first step

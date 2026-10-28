@@ -122,9 +122,9 @@ def label(args: str) -> str:
 
 def parse_ps(text: str, own: int, n: int = TOP_N, names: dict | None = None) -> list[dict]:
     """`ps -Ao pid=,ppid=,pcpu=,rss=,args=` as the n programs using the most CPU, each with its
-    share of one core (%), its memory (MB) and whether it is ObservationUI's (this process,
+    share of one core (%), its memory (MB) and whether it is HookeUI's (this process,
     what it started, or the camera bridge). `names`: our own workers by pid, named by their role
-    ("ObservationUI: analysis worker (loading micro-sam)") instead of "Python"."""
+    ("HookeUI: analysis worker (loading micro-sam)") instead of "Python"."""
     names = names or {}
     rows = []
     for line in text.splitlines():
@@ -171,7 +171,7 @@ def parse_pids(text: str) -> dict[int, tuple[float, float]]:
 
 def worker_name(worker: dict) -> str:
     """One of our workers as the meter names it."""
-    name = f"ObservationUI: {worker.get('role') or 'worker'}"
+    name = f"HookeUI: {worker.get('role') or 'worker'}"
     if worker.get("loading"):
         name += f" (loading {worker['loading']})"
     return name

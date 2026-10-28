@@ -325,7 +325,7 @@ class StatusMixin:
                     "steps": ["Keep Blackmagic Camera open on the iPhone.",
                               "On the camera page, scan the code with the phone's camera and download the file (or AirDrop it).",
                               "In Blackmagic Camera: Settings › Live Stream › Platform › Import Stream Settings, then pick it.",
-                              "Choose MicroscopeMind (ObservationUI's saved platform name) and Standard quality. The bridge does the rest."],
+                              "Choose MicroscopeMind (HookeUI's saved platform name) and Standard quality. The bridge does the rest."],
                     "settingsFile": "/api/blackmagic.xml"}
         if phone.get("error"):
             return {"code": "phone-stream-failed", "text": "The phone didn't start its stream.", "detail": phone["error"],

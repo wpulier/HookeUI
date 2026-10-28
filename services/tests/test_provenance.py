@@ -21,7 +21,7 @@ def test_a_marked_picture_carries_its_label_and_source():
     assert image[-5:, :, :].mean() < image[:50, :, :].mean()  # the dark label strip along the bottom
     assert b"AI illustration, not microscope footage" in marked
     assert P.source_type(marked) == P.GENERATED and P.is_ai(P.source_type(marked))
-    assert b"ObservationUI (gpt-image-2.5-flare)" in marked
+    assert b"HookeUI (gpt-image-2.5-flare)" in marked
 
 
 def test_labels_on_a_real_photo_are_a_composite():

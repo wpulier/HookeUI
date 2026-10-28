@@ -141,7 +141,7 @@ contributors and original scientific authors in the accepted material.
 
 For scientific review, state the exact method/version, input and reference,
 measurement definitions, units, calibration, comparisons and limits. For an upstream
-bug, first reduce it to the same upstream engine without ObservationUI, keeping
+bug, first reduce it to the same upstream engine without HookeUI, keeping
 parameters and actual outputs. Remove private inputs, paths and keys; retain
 upstream notices and citation. Submit upstream only with the relevant contributor's
 authorization, and link the eventual upstream issue/fix without claiming credit for

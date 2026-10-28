@@ -33,7 +33,7 @@ class GitHub:
         if "/contents/catalog/models/" in path:
             return (200, {}) if self.exists else (404, {"message": "Not Found"})
         if path.endswith("/forks"):
-            return 202, {"full_name": "maya/ObservationUI"}
+            return 202, {"full_name": "maya/HookeUI"}
         if path.endswith(f"/git/commits/{BASE}"):
             ready, self.fork_ready = self.fork_ready, True  # ready on the second look, as a new fork is
             return (200, {"tree": {"sha": "t" * 40}}) if ready else (404, {})
@@ -382,7 +382,7 @@ def test_a_fork_made_before_dev_was_the_default_gets_dev_before_anything_is_writ
     assert sent["number"] == 42
     fork = next(b for method, p, b in api.calls if method == "POST" and p.endswith("/forks"))
     assert fork == {"default_branch_only": True}  # the official default branch is dev: only that is copied
-    made_dev = [b for method, p, b in api.calls if method == "POST" and p == "/repos/maya/ObservationUI/git/refs"]
+    made_dev = [b for method, p, b in api.calls if method == "POST" and p == "/repos/maya/HookeUI/git/refs"]
     assert made_dev[0] == {"ref": "refs/heads/dev", "sha": BASE}, "dev made at the reviewed base before the entry's branch"
 
 

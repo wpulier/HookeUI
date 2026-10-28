@@ -31,9 +31,9 @@ def main():
             missing.append("Node.js must be 22.12+ within 22.x, 24.x, or 26+ (the Studio build/test contract). "
                            "Install a supported version (brew install node@24) and put its bin directory on PATH.")
     if missing:
-        print("ObservationUI setup prerequisites:\n  " + "\n  ".join(missing), file=sys.stderr)
+        print("HookeUI setup prerequisites:\n  " + "\n  ".join(missing), file=sys.stderr)
         return 1
-    print("ObservationUI setup prerequisites are available.")
+    print("HookeUI setup prerequisites are available.")
     return 0
 
 

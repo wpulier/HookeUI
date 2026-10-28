@@ -19,7 +19,7 @@ def human_mitosis(*, preview: bool = False) -> Path:
     item = metadata['preview' if preview else 'original']
     path = ROOT / item['file']
     if path.parent != ROOT or hashlib.sha256(path.read_bytes()).hexdigest() != item['sha256']:
-        raise ValueError('The included example is damaged. Reinstall ObservationUI to restore it.')
+        raise ValueError('The included example is damaged. Reinstall HookeUI to restore it.')
     return path
 
 

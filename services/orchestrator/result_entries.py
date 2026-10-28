@@ -65,7 +65,7 @@ def retain(manifest, memory, proof: dict | None = None) -> dict:
     _off_loop()
     key = (_folder_state(manifest), json.dumps(proof or {}, sort_keys=True, default=str))
     known = _RETAINED.get(key) if key[0][1] is not None else None
-    if known is not None and (_root() / (known["sha256"] + share.SUFFIX)).is_file():
+    if known is not None and (_root() / (known["sha256"] + share.STORED_SUFFIX)).is_file():
         return dict(known)
     with memory.reserve("analysis", 5 * share.MAX_TOTAL, "retaining a portable capability entry"):
         info = _retain(manifest, proof)
@@ -89,7 +89,7 @@ def _retain(manifest, proof: dict | None = None) -> dict:
     info = {"sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
     folder = _root()
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / (info["sha256"] + share.SUFFIX)
+    path = folder / (info["sha256"] + share.STORED_SUFFIX)
     if not path.exists():
         with tempfile.NamedTemporaryFile(dir=folder, delete=False) as stream:
             tmp = Path(stream.name)
@@ -202,7 +202,7 @@ def carry_dataset(folder: Path, made: list[dict]) -> list[dict]:
         if info is None:
             out.append(named)
             continue
-        target = Path(folder) / "capabilities" / (info["sha256"] + share.SUFFIX)
+        target = Path(folder) / "capabilities" / (info["sha256"] + share.STORED_SUFFIX)
         tmp = None
         try:
             if info["sha256"] not in copied:
@@ -260,7 +260,7 @@ def chunks(made: list[dict], *, jpeg: bool = False) -> bytes:
             raise ValueError("the capabilities are too large to carry together in one result")
         directory = os.open(_root(), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         try:
-            data = _check(bounded_files.read_at(directory, info["sha256"] + share.SUFFIX, MAX_BYTES), info)
+            data = _check(bounded_files.read_at(directory, info["sha256"] + share.STORED_SUFFIX, MAX_BYTES), info)
         finally:
             os.close(directory)
         digest = bytes.fromhex(info["sha256"])
@@ -343,7 +343,7 @@ def acquire(path: Path, value: dict, memory) -> dict:
                     raise ValueError("this recording has no retained dataset capability folder")
                 directory = os.open(dataset / "capabilities", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
                 try:
-                    data = _check(bounded_files.read_at(directory, info["sha256"] + share.SUFFIX, MAX_BYTES), info)
+                    data = _check(bounded_files.read_at(directory, info["sha256"] + share.STORED_SUFFIX, MAX_BYTES), info)
                 finally:
                     os.close(directory)
             folder = _root()

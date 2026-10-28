@@ -39,7 +39,7 @@ steps. The app does not need all catalog models installed to open.
 Keep the launch terminal open. Ctrl-C, closing that terminal, or `make stop` from the
 same checkout stops its servers. `make status` reports their state; `make start`
 starts them again and retains the profile. Starting again replaces any running
-ObservationUI stack from that checkout, including stacks on other ports. Use a
+HookeUI stack from that checkout, including stacks on other ports. Use a
 separate checkout when testing beside someone else's running Studio.
 
 For a camera, follow [the camera setup guide](../experiments/iphone-camera-feed/README.md#connecting-a-camera).

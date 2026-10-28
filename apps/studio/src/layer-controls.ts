@@ -181,7 +181,7 @@ function syncCells(): void {
     if (layerSetByTimer !== null) clearTimeout(layerSetByTimer);
     const remaining = assistantChangeRemaining(change, Date.now() / 1000);
     layerSetBy.hidden = remaining === 0;
-    layerSetBy.textContent = 'set by ObservationUI';
+    layerSetBy.textContent = 'set by HookeUI';
     if (!layerSetBy.hidden) layerSetByTimer = setTimeout(() => { layerSetBy.hidden = true; }, remaining * 1000);
   }
   if (layer?.population && view.population?.id === layer.population) {
@@ -307,7 +307,7 @@ function syncTracks(): void {
     tracksChangeStamp = stamp;
     if (tracksChangeTimer !== null) clearTimeout(tracksChangeTimer);
     const remaining = assistantChangeRemaining(layer?.lastChange, Date.now() / 1000);
-    tracksSetBy.hidden = remaining === 0; tracksSetBy.textContent = 'set by ObservationUI';
+    tracksSetBy.hidden = remaining === 0; tracksSetBy.textContent = 'set by HookeUI';
     if (remaining) tracksChangeTimer = setTimeout(() => { tracksSetBy.hidden = true; }, remaining * 1000);
   }
   if (layer?.tracks) lastTracks = layer.tracks;

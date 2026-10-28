@@ -762,7 +762,7 @@ def doctor(environ: Mapping[str, str] = os.environ) -> str:
     from .keys import load_keys
 
     keys = load_keys()
-    lines = ["ObservationUI: every model in the catalog (catalog/models), and what each needs here", ""]
+    lines = ["HookeUI: every model in the catalog (catalog/models), and what each needs here", ""]
     rows: dict[str, list[str]] = {g: [] for g in ("Ready", "Needs setup", "Unavailable here")}
     entries = {**catalog.manifests(), **catalog.mine(environ)}
     for key, m in sorted(entries.items(), key=lambda kv: kv[1].name.lower()):

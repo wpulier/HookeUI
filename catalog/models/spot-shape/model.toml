@@ -15,7 +15,7 @@ env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy"] }
 needs_to_run = ["install:spot-shape"]
 component = { what = "Spot shape, an example derived capability", licence = "Apache-2.0", url = "https://github.com/wpulier/HookeUI", tier = "open" }
 source = { made_here = "An example capability in this repository; no weights" }
-credit = { authors = "ObservationUI contributors; SciPy (ndimage)", link = "https://scipy.org" }
+credit = { authors = "HookeUI contributors; SciPy (ndimage)", link = "https://scipy.org" }
 category = "Measure"
 search_aliases = ["spot roundness", "shape of spots", "circularity"]
 hidden = ["pixel_size_um"]
