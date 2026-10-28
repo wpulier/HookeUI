@@ -38,7 +38,7 @@ from typing import Mapping
 
 from gpu_worker import manifests as catalog
 
-REVIEWED_URL = "https://github.com/wpulier/HookeUI.git"
+REVIEWED_URL = catalog.REVIEWED_URL
 CATALOG_PATH = "catalog/models"
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 COMMIT = re.compile(r"[0-9a-f]{40}")
