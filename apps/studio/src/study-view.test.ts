@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { experimentName, renderStudy, evidenceText, evidenceCost, studyAllowanceTitle, studyAllowanceWords } from './study-view';
+import { experimentName, renderStudy, STUDY_UNAVAILABLE, evidenceText, evidenceCost, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import type { Effort, StudyEvidence } from './research-efforts';
 import { readFileSync } from 'node:fs';
 import { TestElement, fire, syntheticDOM } from './workspace-windows.test-support';
@@ -161,6 +161,14 @@ describe('ordinary managed Study controls (synthetic DOM)', () => {
     expect(root.querySelector('textarea')!.disabled).toBe(true);
     fire(startButton(root), 'click'); await settle();
     expect(start.mock.calls[1][0]).toEqual(start.mock.calls[0][0]);
+  });
+  it('says a Study cannot start where Start would be when there is no research service', () => {
+    vi.stubGlobal('document', syntheticDOM().document);
+    const root = new TestElement('article'), start = vi.fn();
+    renderStudy(root as unknown as HTMLElement, { ...study, tasks: {} }, { control: vi.fn(), start }, []);
+    expect(root.querySelector('.study-view-unavailable')?.textContent).toBe(STUDY_UNAVAILABLE);
+    expect(root.textContent).not.toContain('choose a researcher'); expect(root.textContent).toContain('None yet.');
+    expect(root.querySelector('.study-view-start')).toBeNull(); expect(start).not.toHaveBeenCalled();
   });
   it('keeps unavailable providers and unresolved prior executions from enabling Start', () => {
     vi.stubGlobal('document', syntheticDOM().document);
