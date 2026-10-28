@@ -3,7 +3,7 @@ name = "Scientific matrices (CPU runtime)"
 runs = "cpu"
 version = "1"
 licence = ["matrix-cpu-runtime"]
-kind = "tool"
+kind = "runtime"
 what = "Prepares pinned AnnData, NumPy and SciPy for retained-file scientific operations"
 source = { made_here = "Pinned upstream CPU libraries; no pretrained weights", url = "https://anndata.readthedocs.io/" }
 credit = { authors = "scverse, NumPy, SciPy, h5py and pandas contributors", link = "https://anndata.readthedocs.io/" }

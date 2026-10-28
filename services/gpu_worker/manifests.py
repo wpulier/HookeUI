@@ -35,7 +35,7 @@ MANIFEST = "model.toml"
 RUNS = ("this-mac", "cloud", "cpu")
 HOSTS = ("shared", "own", "own-python")
 WORKERS = ("interactive", "analysis", "follow", "molmo")
-KINDS = ("model", "tool", "tool-function", "cloud-model", "data")  # a tool: a program with functions (Fiji), run through
+KINDS = ("model", "tool", "tool-function", "cloud-model", "data", "runtime")  # a tool: a program with functions (Fiji), run through
 # bindings; data: files another entry reads (an atlas), downloaded and checked as weights are, never run
 # catalog/runners: how a kind of model is run. "gpu-worker": the app's own GPU workers; "cloud": the app's own provider
 # clients (vision.py, voice, research_worker); "" with an adapter of its own (a new architecture, or code the app keeps
@@ -534,6 +534,13 @@ def _problems(m: Manifest, folder: str) -> list[str]:
                        "itself), bytes and sha256")
     if not isinstance((m.env or {}).get("commands", []), list):
         out.append("`env.commands` is a list of commands its proof runs")
+    if m.kind == "runtime":
+        if not m.env or not m.env.get("imports"):
+            out.append("a runtime declares a pinned environment and nonempty import checks")
+        if m.runner or m.adapter or m.implements or m.inputs or m.outputs or m.operation or m.members or m.workers:
+            out.append("a runtime only prepares dependencies: no runner, adapter, operations, ports, members or workers")
+        if m.host != "own-python" or m.runs != "cpu":
+            out.append("a runtime uses its own CPU Python environment")
     if m.kind == "data" and (m.runner or m.implements or not m.files):
         out.append("a data entry pins its files and runs nothing (no runner, no implements)")
     if len(m.tags) > 12 or any(not isinstance(t, str) or not TAG.fullmatch(t) for t in m.tags):

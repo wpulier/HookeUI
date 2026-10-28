@@ -16,7 +16,7 @@ def entry(tmp_path, monkeypatch):
     (tmp_path / "brainreg").mkdir()
     (tmp_path / "brainreg" / catalog.MANIFEST).write_text("")
     monkeypatch.setattr(catalog, "ROOT", tmp_path)
-    monkeypatch.setattr(catalog, "read", lambda path: (SimpleNamespace(files=[], needs_to_run=[], runner="python-env"), []))
+    monkeypatch.setattr(catalog, "read", lambda path: (SimpleNamespace(files=[], needs_to_run=[], runner="python-env", kind="tool"), []))
     monkeypatch.setattr(publish, "problems", lambda m, environ, proven=False: [])
     monkeypatch.setattr(downloads, "download", lambda m, environ=None: None)
     monkeypatch.setattr(envs, "build", lambda m, environ, say=None: None)

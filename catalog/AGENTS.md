@@ -440,3 +440,11 @@ Aggregate profiles use the separate `aggregate-profile-prepare` retained-JSON pr
 the raw-count reader is not relaxed for fractional means. `response-effects-merge`
 joins compatible prepared context/target rows and refuses duplicates or unspecified
 normalization. Both use the same catalog runtime, file admission and workflow attempts.
+
+Environment-only dependencies declare `kind = "runtime"`, their own CPU Python and
+a hashed lockfile with nonempty import checks. They declare no runnable adapter,
+ports, members or workers. Ordinary Install prepares them; catalog CI verifies the
+lock and performs the same environment/import checks. This is dependency readiness,
+not an operation proof or scientific qualification. Consumers retain their own
+capability contract and exact runtime generation. Unknown kinds fail closed in
+older apps; runtime entries do not gain a community-channel execution path.

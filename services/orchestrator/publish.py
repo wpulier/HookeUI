@@ -85,7 +85,7 @@ def problems(m: catalog.Manifest, environ: Mapping[str, str] = os.environ, prove
 
     in_the_app = bool(m.implements) and all(i.operation in OPERATIONS and OPERATIONS[i.operation].impl(i.impl)
                                             for i in m.implements)
-    if not m.runner and m.kind != "data" and (not in_the_app or "install:adapter" in m.needs_to_run):  # data runs nothing
+    if not m.runner and m.kind not in ("data", "runtime") and (not in_the_app or "install:adapter" in m.needs_to_run):  # data runs nothing
         out.append("it says nothing runs it yet (a skeleton): write its adapter and give it runner python-env")
     from . import downloads
 
@@ -103,7 +103,7 @@ def problems(m: catalog.Manifest, environ: Mapping[str, str] = os.environ, prove
             licences.component(cid)
         except KeyError:
             out.append(f"its licence names {cid}, which is no component the app lists and none it declares")
-    if m.runner == "python-env":
+    if m.runner == "python-env" or m.kind == "runtime":
         from . import env_runner, envs
 
         portable = None
@@ -113,7 +113,7 @@ def problems(m: catalog.Manifest, environ: Mapping[str, str] = os.environ, prove
             except CantPublish as exc:
                 out.append(str(exc))
                 portable = {}
-        else:
+        elif m.runner == "python-env":
             file = m.adapter.partition(":")[0].replace(".", "/") + ".py"
             if not (folder / file).is_file():
                 out.append(f"its adapter {file} is not in its folder")
@@ -140,8 +140,10 @@ def problems(m: catalog.Manifest, environ: Mapping[str, str] = os.environ, prove
                     out.append(f"{path.relative_to(folder)}: it "
                                f"{why or 'loads with from_pretrained without local_files_only=True (it may download)'}")
                     break
-        found = env_runner.in_use(m, environ) if proven else None
-        if proven and (found is None or not found.current):
+        found = env_runner.in_use(m, environ) if proven and m.runner == "python-env" else None
+        if proven and m.kind == "runtime" and envs.python(m, environ) is None:
+            out.append("its pinned runtime is not prepared on this Mac: Install it and pass its import checks")
+        if proven and m.runner == "python-env" and (found is None or not found.current):
             out.append("it isn't proven on this Mac for this version: Install it (its contract smoke check records "
                        "the actual input)")
     elif proven:

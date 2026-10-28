@@ -3,7 +3,7 @@ name = "Cell evaluation (CPU runtime)"
 runs = "cpu"
 version = "1"
 licence = ["cell-evaluation-runtime"]
-kind = "tool"
+kind = "runtime"
 what = "Prepares the upstream cell-eval2 metrics and CPU differential expression"
 source = { made_here = "Pinned upstream CPU libraries; no pretrained weights", url = "https://github.com/ArcInstitute/cell-eval2" }
 credit = { authors = "Arc Institute, scverse, NumPy, SciPy, h5py and pandas contributors", link = "https://github.com/ArcInstitute/cell-eval2" }
