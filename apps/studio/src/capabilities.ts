@@ -401,7 +401,8 @@ export function capabilityEvidence(wire: CapabilitiesWire, capability: Capabilit
   return {roles, checks:[...(capability.evidence ?? [])]};
 }
 
-export function discoveryAction(c: Capability, wire: CapabilitiesWire): { label: string; model?: string; capability?: string } | null {
+export function discoveryAction(c: Capability, wire: CapabilitiesWire): { label: string; model?: string; capability?: string; href?: string } | null {
+  if(c.how.href?.startsWith('#workflows?'))return {label:'Open scientific workflow',href:c.how.href};
   if (c.catalog) {
     const row = wire.models?.find(m => m.id === c.catalog);
     const setup = row && !row.execution && ['needs-setup', 'broken'].includes(row.status) && (row.next || row.setups?.some(s => s.plan));
@@ -871,8 +872,8 @@ export class CapabilityPage {
     const close = el('button', { type: 'button', class: 'cap-card-close', 'aria-label': 'Close' }, '×');
     close.addEventListener('click', () => this.closeCard());
     const next = discoveryAction(c, wire);
-    const primary = next ? el(next.model ? 'a' : 'button', {
-      class: 'mm-control mm-primary cap-next', ...(next.model ? { href: `#toolbox/${next.model}` } : { type: 'button' }),
+    const primary = next ? el(next.model||next.href ? 'a' : 'button', {
+      class: 'mm-control mm-primary cap-next', ...(next.href?{href:next.href}:next.model ? { href: `#toolbox/${next.model}` } : { type: 'button' }),
     }, next.label) : null;
     if (primary && next?.capability) primary.addEventListener('click', () => {
       this.closeCard(); this.toolbox.action?.(next.capability!);
@@ -890,7 +891,7 @@ export class CapabilityPage {
         el('h4', {}, c.title),
         el('p', { class: 'cap-what' }, c.what), primary,
         howText(c) ? el('p', { class: 'cap-how' }, howText(c)) : null,
-        c.available ? null : el('p', { class: 'cap-why' }, `Not available here: ${c.why}`),
+        c.available ? null : el('p', { class: 'cap-why' }, c.how.href?.startsWith('#workflows?')?c.why:`Not available here: ${c.why}`),
         el('div', { class: 'cap-powered' }, el('p', { class: 'cap-powered-head' }, 'What powers it'), ...powerRows),
         ...fallbackBlocks,
         this.evaluation(wire, c),

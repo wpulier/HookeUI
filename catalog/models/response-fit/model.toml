@@ -1,0 +1,50 @@
+# App-owned file capability; matrix_capability_runs performs retained-file admission.
+# The ordinary RGB path refuses these types. Readiness comes from the shared matrix descriptor.
+requires = { catalog = 2 }
+id = "response-fit"
+name = "Fit response regression"
+runs = "cpu"
+version = "1"
+licence = ["response-fit"]
+kind = "tool-function"
+what = "Fit regularized target effects with equal biological-context influence"
+runner = "builtin-cpu"
+source = { made_here = "General explicit count and response operations; no pretrained weights" }
+credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Bundled scientific count operation", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "response-fit"
+category = "Research"
+experimental = true
+outcomes = { empty = "No input observations", unsupported = "An unqualified runtime, incompatible scientific meaning or excessive resource request" }
+
+[[inputs]]
+id = "effects"
+type = "artifact.response-effects"
+label = "Effects"
+
+[[inputs]]
+id = "regularization"
+type = "number"
+default = 0.1
+label = "Regularization"
+min = 1e-06
+max = 10000
+
+[[inputs]]
+id = "rank"
+type = "int"
+default = 0
+label = "Rank"
+min = 0
+max = 256
+
+[[outputs]]
+id = "result"
+type = "artifact.response-model"
+label = "Retained result"

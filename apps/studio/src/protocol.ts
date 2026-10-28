@@ -800,7 +800,7 @@ export interface Capability {
   title: string;
   what: string;
   how: { tool?: string; args?: Record<string, unknown>; command?: string; also?: string[]; control?: string;
-    process?: string; deliverable?: string; say?: string; gesture?: string; key?: string };
+    process?: string; deliverable?: string; say?: string; gesture?: string; key?: string; href?: string };
   roles?: string[];
   fallbacks?: Fallback[];
   viaFallback?: string; // available only through a fallback, and why its own model cannot run

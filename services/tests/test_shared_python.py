@@ -40,7 +40,7 @@ def later():
 """
     assert shared_python.source_imports(source) == {"os", "einops", "torch", "transformers", "xformers_fallback",
                                                     "requests"}
-    assert shared_python.third_party({"os", "einops", "orchestrator", "configuration_molmo2", "__future__"},
+    assert shared_python.third_party({"os", "einops", "orchestrator", "scientific_compute", "configuration_molmo2", "__future__"},
                                      own={"configuration_molmo2"}) == {"einops"}
 
 

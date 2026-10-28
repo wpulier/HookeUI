@@ -16,7 +16,7 @@ let cliVersion = 2        // named connections; the door wire contract is unchan
 var words: [String] = []
 var options: [String: String] = [:]
 var flags: Set<String> = []
-let valued: Set<String> = ["agent", "channel", "connection", "key", "label", "project"]
+let valued: Set<String> = ["agent", "channel", "connection", "key", "label", "project", "output"]
 let switches: Set<String> = ["json", "wait", "follow", "no-skill", "help"]
 do {
     // An option it doesn't know is refused, never ignored: a mistyped --key would otherwise start a fresh request.
@@ -525,12 +525,69 @@ func openPage() {
     say(reply.body["says"] as? String ?? "")
 }
 
+// Generic transports for newly discovered resource routes: no scientific logic or credentials in stdout.
+func resourcePath(_ raw: String) -> (String, [URLQueryItem]) {
+    guard let parts = URLComponents(string: raw), parts.scheme == nil, parts.host == nil, parts.fragment == nil,
+          parts.path.range(of: #"^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$"#, options: .regularExpression) != nil else {
+        fail("Use a relative resource path inside Hooke's agent door.", next: "for example: studies?session=2026-10-28")
+    }
+    return ("api/agent/v1/" + parts.path, parts.queryItems ?? [])
+}
+
+func resourceRequest() {
+    guard words.count >= 2, ["GET", "POST"].contains(words[0]) else { fail("Use hooke api GET|POST <resource-path> [json].") }
+    let (path, query) = resourcePath(words[1])
+    var body: [String: Any]? = nil
+    if words.count > 2 {
+        guard words[0] == "POST", let parsed = try? JSONSerialization.jsonObject(with: Data(words[2].utf8)) as? [String: Any]
+        else { fail("POST takes one JSON object; GET takes no body.") }
+        body = parsed
+    }
+    let response = door(words[0], path, query: query, body: body, token: connected())
+    guard (200..<300).contains(response.status) else { refused(response) }
+    printJSON(response.body)
+}
+
+func downloadResource() {
+    let fm = FileManager.default
+    guard let raw = words.first, let output = options["output"] else { fail("Use hooke download <resource-path> --output <new-file>.") }
+    let (path, query) = resourcePath(raw)
+    let target = URL(fileURLWithPath: (output as NSString).expandingTildeInPath).standardizedFileURL
+    if fm.fileExists(atPath: target.path) { fail("The output already exists; choose a new file.") }
+    let token = connected()
+    var parts = URLComponents(url: waitUntilReady().appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+    parts.queryItems = query
+    var req = URLRequest(url: parts.url!); req.timeoutInterval = 3600
+    req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    req.setValue("1", forHTTPHeaderField: "Hooke-Contract")
+    let done = DispatchSemaphore(value: 0)
+    var failure: String? = nil
+    var bytes: Int64 = 0
+    URLSession.shared.downloadTask(with: req) { temporary, response, error in
+        defer { done.signal() }
+        guard error == nil, let temporary, let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            failure = error?.localizedDescription ?? "Hooke refused the download (HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0))."; return
+        }
+        do {
+            let attributes = try fm.attributesOfItem(atPath: temporary.path)
+            bytes = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            if http.expectedContentLength >= 0 && bytes != http.expectedContentLength { failure = "The download was incomplete."; return }
+            try fm.moveItem(at: temporary, to: target)
+        } catch { failure = error.localizedDescription }
+    }.resume()
+    done.wait()
+    if let failure { fail(failure, next: "retry to a new file; no existing output was replaced") }
+    printJSON(["ok": true, "file": target.path, "bytes": bytes])
+}
+
 let usage = """
 hooke: use the Hooke app this command ships in, from your coding agent. Every command takes --agent <kind>
 (claude-code, codex, cursor, other), or the HOOKE_AGENT environment variable.
 Use --connection <name> (or HOOKE_CONNECTION) on every command for a named connection.
 Omit it to keep using your existing unnamed connection; --label only changes the displayed name at connect.
 
+  hooke api GET|POST <path> [json]        Call a discovered agent-door resource.
+  hooke download <path> --output FILE    Stream an authorized output into a new file.
   hooke status [--wait]                  Is Hooke open, and are you connected? --wait opens it and waits.
   hooke connect                          Connect; the researcher confirms once in Hooke's dialog.
   hooke skill update                     Refresh the Hooke skill; changes no connection.
@@ -566,6 +623,8 @@ case "call", "run":
         arguments = parsed
     }
     call(tool, arguments: arguments)
+case "api": resourceRequest()
+case "download": downloadResource()
 case "operations": operations()
 case "operation": operationCommand()
 case "cancel": cancel()

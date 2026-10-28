@@ -26,32 +26,19 @@ PREVIEW_ROWS = 5
 
 # --- the Projects agents made ------------------------------------------------------------------------------------------
 
-def _projects_file(app) -> Path:
-    return Path(app.paths.home) / "agents" / "projects.json"
-
-
 def agent_projects(app) -> dict:
-    """{session id: {"by": actor, "at"}}: Projects an agent made through the door (its own place to work)."""
-    try:
-        value = json.loads(_projects_file(app).read_text())
-        return value if isinstance(value, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    from .projects import access
+    return access(app).rows()
 
 
 def _remember_project(app, sid: str, actor: str) -> None:
-    import time
-    path = _projects_file(app)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    known = agent_projects(app)
-    known[sid] = {"by": actor, "at": time.time()}
-    temporary = path.with_name(f".projects.{os.getpid()}.tmp")
-    temporary.write_text(json.dumps(known, indent=1))
-    temporary.replace(path)
+    from .projects import access
+    access(app).remember(sid, actor)
 
 
 def owned(app, sid: str, actor: str) -> bool:
-    return (agent_projects(app).get(sid) or {}).get("by") == actor
+    from .projects import access
+    return access(app).role(sid, actor) == 'owner'
 
 
 def _talk_live(app) -> Refused | None:

@@ -81,7 +81,7 @@ export class StudioShell {
 
 /** The studio's pages, as the address says them: the live workspace ("#" or none), a researcher's work, the library
  * (All assets), All sessions, test footage, Datasets, Capabilities, Models. */
-export const STUDIO_ROUTE = /^#(?:research(?:\/.*)?|assets|sessions|footage|datasets|capabilities|(?:models|toolbox)(?:\/(?:[\w./-]|%[\dA-Fa-f]{2})+)?|measurements(?:\/[\w-]+)?)?$/;
+export const STUDIO_ROUTE = /^#(?:research(?:\/.*)?|assets|workflows(?:\?.*)?|sessions|footage|datasets|capabilities|(?:models|toolbox)(?:\/(?:[\w./-]|%[\dA-Fa-f]{2})+)?|measurements(?:\/[\w-]+)?)?$/;
 
 export function resetStudioRouteScroll(): void {
   const hash = location.hash;

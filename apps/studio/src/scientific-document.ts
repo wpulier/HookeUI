@@ -1,3 +1,4 @@
+import { showMatrixResult } from './scientific-matrix-result';
 import {makeEditableTable} from './datatable-presentation';
 import { attachScientificAsk } from './scientific-ask-input';
 import { selectedScientificReader } from './scientific-reader-context';
@@ -1313,8 +1314,10 @@ export async function openStudyScientific(requested: StudyRetainedView, presenta
       }, { ...ref, version: Number(ref.version) }, fetch, value => {
         if (!abort.signal.aborted) controller?.showSavedTool(savedScientificTool(document,value));
       });
-      if (document.kind === 'source-file') showScientificSource(content,document.state,{...ref,version:Number(ref.version)},async target=>{await openStudyScientific({...saved,title:target.title,placementId:undefined,resource:{...ref,id:target.id,version:target.version}});},document.resources);
+      if (document.kind === 'source-file') showScientificSource(content,document.state,{...ref,version:Number(ref.version)},async target=>{await openStudyScientific({...saved,title:target.title,placementId:undefined,resource:{...ref,id:target.id,version:target.version}});},document.resources,object(document.state) && object(document.state.workflowOutput));
+      else if (document.kind === 'matrix-result') showMatrixResult(content,document.state,{...ref,version:Number(ref.version)},document.resources,async target=>{await openStudyScientific({...saved,title:target.title,placementId:undefined,resource:{...ref,id:target.id,version:target.version}});});
       else if (document.kind === 'source-directory') showScientificFolder(content,document.state,{...ref,version:Number(ref.version)},async target=>{await openStudyScientific({...saved,title:target.title,placementId:undefined,resource:{...ref,id:target.id,version:target.version}});});
+      else if (document.kind === 'scientific-workflow-run') { const link=node('a','Open workflow run and its retained results');link.href=`#workflows?run=${encodeURIComponent(ref.id)}`;content.append(link); }
       else if (document.kind === 'scientific-recipe' || document.kind === 'scientific-recipe-run') await showScientificRecipe(content, document.state, {...ref,version:Number(ref.version)}, async target => { await openStudyScientific({...saved,placementId:undefined,title:target.title,resource:{...ref,id:target.id,version:target.version}}); });
       else if (document.kind === 'scientific-comparison') showScientificComparison(content, document.state, {...ref,version:Number(ref.version)}, async target => { await openStudyScientific({...saved,placementId:undefined,title:target.title,resource:{...ref,id:target.id,version:target.version}}); });
       else if (document.kind === 'scientific-method-comparison') {
@@ -1329,8 +1332,8 @@ export async function openStudyScientific(requested: StudyRetainedView, presenta
         },owner);
       }
       else if (document.kind === 'scientific-python-history') showScientificHistory(content, document.state);
-      else if (document.kind === 'population-labels') {
-        content.append(node('p','Retained original image and corrected instance labels. This document opens saved data without launching its producing model.'));
+      else if (document.kind === 'population-labels' || (document.kind === 'scene' && object(document.state) && object(document.state.scientificView) && object(document.state.scientificView.inputs) && !('runtime' in document.state.scientificView))) {
+        content.append(node('p',document.kind === 'population-labels' ? 'Retained original image and corrected instance labels. This document opens saved data without launching its producing model.' : 'Saved native results. Inspect or measure the retained arrays, or explicitly choose a prepared interactive tool. Opening this result does not rerun its producer.'));
         scientificTools(content,{...ref,version:Number(ref.version)},async target=>{await openStudyScientific({title:target.title,resource:{...ref,id:target.id,version:target.version},zoom:1,pan:[.5,.5]},{focus:true});},
           {heading:'Continue with this window’s saved input',inputName:title});
         scientificResourceActions(content,{...ref,version:Number(ref.version)},document.state,

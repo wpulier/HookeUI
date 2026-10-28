@@ -370,3 +370,28 @@ with Details, the raw text in Activity). After one, an automatic presentation is
 each later researcher does not end in a failure (live 2026-10-25). One the user asks for still asks it, and an answer
 clears the hold. Researching's own model is no automatic fallback: a provider becomes automatic only through the
 retained-input campaign (`docs/testing/research-lifecycle-acceptance.md`).
+
+Researcher `run(operation="workflow", params=...)` uses the original dispatched research attempt and Project, without a camera input. It can discover, create, validate and start capability workflows, retaining an invocation receipt. It cannot accept scientific reviews or launch nested paid researcher nodes. Workflow execution outlives the research worker and keeps its own authoritative attempts.
+
+### Studies with local workflows and connected agents
+
+`studies.py` is the common scientific-intent boundary. A Study retains its exact input revisions,
+claims, challenges and evidence reads, and references the canonical WorkflowService runs through
+door operation IDs. It never creates another workflow attempt ledger. `door/studies.py` supplies
+authenticated transport; local Studio and researcher Hands use the same service. Caller identity
+comes from the connection or dispatched local attempt, never request-body author fields.
+
+`study_researchers.py` starts the existing local researcher manager within the Study's allowance.
+It captures the Project and original worker run before dispatch. `study_local_results.py` reads
+that exact run's retained findings and usage; later work or presentation revisions are not a
+substitute. Delayed usage updates may revise accounting, not scientific results. Findings are
+unreviewed until a person makes a scientific judgment. Unknown termination retains the allowance.
+Local-only Projects cannot launch a model researcher. Provider keys stay in the ordinary key system.
+
+A Study researcher must use `study-run` for workflow execution. Direct workflow start/capability
+execution and work in another Study are refused at Hands, so Pause/Stop and the Study's evidence
+cover its child workflows. Disconnecting a client or closing a view never cancels admitted work.
+Repeated request identities return the original receipt; missing admissions and lost drivers are
+reported as uncertain, never silently replayed. Stop requests all children, retains per-child
+failures, and stays pending until termination is observed. Managed execution remains an optional
+operator extension; these local paths do not depend on a cloud project or a named agent family.

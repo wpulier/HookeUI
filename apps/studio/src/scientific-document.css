@@ -181,3 +181,10 @@
 .scientific-input-context {flex:none;display:grid;gap:3px;padding:10px 12px;border-bottom:1px solid var(--mm-line);overflow-wrap:anywhere}
 .scientific-input-context strong {font-size:13px;font-weight:600}
 .scientific-input-context span,.scientific-input-context p {font-size:12px;color:var(--mm-text-2);margin:0}
+
+.scientific-result-summary { width: 100%; border-collapse: collapse; margin-block: 12px; }
+.scientific-result-summary th, .scientific-result-summary td { padding: 6px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.scientific-result-summary th { font-weight: 500; }
+.study-workflow-results { margin-block: 16px; }
+.study-workflow-results summary { cursor: pointer; padding-block: 8px; }
+.study-workflow-results p { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

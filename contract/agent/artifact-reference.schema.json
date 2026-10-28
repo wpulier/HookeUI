@@ -1,0 +1,30 @@
+{
+  "$id": "hooke:agent/artifact-reference",
+  "type": "object",
+  "required": [
+    "id",
+    "session",
+    "revision",
+    "digest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^p[a-f0-9]{32}$"
+    },
+    "session": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

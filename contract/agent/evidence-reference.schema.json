@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "required": [
+    "artifact",
+    "relation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "$ref": "artifact-reference.schema.json"
+    },
+    "relation": {
+      "enum": [
+        "input",
+        "result",
+        "failure",
+        "supports",
+        "challenges"
+      ]
+    }
+  },
+  "$id": "hooke:agent/evidence-reference"
+}

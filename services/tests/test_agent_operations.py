@@ -321,6 +321,7 @@ def door_with_capability(tmp_path, monkeypatch, ran):
     web, built, _ = build(tmp_path)
     built.capability_status = lambda: {"capabilities": [
         {"id": "measure-things", "actor": "agent", "how": {"tool": "measure", "args": {"what": "all"}}}]}
+    built.day.sid = "2026-10-28.2"
     built.day.on_stage = "asset-1"
     return web, built
 

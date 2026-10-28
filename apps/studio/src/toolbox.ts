@@ -20,6 +20,8 @@ export function toolboxTabs(active: 'tools' | 'all'): HTMLElement {
     const link = document.createElement('a'); link.textContent = title; link.setAttribute('href', href);
     link.setAttribute('aria-current', id === active ? 'page' : 'false'); nav.append(link);
   }
+  const workflows = document.createElement('a'); workflows.textContent = 'Scientific workflows';
+  workflows.href = '#workflows?capabilities=1'; nav.append(workflows);
   return nav;
 }
 

@@ -36,7 +36,7 @@ class ArrayPublication:
         document = saved.document
         document['resources'] = [replacements.get(_json(ref), ref) for ref in document['resources']]
         view = document['state'].get('scientificView')
-        if type(view) is dict and set(view) in ({'runtime', 'inputs'}, {'runtime','inputs','layers'}, {'runtime','inputs','layers','tool'}, {'runtime','inputs','layers','initializeTool'}, {'runtime','inputs','layers','initializeTool','recipeTool'}) and type(view['inputs']) is dict:
+        if type(view) is dict and set(view) in ({'inputs'}, {'inputs','layers'}, {'runtime', 'inputs'}, {'runtime','inputs','layers'}, {'runtime','inputs','layers','tool'}, {'runtime','inputs','layers','initializeTool'}, {'runtime','inputs','layers','initializeTool','recipeTool'}) and type(view['inputs']) is dict:
             view['inputs'] = {name: replacements.get(_json(ref), ref) for name, ref in view['inputs'].items()}
         from .scientific_provenance import attach
         attach(document, records[0] if len(records) == 1 else

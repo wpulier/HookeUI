@@ -281,3 +281,9 @@ memory; buffers remain available for retry and the UI must not say Saved. Ordina
 conversation events retain their existing in-memory fallback. Regressions inject a
 failure at the real journal append boundary and verify retry/reopen, not a replacement
 recorder that bypasses the store's fallback policy.
+
+`SessionStore.create_retained` creates an explicitly requested local-only Project
+through the same journal/namespace ownership machinery without switching the live
+store or resume preference. The new store is cached for background filing. Connector
+ownership is recorded separately by its authorized action; a failed registration
+never silently resumes or recreates an interrupted admission.

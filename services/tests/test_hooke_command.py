@@ -235,6 +235,8 @@ def test_named_connections_keep_separate_actors_and_revocation(hooke, tmp_path, 
             identities[name] = record['connection']['id']
             assert record['connectionName'] == name
 
+        api_status = run(hooke, env, 'api', 'GET', 'status', *arguments('reviewer'))
+        assert api_status.returncode == 0 and json.loads(api_status.stdout)['connection']['id'] == identities['reviewer']
         assert len(set(identities.values())) == 3
         assert status(None)['connection']['id'] == identities[None]
         assert status(None, {**env, 'HOOKE_CONNECTION': 'lead'})['connection']['id'] == identities['lead']
@@ -284,3 +286,9 @@ def test_invalid_connection_names_refuse_before_access(hooke, name):
     result = run(hooke, os.environ, 'status', '--json', '--connection=' + name)
     assert result.returncode != 0
     assert json.loads(result.stdout)['says'] == 'Invalid connection name.'
+
+
+@pytest.mark.parametrize('resource', ['https://example.com/x', '../agent-connections', '/api/agent-connections', 'status#fragment', 'x/%2e%2e/y'])
+def test_generic_resource_paths_cannot_leave_the_door(hooke, resource):
+    result = run(hooke, os.environ, 'api', 'GET', resource, '--json')
+    assert result.returncode != 0 and 'relative resource path' in result.stdout

@@ -162,6 +162,18 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 - **Measurements table:** what a cell population or a motion item measured, one row per cell or track, as the user
   sorts and downloads it (CSV). Its sizes are in µm only by the capture's own scale. _Avoid_: spreadsheet, report.
 
+## Workflows
+
+- **Workflow**: a named reusable process with declared inputs, fixed steps, saved settings and review points.
+  It belongs to the personal library and can be used in different Projects without sharing their data.
+- **Workflow version**: an exact saved definition. Editing the process creates a new version; earlier runs keep theirs.
+- **Workflow run**: one execution of a workflow version on explicitly selected data in a destination Project.
+  It keeps attempts, accepted corrections and results. This is separate from an app run or a researcher's run.
+- **Workflow attempt**: one dispatch of a step for one selected input, including a failure or an uncertain outcome.
+  Accepting a correction names its exact revision. Continuing after later corrections creates new work.
+- **Workflow review**: a stop at which the person accepts or rejects an exact saved result before dependent work starts.
+  A removed workflow leaves past runs intact; removal and stopping execution are separate actions.
+
 ## Researchers
 
 - **Researcher** ("Researcher 7"): background work the brain starts, in its own process. Said to the user as an *AI

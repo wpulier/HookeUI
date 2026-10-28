@@ -1,0 +1,34 @@
+# App-owned file capability; matrix_capability_runs performs retained-file admission.
+# The ordinary RGB path refuses these types. Readiness comes from the shared matrix descriptor.
+requires = { catalog = 2 }
+id = "matrix-inspect"
+name = "Inspect annotated counts"
+runs = "cpu"
+version = "1"
+licence = ["matrix-inspect"]
+kind = "tool-function"
+what = "Inspect raw counts and annotated matrix dimensions"
+runner = "builtin-cpu"
+source = { made_here = "General explicit count and response operations; no pretrained weights" }
+credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Bundled scientific count operation", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "matrix-inspect"
+category = "Research"
+experimental = true
+outcomes = { empty = "No input observations", unsupported = "An unqualified runtime, incompatible scientific meaning or excessive resource request" }
+
+[[inputs]]
+id = "matrix"
+type = "matrix.anndata"
+label = "Matrix"
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Retained result"

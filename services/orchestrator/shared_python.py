@@ -33,7 +33,7 @@ from typing import Iterable, Mapping
 from .paths import SERVICES
 
 LOCK = SERVICES / "uv.lock"
-FIRST_PARTY = frozenset({"orchestrator", "gpu_worker", "research_worker", "env_worker", "fiji_worker", "bench", "sim",
+FIRST_PARTY = frozenset({"orchestrator", "gpu_worker", "research_worker", "scientific_compute", "env_worker", "fiji_worker", "bench", "sim",
                          "noncommercial", "tests"})
 SOURCE_LIMIT = 4 << 20  # a pinned code file larger than this is not read for its imports (Molmo 2's largest: 72 KB)
 OPTIONAL = {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"}  # a try that handles one: optional

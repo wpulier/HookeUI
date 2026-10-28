@@ -68,6 +68,15 @@ RUN_CHOOSES = ("the cell finder is the researcher's own choice in its `run` (res
 RUN_ENGINE = ("a researcher's `run` asks the app for an operation; its own model was chosen when it started (chat and the "
               "voice reach it by starting one)")
 PLANS: dict[str, Plan] = {
+    # The real registry reads catalog descriptors and retains a frozen definition. No model or scientific run
+    # is stood in for here; fitting and workflow execution have their separate exact-input/receipt checks.
+    "find-workflows": Plan("which scientific capabilities can I use in a workflow?", [
+        ("find_workflows", {"capabilities": True})]),
+    "workflow": Plan("save a workflow that exports its exact input", [("workflow", {"command": {
+        "action": "create", "name": "Export the retained input", "request": "f" * 32,
+        "graph": {"format": 1, "input": {"kind": "scientific-scene"}, "nodes": [
+            {"id": "export", "name": "Export input", "kind": "export", "needs": ["input"], "settings": {}}]},
+    }})]),
     "saved-make-table": Plan("keep these measurements in an editable table", [
         ("make_table", {"sources": [{"id": "e1", "revision": 0}], "mode": "frozen"})], ("cells",)),
     "saved-edit-table": Plan("name the saved table", [

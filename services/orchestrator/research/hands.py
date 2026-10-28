@@ -104,6 +104,14 @@ class Hands:
         `resource`: an exact retained capability picture, mutually exclusive with input/frame. `inputs`: for a capability
         with several or native inputs, one exact retained resource per input (admission.py), checked as every actor's are."""
         measuring = operation == 'measure_saved_objects'
+        workflow = operation == 'workflow'
+        if workflow:
+            attempt = getattr(session, '_attempt', None)
+            if (attempt is None or attempt.id != run_id or attempt.completion.done() or not attempt.record.get('dispatchedAt')):
+                return {'ok':False,'error':'The original research run is no longer active','next':NEXT}
+            if (type(params) is not dict or any(v is not None for v in (input,frame,how,seconds,implementation,capability,resource,inputs,selection)) or fresh or scheduled):
+                return {'ok':False,'error':'Choose one workflow command in params without live inputs','next':NEXT}
+            params=copy.deepcopy(params)
         if measuring:
             attempt = getattr(session, '_attempt', None)
             if (attempt is None or attempt.id != run_id or attempt.completion.done()
@@ -184,7 +192,7 @@ class Hands:
             else:
                 sample = self.sample(session, str(input).strip(), frame if operation == "segment" else None,
                                      view=operation == "segment") if input else None
-            if sample is None and not pending_clip and resource is None and not measuring:
+            if sample is None and not pending_clip and resource is None and not measuring and not workflow:
                 source = getattr(self.hub, "source", None)
                 if source is None or not source.is_fresh():
                     raise Refusal("no fresh picture from the camera")
@@ -215,7 +223,8 @@ class Hands:
                                         f"frame {n} of retained camera clip {input}", n=n)
                 except (ValueError, OSError) as exc:
                     raise Refusal(str(exc)) from None
-            work = (self._measure(session, selection, attempt) if measuring
+            work = (self._workflow(session, params, attempt) if workflow
+                    else self._measure(session, selection, attempt) if measuring
                     else self._capability(session, kind, values, manifest, resource=resource, inputs=inputs) if kind is not None
                     else self._segment(session, sample, implementation) if operation == "segment"
                     else self._motion(session, sample, seconds, fresh) if operation == "motion"
@@ -224,6 +233,8 @@ class Hands:
         except asyncio.TimeoutError:
             self.log({"kind": "research-run", "rid": session.rid, "operation": operation, "ok": False,
                       "error": f"let go after {limit or 5.0:.0f} s"})
+            if workflow:
+                return {'ok':False,'error':'Workflow acknowledgement was interrupted; inspect the original request before retrying. Retained work may exist.','next':NEXT}
             if measuring:
                 return {'ok': False, 'error': 'Stopped waiting for saved-label measurement; original labels are unchanged. '
                         'A measurement may already have been accepted.',
@@ -266,6 +277,52 @@ class Hands:
                 **({"capture": made["capture"]} if made.get("capture") else {}),
                 **({"view": made["view"]} if made.get("view") else {}),
                 **({"values": made["values"]} if made.get("values") else {})}
+
+    async def _workflow(self, session, params, attempt):
+        from ..workflow_service import service
+        from ..workflows import wire, token
+        day=getattr(self.hub,'execution_day',None);owner=session.sitting or session.day
+        if (day is None or day.sid!=owner or session.status not in ('starting','running')
+                or session._attempt is not attempt or attempt.completion.done()):
+            raise Refusal('The original researcher or Project changed')
+        runner=service(self.hub,day);w=runner.workflows;action=params.get('action')
+        try:
+            study = attempt.origin.get('study')
+            if study and action in ('start', 'capability'):
+                raise ValueError('This researcher belongs to a Study; use study-run so its work is retained and controlled there')
+            if study and action in ('study-run', 'study-claim') and params.get('study') != study:
+                raise ValueError('Admit work and publish findings in this researcher’s original Study')
+            if type(action) is str and action.startswith('study-'):
+                from .studies import for_workspace
+                value=await for_workspace(self.hub,day).command(params,owner,actor='researcher:'+session.rid,label=session.name)
+            elif action=='capabilities' and set(params)=={'action'}:
+                from ..matrix_capability_runs import descriptors
+                value={'capabilities':await asyncio.to_thread(descriptors)}
+            elif action=='list' and set(params)<= {'action','query'}:
+                value={'workflows':await asyncio.to_thread(w.list,params.get('query',''),False)}
+            elif action=='inspect' and set(params)=={'action','workflow','revision'}:
+                value={'workflow':wire(await asyncio.to_thread(w.definition,params['workflow'],params['revision']))}
+            elif action=='status' and set(params)=={'action','run'}:
+                value={'run':await asyncio.to_thread(runner.observed_status,params['run'],owner)}
+            elif action in ('create','capture','start','validate','capability'):
+                command=copy.deepcopy(params)
+                if action in ('capture','start','validate','capability'):
+                    if command.get('session',owner)!=owner:raise ValueError('Choose data in the researcher’s original Project')
+                    command['session']=owner
+                if action in ('start','validate'):
+                    definition=await asyncio.to_thread(w.definition,command['workflow'],command['revision'])
+                    if any(n['kind']=='researcher' for n in definition.document['state']['workflow']['graph']['nodes']):
+                        raise ValueError('A researcher cannot launch another paid researcher through a workflow; ask the user to start that workflow')
+                value=await runner.command(command,actor='researcher:'+session.rid)
+            else:raise ValueError('Researchers may discover, capture, create or invoke workflows; review, removal and editing accepted definitions stay with the user')
+            # Keep the discovery/dispatch receipt with this researcher, without claiming the process finished.
+            saved=w.store.create(owner,{'kind':'workflow-invocation','title':'Researcher workflow '+str(action),
+                'state':{'workflowInvocation':{'researcher':session.rid,'runId':attempt.id,'result':value}},'resources':[],'runtimes':[]},
+                identity='p'+token({'researcher':session.rid,'runId':attempt.id,'params':params,'result':value})[:32])
+            return {'id':saved.id,'title':saved.document['title'],'kind':'project','version':saved.revision,
+                    'words':'Workflow command recorded. Inspect its run status; this is not a claim that analysis or review completed.',
+                    'ran':{'workflowCommand':action},'values':value}
+        except (ValueError,OSError,KeyError) as error:raise Refusal(str(error)) from error
 
     async def _measure(self, session, selection, attempt):
         """The same accepted-label measurement as Studio/Ask, scoped to this research run."""

@@ -108,6 +108,8 @@ def is_product(kind: str, made_by: dict | None = None) -> bool:
 
 
 TOOLS = {
+    "find_workflows": "none: reads personal definitions and exact Project run receipts",
+    "workflow": "project",
     "make_table": "dataset-table",
     "edit_table": "dataset-table",
     "analyze": "analysis",

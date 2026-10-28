@@ -1,0 +1,6 @@
+# Separate optional CPU evaluator; no CUDA/gpudge/cellstream extras.
+cell-eval2 @ https://files.pythonhosted.org/packages/96/8e/769922a7188d25bf2a2747e083a1df8b7d599013e2e5f99dfb85121abf24/cell_eval2-0.20.0-py3-none-any.whl
+numpy==2.5.3
+scipy==1.18.1
+anndata==0.13.4
+h5py==3.16.0

@@ -76,7 +76,7 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - A cancel is `cancelRequested` until the work's own end says how it stopped.
   - After a restart, unfinished records are `interrupted` with what they say they left. Unreadable files are listed,
     never overwritten.
-  - Request keys, reading, listing and cancelling are each connection's own.
+  - Request keys are each connection's own. Project reads and controls also honor the explicit grants described below.
 - **What can be started:** `tool` is a capability id of the listing, or one of the door's own actions
   (`DOOR_ACTIONS`):
   - **`open {file}`** (`work.open_file`): the agent's file goes to the library through the camera bridge's own upload,
@@ -124,8 +124,42 @@ agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
 - **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
 
 ## Still to build (ADR 0026)
-- **Off-screen runs on a saved input:** today every run uses the stage of the agent's own Project. A capability
-  that takes a saved input could run without staging anything, but that path isn't checked yet.
+- **Live-stage runs** still require the creator's open Project. The saved-input workflow path below captures retained inputs independently; actual off-screen qualification is separate from source/tests.
 - **Full results:** full tables only when asked for, and marked.
 - **The studio's other HTTP routes** still trust its Origin and header, which a local program can copy (ADR 0026
   says so).
+
+## Retained research Projects (connector integration)
+
+`projects.py` is the shared Project access check. The existing creator registry is
+preserved; owner-confirmed `read`/`contribute` grants add collaboration. Unreadable
+permissions refuse rather than becoming an empty registry. Revocation retains
+history. Credentials and assignment identities are distinct from display names.
+
+`project_actions.py` describes general actions declared in
+`agent_runnable.DOOR_RESOURCES`: create/list/read a Project, import an explicit local
+file, and read exact artifact revisions with bounded text. They appear in tools
+without new CLI-specific scientific logic. Creation uses `SessionStore.create_retained`
+without changing the active Project, stage or resume preference. Intake reuses
+FileIntake, memory admission, hashes and immutable chunks. Results retain operation
+attribution. Live-stage capabilities retain their creator/open-Project restrictions.
+
+`studies.py` scopes Study reads, evidence, claims, controls, workflow associations
+and file downloads to the authenticated connection's Project permission. Definitions
+are associated with selected Projects; cross-Project discovery is refused. Authoring
+creates frozen definitions; execution uses a Study operation and WorkflowService's
+original attempts. Agent review never supplies human acceptance. Shared operation
+reads retain the original author; request keys remain per connection. A second agent
+reads an existing operation by ID, rather than reusing another agent's request key.
+
+Settings → Connected agents → Project access is the owner's source-Studio grant
+interface. It requires explicit `HOOKE_DEV_CONFIRM=1` and refuses packaged instances
+with a native confirmation key until the native grant dialog is separately qualified.
+A bearer token is never sufficient to grant. This development boundary, like source
+connection confirmation, does not isolate against an agent with unrestricted shell.
+
+The thin CLI's `api GET|POST <relative-path> [json]` and
+`download <relative-path> --output <new-file>` stay inside `/api/agent/v1/` and use the
+selected Keychain connection. Downloads stream to a new file and never overwrite an
+existing output. `artifact.read` returns the download locator and exact retained
+metadata. File bytes require Project authorization, rechecked during streaming.

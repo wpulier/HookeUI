@@ -13,13 +13,14 @@
     "inputRevision": {"type": ["string", "null"]},
     "generation": {"type": ["string", "null"]},
     "params": {"type": "object"},
-    "by": {"type": "string", "pattern": "^(agent:ac_[0-9a-f]{16,32}|you|hosted:.+)$"},
+    "by": {"type": "string", "pattern": "^(agent:(ac_[0-9a-f]{16,32}|chat|voice|system|researcher)|researcher:r[0-9]+|studio|user|you|hosted:.+)$"},
     "at": {"type": "number"},
     "progress": {
       "type": ["object", "null"],
       "properties": {"done": {"type": "number"}, "of": {"type": ["number", "null"]}, "says": {"type": "string"}}
     },
     "outcome": {"type": ["object", "null"]},
-    "resumable": {"type": "boolean"}
+    "resumable": {"type": "boolean"},
+    "execution": {"$ref": "operation-execution.schema.json"}
   }
 }

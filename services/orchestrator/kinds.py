@@ -145,11 +145,21 @@ def gives(output: str) -> str:
     return OUTPUTS.get(output) or catalog.VOLUME_KIND_OUTPUTS.get(output) or f"{output} data"
 
 
+def file_workflow(m: catalog.Manifest) -> bool:
+    """Reviewed file adapters use WorkflowService, not the live-view runner."""
+    if m.runner != 'builtin-cpu' or m.namespace:
+        return False
+    from scientific_compute.catalog import IDS
+    return m.id in IDS
+
+
 def takes_why(m: catalog.Manifest) -> str:
     """Why the app can't give a capability its inputs yet ("" when it can): a data input of a type nothing here
     supplies, or more data inputs than one (a second input from the session comes in a later part of the contract)."""
     if not m.contract:
         return ""
+    if file_workflow(m):
+        return 'Use Scientific workflows with exact retained Project files. Discover current input contracts and runtime readiness with find_workflows(capabilities=true).'
     from . import admission
     if admission.typed(m):  # several or native inputs: each bound at Run to a retained resource (admission.bind)
         return admission.why_not(m)
@@ -207,7 +217,7 @@ def described(kind: dict) -> str:
     outputs = kind.get("outputs") or [{"label": gives(kind.get("output", "")), "type": kind.get("output", "")}]
     taken = kind.get("input", "image.2d.rgb8")
     takes = (", ".join(f"{p['id']} ({p['type']}: a retained resource bound at Run)" for p in kind["inputs"])
-             if kind.get("typed") else SUPPLIED.get(taken, taken))
+             if kind.get("typed") or kind.get('executionRoute')=='workflow' else SUPPLIED.get(taken, taken))
     lines = [f"{kind['name']}: {kind.get('what') or ''}", *([kind["description"]] if kind.get("description") else []),
              f"Takes {takes}; gives " + ", ".join(
                  f"{o.get('label') or gives(o['type'])} ({gives(o['type'])})" for o in outputs) + "."]
@@ -221,7 +231,9 @@ def described(kind: dict) -> str:
         import json
         lines.append('Scientific resource requirements (unknown metadata does not satisfy them): ' +
                      json.dumps(kind['scientific'], sort_keys=True))
-    if not kind.get("runnable", True):
+    if kind.get('executionRoute')=='workflow':
+        lines.append('Execution route: '+kind['why'])
+    elif not kind.get("runnable", True):
         lines.append(f"It can't run here yet: {kind.get('why')}")
     return "\n".join(lines)
 
@@ -357,6 +369,8 @@ def _row(m, i, why, said):
                 "params": params, "family": family(m, i), "category": m.category, "runner": m.runner,
                 "aliases": list(m.search_aliases), "experimental": m.experimental,
                 "derivedFrom": dict(m.derived_from), "hidden": list(m.hidden),
+                **({'executionRoute':'workflow'} if file_workflow(m) else {}),
+                **({'inputs':[{'id':p.id,'type':p.type} for p in m.data_inputs]} if file_workflow(m) else {}),
                 **({'scientific': m.scientific} if getattr(m, 'scientific', {}) else {}),
                 # Several or native inputs, each bound at Run to a retained resource (admission.py).
                 **({"typed": True, "inputs": [{"id": p.id, "type": p.type} for p in m.data_inputs]}

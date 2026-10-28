@@ -1,3 +1,4 @@
+import { command } from './workflow-model';
 /** Explicit, retained recipe steps. Opening a document never executes analysis. */
 type Source = {id:string;day:string;version:number};
 type Target = {id:string;version:number;title:string};
@@ -16,7 +17,7 @@ function controls(root:HTMLElement,source:Source,open:Open){const status=node('p
 export function recipeEntry(root:HTMLElement,state:unknown,source:Source,open:Open):void{
  if(!object(state)||!object(state.scientificView)||!object(state.scientificView.tool)||!object(state.scientificView.tool.recipe))return;
  const section=node('section');section.className='scientific-recipe';section.append(node('h4','Reuse these settings'),node('p','Retain a recipe with this tool’s accepted settings and original input. A new run requires your action and pauses for review.'));
- const ui=controls(section,source,open),request=crypto.randomUUID().replaceAll('-','');section.append(ui.button('Create recipe',()=>ui.change({action:'create',request})));root.append(section);
+ const ui=controls(section,source,open),request=crypto.randomUUID().replaceAll('-','');section.append(ui.button('Create recipe',()=>ui.change({action:'create',request})));section.append(ui.button('Save as workflow',async()=>{await command({action:'capture',source:source.id,session:source.day,revision:source.version,name:'Saved tool workflow',request});ui.status.textContent='Saved to your personal Workflows library.';const link=node('a','Open Workflows');link.href='#workflows';section.append(link);}));root.append(section);
 }
 export async function showScientificRecipe(root:HTMLElement,state:unknown,source:Source,open:Open):Promise<void>{
  root.classList.add('scientific-recipe');const ui=controls(root,source,open);
@@ -24,6 +25,7 @@ export async function showScientificRecipe(root:HTMLElement,state:unknown,source
   if(!object(state))throw new Error('This recipe has no supported saved state.');
   if(object(state.recipe)){
    const r=state.recipe;if(!definition(r,source.day))throw new Error('This recipe version is unsupported. Keep its saved document.');
+   const upgradeRequest=crypto.randomUUID().replaceAll('-','');root.append(ui.button('Copy into Workflows library',async()=>{await command({action:'upgrade',source:source.id,session:source.day,revision:source.version,name:'Saved recipe workflow',request:upgradeRequest});ui.status.textContent='Copied. The original recipe is preserved.';const link=node('a','Open Workflows');link.href='#workflows';root.append(link);}));
    const input=r.input;root.append(node('h3','Reusable workflow'),node('p','Each step restores its declared settings on the preceding accepted result. Run the tool, inspect and correct, then explicitly accept the result. Nothing runs when you reopen this recipe.'));
    root.append(ui.button('Inspect original input',async()=>{ui.open(input,'Recipe input');}));
    const list=node('ol');for(const s of r.steps){if(!object(s)||!exact(s.template,source.day)||typeof s.name!=='string'||typeof s.capability!=='string'||!object(s.parameters))throw new Error('A recipe step is incomplete.');const row=node('li');row.append(node('strong',s.name),node('p',`Tool ${s.capability.split('#').pop()} · settings from saved revision ${s.template.revision} · review checkpoint after execution`));const details=node('details');details.append(node('summary','Saved configuration'),node('pre',JSON.stringify(s.parameters,null,2)));row.append(details);list.append(row);}root.append(list);

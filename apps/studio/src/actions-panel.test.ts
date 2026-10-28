@@ -809,3 +809,13 @@ describe('the run footer says Stop and loading in one line each', () => {
     expect(loadLine({ kind: 'click', text: 'You clicked', ref: {} })).toBe('You clicked');
   });
 });
+
+test('file tools are discoverable by people while staying out of live-view dispatch', async () => {
+  const {workflowTools}=await import('./actions-panel');
+  const file=cap({id:'catalog:response-fit:you',actor:'you',title:'Fit response regression',how:{href:'#workflows?capability=response-fit'}});
+  const w=wire([file,{...file,id:'catalog:response-fit',actor:'agent'},
+    {...file,id:'unsafe',how:{href:'https://external.example/run'}}]);
+  expect(workflowTools(w,'regression')).toEqual([file]);
+  expect(workflowTools(w,'unmatched')).toEqual([]);
+  expect(actionRows(w,tools)).toEqual([]);
+});

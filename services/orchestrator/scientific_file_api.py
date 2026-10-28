@@ -57,68 +57,74 @@ def register(app,built,studio_origin,header):
     transfers = built.scientific_uploads = Transfers(store, captures(built.hub).memory)
 
     def transfer_origin(request):
-        if not (request.headers.get(header)=='import-scientific-directory-chunk'
+        kind = 'file' if request.url.path.startswith('/api/scientific-file-') else 'directory'
+        if not (request.headers.get(header)==f'import-scientific-{kind}-chunk'
                 and studio_origin(request.headers.get('origin'),request.url.port)):
-            raise Refused('Import the selected folder from this workspace.',403,next='return to Import in the workspace')
+            raise Refused('Import the selected source from this workspace.',403,next='return to Import in the workspace')
+        return kind
 
+    @app.post('/api/scientific-file-transfers')
     @app.post('/api/scientific-directory-transfers')
     async def begin_transfer(request:Request):
         try:
-            transfer_origin(request)
+            kind=transfer_origin(request)
             p=request.query_params
             if set(p)!={'session','request','name','size','bytes'} or len(p.multi_items())!=5:
-                raise InvalidProject('The folder transfer needs its exact selection metadata')
+                raise InvalidProject('The source transfer needs its exact selection metadata')
             if not is_sid(p['session']) or p['session']!=built.day.sid:
-                raise Refused('The destination Project changed.',409,next='choose the folder in its intended Project')
+                raise Refused('The destination Project changed.',409,next='choose the source in its intended Project')
             try:size,total=int(p['size']),int(p['bytes'])
-            except ValueError:raise InvalidProject('The folder byte counts are invalid')
-            if str(size)!=p['size'] or str(total)!=p['bytes']:raise InvalidProject('The folder byte counts are invalid')
-            item=await _owned(transfers.begin,p['session'],p['request'],p['name'],size,total)
+            except ValueError:raise InvalidProject('The source byte counts are invalid')
+            if str(size)!=p['size'] or str(total)!=p['bytes']:raise InvalidProject('The source byte counts are invalid')
+            item=await _owned(transfers.begin,p['session'],p['request'],p['name'],size,total,kind)
             return JSONResponse({'ok':True,'token':item.token,'offset':item.offset,'chunkBytes':CHUNK_BYTES},headers=HEADERS)
         except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
 
+    @app.post('/api/scientific-file-transfer-recovery')
     @app.post('/api/scientific-directory-transfer-recovery')
     async def recover_transfer(request:Request):
         try:
-            transfer_origin(request)
+            kind=transfer_origin(request)
             p=request.query_params
             if set(p)!={'session','request'} or len(p.multi_items())!=2 or not is_sid(p['session']):
                 raise InvalidProject('Recover the original captured Project and import request')
-            with captures(built.hub).memory.reserve('analysis',4<<20,'recovering folder acceptance'):
-                saved=await _owned(transfers.recover,p['session'],p['request'])
+            with captures(built.hub).memory.reserve('analysis',4<<20,'recovering source acceptance'):
+                saved=await _owned(transfers.recover,p['session'],p['request'],kind)
             return JSONResponse({'ok':True,'project':_wire(saved) if saved else None},headers=HEADERS)
         except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
 
+    @app.put('/api/scientific-file-transfers/{token}')
     @app.put('/api/scientific-directory-transfers/{token}')
     async def transfer_chunk(request:Request,token:str):
         try:
-            transfer_origin(request)
+            kind=transfer_origin(request)
             p=request.query_params
             if set(p)!={'offset'} or len(p.multi_items())!=1:raise InvalidProject('Supply the exact chunk offset')
             try:offset=int(p['offset']); length=int(request.headers.get('content-length',''))
             except ValueError:raise InvalidProject('Supply bounded chunk length and offset')
             if str(offset)!=p['offset'] or not 0<length<=CHUNK_BYTES:
                 raise InvalidProject('Supply one chunk of at most 1 MiB')
-            item=transfers.get(token)
-            # A request is bounded independently from the admitted logical folder.
-            with captures(built.hub).memory.reserve('analysis',3*CHUNK_BYTES,'receiving one folder chunk'):
+            item=transfers.get(token,kind)
+            # A request is bounded independently from the admitted logical source.
+            with captures(built.hub).memory.reserve('analysis',3*CHUNK_BYTES,'receiving one source chunk'):
                 async with asyncio.timeout(UPLOAD_SECONDS):
                     body=bytearray()
                     async for part in request.stream():
-                        if len(body)+len(part)>length:raise InvalidProject('The folder chunk exceeds its declared length')
+                        if len(body)+len(part)>length:raise InvalidProject('The source chunk exceeds its declared length')
                         body.extend(part)
-                    if len(body)!=length:raise InvalidProject('The folder chunk was interrupted')
+                    if len(body)!=length:raise InvalidProject('The source chunk was interrupted')
                     accepted=await _owned(item.write,offset,bytes(body))
             return JSONResponse({'ok':True,'offset':accepted},headers=HEADERS)
-        except TimeoutError:return _error(Refused('This folder chunk timed out.',408,next='retry this same chunk or stop the import'))
+        except TimeoutError:return _error(Refused('This source chunk timed out.',408,next='retry this same chunk or stop the import'))
         except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
 
+    @app.post('/api/scientific-file-transfers/{token}/finish')
     @app.post('/api/scientific-directory-transfers/{token}/finish')
     async def finish_transfer(request:Request,token:str):
         stopping=threading.Event();watcher=None
         try:
-            transfer_origin(request);item=transfers.get(token)
-            with captures(built.hub).memory.reserve('analysis',VERIFY_WORKING_BYTES,'verifying retained folder'):
+            kind=transfer_origin(request);item=transfers.get(token,kind)
+            with captures(built.hub).memory.reserve('analysis',VERIFY_WORKING_BYTES,'verifying retained source'):
                 async with asyncio.timeout(UPLOAD_SECONDS):
                     watcher=asyncio.create_task(watch_disconnect(request,stopping))
                     saved=await _owned(item.finish,stopping.is_set,on_cancel=stopping.set)
@@ -131,13 +137,14 @@ def register(app,built,studio_origin,header):
                 watcher.cancel()
                 with suppress(asyncio.CancelledError):await watcher
             # Never use an unauthorized token to stop somebody else's transfer.
-            if watcher is not None:await _owned(transfers.discard,token)
+            if watcher is not None:await _owned(transfers.discard,token,kind)
 
+    @app.delete('/api/scientific-file-transfers/{token}')
     @app.delete('/api/scientific-directory-transfers/{token}')
     async def stop_transfer(request:Request,token:str):
         try:
-            transfer_origin(request)
-            await _owned(transfers.discard,token)
+            kind=transfer_origin(request)
+            await _owned(transfers.discard,token,kind)
             return JSONResponse({'ok':True},headers=HEADERS)
         except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
 
@@ -169,7 +176,7 @@ def register(app,built,studio_origin,header):
             try:size=int(params['size'])
             except ValueError:raise Refused('The selected file size is invalid.',next='choose the file again')
             if str(size)!=params['size'] or not 0<=size<=MAX_UPLOAD:
-                raise Refused('This file import supports files up to 64 MiB.',413,next='choose a file within this limit; larger scientific intake is not yet available')
+                raise Refused('This file import supports files up to 64 MiB.',413,next='use the chunked File import in the workspace for a larger local file')
             # The ASGI transport owns its incoming chunk. Reserve the full admitted
             # request bound as well as our chunk buffers; never decode the source.
             with captures(built.hub).memory.reserve('analysis',MAX_UPLOAD+WORKING_BYTES+(1 << 20),'retaining selected scientific source'):
@@ -273,8 +280,8 @@ def register(app,built,studio_origin,header):
             saved=await _owned(store.read,project,session,revision=revision)
             document=saved.document
             state=document['state'].get('sourceFile')
-            if document['kind']!='source-file' or type(state) is not dict or 'reference' not in state:
-                raise Refused('This document is not a selected source file.',next='choose a retained source file in Project Data')
+            if document['kind'] not in ('source-file','matrix-result') or type(state) is not dict or 'reference' not in state:
+                raise Refused('This document has no downloadable retained file.',next='choose a retained file or scientific result in Project Data')
             watcher=asyncio.create_task(watch_disconnect(request,stopping))
             source=await _owned(store.file_source,project,session,revision,state['reference'],check=check,on_cancel=stopping.set)
             response=SourceResponse(source,room);room=None

@@ -82,7 +82,7 @@ class Operations:
             except (OSError, ValueError, KeyError, TypeError):
                 self.unreadable.append(path.name)  # kept as it is; said by `operations()`, never overwritten
                 continue
-            if record.get("state") not in TERMINAL:
+            if record.get("state") not in TERMINAL and not record.get("execution"):
                 record["state"] = "interrupted"
                 record["outcome"] = {**(record.get("outcome") or {}),
                                      "says": "Hooke stopped while this ran. Anything it finished is kept in its Project.",
@@ -101,12 +101,24 @@ class Operations:
         async with lock:
             await asyncio.to_thread(_write, self._path(record["id"]), dict(record))
 
+    def lookup(self, request_key, *, by, tool, project, input_revision, generation, params):
+        """Look up a precise admission in this actor's namespace, without dispatch."""
+        record = self._records.get(self._keys.get((by, request_key)))
+        if record is None:
+            return None
+        if record['requestSha256'] != request_digest(tool, project, input_revision, generation, params):
+            raise Refused(409, 'request-key-conflict', 'That request key belongs to different work.',
+                          next='use a new request key for a new request')
+        return wire(record)
+
     async def admit(self, *, by: str, label: str, tool: str, project: str, input_revision, generation, params: dict,
-                    request_key, work: Work) -> tuple[dict, bool]:
+                    request_key, work: Work | None, execution: dict | None = None) -> tuple[dict, bool]:
         """The operation for this request, and whether it was made now. Work starts only after its record is on disk."""
         if not isinstance(request_key, str) or not _KEY.match(request_key):
             raise Refused(400, "bad-request-key", "A request key is 8 to 128 letters, digits or . _ : -.",
                           next="choose a new request key for this request")
+        if (work is None) != (execution is not None):
+            raise ValueError('An operation needs owned work or an authoritative execution reference')
         digest = request_digest(tool, project, input_revision, generation, params)
         async with self._lock:
             known = self._keys.get((by, request_key))
@@ -121,6 +133,10 @@ class Operations:
                       "state": "admitted", "tool": tool, "project": project, "inputRevision": input_revision,
                       "generation": generation, "params": params, "by": by, "byLabel": label, "at": self.clock(),
                       "progress": None, "outcome": None, "resumable": False}
+            if execution is not None:
+                from .schema import check
+                check(execution, 'operation-execution')
+                record['execution'] = dict(execution)
             try:
                 await self._save(record)
             except OSError:
@@ -128,9 +144,10 @@ class Operations:
                               next="check free disk space, then try again with the same request key") from None
             self._records[record["id"]] = record
             self._keys[(by, request_key)] = record["id"]
-            task = asyncio.create_task(self._run(record, work))
-            self._tasks[record["id"]] = task
-            task.add_done_callback(lambda done, record=record: self._ended(record, done))
+            if work is not None:
+                task = asyncio.create_task(self._run(record, work))
+                self._tasks[record["id"]] = task
+                task.add_done_callback(lambda done, record=record: self._ended(record, done))
             return wire(record), True
 
     def _ended(self, record: dict, task: asyncio.Task) -> None:
@@ -203,8 +220,8 @@ class Operations:
             raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
         return wire(record)
 
-    def operations(self, limit: int = 20, by: str | None = None) -> dict:
-        mine = [r for r in self._records.values() if by is None or r.get("by") == by]
+    def operations(self, limit: int = 20, by: str | None = None, *, visible=None) -> dict:
+        mine = [r for r in self._records.values() if (by is None or r.get("by") == by) and (visible is None or visible(r))]
         rows = sorted(mine, key=lambda r: r["at"], reverse=True)[: max(1, min(limit, 100))]
         # Unreadable records can't say whose they were, so only the app itself (by None) is told their names.
         return {"operations": [wire(r) for r in rows], "unreadable": list(self.unreadable) if by is None else []}
@@ -213,6 +230,9 @@ class Operations:
         record = self._own(op_id, by)
         if record is None:
             raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
+        if record.get('execution'):
+            raise Refused(409, 'execution-owned', 'Stop this operation through its authoritative workflow.',
+                          next='use the workflow Stop control')
         if record["state"] in TERMINAL:
             return wire(record)
         record["state"], record["cancelAskedAt"] = "cancelRequested", self.clock()

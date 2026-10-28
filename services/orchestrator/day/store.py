@@ -52,7 +52,7 @@ def auto_title(text: str) -> str:
 class SessionStore:
     def __init__(self, root: Path | None = None, clock: Callable[[], float] = time.time,
                  day: str | None = None, *, session: str | None = None, prefs: Prefs | None = None,
-                 catalogue: Catalogue | None = None) -> None:
+                 catalogue: Catalogue | None = None, _header: dict | None = None) -> None:
         self.root = root
         self.clock = clock
         self.listeners: list[Callable[[dict], None]] = []  # called with each event, after it is applied
@@ -71,7 +71,7 @@ class SessionStore:
         # else a save finishing on its writer thread could choose "this one" just before the user's new session opens
         # and write into that one (CI, 2026-10-26: test_motion_tracks, 1 run in 8). Listeners are told outside it.
         self._switching = threading.RLock()
-        self._load(sid)
+        self._load(sid, _header)
 
     @classmethod
     def resume(cls, root: Path | None = None, clock: Callable[[], float] = time.time) -> "SessionStore":
@@ -305,6 +305,18 @@ class SessionStore:
         self.open(sid, "new", header={"type": "session-started", "session": sid, "name": name,
                                       "created": round(self.clock(), 3), "from": self.sid, "by": by, "localOnly": local_only, "guide": guide})
         return sid
+
+    def create_retained(self, name: str, *, actor: str) -> "SessionStore":
+        """Create a local-only Project without changing active session, stage or preferences."""
+        from .ownership import namespace
+        with self._switching, namespace(self.journal.root):
+            sid = sids.next_sid(self.journal.root, self.date)
+            header = {"type": "session-started", "session": sid, "name": " ".join(name.split())[:80],
+                      "created": round(self.clock(), 3), "from": None, "by": actor, "localOnly": True}
+            store = SessionStore(self.root, self.clock, session=sid, prefs=self.user_prefs,
+                                 catalogue=self.catalogue, _header=header)
+            self._elsewhere[sid] = store
+            return store
 
     def switch_session(self, sid: str) -> bool:
         """Open another session; False when it is the one open. KeyError when there is no such session."""

@@ -38,6 +38,8 @@ Component contracts (read the relevant file before editing):
 - `contract/AGENTS.md`
 - `docs/architecture/freshness-and-overlay.md`
 - `docs/architecture/on-screen.md`
+- `docs/architecture/scientific-matrices.md`
+- `docs/architecture/scientific-workflows.md`
 - `docs/architecture/seeing-and-acting.md`
 - `docs/architecture/session-index.md`
 - `docs/architecture/testing-states.md`
