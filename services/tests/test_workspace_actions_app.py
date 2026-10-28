@@ -1512,10 +1512,14 @@ def test_canceled_committed_split_compensates_only_untouched_children_on_origina
     (1000, 'right', None, 1440), (20, 'left', None, 1440), (540, None, 'right', 1440),
     (340, None, None, 700),
 ])
-def test_arrange_omitted_side_uses_available_space_without_resizing_or_moving_anchor(tmp_path, anchor_x, side, expected, width):
+def test_arrange_omitted_side_uses_available_space_without_resizing_or_moving_anchor(tmp_path, monkeypatch, anchor_x, side, expected, width):
     import json
     app, studio = built(tmp_path)
     studio.presentation_area = [0, 0, width, 1000]
+    # This exercises geometry, not renderer latency. Keep the server observation
+    # domain deterministic; the separate before/after-deadline cases test policy.
+    observed_at = time.monotonic()
+    monkeypatch.setattr(app.hub.screen, '_observation_clock', lambda: observed_at)
     entry, _ = saved_picture(app)
     async def go():
         target, _, _ = await open_window(app, entry)
