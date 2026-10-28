@@ -149,15 +149,21 @@ func waitUntilReady(timeout: TimeInterval = 1800) -> URL {
     }
     let started = Date()
     var last = ""
-    var launched = false
+    var launchedAt: Date? = nil
+    var tries = 0
     while Date().timeIntervalSince(started) < timeout {
         if let url = doorURL() { if !last.isEmpty { say("Hooke is ready.") }; return url }
         let s = state()
         let updating = s?.phase == "updating" && Date().timeIntervalSince1970 - (s?.at ?? 0) < 600
-        if !launched && !updating && (s == nil || s?.phase == "stopped" || s?.phase == "updating") {
-            say("Opening \(app.bundle!.deletingPathExtension().lastPathComponent)…")
+        let down = s == nil || s?.phase == "stopped" || s?.phase == "updating"
+        // Opened again when it still hasn't started 10 s on (found on a fresh Mac: an open sent while the quitting copy
+        // was closing did nothing). A copy that starts writes its state at once, so its time is after the open.
+        let didntStart = launchedAt.map { Date().timeIntervalSince($0) > 10 && (s?.at ?? 0) < $0.timeIntervalSince1970 } ?? true
+        if !updating && down && didntStart && tries < 4 {
+            if tries == 0 { say("Opening \(app.bundle!.deletingPathExtension().lastPathComponent)…") }
             launch()
-            launched = true
+            launchedAt = Date()
+            tries += 1
         }
         if let s, s.says != last {
             last = s.says
@@ -235,23 +241,45 @@ func keychain(_ query: [String: Any]) -> [String: Any] {
     [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: app.keychainService].merging(query) { $1 }
 }
 
-func saveToken(_ token: String, agent: String) {
+/// A session that can't reach the login Keychain (it is locked there, as over SSH): said as that, never as "not
+/// connected" (found on a fresh Mac: connect over SSH lost its one-time claim).
+let keychainLocked = "This session can't reach your Keychain (it is locked here, as in an SSH session)."
+let keychainLockedNext = "run hooke in Terminal on this Mac, signed in at its screen"
+
+func saveToken(_ token: String, agent: String, label: String) {
     SecItemDelete(keychain([kSecAttrAccount as String: agent]) as CFDictionary)
     let status = SecItemAdd(keychain([kSecAttrAccount as String: agent, kSecValueData as String: Data(token.utf8),
                                       kSecAttrLabel as String: "Hooke agent connection (\(agent))"]) as CFDictionary, nil)
-    if status != errSecSuccess { fail("The connection couldn't be kept in your Keychain (\(status)).", next: "run hooke connect again") }
+    if status != errSecSuccess {
+        fail("Hooke connected \(label), but the connection couldn't be kept in your Keychain (\(status)).",
+             next: "disconnect \(label) in Hooke's Settings → Connected agents, then run hooke connect in Terminal on this Mac")
+    }
 }
 
-func token(agent: String) -> String? {
+/// Checked before asking Hooke: the token a confirm gives is handed over once, so it must have somewhere to go.
+func checkKeychainWritable() {
+    let probe = keychain([kSecAttrAccount as String: "hooke-probe-\(UUID().uuidString)", kSecValueData as String: Data("probe".utf8)])
+    let status = SecItemAdd(probe as CFDictionary, nil)
+    SecItemDelete(probe.filter { $0.key != kSecValueData as String } as CFDictionary)
+    if status == errSecInteractionNotAllowed { fail(keychainLocked, next: keychainLockedNext) }
+    if status != errSecSuccess { fail("Your Keychain can't keep Hooke's connection here (\(status)).", next: keychainLockedNext) }
+}
+
+func tokenLookup(agent: String) -> (token: String?, locked: Bool) {
     var found: CFTypeRef?
     let one = keychain([kSecAttrAccount as String: agent, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne])
-    guard SecItemCopyMatching(one as CFDictionary, &found) == errSecSuccess, let data = found as? Data else { return nil }
-    return String(decoding: data, as: UTF8.self)
+    let status = SecItemCopyMatching(one as CFDictionary, &found)
+    guard status == errSecSuccess, let data = found as? Data else { return (nil, status == errSecInteractionNotAllowed) }
+    return (String(decoding: data, as: UTF8.self), false)
 }
+
+func token(agent: String) -> String? { tokenLookup(agent: agent).token }
 
 func connected() -> String {
     let me = agent()
-    guard let token = token(agent: me) else { fail("\(labels[me]!) isn't connected to Hooke.", next: "run hooke connect --agent \(me)") }
+    let found = tokenLookup(agent: me)
+    if found.locked { fail(keychainLocked, next: keychainLockedNext) }
+    guard let token = found.token else { fail("\(labels[me]!) isn't connected to Hooke.", next: "run hooke connect --agent \(me)") }
     return token
 }
 
@@ -305,6 +333,7 @@ func connect() {
     var bytes = [UInt8](repeating: 0, count: 32)
     guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { fail("No randomness for the secret.") }
     let secret = bytes.map { String(format: "%02x", $0) }.joined()
+    checkKeychainWritable()
     let asked = door("POST", "api/agent/v1/connect", body: ["label": label, "kind": me, "secretSha256": Data(secret.utf8).sha256Hex], token: nil)
     guard asked.status == 202, let pending = asked.body["pending"] as? [String: Any], let pid = pending["id"] as? String,
           let code = pending["code"] as? String else { refused(asked) }
@@ -313,7 +342,7 @@ func connect() {
     while Date().timeIntervalSince(started) < 600 {
         let claim = door("POST", "api/agent/v1/connect/\(pid)/claim", body: ["secret": secret], token: nil)
         if claim.status == 200, let token = claim.body["token"] as? String, let connection = claim.body["connection"] as? [String: Any] {
-            saveToken(token, agent: me)
+            saveToken(token, agent: me, label: label)
             let skill = flags.contains("no-skill") ? nil : installSkill(agent: me)
             if jsonOutput { printJSON(["ok": true, "connection": connection, "skill": skill as Any]); return }
             say("Connected: \(label) can use Hooke (\(connection["id"] ?? "")).")
@@ -340,8 +369,14 @@ func status() {
         return
     }
     let me = options["agent"] ?? ProcessInfo.processInfo.environment["HOOKE_AGENT"]
-    guard let me, labels[me] != nil, let token = token(agent: me) else {
+    let found = me.flatMap { labels[$0] != nil ? tokenLookup(agent: $0) : nil }
+    guard let me, let token = found?.token else {
         _ = waitUntilReady()
+        if found?.locked == true {
+            if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": NSNull(), "says": keychainLocked]); return }
+            say("Hooke is open. \(keychainLocked) Next: \(keychainLockedNext).")
+            return
+        }
         if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": false]); return }
         say("Hooke is open. To connect: hooke connect --agent <claude-code|codex|cursor|other>.")
         return

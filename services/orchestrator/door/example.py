@@ -26,13 +26,13 @@ def _tell_studios(app) -> None:
         client.offer(json.dumps({"type": "onboarding-changed"}))
 
 
-def takeover(app, doing: str = "the example") -> Refused | None:
+def takeover(app, doing: str = "the example", actor: str | None = None) -> Refused | None:
     """Why running the example now would change what the researcher sees, or None when it wouldn't (review B3; the
     plan's "the researcher's view is never taken over"). The example opens its own Project and puts its image on the
     stage, so it runs only when that takes nothing from anyone:
     - Talk isn't live (opening the example would end it);
-    - no Hooke window is open, or the one open shows an empty Project (nothing opened, made or asked) or the example's
-      own."""
+    - no Hooke window is open, or the one open shows an empty Project (nothing opened, made or asked), the example's
+      own, or one this agent made (leaving its own work takes nothing from the researcher)."""
     from .. import examples
     voice = getattr(getattr(app, "brain", None), "voice", None)
     if voice is not None and not getattr(voice, "closed", True):
@@ -44,6 +44,10 @@ def takeover(app, doing: str = "the example") -> Refused | None:
     day = app.day
     if getattr(day, "guide", None) == examples.GUIDE:
         return None
+    if actor is not None:
+        from .work import owned
+        if owned(app, getattr(day, "sid", ""), actor):
+            return None
     empty = not getattr(day, "sources", None) and getattr(day, "on_stage", None) is None \
         and not getattr(day, "ids_used", None) and not getattr(day, "last_user", 0)
     if empty:
@@ -66,7 +70,7 @@ async def run(app, record: dict, progress) -> dict:
 
     ACTOR.set(record["by"])
     guide = onboarding.of(app)
-    busy = takeover(app)  # checked again now that it starts: the researcher may have opened something meanwhile
+    busy = takeover(app, actor=record["by"])  # checked again now that it starts: the researcher may have opened something meanwhile
     if busy is not None:
         raise busy
     try:
