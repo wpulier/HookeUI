@@ -12,6 +12,10 @@ other files.
     something swimming in.
   - A change of light, focus or a whole-view vibration is not new content.
   - At most 4 such looks a minute. Each decision is logged as `still-change`.
+  - Each look is a paid vision call, so time alone never buys one: a minute after its last look it looks again only
+    if the picture changed since (`FrameInfo.changed_at`, `quality.Content`: a change of light or focus). An
+    unchanged picture, a still on the Stage or a frozen feed, is looked at once (Beta 0.5.1 took a Gemini look every
+    60 s on a still picture).
 - The slide map (`orchestrator/slidemap.py`, W5-4): each steady, unblurred frame's eyepiece disc is
   pasted at quarter size at its offset into one map per motion epoch (at most 4, each at most 1536 px
   a side), on its own thread; nothing is blended or invented. `where_is` says where an outline is from

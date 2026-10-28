@@ -13,9 +13,9 @@ from tests.fakes import conversation as day_conversation
 from tests.test_brain import FakeAgent, FakeHub, FakeVision, obj
 
 
-def info(epoch=0, dx=0.0, dy=0.0, steady=True):
+def info(epoch=0, dx=0.0, dy=0.0, steady=True, changed_at=0.0):
     return SimpleNamespace(id=1, epoch=epoch, dx=dx, dy=dy, steady=steady, width=1280, height=720,
-                           fov=SimpleNamespace(cx=640, cy=360, radius=300))
+                           fov=SimpleNamespace(cx=640, cy=360, radius=300), changed_at=changed_at)
 
 
 def view(epoch=0, dx=0.0):
@@ -35,6 +35,33 @@ def test_sight_looks_only_after_the_slide_settles_and_something_changed():
     assert not sight.due(info(dx=50), t + 10)                       # small move: still current
     assert sight.due(info(dx=150), t + 10)                          # moved a third of the eyepiece
     assert sight.due(info(epoch=1), t + 10)                         # continuity lost
+
+
+def test_an_unchanged_picture_gets_no_fresh_look_however_long_it_stays():
+    # Each look is a paid vision call. A still picture on the Stage (a frozen feed keeps arriving
+    # unchanged) is looked at once; the minute's refresh is only for a picture that changed since.
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={}), clients={1})
+    sight = Sight(hub, agent=None)
+    t = 1000.0
+    sight.view, sight._last_look, sight._looked_changed_at = view(), t, 500.0
+    later = t + S.REFRESH_S + 5
+    assert not sight.due(info(changed_at=500.0), later)            # the same picture a minute on: no look
+    assert not sight.due(info(changed_at=500.0), later + 600)      # ten minutes on: still none
+    assert sight.due(info(changed_at=520.0), later)                # the picture changed since: look again
+    hub.scene.objects = {"a": SimpleNamespace(label="stoma", trial=None)}
+    assert sight.due(info(changed_at=500.0), t + S.MIN_GAP_S + 1)  # a new label still asks for a look
+
+
+def test_a_look_remembers_when_its_picture_last_changed(monkeypatch):
+    import orchestrator.capture as capture
+
+    monkeypatch.setattr(capture, "captures", lambda hub: SimpleNamespace(get=lambda fid: None))  # gone: no call
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={}), clients={1}, settings=SimpleNamespace(sight="flash"),
+                          latest_info=info(changed_at=742.5), source=SimpleNamespace(get=lambda fid: object()))
+    sight = Sight(hub, SimpleNamespace(log=lambda r: None))
+    assert sight._looked_changed_at is None
+    asyncio.run(sight.look())
+    assert sight._looked_changed_at == 742.5
 
 
 def test_seen_boxes_follow_the_slide_and_are_dropped_after_a_lost_epoch():
