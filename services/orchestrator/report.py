@@ -126,6 +126,8 @@ def local_details(key: str, environ: Mapping[str, str] = os.environ) -> list[str
     m = catalog.get(key)
     if m is None:
         return []
+    if not (m.runner == "python-env" or envs.spec(m)):
+        return []  # no environment of its own (a built-in in the GPU worker): nothing installed here to have failed
     out = []
     for d, _receipt in envs.generations(m, environ):
         proof = env_runner._proof_of(d) if m.runner == "python-env" else None
