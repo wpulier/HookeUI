@@ -157,6 +157,9 @@ class SessionStore:
         self.sources: dict[str, float] = {}
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
+        # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
+        # session shows it again once the Stage lands on the picture its cells were found on (App.reopen_layer).
+        self.layer_shown: str | None = None
         self.positions: dict[str, float] = {}  # where each recording was when it left the stage (seconds)
         # The app's name the session had before a source's removal took it (asset id -> that name), so Undo restores it.
         self.name_before_removal: dict[str, str] = {}
@@ -454,6 +457,8 @@ class SessionStore:
             self._apply_subject(e, at)
         elif kind == "source":
             self._apply_source(e, at)
+        elif kind == "layer-shown":
+            self.layer_shown = str(e.get("population") or "") or None
         elif kind == "summary":
             thread = self.threads[e["thread"]]
             thread.summary, thread.summary_upto = e.get("text") or "", int(e.get("upto") or 0)
@@ -558,6 +563,14 @@ class SessionStore:
     def open_source(self, aid: str, by: str = "user") -> None:
         """An asset (or "live") put on stage: the session's from then on. Opening a removed one brings it back."""
         self._record({"type": "source", "asset": aid, "op": "opened", "by": by})
+
+    def record_layer(self, eid: str | None) -> None:
+        """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding
+        it because another session opened is not a change in this one (population.py Layer.journal), so a session
+        reopened knows what its layer showed when it was left."""
+        eid = str(eid or "") or None
+        if eid != self.layer_shown:
+            self._record({"type": "layer-shown", "population": eid})
 
     def remove_source(self, aid: str, by: str = "user") -> bool:
         """The user takes an asset out of the session (the library keeps it, and what was made from it stays as the
