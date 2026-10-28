@@ -161,3 +161,16 @@ Acceptance requires real supported connections, scoped collaboration, retained p
 UI-independent saved-input execution, recoverable outcomes and ordinary UI inspection. Fixture
 connection issuance and direct writes into Project storage are test evidence only, never proof of
 that complete user journey. This amendment does not itself claim shipped behavior.
+
+
+### Owner confirmation for Project collaboration
+
+Packaged Project grants use the existing launch-scoped native signing authority.
+The server supplies a canonical Project, stable connection and exact role in a
+five-minute, one-use choice. The native sheet shows those values with Cancel as
+the default; its signature binds the choice ID, Project, connection and role.
+Unsigned requests, replay, expired choices, changed authority and revoked
+connections refuse. Preparing a choice is not authorization. Source development
+keeps its explicit development-only owner boundary. Neither route is agent-token
+administration. Signing/transport tests and actual packaged-dialog qualification
+remain separate evidence classes.

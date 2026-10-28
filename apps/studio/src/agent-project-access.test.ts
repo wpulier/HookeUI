@@ -26,3 +26,31 @@ describe('Project access', () => {
     expect(host.textContent).toContain('cannot grant access yet');
   });
 });
+
+
+describe('native Project access', () => {
+  it.each([true, false])('waits for the owner dialog result (%s), with no unsigned write', async (ok) => {
+    const postMessage = vi.fn().mockResolvedValue({ ok, says: 'Project access was not changed.' });
+    vi.stubGlobal('window', { webkit: { messageHandlers: { hookeProjectGrant: { postMessage } } } });
+    vi.stubGlobal('document', syntheticDOM().document);
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ editable: true,
+      confirmation: 'native', projects: [{ session: '2026-10-28.2', name: 'Microscopy', by: 'agent:ac_owner', grants: {} }] })));
+    const host = document.createElement('div');
+    await mountProjectAccess(host, { id: 'ac_peer', label: 'Peer' }, request);
+    host.querySelectorAll('select')[1].value = 'read';
+    await host.querySelector<HTMLButtonElement>('button')!.onclick!(undefined as unknown as PointerEvent);
+    await vi.waitFor(() => expect(host.textContent).toContain(ok ? 'Peer now has read access' : 'was not changed'));
+    expect(postMessage).toHaveBeenCalledWith({ session: '2026-10-28.2', connection: 'ac_peer', role: 'read' });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+  it('does not fall back to unsigned writes if the native bridge is missing', async () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('document', syntheticDOM().document);
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ editable: true,
+      confirmation: 'native', projects: [] })));
+    const host = document.createElement('div');
+    await mountProjectAccess(host, { id: 'ac_peer', label: 'Peer' }, request);
+    expect(host.querySelector('button')).toBeNull();
+    expect(host.textContent).toContain('cannot grant access yet');
+  });
+});

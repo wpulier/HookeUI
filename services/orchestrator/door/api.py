@@ -112,6 +112,8 @@ def example_identity() -> tuple[str | None, str | None]:
 def register(app, built, studio_origin, header: str) -> Connections:
     connections = Connections(built.paths.home)
     built.agent_connections = connections
+    from .project_grants import GrantConfirmations
+    grant_confirmations = GrantConfirmations(built, connections)
     operations = Operations(built.paths.home)
     built.agent_operations = operations
     if getattr(built, 'hub', None) is not None:
@@ -435,10 +437,31 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 owner = built.day.elsewhere(sid)
                 result.append({'session': sid, 'name': owner.name, **row})
             return _no_store({'ok': True, 'projects': result,
-                             'editable': native.public_key() is None and os.environ.get('HOOKE_DEV_CONFIRM') == '1'})
+                             'editable': native.public_key() is not None or os.environ.get('HOOKE_DEV_CONFIRM') == '1',
+                             'confirmation': 'native' if native.public_key() is not None else 'development'})
         except (Refused, ValueError, OSError, KeyError) as error:
             return _refusal(error if isinstance(error, Refused) else Refused(503, 'project-access-unreadable',
                 str(error), next='reopen the Project before changing access'))
+
+    @app.post('/api/agent-project-access/prepare')
+    async def project_access_prepare(request: Request):
+        try:
+            studio(request, writes=False)  # preparation grants nothing; native signature is authority
+            choice = grant_confirmations.prepare(await body(request))
+            return _no_store({'ok': True, 'choice': choice})
+        except (Refused, ValueError, OSError, KeyError, TypeError) as error:
+            return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',
+                str(error), next='inspect the selected Project and connection'))
+
+    @app.post('/api/agent-project-access/confirm')
+    async def project_access_confirm(request: Request):
+        try:
+            studio(request, writes=False)
+            choice = grant_confirmations.confirm(await body(request))
+            return _no_store({'ok': True, 'choice': choice})
+        except (Refused, ValueError, OSError, KeyError, TypeError) as error:
+            return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',
+                str(error), next='inspect the selected Project and connection'))
 
     @app.post('/api/agent-project-access')
     async def project_access_change(request: Request):
@@ -446,7 +469,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         try:
             studio(request, writes=True)
             # Source UI has the same explicit development-confirm boundary as connections.
-            # Packaged grants await a separately qualified native confirmation dialog.
+            # Packaged grants use the separate signed one-use confirmation path.
             if native.public_key() is not None or os.environ.get('HOOKE_DEV_CONFIRM') != '1':
                 raise Refused(403, 'native-grant-required', 'Project grants need a qualified owner confirmation.',
                               next='use the isolated development Studio with development confirmation enabled')
