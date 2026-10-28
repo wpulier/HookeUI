@@ -682,12 +682,16 @@ class Layer:
         self._shown_session = population.session
         self.broadcast(population.wire(self.states()))
         self.broadcast(self.wire())
-        self._journaled(population.id)
         self.start()
+        self._journaled(population.id)
 
     def _journaled(self, eid: str | None) -> None:
-        if self.journal is not None:
+        if self.journal is None:
+            return
+        try:
             self.journal(eid, self._shown_session)
+        except Exception:
+            pass  # what a reopened session shows again; never a reason for the layer not to show or hide now
 
     def forget_stale_style(self, population: Population) -> bool:
         """The column group the layer is coloured by is stale (a correction: K1 review B3) or was replaced since
