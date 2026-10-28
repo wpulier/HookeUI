@@ -2,7 +2,7 @@
 there before anyone asks.
 
 When the slide has settled after a change (a new motion epoch, a move of more than a third
-of the eyepiece, or a minute without a look), one fast vision call describes the view: a
+of the eyepiece, or a minute without a look on a picture that changed since), one fast vision call describes the view: a
 summary, the specimen, and up to eight notable things with boxes. The result is kept with the
 frame it came from, so the boxes follow the slide like outlines do (p + offset_now -
 offset_then) and are dropped when continuity is lost.
@@ -35,7 +35,7 @@ from .quality import describe, measured, unnameable
 SETTLE_S = 0.6          # steady this long before looking
 MIN_GAP_S = 4.0         # at most one look per this many seconds while the view stays put
 CHANGED_GAP_S = 1.5     # after the view changed, look again as soon as it settles (this far apart)
-REFRESH_S = 60.0        # look again after this long even without a change
+REFRESH_S = 60.0        # look again after this long if the picture changed at all (light, focus); never on an unchanged one
 STILL_LOOKS = 4         # at most this many looks a minute because something changed in a still view
 MOVED_FRACTION = 0.35   # of the eyepiece radius
 QUESTION_AGE_S = 20.0   # the user starts talking and the look is older than this: look again (ADR 0016's See loop)
@@ -165,6 +165,7 @@ class Sight:
         self._task: asyncio.Task | None = None
         self._unsteady_at = 0.0
         self._last_look = 0.0
+        self._looked_changed_at: float | None = None  # FrameInfo.changed_at of the last look's frame (hub.py)
         self._looked_labels: tuple = ()
         self._busy = False
         self.looks = 0  # looks the running look started by itself, failed ones too (/api/health: the sim counts them)
@@ -297,7 +298,8 @@ class Sight:
         return self.motion[1]
 
     def due(self, info, now: float) -> bool:
-        """Whether to look now: settled, not too soon, and something changed."""
+        """Whether to look now: settled, not too soon, and something changed. An unchanged picture (a still on
+        the Stage, a frozen feed) is never looked at again just because time passed: each look is a paid call."""
         if info is None or not info.steady:
             self._unsteady_at = now
             return False
@@ -308,7 +310,12 @@ class Sight:
             return now - self._last_look >= CHANGED_GAP_S  # the view changed: look again soon
         if now - self._last_look < MIN_GAP_S:
             return False
-        return now - self._last_look > REFRESH_S or self._labels() != self._looked_labels
+        return (now - self._last_look > REFRESH_S and self._picture_changed(info)) or self._labels() != self._looked_labels
+
+    def _picture_changed(self, info) -> bool:
+        """The picture changed since the last look (the hub's `changed_at`, quality.Content). Unknown counts as changed."""
+        changed_at = getattr(info, "changed_at", 0.0)
+        return not changed_at or self._looked_changed_at is None or changed_at != self._looked_changed_at
 
     async def _loop(self) -> None:
         while True:
@@ -338,6 +345,7 @@ class Sight:
         if frame is None:
             return None
         self._last_look = time.monotonic()
+        self._looked_changed_at = getattr(info, "changed_at", 0.0) or None
         self.recheck = False
         self._content_since_look = False
         self._looked_labels = self._labels()
