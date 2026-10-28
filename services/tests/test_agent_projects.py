@@ -9,11 +9,13 @@ from orchestrator.door.projects import access, ProjectAccess
 from orchestrator.origin import studio_origin
 from orchestrator.scientific_projects import ProjectStore
 from tests.test_agent_door import connect, bearer, BASE, HEADER, STUDIO, window_key
+STUDIO = {**STUDIO, "X-Hooke-Studio": "synthetic-owner-window"}
 from tests.waiting import until
 from tests.test_scientific_project_api import web  # noqa: F401
 
 @pytest.fixture
-def project_door(tmp_path):
+def project_door(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOOKE_STUDIO_TOKEN", "synthetic-owner-window")
     day = SessionStore(tmp_path/'sessions')
     store = ProjectStore(tmp_path/'documents')
     built = SimpleNamespace(paths=SimpleNamespace(home=tmp_path), day=day,

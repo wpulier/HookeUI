@@ -171,3 +171,8 @@ browser's development confirmation is not a packaged grant fallback.
 The agent CLI uses `AgentDoorTransport` for JSON calls and streamed downloads. All HTTP
 redirects are refused, including same-host redirects; a local response cannot choose
 a new endpoint for a connection credential or request body.
+
+Project-grant preparation carries the existing launch Studio token in `X-Hooke-Studio`;
+it is not an agent credential. This restricts the canonical owner Project catalogue
+and choice metadata to the owner window. Final grants still require the one-use native
+signature; the Studio token alone cannot approve them.

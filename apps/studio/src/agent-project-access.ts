@@ -12,7 +12,10 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
   const status = document.createElement('p'); status.setAttribute('role', 'status'); status.textContent = 'Reading Project access…';
   panel.append(legend, status); host.append(panel);
   try {
-    const reply = await request('/api/agent-project-access', { cache: 'no-store' });
+    const token = (typeof window === 'undefined' ? undefined : window as unknown as { hookeStudioToken?: string })?.hookeStudioToken;
+    const headers: Record<string, string> = { 'X-MicroscopeMind': 'agent-connections' };
+    if (token) headers['X-Hooke-Studio'] = token;
+    const reply = await request('/api/agent-project-access', { cache: 'no-store', headers });
     const data = await reply.json();
     if (!reply.ok || !Array.isArray(data.projects)) throw new Error(data.says ?? 'Project access could not be read.');
     if (!data.editable || (data.confirmation === 'native' && !nativeGrant())) { status.textContent = 'Project access changes need the qualified owner confirmation in Hooke. This copy cannot grant access yet.'; return; }

@@ -175,3 +175,9 @@ canonical session catalogue. Unshared user Projects are not added to the agent r
 until an explicit owner-confirmed grant succeeds; their creator is recorded as `user`.
 Agents do not see the owner's catalogue. Revocation preserves the Project and history.
 Preparation and confirmation both require a real retained Project; neither opens it on stage.
+
+The owner catalogue and grant preparation require the launch's Studio token in the
+packaged app, rejecting bearer credentials and unsigned requests. Source development
+requires explicit developer confirmation mode plus its Studio origin/referrer and
+header; this is not an OS-level isolation boundary against local shell access.
+Catalogue reads and complete synchronous grant operations run off the event loop.

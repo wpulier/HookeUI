@@ -1798,3 +1798,9 @@ exact Project and connection, distinguishes read from contribute, preserves the
 creator, and reports failed grants without claiming they saved. The source-Studio
 owner confirmation route is explicit; a packaged instance without qualified native
 grant support shows unavailability rather than offering a nonfunctional grant.
+
+Owner Project access lists the retained canonical Projects, including those created in
+the UI. It supplies the launch Studio token when packaged, never an agent bearer token;
+source development uses its explicit owner mode and same-origin request context.
+Seeing a Project in this owner picker grants nothing. A confirmed grant records the
+person as creator and the connection as reader/contributor without changing the stage.
