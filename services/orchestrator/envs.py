@@ -835,8 +835,8 @@ class Installs:
         from . import channels
 
         if not channels.trusted(m, self.environ):  # a community channel's: the user allows its code first (ADR 0021)
-            raise Failed(f"{m.name} comes from the community channel {m.channel}, not reviewed here: allow code from "
-                         "it first (its card's Allow button)")
+            raise Failed(f"{m.name} comes from {channels.said(m.channel, self.environ)}, not reviewed here: allow code "
+                         "from it first (its card's Allow button)")
         from .bundle_admission import local_problem, scientific
         problem = local_problem(m)
         if prepare_only and (not scientific(m) or site is not None or recheck):
@@ -1030,7 +1030,7 @@ def install(m: catalog.Manifest, environ: Mapping[str, str] = os.environ, say: C
     if problem := local_problem(m):
         raise Failed(problem)
     if not channels.trusted(m, environ):
-        raise Failed(f"{m.name} comes from the community channel {m.channel}, not reviewed here: allow code from "
+        raise Failed(f"{m.name} comes from {channels.said(m.channel, environ)}, not reviewed here: allow code from "
                      "it first (its card's Allow button)")
     if local_reader(m) or local_workflow(m):
         from . import own_trials

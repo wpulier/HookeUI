@@ -127,6 +127,8 @@ describe('its words', () => {
     expect(cardKindWords(row({ kind: 'cloud-model', runs: 'cloud', where: 'in the cloud', facts: [{ kind: 'key', ok: true, says: '', service: 'gemini' }] }), wire())).toBe('Cloud model, Google');
     expect(cardKindWords(row({ kind: 'cloud-model', runs: 'cloud', where: 'in the cloud' }), wire())).toBe('Cloud model, in the cloud');
     expect(cardKindWords(row({ mine: true }), wire())).toBe('Model, yours · on this Mac');
+    expect(cardKindWords(row({ channel: 'shared-1a2b3c4d', channelSource: 'shared-file' }), wire())).toBe('Model, from a shared file · on this Mac');
+    expect(cardKindWords(row({ kind: 'cloud-model', runs: 'cloud', where: 'in the cloud', channel: 'shared-1a2b3c4d', channelSource: 'shared-file' }), wire())).toBe('Cloud model, in the cloud · from a shared file');
   });
 
   it('one facts line: a cloud model’s key, a download’s size, where it runs and what it costs', () => {

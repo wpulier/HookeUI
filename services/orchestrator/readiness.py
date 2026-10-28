@@ -453,7 +453,7 @@ def model_steps(m: catalog.Manifest, have: Callable[[str], bool], environ: Mappi
                 from .channels import label as channel_label
 
                 steps.append(Step("trust", f"Allow code from {channel_label(m.channel)}",
-                                  f"{m.name} comes from the community channel {m.channel}, not reviewed here: allowing it "
+                                  f"{m.name} comes from {channels.said(m.channel, environ)}, not reviewed here: allowing it "
                                   "lets its entries run code on this Mac with your permissions, each after its own "
                                   "Install and proof", model=m.key, channel=m.channel))
                 continue

@@ -176,6 +176,9 @@ describe('channels', () => {
     expect(whereWords({ ...base, mine: true })).toBe('yours · on this Mac');
     expect(whereWords({ ...base, channel: 'reviewed' })).toBe('new in the catalog · on this Mac');
     expect(whereWords({ ...base, channel: 'lab-models' })).toBe('community: lab-models · on this Mac');
+    expect(whereWords({ ...base, channel: 'lab-models', channelSource: 'git', channelLabel: 'Lab models' })).toBe('community: Lab models · on this Mac');
+    // A file someone shared is a channel of its own named shared-<hash>: said as what it is (ticket 67).
+    expect(whereWords({ ...base, channel: 'shared-1a2b3c4d', channelSource: 'shared-file', channelLabel: "Maya's shared file" })).toBe('from a shared file · on this Mac');
     expect(whereWords(base)).toBe('on this Mac');
   });
   it('says a community channel is not reviewed here, and whether its code is allowed', () => {

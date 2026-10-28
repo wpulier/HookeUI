@@ -853,8 +853,11 @@ export interface KeyFacts {
 /** Where catalog entries come from besides the app's own (channels.py): the reviewed catalog, or a community one. */
 export interface ChannelRow {
   name: string; url: string; commit: string; reviewed: boolean; trusted: boolean; checked: string; entries: number;
-  label?: string;
+  label?: string; source?: ChannelSource;
 }
+
+/** Where a channel's entries come from (channels.py `source`): the reviewed catalog, a file someone shared, a repository. */
+export type ChannelSource = 'reviewed' | 'shared-file' | 'git' | '';
 /** The last "Check for catalog updates": running, done (with what it added) or failed. */
 export interface ChannelUpdate { state: 'running' | 'done' | 'failed'; says: string; }
 
@@ -880,7 +883,7 @@ export interface ToolTrial { role: string; option: string; title: string; try: {
 export interface ModelRow extends Readiness {
   id: string; name: string; runs: string; where: string; what: string; kind: string; version: string;
   credit: { authors?: string; link?: string; paper?: string; cite?: string }; link: string; licence: string; tier: string;
-  mine: boolean; channel?: string; draftedByAi?: boolean; group: 'needs-you' | 'ready' | 'available' | 'unavailable'; inUse: boolean; chosen: boolean;
+  mine: boolean; channel?: string; channelSource?: ChannelSource; channelLabel?: string; draftedByAi?: boolean; group: 'needs-you' | 'ready' | 'available' | 'unavailable'; inUse: boolean; chosen: boolean;
   facts: ModelFact[]; usedFor: ModelUse[]; size: number; files: { path: string; bytes: number }[]; folder: string;
   demonstration?: import('./capabilityshelf').ShelfCard['demonstration']; setups?: ToolSetup[]; abilities?: ToolAbility[]; face?: ToolFace; tries?: ToolTrial[];
   installFolder?: string; // installer-owned destination; Fiji generations are created inside this folder

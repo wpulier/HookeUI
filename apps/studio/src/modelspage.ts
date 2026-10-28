@@ -2445,7 +2445,8 @@ export function ownTrialTitle(t: OwnTrial, all: OwnTrial[]): string {
 
 /** A channel in a line: "reviewed catalog at 3f2a1c9 · 31 entries", "lab-models at 9e1d0b2 · 4 entries · not reviewed here". */
 export function channelWords(c: ChannelRow): string {
-  const source = !c.reviewed && !c.url ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;
+  const shared = c.source ? c.source === 'shared-file' : !c.reviewed && !c.url;
+  const source = shared ? `${c.label || 'Shared file'} · saved copy` : `${c.reviewed ? 'The reviewed catalog' : c.name} at ${c.commit.slice(0, 7) || '(not fetched)'}`;
   return `${source} · ${c.entries} ${c.entries === 1 ? 'entry' : 'entries'}`
     + (c.reviewed ? '' : c.trusted ? ' · not reviewed here, its code allowed' : ' · not reviewed here, its code not allowed');
 }

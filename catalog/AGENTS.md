@@ -167,7 +167,9 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     the exact code, locked packages, pinned files and origins, every try and the preflight's checks) and with that review's
     digest, so what is admitted is what was read; every pinned file is adopted, and a failure leaves nothing half-made.
   - **Share** (`share.py`, C5): a file with no account (never weights), opened as a community catalog of its own, allowed
-    once by the sharer's name; Share with everyone through publish.py's review package and the user's DCO sign-off.
+    once by the sharer's name. Its channel's own name (`shared-<hash>`) is never said: its row carries `channelSource`
+    and `channelLabel`, a card says "from a shared file" (`model-status.ts` `sourceWords`) and every server sentence
+    names it by `channels.said` ("Maya Okafor's shared file", "the community channel lab-models"). Share with everyone through publish.py's review package and the user's DCO sign-off.
     One-click GitHub sign-in (`github_signin.py`, the device flow, its token in the Keychain) is prepared and says it
     isn't set up until the project's GitHub app is registered (`CLIENT_ID`); signed in, Share with everyone goes through
     GitHub's API with no Git or gh (`publish_api.py`: the exact reviewed package, sent only on the user's sign-off). **Made with** (`made_with.py`): what really ran
