@@ -14,7 +14,8 @@ from ..scientific_projects import InvalidProject
 from .efforts import Efforts, summary, KIND
 
 HEADERS = {'Cache-Control': 'no-store'}
-UNAVAILABLE = 'Study execution needs an operator-configured extension. Local documents remain available.'
+# Said in the studio too (study-view.ts STUDY_UNAVAILABLE).
+UNAVAILABLE = 'Running a Study needs a research service this app does not have. You can still write, save and reopen a Study.'
 
 
 class LocalLifecycle:

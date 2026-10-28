@@ -10,7 +10,9 @@ are separate. The standalone source contains no managed provider deployment,
 service IAM, tenant authentication or official artwork.
 
 The Study HTTP adapter saves and reopens local documents without managed execution.
-Readiness returns an empty provider list when no extension is installed. Attempts
+Readiness returns an empty provider list when no extension is installed, and the
+Study page says where Start would be that running a Study needs a research service
+this app does not have (`effort_api.UNAVAILABLE`). Attempts
 to execute unavailable work return an explicit refusal; existing external task
 receipts and held allowances are never silently settled. Local tasks, the Assistant
 and user-configured scientific providers retain their own execution paths.
