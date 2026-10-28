@@ -11,7 +11,9 @@
 # keeps FFmpeg, uv and Sparkle between builds of every channel.
 # SIGN_IDENTITY: the Developer ID that signs everything. NOTARY_PROFILE (default "notary"): the notarytool keychain
 # profile (NOTARY_KEYCHAIN: a keychain other than the login one, as in CI); without it the app and dmg are signed but
-# not notarized, and the script says so. ICNS: optional custom app icon supplied by the builder. SPARKLE_KEY_FILE (default
+# not notarized, and the script says so. ICNS: optional custom app icon supplied by the builder. HOOKEUI_MARK_DARK and
+# HOOKEUI_MARK_LIGHT: optional SVG marks for the studio's menu button, supplied the same way (apps/studio/vite.config.ts;
+# without them the core's mark). SPARKLE_KEY_FILE (default
 # ~/.config/hookeui-release/sparkle_ed25519.key, or sparkle_ed25519-<channel>.key): the channel's update-signing key;
 # NOTES: this version's release notes.
 # FEED_URL: where installed apps look for updates (the latest GitHub release's appcast.xml on the channel's releases
