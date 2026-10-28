@@ -206,6 +206,10 @@ class App:
     # in flight, and which researchers were working when last seen (a start or a finish sends it at once).
     _sessions_timer: object = field(default=None, repr=False)
     _landing: object = field(default=None, repr=False)  # lets go of a hold no studio lifted (hold_until_landed)
+    # The population a reopened session's layer showed when it was left, shown again by its first landing (reopen_layer),
+    # and that showing while its files are checked.
+    _reopen_layer: str | None = field(default=None, repr=False)
+    _reopening: object = field(default=None, repr=False)
     _sessions_sent: float = field(default=-1e9, repr=False)
     _sessions_sending: set = field(default_factory=set, repr=False)
     _research_working: dict = field(default_factory=dict, repr=False)
@@ -326,6 +330,14 @@ class App:
 
         hub.evidence = Evidence(hub, paths.evidence, day=day, log=agent.log)
         hub.layer = Layer(hub, hub.broadcast)
+
+        def layer_journal(eid: str | None, session: str) -> None:
+            # Journaled in the population's own session while it is the one open: hidden because another opened, the
+            # session left still holds what its layer showed (App.reopen_layer shows it again there).
+            if not session or session == day.sid:
+                day.record_layer(eid)
+
+        hub.layer.journal = layer_journal
 
         def evidence_changed(population) -> None:
             if hub.layer.shown == population.id:  # its save status or a revision, as the studio shows it
@@ -840,6 +852,7 @@ class App:
 
         hub.namer = namer
         app.say_resumed()  # the session it comes back to: its conversations are here, its live outlines are not
+        app._reopen_layer = day.layer_shown  # its cells' layer comes back on its picture, if the studio lands it there
         if restored_defaults:
             from . import defaults as kept_defaults
 
@@ -1700,6 +1713,8 @@ class App:
             if self.datasets is not None:  # a dataset being collected goes on, across sessions: the change is in it
                 self.datasets.record("dataset", {"event": "session-opened", "session": event.get("session"),
                                                  "previous": event.get("previous"), "why": event.get("why")})
+            # A session gone back to shows its cells' layer again once its landing puts their picture on stage.
+            self._reopen_layer = self.day.layer_shown if event.get("why") == "switch" else None
             self._clear_view()
             # This is lifecycle data; Dialogue.marker still owns only log export. Which session opened, the one left
             # and why (new, switch) let the studio choose what the view shows: a new session the live camera, a
@@ -1799,7 +1814,8 @@ class App:
 
     def switch_session(self, sid: str) -> dict:
         """Open another session (KeyError when there is none such): its conversations, memory and work come back;
-        its live outlines do not (the view starts fresh, said)."""
+        its live outlines do not (the view starts fresh, said). Its cells' layer comes back only on the picture they were
+        found on, once the studio lands it there (`reopen_layer`)."""
         previous = self.day.sid
         self.day.switch_session(sid)
         return {"session": self.day.sid, "previous": previous}
@@ -1918,6 +1934,8 @@ class App:
         from .source_images import descriptor
 
         hub.stage_image_json = descriptor(asset, self.day.sid)
+        if fields is None:
+            self.reopen_layer(asset)
         if hub.scale is not None:
             hub.scale.use_asset(asset.id if asset is not None else None, asset.scale_optics() if asset is not None else None)
         if fields is None or "specimen" in fields:
@@ -1926,6 +1944,55 @@ class App:
             elif asset is not None and asset.user_specimen():
                 self.subjects.name(asset.user_specimen())
         self.broadcast_sources(await self.session_sources(self.day.sid))
+
+    def reopen_layer(self, asset) -> None:
+        """The first source put on stage in a session opened again (switched back to, or the one a restart comes back
+        to): the population its cells' layer showed when it was left is shown again, as Data's Show on picture shows one,
+        when this is the picture its cells were found on (their `sourceImage`). The live camera and any other source
+        start fresh (ADR 0010: nothing is drawn on a view it was not found or checked on). Off the landing: its retained
+        files are checked in a thread, and the stage is never kept waiting."""
+        eid, self._reopen_layer = self._reopen_layer, None
+        if not eid or asset is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        import contextvars
+
+        # The app's own showing, not the landing request's: no request's ticket governs it.
+        self._reopening = loop.create_task(self._show_layer_again(eid), context=contextvars.Context())
+
+    async def _show_layer_again(self, eid: str) -> bool:
+        from . import ticket
+        from .apply import apply
+        from .brain.registry import ToolFailed
+        from .evidence import evidence_of
+        from .population import drawn_on_stage, layer_of
+
+        hub, sid = self.hub, self.day.sid
+        evidence, layer, generations = evidence_of(hub), layer_of(hub), ticket.generations(hub)
+        population = evidence.get(eid)
+        if population is None:
+            return False
+        issued = (generations.value("cell"), generations.value("session"))
+
+        def due() -> bool:
+            # Still this session, its cells untouched since (no clear, no other source), nothing else shown, and the
+            # picture on stage the one they were found on.
+            return (self.day.sid == sid and (generations.value("cell"), generations.value("session")) == issued
+                    and layer.shown is None and bool(population.view.get("sourceImage")) and bool(population.live())
+                    and drawn_on_stage(hub, population))
+
+        if not due():
+            return False
+        try:
+            await asyncio.to_thread(evidence.require_retained, population)
+        except ToolFailed:
+            return False  # its files are missing or changed: it stays in Data, which says so when it is opened
+        if not due():
+            return False
+        return (await apply(hub, lambda _: layer.show(population), scope="cell")).ok
 
     async def session_sources(self, sid: str) -> dict:
         """Session `sid`'s sources (sources.rows): the open session's from its store, another's from its journal, each

@@ -57,6 +57,17 @@ establish ownership across a Project switch.
     bookmarks and snapshots come back as history. Its live outlines never do, and one app-notice says so ("Back in
     'Leaf epidermis' (last used yesterday 8:12 pm). Its outlines are in its pictures; the live view starts fresh.":
     `App.say_resumed`).
+    - **Its cells' layer on their picture does** (ticket 67; the thesis check found a Project gone back to with no
+      outline layer, so nothing in Data said "On this Tab"). Each session journals which population its layer shows
+      (`layer-shown` events, `SessionStore.record_layer`, told by `population.Layer.journal`), in that population's own
+      session while it is open: hiding it because another session opened is not a change in the session left, while
+      a clear, a hide or another source on stage journals none. A session switched back to, or the one a restart
+      comes back to, shows that population again once (`App.reopen_layer`, off the landing: its retained files are
+      checked in a thread, then `apply` scope `cell`, as Data's Show on picture shows one), and only when its first
+      landing puts on stage the picture the cells were found on (`sourceImage`). On the live camera or any other
+      source it starts fresh (ADR 0010), and a picture put on stage after that first landing is the user's own choice.
+      The layer then draws it only where its check on the still verifies it (`docs/architecture/freshness-and-overlay.md`).
+      `tests/test_population_reopen.py` checks it through the real app, journals and evidence.
   - **Opening is using it:** an `opened` line is written in its journal, so its last use is now and today becomes one
     of its days (the title's menu lists sessions by when each began, so opening one only marks its row).
   - **The view follows the session** (`apps/studio/src/session-view.ts` decides, from `session-cleared`'s `why` and the

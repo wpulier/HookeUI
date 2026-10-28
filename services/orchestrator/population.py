@@ -29,6 +29,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 import cv2
@@ -638,6 +639,11 @@ class Layer:
         self.confirmed_style: dict = dict(self.style)  # the style the studio last showed (an undo goes back to it)
         self.correction: tuple[float, float] = (0.0, 0.0)  # full-size px added to the slide's move (see MAX_CORRECTION)
         self.view: tuple | None = None  # (epoch, dx, dy) of the shown population's view now (a rejoin may carry it)
+        # Told (population id or None, the session it belongs to) whenever the layer shows or hides one: the app
+        # journals it in that session while it is the one open (day/store.py record_layer), so hiding it because another
+        # session opened changes nothing in the session left, and reopening that session can show it again on its picture.
+        self.journal: Callable[[str | None, str], None] | None = None
+        self._shown_session = ""
         scene = getattr(hub, "scene", None)
         if scene is not None and isinstance(getattr(scene, "on_change", None), list):
             scene.on_change.append(self._scene_changed)
@@ -673,9 +679,15 @@ class Layer:
         self._templates_authority = None
         self.correction, self.view = (0.0, 0.0), None
         self.fit, self._still, self._still_seen = None, None, None
+        self._shown_session = population.session
         self.broadcast(population.wire(self.states()))
         self.broadcast(self.wire())
+        self._journaled(population.id)
         self.start()
+
+    def _journaled(self, eid: str | None) -> None:
+        if self.journal is not None:
+            self.journal(eid, self._shown_session)
 
     def forget_stale_style(self, population: Population) -> bool:
         """The column group the layer is coloured by is stale (a correction: K1 review B3) or was replaced since
@@ -709,6 +721,7 @@ class Layer:
             self.placement = {}
             self.fit, self._still, self._still_seen = None, None, None
             self.broadcast(self.wire())
+            self._journaled(None)
 
     def _drop_templates(self) -> None:
         batch, self._template_batch = self._template_batch, None
