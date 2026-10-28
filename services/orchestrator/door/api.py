@@ -55,6 +55,14 @@ def guard(request: Request) -> None:
                       next="update the hooke command or Hooke so they match")
 
 
+@__import__("functools").lru_cache(maxsize=1)
+def build_identity() -> dict:
+    """This process's source identity, read once: it is fixed at startup (build_info.identity), and a source checkout
+    hashes every file to say it."""
+    from ..build_info import identity
+    return identity()
+
+
 def app_version() -> str | None:
     from ..build_info import PACKAGED
     try:
@@ -190,8 +198,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
             c = connected(request)
         except Refused as error:
             return _refusal(error)
-        from ..build_info import identity
-        build = await asyncio.to_thread(identity)
+        build = await asyncio.to_thread(build_identity)
         day = getattr(built, "day", None)
         hub = getattr(built, "hub", None)
         return _no_store({

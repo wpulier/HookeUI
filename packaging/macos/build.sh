@@ -114,6 +114,9 @@ mkdir -p "$C/MacOS" "$C/Resources/NOTICES" "$C/Helpers" "$C/Frameworks"
 swiftc -O -swift-version 5 -target arm64-apple-macos14.0 -F "$TOOLS/sparkle" -framework Sparkle \
   -Xlinker -rpath -Xlinker @executable_path/../Frameworks "$HERE/HookeUI/"*.swift -o "$C/MacOS/HookeUI"
 ditto "$TOOLS/sparkle/Sparkle.framework" "$C/Frameworks/Sparkle.framework"
+# The command an outside agent runs to use this app (ADR 0026; packaging/macos/hooke): it reads this bundle's Info.plist.
+swiftc -O -swift-version 5 -target arm64-apple-macos14.0 "$HERE/hooke/main.swift" "$HERE/HookeUI/AgentShared.swift" \
+  -o "$C/Helpers/hooke"
 python3 "$HERE/channels.py" plist "$CHANNEL" --template "$HERE/HookeUI/Info.plist" --version "$VERSION" \
   --build "$BUILD_NUMBER" --feed "$FEED_URL" --edkey "$ED_PUBLIC" --out "$C/Info.plist"
 if [ -n "${ICNS:-}" ]; then
@@ -146,7 +149,7 @@ cp "$TOOLS/sparkle/LICENSE" "$C/Resources/NOTICES/Sparkle-LICENSE"
 
 say "Signing with $IDENTITY"
 sign() { codesign --force --timestamp --options runtime --sign "$IDENTITY" "$@"; }
-sign "$C/Helpers/uv"
+sign "$C/Helpers/uv" "$C/Helpers/hooke"
 sign --entitlements "$HERE/HookeUI/HookeUI.entitlements" "$C/Helpers/ffmpeg" "$C/Helpers/ffprobe"
 sign --entitlements "$HERE/HookeUI/camera.entitlements" "$CAMERA"
 # Sparkle's own parts, inside out, as its documentation signs them for a Developer ID app.

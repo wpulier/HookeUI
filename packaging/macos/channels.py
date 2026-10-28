@@ -27,11 +27,11 @@ STABLE = "stable"
 FIELDS = {
     "name": str, "bundleId": str, "cameraBundleId": str, "supportFolder": str, "dataFolder": str,
     "keychainService": str, "orchestratorPort": int, "cameraPort": int, "streamPort": int, "settingsPort": int, "isolated": bool, "releases": str,
-    "feedURL": str, "edPublicKey": str,
+    "feedURL": str, "edPublicKey": str, "urlScheme": str,
 }
 # What two channels may never share: one is enough to let one app read, overwrite or stop the other's.
 DISTINCT = ("name", "bundleId", "cameraBundleId", "supportFolder", "dataFolder", "keychainService", "releases",
-            "feedURL", "edPublicKey")
+            "feedURL", "edPublicKey", "urlScheme")
 # The original beta's website bridge (packaging/macos/README.md "Original beta"): clients of org.hookeui.HookeUI read
 # it, so no channel may publish there.
 LEGACY_FEEDS = ("https://hookeui.org/beta/appcast.xml",)
@@ -63,6 +63,9 @@ def validate(channels: dict) -> dict:
         for folder in ("supportFolder", "dataFolder"):
             if "/" in c[folder] or c[folder].startswith(".") or not c[folder].strip():
                 raise ChannelError(f"channel {key}: {folder} is one folder name")
+        if not re.fullmatch(r"hookeui(-[a-z]+)?", c["urlScheme"]):
+            # Its links ("Open in Hooke", ADR 0026) open only this channel's app: Stable's is hookeui, another's its own.
+            raise ChannelError(f"channel {key}: urlScheme is hookeui or hookeui-<word>")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 -]*", c["name"]):
             raise ChannelError(f"channel {key}: name {c['name']!r}")
         if (key == STABLE) == c["isolated"]:
@@ -144,6 +147,7 @@ def info_plist(template: str, name: str, *, version: str, build: str, feed: str 
         "DATA": c["dataFolder"], "KEYCHAIN": c["keychainService"], "ORCH_PORT": str(c["orchestratorPort"]),
         "CAMERA_PORT": str(c["cameraPort"]), "STREAM_PORT": str(c["streamPort"]),
         "SETTINGS_PORT": str(c["settingsPort"]), "ISOLATED": "true" if c["isolated"] else "false",
+        "URL_SCHEME": c["urlScheme"],
     }
     text = substitute(template, {k: escape(v) for k, v in values.items()})
     plistlib.loads(text.encode())  # a broken plist stops the build here, not at launch

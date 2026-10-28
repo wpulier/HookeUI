@@ -13,6 +13,14 @@ export interface AgentConnectionsMessage extends AgentConnectionsState { type: '
 /** What the connection sheet needs of StudioSheet (sheet.ts); a test gives its own. */
 export interface SheetLike { open(content: HTMLElement): void; close(notify?: boolean): void; onDismiss: () => void }
 
+/** In the Mac app, bring Hooke forward so the researcher sees the confirm (packaging/macos main.swift AgentAttention).
+ *  A browser has no such bridge, and nothing happens. */
+function attention(): void {
+  const host = (typeof window === 'undefined' ? undefined : window) as unknown as
+    { webkit?: { messageHandlers?: { hookeAttention?: { postMessage(value: unknown): void } } } } | undefined;
+  try { host?.webkit?.messageHandlers?.hookeAttention?.postMessage({ why: 'agent-connect' }); } catch { /* best effort */ }
+}
+
 const HEADERS = { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'agent-connections' };
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
@@ -151,6 +159,7 @@ export class AgentConnections {
     this.body.replaceChildren(title, lead, code, list, status, actions);
     this.showing = p.id;
     this.sheet.open(this.body);
+    attention();
     const left = p.expiresAt * 1000 - Date.now();
     if (this.expiry) clearTimeout(this.expiry);
     this.expiry = setTimeout(() => { if (this.showing === p.id) { this.answered.add(p.id); this.closeSheet(); } }, Math.max(0, left));

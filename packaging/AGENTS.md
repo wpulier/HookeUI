@@ -110,3 +110,27 @@ transport admission, not reader or full-size workflow qualification. Server acce
 remains the shared immutable Project intake, separate from native selection. The
 snapshot fixture checks small real files, retry reads and refusal/cleanup; it does not
 qualify an installed large-folder workflow.
+
+## Outside agents (ADR 0026)
+
+- **`Contents/Helpers/hooke`** (`macos/hooke/main.swift`, with `macos/HookeUI/AgentShared.swift`): the command a
+  researcher's own coding agent runs.
+  - It reads its own bundle's Info.plist, so it talks only to its own channel's app.
+  - It opens the app by bundle id and waits for its state file. It connects with one confirm in the window and keeps
+    the token in the Keychain (service `org.hookeui.agent.<channel>`, account = agent kind).
+  - It installs or refreshes the Hooke skill (`.agents/skills/hooke/`, in the snapshot), which never touches the
+    connection.
+  - It runs operations and follows them.
+  - It holds no scientific logic: everything goes through the orchestrator's door (`services/orchestrator/door/`).
+  - `HOOKE_DOOR_URL` points a copy built outside an app at a source checkout's door, for development.
+- **State file:** the app writes `~/Library/Application Support/<support folder>/agent-state.json`, holding its channel,
+  version, phase (`asking`, `downloading`, `starting`, `ready`, `failed`, `stopped`), what the setup screen says, its
+  port once open, and its pid. A file whose pid isn't running says nothing about now.
+- **Links:** each channel has its own scheme (`urlScheme` in `channels.json`: `hookeui`, `hookeui-beta`), declared in
+  Info.plist. `hookeui://open?page=#measurements/…` only navigates the workspace to an allowed page and brings Hooke
+  forward; a link never acts.
+- **Attention:** when an agent waits for the researcher's confirm, the workspace posts `hookeAttention` and Hooke
+  comes forward. That handler only activates the app.
+- **Checks:** `make native-test` runs `macos/tests/agent-links` and builds `hooke`. `services/tests/test_mac_channels.py`
+  checks the scheme.
+

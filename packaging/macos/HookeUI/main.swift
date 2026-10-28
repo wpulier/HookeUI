@@ -31,6 +31,8 @@ struct Channel {
     var settingsPort: Int { info["HookeUISettingsPort"] as? Int ?? 8767 }
     /// Beta: API keys, model downloads and caches of its own too, not the Mac-wide ones Stable reads.
     var isolated: Bool { info["HookeUIIsolated"] as? Bool ?? false }
+    /// Its "Open in Hooke" links' scheme (ADR 0026): this channel's own, so a link opens only this app.
+    var urlScheme: String { info["HookeUIURLScheme"] as? String ?? "hookeui" }
 }
 
 let channel = Channel()
@@ -301,6 +303,7 @@ final class Services {
         // Keychain service: Stable's are the defaults; a Beta's are its own (channels.json).
         env["MICROMIND_ASSETS"] = places.data.path
         env["MICROMIND_KEYCHAIN_SERVICE"] = channel.keychainService
+        env["HOOKE_CHANNEL"] = channel.id  // what the agent door's status says (services/orchestrator/door)
         env["MICROMIND_BLACKMAGIC_PORT"] = String(channel.streamPort)
         env["MICROMIND_CAMERA_SETTINGS_PORT"] = String(channel.settingsPort)
         if channel.isolated {
@@ -507,6 +510,7 @@ final class Studio: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDele
         configuration.userContentController.addScriptMessageHandler(cameraNetwork, contentWorld: .page, name: "hookeCameraNetwork")
         updates.origin = url
         configuration.userContentController.addScriptMessageHandler(updates, contentWorld: .page, name: "hookeUpdates")
+        configuration.userContentController.add(AgentAttention(origin: url), contentWorld: .page, name: "hookeAttention")
         configuration.preferences.isElementFullscreenEnabled = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         webView = WKWebView(frame: .zero, configuration: configuration)
@@ -827,6 +831,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if plan.asksFirst && !consented {
             setup.ask(SetupWords.consent(services.runtimeDownload), target: self, accept: #selector(downloadAndOpen))
             Log.shared.line("asking before the first download")
+            agentState("asking", "Hooke is asking before its first download. Click Download and Open in the Hooke window.")
             return
         }
         setup.show(heading, text, SetupPhase(plan.stages.first ?? .open))
@@ -842,7 +847,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Starts the services off the main thread; the screen follows what each step says and reports.
     func run() {
         services.say = { [weak self] heading, text, phase in
-            DispatchQueue.main.async { self?.setup.show(heading, text, phase) }
+            DispatchQueue.main.async {
+                self?.setup.show(heading, text, phase)
+                self?.agentState(phase == .download ? "downloading" : "starting", "\(heading): \(text)")
+            }
         }
         services.finished = { [weak self] phase, ran in
             DispatchQueue.main.async { self?.setup.finish(phase, ran: ran) }
@@ -866,6 +874,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let studio = Studio(url: url, updates: updates, cameraPort: services.cameraPort)
         self.studio = studio
         window.contentView = studio.webView
+        agentState("ready", "Hooke is open.", port: url.port)
+        if let page = pendingPage { pendingPage = nil; show(page) }
         watchVisibility()
         sayWhatsNew()
         if let process = services.studio {
@@ -893,6 +903,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showFailure(_ message: String) {
+        agentState("failed", message)
         setup.spinner.isHidden = true
         setup.show("Let’s get you back on track", message, .failed)
         let again = NSButton(title: "Try again", target: self, action: #selector(tryAgain))
@@ -928,6 +939,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func tabCommand(_ sender: NSMenuItem) {
         guard window?.isKeyWindow == true, let name = sender.representedObject as? String else { return }
         studio?.webView.evaluateJavaScript("window.hookeTabCommand && window.hookeTabCommand(\(String(reflecting: name)))")
+    }
+
+    // MARK: Outside agents (ADR 0026)
+
+    /// Where this copy is, for the `hooke` command (AgentShared.swift): what it is doing and, once open, its port.
+    func agentState(_ phase: String, _ says: String, port: Int? = nil) {
+        let state = AgentState(channel: channel.id, bundleId: Bundle.main.bundleIdentifier ?? "", urlScheme: channel.urlScheme,
+                               version: Bundle.main.shortVersion,
+                               build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "",
+                               phase: phase, says: says, port: port, pid: ProcessInfo.processInfo.processIdentifier,
+                               at: Date().timeIntervalSince1970)
+        do { try state.write(to: places.support) } catch { Log.shared.line("agent state not written: \(error)") }
+    }
+
+    /// A page an "Open in Hooke" link names, waiting for the workspace to open.
+    var pendingPage: String?
+
+    /// Shows a page in the workspace and brings Hooke forward. Only navigates: a link never acts.
+    func show(_ page: String) {
+        guard AgentLinks.isPage(page), let web = studio?.webView else { pendingPage = page; return }
+        web.evaluateJavaScript("window.location.hash = \(String(reflecting: page))")
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            guard let page = AgentLinks.page(from: url, scheme: channel.urlScheme) else {
+                Log.shared.line("ignored a link that isn't this channel's open link: \(url.scheme ?? "?")://\(url.host ?? "")")
+                continue
+            }
+            Log.shared.line("opening \(page) from a link")
+            show(page)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -992,6 +1037,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func stopForTermination(_ window: NSWindow) {
         quitting = true
+        agentState("stopped", "Hooke was quit.")
         studio?.folderBridge.close()
         studio?.cameraNetwork.close()
         window.contentView = setup
@@ -1075,3 +1121,20 @@ let delegate = AppDelegate()
 app.delegate = delegate
 app.setActivationPolicy(.regular)
 app.run()
+
+
+/// The workspace asks for attention when an outside agent waits for the researcher to confirm it (ADR 0026;
+/// apps/studio/src/agent-connections.ts): Hooke comes forward so its confirm sheet is seen. It only activates the app.
+final class AgentAttention: NSObject, WKScriptMessageHandler {
+    let origin: URL
+    init(origin: URL) { self.origin = origin }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        let source = message.frameInfo.request.url
+        guard message.frameInfo.isMainFrame, source?.scheme == origin.scheme, source?.host == origin.host,
+              source?.port == origin.port else { return }
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.windows.first { $0.contentView is WKWebView }?.makeKeyAndOrderFront(nil)
+        }
+    }
+}

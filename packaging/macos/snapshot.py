@@ -35,7 +35,7 @@ RUNTIME = (
     "experiments/iphone-camera-feed/blackmagic-api.json",
     "scripts/studio.sh", "scripts/studio_launch.py", "scripts/studio_setup.py",
     "contract/", "catalog/", "assets/manifest.json", "assets/examples/", "examples/three-particles/",
-    ".agents/skills/add-a-capability/", "docs/contributing/DCO.txt", "docs/licences.md",
+    ".agents/skills/add-a-capability/", ".agents/skills/hooke/", "docs/contributing/DCO.txt", "docs/licences.md",
 )
 
 # The builder's own exclusions that can fall inside RUNTIME (its `excluded()` and recorded dispositions).

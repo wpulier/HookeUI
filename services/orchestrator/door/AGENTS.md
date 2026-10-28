@@ -83,9 +83,12 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   `#toolbox`, `#assets`, `#sessions`).
   - It answers `shown: true` only when a window says it shows it; otherwise it says why.
 
+## The command and the app
+The `hooke` command, the app's state file, its links and attention are described in `packaging/AGENTS.md` ("Outside
+agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
+
 ## Still to build (ADR 0026)
 - **More tools on the same operations:** run a capability on a file, results (with the full table only when asked,
   marked), compare, batch, add capabilities.
 - **Built-in tools:** list the app's own built-in tools alongside catalog entries.
-- **The window comes forward:** the Mac app should bring Hooke forward when a request waits.
 - **WebSocket:** a token for WS clients that send no Origin (`origin.allowed_origin`).
