@@ -58,13 +58,16 @@ export function scientificTools(root: HTMLElement, source: Source, open: (target
             }));
             const project = result.project, doc = object(project) ? project.document : null;
             const state = object(doc) ? doc.state : null, choice = object(state) ? state.scientificToolChoice : null;
-            if (!object(project) || project.id !== source.id || project.session !== source.day || project.revision !== source.version + 1
-              || !object(doc) || typeof doc.title !== 'string' || !object(choice) || choice.format !== 1 || choice.capability !== key || choice.generation !== generation
-              || !object(choice.source) || choice.source.id !== source.id || choice.source.session !== source.day || choice.source.revision !== source.version || choice.source.digest !== digest)
+            if (!object(project) || project.id !== source.id || project.session !== source.day || !object(choice) || !object(choice.source)
+              || !chosenFor(source, digest, Number(project.revision), choice.source)
+              || !object(doc) || typeof doc.title !== 'string' || choice.format !== 1 || choice.capability !== key || choice.generation !== generation)
               throw new Error('The saved choice differs from your selected input or integration. Check Project Data before retrying.');
             const target = { id: source.id, version: Number(project.revision), title: doc.title }, show = node('button', `Open ${value.name}`);
             message.textContent = `${value.name} is selected. Open it to inspect settings; running is a separate action. This window remains on revision ${source.version}.`;
-            const receipt = node('details'); receipt.append(node('summary', 'Saved choice'), node('p', `Saved revision ${project.revision}; input revision ${source.version}.`)); message.after(receipt);
+            // A tool chosen earlier from this window already saved the next revision: this choice keeps the same inputs
+            // and follows it (scientific_tools.chosen_since).
+            const after = choice.source.revision !== source.version ? `, after the choice in revision ${String(choice.source.revision)}` : '';
+            const receipt = node('details'); receipt.append(node('summary', 'Saved choice'), node('p', `Saved revision ${project.revision}; input revision ${source.version}${after}.`)); message.after(receipt);
             choose.hidden = true; message.after(show);
             show.addEventListener('click', () => { void open(target).catch(error => { message.textContent = String(error instanceof Error ? error.message : error); }); });
           } catch (error) { message.textContent = String(error instanceof Error ? error.message : error); choose.disabled = false; }
@@ -77,6 +80,15 @@ export function scientificTools(root: HTMLElement, source: Source, open: (target
     } catch (error) { status.textContent = String(error instanceof Error ? error.message : error); }
     finally { loading = false; find.disabled = false; find.textContent = 'Check interactive tools again'; }
   })(); });
+}
+
+/** The saved choice was made from this window's exact input revision, or, when a tool chosen earlier from it had already
+ * saved the next revision, from a later revision with the same inputs; it is always that revision's next. */
+export function chosenFor(source: Source, digest: string, saved: number, from: Record<string, unknown>): boolean {
+  const revision = from.revision;
+  if (from.id !== source.id || from.session !== source.day || typeof revision !== 'number' || !Number.isInteger(revision)
+    || revision < source.version || saved !== revision + 1) return false;
+  return revision !== source.version || from.digest === digest;
 }
 
 export function scientificToolChoice(root: HTMLElement, state: unknown, source: Source, open: (revision: number) => Promise<void>): void {
