@@ -1290,7 +1290,9 @@ final class AgentProjectGrant: NSObject, WKScriptMessageHandlerWithReply {
         request.httpMethod = "POST"; request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        let transport = AgentDoorTransport.session()
+        transport.dataTask(with: request) { data, response, error in
+            defer { transport.finishTasksAndInvalidate() }
             var result = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
                 ?? ["ok": false, "says": error?.localizedDescription ?? "Project access could not be confirmed."]
             if (response as? HTTPURLResponse)?.statusCode != 200 { result["ok"] = false }

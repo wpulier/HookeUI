@@ -3,6 +3,7 @@ import Foundation
 let mode = CommandLine.arguments[1]
 var request = URLRequest(url: URL(string: CommandLine.arguments[2])!)
 request.setValue("Bearer synthetic-test-credential", forHTTPHeaderField: "Authorization")
+request.setValue("synthetic-owner-window", forHTTPHeaderField: "X-Hooke-Studio")
 request.httpMethod = mode == "data" ? "POST" : "GET"
 if mode == "data" { request.httpBody = Data("synthetic-private-request".utf8) }
 let transport = AgentDoorTransport.session()
