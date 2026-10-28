@@ -71,7 +71,9 @@ def test_the_library_lists_the_users_own_recordings_and_pictures_never_test_foot
     library = library_over(tmp_path)
     found = {a.key: a for a in library.assets().values()}
     assert set(found) == {"footage:2026-06-14-leaf", "footage:sperm", "footage:smear", "dataset:ds-20261012-014411/1",
-                          "snapshot:2026-10-12/snapshot-014500-abc-f12"}  # never the camera test off the microscope
+                          "snapshot:2026-10-12/snapshot-014500-abc-f12",  # never the camera test off the microscope
+                          "onboarding:human-mitosis-v1"}  # and the example that comes with the app, among the examples
+    assert found["onboarding:human-mitosis-v1"].group == "example"
     leaf = found["footage:2026-06-14-leaf"]
     assert leaf.kind == "recording" and leaf.group == "recording" and leaf.metadata()["optics"] == {"objective": 40.0}
     assert leaf.metadata()["specimen"] == "leaf epidermis" and leaf.metadata()["specimenBy"] == "record"
@@ -441,6 +443,32 @@ def test_the_source_commands_play_on_the_bridge_and_say_what_was_done(tmp_path, 
     refused = send("source", open="a999")
     assert refused["ok"] is False and "no asset a999" in refused["error"]
     assert send("source-remove", asset="live")["ok"] is False
+
+
+def test_the_bundled_example_is_among_the_examples_before_any_download(tmp_path):
+    # Ticket 67: Library → Examples said "Nothing here" while the empty Stage said "open the examples in the Library".
+    from orchestrator import examples
+
+    library = Library(tmp_path / "library.jsonl", snapshots=tmp_path / "snapshots")
+    found = library.search(scope="example")
+    assert [(a.title, a.kind, a.group, a.specimen_now()) for a in found] == [
+        ("Human cells · David Root (CC0)", "still", "example", "human cells")]
+    placed = found[0].path
+    assert placed == tmp_path / "snapshots" / "examples" / examples.GUIDE / "human_mitosis.png"  # where the bridge plays
+    assert placed.read_bytes() == examples.human_mitosis(preview=True).read_bytes()
+    assert library.search(scope="mine") == []  # an example, not the user's own, until a session uses it
+    # The walkthrough (onboarding.py) opens this same asset: one id, listed once, kept across a restart.
+    aid = library.register(examples.KEY, placed, title=examples.TITLE, at=0, origin=None, group="example")
+    assert aid == found[0].id and [a.id for a in library.search(scope="example")] == [aid]
+    again = Library(tmp_path / "library.jsonl", snapshots=tmp_path / "snapshots")
+    assert [a.id for a in again.search(scope="example")] == [aid]
+    placed.unlink()  # its copy lost: put back where it was, same asset
+    assert [(a.id, a.path.is_file()) for a in Library(tmp_path / "library.jsonl", snapshots=tmp_path / "snapshots")
+            .search(scope="example")] == [(aid, True)]
+    web = create_app("http://127.0.0.1:1", use_gpu=False, paths=Paths.under(tmp_path / "home"))
+    web.state.hub.library = library
+    body = TestClient(web).get("/api/library", params={"scope": "example"}).json()
+    assert body["count"] == 1 and [(s["name"], s["count"]) for s in body["specimens"]] == [("human cells", 1)]
 
 
 # --- after the first live try (2026-10-12 18:20) ---------------------------------------------------------------

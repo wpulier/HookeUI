@@ -122,8 +122,12 @@ establish ownership across a Project switch.
       - **Yours:** the user's own (`GET /api/library?scope=mine`), and the examples a session has used (`Library.used`,
         the catalogue's sources), newest first, with Recordings and Pictures; Add files and files dropped on the page join
         them, never a session.
-      - **Examples:** the public corpus's recordings (`scope=example`, about 1,500), by specimen inside a category (each
-        with how many; `specimens` on the route), a few dozen at a time with Show more (`offset`, `limit`).
+      - **Examples:** the public corpus's recordings (`scope=example`, about 1,500, once fetched), by specimen inside a
+        category (each with how many; `specimens` on the route), a few dozen at a time with Show more (`offset`, `limit`).
+        The example that comes with the app (`examples.py`, Human cells) is there from the first launch, so the empty
+        Stage's "open the examples in the Library" is true before any download: `Library._bundled` copies it to
+        `snapshots/examples/human-mitosis-v1/` (a folder the bridge plays from) and registers it once under the
+        walkthrough's key (`examples.KEY`), so the walkthrough opens the same asset.
       - **Categories first** (`categories` on the route: CONTEXT.md "Category"): the library's fixed top level
         (`library.CATEGORIES`) with each one's newest as its cover and how many, "Not sure yet" last (opened at once when
         it is all there is); a category's assets under the names the looks gave them (`category=` on the route).
