@@ -10,7 +10,7 @@ HookeUI runs locally and **requires no Hooke account**.
 
 [Download Stable](https://github.com/wpulier/hookeui.org/releases/latest) ·
 [Download Beta](https://github.com/wpulier/hookeui-beta/releases/latest) ·
-[User guide](docs/guide/index.md) ·
+[User guide](https://hookeui.org/docs/) ·
 [Community](https://hookeui.discourse.group) ·
 [Contribute](#contribute)
 
@@ -113,8 +113,8 @@ the testing guide. Report security issues through the [security policy](SECURITY
 
 ## Learn more
 
-- [User documentation: installation, first image and troubleshooting](docs/guide/index.md)
-- [How to cite HookeUI](docs/guide/citing-and-license.md)
+- [User documentation: installation, first image and troubleshooting](https://hookeui.org/docs/)
+- [How to cite HookeUI](https://hookeui.org/docs/citing-and-license/)
 - [Website, lessons and showcases](https://hookeui.org)
 - [Community discussions](https://hookeui.discourse.group)
 - [Core architecture and optional extensions](docs/CORE-BOUNDARY.md)

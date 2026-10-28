@@ -53,3 +53,12 @@ See [the release policy](packaging/macos/RELEASING.md) for the handoff between r
 
 Community proposals and forks do not imply official endorsement. See
 [the code of conduct](CODE_OF_CONDUCT.md) and [security policy](SECURITY.md).
+
+## User documentation
+
+The maintained user handbook is [Hooke Docs](https://hookeui.org/docs/). Its
+Fumadocs source lives in the official website repository, `hooke-web`, and ships
+with that website. To suggest a correction, open a public issue here with the
+guide URL and proposed change; maintainers apply it to the website. There is no
+second user-guide build in this repository. Architecture notes, API contracts,
+clean-start instructions and component documentation remain beside the core code.
