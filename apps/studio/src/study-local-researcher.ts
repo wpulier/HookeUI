@@ -16,6 +16,8 @@ export function mountLocalStudyResearcher(root:HTMLElement,study:Effort,fetcher:
     for(const item of efforts as {id:string;maximumUsd:number}[]){
       const option=node('option',`${item.id} · reserves $${item.maximumUsd.toFixed(2)}`);option.value=item.id;effort.append(option);
     }
+    // Launch settings belong to this request, not the parent Study's saved prose.
+    form.oninput=event=>event.stopPropagation();
     start.type='submit';form.append(brief,effort,start);box.append(form);let request:string|null=null;
     form.onsubmit=async event=>{event.preventDefault();if(!current()||!brief.value.trim())return;
       request ||= crypto.randomUUID();brief.disabled=effort.disabled=start.disabled=true;notice.textContent='Starting researcher…';
