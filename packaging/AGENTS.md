@@ -124,7 +124,9 @@ qualify an installed large-folder workflow.
   - **Restarts:** door calls ride out a restart (the port is read again) and retry safely with their request key.
     `follow` keeps finding Hooke and says `interrupted` when that's what happened.
   - **Connecting:** the researcher confirms once in Hooke's native dialog. The token goes in the Keychain
-    (`org.hookeui.agent.<channel>`, account = agent kind).
+    (`org.hookeui.agent.<channel>`, account = agent kind for the existing unnamed connection;
+    `kind:name` for `--connection name` / `HOOKE_CONNECTION`). Named selectors are exact and bounded;
+    they never fall back to the unnamed credential. The server `ac_` identity owns attribution.
   - **The skill:** it installs or refreshes the Hooke skill (`.agents/skills/hooke/`, in the snapshot). That never
     touches a connection, and it never replaces a `hooke` folder that lacks Hooke's `.installed-by-hooke` marker.
   - No scientific logic: everything goes through the orchestrator's door (`services/orchestrator/door/`).
