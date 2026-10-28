@@ -111,7 +111,7 @@ describe('Settings → Connected agents', () => {
     ]);
     const settings = new TestElement('section');
     connections.mountSettings(settings as unknown as HTMLElement);
-    await vi.waitFor(() => expect(buttons(settings)).toHaveLength(2));
+    await vi.waitFor(() => expect(buttons(settings)).toHaveLength(3));
     expect(settings.textContent).not.toContain('Old agent');
     const disconnect = buttons(settings).find(b => b.textContent === 'Disconnect')!;
     await disconnect.onclick();
@@ -119,7 +119,8 @@ describe('Settings → Connected agents', () => {
     expect((calls[1].init?.headers as Record<string, string>)['X-MicroscopeMind']).toBe('agent-connections');
     expect(settings.textContent).toContain('No agent is connected');
     // The channel's own page (found on a fresh Mac: Beta pointed at Stable's page, which isn't there yet).
-    expect(settings.textContent).toContain('fetch hookeui.org/get-started-beta.md');
+    expect(settings.textContent).toContain('Use Copy setup prompt');
+    expect(settings.textContent).not.toContain('fetch hookeui.org');
   });
 
   it('shows only a hookeui.org page as the one to follow, and the time each agent connected', () => {
@@ -143,5 +144,82 @@ describe('in the Mac app', () => {
     expect(calls).toEqual([]);  // the workspace sends no answer of its own
     connections.apply({ pending: [pending()], connections: [] });
     expect(posted).toHaveLength(1);  // asked once
+  });
+});
+
+
+describe('Project connection entrance', () => {
+  it('shows confirmed connections, not pending/revoked clients or a claim of Project permission', () => {
+    const { connections } = rig(); const host = new TestElement('div'); const manage = vi.fn();
+    connections.mountEntry(host as unknown as HTMLElement, manage, () => 'p1');
+    expect(host.textContent).toContain('Checking agent connections');
+    connections.apply({ pending: [], connections: [
+      { id: 'ac_1', label: 'Research orchestrator', kind: 'other', at: 1, revokedAt: null },
+      { id: 'ac_2', label: 'Old client', kind: 'other', at: 1, revokedAt: 2 },
+    ] });
+    expect(host.textContent).toContain('Connected to Hooke: Research orchestrator');
+    expect(host.textContent).not.toContain('Old client');
+    expect(host.textContent).toContain('Project access is managed separately');
+    buttons(host).find(b => b.textContent === 'Manage connections')!.onclick(); expect(manage).toHaveBeenCalledOnce();
+    connections.apply({ pending: [], connections: [] });
+    expect(host.textContent).toContain('Continue with your own agent');
+  });
+
+  it('copies the returned channel and captured Project without sending work or changing grants', async () => {
+    const { connections, calls } = rig([{ ok: true, body: { pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' } }]);
+    const writeText = vi.fn(async (_text: string) => {}); vi.stubGlobal('navigator', { clipboard: { writeText } });
+    let project = 'p1'; const host = new TestElement('div');
+    connections.mountEntry(host as unknown as HTMLElement, () => {}, () => project);
+    project = 'p2'; await buttons(host)[0].onclick();
+    expect(writeText.mock.calls[0][0]).toContain('https://hookeui.org/get-started-beta.md');
+    expect(writeText.mock.calls[0][0]).toContain('existing Project p2');
+    expect(writeText.mock.calls[0][0]).toContain('Do not create a replacement Project');
+    expect(calls).toHaveLength(1); expect(calls[0].init?.method).toBeUndefined();
+    expect(host.textContent).toContain('nothing has been sent');
+  });
+
+  it('ignores an older copy reply after copying for the next Project', async () => {
+    const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
+    const replies: Array<(value: Response) => void> = [];
+    const request = vi.fn(() => new Promise<Response>(resolve => replies.push(resolve)));
+    const connections = new AgentConnections(request as unknown as typeof fetch);
+    const writeText = vi.fn(async (_text: string) => {}); vi.stubGlobal('navigator', { clipboard: { writeText } });
+    let project = 'p1'; const host = new TestElement('div');
+    connections.mountEntry(host as unknown as HTMLElement, () => {}, () => project);
+    const first = buttons(host)[0].onclick(); project = 'p2'; const second = buttons(host)[0].onclick();
+    const response = () => ({ ok: true, json: async () => ({ pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' }) }) as Response;
+    replies[1](response()); await second; replies[0](response()); await first;
+    expect(writeText).toHaveBeenCalledOnce(); expect(writeText.mock.calls[0][0]).toContain('existing Project p2');
+  });
+
+  it('offers selectable text when clipboard permission is unavailable', async () => {
+    const { connections } = rig([{ ok: true, body: { pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' } }]);
+    vi.stubGlobal('navigator', { clipboard: { writeText: async () => { throw new Error('denied'); } } });
+    const host = new TestElement('div'); connections.mountEntry(host as unknown as HTMLElement, () => {}, () => 'p1');
+    const group = host.children[0].children[2].children[0];
+    const field = group.children[1] as TestElement & { select: () => void; focus: () => void; value: string; hidden: boolean };
+    field.select = vi.fn(); field.focus = vi.fn();
+    await buttons(host)[0].onclick();
+    expect(field.hidden).toBe(false); expect(field.value).toContain('existing Project p1');
+    expect(field.select).toHaveBeenCalledOnce(); expect(host.textContent).toContain('Copy the selected prompt');
+  });
+
+  it('keeps development setup separate from installed channels', async () => {
+    const { connections } = rig([{ ok: true, body: { pending: [], connections: [], channel: 'development', playbook: 'https://hookeui.org/get-started.md' } }]);
+    const writeText = vi.fn(async (_text: string) => {}); vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const host = new TestElement('div'); connections.mountEntry(host as unknown as HTMLElement, () => {}, () => 'p1');
+    await buttons(host)[0].onclick();
+    expect(writeText.mock.calls[0][0]).toContain('Do not install or switch to Stable or Beta');
+    expect(writeText.mock.calls[0][0]).not.toContain('Fetch https');
+  });
+
+  it('refuses unavailable setup and reports an unreadable connection state without claiming none', async () => {
+    const { connections } = rig([{ ok: false, body: {} }, { ok: true, body: { pending: [], connections: [] } }]);
+    const writeText = vi.fn(); vi.stubGlobal('navigator', { clipboard: { writeText } });
+    const host = new TestElement('div'); connections.mountEntry(host as unknown as HTMLElement, () => {}, () => 'p1');
+    await expect(connections.refresh()).rejects.toThrow();
+    expect(host.textContent).toContain('Connection status unavailable');
+    await buttons(host)[0].onclick();
+    expect(host.textContent).toContain('has not supplied setup instructions'); expect(writeText).not.toHaveBeenCalled();
   });
 });

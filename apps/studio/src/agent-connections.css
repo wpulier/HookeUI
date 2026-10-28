@@ -22,3 +22,13 @@
 .agent-connections-settings li {display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;}
 .agent-connections-settings .agent-name {font-weight:600;}
 .agent-connections-settings .agent-when {color:var(--muted,#aaa);font-size:13px;margin-right:auto;}
+
+.agent-project-entry {margin:12px 20px;padding:12px 14px;border:1px solid var(--mm-border,#ffffff22);border-radius:16px;font-size:13px;}
+.agent-project-entry p {margin:0 0 8px;line-height:1.4;overflow-wrap:anywhere;}
+.agent-project-entry .agent-entry-hint {color:var(--mm-text-2,#aaa);font-size:12px;}
+.agent-entry-actions {display:flex;flex-wrap:wrap;align-items:start;gap:8px;}
+.agent-project-entry button {font:inherit;color:inherit;background:var(--mm-surface,#ffffff08);border:1px solid var(--mm-border,#ffffff22);border-radius:20px;padding:8px 12px;cursor:pointer;}
+.agent-project-entry button:focus-visible {outline:2px solid var(--accent,#a9c9ff);outline-offset:3px;}
+.agent-setup-control {display:grid;gap:6px;max-width:100%;}
+.agent-setup-control span {font-size:12px;color:var(--mm-text-2,#aaa);}
+.agent-setup-control textarea {box-sizing:border-box;width:100%;min-height:100px;}

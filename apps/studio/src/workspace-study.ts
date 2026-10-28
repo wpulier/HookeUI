@@ -2029,10 +2029,16 @@ for(const starter of find('starters').querySelectorAll<HTMLElement>('button[data
   const words=el('span');words.append(el('strong','',starter.querySelector('strong')?.textContent??''),el('small','',starter.querySelector('span')?.textContent??''));
   item.append(words);assistantExamples.append(item);
 }
-assistantOff.append(el('h3','','The Assistant, at your microscope'),
-  el('p','','In your own Projects it looks at your specimen, runs models on it and starts researchers. This example stays on this Mac, so it is off here.'),
-  assistantExamples,button('Start a Project',()=>void changeSession(),'mm-primary'));
+assistantOff.append(el('h3','','This example Project'),
+  el('p','','Your example inputs and results are kept here. You can inspect them with the local tools. The Assistant is off in this example to keep it local; open another Project to use it.'),
+  assistantExamples,button('Open your Projects',()=>bridge.navigate('#sessions'),'mm-primary'));
 find('starters').before(assistantOff);
+const agentEntry = el('div');
+find('starters').before(agentEntry);
+agentConnections.mountEntry(agentEntry, () => {
+  bridge.navigate('#settings');
+  requestAnimationFrame(() => settings.querySelector<HTMLElement>('.agent-connections-settings')?.scrollIntoView({ block: 'start' }));
+}, () => snapshot.session || undefined);
 function renderAgentScope(using: { name: string; thumb?: string; none: boolean }, output: string): void {
   const local = !!snapshot.session && snapshot.session === exampleProject();
   const scientific = scientificAskSelection();
