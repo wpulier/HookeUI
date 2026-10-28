@@ -237,27 +237,40 @@ def test_tools_need_a_connection_and_answer_in_the_shared_shape(door, monkeypatc
     refused(client.get("/api/agent/v1/tools", headers=bearer(token)), 503, "catalog-unreadable")
 
 
-def test_the_real_listing_is_everything_hooke_can_run_in_the_shared_shape(tmp_path):
-    """The listing names no capability: it is whatever this Hooke has (the one list's agent rows and the catalog's
-    proven entries), each described from its own declaration, in contract/agent/capability.schema.json's shape. A tool
-    that changes a setting is never offered, by the property it declares (Tool.sets), never by name."""
-    from orchestrator.door.listing import changes_settings, everything
+def test_the_real_listing_is_everything_an_agent_may_run_in_the_shared_shape(tmp_path):
+    """The listing names no capability: it is whatever this Hooke has, each described from its own declaration, in
+    contract/agent/capability.schema.json's shape, limited to tools declared runnable for agents (default no) and never
+    one that changes a setting. Where each runs is said; cloud work is listed but not runnable through the door."""
+    from orchestrator import agent_runnable
+    from orchestrator.door.listing import LOCAL_ONLY, changes_settings, everything
     from tests.capability_rig import Rig
     built = Rig(tmp_path).app
+    registry = built.brain.registry
+    # Every tool is declared, one way or the other: a new tool is never offered until someone decides.
+    undeclared = set(registry.tools) - set(agent_runnable.RUNNABLE) - set(agent_runnable.NOT_RUNNABLE)
+    assert not undeclared, f"declare these in orchestrator/agent_runnable.py: {sorted(undeclared)}"
+    assert not set(agent_runnable.RUNNABLE) & set(agent_runnable.NOT_RUNNABLE)
+    assert not [t for t in agent_runnable.RUNNABLE if t in registry.tools and changes_settings(registry.tools[t])]
+
     listed = everything(built, {"revision": "0123456789abcdef", "sourceDigest": "f" * 64})
-    assert len(listed) > 20, len(listed)
+    assert len(listed) > 10, len(listed)
     for tool in listed:
         assert schema.problems(tool, "capability") == [], tool["id"]
+        assert tool["runsOn"] in ("this Mac", "a cloud service", "not known")
+        if tool["runsOn"] != "this Mac":
+            assert tool["state"] == "unavailable" and tool["why"] == LOCAL_ONLY
     ids = [t["id"] for t in listed]
     assert len(set(ids)) == len(ids)
-    assert not set(ids) & set(api.DOOR_ACTIONS)  # the door's own actions never shadow a capability
-    assert any(i.startswith("catalog:") for i in ids)  # what the catalog added
-    assert any(not i.startswith("catalog:") for i in ids)  # what Hooke has built in
-    registry = built.brain.registry
-    setting_rows = [r["id"] for r in built.capability_status()["capabilities"]
-                    if r.get("actor") == "agent" and (r.get("how") or {}).get("tool") in registry.tools
-                    and changes_settings(registry.tools[r["how"]["tool"]])]
-    assert setting_rows and not set(setting_rows) & set(ids)
+    assert not set(ids) & set(api.DOOR_ACTIONS)
+    rows = {r["id"]: r for r in built.capability_status()["capabilities"] if r.get("actor") == "agent"}
+    tool_of = {cid: (r.get("how") or {}).get("tool") for cid, r in rows.items()}
+    assert all(agent_runnable.runnable(tool_of[i]) for i in ids)
+    # Never navigation, presentation, researchers or settings, whatever their kind says.
+    for cid, name in tool_of.items():
+        if name in ("switch_session", "new_session", "show_me", "start_researcher", "set_research_cap", "present"):
+            assert cid not in ids, cid
+    assert any(t["runsOn"] == "this Mac" and t["state"] == "available" for t in listed)
+    assert any(i.startswith("catalog:") for i in ids)
 
 
 def test_the_shared_schemas_load_and_check():

@@ -46,11 +46,15 @@ Never assume a capability exists. Read `hooke tools --json` and choose from it b
 `state`.
 
 - **Bring in their file:** `hooke open '<full path to their image or video>'` adds it to Hooke's library and opens it
-  in a Project of your own. You work there, never in the researcher's open Project.
-- **Run a capability:** `hooke run <id> '<json args>' --key <request key>`.
-  - Use the `id` from `hooke tools`, and make the arguments match its `inputSchema`.
+  in a Project of your own, and prints that Project's id. You work only there, never in the researcher's Projects.
+- **Run a capability:** `hooke run <id> '<json args>' --project <your Project's id> --key <request key>`.
+  - Use the `id` from `hooke tools` (only ones whose `state` is `available`), and give exactly the arguments its
+    `inputSchema` lists.
   - It runs on what your Project has open, follows the work to its end and prints the outcome: what it found, a few
     preview rows when it measured something, and an **Open in Hooke** link.
+  - Through the door only work on this Mac runs. Capabilities that use cloud services (and the researcher's keys and
+    money) are listed with `runsOn` and refused here: the researcher can run those in Hooke.
+  - If Hooke says your Project isn't open, open your file again with `hooke open`.
   - `hooke example` runs the guided example (Hooke's own sample, in its own Project).
 - **When Hooke says `hooke-busy`,** the researcher has their own work open in Hooke, or Talk is on. Hooke never
   changes their screen for you. Tell them, and ask them to open a new empty Project or close Hooke's window.

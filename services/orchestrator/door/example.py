@@ -26,7 +26,7 @@ def _tell_studios(app) -> None:
         client.offer(json.dumps({"type": "onboarding-changed"}))
 
 
-def takeover(app) -> Refused | None:
+def takeover(app, doing: str = "the example") -> Refused | None:
     """Why running the example now would change what the researcher sees, or None when it wouldn't (review B3; the
     plan's "the researcher's view is never taken over"). The example opens its own Project and puts its image on the
     stage, so it runs only when that takes nothing from anyone:
@@ -36,7 +36,7 @@ def takeover(app) -> Refused | None:
     from .. import examples
     voice = getattr(getattr(app, "brain", None), "voice", None)
     if voice is not None and not getattr(voice, "closed", True):
-        return Refused(409, "hooke-busy", "Talk is on in Hooke, and running the example would end it.",
+        return Refused(409, "hooke-busy", f"Talk is on in Hooke, and {doing} would end it.",
                        next="ask the researcher to stop Talk in Hooke, then run the example")
     clients = getattr(getattr(app, "hub", None), "clients", None) or ()
     if not any(getattr(c, "kind", None) == "studio" for c in clients):
@@ -49,9 +49,9 @@ def takeover(app) -> Refused | None:
     if empty:
         return None
     name = getattr(day, "name", "") or "a Project"
-    return Refused(409, "hooke-busy", f"Hooke shows {name!r} with the researcher's work in it, and the example would "
-                   "switch it to the example's own Project.",
-                   next="ask the researcher to open a new empty Project in Hooke (or close Hooke's window), then run it")
+    return Refused(409, "hooke-busy", f"Hooke shows {name!r} with work in it that isn't yours, and {doing} would switch "
+                   "it to a Project of its own.",
+                   next="ask the researcher to open a new empty Project in Hooke (or close Hooke's window), then try again")
 
 
 def page(result: dict, session: str) -> str:

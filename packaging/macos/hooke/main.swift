@@ -16,7 +16,7 @@ let cliVersion = 1        // what the door's status calls minCli
 var words: [String] = []
 var options: [String: String] = [:]
 var flags: Set<String> = []
-let valued: Set<String> = ["agent", "channel", "key", "label"]
+let valued: Set<String> = ["agent", "channel", "key", "label", "project"]
 let switches: Set<String> = ["json", "wait", "follow", "no-skill", "help"]
 do {
     // An option it doesn't know is refused, never ignored: a mistyped --key would otherwise start a fresh request.
@@ -406,6 +406,9 @@ func report(_ operation: [String: Any]) -> Never {
         if let next = outcome["next"] as? String { say("Next: \(next)") }
         if let shown = outcome["shownInHooke"] as? Bool { say(shown ? "Hooke shows it." : "It's saved, but no Hooke window showed it yet.") }
         if let link { say("Open in Hooke: \(link)") }
+        if operation["tool"] as? String == "open", let project = outcome["project"] as? String {
+            say("Your Project: \(project). Run capabilities there with: hooke run <capability> --project \(project)")
+        }
         say("Operation \(operation["id"] ?? "") · request key \(operation["requestKey"] ?? "") (the same key finds this again; it never runs it twice)")
     }
     exit(operation["state"] as? String == "succeeded" ? 0 : 1)
@@ -414,7 +417,9 @@ func report(_ operation: [String: Any]) -> Never {
 func call(_ tool: String, arguments: [String: Any]) -> Never {
     let token = connected()
     let key = options["key"] ?? "\(tool)-\(UUID().uuidString.lowercased())"
-    let reply = door("POST", "api/agent/v1/operations", body: ["tool": tool, "args": arguments, "requestKey": key], token: token)
+    var body: [String: Any] = ["tool": tool, "args": arguments, "requestKey": key]
+    if let project = options["project"] { body["project"] = project }
+    let reply = door("POST", "api/agent/v1/operations", body: body, token: token)
     guard reply.status == 200 || reply.status == 202, let operation = reply.body["operation"] as? [String: Any] else { refused(reply) }
     if reply.body["made"] as? Bool == false && !jsonOutput { say("That request key was already used for this request: following it, not running it again.") }
     report(follow(operation, token: token))
@@ -474,8 +479,8 @@ hooke: use the Hooke app this command ships in, from your coding agent. Every co
   hooke tools [words]                    What Hooke can do here, and what each needs.
   hooke example [--key K]                Run the guided example; prints the result and an Open in Hooke link.
   hooke open <file>                      Add a file to Hooke and open it in a Project of your own.
-  hooke run <capability> ['{json}'] [--key K]
-                                         Run any capability hooke tools lists, on what your Project has open.
+  hooke run <capability> ['{json}'] --project P [--key K]
+                                         Run any capability hooke tools lists, in your Project P (from open).
   hooke operations | operation <id> [--follow] | cancel <id>
   hooke open <page> | open               Show a page (an operation's) in Hooke, or bring Hooke forward.
 

@@ -55,16 +55,15 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - its revision and source digest
   - the interface version with the minimum CLI and skill
   - the connection, whether a studio is open, and the current session
-- `GET tools?q=&page=&perPage=`: **everything this Hooke can run for an agent** (`listing.py`). The door names no
-  capability.
-  - **What's in it:** the one list's agent rows (`App.capability_status()`: `contract/capabilities.json` and the
-    catalog's proven entries, `catalog:<key>`), whatever is configured here, built in or added, local or cloud.
-  - **How each is described:** from its own declaration. A built-in one is described from the Assistant's tool: its
-    parameters' JSON schema, `reads` (a query), `uses` (its models), and outputs from `produces.py`; its generation is
-    the app's source identity. A catalog one is described from its manifest (`contract.describe`).
-  - **State:** `available`, or `unavailable` with why.
-  - **Left out:** a tool that changes a setting or preference (`Tool.sets`, or its `produces` declaration), by that
-    declared property, never by name.
+- `GET tools?q=&page=&perPage=`: **what an agent may run here** (`listing.py`). The door names no capability.
+  - **What's in it:** the one list's agent rows (`App.capabilities_wire()`: `contract/capabilities.json` and the
+    catalog's proven entries, `catalog:<key>`), limited to tools declared runnable for agents in
+    `orchestrator/agent_runnable.py`. The default is no, and a test fails on any undeclared tool. A tool that changes a
+    setting never shows (`Tool.sets`).
+  - **How each is described:** from its own declaration (a tool's parameter schema and `produces`, or a catalog
+    manifest), with `runsOn` (this Mac or a cloud service, read from the models its roles use now) and `cost`.
+  - **State:** cloud work is `unavailable` with `LOCAL_ONLY`. The rows are gathered on the event loop and described in
+    a thread.
 
 ## Operations (`operations.py`, `example.py`, `actor.py`)
 - **Starting work:** `POST operations {tool, args, requestKey}`.
@@ -80,9 +79,14 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   (`DOOR_ACTIONS`):
   - **`open {file}`** (`work.open_file`): the agent's file goes to the library through the camera bridge's own upload,
     then opens on the stage of a new Project of the agent's own (`agents/projects.json`).
-  - **Any listed capability** (`work.run_capability`): admitted with the open Project, what is on its stage and its
-    generation. It runs through `commands.action` as the agent. If what was open changed, it is refused. When it
-    measured something, the outcome carries the table preview and page.
+  - **Any listed capability** (`work.run_capability`):
+    - **Where:** only in a Project the calling connection made (`project`, from `open`), and only while it is open
+      (`own_project`). Otherwise it is refused: `project-required`, `not-your-project` or `project-not-open`.
+    - **Arguments:** exactly the ones its `inputSchema` offers (`bad-arguments`).
+    - **How it runs:** by its own tool through `commands.run_tool`, as the agent. It doesn't go through the Actions
+      path, whose runs read "You".
+    - **Outcome:** when it measured something, a table preview and the page.
+    - **Retries:** a retried request key returns its operation before anything else is checked.
   - **`example`:** the guided example (`onboarding.py` as it is).
     - Its steps: opening the bundled image in its own local-only Project, finding its bright regions (the example's own
       capability: no key, no download), then reading the table.

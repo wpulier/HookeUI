@@ -72,10 +72,16 @@ def app_version() -> str | None:
         return None
 
 
-def listing(built) -> list[dict]:
-    """Everything this Hooke can run for an agent (listing.py): call it on the event loop."""
-    from .listing import everything
-    return everything(built, build_identity())
+async def listing(built) -> list[dict]:
+    """Everything this Hooke may run for an agent (listing.py): gathered on the event loop, described in a thread."""
+    from .listing import describe_all, gather
+    gathered = gather(built)
+    return await asyncio.to_thread(describe_all, gathered, build_identity())
+
+
+async def _listed(built) -> list[dict]:
+    found = listing(built)
+    return await found if hasattr(found, "__await__") else found
 
 
 DOOR_ACTIONS = ("example", "open")  # the door's own actions; every other `tool` is a capability of the listing
@@ -189,7 +195,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
         except Refused as error:
             return _refusal(error)
         try:
-            found = listing(built)
+            found = await _listed(built)
         except Exception as error:  # the list couldn't be read: say so, never an empty list
             return _refusal(Refused(503, "catalog-unreadable", f"What Hooke can do could not be read: {error}",
                                     next="restart Hooke; if it persists, report a problem from Hooke"))
@@ -234,7 +240,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 path = work.checked_file(args.get("file"))
                 if set(args) - {"file"}:
                     raise Refused(400, "bad-request", "open takes only the file's path.", next='send args {"file": "/full/path"}')
-                busy = work.takeover(built)
+                busy = work.takeover(built, c.actor)
                 if busy is not None:
                     raise busy
                 stat = path.stat()
@@ -244,22 +250,34 @@ def register(app, built, studio_origin, header: str) -> Connections:
                     params={"file": str(path)}, request_key=key,
                     work=lambda record, progress: work.open_file(built, record, progress, str(path)))
             else:
-                listed = {t["id"]: t for t in listing(built)}
+                project = value.get("project")
+                again = operations.known(key, tool, args)  # a retry finds its work before anything else is checked
+                if again is not None:
+                    return _no_store({"ok": True, "operation": again, "made": False})
+                listed = {t["id"]: t for t in await _listed(built)}
                 found = listed.get(tool)
                 if found is None:
                     raise Refused(404, "unknown-capability", f"This Hooke has no capability {tool!r} an agent can run.",
                                   next="list what it has with GET tools")
                 if found["state"] != "available":
-                    raise Refused(409, "not-ready", f"{found['name']} can't run here now: {found.get('why') or found['state']}.",
-                                  next=found.get("next") or "set it up in Hooke's Toolbox, then try again")
-                busy = work.takeover(built)
-                if busy is not None:
-                    raise busy
+                    raise Refused(409, "not-ready", f"{found['name']} can't run through the door now: {found.get('why') or found['state']}",
+                                  next=found.get("next") or "the researcher can run or set it up in Hooke")
+                work.check_args(found["inputSchema"], args)
+                refused = work.own_project(built, project, c.actor)
+                if refused is not None:
+                    raise refused
+                row = next((r for r in built.capability_status()["capabilities"] if r.get("id") == tool), None)
+                how = (row or {}).get("how") or {}
+                if not how.get("tool"):
+                    raise Refused(409, "unknown-capability", f"{tool!r} isn't on Hooke's list any more.",
+                                  next="list what it has with GET tools")
+                name, preset = how["tool"], dict(how.get("args") or {})
                 record, made = await operations.admit(
-                    by=c.actor, label=c.label, tool=tool, project=built.day.sid,
+                    by=c.actor, label=c.label, tool=tool, project=project,
                     input_revision=getattr(built.day, "on_stage", None), generation=found["generation"],
                     params=args, request_key=key,
-                    work=lambda record, progress: work.run_capability(built, record, progress, tool, args))
+                    work=lambda record, progress: work.run_capability(built, {**record, "capabilityName": found["name"]},
+                                                                      progress, name, preset, args))
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)

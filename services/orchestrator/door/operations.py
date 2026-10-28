@@ -179,6 +179,18 @@ class Operations:
         finally:
             self._tasks.pop(record["id"], None)
 
+    def known(self, request_key, tool: str, params: dict) -> dict | None:
+        """An operation already admitted under this key, for a retry: the same tool and parameters return it before
+        anything else is checked (a retry while Hooke is busy finds its work, never a refusal); anything else under the
+        key is a conflict. None for a key not seen."""
+        record = self._records.get(self._keys.get(request_key)) if isinstance(request_key, str) else None
+        if record is None:
+            return None
+        if record["tool"] != tool or record.get("params") != params:
+            raise Refused(409, "request-key-conflict", "That request key was already used for a different request.",
+                          next="use a new request key for a new request")
+        return wire(record)
+
     def get(self, op_id: str) -> dict:
         record = self._records.get(op_id)
         if record is None:

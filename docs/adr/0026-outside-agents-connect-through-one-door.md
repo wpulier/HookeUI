@@ -37,19 +37,24 @@
 - **Disconnect is final for that connection.** Disconnecting in Hooke revokes it at once. The next call is refused
   with "disconnected in Hooke". Only a new `hooke connect` with a new confirm restores access, and nothing reconnects
   on its own. Refreshing the Hooke skill (`hooke skill update`) touches no connection.
-- **What a connection may do.** It may list everything this Hooke can run and run it, and it may open its own files.
+- **What a connection may do.** It may list what an agent may run here, run it in a Project of its own, and open its
+  own pictures and videos.
   - **The listing** (`door/listing.py`) names no capability. It is whatever this researcher's Hooke has, built in or
-    added, local or cloud: every agent capability of the one list, each described from its own declaration. A tool
-    that changes a setting or preference (`Tool.sets`, or its `produces` declaration) isn't offered, by that declared
-    property, never by a name.
-  - **Opening and running** (`door/work.py`): `open` adds the agent's file to the library and opens it in a Project of
-    the agent's own. Running a listed capability uses the Actions panel's path on that Project's stage. Both change
-    the stage, so both run only when the researcher's own work isn't on screen.
+    added, each described from its own declaration.
+  - **Default no:** a tool is offered only if `orchestrator/agent_runnable.py` declares it runnable for agents: it
+    makes scientific data in the agent's Project, or reads it. Settings, navigation between Projects, what a window
+    presents, researchers, conversations, the researcher's other Projects and downloads are declared not runnable. A
+    test fails on any undeclared tool.
+  - **Local only.** Where each capability runs is read from the models it runs with now (`runsOn`). Anything using a
+    cloud service, which means the researcher's keys and money, is listed but refused through the door. The door never
+    authorizes paid work by itself.
+  - **Only the agent's own Project.** `open` adds the agent's picture or video to the library and opens it in a new
+    Project recorded as that connection's. `run` names that Project by id and runs only while it is the open one,
+    never in the researcher's Projects or in whatever happens to be open. It runs by the capability's own tool, as the
+    agent, with exactly the arguments its schema offers.
   - **What the door has no route to:** API keys, settings and other channels. An agent that also runs commands on the
-    Mac has the researcher's own access to their files, as any program they run does: the door neither adds that nor
-    takes it away. Each channel (Stable, Beta) keeps its own
-  data home and so its own connections. Trusting a community channel (unreviewed code) still takes a click in Hooke
-  (ADR 0021).
+    Mac has the researcher's own access to their files, as any program they run does; `open` adds nothing it couldn't
+    already read.
 - **Every door request is checked:**
   - The orchestrator listens on 127.0.0.1 only.
   - The Host header must name a loopback host (DNS rebinding).

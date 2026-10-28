@@ -5,8 +5,9 @@
 - `run`: any capability of the listing (listing.py), run the way the Actions panel runs one (`commands.action`), on the
   stage of the open Project, recorded as the agent's.
 
-Both change the stage, so both take the takeover guard: they run only when no Hooke window shows the researcher's own
-work and Talk isn't live, or when the open Project is one an agent made (`agent_projects`).
+`open` changes the stage, so it runs only when no Hooke window shows the researcher's own work and Talk isn't live
+(example.takeover). `run` acts only in a Project the calling agent made, named by id and open (`own_project`), never in
+the researcher's own or in whatever happens to be open.
 """
 from __future__ import annotations
 
@@ -18,6 +19,8 @@ from pathlib import Path
 from .connections import Refused
 
 MOST_BYTES = 4 * 1024 ** 3
+PICTURES_AND_VIDEO = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif", ".webp", ".heic", ".mov", ".mp4", ".m4v",
+                      ".avi", ".mkv"}
 PREVIEW_ROWS = 5
 
 
@@ -47,16 +50,39 @@ def _remember_project(app, sid: str, actor: str) -> None:
     temporary.replace(path)
 
 
-def takeover(app) -> Refused | None:
-    """None when changing the stage takes nothing from the researcher: the example's rule (example.takeover), and also
-    any Project an agent made."""
+def owned(app, sid: str, actor: str) -> bool:
+    return (agent_projects(app).get(sid) or {}).get("by") == actor
+
+
+def _talk_live(app) -> Refused | None:
+    voice = getattr(getattr(app, "brain", None), "voice", None)
+    if voice is not None and not getattr(voice, "closed", True):
+        return Refused(409, "hooke-busy", "Talk is on in Hooke.", next="ask the researcher to stop Talk, then try again")
+    return None
+
+
+def takeover(app, actor: str | None = None) -> Refused | None:
+    """For `open`: changing the stage must take nothing from the researcher (example.takeover's rule). Leaving a Project
+    this agent made is leaving its own work, so that is fine too."""
     from .example import takeover as example_takeover
-    if getattr(app.day, "sid", None) in agent_projects(app):
-        voice = getattr(getattr(app, "brain", None), "voice", None)
-        if voice is not None and not getattr(voice, "closed", True):
-            return Refused(409, "hooke-busy", "Talk is on in Hooke.", next="ask the researcher to stop Talk, then try again")
-        return None
-    return example_takeover(app)
+    if actor is not None and owned(app, getattr(app.day, "sid", ""), actor):
+        return _talk_live(app)
+    return example_takeover(app, doing="opening your file")
+
+
+def own_project(app, project, actor: str) -> Refused | None:
+    """For `run`: it acts only in a Project this agent made (named by id, owned by its connection), and only while that
+    Project is the one open. Never the researcher's, never whatever happens to be open."""
+    if not isinstance(project, str) or not project:
+        return Refused(400, "project-required", "Say which of your Projects to run it in.",
+                       next="open a file with hooke open, then pass its Project with --project")
+    if not owned(app, project, actor):
+        return Refused(403, "not-your-project", "That isn't a Project you made, so nothing runs there.",
+                       next="open a file with hooke open: it makes a Project of your own")
+    if getattr(app.day, "sid", None) != project:
+        return Refused(409, "project-not-open", "Your Project isn't the one open in Hooke now.",
+                       next="open your file again with hooke open, then run it in the new Project")
+    return _talk_live(app)
 
 
 # --- open: the agent's file in a Project of its own ----------------------------------------------------------------------
@@ -67,6 +93,10 @@ def checked_file(raw) -> Path:
     path = Path(raw).expanduser()
     if not path.is_absolute():
         raise Refused(400, "bad-request", "The file's path must be a full path.", next="give the full path, from /")
+    path = path.resolve()  # the file itself, never a link's name
+    if path.suffix.lower() not in PICTURES_AND_VIDEO:
+        raise Refused(400, "not-a-picture", f"{path.name} isn't a picture or video Hooke opens.",
+                      next="open a picture (.png, .jpg, .tif…) or a video (.mov, .mp4…)")
     try:
         if not path.is_file():
             raise Refused(404, "no-such-file", f"There is no file at {path}.", next="check the path")
@@ -117,7 +147,7 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
 
     ACTOR.set(record["by"])
     path = checked_file(raw_path)
-    busy = takeover(app)
+    busy = takeover(app, record["by"]) or _talk_live(app)
     if busy is not None:
         raise busy
     await progress(1, 3, f"Adding {path.name} to Hooke's library")
@@ -129,7 +159,7 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
     if asset is None:
         raise Refused(409, "not-found-after-adding", f"{path.name} was added, but Hooke's library doesn't list it yet.",
                       next="try open again in a moment")
-    busy = takeover(app)  # checked again: the researcher may have opened something meanwhile
+    busy = takeover(app, record["by"]) or _talk_live(app)  # checked again: the researcher may have opened something
     if busy is not None:
         raise busy
     await progress(2, 3, "Opening it in a Project of its own")
@@ -152,40 +182,52 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
 
 # --- run: any listed capability, on the open Project's stage --------------------------------------------------------
 
-async def run_capability(app, record: dict, progress, capability: str, args: dict) -> dict:
+def check_args(schema: dict, args: dict) -> None:
+    """Only the arguments its schema offers (which leaves out what only the researcher may set), with its required ones."""
+    allowed = set((schema or {}).get("properties") or {})
+    extra = sorted(set(args) - allowed)
+    if extra:
+        raise Refused(400, "bad-arguments", f"It takes no argument {', '.join(extra)}.",
+                      next="send only the arguments its inputSchema lists")
+    missing = [k for k in (schema or {}).get("required") or () if k not in args]
+    if missing:
+        raise Refused(400, "bad-arguments", f"It needs {', '.join(missing)}.", next="send the arguments its inputSchema requires")
+
+
+async def run_capability(app, record: dict, progress, tool: str, preset: dict, args: dict) -> dict:
+    """A listed capability, run by its tool as the agent (never as the researcher's own hand), in the agent's Project."""
     from .. import commands
-    from ..brain.registry import ToolFailed
-    from ..tables import TableRefused, read_table
+    from ..tables import TableRefused, made_words_async, read_table
     from .actor import ACTOR
 
     ACTOR.set(record["by"])
-    if app.day.sid != record["project"] or app.day.on_stage != record.get("inputRevision"):
-        raise Refused(409, "input-changed", "What this was asked to run on is no longer open in Hooke.",
+    refused = own_project(app, record["project"], record["by"])
+    if refused is not None:
+        raise refused
+    if app.day.on_stage != record.get("inputRevision"):
+        raise Refused(409, "input-changed", "What this was asked to run on is no longer on your Project's stage.",
                       next="open the input again, then ask with a new request key")
-    busy = takeover(app)
-    if busy is not None:
-        raise busy
-    await progress(1, 2, f"Running {record.get('name') or capability}")
-    try:
-        done = await commands.action(app, None, {"capability": capability, "args": args})
-    except ToolFailed as error:
-        raise Refused(409, "failed", error.summary if hasattr(error, "summary") else str(error),
-                      next=getattr(error, "next", None) or "check Hooke's Activity") from None
-    except Exception as error:  # the tools' own refusals (tools.ToolError and others), said in their words
-        raise Refused(409, "failed", str(error) or type(error).__name__,
-                      next=getattr(error, "next", None) or "check Hooke's Activity") from None
-    outcome = {"says": str(done.get("said") or done.get("summary") or "Done."), "project": record["project"],
+    await progress(1, 2, f"Running {record.get('capabilityName') or 'it'}")
+    tool_args = {**preset, "params": args} if tool == "run_capability" else {**preset, **args}
+    done = await commands.run_tool(app, tool, tool_args)
+    if not done.get("ok"):
+        raise Refused(409, "failed", str(done.get("summary") or done.get("error") or "It didn't work."),
+                      next="check Hooke's Activity")
+    outcome = {"says": str(done.get("summary") or "Done."), "project": record["project"],
                "executions": list(done.get("executions") or [])}
-    table, identity = done.get("table"), done.get("tableIdentity") or {}
-    if isinstance(table, str) and identity.get("session") and identity.get("revision") is not None:
-        await progress(2, 2, "Reading what it measured")
-        outcome["result"] = {"id": table, "revision": identity["revision"]}
-        outcome["page"] = f"#measurements/{table}?session={identity['session']}&revision={identity['revision']}"
-        try:
-            read = await read_table(app, table, identity["session"], identity["revision"])
-            rows = read.get("rows") or []
-            outcome.update({"count": read.get("count", len(rows)), "columns": read.get("columns") or [],
-                            "preview": rows[:PREVIEW_ROWS], "truncated": len(rows) > PREVIEW_ROWS})
-        except TableRefused as error:
-            outcome["note"] = f"Its table couldn't be read back: {error}"
+    plain = await made_words_async(app.hub, outcome["executions"])
+    if plain:
+        said, table, identity = plain
+        outcome["says"] = said
+        if isinstance(table, str) and identity.get("session") and identity.get("revision") is not None:
+            await progress(2, 2, "Reading what it measured")
+            outcome["result"] = {"id": table, "revision": identity["revision"]}
+            outcome["page"] = f"#measurements/{table}?session={identity['session']}&revision={identity['revision']}"
+            try:
+                read = await read_table(app, table, identity["session"], identity["revision"])
+                rows = read.get("rows") or []
+                outcome.update({"count": read.get("count", len(rows)), "columns": read.get("columns") or [],
+                                "preview": rows[:PREVIEW_ROWS], "truncated": len(rows) > PREVIEW_ROWS})
+            except TableRefused as error:
+                outcome["note"] = f"Its table couldn't be read back: {error}"
     return outcome
