@@ -6,7 +6,7 @@ import { expectSideMotion, holdUntilLanded, playSideMotion, sideLeaving, sideTra
 import { mountAppUpdates } from './app-updates';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, projectRowWords, rowView, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -1168,8 +1168,13 @@ const sessionBrowser=el('section','study-session-browser');
 const sessionSearch=el('input');sessionSearch.type='search';sessionSearch.placeholder='Search projects';sessionSearch.setAttribute('aria-label','Search projects');
 const sessionList=el('div','study-session-list');
 sessionSearch.addEventListener('input',renderSessionBrowser);
-sessionBrowser.append(sessionSearch,button('+ New project',()=>void changeSession()),sessionList);surfaces.pages.set('sessions',sessionBrowser);
+// Where every Project is saved, with Show in Finder (thesis question 12; sessions.ts `savedWhereWords`).
+const sessionSaved=el('p','study-session-saved');const sessionSavedWords=el('span');
+const sessionReveal=button('Show in Finder',()=>void bridge.request('sessions-reveal',{}).catch((error:unknown)=>{sessionSavedWords.textContent=error instanceof Error?error.message:String(error);}),'mm-control');
+sessionSaved.append(sessionSavedWords,' · ',sessionReveal);sessionSaved.hidden=true;
+sessionBrowser.append(sessionSearch,button('+ New project',()=>void changeSession()),sessionSaved,sessionList);surfaces.pages.set('sessions',sessionBrowser);
 function renderSessionBrowser():void {
+  sessionSavedWords.textContent=savedWhereWords(snapshot.projectsRoot);sessionSaved.hidden=!snapshot.projectsRoot;
   sessionList.replaceChildren();
   const query=sessionSearch.value.toLowerCase();
   for(const row of snapshot.projects.filter(row=>(sessionName(row, Date.now()/1000)).toLowerCase().includes(query))){
@@ -2206,7 +2211,7 @@ bridge.subscribe(next => {
       image.src = `/api/library/${encodeURIComponent(asset.id)}/file`;
     }
   }
-  const key = JSON.stringify([next.session, next.title, next.sources, next.projects]);
+  const key = JSON.stringify([next.session, next.title, next.sources, next.projects, next.projectsRoot]);
   if (next.session !== previous.session) { entries = []; resourceRevision = ''; madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
   // Data's Pictures and recordings are the Project's inputs, and "On this Tab" marks the one on the Stage: drawn again
   // when either changes.

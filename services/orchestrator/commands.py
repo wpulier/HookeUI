@@ -3052,6 +3052,20 @@ async def dataset_reveal(app, client, msg) -> dict:
     return {"ok": True, "path": str(folder)}
 
 
+@command("sessions-reveal")
+async def sessions_reveal(app, client, msg) -> dict:
+    """The Projects page's Show in Finder: the folder every Project is saved in (`app.paths.sessions`, the sessions
+    wire's `root`), shown in the Finder as dataset-reveal shows a dataset's (thesis question 12)."""
+    import subprocess
+    import sys
+
+    folder = app.paths.sessions
+    if sys.platform != "darwin":
+        return {"ok": False, "error": f"the folder is {folder}", "path": str(folder)}
+    subprocess.Popen(["open", "-R", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {"ok": True, "path": str(folder)}
+
+
 # --- researchers --------------------------------------------------------------------------------
 @command('research-open-capture')
 async def research_open_capture(app, client, msg) -> dict:

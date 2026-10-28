@@ -104,3 +104,15 @@ test('a session that could not be opened or started is said on the page, as the 
   expect(error().textContent).toBe('That project did not open. Try again.');
   expect(error().hidden).toBe(false);
 });
+
+// Thesis question 12 (ticket 67, fix 10): the page says where Projects are saved, and Show in Finder asks the server.
+test('the page says where every project is saved, with Show in Finder', () => {
+  const { root, view, model, sent } = page();
+  view.show();
+  expect(view.saved.hidden).toBe(true); // an older server names no folder: nothing is said
+  model.applyList({ ...list('a', [row('a', { name: 'Leaf' })]), root: '~/MicroscopeMind/sessions' });
+  expect(view.saved.hidden).toBe(false);
+  expect((root as SessionNode).textContent).toContain('Saved in ~/MicroscopeMind/sessions');
+  fire(view.reveal as unknown as SessionNode, 'click');
+  expect(sent).toContainEqual({ type: 'sessions-reveal' });
+});

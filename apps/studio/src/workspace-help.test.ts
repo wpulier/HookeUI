@@ -1,7 +1,7 @@
 // Synthetic DOM: what Help offers and where each control leads. Browser evidence is in the L7e PR.
 import { afterEach, expect, test, vi } from 'vitest';
 import { TestElement, fire } from './workspace-windows.test-support';
-import { WHEN_SOMETHING_FAILS, failureHelp, workspaceHelp, type HelpPlaces } from './workspace-help';
+import { WHEN_SOMETHING_FAILS, WHERE_WORK_BELONGS, failureHelp, workspaceHelp, type HelpPlaces } from './workspace-help';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -60,4 +60,11 @@ test('a failure notice offers Help', () => {
   expect(button.textContent).toBe('Help');
   fire(button, 'click');
   expect(open).toHaveBeenCalledTimes(1);
+});
+
+// Thesis question 12 (ticket 67, fix 10): Help says where Projects are saved and where Show in Finder is.
+test('help says where Projects are saved', () => {
+  const project = new Map(WHERE_WORK_BELONGS).get('Project') ?? '';
+  expect(project).toContain('saved on this Mac');
+  expect(project).toContain('Show in Finder');
 });

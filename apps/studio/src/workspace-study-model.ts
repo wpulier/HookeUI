@@ -10,6 +10,8 @@ export interface StudySnapshot {
   session: string;
   title: string;
   projects: SessionRow[];
+  /** Where every Project is saved on this Mac, with ~ (the sessions wire's `root`), for All projects' Show in Finder. */
+  projectsRoot?: string;
   sources: AssetMeta[];
   source: AssetMeta | null;
   onStage: string | null;

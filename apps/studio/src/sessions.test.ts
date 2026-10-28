@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   chipSubWords, chipView, countWords, dayLabel, daysAgo, factsLine, groupByDay, lastUsedWords, monthDay, READ_FAILED, rowView,
-  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords } from './sessions';
+  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords, savedWhereWords } from './sessions';
 import type { ClientCommand } from './protocol';
 import { at, list, NOW, row, state } from './sessions.test-support';
 
@@ -239,5 +239,22 @@ describe('a Project row in the Projects list', () => {
     expect(projectRowWords({ sources: 1, made: 0, researchers: 0, conversations: 1 }, false)).toBe('1 input · 1 conversation');
     expect(projectRowWords({ sources: 2, made: 3, researchers: 0, conversations: 4 }, true)).toBe('2 inputs · 3 results · 4 conversations · Open project');
     expect(projectRowWords(undefined, false)).toBe('0 conversations');
+  });
+});
+
+// Thesis question 12 (ticket 67, fix 10): where Projects are saved, said on the Projects page with Show in Finder.
+describe('where Projects are saved', () => {
+  test('says the folder the server names, and nothing when an older server names none', () => {
+    expect(savedWhereWords('~/MicroscopeMind/sessions')).toBe('Saved in ~/MicroscopeMind/sessions');
+    expect(savedWhereWords(undefined)).toBe('');
+  });
+  test('the model reads it from the list and asks the Finder to show it', () => {
+    const sent: ClientCommand[] = [];
+    const model = new SessionsModel((command) => { sent.push(command); return true; }, () => NOW * 1000);
+    expect(model.root()).toBe('');
+    model.applyList({ ...list('a', []), root: '~/MicroscopeMind/sessions' });
+    expect(model.root()).toBe('~/MicroscopeMind/sessions');
+    expect(model.reveal()).toBe(true);
+    expect(sent).toEqual([{ type: 'sessions-reveal' }]);
   });
 });
