@@ -106,7 +106,8 @@ describe('Settings → Connected agents', () => {
     const { connections, calls } = rig([
       { ok: true, body: { ok: true, pending: [], connections: [live, gone] } },
       { ok: true, body: { ok: true } },
-      { ok: true, body: { ok: true, pending: [], connections: [{ ...live, revokedAt: 1_800_000_000 }, gone] } },
+      { ok: true, body: { ok: true, pending: [], connections: [{ ...live, revokedAt: 1_800_000_000 }, gone],
+                          playbook: 'https://hookeui.org/get-started-beta.md' } },
     ]);
     const settings = new TestElement('section');
     connections.mountSettings(settings as unknown as HTMLElement);
@@ -117,6 +118,17 @@ describe('Settings → Connected agents', () => {
     expect(calls[1].url).toBe('/api/agent-connections/ac_1/disconnect');
     expect((calls[1].init?.headers as Record<string, string>)['X-MicroscopeMind']).toBe('agent-connections');
     expect(settings.textContent).toContain('No agent is connected');
+    // The channel's own page (found on a fresh Mac: Beta pointed at Stable's page, which isn't there yet).
+    expect(settings.textContent).toContain('fetch hookeui.org/get-started-beta.md');
+  });
+
+  it('shows only a hookeui.org page as the one to follow, and the time each agent connected', () => {
+    expect(parseAgentConnections({ pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' }).playbook)
+      .toBe('https://hookeui.org/get-started-beta.md');
+    expect(parseAgentConnections({ pending: [], connections: [], playbook: 'https://evil.example/x.md' }).playbook).toBeUndefined();
+    const morning = connectionWords({ id: 'ac_1', label: 'Claude Code', kind: 'claude-code', at: 1_793_207_440, revokedAt: null });
+    const later = connectionWords({ id: 'ac_2', label: 'Claude Code', kind: 'claude-code', at: 1_793_207_440 + 3 * 3600, revokedAt: null });
+    expect(morning).not.toBe(later);
   });
 });
 
