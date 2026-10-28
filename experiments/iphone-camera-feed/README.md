@@ -41,9 +41,9 @@ The native capture helper retains **MicroscopeMind Camera** as its name in macOS
 time, each with a "Stuck?" fold, and ticks each step as it sees it done:
 1. Get the free app: a QR code opens it in the App Store.
 2. Open it, allow the camera, microphone and Local Network, and turn on Settings › Network Access › HTTP Server.
-3. Scan a second QR code to download ObservationUI's settings file (`MicroscopeMind.xml`, its retained compatibility filename), then in the app: Settings › Live Stream ›
+3. Scan a second QR code to download HookeUI's settings file (`MicroscopeMind.xml`, its retained compatibility filename), then in the app: Settings › Live Stream ›
    Platform › Import Stream Settings.
-4. Choose Platform MicroscopeMind (ObservationUI retains the earlier platform name for existing phone settings) and Quality Standard. The picture then comes in by itself, every time the app is open.
+4. Choose Platform MicroscopeMind (HookeUI retains the earlier platform name for existing phone settings) and Quality Standard. The picture then comes in by itself, every time the app is open.
 
 The studio's Phone panel points to this walkthrough until it is done.
 

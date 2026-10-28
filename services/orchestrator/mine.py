@@ -97,7 +97,7 @@ def _toml_value(value) -> str:
 def write_entry(folder: Path, fields: dict, implements: list[dict] | None = None) -> None:
     """The entry's model.toml, written whole (a temporary file renamed into place)."""
     folder.mkdir(parents=True, exist_ok=True)
-    lines = ["# Added by ObservationUI (orchestrator/mine.py). Yours to edit: catalog/README.md says what each key means."]
+    lines = ["# Added by HookeUI (orchestrator/mine.py). Yours to edit: catalog/README.md says what each key means."]
     for key, value in fields.items():
         if key == "files":
             lines.append("files = [")
@@ -194,9 +194,9 @@ def add(source: str, name: str = "", environ: Mapping[str, str] = os.environ) ->
     path = Path(source).expanduser()
     if source.startswith("file://"):
         path = Path(source[len("file://"):])
-    if path.exists() and path.name.endswith(".observationui.zip"):  # a capability someone shared (share.py, C5)
-        from . import share
+    from . import share
 
+    if path.exists() and path.name.endswith(share.SUFFIXES):  # a capability someone shared (share.py, C5)
         try:
             return share.open_file(path, environ)
         except share.CantShare as exc:

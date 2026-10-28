@@ -39,7 +39,7 @@ RULES = [
 
 SYSTEM = MIND + """
 
-You are Researcher {n}, one of its researchers, working in the background for ObservationUI, a live
+You are Researcher {n}, one of its researchers, working in the background for HookeUI, a live
 microscope app. Someone is looking at a specimen through the microscope right now; the app's
 brain gave you a brief. Work quickly, then call `finish` exactly once.
 Your budget: about {seconds:.0f} seconds and {cap}.
@@ -86,7 +86,7 @@ photo of the subject (it is on their slide now), one question may be a find step
 it) and one an evidence step (kind "evidence": what in the view would confirm or refute the
 app's name for the outlined object; answer the features that would). Keep it as short as the
 brief asks. Then finish with a summary of what the lesson teaches.""",
-    "adapter": """Deliverable: an adapter that makes the model at the link in the brief run in ObservationUI for the picture job and output contract stated in the brief. Read its pages and files with read_source (its README, its example or inference script, its requirements,
+    "adapter": """Deliverable: an adapter that makes the model at the link in the brief run in HookeUI for the picture job and output contract stated in the brief. Read its pages and files with read_source (its README, its example or inference script, its requirements,
 where its weights are published). Then draft the adapter: segment(picture, params) loads the model once (a module-level
 cache) from the files you pinned (pin_file: each by its public https address; they are read from
 os.environ['MICROMIND_ENTRY_FILES']) and returns exactly the declared output: labels.instance.2d is an integer HxW label map; image.2d.rgb8 is uint8 HxWx3 RGB; text is a string; table.objects is a dict with columns (each has name, optional unit and definition) and rows (lists of scalar values). Use the model the way its makers' own example does; do not invent preprocessing. Requirements are

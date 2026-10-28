@@ -43,7 +43,7 @@ QUESTION_LOOKS = 6      # at most this many looks a minute because the user star
 MOVING_SHARE = 0.2      # this share of the small things in view moving counts as things moving (movement.py)
 MOTION_FRESH_S = 15.0   # how long a movement reading is told to the voice
 
-SIGHT = """You are the eyes of ObservationUI, a live microscope assistant. The image is what its
+SIGHT = """You are the eyes of HookeUI, a live microscope assistant. The image is what its
 camera sees now; the camera is usually on a light microscope's eyepiece.{context}
 Describe the view so the assistant can talk about it naturally and point at things.
 - "summary": one or two plain sentences on what the view shows (say "likely" when unsure).

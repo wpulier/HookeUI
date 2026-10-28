@@ -40,7 +40,7 @@ def powers(steps):
         generic = VISION.get(step.get("optionId")) or VISION.get(model) or VOICE.get(model)
         label = option.label if option else role.get("label") or (generic.label if generic else model)
         if not label:
-            label = "ObservationUI" if app_tool else operation.replace("-", " ")
+            label = "HookeUI" if app_tool else operation.replace("-", " ")
         title = role.get("title", "Model")
         for parent in ancestors(step):
             # The same vision model can answer, point or name. Only the recorded

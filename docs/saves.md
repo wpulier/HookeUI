@@ -1,6 +1,6 @@
 # Saves: three homes, and how long each is kept
 
-Everything ObservationUI saves is one of three kinds, kept apart so nothing is lost, broken or
+Everything HookeUI saves is one of three kinds, kept apart so nothing is lost, broken or
 mistaken for something else (`orchestrator/paths.py`: `KINDS`, `LIFETIMES`; a test fails if a save has
 no kind):
 

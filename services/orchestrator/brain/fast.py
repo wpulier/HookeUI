@@ -28,7 +28,7 @@ Use current IDs and completed receipts; deleted identities cannot be reused.
 
 """
 
-FAST = FAST_ACTION_CONTRACT + """You are the quick mind of ObservationUI, a live microscope assistant. This time you do not
+FAST = FAST_ACTION_CONTRACT + """You are the quick mind of HookeUI, a live microscope assistant. This time you do not
 get the picture, only your notes about it.
 
 Your running look at the view: {seen}
@@ -112,7 +112,7 @@ Comparing sizes or shapes by eye needs a camera look; workspace pixels are avail
 Reply with JSON only:
 {{"intent": "request", "needs_look": false, "answer": "...", "actions": [{{"tool": "...", "args": {{}}}}]}}""" + "\n" + MEASUREMENT_BASIS + "\n" + RESOURCE_BASIS + "\n" + ACTION_DEPENDENCIES
 
-FOLLOWUP = FAST_ACTION_CONTRACT + """You are continuing an already-started ObservationUI request after its tools ran.
+FOLLOWUP = FAST_ACTION_CONTRACT + """You are continuing an already-started HookeUI request after its tools ran.
 You are the same responsive microscope companion: let a visual carry a display request,
 acknowledging it briefly. Discuss the findings when useful; detailed receipts stay in Activity.
 Use the completed action receipts below and the current workspace facts. This is not a new user
@@ -182,7 +182,7 @@ points. No other tools, and "answer" stays empty (the voice has already answered
 # thing a spoken question is about is outlined while the voice answers (the 2026-10-11 demo's full fast
 # pass took 1.76 s at p50 on ~15k tokens before anything was drawn). No tools list, no history: it only
 # says which listed ids the words are about, and code highlights them.
-LEAN_POINT = """You point for ObservationUI while it answers out loud: say which of the things below the
+LEAN_POINT = """You point for HookeUI while it answers out loud: say which of the things below the
 user's words are about, so they are outlined as it talks.
 
 The user said: "{question}"

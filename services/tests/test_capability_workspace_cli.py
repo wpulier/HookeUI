@@ -49,7 +49,7 @@ def test_cli_derives_packages_and_returns_new_identity_without_activation(item):
     assert contribute.main(["derive", str(source()), item.candidate_id, "--workspace", str(item.folder)]) == 0
     assert contribute.main(["preflight", item.candidate_id, "--workspace", str(item.folder)]) == 0
     assert contribute.main(["package", "--workspace", str(item.folder), "--by", "Test researcher"]) == 0
-    path, = item.folder.glob("*.observationui.zip")
+    path, = item.folder.glob("*.hookeui.zip")
     shared, id_, files = share._read(path)
     assert id_ == item.candidate_id and shared["proof"] == {}
     assert "derived_from" in files["model.toml"].decode()
@@ -206,7 +206,7 @@ def test_packaging_cannot_silently_drop_nested_owned_code(item):
     (folder / "helpers/measure.py").write_text("value = 3\n")
     with pytest.raises(workspaces.WorkspaceError, match="would not travel"):
         workspaces.package(item.id, environ={"MICROMIND_CATALOG": str(item.folder.parent.parent)})
-    assert not list(item.folder.glob("*.observationui.zip"))
+    assert not list(item.folder.glob("*.hookeui.zip"))
 
 
 def test_explicit_mine_source_uses_given_profile_even_when_reviewed_id_matches(item, tmp_path):
@@ -291,7 +291,7 @@ def test_workspace_consumers_refuse_outside_manifest_references(item, tmp_path, 
             workspaces.package(item.id, environ={"MICROMIND_CATALOG": str(item.folder.parent.parent)})
         else:
             capability_test.setup(item.folder / "checks/test/catalog", item.candidate_id, workspace=item.folder)
-    assert not list(item.folder.glob("*.observationui.zip"))
+    assert not list(item.folder.glob("*.hookeui.zip"))
     assert not list((item.folder / "checks").glob("*/catalog/mine/models/*"))
 
 

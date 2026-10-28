@@ -1,6 +1,6 @@
 # The catalog: every model, tool and service, one folder each
 
-Everything ObservationUI can use is a folder here. The app reads these folders to know what exists, what each one does
+Everything HookeUI can use is a folder here. The app reads these folders to know what exists, what each one does
 and takes, what it needs to get and to run, and whether it can run on this machine. The design is
 `docs/design/2026-10-12-the-open-catalog.md`; the decision is ADR 0018.
 
@@ -585,8 +585,8 @@ app's code (`orchestrator/env_runner.py`; InstanSeg's `catalog/models/instanseg-
   card (**Go back to …**, command `model-version`; `env_runner.choose`). The choice is kept beside its environments
   across restarts, the newer one's worker is stopped at once (the register that follows retires a worker whose
   generation is no longer in use) and never used again, and **Use the newest** undoes it.
-- **Made for another version of the app** (`requires`): listed under "Made for another version of ObservationUI" with
-  why ("needs a newer ObservationUI", "made for an older python-env runner"), never run. Runner `python-env`'s contract
+- **Made for another version of the app** (`requires`): listed under "Made for another version of HookeUI" with
+  why ("needs a newer HookeUI", "made for an older python-env runner"), never run. Runner `python-env`'s contract
   (version 1) is `services/env_worker/server.py`'s: the picture in, a label map or polygons out.
 
 Yours can start in `~/MicroscopeMind/catalog/mine/models/<id>/`: Install and its proof work there the same way.
@@ -810,7 +810,7 @@ file** (`orchestrator/share.py`; formats 1, 2, 3 and 4). Private scientific-host
 and independent qualification before public export. The portable paths preserve the existing permission and proof gates:
 
 - **Sharing:** its card's Details has **Share it**: type your name (said where it is opened) and download
-  `<id>.observationui.zip`. It holds the entry's manifest, adapter, lockfile and picture, laid out as a catalog, with
+  `<id>.hookeui.zip` (one named `.observationui.zip`, from before the rename, still opens). It holds the entry's manifest, adapter, lockfile and picture, laid out as a catalog, with
   `SHARED.json` (who, when, its proof here). Applicable `LICENSE`, `LICENCE`, `NOTICE` and `COPYING` siblings (including `.txt`, `.md` and `.rst`) retain their exact bytes; the same file-size and link restrictions apply. **Never its weights:** each is fetched from where its manifest pins it, checked
   by its hash, so one whose weights are only on this Mac is refused with what to do (put them on Hugging Face first).
 - **Sending:** any way you send files: AirDrop, email, a message, a forum post.

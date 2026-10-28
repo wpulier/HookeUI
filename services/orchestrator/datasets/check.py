@@ -85,7 +85,7 @@ def _made_with(folder: Path, summary: dict) -> list[str]:
     if not isinstance(made, list) or not all(isinstance(m, dict) for m in made):
         return ["madeWith is not a list of entries"]
     from ..result_entries import descriptor
-    from ..share import SUFFIX
+    from ..share import STORED_SUFFIX as SUFFIX
 
     out = []
     for named in made:

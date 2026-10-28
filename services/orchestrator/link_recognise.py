@@ -426,7 +426,7 @@ def _description(found: Found, raw: bytes, rdf_file: dict, pin: Callable[[str, s
     kind = "torchscript" if "torchscript" in weights else "onnx" if "onnx" in weights else ""
     if not kind:
         if any(k.startswith(("tensorflow", "keras")) for k in weights):
-            found.why = "its weights need TensorFlow, which ObservationUI doesn't run yet"
+            found.why = "its weights need TensorFlow, which HookeUI doesn't run yet"
         else:
             found.kind = "needs-code"
             found.why = ("its weights need its makers' own architecture code (pytorch_state_dict only): an adapter has to "

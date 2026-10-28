@@ -93,7 +93,7 @@ export function executionContributions(data: ExecutionDetail): ExecutionContribu
       && steps.some(s => s.operation === 'segment' && s.parent === checking.id && positions.get(s.id)! < positions.get(step.id)!);
     if (checksRepair) capability = 'Check repair';
     const label = unidentifiedFailure ? 'Model identity not recorded'
-      : exact?.label ?? labelled.get(identity(step)) ?? step.model ?? (tool || step.provider === 'app' ? 'ObservationUI' : step.operation);
+      : exact?.label ?? labelled.get(identity(step)) ?? step.model ?? (tool || step.provider === 'app' ? 'HookeUI' : step.operation);
     const row: ExecutionContribution = { capability, label,
       provider: step.provider ?? '', outcome: step.outcome, cache: step.cache, stepId: step.id };
     const objectId = step.objectId ?? lineage.find(p => p.objectId)?.objectId;

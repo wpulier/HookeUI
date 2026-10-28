@@ -1810,7 +1810,7 @@ async def model_build(app, client, msg) -> dict:
     if guided and msg.get("session") != app.day.sid:
         await asyncio.to_thread(drafts.finish, did, "refused")
         raise ToolFailed("The session changed; the build did not start", next="reopen Create or adapt with AI")
-    brief = (f"Create a capability in ObservationUI for {own_trials.JOBS[job][0]}. "
+    brief = (f"Create a capability in HookeUI for {own_trials.JOBS[job][0]}. "
              f"Input image.2d.rgb8; output {own_trials.JOBS[job][1]}. Read its pages, pin its weights, draft "
              "its adapter and try it on the retained input, or say plainly why it cannot do this job.")
     brief += "\nUser request and optional source (task context): " + json.dumps({"request": description, "source": link})

@@ -9,7 +9,7 @@ runner = "builtin-cpu"
 source = { made_here = "Bundled application algorithm; no model weights", url = "https://docs.opencv.org/4.x/d7/d4d/tutorial_py_thresholding.html" }
 needs_to_get = []
 needs_to_run = []
-credit = { authors = "ObservationUI contributors; OpenCV contributors", link = "https://opencv.org/" }
+credit = { authors = "HookeUI contributors; OpenCV contributors", link = "https://opencv.org/" }
 component = { what = "OpenCV threshold and connected-component routines", licence = "Apache-2.0 (OpenCV); application adapter follows the application licence", url = "https://github.com/opencv/opencv/blob/4.x/LICENSE", tier = "open" }
 workers = []
 host = "shared"

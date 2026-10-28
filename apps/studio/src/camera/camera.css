@@ -164,7 +164,7 @@ dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 }
 @media (max-width: 560px) {
   .page { width: calc(100% - 24px); padding-top: 12px; }
-  /* The three tabs share their second row and wrap their words; the ObservationUI name stays above them. */
+  /* The three tabs share their second row and wrap their words; the HookeUI name stays above them. */
   .top { grid-template-columns: minmax(0, 1fr) auto; }
   .top-dot { grid-column: 2; grid-row: 1; }
   .sources { grid-column: 1 / -1; grid-row: 2; display: flex; min-width: 0; flex-wrap: wrap; border-radius: 20px; }

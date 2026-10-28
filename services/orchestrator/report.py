@@ -177,7 +177,7 @@ def prepare(key: str, environ: Mapping[str, str] = os.environ) -> dict:
         lines.append(f"Its last install failed: {found['install failed']}")
     mac = found["this Mac"]
     lines.append(f"This Mac: macOS {mac['macOS']}, {mac['chip']}, {mac['edition']} edition")
-    lines.append("(Prepared by ObservationUI's Report it from controlled facts only: no error text, pictures, sessions, "
+    lines.append("(Prepared by HookeUI's Report it from controlled facts only: no error text, pictures, sessions, "
                  "keys or paths are in it.)")
     text = scrub("\n".join(lines), environ)
     url = where(m)

@@ -1,4 +1,4 @@
-# ObservationUI: the words we use
+# HookeUI: the words we use
 
 The domain glossary. Module names use these words, and reviews and plans use them the same way.
 How things are built is in `AGENTS.md` and the files it maps; why some things are the way they are is in `docs/adr/`.
@@ -87,7 +87,7 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 
 ## Seeing and acting
 
-- **Mind**: ObservationUI as one assistant that speaks as "I" (ADR 0016, `prompts.MIND`).
+- **Mind**: HookeUI as one assistant that speaks as "I" (ADR 0016, `prompts.MIND`).
   - **Eyes:** the look.
   - **Voice:** GPT-Live, speaking from what the eyes last saw.
   - **Reflexes:** hands.

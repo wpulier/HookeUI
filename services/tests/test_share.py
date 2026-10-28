@@ -54,6 +54,17 @@ def test_a_capability_travels_as_one_small_file_and_opens_as_a_community_catalog
     assert mine.add(str(path))["says"].endswith("from a file shared earlier")
 
 
+def test_a_shared_file_is_named_for_hookeui_and_one_named_before_the_rename_still_opens(home, monkeypatch, tmp_path):
+    path = share.export(yours(home), by="Maya Okafor")
+    assert path.name == "dark-spots.hookeui.zip"
+    older = tmp_path / "dark-spots.observationui.zip"  # sent by an app from before the rename
+    older.write_bytes(path.read_bytes())
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "another-mac"))
+    catalog.manifests.cache_clear()
+    opened = mine.add(str(older))
+    assert opened["kind"] == "shared" and opened["model"].endswith("/dark-spots") and "Maya Okafor" in opened["says"]
+
+
 def test_a_shared_file_is_named_as_one_wherever_it_is_named(home, monkeypatch, tmp_path):
     # Thesis check, ticket 67: its card said "community: shared-1a2b3c…". The row now carries the channel's source and
     # label, and every server sentence names it by one helper (channels.said).

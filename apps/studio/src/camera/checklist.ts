@@ -85,7 +85,7 @@ export class Checklist {
     this.doctor = doctor;
     if (!doctor) {
       this.first.hidden = false;
-      this.first.replaceChildren(el('p', { className: 'cam-fix', textContent: 'Start ObservationUI (make start in Terminal), then reload this page.' }));
+      this.first.replaceChildren(el('p', { className: 'cam-fix', textContent: 'Start HookeUI (make start in Terminal), then reload this page.' }));
       this.summary.replaceChildren('Checks');
       this.checks.replaceChildren();
       return;

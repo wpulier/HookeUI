@@ -293,7 +293,7 @@ export interface ModelsPageCommands {
 
 }
 
-/** Share it as a file (share.py, C5): one small file anyone can open in their ObservationUI (never its weights), with
+/** Share it as a file (share.py, C5): one small file anyone can open in their HookeUI (never its weights), with
  * the name you give said where it is opened. No account. */
 function shareFold(row: ModelRow, commands: ModelsPageCommands): HTMLElement {
   const name = el('input', { type: 'text', class: 'mm-control model-share-name', placeholder: 'Your name (said where it is opened)',
@@ -303,7 +303,7 @@ function shareFold(row: ModelRow, commands: ModelsPageCommands): HTMLElement {
   name.addEventListener('input', href);
   href();
   const fold = el('div', { class: 'model-share', 'data-model-editor': `share:${row.id}:${row.revision}:${row.version}` }, el('strong', {}, 'Share it'),
-    el('p', {}, 'One small file to send any way you like: whoever opens it in ObservationUI gets this capability, '
+    el('p', {}, 'One small file to send any way you like: whoever opens it in HookeUI gets this capability, '
       + 'allows its code once, and turns it on. Its weights are fetched from where they are pinned, never sent.'), name, link);
   if (row.mine && commands.publishPrepare && commands.publishSubmit) {
     // Share with everyone: the reviewed catalog (publish.py). Prepared here first, read, then sent only on your sign-off.
@@ -1296,11 +1296,11 @@ export class ModelsPage {
         body.append(el('details', {}, el('summary', {}, 'Read the instructions'), el('pre', {}, workspace.instructions)));
       } else body.append(el('p', {}, this.workspaceReading ? 'Reading your workspace…' : 'The workspace could not be read.'),
         button('Read workspace again', async () => { this.entryMessage = ''; this.render(); }));
-      const input = el('input', { type: 'file', accept: '.observationui.zip,.zip', 'aria-label': 'Completed capability package',
+      const input = el('input', { type: 'file', accept: '.hookeui.zip,.observationui.zip,.zip', 'aria-label': 'Completed capability package',
         'data-model-editor': `completed-package:${open.workspace}` });
       body.append(el('label', {}, 'Completed capability package', input), button('Import completed capability', async () => {
         const file = [...this.root.querySelectorAll<HTMLInputElement>('input')].find(node => node.getAttribute('aria-label') === 'Completed capability package')?.files?.[0];
-        if (!file) throw new Error('Choose the .observationui.zip file returned by your coding tool.');
+        if (!file) throw new Error('Choose the .hookeui.zip file returned by your coding tool.');
         const result = await this.inspectSource({ kind: 'capability-package', file });
         if (result.kind !== 'candidate') throw new Error(result.says);
         if (this.sheet === open) await this.selectEntry(result.candidate); else this.retainEntry(open, { model: result.candidate, role: '', option: '' });
@@ -2467,7 +2467,7 @@ type CatalogProblem = { entry: string; problems: string[]; incompatible?: boolea
 /** Entries the app won't run, each said under why: made for another version of the app, or can't be read. */
 export function problemGroups(problems: CatalogProblem[]): { title: string; rows: CatalogProblem[] }[] {
   return [
-    { title: 'Made for another version of ObservationUI', rows: problems.filter((p) => p.incompatible) },
+    { title: 'Made for another version of HookeUI', rows: problems.filter((p) => p.incompatible) },
     { title: 'Entries that can’t be read', rows: problems.filter((p) => !p.incompatible) },
   ].filter((g) => g.rows.length);
 }

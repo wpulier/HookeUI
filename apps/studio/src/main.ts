@@ -2009,7 +2009,7 @@ function renderStatus(): void {
     hideNoPicture();
   } else if (health.state === 'bridge_offline') {
     hideNoPicture();
-    showNotice('bridge', 'The camera bridge is not running', ['Restart ObservationUI (make start in Terminal).']);
+    showNotice('bridge', 'The camera bridge is not running', ['Restart HookeUI (make start in Terminal).']);
   } else if (feed.busy === 'switching' || footage) {
     // Keyed by what starts: a session's opening may switch from one recording to another while this shows.
     hideNoPicture();
@@ -2615,7 +2615,7 @@ function renderCameraPanel(): void {
   const title = Object.assign(document.createElement('h2'), { textContent: 'Camera' });
   children.push(title);
   if (!state) {
-    children.push(Object.assign(document.createElement('p'), { className: 'panel-note', textContent: "The camera bridge isn't answering. Start ObservationUI (make start in Terminal)." }));
+    children.push(Object.assign(document.createElement('p'), { className: 'panel-note', textContent: "The camera bridge isn't answering. Start HookeUI (make start in Terminal)." }));
     cameraPanel.replaceChildren(...children);
     return;
   }

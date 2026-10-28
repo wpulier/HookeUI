@@ -51,5 +51,5 @@ if __name__ == "__main__":
         for key, value in defaults(dict(os.environ)).items():
             print(f"{key}={value}")
     except ValueError as error:
-        print(f"ObservationUI: {error}. Check launch.json in the shared data home; no services were stopped.", file=sys.stderr)
+        print(f"HookeUI: {error}. Check launch.json in the shared data home; no services were stopped.", file=sys.stderr)
         raise SystemExit(2)

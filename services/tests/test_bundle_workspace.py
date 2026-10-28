@@ -44,7 +44,7 @@ def test_bundle_workspace_refuses_incomplete_unsafe_or_reused_candidates(home, d
         manifest.write_text(manifest.read_text().replace(item.candidate_id, 'existing-owner'))
     with pytest.raises(workspaces.WorkspaceError):
         workspaces.package(item.id, environ=environ)
-    assert not list(item.folder.glob('*.observationui.zip'))
+    assert not list(item.folder.glob('*.hookeui.zip'))
     assert catalog.mine(environ) == {}
 
 
@@ -113,7 +113,7 @@ outputs = [{id = "result", type = "table.objects"}]
 ''')
     with pytest.raises(workspaces.WorkspaceError):
         workspaces.package(item.id, environ=environ)
-    assert not list(item.folder.glob('*.observationui.zip'))
+    assert not list(item.folder.glob('*.hookeui.zip'))
     assert catalog.mine(environ) == {}
 
 
@@ -157,4 +157,4 @@ def test_scientific_return_cannot_silently_change_the_requested_contract(home):
     manifest.write_text(text.replace('project.scientific', 'image.2d.rgb8'))
     with pytest.raises(workspaces.WorkspaceError, match='declared scientific-host contract'):
         workspaces.package(item.id, environ=environ)
-    assert not list(item.folder.glob('*.observationui.zip'))
+    assert not list(item.folder.glob('*.hookeui.zip'))

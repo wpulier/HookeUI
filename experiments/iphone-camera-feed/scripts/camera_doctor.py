@@ -38,7 +38,7 @@ PROBLEMS = {
     "permission": "MicroscopeMind Camera may not use the camera", "free": "something else is holding the iPhone",
     "found": "this Mac can't find the iPhone", "listed": "the iPhone isn't offering its camera",
     "crash": "Blackmagic Camera crashed",
-    "app": "Blackmagic Camera isn't open", "link": "the phone can't reach this Mac", "settings": "ObservationUI's connection isn't set up in the app",
+    "app": "Blackmagic Camera isn't open", "link": "the phone can't reach this Mac", "settings": "HookeUI's connection isn't set up in the app",
     "quality": "its stream quality crashes the app", "streaming": "the phone isn't streaming",
     "app-reading": "the app isn't reading the camera", "room": "this Mac is busy",
     "proven": "the phone's controls aren't checked for this version of the app",
@@ -157,7 +157,7 @@ def _blackmagic(f: dict) -> list[dict]:
                        detail=f"over {'the cable' if link == 'usb' else 'Wi-Fi'} ({address})" if address else "no Wi-Fi address"))
     if not reachable:
         return items + (_picture(f, "Reconnect.") if picture else [])
-    items.append(_item("settings", "ObservationUI is set up in the app", not phone.get("needsSettings"),
+    items.append(_item("settings", "HookeUI is set up in the app", not phone.get("needsSettings"),
                        "the app doesn't know where to send the picture" if phone.get("needsSettings") else "it streams to this Mac",
                        "Import the settings file: Settings › Live Stream › Platform › Import Stream Settings.", "settings-file",
                        detail="the app has no server for this Mac" if phone.get("needsSettings")

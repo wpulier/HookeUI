@@ -29,7 +29,7 @@ FACTS_GAP_S = 20.0  # at most one facts refresh this often
 STOP = set("the a an and or of to in on at is are was were be it this that what with for as by from you i we "
            "can could would will do does did me my your about there here have has had not no yes so just like".split())
 
-SUMMARY_PROMPT = """You keep the running summary of one conversation between a user and ObservationUI,
+SUMMARY_PROMPT = """You keep the running summary of one conversation between a user and HookeUI,
 a live microscope assistant. Fold the new turns into the summary.
 
 Summary so far: {summary}

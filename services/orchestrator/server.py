@@ -1,4 +1,4 @@
-"""ObservationUI orchestrator HTTP/WebSocket server: the routes on top of the App (app.py).
+"""HookeUI orchestrator HTTP/WebSocket server: the routes on top of the App (app.py).
 
   GET  /api/health        service, source, motion, GPU and scene status, how the computer is doing
   GET  /api/machine/top   the programs using the most CPU (the performance meter's panel)
@@ -1170,7 +1170,7 @@ async def _send_loop(client: Client) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ObservationUI orchestrator")
+    parser = argparse.ArgumentParser(description="HookeUI orchestrator")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--bridge-url", default="http://127.0.0.1:8765")

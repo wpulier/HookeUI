@@ -1,13 +1,13 @@
 # Optional model integrations and edition policy
 
-This folder contains ObservationUI wrappers, adapters and helper processes for components
+This folder contains HookeUI wrappers, adapters and helper processes for components
 assigned to the application's `noncommercial` policy tier. The folder name does not apply a
 blanket licence to this source or its dependencies. Project-authored integration source,
 fetched software, trained weights and training or input data have separate rights; see
 [NOTICE](NOTICE) for that distinction. Training-data declarations alone do not determine the
 legal effect on weights or clear a particular use.
 
-The core of ObservationUI (`orchestrator`, `gpu_worker`, `research_worker`, `sim`, `bench`, the
+The core of HookeUI (`orchestrator`, `gpu_worker`, `research_worker`, `sim`, `bench`, the
 studio) reaches these adapters through `orchestrator/licences.py`'s `adapter()`. The research
 edition permits their tier and is the default when `MICROMIND_EDITION` is unset or empty
 (the user's 2026-10-08 decision, ADR 0005). Explicit `MICROMIND_EDITION=commercial` and invalid

@@ -43,7 +43,7 @@ def _xmp(source_type: str, model: str) -> str:
     return ('<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
             '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description '
             'xmlns:Iptc4xmpExt="http://iptc.org/std/Iptc4xmpExt/2008-02-29/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" '
-            f'Iptc4xmpExt:DigitalSourceType="{IPTC}{source_type}" xmp:CreatorTool="ObservationUI ({model})"/>'
+            f'Iptc4xmpExt:DigitalSourceType="{IPTC}{source_type}" xmp:CreatorTool="HookeUI ({model})"/>'
             '</rdf:RDF></x:xmpmeta><?xpacket end="r"?>')
 
 
@@ -77,7 +77,7 @@ def mark_png(png: bytes, text: str, source_type: str, model: str) -> bytes:
         return png
     data = encoded.tobytes()
     chunks = (_chunk(b"tEXt", b"Description\x00" + text.encode("latin-1", "replace"))
-              + _chunk(b"tEXt", b"Software\x00ObservationUI")
+              + _chunk(b"tEXt", b"Software\x00HookeUI")
               + _chunk(b"tEXt", b"DigitalSourceType\x00" + (IPTC + source_type).encode())
               + _chunk(b"iTXt", b"XML:com.adobe.xmp\x00\x00\x00\x00\x00" + _xmp(source_type, model).encode()))
     end = data.rfind(b"IEND") - 4  # before the IEND chunk's length
@@ -97,7 +97,7 @@ def mark_video(path: Path, text: str, source_type: str, model: str) -> bool:
     result = subprocess.run(
         [ffmpeg, "-nostdin", "-loglevel", "error", "-y", "-i", str(path), "-vf", draw, "-c:a", "copy",
          "-metadata", f"comment={text}. DigitalSourceType: {IPTC}{source_type}",
-         "-metadata", f"description={text}", "-metadata", f"encoder=ObservationUI ({model})", str(marked)],
+         "-metadata", f"description={text}", "-metadata", f"encoder=HookeUI ({model})", str(marked)],
         capture_output=True, timeout=180)
     if result.returncode != 0 or not marked.exists() or marked.stat().st_size == 0:
         marked.unlink(missing_ok=True)

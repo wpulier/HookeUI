@@ -10,7 +10,7 @@ client ID is public by GitHub's design (the device flow uses no client secret), 
 same in every copy of the app; `MICROMIND_GITHUB_CLIENT_ID` overrides it (a fork, a test). Until it is registered,
 `CLIENT_ID` is empty and every call says so (`NotSetUp`), with what works today: publishing with Git and `gh` signed in.
 No client identity is invented here. To register it (the project's owner, once): GitHub → Settings → Developer settings
-→ OAuth Apps → New OAuth App; name "ObservationUI", homepage the project's page, callback URL the same page (unused by the
+→ OAuth Apps → New OAuth App; name "HookeUI", homepage the project's page, callback URL the same page (unused by the
 device flow), tick **Enable Device Flow**; copy its Client ID into `CLIENT_ID`.
 
 **The token** is kept in the macOS Keychain (keychain.py, account `GITHUB_SIGNIN`), never on a wire, in a log or told to a

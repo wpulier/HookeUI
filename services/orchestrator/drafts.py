@@ -183,7 +183,7 @@ def community(did: str, environ: Mapping[str, str] = os.environ) -> dict:
     tries = state.get("tries") or []
     passed = sum(t.get("ok") is True for t in tries)
     status = (state.get("terminal") or {}).get("status") or state.get("state", "unknown")
-    text = (f"Help adapting a capability for ObservationUI\n\nSource: {link}\n"
+    text = (f"Help adapting a capability for HookeUI\n\nSource: {link}\n"
             f"Builder state: {status}. {len(tries)} attempt(s), {passed} completed contract smoke checks.\n"
             "The adapter was drafted by AI. A smoke check does not establish scientific correctness.\n\n"
             "What I hoped to do: [add the task and expected result]\n"

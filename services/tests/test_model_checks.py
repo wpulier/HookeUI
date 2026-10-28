@@ -333,7 +333,7 @@ def test_the_voice_is_checked_by_a_spoken_request_it_hands_to_the_app(app, monke
     lines = asyncio.run(checker.run([model_checks.find("voice", "gpt-live-1"), model_checks.find("voicelink", "relay")]))
     assert [l["state"] for l in lines] == ["works", "works"] and "after the words ended" in lines[0]["detail"]
     started = next(cfg for kind, cfg in conn.sent if kind == "start")
-    assert "ObservationUI" in started["instructions"]  # the app's own voice prompt (prompts.LIVE_VOICE_DELEGATE)
+    assert "HookeUI" in started["instructions"]  # the app's own voice prompt (prompts.LIVE_VOICE_DELEGATE)
     assert any(kind == "commentary" for kind, _ in conn.sent)  # the app's answer went back
     silent = FakeConn()
     checker.voice_connect = lambda: FakeCM(silent)  # a voice that never delegates is broken, in words

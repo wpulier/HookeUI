@@ -393,7 +393,7 @@ If the source is an existing capability folder, preserve its lineage by running 
 {test}
 ```
 """)
-    return f"""Create a capability for ObservationUI in {item.folder}.
+    return f"""Create a capability for HookeUI in {item.folder}.
 Open this folder in your coding tool. Read .agents/skills/add-a-capability/SKILL.md (the identical Claude copy is under .claude/skills/).
 Workspace contract version: {item.contract}. Supported catalog formats: 2 (single capability), 3 (Python bundle), 4 (bundle with portable wheel recipes). Full skill SHA-256: {item.skill_sha256}.
 
@@ -422,7 +422,7 @@ Package the completed folder with:
 ```sh
 {pack}
 ```
-Return the resulting .observationui.zip through Import completed capability in the same guided sheet.
+Return the resulting .hookeui.zip through Import completed capability in the same guided sheet.
 The receiving profile still requires its own permission and the checks applicable to its declared bridge.
 Operation capabilities require local proof and comparison; scientific-host candidates require scientific review.
 A package carries no activation or trusted proof. Packaging never makes a tool ready or qualifies its results.
