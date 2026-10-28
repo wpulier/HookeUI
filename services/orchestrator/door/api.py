@@ -251,7 +251,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
                     work=lambda record, progress: work.open_file(built, record, progress, str(path)))
             else:
                 project = value.get("project")
-                again = operations.known(key, tool, args)  # a retry finds its work before anything else is checked
+                again = operations.known(key, tool, args, c.actor)  # a retry finds its work before anything else is checked
                 if again is not None:
                     return _no_store({"ok": True, "operation": again, "made": False})
                 listed = {t["id"]: t for t in await _listed(built)}
@@ -262,7 +262,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 if found["state"] != "available":
                     raise Refused(409, "not-ready", f"{found['name']} can't run through the door now: {found.get('why') or found['state']}",
                                   next=found.get("next") or "the researcher can run or set it up in Hooke")
-                work.check_args(found["inputSchema"], args)
+                work.check_args(found["inputSchema"], args, project)
+                from .listing import model_places
+                work.check_models(args, model_places(built))
                 refused = work.own_project(built, project, c.actor)
                 if refused is not None:
                     raise refused
@@ -285,16 +287,16 @@ def register(app, built, studio_origin, header: str) -> Connections:
     @app.get(f"{PREFIX}/operations")
     async def list_operations(request: Request, limit: int = 20) -> JSONResponse:
         try:
-            connected(request)
+            c = connected(request)
         except Refused as error:
             return _refusal(error)
-        return _no_store({"ok": True, **operations.operations(limit)})
+        return _no_store({"ok": True, **operations.operations(limit, c.actor)})
 
     @app.get(PREFIX + "/operations/{op_id}")
     async def get_operation(op_id: str, request: Request) -> JSONResponse:
         try:
-            connected(request)
-            record = operations.get(op_id)
+            c = connected(request)
+            record = operations.get(op_id, c.actor)
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record})
@@ -302,8 +304,8 @@ def register(app, built, studio_origin, header: str) -> Connections:
     @app.post(PREFIX + "/operations/{op_id}/cancel")
     async def cancel_operation(op_id: str, request: Request) -> JSONResponse:
         try:
-            connected(request)
-            record = await operations.cancel(op_id)
+            c = connected(request)
+            record = await operations.cancel(op_id, c.actor)
         except Refused as error:
             return _refusal(error)
         return _no_store({"ok": True, "operation": record})

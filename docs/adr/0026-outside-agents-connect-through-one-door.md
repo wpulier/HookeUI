@@ -45,9 +45,16 @@
     makes scientific data in the agent's Project, or reads it. Settings, navigation between Projects, what a window
     presents, researchers, conversations, the researcher's other Projects and downloads are declared not runnable. A
     test fails on any undeclared tool.
-  - **Local only.** Where each capability runs is read from the models it runs with now (`runsOn`). Anything using a
-    cloud service, which means the researcher's keys and money, is listed but refused through the door. The door never
-    authorizes paid work by itself.
+  - **Local only.** The door never authorizes paid work by itself:
+    - **Up front:** where each capability runs is read from the models it runs with now (`runsOn`; a model the licence
+      table doesn't know counts as cloud). A cloud capability is listed but refused, and so is any argument naming a
+      cloud model (`work.check_models`).
+    - **While it runs:** every agent run is held to local work (`api_usage.local_only`), so no paid provider and no
+      cloud model is reached, whatever a fallback chooses.
+  - **Catalog entries:** only entries of the reviewed catalog are runnable for agents. A community channel's or the
+    researcher's own entry is not (`agent_runnable.catalog_runnable`).
+  - **Arguments stay in the agent's Project:** none may name another session, a conversation or a researcher.
+  - **Operations are each connection's own:** request keys, reading, listing and cancelling.
   - **Only the agent's own Project.** `open` adds the agent's picture or video to the library and opens it in a new
     Project recorded as that connection's. `run` names that Project by id and runs only while it is the open one,
     never in the researcher's Projects or in whatever happens to be open. It runs by the capability's own tool, as the
@@ -107,6 +114,8 @@
     give them a working token, or keep a disconnected connection alive after a restart.
   - The studio's other HTTP routes (Disconnect among them) still trust its Origin and header, which a local program
     can copy. That predates this record, which doesn't make those routes stronger.
+- **A known limit for decision:** with no Hooke window open, `open` (like the example) switches the app's open Project
+  to the agent's own. A window opened later shows that Project, with its name and the agent's work in it.
 
 **Cost.**
 - **One confirm click.** A researcher clicks once per agent, in Hooke's native dialog, and a CLI is shipped in the app

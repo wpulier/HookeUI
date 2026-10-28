@@ -312,6 +312,8 @@ def door_with_capability(tmp_path, monkeypatch, ran):
         return {"says": "Measured 3 things.", "project": record["project"]}
 
     monkeypatch.setattr(work, "run_capability", fake)
+    from orchestrator.door import listing as door_listing
+    monkeypatch.setattr(door_listing, "model_places", lambda built: {"a-hosted-model": "cloud"})
     monkeypatch.setattr(api, "listing", lambda built: [
         {**CAPABILITY, "inputSchema": {"type": "object", "properties": {"size": {"type": "integer"}}, "required": [],
                                        "additionalProperties": False}},
@@ -350,6 +352,8 @@ def test_any_listed_capability_runs_only_in_the_agents_own_open_project(tmp_path
         built.day.sid = "2026-10-28.7"
         refused(post({"tool": "measure-things", "project": "2026-10-28.7", "args": {"secret": 1}, "requestKey": KEY}),
                 400, "bad-arguments")
+        refused(post({"tool": "measure-things", "project": "2026-10-28.7", "args": {"size": "a-hosted-model"},
+                      "requestKey": KEY}), 409, "cloud-argument")
         started = post({"tool": "measure-things", "project": "2026-10-28.7", "args": {"size": 3}, "requestKey": KEY})
         assert started.status_code == 202, started.text
         op = started.json()["operation"]
@@ -489,3 +493,93 @@ def test_open_may_leave_the_agents_own_project_but_not_anyone_elses(tmp_path):
     assert work.takeover(app, me) is None  # its own work: it may open another file
     busy = work.takeover(app, other)  # another agent's work, on screen: not this agent's to switch away from
     assert busy.code == "hooke-busy" and "opening your file" in busy.says and "example" not in busy.says
+
+
+def test_a_cloud_model_named_in_the_arguments_is_refused_and_runs_stay_local(tmp_path, monkeypatch):
+    """Review blocker: where work runs was decided from the capability's preset, but the arguments could name a cloud
+    model (a model comparison given a hosted implementation). Now any model the arguments name is checked, an unknown
+    component counts as cloud, and the run itself is held to local work (api_usage.local_only)."""
+    from types import SimpleNamespace
+    from orchestrator.door import listing, work
+    from tests.capability_rig import Rig
+    app = Rig(tmp_path / "rig").app
+    places = listing.model_places(app)
+    cloud = sorted(k for k, v in places.items() if v == "cloud")
+    local = sorted(k for k, v in places.items() if v == "mac")
+    assert cloud and local
+    with pytest.raises(Refused) as refused:
+        work.check_models({"implementations": [local[0], cloud[0]]}, places)
+    assert refused.value.code == "cloud-argument" and cloud[0] in refused.value.says
+    work.check_models({"implementations": [local[0]], "note": "any words"}, places)  # words aren't models
+
+    unknown_tool = SimpleNamespace(uses=("a-model-the-licence-table-does-not-know",))
+    assert listing.locality({"roles": []}, unknown_tool, {}) == "unknown"
+
+    # The run itself is local-only, whatever its arguments.
+    seen = {}
+
+    async def fake_run_tool(app_, name, args, **kw):
+        from research_worker import api_usage
+        seen["local_only"] = api_usage._local_only.get()
+        seen["args"] = args
+        return {"ok": True, "summary": "done", "executions": []}
+
+    from orchestrator import commands
+    monkeypatch.setattr(commands, "run_tool", fake_run_tool)
+    actor = "agent:ac_" + "5" * 24
+    work._remember_project(app, app.day.sid, actor)
+    record = {"by": actor, "project": app.day.sid, "inputRevision": app.day.on_stage}
+
+    async def progress(*a):
+        pass
+
+    asyncio.run(work.run_capability(app, record, progress, "run_capability", {"capability": "spot-measure"}, {"size": 2}))
+    assert seen == {"local_only": True, "args": {"capability": "spot-measure", "params": {"size": 2}}}
+    # A row with no entry in its preset passes the agent's arguments to its tool as they are.
+    asyncio.run(work.run_capability(app, record, progress, "run_capability", {}, {"capability": "spot-measure", "params": {}}))
+    assert seen["args"] == {"capability": "spot-measure", "params": {}}
+
+
+def test_arguments_never_point_outside_the_agents_project():
+    with pytest.raises(Refused) as refused:
+        __import__("orchestrator.door.work", fromlist=["check_args"]).check_args(
+            {"properties": {"session": {}}}, {"session": "2026-10-28.1"}, "2026-10-28.7")
+    assert refused.value.code == "not-your-project"
+    from orchestrator.door.work import check_args
+    check_args({"properties": {"session": {}}}, {"session": "2026-10-28.7"}, "2026-10-28.7")  # its own is fine
+    for key in ("thread", "researcher"):
+        with pytest.raises(Refused) as refused:
+            check_args({"properties": {key: {}}}, {key: "x"}, "2026-10-28.7")
+        assert refused.value.code == "bad-arguments"
+
+
+def test_only_reviewed_catalog_entries_are_runnable_for_agents():
+    from types import SimpleNamespace
+    from orchestrator import agent_runnable
+    assert agent_runnable.catalog_runnable(SimpleNamespace(namespace=""))
+    assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace="mine"))
+    assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace="someones-channel"))
+    assert not agent_runnable.catalog_runnable(None)
+
+
+def test_operations_and_keys_are_each_connections_own(tmp_path):
+    async def go():
+        ops = Operations(tmp_path)
+        me, other = "agent:ac_" + "1" * 24, "agent:ac_" + "2" * 24
+
+        async def work(record, progress):
+            return {"says": "ok"}
+
+        mine, _ = await ops.admit(by=me, label="A", tool="t", project="p", input_revision=None, generation=None,
+                                  params={}, request_key=KEY, work=work)
+        theirs, made = await ops.admit(by=other, label="B", tool="t", project="p", input_revision=None, generation=None,
+                                       params={}, request_key=KEY, work=work)
+        assert made and theirs["id"] != mine["id"]  # the same key, another connection: its own operation
+        await settle(ops)
+        with pytest.raises(Refused):
+            ops.get(mine["id"], other)
+        with pytest.raises(Refused):
+            await ops.cancel(mine["id"], other)
+        assert [o["id"] for o in ops.operations(by=other)["operations"]] == [theirs["id"]]
+        assert ops.known(KEY, "t", {}, other)["id"] == theirs["id"]
+    asyncio.run(go())

@@ -61,7 +61,7 @@ class Operations:
         self.folder = Path(home) / "agents" / "operations"
         self.clock = clock
         self._records: dict[str, dict] = {}
-        self._keys: dict[str, str] = {}
+        self._keys: dict[tuple[str, str], str] = {}  # (who, request key) -> operation: keys are each connection's own
         self._tasks: dict[str, asyncio.Task] = {}
         self._saving: dict[str, asyncio.Lock] = {}  # one record's writes in order, one at a time
         self._lock = asyncio.Lock()
@@ -93,7 +93,7 @@ class Operations:
                 except OSError:
                     pass  # said as interrupted in memory; the file says so on the next start
             self._records[record["id"]] = record
-            self._keys[record["requestKey"]] = record["id"]
+            self._keys[(record.get("by", ""), record["requestKey"])] = record["id"]
 
     async def _save(self, record: dict) -> None:
         """Writes the record as it is when its turn comes: writes of one record never overlap, and the last one wins."""
@@ -109,7 +109,7 @@ class Operations:
                           next="choose a new request key for this request")
         digest = request_digest(tool, project, input_revision, generation, params)
         async with self._lock:
-            known = self._keys.get(request_key)
+            known = self._keys.get((by, request_key))
             if known is not None:
                 record = self._records[known]
                 if record["requestSha256"] != digest:
@@ -127,7 +127,7 @@ class Operations:
                 raise Refused(503, "not-saved", "Hooke could not record the request, so nothing was started.",
                               next="check free disk space, then try again with the same request key") from None
             self._records[record["id"]] = record
-            self._keys[request_key] = record["id"]
+            self._keys[(by, request_key)] = record["id"]
             task = asyncio.create_task(self._run(record, work))
             self._tasks[record["id"]] = task
             task.add_done_callback(lambda done, record=record: self._ended(record, done))
@@ -179,11 +179,11 @@ class Operations:
         finally:
             self._tasks.pop(record["id"], None)
 
-    def known(self, request_key, tool: str, params: dict) -> dict | None:
+    def known(self, request_key, tool: str, params: dict, by: str = "") -> dict | None:
         """An operation already admitted under this key, for a retry: the same tool and parameters return it before
         anything else is checked (a retry while Hooke is busy finds its work, never a refusal); anything else under the
         key is a conflict. None for a key not seen."""
-        record = self._records.get(self._keys.get(request_key)) if isinstance(request_key, str) else None
+        record = self._records.get(self._keys.get((by, request_key))) if isinstance(request_key, str) else None
         if record is None:
             return None
         if record["tool"] != tool or record.get("params") != params:
@@ -191,18 +191,24 @@ class Operations:
                           next="use a new request key for a new request")
         return wire(record)
 
-    def get(self, op_id: str) -> dict:
+    def _own(self, op_id: str, by: str | None) -> dict | None:
         record = self._records.get(op_id)
+        return record if record is not None and (by is None or record.get("by") == by) else None
+
+    def get(self, op_id: str, by: str | None = None) -> dict:
+        """One operation, only to the connection that started it (None: any, for the app itself)."""
+        record = self._own(op_id, by)
         if record is None:
             raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
         return wire(record)
 
-    def operations(self, limit: int = 20) -> dict:
-        rows = sorted(self._records.values(), key=lambda r: r["at"], reverse=True)[: max(1, min(limit, 100))]
+    def operations(self, limit: int = 20, by: str | None = None) -> dict:
+        mine = [r for r in self._records.values() if by is None or r.get("by") == by]
+        rows = sorted(mine, key=lambda r: r["at"], reverse=True)[: max(1, min(limit, 100))]
         return {"operations": [wire(r) for r in rows], "unreadable": list(self.unreadable)}
 
-    async def cancel(self, op_id: str) -> dict:
-        record = self._records.get(op_id)
+    async def cancel(self, op_id: str, by: str | None = None) -> dict:
+        record = self._own(op_id, by)
         if record is None:
             raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
         if record["state"] in TERMINAL:

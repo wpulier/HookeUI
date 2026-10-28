@@ -75,6 +75,7 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - A cancel is `cancelRequested` until the work's own end says how it stopped.
   - After a restart, unfinished records are `interrupted` with what they say they left. Unreadable files are listed,
     never overwritten.
+  - Request keys, reading, listing and cancelling are each connection's own.
 - **What can be started:** `tool` is a capability id of the listing, or one of the door's own actions
   (`DOOR_ACTIONS`):
   - **`open {file}`** (`work.open_file`): the agent's file goes to the library through the camera bridge's own upload,
@@ -82,7 +83,11 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - **Any listed capability** (`work.run_capability`):
     - **Where:** only in a Project the calling connection made (`project`, from `open`), and only while it is open
       (`own_project`). Otherwise it is refused: `project-required`, `not-your-project` or `project-not-open`.
-    - **Arguments:** exactly the ones its `inputSchema` offers (`bad-arguments`).
+    - **Arguments:** exactly the ones its `inputSchema` offers (`bad-arguments`). None may name another session, a
+      conversation or a researcher, and none may name a cloud model (`cloud-argument`, from `listing.model_places`).
+    - **Local only:** the run is held to local work (`api_usage.local_only`), so no paid provider and no cloud model
+      runs, whatever a fallback chooses.
+    - **Catalog rows:** only reviewed entries (`agent_runnable.catalog_runnable`).
     - **How it runs:** by its own tool through `commands.run_tool`, as the agent. It doesn't go through the Actions
       path, whose runs read "You".
     - **Outcome:** when it measured something, a table preview and the page.

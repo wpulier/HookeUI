@@ -38,17 +38,13 @@ RUNNABLE: dict[str, str] = {
     "make_table": "makes a table from its results",
     "make_graph": "makes a graph from its tables",
     "analyze": "analyses its tables",
-    "measure_saved_objects": "measures its saved objects",
-    "compare_retained_methods": "compares methods on its saved data",
     "register_volume": "registers its own volume",
     "run_capability": "runs a catalog capability on its stage",
     "dissect": "dissects a thing on its stage",
     "enhance": "makes a clearer picture of its stage",
     "reference_photo": "finds a reference photo for its subject",
-    "read_result": "reads a result",
     "read_analysis": "reads an accepted analysis",
     "resources": "reads its Project's index",
-    "outcomes": "reads how models have done",
     "describe_capability": "reads a capability's declaration",
 }
 
@@ -113,7 +109,23 @@ NOT_RUNNABLE: dict[str, str] = {
     "set_objective": "changes a setting",
     "set_research_cap": "changes the research spending cap",
     "set_style": "changes how outlines are drawn",
+    "read_result": "can read researchers' work, which belongs to their Projects",
+    "outcomes": "reads how models have done across all the researcher's work",
+    "measure_saved_objects": "works on saved Project documents, which may be the researcher's",
+    "compare_retained_methods": "works on saved Project documents, which may be the researcher's",
 }
+
+
+# Catalog capabilities (catalog:<key>, run by run_capability): only entries of the reviewed catalog are runnable for
+# agents. A community channel's entry or the researcher's own (a manifest with a namespace) is not, whatever it does.
+def catalog_runnable(manifest) -> bool:
+    return manifest is not None and not getattr(manifest, "namespace", "")
+
+
+# Arguments that would point an agent's run outside its own Project: a session other than its own, a conversation, a
+# researcher.
+OWN_SESSION_ARGUMENTS = ("session", "sid")
+NEVER_ARGUMENTS = ("thread", "researcher")
 
 
 def runnable(tool_name: str) -> bool:

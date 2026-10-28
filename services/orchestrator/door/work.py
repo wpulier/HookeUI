@@ -182,8 +182,37 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
 
 # --- run: any listed capability, on the open Project's stage --------------------------------------------------------
 
-def check_args(schema: dict, args: dict) -> None:
-    """Only the arguments its schema offers (which leaves out what only the researcher may set), with its required ones."""
+def check_models(args, places: dict[str, str]) -> None:
+    """No argument may name a model or way of running that uses a cloud service: what runs is decided by what is sent,
+    not only by the capability's preset. (The run itself is also held to local work: api_usage.local_only.)"""
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from strings(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from strings(item)
+
+    cloud = sorted({v for v in strings(args) if places.get(v) == "cloud"})
+    if cloud:
+        raise Refused(409, "cloud-argument", f"{', '.join(cloud)} uses a cloud service with the researcher's own keys.",
+                      next="choose models that run on this Mac; the researcher can run cloud ones in Hooke")
+
+
+def check_args(schema: dict, args: dict, project: str | None = None) -> None:
+    """Only the arguments its schema offers (which leaves out what only the researcher may set), with its required ones,
+    and none that points outside the agent's own Project (agent_runnable)."""
+    from .. import agent_runnable
+    for key in agent_runnable.NEVER_ARGUMENTS:
+        if key in args:
+            raise Refused(400, "bad-arguments", f"An agent's run can't take {key}: it stays in its own Project.",
+                          next=f"leave {key} out")
+    for key in agent_runnable.OWN_SESSION_ARGUMENTS:
+        if key in args and args[key] != project:
+            raise Refused(403, "not-your-project", "That argument names a Project that isn't yours.",
+                          next=f"leave {key} out, or give your own Project")
     allowed = set((schema or {}).get("properties") or {})
     extra = sorted(set(args) - allowed)
     if extra:
@@ -208,8 +237,12 @@ async def run_capability(app, record: dict, progress, tool: str, preset: dict, a
         raise Refused(409, "input-changed", "What this was asked to run on is no longer on your Project's stage.",
                       next="open the input again, then ask with a new request key")
     await progress(1, 2, f"Running {record.get('capabilityName') or 'it'}")
-    tool_args = {**preset, "params": args} if tool == "run_capability" else {**preset, **args}
-    done = await commands.run_tool(app, tool, tool_args)
+    # A catalog row names its entry in the preset, and the agent's arguments are its parameters; otherwise (any other
+    # tool) the arguments are the tool's own.
+    tool_args = {**preset, "params": args} if tool == "run_capability" and "capability" in preset else {**preset, **args}
+    from research_worker import api_usage
+    with api_usage.local_only(True):  # local work only: no paid provider, no cloud model, whatever the arguments say
+        done = await commands.run_tool(app, tool, tool_args)
     if not done.get("ok"):
         raise Refused(409, "failed", str(done.get("summary") or done.get("error") or "It didn't work."),
                       next="check Hooke's Activity")

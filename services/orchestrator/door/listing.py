@@ -72,7 +72,10 @@ def locality(row: dict, tool, roles: dict, manifest=None) -> str:
         if current is None:
             return "unknown"
         places.add(current.get("runs") or "")
-    places.add(runs(getattr(tool, "uses", ()) or ()))
+    uses = tuple(getattr(tool, "uses", ()) or ())
+    if any(u not in licences.COMPONENTS and not _builtin(u) for u in uses):
+        return "unknown"  # a model the licence table doesn't know: never assumed free
+    places.add(runs(uses))
     if manifest is not None:
         if getattr(manifest, "runner", "") == "builtin-cpu":
             places.add("mac")
@@ -81,6 +84,41 @@ def locality(row: dict, tool, roles: dict, manifest=None) -> str:
     if places & {"cloud", "both"}:
         return "cloud"
     return "mac"
+
+
+def _builtin(model_id: str) -> bool:
+    from gpu_worker.manifests import get
+    entry = get(model_id)
+    return entry is not None and entry.runner == "builtin-cpu"
+
+
+def model_places(built) -> dict[str, str]:
+    """Every model or way of running a job this Hooke knows, by id, with where it runs ("mac" or "cloud"): role
+    options, the operations' implementations, licence components and catalog entries. Used to check the models an
+    agent's arguments name (work.check_models)."""
+    from gpu_worker import manifests as catalog
+    from .. import licences
+    from ..capabilities import runs
+    from ..operations import OPERATIONS
+    places: dict[str, str] = {}
+
+    def put(key, where):
+        if key:
+            places[str(key)] = "cloud" if where in ("cloud", "both", "unknown") else "mac"
+
+    for component, facts in licences.COMPONENTS.items():
+        put(component, "cloud" if getattr(facts, "kind", "") == "service" else "mac")
+    for op in OPERATIONS.values():
+        for impl in op.implementations:
+            where = "cloud" if impl.worker == "cloud" else "mac"
+            put(getattr(impl, "id", None), where)
+            put(getattr(impl, "option", None), where)
+    for role in (built.capabilities_wire(counts=False).get("roles") or ()):
+        for option in role.get("options") or ():
+            put(option.get("id"), option.get("runs") or "mac")
+    for m in catalog.manifests().values():
+        put(m.id, "mac" if m.runner == "builtin-cpu" else runs(licences.model_uses(m)) or "mac")
+    return places
 
 
 def describe_row(row: dict, tool, build: dict, catalog_entry=None, where: str = "mac") -> dict:
@@ -112,6 +150,11 @@ def describe_row(row: dict, tool, build: dict, catalog_entry=None, where: str = 
     return shaped
 
 
+def _manifest(key: str):
+    from gpu_worker import manifests as catalog
+    return catalog.get(key)
+
+
 def gather(built) -> list[tuple]:
     """What the listing describes, read on the event loop as the app's own readers read it: each agent capability an
     agent may run (agent_runnable.py), with its tool, the roles it runs with, and its catalog entry if it has one."""
@@ -128,6 +171,9 @@ def gather(built) -> list[tuple]:
         tool = registry.tools.get(name) if name else None
         if tool is None or not agent_runnable.runnable(name) or changes_settings(tool):
             continue  # default no: only what is declared runnable for agents, and never what changes a setting
+        key = row.get("catalog") or ((row.get("how") or {}).get("args") or {}).get("capability")
+        if name == "run_capability" and not (key and agent_runnable.catalog_runnable(_manifest(key))):
+            continue  # a catalog capability: only a reviewed entry, named by its row (agent_runnable.catalog_runnable)
         seen.add(row["id"])
         out.append((row, tool, roles))
     return out
