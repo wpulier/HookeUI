@@ -9,6 +9,7 @@ import { runChipWords } from './run-chip-words';
 import type { StudyRun } from './workspace-study-model';
 import type { StripPill, Urgency } from './working-strip';
 import type { LitCellState } from './lit-cell';
+import { runnableWords } from './run-spec';
 
 /** Work under a second shows no pill. */
 export const QUICK_MS = 1000;
@@ -275,20 +276,23 @@ export class DownloadPills {
     const going = (d: DownloadFact) => ['queued', 'downloading', 'checking'].includes(d.state);
     for (const d of downloads) if (going(d) && !this.started.has(d.model)) this.started.set(d.model, this.now());
     const live = downloads.filter((d) => !this.hidden.has(d.model) && (going(d) || ((d.state === 'failed' || d.state === 'done') && this.started.has(d.model))));
-    const ready = (d: DownloadFact) => models.find((m) => m.id === d.model)?.status === 'ready';
-    const signature = JSON.stringify(live.map((d) => [d.model, d.state, d.got, d.total, ready(d)]));
+    const entry = (d: DownloadFact) => models.find((m) => m.id === d.model);
+    const ready = (d: DownloadFact) => entry(d)?.status === 'ready';
+    // Ready as Models says it: only once Hooke has checked it here, else "Downloaded · not checked" (ticket 67).
+    const said = (d: DownloadFact) => ready(d) ? runnableWords(entry(d)) : '';
+    const signature = JSON.stringify(live.map((d) => [d.model, d.state, d.got, d.total, said(d)]));
     if (signature === this.signature) return;
     this.signature = signature;
     this.sink(live.map((d) => {
       const short = pillName(d.name);
-      const failed = d.state === 'failed', done = d.state === 'done', usable = done && ready(d);
+      const failed = d.state === 'failed', done = d.state === 'done', usable = done && ready(d), checked = usable && said(d) === 'Ready';
       const since = this.started.get(d.model) ?? this.now();
       const fraction = d.total ? Math.max(0, Math.min(1, d.got / d.total)) : null;
-      const words = failed ? 'Did not download' : usable ? 'Ready' : done ? 'Downloaded' : d.state === 'checking' ? 'Checking' : d.state === 'queued' ? 'Waiting'
+      const words = failed ? 'Did not download' : usable ? said(d) : done ? 'Downloaded' : d.state === 'checking' ? 'Checking' : d.state === 'queued' ? 'Waiting'
         : fraction !== null ? `${Math.round(100 * fraction)}%` : 'Downloading';
       const dismiss = () => { this.hidden.add(d.model); this.signature = ''; this.update(this.last); };
       return {
-        id: `download:${d.model}`, name: short, cell: failed ? 'attention' : usable ? 'ready' : done ? 'idle' : 'setup', urgency: failed ? 0 : done ? 2 : 1, since,
+        id: `download:${d.model}`, name: short, cell: failed ? 'attention' : checked ? 'ready' : done ? 'idle' : 'setup', urgency: failed ? 0 : done ? 2 : 1, since,
         words, fraction: failed || done ? null : fraction, ...(failed || done ? {} : { after: since + QUICK_MS }),
         title: `${d.name} · ${usable ? 'its files are in; it is ready' : done ? 'its files are in; its run page names the next step' : d.says || words}\nOpen where it is being set up`,
         hide: done ? `Hide ${short} from the strip` : `Hide ${short} from the strip. It keeps downloading.`,
@@ -301,4 +305,5 @@ export class DownloadPills {
 /** One download as the wire says it (protocol.ts DownloadRow). */
 export interface DownloadFact { model: string; name: string; state: string; got: number; total: number; says: string }
 /** A model's row as the wire says it (protocol.ts ModelRow): whether it can run now. */
-export interface ModelFact { id: string; status: string }
+/** What a download's pill reads of its model (the wire's row): its readiness, and its card's face for one meaning of Ready. */
+export interface ModelFact { id: string; status: string; group?: string; runs?: string; size?: number; face?: { state: string } }

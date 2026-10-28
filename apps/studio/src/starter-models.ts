@@ -11,6 +11,7 @@ import './starter-models.css';
 import { litCell, type LitCellState } from './lit-cell';
 import { progressWords, sizeWords } from './size-words';
 import type { CapabilitiesWire, DownloadRow, InstallRow, ModelRow } from './protocol';
+import { modelSection, uncheckedWords } from './run-spec';
 
 /** The entries the offer lists, in order: the built-in method, the two small models the workspace uses by itself, and
  * two larger cell and nucleus models a person may want first. Their words, sizes, licences and ticks are the wire's. */
@@ -19,7 +20,7 @@ export const STARTERS = ['basic-bright-objects', 'edgetam', 'dinov2-small', 'ins
 export const SMALL_BYTES = 100e6;
 
 export interface StarterAnswer { answered: boolean; answer: 'not-now' | 'download' | null; at: string | null; models: string[] }
-export type StarterState = 'included' | 'ready' | 'offered' | 'queued' | 'downloading' | 'installing' | 'failed';
+export type StarterState = 'included' | 'ready' | 'unchecked' | 'offered' | 'queued' | 'downloading' | 'installing' | 'failed';
 export interface StarterRow {
   id: string; name: string; what: string; tier: string;
   state: StarterState;
@@ -90,7 +91,8 @@ export function starterRows(wire: CapabilitiesWire | null | undefined): StarterR
     const base = { id, name: row.name, what: row.what, tier: row.tier, bytes, install, how: (install ? 'turn-on' : 'download') as StarterRow['how'] };
     const download = downloads.get(id) ?? row.download, installing = installs.get(id);
     let state: StarterState = 'offered', progress: StarterRow['progress'], failed: string | undefined;
-    if (row.status === 'ready') state = row.size > 0 || row.kind === 'model' ? 'ready' : 'included';
+    // Ready as Models says it: only once Hooke's own check passed here; before that, Downloaded · not checked (ticket 67).
+    if (row.status === 'ready') state = row.size > 0 || row.kind === 'model' ? (modelSection(row) === 'unchecked' ? 'unchecked' : 'ready') : 'included';
     else if (download && (download.state === 'downloading' || download.state === 'checking')) {
       state = 'downloading';
       progress = download.state === 'checking' ? { fraction: null, words: 'Checking the files' }
@@ -100,7 +102,8 @@ export function starterRows(wire: CapabilitiesWire | null | undefined): StarterR
       state = 'installing'; progress = { fraction: null, words: installing.says };
     } else if (download?.state === 'failed') { state = 'failed'; failed = download.says; }
     else if (installing?.state === 'failed') { state = 'failed'; failed = installing.says; }
-    const size = state === 'included' ? 'Included' : state === 'ready' ? 'Ready' : sizeSaid(row, bytes, install);
+    const size = state === 'included' ? 'Included' : state === 'ready' ? 'Ready' : state === 'unchecked' ? uncheckedWords(row)
+      : sizeSaid(row, bytes, install);
     rows.push({ ...base, state, size, ticked: state === 'offered' && ticksByDefault(row, wire), progress, failed });
   }
   return rows;
@@ -183,7 +186,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text 
   return node;
 }
 
-const CELL: Partial<Record<StarterState, LitCellState>> = { ready: 'ready', included: 'ready', queued: 'queued', downloading: 'setup', installing: 'working', failed: 'attention' };
+const CELL: Partial<Record<StarterState, LitCellState>> = { ready: 'ready', included: 'ready', unchecked: 'idle', queued: 'queued', downloading: 'setup', installing: 'working', failed: 'attention' };
 
 /** The offer: `welcome` under the first-launch Welcome's ways in; `stage` under the empty Stage's ways in (where a fresh
  * profile lands: the current Project opens on launch); `row` at the top of Models (one row until answered, its list
