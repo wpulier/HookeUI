@@ -25,6 +25,11 @@ clients of this door. They hold no scientific logic and no list of capabilities:
    - Open studios get `{"type": "agent-connections", pending, connections}` over the WebSocket.
 2. The researcher answers in Hooke: `POST /api/agent-connections/pending/{id} {answer: connect|decline}`. This takes
    the studio's Origin and `X-MicroscopeMind: agent-connections`.
+   - The studio's side is `apps/studio/src/agent-connections.ts`. The confirm sheet opens for the first waiting
+     request and names the agent "as it calls itself". It shows the code, says what connecting allows (including that
+     what the agent reads may go to its provider), and offers Don't connect and Connect.
+   - The sheet closes when the request is answered elsewhere or expires.
+   - Settings → Connected agents lists live connections with Disconnect.
 3. `POST /api/agent/v1/connect/{id}/claim {secret}`:
    - 202 while unanswered.
    - 403 `declined`, or `wrong-secret`.
@@ -60,6 +65,8 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - `operation`, `operations`, `cancel` (`cancelRequested` until confirmed), and `interrupted` after a restart
 - **Actor:** effects recorded with actor `agent:<id>`, through `commands.run_tool` (today `actor="you"`), evidence and
   provenance.
+- **The window comes forward:** the Mac app should bring Hooke forward when a request waits, so the researcher
+  sees the sheet.
 - **Tools:** `example` (the onboarding flow), `open_in_hooke`, then run, results, compare, batch and adding
   capabilities.
 - **Responses:** no image bytes or full tables unless asked, and marked when given.

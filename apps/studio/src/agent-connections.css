@@ -1,0 +1,24 @@
+/* The confirm sheet for an agent connecting, and Settings' list of connected agents (agent-connections.ts). */
+.agent-connect {max-width:60ch;display:grid;gap:10px;padding:16px 20px 20px;box-sizing:border-box;}
+.agent-connect h3 {margin:0;font-size:17px;}
+.agent-connect p {margin:0;line-height:1.5;}
+.agent-connect ul {margin:0;padding-left:18px;display:grid;gap:6px;line-height:1.45;color:var(--muted,#bbb);font-size:13px;}
+.agent-connect-code {font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;letter-spacing:.12em;
+  padding:8px 12px;border:1px solid #718cba60;border-radius:8px;background:#718cba14;justify-self:start;}
+.agent-connect-status:empty {display:none;}
+.agent-connect-status {color:var(--warn,#f0b36a);font-size:13px;}
+.agent-connect-actions {display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
+.agent-connect-actions button,.agent-connections-settings button {font:inherit;font-size:13px;padding:8px 12px;border:1px solid #718cba80;
+  border-radius:8px;background:#718cba20;color:inherit;cursor:pointer;}
+.agent-connect-actions button.primary {background:var(--accent,#a9c9ff);color:#0b1220;border-color:transparent;font-weight:600;}
+.agent-connect-actions button:disabled,.agent-connections-settings button:disabled {opacity:.6;cursor:wait;}
+.agent-connect-actions button:focus-visible,.agent-connections-settings button:focus-visible {outline:2px solid var(--accent,#a9c9ff);outline-offset:3px;}
+
+.agent-connections-settings {padding:16px;border:1px solid #ffffff22;border-radius:12px;margin-bottom:20px;}
+.agent-connections-settings h3 {margin:0 0 8px;}
+.agent-connections-settings p {max-width:65ch;line-height:1.5;}
+.agent-connections-settings .agent-none {color:var(--muted,#aaa);font-size:13px;}
+.agent-connections-settings ul {list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px;}
+.agent-connections-settings li {display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;}
+.agent-connections-settings .agent-name {font-weight:600;}
+.agent-connections-settings .agent-when {color:var(--muted,#aaa);font-size:13px;margin-right:auto;}

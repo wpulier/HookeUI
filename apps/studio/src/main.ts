@@ -87,6 +87,7 @@ import { ExampleGuide, type OnboardingState } from './onboarding';
 import { LibraryPage } from './library-page';
 import { SessionsPage } from './sessions-page';
 import { GearMenu } from './gear';
+import { agentConnections } from './agent-connections';
 import { ActionsPanel, type ToolList } from './actions-panel';
 import { MeasurementsPage, measurementsHash, measurementsTarget, measurementsPin, type MeasurementPin } from './measurements';
 
@@ -1104,6 +1105,9 @@ function handleMessage(message: ServerMessage): void {
   const beforeTracksLayer = view.tracksLayer;
   view.observeOverlayMessage(message);
   switch (message.type) {
+    case 'agent-connections': // an outside agent asked to connect, or the list changed (ADR 0026)
+      agentConnections.message(message);
+      break;
     case 'presentation-admitted': // WorkspaceSession owns placement correlation.
     case 'workspace-ready': // Link owns correlated settlement; runtime installation is separate.
       break;
