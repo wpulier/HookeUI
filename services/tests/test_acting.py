@@ -74,3 +74,19 @@ def test_the_live_failures_are_all_here():
     """The 2026-10-04 cases stay in the bench (services/logs/interactions.jsonl)."""
     ids = {c["id"] for c in CASES}
     assert {"live-140652", "live-140948", "live-152750", "live-153656", "live-140842"} <= ids
+
+
+def test_the_live_run_skips_without_the_private_live_cases(tmp_path, monkeypatch, capsys):
+    """The live cases are the maintainers' own words and pictures, kept privately: without them `--models real` says
+    so and runs nothing (no keys read, no case started); a cases file named but missing is an error."""
+    import argparse
+
+    from bench.acting import run
+
+    monkeypatch.setattr(run, "LIVE_CASES", tmp_path / "live_cases.json")
+    monkeypatch.setattr(run, "run_case", lambda *a, **k: pytest.fail("a case ran"))
+    args = argparse.Namespace(cases=None, case=None, arm=None, set=[], attempts=1, out=None)
+    assert run.live(args) is None
+    assert "Skipped: no live cases" in capsys.readouterr().err
+    with pytest.raises(SystemExit, match="No cases file"):
+        run.live(argparse.Namespace(**{**vars(args), "cases": str(tmp_path / "mine.json")}))

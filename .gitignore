@@ -69,6 +69,8 @@ packaging/macos/build*/
 /output/
 /services/sim/results/
 /services/bench/results/
+# The acting bench's live cases: the maintainers' own words and pictures, kept privately (bench/acting/run.py)
+/services/bench/acting/live_cases.json
 .env
 .env.*
 !.env.example

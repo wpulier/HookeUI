@@ -50,7 +50,7 @@ class StandInPhone:
             "/lens/zoom": {"focalLength": 48, "normalised": 0},
         }
         # As imported on 2026-10-11 (one server); a new import lists both links.
-        self.platform_servers: list[dict] = [{"server": "This Mac", "url": "srt://192.168.50.109:9710"}]
+        self.platform_servers: list[dict] = [{"server": "This Mac", "url": "srt://192.0.2.10:9710"}]
         self.puts: list[tuple[str, object]] = []
         # A write that "crashes" the app: it stops answering, as Blackmagic Camera did, until it is opened again.
         self.crash_on: set[str] = set()  # writes that crash it
@@ -170,7 +170,7 @@ def control(monkeypatch):
     return importlib.reload(phone_control)
 
 
-ADDRESSES = {"wifi": "srt://192.168.50.109:9710", "usb": "srt://172.20.10.2:9710"}
+ADDRESSES = {"wifi": "srt://192.0.2.10:9710", "usb": "srt://172.20.10.2:9710"}
 WIFI_ONLY = {"wifi": ADDRESSES["wifi"], "usb": None}  # no cable: Blackmagic streams over Wi-Fi
 
 
@@ -223,10 +223,10 @@ def test_the_settings_file_lists_each_link_with_an_address(control):
 
 
 def test_the_usb_link_and_bonjour_are_read_from_the_mac(control, monkeypatch):
-    ifconfig = "en0: flags=...\n\tinet 192.168.50.109 netmask 0xffffff00\nen7: flags=...\n\tinet 172.20.10.2 netmask 0xfffffff0\n"
+    ifconfig = "en0: flags=...\n\tinet 192.0.2.10 netmask 0xffffff00\nen7: flags=...\n\tinet 172.20.10.2 netmask 0xfffffff0\n"
     monkeypatch.setattr(control.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout=ifconfig, returncode=0))
     assert control.usb_address() == "172.20.10.2"
-    monkeypatch.setattr(control.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="\tinet 192.168.50.109\n", returncode=0))
+    monkeypatch.setattr(control.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="\tinet 192.0.2.10\n", returncode=0))
     assert control.usb_address() is None
 
     said = {
@@ -304,7 +304,7 @@ def test_each_source_says_how_to_get_live(bridge_module, tmp_path, cleanup, monk
     bridge = make_bridge(bridge_module, tmp_path, SILENT, silent_after=0.1)
     cleanup.append(bridge)
     bridge.args.source_file = str(tmp_path / "camera-source.json")
-    snapshot = {"reachable": False, "addresses": {"wifi": "srt://192.168.50.109:9710", "usb": None}}
+    snapshot = {"reachable": False, "addresses": {"wifi": "srt://192.0.2.10:9710", "usb": None}}
     bridge.phone_link = SimpleNamespace(snapshot=lambda: snapshot, source_changed=lambda: None, stop=lambda: None)
 
     bridge_module.switch_source(bridge.args, bridge, "blackmagic")

@@ -33,7 +33,7 @@ def make_state(name: str) -> dict:
              "battery": 82, "recording": False, "clipName": None, "timecode": "00:10:04:02", "clips": 3, "recordTimeLeftS": 36441,
              "focalLength": 24, "zoom": 0.0, "lenses": [24, 48, 100, 200], "stabilization": False, "autoWhiteBalance": True,
              "streaming": True, "streamStatus": "Streaming", "server": "This Mac (Wi-Fi)",
-             "addresses": {"wifi": "srt://192.168.50.109:9710", "usb": None}}
+             "addresses": {"wifi": "srt://192.0.2.10:9710", "usb": None}}
     items = [{"id": i, "title": t, "ok": True, "evidence": e, "detail": "", "fix": "", "action": None, "problem": ""} for i, t, e in CHECKS]
     doctor = {"source": "blackmagic", "chosen": "blackmagic", "via": "Wi-Fi", "live": True, "headline": "Live, over Wi-Fi",
               "first": None, "items": items, "events": [{"at": "17:56:19", "text": "Live source: Blackmagic"}],

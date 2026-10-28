@@ -9,7 +9,7 @@ fraction of one. Every time the user is told something (the chat's answer, the v
 recorded with the board as it was at that moment (`claims`), and every change of the board is
 recorded with when it happened (`boards`).
 
-With `models="real"` (live_cases.json) the camera is a real picture whose things are labelled
+With `models="real"` (the live cases, kept privately: run.py) the camera is a real picture whose things are labelled
 boxes, and the brain, the fast pass, the looks and the finder ask the real models (LiveAgent), in
 real time. The outline model is still the stand-in: a box outlines the labelled thing it covers
 best, or, covering none, itself (as EdgeTAM outlines whatever is there: a wall, 2026-10-10).

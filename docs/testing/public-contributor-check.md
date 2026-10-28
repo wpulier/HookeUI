@@ -44,5 +44,4 @@ footage and model requirements; `SIM_VIDEO` alone does not
 remove them. Run affected regressions during development and retain failures, skips,
 revision, tool versions and timing scope with each verification result.
 
-The [2026-10-13 verification receipt](2026-10-13-public-contributor-check.md)
-records one measured run and its limits.
+The 2026-10-13 verification receipt, kept privately, records one measured run and its limits.
