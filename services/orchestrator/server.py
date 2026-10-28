@@ -153,6 +153,8 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     add_capability_journey_routes(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_project_api import register as add_scientific_project_routes
     add_scientific_project_routes(app, built, studio_origin, ARCHIVE_HEADER)
+    from .door.api import register as add_agent_door  # outside agents' one door (ADR 0026)
+    add_agent_door(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_import_transaction import ImportPending
 
     @app.exception_handler(ImportPending)

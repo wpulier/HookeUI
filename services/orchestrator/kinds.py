@@ -271,6 +271,12 @@ def _reading(environ: Mapping[str, str]) -> tuple[list[dict], dict]:
     return memo[id(environ)][1:]
 
 
+def available_with_manifests(environ: Mapping[str, str] = os.environ) -> tuple[list[dict], dict]:
+    """available(), with the manifest each listed capability runs, by its key (the agent door describes each from its
+    declaration: door/contract.py). The same reading as available() inside read_once."""
+    return _reading(environ)
+
+
 def available(environ: Mapping[str, str] = os.environ) -> list[dict]:
     """Every capability on here (installed and proven), whatever runs it: the one registry every actor reads.
     {"key", "id", "name", "what", "operation", "input", "output", "outputs", "params", "family", "says", "runner",

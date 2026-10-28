@@ -1,0 +1,7 @@
+{
+  "$id": "hooke:agent/generation",
+  "title": "A capability's exact generation",
+  "description": "Its pinned files' short revision, a dot, and the first 16 hex characters of a digest of its whole entry folder (orchestrator/capability_identity.generation_of). Any change to code that runs makes a new generation.",
+  "type": "string",
+  "pattern": "^[A-Za-z0-9_-]{1,64}\\.[0-9a-f]{16}$"
+}
