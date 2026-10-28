@@ -1287,7 +1287,10 @@ The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-par
   they come from, **Download <size>** (following the ticks) and **Not now**. What is ticked follows one rule read from
   the wire: the default of a role that powers a capability whose actor is `auto`, open licence tier, no install, under
   100 MB. Download keeps the answer and uses `model-download` (or `model-turn-on` for an entry with its own software) in
-  the one queue, the rows then showing measured progress with the lit cell, then Ready; Not now collapses to "No models
+  the one queue, the rows then showing measured progress with the lit cell, then "Downloaded · not checked" until
+  Hooke's own check has passed here and Ready after (one meaning of Ready: Models' sections, `run-spec.ts`
+  `runnableWords`, which the offer, Tools, the settings picker, a download's pill and a status in words all say; a run of
+  yours is not that check); Not now collapses to "No models
   downloaded. Models has them whenever you want them." The answer is the server's (`onboarding-models`,
   `onboarding/models.json` in the data home), so no place asks again. Choosing the folder is a separate ticket: no
   Change button until a real setting exists. The key note (`setup-note.ts`) waits until something that needs the key was asked

@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'vitest';
 import { actionRows, type ActionRow, type ToolList } from './actions-panel';
 import type { CapabilitiesWire, Capability } from './protocol';
-import { appliesTo, entrySpec, implementsTask, modelSection, orderServed, outcomeWords, runSpec, runStep, taskChoices, tookWords, type RunTask } from './run-spec';
+import { appliesTo, entrySpec, implementsTask, modelSection, optionEntry, orderServed, outcomeWords, runSpec, runStep, runnableWords, taskChoices, tookWords, type RunTask } from './run-spec';
 import { modelTasks } from './tools-catalog';
 import fixture from './run-spec.fixture.json';
 
@@ -267,5 +267,31 @@ describe('words', () => {
     expect(outcomeWords('Gemini 3.8 Flash', 'There are about 40 nuclei.')).toEqual({ title: 'There are about 40 nuclei.', rest: '' });
     expect(tookWords(2600)).toBe('2.6 s');
     expect(tookWords(72_000)).toBe('1:12');
+  });
+});
+
+
+// Ticket 67, fix 4: "Ready" meant two things (the small-models offer and the run page said Ready while Models and Tools
+// said Not checked). Models' sections are the one meaning: Ready once Hooke's own check passed here.
+describe('one meaning of Ready', () => {
+  const cellpose = () => structuredClone(base.models!.find((m) => m.id === 'cellpose-sam')!);
+  test('a model that can run but is not checked here is said that way, wherever a word is needed', () => {
+    const row = cellpose();
+    row.face = { state: 'unchecked', says: 'Ready to run; not checked on this Mac yet', action: null, also: [] };
+    expect(runnableWords({ ...row, size: 1_000 })).toBe('Downloaded · not checked');
+    expect(runnableWords({ ...row, runs: 'cloud', size: 0 })).toBe('Not checked');
+    row.face = { state: 'on', says: 'On · last check: works', action: null, also: [] };
+    expect(runnableWords(row)).toBe('Ready');
+    expect(runnableWords(undefined)).toBe('Ready'); // no catalog row to disagree with
+    const wire = clone();
+    expect(optionEntry(wire, { id: 'cellpose-sam' })?.id).toBe('cellpose-sam');
+    expect(optionEntry(wire, { id: 'auto', models: ['cellpose-sam'] })?.id).toBe('cellpose-sam');
+  });
+  test('a runnable choice whose model Models files under Can be set up is never called Ready on the run page', () => {
+    const wire = clone(); const { map } = rowsOf(wire);
+    wire.models!.find((m) => m.id === 'cellpose-sam')!.face = { state: 'needs-setup', says: 'Its adapter needs a functional check', action: null, also: [] };
+    const choice = taskChoices(wire, task(wire, 'cells'), map).find((c) => c.model === 'cellpose-sam')!;
+    expect(choice.runnable).toBe(true);
+    expect([choice.section, choice.cellWord]).toEqual(['setup', 'Not set up']);
   });
 });
