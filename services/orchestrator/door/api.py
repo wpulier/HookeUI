@@ -228,7 +228,10 @@ def register(app, built, studio_origin, header: str) -> Connections:
             if tool == "example":
                 if args:
                     raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
-                busy = example.takeover(built)  # never under the researcher's eyes (review B3)
+                again = operations.known(key, tool, {}, c.actor)  # a retry finds its work before anything else is checked
+                if again is not None:
+                    return _no_store({"ok": True, "operation": again, "made": False})
+                busy = example.takeover(built, actor=c.actor)  # never under the researcher's eyes (review B3)
                 if busy is not None:
                     raise busy
                 revision, generation = await asyncio.to_thread(example_identity)
@@ -240,6 +243,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 path = work.checked_file(args.get("file"))
                 if set(args) - {"file"}:
                     raise Refused(400, "bad-request", "open takes only the file's path.", next='send args {"file": "/full/path"}')
+                again = operations.known(key, tool, {"file": str(path)}, c.actor)
+                if again is not None:
+                    return _no_store({"ok": True, "operation": again, "made": False})
                 busy = work.takeover(built, c.actor)
                 if busy is not None:
                     raise busy

@@ -495,6 +495,52 @@ def test_open_may_leave_the_agents_own_project_but_not_anyone_elses(tmp_path):
     assert busy.code == "hooke-busy" and "opening your file" in busy.says and "example" not in busy.says
 
 
+def test_the_example_runs_while_the_agents_own_project_shows(tmp_path):
+    """Found on a fresh Mac (Beta 0.6.0 VM run): after `hooke open` and `hooke run`, the window showed the agent's own
+    Project, and the example refused as if that were the researcher's work. Leaving its own work is fine; another
+    agent's or the researcher's still refuses."""
+    from types import SimpleNamespace
+    from orchestrator.door import example, work
+    me, other = "agent:ac_" + "1" * 24, "agent:ac_" + "2" * 24
+    working = SimpleNamespace(sid="2026-10-28.5", sources={"a1": 1.0}, on_stage="a1", ids_used={"e": 2}, last_user=5.0,
+                              guide=None, name="Claude Code: cells")
+    app = SimpleNamespace(paths=SimpleNamespace(home=tmp_path), day=working,
+                          hub=SimpleNamespace(clients=[SimpleNamespace(kind="studio")]), brain=SimpleNamespace(voice=None))
+    work._remember_project(app, "2026-10-28.5", me)
+    assert example.takeover(app, actor=me) is None
+    assert example.takeover(app, actor=other).code == "hooke-busy"
+    assert example.takeover(app).code == "hooke-busy"  # nobody named: nobody's own
+    app.brain.voice = SimpleNamespace(closed=False)
+    assert example.takeover(app, actor=me).code == "hooke-busy"  # never while Talk is live
+
+
+def test_a_retry_finds_its_example_or_open_before_the_busy_check(tmp_path, monkeypatch):
+    """A retry under the same key finds its operation even when Hooke is busy now; a different request under the key is
+    a conflict, said before the busy refusal."""
+    from orchestrator.door import example
+    monkeypatch.setattr(api, "example_identity", lambda: ("r1", "abc.0123456789abcdef"))
+    gate = asyncio.Event()
+
+    async def slow(app, record, progress):
+        await gate.wait()
+        return {"says": "done"}
+    monkeypatch.setattr(example, "run", slow)
+    web, built, _ = build(tmp_path)
+    picture = tmp_path / "cells.png"
+    picture.write_bytes(b"not empty")
+    with TestClient(web, base_url=BASE) as client:
+        token = connect(client)["token"]
+        first = client.post("/api/agent/v1/operations", json={"tool": "example", "requestKey": KEY}, headers=bearer(token))
+        assert first.status_code == 202, first.text
+        monkeypatch.setattr(example, "takeover", lambda app, doing="the example", actor=None:
+                            Refused(409, "hooke-busy", "Busy.", next="wait"))
+        again = client.post("/api/agent/v1/operations", json={"tool": "example", "requestKey": KEY}, headers=bearer(token))
+        assert again.json()["operation"]["id"] == first.json()["operation"]["id"] and again.json()["made"] is False
+        refused(client.post("/api/agent/v1/operations", json={"tool": "open", "args": {"file": str(picture)},
+                                                               "requestKey": KEY}, headers=bearer(token)),
+                409, "request-key-conflict")
+
+
 def test_a_cloud_model_named_in_the_arguments_is_refused_and_runs_stay_local(tmp_path, monkeypatch):
     """Review blocker: where work runs was decided from the capability's preset, but the arguments could name a cloud
     model (a model comparison given a hosted implementation). Now any model the arguments name is checked, an unknown
@@ -585,3 +631,64 @@ def test_operations_and_keys_are_each_connections_own(tmp_path):
         assert [o["id"] for o in ops.operations(by=other)["operations"]] == [theirs["id"]]
         assert ops.known(KEY, "t", {}, other)["id"] == theirs["id"]
     asyncio.run(go())
+
+
+def test_open_says_a_blocked_folder_and_a_bridge_that_stops_as_what_they_are(tmp_path, monkeypatch):
+    """Found on a fresh Mac (Beta 0.6.0 VM run): a picture on the Desktop failed with "[Errno 1] Operation not
+    permitted" (macOS kept the folder from Hooke), and quitting Hooke mid-upload was recorded as failed. Now the folder
+    is said in words with what to do, and a bridge that goes away mid-upload interrupts the operation."""
+    import builtins
+    from pathlib import Path
+    from types import SimpleNamespace
+    import httpx
+    from orchestrator.door import work
+
+    picture = tmp_path / "cells.png"
+    picture.write_bytes(b"x" * 10)
+    app = SimpleNamespace(hub=SimpleNamespace(source=SimpleNamespace(bridge_url="http://127.0.0.1:9")))
+
+    real_open = Path.open
+    def blocked(self, *a, **k):
+        if self == picture:
+            raise PermissionError(1, "Operation not permitted")
+        return real_open(self, *a, **k)
+    monkeypatch.setattr(Path, "open", blocked)
+    with pytest.raises(Refused) as privacy:
+        asyncio.run(work._upload(app, picture))
+    assert privacy.value.code == "mac-privacy" and "Privacy & Security" in privacy.value.next
+    assert "Errno" not in privacy.value.says
+    monkeypatch.setattr(Path, "open", real_open)
+
+    def client_raising(error):
+        class Client:
+            def __init__(self, *a, **k): pass
+            async def __aenter__(self): return self
+            async def __aexit__(self, *a): return False
+            async def post(self, *a, **k): raise error
+        return Client
+    monkeypatch.setattr(httpx, "AsyncClient", client_raising(httpx.ReadError("gone")))
+    with pytest.raises(Refused) as cut:
+        asyncio.run(work._upload(app, picture))
+    assert cut.value.code == work.INTERRUPTED
+    monkeypatch.setattr(httpx, "AsyncClient", client_raising(httpx.ConnectError("refused")))
+    with pytest.raises(Refused) as away:
+        asyncio.run(work._upload(app, picture))
+    assert away.value.code == "bridge-unreachable"
+
+    async def go():
+        ops = Operations(tmp_path / "ops")
+        async def cut_off(record, progress):
+            raise Refused(503, work.INTERRUPTED, "Part of Hooke stopped.", next="open it again")
+        async def broken(record, progress):
+            raise Refused(400, "not-added", "Hooke couldn't add it.", next="choose another")
+        a, _ = await ops.admit(by="agent:a", label="A", tool="open", project="new", input_revision="r", generation=None,
+                               params={"file": "1"}, request_key="key-0001", work=cut_off)
+        b, _ = await ops.admit(by="agent:a", label="A", tool="open", project="new", input_revision="r", generation=None,
+                               params={"file": "2"}, request_key="key-0002", work=broken)
+        for _ in range(100):
+            if ops.get(a["id"])["state"] in ("interrupted", "failed") and ops.get(b["id"])["state"] == "failed":
+                break
+            await asyncio.sleep(0.01)
+        return ops.get(a["id"]), ops.get(b["id"])
+    interrupted, failed = asyncio.run(go())
+    assert interrupted["state"] == "interrupted" and failed["state"] == "failed"

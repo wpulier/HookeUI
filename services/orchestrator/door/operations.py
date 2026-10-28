@@ -162,8 +162,9 @@ class Operations:
                 record["outcome"] = {**(record.get("outcome") or {}),
                                      "says": "Hooke stopped while this ran. Anything it finished is kept in its Project.",
                                      "next": "check its Project, or run it again with a new request key"}
-        except Refused as error:
-            record["state"], record["outcome"] = "failed", {"code": error.code, "says": error.says, "next": error.next}
+        except Refused as error:  # cut off by part of Hooke stopping is interrupted, never the work's failure
+            record["state"] = "interrupted" if error.code == "stopped-while-running" else "failed"
+            record["outcome"] = {"code": error.code, "says": error.says, "next": error.next}
         except Exception as error:  # the work's own failure, said as it is (ADR 0006)
             says = getattr(error, "summary", None) or str(error) or type(error).__name__
             record["state"] = "failed"

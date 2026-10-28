@@ -48,7 +48,8 @@ def test_stable_keeps_the_identity_every_installed_copy_has():
     assert info["CFBundleName"] == info["CFBundleDisplayName"] == "HookeUI"
     assert info["NSCameraUsageDescription"] == "HookeUI reads your microscope camera for the live view."
     # A keys file on the Desktop: macOS asks for it instead of refusing silently (ticket 62, F-L8-3)
-    assert info["NSDesktopFolderUsageDescription"] == "HookeUI reads your API keys file on the Desktop."
+    assert info["NSDesktopFolderUsageDescription"] == ("HookeUI opens the pictures and videos you or your agent choose on the Desktop, and reads your API keys file "
+                                                            "if it is there.")
     assert render("Camera-Info.plist", "stable")["CFBundleIdentifier"] == "org.hookeui.camera"
 
 

@@ -65,9 +65,7 @@ def takeover(app, actor: str | None = None) -> Refused | None:
     """For `open`: changing the stage must take nothing from the researcher (example.takeover's rule). Leaving a Project
     this agent made is leaving its own work, so that is fine too."""
     from .example import takeover as example_takeover
-    if actor is not None and owned(app, getattr(app.day, "sid", ""), actor):
-        return _talk_live(app)
-    return example_takeover(app, doing="opening your file")
+    return example_takeover(app, doing="opening your file", actor=actor)
 
 
 def own_project(app, project, actor: str) -> Refused | None:
@@ -108,6 +106,11 @@ def checked_file(raw) -> Path:
     return path
 
 
+# A refusal meaning the work was cut off by part of Hooke stopping, not that the work failed: its operation is said as
+# interrupted (operations.py).
+INTERRUPTED = "stopped-while-running"
+
+
 async def _upload(app, path: Path) -> dict:
     """The file into the library's added footage, through the camera bridge's own upload (it owns that folder)."""
     import httpx
@@ -117,8 +120,14 @@ async def _upload(app, path: Path) -> dict:
     origin = "{0.scheme}://{0.netloc}".format(urlsplit(bridge))
     query = urlencode({"filename": path.name, "title": path.stem, "specimen": "", "microscope": "0"})
 
-    async def chunks():  # read off the event loop, a megabyte at a time
+    try:  # opened first, so macOS refusing Hooke the folder is said as that, before anything is sent
         stream = await asyncio.to_thread(path.open, "rb")
+    except PermissionError:
+        raise Refused(403, "mac-privacy", f"macOS hasn't let Hooke read files in {path.parent}.",
+                      next="move the file to a folder of its own (not Desktop, Documents or Downloads), or allow Hooke "
+                           "in System Settings → Privacy & Security → Files and Folders, then open it again") from None
+
+    async def chunks():  # read off the event loop, a megabyte at a time
         try:
             while block := await asyncio.to_thread(stream.read, 1024 * 1024):
                 yield block
@@ -132,9 +141,14 @@ async def _upload(app, path: Path) -> dict:
                                                   "Content-Type": "application/octet-stream",
                                                   "Content-Length": str(path.stat().st_size)})
         body = response.json()
-    except (httpx.HTTPError, ValueError) as error:
-        raise Refused(503, "bridge-unreachable", f"Hooke's camera bridge couldn't take the file ({type(error).__name__}).",
-                      next="check Hooke is running, then try again") from None
+    except httpx.ConnectError:
+        await asyncio.to_thread(stream.close)
+        raise Refused(503, "bridge-unreachable", "Hooke's camera bridge isn't answering, so the file wasn't added.",
+                      next="check Hooke is open (hooke status --wait), then try again") from None
+    except (httpx.HTTPError, ValueError) as error:  # it went away while taking the file: Hooke quit or restarted
+        raise Refused(503, INTERRUPTED, f"Part of Hooke (its camera bridge) stopped while it took the file "
+                      f"({type(error).__name__}), so the file wasn't added.",
+                      next="check Hooke is open (hooke status --wait), then open the file again with a new request key") from None
     if response.status_code != 200 or not body.get("ok") or not isinstance(body.get("item"), dict):
         raise Refused(400, "not-added", f"Hooke couldn't add {path.name}: {str(body.get('error') or response.status_code)[:200]}",
                       next="choose a picture or video Hooke can open")

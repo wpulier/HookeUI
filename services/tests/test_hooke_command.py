@@ -87,7 +87,7 @@ def test_the_command_against_a_real_door(hooke, tmp_path, monkeypatch):
         return {"says": "Done.", "page": "#measurements/e1?session=s1&revision=0"}
 
     monkeypatch.setattr(example, "run", work)
-    monkeypatch.setattr(example, "takeover", lambda app: None)
+    monkeypatch.setattr(example, "takeover", lambda app, doing="the example", actor=None: None)
     monkeypatch.setattr(api, "example_identity", lambda: ("r1", "abc.0123456789abcdef"))
     monkeypatch.setenv("HOOKE_DEV_CONFIRM", "1")
     monkeypatch.delenv("HOOKE_CONFIRM_KEY", raising=False)
