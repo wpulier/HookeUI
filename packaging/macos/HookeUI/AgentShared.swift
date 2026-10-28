@@ -90,6 +90,10 @@ final class AgentConfirmKey {
         (SecKeyCreateSignature(privateKey, .ecdsaSignatureMessageX962SHA256, message as CFData, nil) as Data?)?.base64EncodedString()
     }
 
+    static func projectGrant(id: String, session: String, connection: String, role: String, cancel: Bool = false) -> Data {
+        Data(("hooke-project-grant\n\(id)\n\(session)\n\(connection)\n\(role)" + (cancel ? "\ncancel" : "")).utf8)
+    }
+
     /// What is signed: the exact request, its code and the answer (the same bytes as door/native.py `message`).
     static func message(pending: String, code: String, answer: String) -> Data {
         Data("hooke-agent-connect\n\(pending)\n\(code)\n\(answer)".utf8)

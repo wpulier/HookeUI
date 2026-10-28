@@ -39,6 +39,11 @@ def public_key(environ=os.environ):
 def check(pid: str, code: str, answer: str, signature, *, studio_ok: bool, environ=os.environ) -> str:
     """Whose answer this is: "native" (signed by this launch's window) or "development" (the studio's, allowed only
     with HOOKE_DEV_CONFIRM=1 and no key). Anything else is refused."""
+    return check_message(message(pid, code, answer), signature, studio_ok=studio_ok, environ=environ)
+
+
+def check_message(payload: bytes, signature, *, studio_ok: bool, environ=os.environ) -> str:
+    """Verify an exact owner-confirmation payload; callers own its meaning and replay protection."""
     key = public_key(environ)
     if key is None:
         if environ.get("HOOKE_DEV_CONFIRM") == "1" and studio_ok:
@@ -52,7 +57,7 @@ def check(pid: str, code: str, answer: str, signature, *, studio_ok: bool, envir
         from cryptography.exceptions import InvalidSignature
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.asymmetric import ec
-        key.verify(base64.b64decode(signature, validate=True), message(pid, code, answer), ec.ECDSA(hashes.SHA256()))
+        key.verify(base64.b64decode(signature, validate=True), payload, ec.ECDSA(hashes.SHA256()))
     except (InvalidSignature, ValueError, TypeError):
         raise Refused(403, "bad-confirm", "That answer wasn't signed by this Hooke window.",
                       next="answer it in the Hooke window") from None

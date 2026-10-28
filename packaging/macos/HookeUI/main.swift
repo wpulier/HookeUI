@@ -527,6 +527,8 @@ final class Studio: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDele
         configuration.userContentController.add(AgentAttention(origin: url), contentWorld: .page, name: "hookeAttention")
         configuration.userContentController.addScriptMessageHandler(AgentConnect(origin: url), contentWorld: .page,
                                                                     name: "hookeConnect")
+        configuration.userContentController.addScriptMessageHandler(AgentProjectGrant(origin: url), contentWorld: .page,
+                                                                    name: "hookeProjectGrant")
         // The studio token, for this window's page only (main frame, before its scripts run).
         configuration.userContentController.addUserScript(WKUserScript(
             source: "window.hookeStudioToken = \(String(reflecting: studioToken));",
@@ -1225,6 +1227,73 @@ final class AgentConnect: NSObject, WKScriptMessageHandlerWithReply {
             let body = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]) ?? [:]
             let says = body["says"] as? String ?? error?.localizedDescription ?? ""
             DispatchQueue.main.async { done(status == 200, says) }
+        }.resume()
+    }
+}
+
+
+/// Grants belong to the owner, never an agent token. The server supplies the exact
+/// current choice; a one-use signature binds this dialog to that Project and connection.
+final class AgentProjectGrant: NSObject, WKScriptMessageHandlerWithReply {
+    let origin: URL
+    private var asking = false
+    init(origin: URL) { self.origin = origin }
+
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler reply: @escaping (Any?, String?) -> Void) {
+        let source = message.frameInfo.request.url
+        guard message.frameInfo.isMainFrame, source?.scheme == origin.scheme, source?.host == origin.host,
+              source?.port == origin.port, let body = message.body as? [String: Any],
+              Set(body.keys) == Set(["session", "connection", "role"]),
+              let key = agentConfirmKey else { reply(nil, "Not an owner request from this Hooke workspace."); return }
+        guard !asking else { reply(["ok": false, "says": "Finish the current Project access dialog first."], nil); return }
+        asking = true
+        post("prepare", body) { [self] prepared in
+            guard prepared["ok"] as? Bool == true, let choice = prepared["choice"] as? [String: Any],
+                  let id = choice["id"] as? String, let session = choice["session"] as? String,
+                  let connection = choice["connection"] as? String, let role = choice["role"] as? String,
+                  let name = choice["projectName"] as? String, let label = choice["label"] as? String,
+                  ["none", "read", "contribute"].contains(role) else {
+                asking = false; reply(["ok": false, "says": prepared["says"] as? String ?? "Hooke could not prepare a valid Project choice."], nil); return
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = role == "none" ? "Remove Project access for \(label)?" : "Share \(name) with \(label)?"
+            alert.informativeText = "Project: \(name) (\(session))\nConnection: \(label) (\(connection))\n\n"
+                + (role == "none" ? "Future access through this connection will stop. Earlier work stays attributed to its author."
+                   : "\(role == "read" ? "Read" : "Contribute") access allows this connection to read the Project’s retained sources and results. "
+                     + (role == "contribute" ? "It can also add material, run local research and publish findings. " : "")
+                     + "What it reads may be sent to its provider. This grants no membership, credentials or spending controls.")
+            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: role == "none" ? "Remove access" : "Grant access").keyEquivalent = ""
+            let answered: (NSApplication.ModalResponse) -> Void = { [self] response in
+                let cancel = response != .alertSecondButtonReturn
+                guard let signature = key.sign(AgentConfirmKey.projectGrant(id: id, session: session, connection: connection, role: role, cancel: cancel)) else {
+                    asking = false; reply(nil, "Hooke could not sign this Project choice."); return
+                }
+                var answer: [String: Any] = ["id": id, "signature": signature]
+                if cancel { answer["answer"] = "cancel" }
+                post("confirm", answer) { result in
+                    self.asking = false
+                    reply(cancel ? ["ok": false, "says": "Project access was not changed."] : result, nil)
+                }
+            }
+            if let window = NSApp.windows.first(where: { $0.contentView is WKWebView }) {
+                window.makeKeyAndOrderFront(nil); alert.beginSheetModal(for: window, completionHandler: answered)
+            } else { answered(alert.runModal()) }
+        }
+    }
+
+    private func post(_ action: String, _ body: [String: Any], done: @escaping ([String: Any]) -> Void) {
+        var request = URLRequest(url: origin.appendingPathComponent("api/agent-project-access/" + action))
+        request.httpMethod = "POST"; request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            var result = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
+                ?? ["ok": false, "says": error?.localizedDescription ?? "Project access could not be confirmed."]
+            if (response as? HTTPURLResponse)?.statusCode != 200 { result["ok"] = false }
+            DispatchQueue.main.async { done(result) }
         }.resume()
     }
 }

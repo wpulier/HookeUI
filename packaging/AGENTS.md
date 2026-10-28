@@ -159,3 +159,11 @@ agent door, never Studio/private routes or another host. Both use the selected n
 connection. Downloads stream through URLSession's temporary file, verify advertised
 length and move to a previously absent destination. Resource contracts and scientific
 semantics stay server-owned; adding a resource needs no new CLI tool-name list.
+
+
+The Project-sharing sheet (`AgentProjectGrant`, `hookeProjectGrant`) obtains its
+canonical choice from the local door, names the Project and stable connection,
+and signs that one-use choice with the same launch-scoped key as connection
+confirmation. Cancel is the default. It grants only read/contribute (or removes
+access), never credentials, spending or membership administration. The source
+browser's development confirmation is not a packaged grant fallback.

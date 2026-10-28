@@ -1,3 +1,10 @@
+type NativeGrant = { postMessage(value: unknown): Promise<unknown> };
+function nativeGrant(): NativeGrant | undefined {
+  const host = (typeof window === 'undefined' ? undefined : window) as unknown as
+    { webkit?: { messageHandlers?: { hookeProjectGrant?: NativeGrant } } } | undefined;
+  return host?.webkit?.messageHandlers?.hookeProjectGrant;
+}
+
 /** Owner controls only. Outside agents cannot change Project membership through the door. */
 export async function mountProjectAccess(host: HTMLElement, connection: { id: string; label: string }, request: typeof fetch): Promise<void> {
   const panel = document.createElement('fieldset');
@@ -8,7 +15,7 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
     const reply = await request('/api/agent-project-access', { cache: 'no-store' });
     const data = await reply.json();
     if (!reply.ok || !Array.isArray(data.projects)) throw new Error(data.says ?? 'Project access could not be read.');
-    if (!data.editable) { status.textContent = 'Project access changes need the qualified owner confirmation in Hooke. This copy cannot grant access yet.'; return; }
+    if (!data.editable || (data.confirmation === 'native' && !nativeGrant())) { status.textContent = 'Project access changes need the qualified owner confirmation in Hooke. This copy cannot grant access yet.'; return; }
     type Row = { session: string; name: string; by: string; grants?: Record<string, string> };
     const projects: Row[] = data.projects.filter((p: unknown): p is Row => !!p && typeof p === 'object' &&
       'session' in p && typeof p.session === 'string' && 'name' in p && typeof p.name === 'string' && 'by' in p && typeof p.by === 'string');
@@ -35,11 +42,20 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
       const selectedRole = role.value;
       choose.disabled = role.disabled = save.disabled = true;
       try {
-        const response = await request('/api/agent-project-access', { method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'agent-connections' },
-          body: JSON.stringify({ session: p.session, connection: connection.id, role: selectedRole || null }) });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.says ?? 'Project access was not saved.');
+        const choice = { session: p.session, connection: connection.id, role: selectedRole || null };
+        if (data.confirmation === 'native') {
+          const result = await nativeGrant()!.postMessage(choice);
+          if (!result || typeof result !== 'object' || !('ok' in result) || result.ok !== true) {
+            throw new Error(result && typeof result === 'object' && 'says' in result && typeof result.says === 'string'
+              ? result.says : 'Project access was not saved.');
+          }
+        } else {
+          const response = await request('/api/agent-project-access', { method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'agent-connections' },
+            body: JSON.stringify(choice) });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.says ?? 'Project access was not saved.');
+        }
         p.grants = { ...p.grants, [`agent:${connection.id}`]: selectedRole };
         status.textContent = selectedRole ? `${connection.label} now has ${selectedRole} access to ${p.name || p.session}.` : `Access to ${p.name || p.session} revoked. Earlier work stays attributed to its author.`;
       } catch (error) { status.textContent = error instanceof Error ? error.message : 'Project access was not saved.'; }

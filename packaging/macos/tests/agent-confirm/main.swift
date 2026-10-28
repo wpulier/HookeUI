@@ -3,8 +3,10 @@
 import Foundation
 
 let args = CommandLine.arguments
-guard args.count == 4, let key = AgentConfirmKey(), let publicKey = key.publicBase64,
-      let signature = key.sign(AgentConfirmKey.message(pending: args[1], code: args[2], answer: args[3])) else {
+guard [4, 6].contains(args.count), let key = AgentConfirmKey(), let publicKey = key.publicBase64,
+      let signature = key.sign(args.count == 6
+        ? AgentConfirmKey.projectGrant(id: args[2], session: args[3], connection: args[4], role: args[5], cancel: args[1] == "grant-cancel")
+        : AgentConfirmKey.message(pending: args[1], code: args[2], answer: args[3])) else {
     FileHandle.standardError.write("usage: agent-confirm <pending id> <code> <answer>\n".data(using: .utf8)!)
     exit(2)
 }
