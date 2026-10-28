@@ -102,7 +102,7 @@ health() { curl -s -m 2 "$1" 2>/dev/null || true; }
 is_bridge() { health "$CAMERA_URL/api/health" | grep -q '"targetDevice"'; }
 feed_footage() { health "$CAMERA_URL/feed" | sed -n 's/.*"footage": "\(.*\)",*$/\1/p' | head -1; }
 is_orchestrator() { health "$ORCH_URL/api/health" | grep -q '"microscope-mind-orchestrator"'; }
-is_dev_studio() { health "http://127.0.0.1:$DEV_PORT/" | grep -Eq '<title>(ObservationUI|MicroscopeMind) Studio</title>'; }
+is_dev_studio() { health "http://127.0.0.1:$DEV_PORT/" | grep -Eq '<title>(HookeUI|ObservationUI|MicroscopeMind) Studio</title>'; }
 is_cv() { health "http://127.0.0.1:$CV_PORT/api/health" | grep -q '"iphone-cv-consumer"'; }
 pids_on() { lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true; }
 
