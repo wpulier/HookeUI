@@ -181,7 +181,9 @@ remain separate evidence classes.
 The same explicit read/contribute grant applies to a retained Project created by a
 person. Owner access settings list the canonical Project catalogue; listing and
 preparing native confirmation grant nothing. Only successful owner confirmation
-registers an unshared Project with `by: user`, retaining its actual creator category.
+registers an unshared Project with `by: user` in the permission registry. This denotes
+local-owner authority, not a reconstruction of the Project's historical creator;
+existing journal authorship is unchanged.
 Agents still discover only their own or explicitly granted Projects. No new agent
 administration route, automatic sharing or replacement Project is introduced.
 Revocation removes that connection's authority and retains prior authorship. Missing
