@@ -286,9 +286,34 @@ def update(name: str = catalog.REVIEWED_CHANNEL, environ: Mapping[str, str] = os
 
 
 def label(name: str, environ: Mapping[str, str] = os.environ) -> str:
-    """How a channel is said to people: its label ("Maya Okafor's shared file", share.py), else its name."""
+    """A channel's short name, for a button: its label ("Maya Okafor's shared file", share.py), else its name."""
     c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
     return str((c or {}).get("label") or name)
+
+
+def source(name: str, environ: Mapping[str, str] = os.environ) -> str:
+    """Where a channel's entries come from: "reviewed" (this repository's reviewed catalog), "shared-file" (a file
+    someone shared, opened with share.py) or "git" (a community repository); "" when there is no such channel."""
+    c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
+    if c is None:
+        return ""
+    if c.get("reviewed"):
+        return "reviewed"
+    return "shared-file" if c.get("source") == "shared-file" else "git"
+
+
+def said(name: str, environ: Mapping[str, str] = os.environ) -> str:
+    """A channel named in a sentence, the one way every message names it: "Maya Okafor's shared file" (or "a shared
+    file"), "the reviewed catalog", a community repository's label, else "the community channel lab-models". A shared
+    file's own name (shared-<hash>) is never said. The studio's `sourceWords` (model-status.ts) names it on a card."""
+    c = next((c for c in catalog.channels(environ) if c["name"] == name), None)
+    if c is None:
+        return f"the community channel {name}"
+    if c.get("source") == "shared-file":
+        return str(c.get("label") or "a shared file")
+    if c.get("reviewed"):
+        return "the reviewed catalog"
+    return str(c.get("label") or f"the community channel {name}")
 
 
 def add(url: str, name: str = "", commit: str = "", path: str = CATALOG_PATH,
@@ -355,7 +380,8 @@ def wire(environ: Mapping[str, str] = os.environ) -> list[dict]:
     """The channels for the Models page: each with its address, commit, when checked and how many entries."""
     out = []
     for c in catalog.channels(environ):
-        out.append({"name": c["name"], "label": c.get("label") or c["name"], "url": c.get("url", ""), "commit": c.get("commit", ""),
+        out.append({"name": c["name"], "label": c.get("label") or c["name"], "source": source(c["name"], environ),
+                    "url": c.get("url", ""), "commit": c.get("commit", ""),
                     "reviewed": bool(c.get("reviewed")), "trusted": bool(c.get("reviewed") or c.get("trusted")),
                     "checked": c.get("checked", c.get("added", "")), "entries": len(_ids(c, environ))})
     return out

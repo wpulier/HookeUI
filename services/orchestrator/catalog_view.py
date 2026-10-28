@@ -516,11 +516,11 @@ def facts(m: catalog.Manifest, key_facts: Mapping[str, dict], have, checks: list
             out.append({"kind": "entry", "ok": True, "ref": c.get("url", ""),
                         "says": f"From the reviewed catalog at {c.get('commit', '')[:7]}, newer than this app"})
         else:
-            said = c.get("label") or m.channel
+            at = "" if c.get("source") == "shared-file" else f" at {c.get('commit', '')[:7]}"  # a file's hash says nothing
             out.append({"kind": "entry", "ok": True if c.get("trusted") else None, "ref": c.get("url", ""),
-                        "says": f"From {'the community channel ' + said if said == m.channel else said} at "
-                                f"{c.get('commit', '')[:7]}: not reviewed here" + ("; you allowed code from it" if c.get("trusted") else ""),
-                        **({} if c.get("trusted") else {"trust": m.channel, "trustLabel": said})})
+                        "says": f"From {channels.said(m.channel, environ)}{at}: not reviewed here"
+                                + ("; you allowed code from it" if c.get("trusted") else ""),
+                        **({} if c.get("trusted") else {"trust": m.channel, "trustLabel": c.get("label") or m.channel})})
     if m.service:
         service = catalog.services().get(m.service)
         if service is not None and service.key:
@@ -699,6 +699,14 @@ def facts(m: catalog.Manifest, key_facts: Mapping[str, dict], have, checks: list
     return out
 
 
+def _channel_fields(name: str, environ: Mapping[str, str]) -> dict:
+    """Which channel a row came through, with its source and label, so the studio names it as what it is ("from a
+    shared file", never "community: shared-1a2b3c"; model-status.ts `sourceWords`)."""
+    from . import channels
+
+    return {"channel": name, "channelSource": channels.source(name, environ), "channelLabel": channels.label(name, environ)}
+
+
 def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bool], downloads: list[dict] | None = None,
          environ: Mapping[str, str] = os.environ) -> list[dict]:
     """Every catalog entry as the Models page shows it (see the module's docstring), in group order, then by name."""
@@ -728,7 +736,7 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
             row = {"id": key, "name": m.name, "runs": m.runs, "where": WHERE.get(m.runs, m.runs), "what": m.what,
                    "kind": m.kind, "version": m.version, "credit": dict(m.credit), "link": _link(m),
                    "licence": licences.licence_text(m.licence), "tier": licences.tier(m.licence),
-                   "mine": m.namespace == "mine", **({"channel": m.channel} if m.channel else {}),
+                   "mine": m.namespace == "mine", **(_channel_fields(m.channel, environ) if m.channel else {}),
                    # An adapter the builder drafted says so on its card (C4; drafts.py writes it into its component).
                    **({"draftedByAi": True} if "drafted by AI" in str((m.component or {}).get("what", "")) else {}), **r.wire(), "group": group, "inUse": in_use, "chosen": chosen,
                    "facts": facts(m, key_facts, have, checks, environ),

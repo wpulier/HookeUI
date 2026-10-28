@@ -62,14 +62,14 @@ def scrub(text: object, environ: Mapping[str, str] = os.environ) -> str:
 
 def facts(key: str, environ: Mapping[str, str] = os.environ) -> dict:
     """What the report says (see the module's docstring)."""
-    from . import envs
+    from . import channels, envs
 
     m = catalog.get(key)
     if m is None:
         raise KeyError(key)
     out: dict = {"capability": m.name, "entry": m.key, "version": m.version,
-                 "from": "one of yours" if m.namespace == "mine" else (f"community catalog {m.channel}" if m.channel
-                                                                       else "the reviewed catalog"),
+                 "from": channels.said(m.channel, environ) if m.channel else ("one of yours" if m.namespace == "mine"
+                                                                              else "the reviewed catalog"),
                  "runner": m.runner or "none", "link": (m.credit or {}).get("link") or m.source.get("url") or ""}
     if m.runner == "python-env" or envs.spec(m):
         from . import env_runner
@@ -150,7 +150,7 @@ def where(m: catalog.Manifest) -> str:
 
         c = next((c for c in catalog.channels() if c["name"] == m.channel), {})
         url = str(c.get("url") or "")
-        if channels.label(m.channel).endswith("shared file") or not url.startswith("https://github.com/"):
+        if channels.source(m.channel) == "shared-file" or not url.startswith("https://github.com/"):
             return ""
         return url.removesuffix(".git").rstrip("/") + "/issues/new"
     return ISSUES
