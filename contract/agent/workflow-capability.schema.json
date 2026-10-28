@@ -1,0 +1,166 @@
+{
+  "$id": "hooke:agent/workflow-capability",
+  "title": "A capability admitted by scientific workflows",
+  "description": "The same exact descriptor used by Tools, local researchers and connected agents. Its execution generation is distinct from the generic catalog entry generation.",
+  "type": "object",
+  "required": [
+    "id",
+    "capability",
+    "name",
+    "generation",
+    "inputs",
+    "outputs",
+    "parameters",
+    "parameterSchema",
+    "ready",
+    "reason",
+    "runtime",
+    "setup"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capability": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generation": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}\\.[0-9a-f]{64}$"
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/port"
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/port"
+      }
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "parameterSchema": {
+      "type": "object"
+    },
+    "ready": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "owner",
+        "generation",
+        "lockSha256",
+        "python",
+        "backend",
+        "prepared",
+        "reason",
+        "memoryLimitBytes",
+        "memoryBoundary",
+        "denseWorkingLimitBytes"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lockSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "receiptSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "python": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prepared": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "memoryLimitBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "denseWorkingLimitBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryBoundary": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "setup": {
+      "type": "object",
+      "required": [
+        "model",
+        "command"
+      ],
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "port": {
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -24,6 +24,8 @@ from dataclasses import dataclass
 TIERS = ("open", "terms", "noncommercial")  # edition-policy order, not a licence classification
 EDITIONS = {"commercial": {"open", "terms"}, "research": set(TIERS)}
 DEFAULT_EDITION = "research"
+# Bundled browser components; independent of GPU operations and model options.
+STUDIO_COMPONENTS = {"react": ("react", "react-dom"), "react-flow": ("@xyflow/react",)}
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class Component:
 COMPONENTS = {
     c.id: c
     for c in [
+        Component("react", "React and React DOM (isolated workflow editor)", "MIT", "https://github.com/facebook/react", "open", "code"),
+        Component("react-flow", "React Flow (workflow connections and step canvas)", "MIT", "https://github.com/xyflow/xyflow", "open", "code"),
         Component("pint", "Pint 0.26.1 (scientific unit-name identity; no implicit conversion)",
                   "BSD-3-Clause", "https://github.com/hgrecco/pint", "open", "code"),
         Component("gemini-api", "Google Gemini API (vision, Sight, fast pass, research, pictures)",

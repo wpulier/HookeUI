@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": [
+    "study"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "study": {
+      "$ref": "artifact-reference.schema.json"
+    }
+  },
+  "$id": "hooke:agent/study-reference"
+}

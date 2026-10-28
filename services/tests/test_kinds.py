@@ -39,6 +39,20 @@ def segment(frames, params):
 }
 
 
+def test_retained_file_capabilities_point_to_workflows_not_the_live_picture():
+    from orchestrator import capabilities
+    row=next(k for k in kinds.available() if k['key']=='response-predict')
+    assert not row['runnable'] and row['executionRoute']=='workflow'
+    assert len(row['inputs'])==3 and 'Scientific workflows' in row['why']
+    assert 'nothing here gives' not in row['why'] and 'second input' not in row['why']
+    description=kinds.described(row)
+    assert 'Execution route:' in description and all(p['id'] in description for p in row['inputs'])
+    listed=next(c for c in capabilities.contributed(None) if c['id']=='catalog:response-predict')
+    assert listed['how']['tool']=='find_workflows' and listed['how']['args']=={'capabilities':True}
+    assert listed['how']['href']=='#workflows?capability=response-predict'
+    assert 'retained Project files' in listed['how']['say'] and 'on the view' not in listed['how']['say']
+
+
 def kind_entry(home, output: str, adapter: str, operation: str = "spot-report", input_type: str | None = None):
     input_type = input_type or catalog.KIND_INPUT.get(output, "image.2d.rgb8")
     folder = home / "repo" / "models" / "dark-spots"

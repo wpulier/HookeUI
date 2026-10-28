@@ -163,3 +163,88 @@ def test_overlapping_recovery_both_join_original_finish_before_reporting_absence
     finally:
         release.set();finish.join(2);first.join(2);second.join(2);built.scientific_uploads.close()
     assert outcomes==[None,None]
+
+
+FILE_BASE='/api/scientific-file-transfers'
+FILE_HEADERS={'Origin':ORIGIN,'X-MicroscopeMind':'import-scientific-file-chunk'}
+
+
+def begin_file(client,built,size=6,request='chunked-file-request-0123456789'):
+    return client.post(FILE_BASE,headers=FILE_HEADERS,params={'session':built.day.sid,'request':request,
+        'name':'matrix.h5ad','size':size,'bytes':size})
+
+
+def test_single_file_chunks_retry_finish_recovery_and_original_project_survive_navigation(web):
+    client,built=web;session=built.day.sid
+    token=begin_file(client,built).json()['token'];url=FILE_BASE+'/'+token
+    first=client.put(url,headers=FILE_HEADERS,params={'offset':0},content=b'abc')
+    assert first.json()=={'ok':True,'offset':3}
+    assert client.put(url,headers=FILE_HEADERS,params={'offset':0},content=b'abc').json()==first.json()
+    assert client.put(url,headers=FILE_HEADERS,params={'offset':0},content=b'bad').status_code==400
+    assert begin_file(client,built).json()['offset']==3
+    # A folder endpoint cannot consume or stop the file's admitted lease.
+    assert client.delete(BASE+'/'+token,headers=HEADERS).status_code==400
+    assert built.scientific_uploads.get(token).offset==3
+    built.day.sid='2026-10-16.999'
+    assert client.put(url,headers=FILE_HEADERS,params={'offset':3},content=b'def').status_code==200
+    done=client.post(url+'/finish',headers=FILE_HEADERS);assert done.status_code==200,done.text
+    saved=done.json()['project'];assert saved['document']['kind']=='source-file'
+    assert saved['session']==session and done.json()['sessionChanged'] is True
+    assert built.hub.resources.projects.list(built.day.sid)==[]
+    recovered=client.post('/api/scientific-file-transfer-recovery',headers=FILE_HEADERS,
+        params={'session':session,'request':'chunked-file-request-0123456789'})
+    assert recovered.json()['project']==saved
+    assert client.get('/api/scientific-files/'+saved['id'],params={'session':session,'revision':1}).content==b'abcdef'
+    built.day.sid=session
+    retry=begin_file(client,built).json()['token']
+    client.put(FILE_BASE+'/'+retry,headers=FILE_HEADERS,params={'offset':0},content=b'abcdef')
+    assert client.post(FILE_BASE+'/'+retry+'/finish',headers=FILE_HEADERS).json()['project']==saved
+    assert len(built.hub.resources.projects.list(session))==1
+
+
+def test_single_file_stop_and_restart_retains_only_complete_original_acceptance(web):
+    from orchestrator.scientific_chunk_intake import Transfers
+    from orchestrator.capture import captures
+    client,built=web;memory=captures(built.hub).memory;before=memory.reserved.copy()
+    token=begin_file(client,built).json()['token'];url=FILE_BASE+'/'+token
+    client.put(url,headers=FILE_HEADERS,params={'offset':0},content=b'abc')
+    built.scientific_uploads.close()
+    assert memory.reserved==before and not built.hub.resources.projects.list(built.day.sid)
+    assert not list(built.hub.resources.projects.root.glob('.scientific-import-*'))
+    # A new registry recovers committed receipts; it never resumes abandoned private staging.
+    restarted=Transfers(built.hub.resources.projects,memory)
+    assert restarted.recover(built.day.sid,'chunked-file-request-0123456789','file') is None
+    item=restarted.begin(built.day.sid,'chunked-file-request-0123456789','matrix.h5ad',6,6,'file')
+    item.write(0,b'abcdef');saved=item.finish();restarted.close()
+    again=Transfers(built.hub.resources.projects,memory)
+    assert again.recover(built.day.sid,'chunked-file-request-0123456789','file')==saved
+    again.close();assert memory.reserved==before
+
+
+def test_single_file_over_legacy_limit_streams_to_same_fileintake_with_bounded_buffers(web):
+    import hashlib
+    from orchestrator.capture import captures
+    from orchestrator.scientific_files import CHUNK_BYTES
+    client,built=web;memory=captures(built.hub).memory;before=memory.reserved.copy()
+    size=65*CHUNK_BYTES
+    started=begin_file(client,built,size);assert started.status_code==200,started.text
+    token=started.json()['token'];url=FILE_BASE+'/'+token;digest=hashlib.sha256()
+    assert 0<memory.reserved['analysis']-before['analysis']<32<<20
+    for i in range(65):
+        block=bytes([i])*CHUNK_BYTES;digest.update(block)
+        response=client.put(url,headers=FILE_HEADERS,params={'offset':i*CHUNK_BYTES},content=block)
+        assert response.json()['offset']==(i+1)*CHUNK_BYTES
+    complete=client.post(url+'/finish',headers=FILE_HEADERS);assert complete.status_code==200,complete.text
+    saved=complete.json()['project'];state=saved['document']['state']['sourceFile']
+    assert state['size']==size and state['sha256']==digest.hexdigest()
+    source=built.hub.resources.projects.file_source(saved['id'],saved['session'],1,state['reference'])
+    assert source.read(64*CHUNK_BYTES,CHUNK_BYTES)==bytes([64])*CHUNK_BYTES
+    assert memory.reserved==before
+
+
+def test_single_file_metadata_origin_and_kind_refusals_do_not_publish(web):
+    client,built=web
+    params={'session':built.day.sid,'request':'chunked-file-request-0123456789','name':'matrix.h5ad','size':6,'bytes':7}
+    assert client.post(FILE_BASE,headers=FILE_HEADERS,params=params).status_code==400
+    assert client.post(FILE_BASE,headers=HEADERS,params={**params,'bytes':6}).status_code==403
+    assert not built.hub.resources.projects.list(built.day.sid)

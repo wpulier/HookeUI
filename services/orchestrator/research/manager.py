@@ -1592,7 +1592,8 @@ class ResearchManager:
     def _new_attempt(self, session: Session, mission: Mission | None = None) -> WorkerAttempt:
         attempt = WorkerAttempt(session.run_number(), copy.deepcopy(session.origin), mission,
                                 mission.status if mission is not None else None, delivery=session._delivery)
-        attempt.record = {**attempt.facts(), "status": "queued", "reservation": EFFORTS[session.run_effort].cap_usd}
+        attempt.record = {**attempt.facts(), "status": "queued", "reservation": EFFORTS[session.run_effort].cap_usd,
+                          "configuredEngine": session.engine}
         session._attempt = attempt
         # Charged to the calendar day it starts on, whichever date folder its researcher is in (ledger.py).
         session.usage_runs[attempt.id] = {'spent': 0.0, 'estimated': 0.0, 'sequence': -1, 'day': self.today(),
@@ -2043,12 +2044,16 @@ class ResearchManager:
     async def start(self, brief: str, *, effort: str = "quick", deliverable: str | None = None, object_id: str | None = None,
                     origin: dict | None = None, purpose: str = "research", label: str = "", fake: dict | None = None,
                     words: str = "", asked_with: str = "", delivery: Delivery | None = None,
-                    dependencies: list[dict] | None = None, confirmed: bool = False) -> Session:
+                    dependencies: list[dict] | None = None, confirmed: bool = False,
+                    expected_session: str | None = None) -> Session:
         """Queue a researcher and return at once (its snapshot is taken now). `words`: what the
         user said in the last half minute, for admission (policy.admit: big deliverables need an
         explicit request; an incompatible format is refused without increasing effort). A scripted researcher (`fake`, the
         scenario harness) is test plumbing and skips it. The day's cap is checked."""
         from ..ticket import current
+        if expected_session is not None and expected_session != self.session():
+            raise ResearchRefused('The original Project changed before this researcher was admitted.',
+                                  next='return to the original Project and start a new request')
         request = current()
         if getattr(request, 'workspace_origin', None):
             origin = {**(origin or {}), 'workspace':copy.deepcopy(request.workspace_origin)}
@@ -2107,7 +2112,7 @@ class ResearchManager:
         # Held before the first await: two starts in one turn must not both pass the check.
         self.spending.hold(session, EFFORTS[effort].cap_usd)
         try:
-            if bound_inputs:
+            if bound_inputs or (origin or {}).get('study'):
                 # An explicit retained-work handoff never silently substitutes the camera now.
                 (directory / 'inputs').mkdir(parents=True, exist_ok=True)
                 snapshot = {'learner': learner_of(self.hub.settings)}
@@ -2287,7 +2292,7 @@ class ResearchManager:
                                           if self.transcripts is not None else None),
                               # A monthly cap bounds each run to its effort's most, the amount its hold reserved
                               # against the month (ledger.hold), so runs never share one remaining allowance.
-                              unlimited_budget=(session.run_effort != "build" and self.hub.settings.research_cap is None
+                              unlimited_budget=(not session.origin.get('study') and session.run_effort != "build" and self.hub.settings.research_cap is None
                                                 and not _month_capped()))
             if isinstance(reply, dict) and reply.get('ok') is False:
                 raise RuntimeError(reply.get('error') or 'worker refused dispatch')
@@ -2687,6 +2692,7 @@ class ResearchManager:
         automatic_format = session.deliverable in ('report', 'lesson') or (session.deliverable == 'research'
                             and bool((session.result or {}).get('tables') or (session.result or {}).get('charts')))
         if ((receipt_mode is None or lesson_revision) and session.purpose == 'research' and automatic_format
+                and not (attempt is not None and attempt.origin.get('study'))
                 and status in ('done', 'partial') and ((session.result or {}).get('report') or (session.result or {}).get('lesson'))
                 and getattr(self.hub.settings, 'presentation', 'off') != 'off'):
             basis = session.result.get('findingRevision')
@@ -2762,7 +2768,7 @@ class ResearchManager:
         if str(message.get("op") or "").startswith("draft_"):  # the builder's workbench (drafts.py, C4)
             return await self._draft_op(session, message)
         if message.get("op") == "run":  # the app's own operations, for its reading (hands.py)
-            if message.get('operation') == 'measure_saved_objects':
+            if message.get('operation') in ('measure_saved_objects','workflow'):
                 attempt = session._attempt
                 if (attempt is None or message.get('runId') != attempt.id or attempt.completion.done()
                         or not attempt.record.get('dispatchedAt')):
@@ -2777,6 +2783,7 @@ class ResearchManager:
             before, session.step = session.step, {
                 "enhance": "making a clearer picture from real frames",
                 "measure_saved_objects": "measuring the selected saved labels",
+                "workflow": "using the selected saved workflow",
                 "motion": "watching the live view to measure what moves"}.get(
                 str(message.get("operation") or ""), "waiting for the live view: the app's own work goes first")
             self._changed(session)
@@ -2795,14 +2802,15 @@ class ResearchManager:
                                              **({"inputs": message["inputs"]} if "inputs" in message else {}),
                                              **({"selection": message["selection"]} if "selection" in message else {}),
                                              **({'run_id': message.get('runId')}
-                                                if message.get('operation') == 'measure_saved_objects' else {}),
+                                                if message.get('operation') in ('measure_saved_objects','workflow') else {}),
+                                             **({'params':message.get('params')} if message.get('operation')=='workflow' else {}),
                                              # one the catalog added, with its parameters (the one door, kinds.py)
                                              **({"capability": str(message["capability"])[:120],
                                                  "params": message.get("params") if isinstance(message.get("params"), dict)
                                                  else None} if message.get("capability") else {}))
             finally:
                 if session.step.startswith(("waiting for the live view", "making a clearer picture", "watching the live view",
-                                            "measuring the selected saved labels")):
+                                            "measuring the selected saved labels", "using the selected saved workflow")):
                     session.step = before
                     self._changed(session)
             if reply.get("ok"):

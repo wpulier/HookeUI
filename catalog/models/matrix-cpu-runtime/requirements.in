@@ -1,0 +1,5 @@
+# Optional, separate CPU matrix runtime. No provider SDKs or model weights.
+numpy==2.5.3
+scipy==1.18.1
+anndata==0.13.4
+h5py==3.16.0

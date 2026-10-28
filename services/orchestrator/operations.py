@@ -494,6 +494,9 @@ def _actor_now(ticket) -> str | None:
     actor = run_actor()
     if actor:
         return actor
+    from .door import actor as door_actor
+    if door_actor.current():  # work an outside agent started through the door (ADR 0026)
+        return door_actor.current()
     channel = getattr(ticket, "channel", None)
     return "you" if channel == "studio" else "assistant" if channel in BRAIN_CHANNELS else None
 

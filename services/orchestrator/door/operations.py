@@ -1,0 +1,197 @@
+"""Operations: outside agents' work, admitted to disk before it starts (ADR 0026; contract/agent/operation.schema.json).
+
+- **A request key means one request.** Its record keeps the SHA-256 of what was asked (tool, project, input revision,
+  generation, parameters). The same key and request returns the same operation; the same key with anything else is a
+  conflict.
+- **Admission is written first.** The record is on disk (fsynced) before any work starts, so a crash never runs the
+  same request twice.
+- **A restart reports what survived.** A record that was admitted, running or asked to stop when Hooke stopped is
+  marked `interrupted` with what it says it left. Nothing here resumes work by assumption.
+- **A cancel is reported, not assumed.** A cancel is `cancelRequested` until the work's own end says how it stopped.
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import os
+import re
+import secrets
+import time
+from pathlib import Path
+from typing import Awaitable, Callable
+
+from .connections import Refused
+
+TERMINAL = ("succeeded", "failed", "cancelled", "interrupted")
+_KEY = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
+_ID = re.compile(r"^op_[0-9a-f]{16,32}$")
+
+
+def request_digest(tool: str, project: str, input_revision, generation, params: dict) -> str:
+    """What a request key is bound to. Shared meaning with the hosted service: the same fields, sorted JSON, SHA-256."""
+    asked = {"tool": tool, "project": project, "inputRevision": input_revision, "generation": generation,
+             "params": params}
+    return hashlib.sha256(json.dumps(asked, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _write(path: Path, value: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w") as stream:
+        json.dump(value, stream, indent=1)
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(path)
+
+
+def wire(record: dict) -> dict:
+    """The operation as the contract says it (internal fields left out)."""
+    return {k: v for k, v in record.items() if k not in ("requestSha256",)}
+
+
+Work = Callable[[dict, Callable[..., Awaitable[None]]], Awaitable[dict]]
+
+
+class Operations:
+    def __init__(self, home: Path, clock=time.time):
+        self.folder = Path(home) / "agents" / "operations"
+        self.clock = clock
+        self._records: dict[str, dict] = {}
+        self._keys: dict[str, str] = {}
+        self._tasks: dict[str, asyncio.Task] = {}
+        self._lock = asyncio.Lock()
+        self.unreadable: list[str] = []
+        self._load()
+
+    def _path(self, op_id: str) -> Path:
+        return self.folder / f"{op_id}.json"
+
+    def _load(self) -> None:
+        if not self.folder.is_dir():
+            return
+        for path in sorted(self.folder.glob("op_*.json")):
+            try:
+                record = json.loads(path.read_text())
+                if not _ID.match(record["id"]) or not _KEY.match(record["requestKey"]):
+                    raise ValueError("not an operation")
+            except (OSError, ValueError, KeyError, TypeError):
+                self.unreadable.append(path.name)  # kept as it is; said by `operations()`, never overwritten
+                continue
+            if record.get("state") not in TERMINAL and not record.get("execution"):
+                record["state"] = "interrupted"
+                record["outcome"] = {**(record.get("outcome") or {}),
+                                     "says": "Hooke stopped while this ran. Anything it finished is kept in its Project.",
+                                     "next": "check its Project, or run it again with a new request key"}
+                record["endedAt"] = self.clock()
+                try:
+                    _write(path, record)
+                except OSError:
+                    pass  # said as interrupted in memory; the file says so on the next start
+            self._records[record["id"]] = record
+            self._keys[record["requestKey"]] = record["id"]
+
+    async def _save(self, record: dict) -> None:
+        await asyncio.to_thread(_write, self._path(record["id"]), dict(record))
+
+    def lookup(self, request_key, *, tool, project, input_revision, generation, params):
+        """Read an existing admission without dispatch, including across a lost response."""
+        known = self._keys.get(request_key)
+        if known is None:
+            return None
+        record = self._records[known]
+        if record['requestSha256'] != request_digest(tool, project, input_revision, generation, params):
+            raise Refused(409, 'request-key-conflict', 'That request key belongs to different work.',
+                          next='use a new request key for a new request')
+        return wire(record)
+
+    async def admit(self, *, by: str, label: str, tool: str, project: str, input_revision, generation, params: dict,
+                    request_key, work: Work | None, execution: dict | None = None) -> tuple[dict, bool]:
+        """The operation for this request, and whether it was made now. Work starts only after its record is on disk."""
+        if not isinstance(request_key, str) or not _KEY.match(request_key):
+            raise Refused(400, "bad-request-key", "A request key is 8 to 128 letters, digits or . _ : -.",
+                          next="choose a new request key for this request")
+        digest = request_digest(tool, project, input_revision, generation, params)
+        if (work is None) != (execution is not None):
+            raise ValueError('An operation needs either owned work or an authoritative execution reference')
+        async with self._lock:
+            known = self._keys.get(request_key)
+            if known is not None:
+                record = self._records[known]
+                if record["requestSha256"] != digest:
+                    raise Refused(409, "request-key-conflict",
+                                  "That request key was already used for a different request.",
+                                  next="use a new request key for a new request")
+                return wire(record), False
+            record = {"id": "op_" + secrets.token_hex(12), "requestKey": request_key, "requestSha256": digest,
+                      "state": "admitted", "tool": tool, "project": project, "inputRevision": input_revision,
+                      "generation": generation, "params": params, "by": by, "byLabel": label, "at": self.clock(),
+                      "progress": None, "outcome": None, "resumable": False}
+            if execution is not None:
+                record['execution'] = dict(execution)
+            try:
+                await self._save(record)
+            except OSError:
+                raise Refused(503, "not-saved", "Hooke could not record the request, so nothing was started.",
+                              next="check free disk space, then try again with the same request key") from None
+            self._records[record["id"]] = record
+            self._keys[request_key] = record["id"]
+            if work is not None:
+                self._tasks[record["id"]] = asyncio.create_task(self._run(record, work))
+            return wire(record), True
+
+    async def _run(self, record: dict, work: Work) -> None:
+        async def progress(done: float, of: float | None, says: str) -> None:
+            record["progress"] = {"done": done, "of": of, "says": says}
+            await self._save(record)
+
+        record["state"] = "running"
+        await self._save(record)
+        try:
+            outcome = await work(record, progress)
+        except asyncio.CancelledError:
+            record["state"] = "cancelled"
+            record["outcome"] = {**(record.get("outcome") or {}), "says": "Stopped before it finished."}
+        except Refused as error:
+            record["state"], record["outcome"] = "failed", {"code": error.code, "says": error.says, "next": error.next}
+        except Exception as error:  # the work's own failure, said as it is (ADR 0006)
+            says = getattr(error, "summary", None) or str(error) or type(error).__name__
+            record["state"] = "failed"
+            record["outcome"] = {"code": "failed", "says": says,
+                                 "next": getattr(error, "next", None) or "check Hooke's Activity, then try again"}
+        else:
+            record["state"], record["outcome"] = "succeeded", outcome
+            if record.get("cancelAskedAt"):
+                record["outcome"] = {**outcome, "note": "It finished before it could stop."}
+        record["endedAt"] = self.clock()
+        try:
+            await self._save(record)
+        finally:
+            self._tasks.pop(record["id"], None)
+
+    def get(self, op_id: str) -> dict:
+        record = self._records.get(op_id)
+        if record is None:
+            raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
+        return wire(record)
+
+    def operations(self, limit: int = 20) -> dict:
+        rows = sorted(self._records.values(), key=lambda r: r["at"], reverse=True)[: max(1, min(limit, 100))]
+        return {"operations": [wire(r) for r in rows], "unreadable": list(self.unreadable)}
+
+    async def cancel(self, op_id: str) -> dict:
+        record = self._records.get(op_id)
+        if record is None:
+            raise Refused(404, "unknown-operation", "There is no such operation.", next="list operations to find it")
+        if record.get('execution'):
+            raise Refused(409, 'execution-owned', 'Stop this operation through its authoritative workflow.',
+                          next='use the workflow Stop control')
+        if record["state"] in TERMINAL:
+            return wire(record)
+        record["state"], record["cancelAskedAt"] = "cancelRequested", self.clock()
+        await self._save(record)
+        task = self._tasks.get(op_id)
+        if task is not None:
+            task.cancel()
+        return wire(record)

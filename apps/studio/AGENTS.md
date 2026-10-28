@@ -1039,14 +1039,15 @@ Project/Tab changes or cancellation during the handoff refuse late opening. Once
 opened, the result owns its own lifetime; closing its comparison does not close it.
 
 Native folder selection v2 keeps its immutable snapshot on the Mac's private disk.
-`scientific-folder-native` reads one bounded chunk only after the previous upload is
-acknowledged, through the shared selected-folder intake; it never accumulates the
+`scientific-folder-native` and individual files over 64 MiB use `scientific-chunk-upload`,
+reading one bounded chunk only after the previous upload is acknowledged through the shared source intake; it never accumulates the
 whole native snapshot in browser arrays. The import sheet shows transferred bytes,
 then verification, and Stop releases its native lease and server staging. An uncertain
 finish resolves the original Project/request acceptance before permitting another
 selection, including drag/drop; failed recovery exposes Check import outcome and
-keeps that identity. Older native v1 selections and ordinary browser file/folder
-imports retain their 64 MiB Blob path. The native storage ceiling is not evidence
+keeps that identity. A browser File uses one 1 MiB slice at a time, up to the 64 GiB
+retained-file ceiling subject to disk space. Older native v1 selections, browser folders,
+stacks, web imports and small-file requests retain their 64 MiB path. The storage ceiling is not evidence
 that a reader supports that size or that large-data runtime qualification passed.
 
 Reader reference review displays exact input identities and expected/actual retained JSON without inventing
@@ -1755,3 +1756,13 @@ saved documents can open with Camera unavailable. No observation remains an expl
 opening failure with Retry. The same boundary rechecks Project, recording, voice and
 active-run guards after waiting, and never converts a genuine source-selection refusal
 into camera absence. Retained recording selection does not wait for camera health.
+
+The Workflows page is a lazy React island with a personal library and Project-owned run history. Exact input revisions and pinned settings are frozen on Start. Its catalog capability form uses the same one-step workflow path; missing runtimes remain unavailable. Hidden Project editors retain unsaved drafts. Results open through the existing retained scientific-document surface.
+Reviewed file-capability catalog cards link to `#workflows?capability=<id>` and that capability's exact-file form; they do not offer a live-picture action. Current readiness comes from the workflow descriptor. The Study rail uses the same named-input keys, keeps unchanged retry identities and links to retained runs with explicit interrupted/unstarted execution observations.
+
+Local Study setup reuses the retained Study Tab: `study-local-researcher.ts` admits the existing
+configured researcher with an explicit allowance and a stable request, and `study-workflows.ts`
+selects a frozen workflow and exact named file bindings. Researchers open in their retained
+`#research/<id>?day=…` Tabs; workflow rows link to their canonical run. Claims and challenges show
+attributed statements and exact evidence links in the Study. Local completion means finished,
+not scientifically accepted. Stop failures stay visible; the original runs establish termination.

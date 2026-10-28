@@ -56,14 +56,12 @@ class Efforts:
     def __init__(self, store: ProjectStore):
         self.store = store
 
-    def create(self, session, *, request, title, objective, criteria, budget_usd, inputs=()):
+    def create(self, session, *, request, title, objective, criteria, budget_usd, inputs=(), attribution=None):
         text(request, 'Request identity', 128)
         text(title, 'Research title', 240)
         text(objective, 'Research objective')
         text(criteria, 'Success criteria')
         cap = money(budget_usd)
-        if cap <= 0:
-            raise InvalidProject('Set a positive research spending allowance')
         if not isinstance(inputs, (tuple, list)) or len(inputs) > 64:
             raise InvalidProject('Select at most 64 exact saved inputs')
         selected = []
@@ -78,6 +76,8 @@ class Efforts:
             selected.append(dict(ref))
         state = {'format': 1, 'objective': objective, 'criteria': criteria, 'status': 'active',
                  'capMicrousd': cap, 'inputs': selected, 'tasks': {}, 'findings': []}
+        if attribution is not None:
+            state['createdBy'] = dict(attribution)
         document = {'kind': KIND, 'title': title, 'state': {KEY: state}, 'resources': [], 'runtimes': []}
         identity = 'p' + fingerprint({'session': session, 'researchRequest': request})[:32]
         self.store.create(session, document, identity=identity)
@@ -175,9 +175,39 @@ class Efforts:
                 return False
             if task['status'] == 'planned':
                 raise Conflict('An unclaimed task cannot have an uncertain execution')
+            if task['problem'] == reason and task['status'] in ('unknown', 'cancel_requested'):
+                return False
             task['problem'] = reason
             if task['status'] != 'cancel_requested':
                 task['status'] = 'unknown'
+            return True
+        return self._change(effort, session, change)
+
+    def refused_before_dispatch(self, effort, session, request, reason):
+        """Trusted caller has observed refusal before invoking any execution provider."""
+        text(reason, 'Admission refusal', 2000)
+        def change(state):
+            task = self._task(state, request)
+            if task['status'] != 'launching' or task['execution'] is not None:
+                raise Conflict('Only a known undispatched admission can be released')
+            task.update(status='cancelled', chargedMicrousd=0, usageEstimated=False,
+                        result={'reason': reason, 'dispatched': False}, problem=None)
+            return True
+        return self._change(effort, session, change)
+
+    def reconcile_usage(self, effort, session, request, *, execution, sequence, actual_usd, estimated):
+        """Trusted producer receipts may settle late usage without rewriting scientific results."""
+        amount = money(actual_usd)
+        if type(sequence) is not int or sequence < -1 or type(estimated) is not bool:
+            raise InvalidProject('Usage reconciliation needs a producer receipt sequence')
+        def change(state):
+            task = self._task(state, request)
+            if task['execution'] != execution or task['status'] not in FINAL:
+                raise Conflict('Reconcile only the original completed execution')
+            previous = task.get('usageSequence', -2)
+            if sequence <= previous:
+                return False
+            task.update(usageSequence=sequence, chargedMicrousd=amount, usageEstimated=estimated)
             return True
         return self._change(effort, session, change)
 
@@ -241,7 +271,8 @@ class Efforts:
             return True
         return self._change(effort, session, change)
 
-    def finish(self, effort, session, request, *, status, result, actual_usd=None, expected_observation=None):
+    def finish(self, effort, session, request, *, status, result, actual_usd=None, expected_observation=None,
+               usage_estimated=False):
         """Trusted execution service only; missing billing retains the whole reservation as estimated cost."""
         if status not in FINAL or type(result) is not dict or len(_json(result)) > 32 << 10:
             raise InvalidProject('A task needs a terminal outcome and a bounded result receipt')
@@ -253,7 +284,7 @@ class Efforts:
             if task['status'] in FINAL:
                 expected_charge = task['reservedMicrousd'] if actual is None else actual
                 if (task['status'] != status or task['result'] != result
-                        or task['chargedMicrousd'] != expected_charge or task['usageEstimated'] != (actual is None)):
+                        or task['chargedMicrousd'] != expected_charge or task['usageEstimated'] != (actual is None or usage_estimated)):
                     raise Conflict('A finished task cannot acquire a different result')
                 return False
             if task['status'] == 'planned' or task['execution'] is None:
@@ -262,11 +293,11 @@ class Efforts:
                 raise Conflict('A stopped effort cannot accept late success; reconcile its execution')
             task.update(status=status, result=result, problem=None,
                         chargedMicrousd=task['reservedMicrousd'] if actual is None else actual,
-                        usageEstimated=actual is None)
+                        usageEstimated=actual is None or usage_estimated)
             return True
         return self._change(effort, session, change)
 
-    def control(self, effort, session, action):
+    def control(self, effort, session, action, *, actor=None):
         if action not in ('pause', 'continue', 'stop'):
             raise InvalidProject('Choose pause, continue or stop')
         target = {'pause': 'paused', 'continue': 'active', 'stop': 'stopped'}[action]
@@ -276,6 +307,11 @@ class Efforts:
             if state['status'] == 'stopped':
                 raise InvalidProject('This effort was stopped; preserve it and start a new effort')
             state['status'] = target
+            if actor is not None:
+                from ..workflows import allowed_actor
+                if not allowed_actor(actor):
+                    raise InvalidProject('Use the authenticated Study control identity')
+                state['lastControl'] = {'action': action, 'by': actor}
             if action == 'stop':
                 for task in state['tasks'].values():
                     if task['status'] == 'planned':

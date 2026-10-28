@@ -1,0 +1,17 @@
+id = "matrix-cpu-runtime"
+name = "Scientific matrices (CPU runtime)"
+runs = "cpu"
+version = "1"
+licence = ["matrix-cpu-runtime"]
+kind = "tool"
+what = "Prepares pinned AnnData, NumPy and SciPy for retained-file scientific operations"
+source = { made_here = "Pinned upstream CPU libraries; no pretrained weights", url = "https://anndata.readthedocs.io/" }
+credit = { authors = "scverse, NumPy, SciPy, h5py and pandas contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Scientific matrix CPU dependencies", licence = "BSD-3-Clause (AnnData, NumPy, SciPy, h5py, pandas); transitive packages retain their own terms", url = "https://github.com/scverse/anndata/blob/main/LICENSE", tier = "open" }
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy", "anndata", "h5py", "pandas"] }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "own-python"
+documented_mb = 512
+load_limit_s = 30

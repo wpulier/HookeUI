@@ -58,16 +58,59 @@ clients of this door. They hold no scientific logic and no list of capabilities:
   - The app's own built-in tools (`contract/capabilities.json`, e.g. Cellpose outlines through `outline_cells`) are not
     listed yet.
 
+## Operations (`operations.py`, `example.py`, `actor.py`)
+- **Starting work:** `POST operations {tool, args, requestKey}`.
+  - The record is written (fsynced) before the work starts. A new operation answers 202 with `made: true`.
+  - The same key with the same request answers 200 with the same operation (`made: false`).
+  - The same key with any other request is 409 `request-key-conflict`. The key is bound to `request_digest` (tool,
+    project, input revision, generation, parameters): the same meaning as the hosted service's.
+- **Reading and stopping:** `GET operations/{id}`, `GET operations`, `POST operations/{id}/cancel`.
+  - A cancel is `cancelRequested` until the work's own end says how it stopped.
+  - After a restart, unfinished records are `interrupted` with what they say they left. Unreadable files are listed,
+    never overwritten.
+- **Tools:** this version runs one, `example`: the guided example (`onboarding.py` as it is) for the agent.
+  - The steps and their progress: opening the image in its own local-only Project, then `basic-bright-objects` (no key,
+    no download), then reading the table.
+  - The outcome: the Project, the result id and revision, the count, the columns, a 5-row preview (`truncated`), whether
+    Hooke showed it (`shownInHooke`), and the `page` to open.
+  - Open windows get `onboarding-changed`, so the walkthrough card catches up (`onboarding.ts` `agentAdvanced`).
+- **Who did it:** the operation sets `actor.ACTOR`.
+  - `commands.run_tool` and `operations._actor_now` record it, so the execution's and the result's `madeBy.actor` is
+    `agent:<id>`.
+  - Data's maker is the agent's label (`resources.maker_of`), with "a:<label>" in Made by (`data-roles.ts`).
+  - The app's own example run by a person records no actor today: that is unchanged here.
+- **Opening a page:** `POST open {page}` shows a page in the Hooke window (only `#measurements`, `#models`,
+  `#toolbox`, `#assets`, `#sessions`).
+  - It answers `shown: true` only when a window says it shows it; otherwise it says why.
+
 ## Still to build (ADR 0026)
-- **Operations:**
-  - request keys bound to a digest of tool, project, input revision, generation and parameters (409 on a mismatch)
-  - admission written before work starts
-  - `operation`, `operations`, `cancel` (`cancelRequested` until confirmed), and `interrupted` after a restart
-- **Actor:** effects recorded with actor `agent:<id>`, through `commands.run_tool` (today `actor="you"`), evidence and
-  provenance.
-- **The window comes forward:** the Mac app should bring Hooke forward when a request waits, so the researcher
-  sees the sheet.
-- **Tools:** `example` (the onboarding flow), `open_in_hooke`, then run, results, compare, batch and adding
-  capabilities.
-- **Responses:** no image bytes or full tables unless asked, and marked when given.
+- **More tools on the same operations:** run a capability on a file, results (with the full table only when asked,
+  marked), compare, batch, add capabilities.
+- **Built-in tools:** list the app's own built-in tools alongside catalog entries.
+- **The window comes forward:** the Mac app should bring Hooke forward when a request waits.
 - **WebSocket:** a token for WS clients that send no Origin (`origin.allowed_origin`).
+
+## Study and workflow access
+
+`studies.py` exposes `/studies` creation/listing and exact Project-scoped evidence, claims,
+challenges and controls. `/workflows` lists personal definitions; `/workflows/command` handles
+inspection, definition and review controls. Execution is admitted through `POST operations`
+with `tool: workflow`, `requestKey`, and `args: {study, session, workflow, revision, inputs,
+bindings?}`. Inputs are exact retained references, not host paths. Catalog scientific tools
+remain discoverable, and the workflow generation/readiness checks apply equally to each caller.
+
+`GET /workflows/capabilities` returns the same named-port/runtime descriptors as Tools and
+`find_workflows(capabilities=true)`, validated by `workflow-capability.schema.json`.
+`GET /workflows/{id}?revision=N` reads an exact frozen definition. Both require a live connection;
+neither dispatches work. Generic `/tools` entry generations identify catalog entries; workflow
+execution generations come from this descriptor and are not interchangeable. Study admission
+centrally refuses researcher nodes until their recursive allowance is qualified, regardless
+of the caller entrance. Known retries still read their original admission.
+
+An operation's `execution` names the authoritative workflow run. Reads project that run's
+receipts and execution observation; the operation does not own a second execution status or
+retry engine. Unreadable/lost admission remains interrupted. The stable `agent:<connection-id>`
+is preserved when another authorized caller reads or continues work; a locator is never a grant.
+Shared schemas under `contract/agent/` describe matrix/artifact/evidence references, claims,
+experiment attribution and harness readiness. Actual client-family qualification is separate
+from synthetic authenticated HTTP tests.

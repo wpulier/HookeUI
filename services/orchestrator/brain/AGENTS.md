@@ -406,3 +406,5 @@ publication boundaries. Exact source/table revisions and explicit test/graph set
 comes from the transport, never model arguments. Accepted Follow work retains its ordinary Project owner after the
 turn finishes. `read_analysis` pages an exact accepted result with a content digest, without recomputation; saved
 numbers, units, exclusions and input identities remain available. Saved never implies displayed.
+
+`find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.

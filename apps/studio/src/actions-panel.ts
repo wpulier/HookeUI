@@ -213,6 +213,7 @@ export function actionRows(wire: CapabilitiesWire, tools: ToolList): ActionRow[]
   const order = new Map(ACTION_GROUPS.map((g, i) => [g.family, i]));
   const rows: ActionRow[] = [];
   for (const capability of wire.capabilities) {
+    if(capability.how.href?.startsWith('#workflows?'))continue; // File inputs use the linked retained-file form.
     const name = capability.how.tool;
     if (capability.actor !== 'agent' || !name || !order.has(capability.family) || AGENT_ONLY.has(capability.id)) continue;
     const tool = tools[name];

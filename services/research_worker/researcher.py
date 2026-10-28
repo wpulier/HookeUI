@@ -564,7 +564,7 @@ class Researcher:
             props["resource"]["description"] = ("operation capability only: exact retained picture reference from the session entry; "
                                                 "omit for the live view. Do not combine with input or frame.")
             props["params"] = {"type": "object", "description": "operation capability: its parameters by name; one left "
-                                                                "out is its default"}
+                                                                "out is its default. " + props.get("params", {}).get("description", "")}
             if any(c.get("typed") for c in capabilities):
                 from orchestrator.admission import INPUTS_SCHEMA
                 props["inputs"] = copy.deepcopy(INPUTS_SCHEMA)
@@ -676,6 +676,9 @@ class Researcher:
         capabilities, finders = self.door()
         capability = str(args.get("capability") or "").strip()
         selection = args.get('selection')
+        if operation == 'workflow':
+            if type(args.get('params')) is not dict or any(args.get(k) is not None for k in ('selection','input','frame','how','seconds','implementation','capability','resource','inputs')) or args.get('fresh',False):
+                return {'error':'Choose one workflow command in params, without live inputs'},None
         if operation == 'measure_saved_objects':
             if (type(selection) is not dict or set(selection) != {'project', 'session', 'revision', 'input', 'digest'}
                     or any(args.get(key) is not None for key in ('input', 'frame', 'how', 'seconds', 'implementation',
@@ -745,7 +748,8 @@ class Researcher:
                                    **({"resource": resource} if resource is not None else {}),
                                    **({"inputs": typed_inputs} if typed_inputs is not None else {}),
                                    **({"selection": selection} if selection is not None else {}),
-                                   **({'runId': self.spec.get('run_id')} if operation == 'measure_saved_objects' else {}),
+                                   **({'runId': self.spec.get('run_id')} if operation in ('measure_saved_objects','workflow') else {}),
+                                   **({'params':args['params']} if operation=='workflow' else {}),
                                    **({"fresh": True} if fresh else {}))
         if reply.get("ok"):
             self.runs += 1  # a refusal ("another researcher's operation is running") uses none of its runs

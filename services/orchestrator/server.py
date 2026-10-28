@@ -137,16 +137,19 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
             yield
         finally:
             try:
-                await lifecycle.stop()
+                await app.state.workflow_service.close()
             finally:
                 try:
-                    await built.stop()
+                    await lifecycle.stop()
                 finally:
-                    api_usage.configure(None)
                     try:
-                        ledger.close()
+                        await built.stop()
                     finally:
-                        await asyncio.to_thread(archive.close)
+                        api_usage.configure(None)
+                        try:
+                            ledger.close()
+                        finally:
+                            await asyncio.to_thread(archive.close)
 
     app = FastAPI(lifespan=lifespan)
     from .capability_journey_api import register as add_capability_journey_routes

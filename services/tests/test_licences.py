@@ -82,6 +82,11 @@ def test_every_component_is_used_and_every_use_is_a_component():
     from orchestrator import jobs  # a job (brainreg) and the data it reads (an atlas) are no option: their entries' own
 
     used |= {c for m in catalog.manifests().values() if jobs.is_job(m) or m.kind == "data" for c in m.licence}
+    import json
+    dependencies = json.loads((SERVICES.parent / "apps/studio/package.json").read_text())["dependencies"]
+    for component, packages in licences.STUDIO_COMPONENTS.items():
+        assert set(packages) <= set(dependencies), component
+    used |= set(licences.STUDIO_COMPONENTS)
     assert used <= set(licences.COMPONENTS)
     assert set(licences.COMPONENTS) <= used, "a component nothing uses: remove it or use it"
     for component in licences.COMPONENTS.values():

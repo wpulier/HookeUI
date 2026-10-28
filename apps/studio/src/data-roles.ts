@@ -11,7 +11,7 @@ import { daysAgo, monthDay } from './sessions';
 
 export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other';
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
-export interface DataMaker { kind: 'you' | 'assistant' | 'researcher'; id?: string; name: string }
+export interface DataMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent'; id?: string; name: string }
 /** A write-up's form, newest first (S4): its presentation ("Presentation") and each findings version ("Findings v2"). */
 export interface DataForm { label: string; version?: number; outputId?: string; at?: number; state?: 'writing' | 'ready' }
 /** A source's facts (S4), all of them its researcher's or the web's words. */
@@ -240,12 +240,13 @@ export function rowFrom(row: DataRow, asset: string): boolean {
 
 // --- Made by ----------------------------------------------------------------------------------------------------
 
-/** A maker as a filter: "you", "assistant", or a researcher by its name ("r:Researcher 3"). A Project's researchers are
+/** A maker as a filter: "you", "assistant", an outside agent by its label ("a:Claude Code"; ADR 0026), or a researcher by
+ * its name ("r:Researcher 3"). A Project's researchers are
  * named once each (Researcher N), and a record that knows only the name ("for Researcher 1") says no more than that. */
 export type MakerKey = string;
 export function makerKey(maker: DataMaker | null | undefined): MakerKey | null {
   if (!maker) return null;
-  return maker.kind === 'researcher' ? `r:${maker.name}` : maker.kind;
+  return maker.kind === 'researcher' ? `r:${maker.name}` : maker.kind === 'agent' ? `a:${maker.name}` : maker.kind;
 }
 export const researcherKey = (name: string): MakerKey => `r:${name}`;
 export function rowMaker(row: DataRow): MakerKey | null { return makerKey(row.maker); }
@@ -256,9 +257,10 @@ export interface MakerChoice { key: MakerKey; name: string; /** A researcher's i
  * made something. An older record that cannot tell names no maker, so offering "You" with nothing under it would say you
  * made nothing when the record only does not know (ADR 0006). */
 export function makerChoices(rows: readonly DataRow[]): MakerChoice[] {
-  const researchers = new Map<MakerKey, MakerChoice>(), others = new Set<string>();
+  const researchers = new Map<MakerKey, MakerChoice>(), agents = new Map<MakerKey, MakerChoice>(), others = new Set<string>();
   for (const row of rows) for (const part of row.parts) {
     const maker = part.maker;
+    if (maker?.kind === 'agent') { const key = makerKey(maker)!; if (!agents.has(key)) agents.set(key, { key, name: maker.name }); continue; }
     if (maker && maker.kind !== 'researcher') others.add(maker.kind);
     if (maker?.kind !== 'researcher') continue;
     const key = makerKey(maker)!, known = researchers.get(key);
@@ -267,12 +269,12 @@ export function makerChoices(rows: readonly DataRow[]): MakerChoice[] {
   }
   const byNumber = (a: MakerChoice, b: MakerChoice) => a.name.localeCompare(b.name, undefined, { numeric: true });
   return [...(others.has('you') ? [{ key: 'you', name: 'You' }] : []), ...(others.has('assistant') ? [{ key: 'assistant', name: 'The Assistant' }] : []),
-    ...[...researchers.values()].sort(byNumber)];
+    ...[...agents.values()].sort(byNumber), ...[...researchers.values()].sort(byNumber)];
 }
 
 /** The chosen maker's name, for its chip ("Researcher 3", "You", "The Assistant"). */
 export function makerName(key: MakerKey): string {
-  return key === 'you' ? 'You' : key === 'assistant' ? 'The Assistant' : key.replace(/^r:/, '');
+  return key === 'you' ? 'You' : key === 'assistant' ? 'The Assistant' : key.replace(/^[ra]:/, '');
 }
 
 // --- New since you last looked ----------------------------------------------------------------------------------

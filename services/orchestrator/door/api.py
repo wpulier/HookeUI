@@ -16,10 +16,12 @@ from fastapi.responses import JSONResponse
 
 from .connections import Connections, Refused
 from .contract import CONTRACT, describe
+from .operations import Operations
 
 PREFIX = "/api/agent/v1"
 INTERFACE = 1  # this door's version; the CLI and skill say which they need
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+PAGE = __import__("re").compile(r"^#(measurements|models|toolbox|assets|sessions)(/[A-Za-z0-9_.-]+)?(\?[A-Za-z0-9=&._%-]*)?$")
 PAGE_SIZE = 20
 STATES = {"ready": "available", "needs-setup": "setup", "unavailable": "unavailable", "broken": "broken"}
 
@@ -98,12 +100,35 @@ def listing(environ=os.environ) -> list[dict]:
             step = r.next
             out.append(describe(m, entry, state=state, why=r.why or r.word,
                                 next=(step.says if step is not None else "turn it on in Hooke's Toolbox")))
+    for item in out:
+        manifest = catalog.manifests().get(item['id'])
+        if manifest is not None and kinds.file_workflow(manifest):
+            item['next'] = 'read GET /api/agent/v1/workflows/capabilities for the exact execution generation, named inputs and runtime readiness'
     return out
+
+
+def example_identity() -> tuple[str | None, str | None]:
+    """The example's input revision (its image's SHA-256) and the generation of the capability it runs."""
+    import hashlib
+    from gpu_worker import manifests as catalog
+    from .. import examples
+    from ..capability_identity import generation_of
+    try:
+        digest = hashlib.sha256(examples.human_mitosis(preview=True).read_bytes()).hexdigest()  # what the guide analyses
+    except (OSError, ValueError, KeyError):
+        digest = None  # damaged or missing: the guide itself refuses and says so
+    m = catalog.get("basic-bright-objects")
+    return digest, (generation_of(m) if m is not None else None)
 
 
 def register(app, built, studio_origin, header: str) -> Connections:
     connections = Connections(built.paths.home)
     built.agent_connections = connections
+    operations = Operations(built.paths.home)
+    built.agent_operations = operations
+    if getattr(built, 'hub', None) is not None:
+        built.hub.agent_operations = operations
+        built.hub.study_research_manager = getattr(built, 'research', None)
 
     def announce() -> None:
         """Tell open studios what is waiting and who is connected (the confirm sheet and the list draw from it)."""
@@ -166,6 +191,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
         guard(request)
         return connections.authenticate(request.headers.get("authorization"))
 
+    from .studies import register as register_studies
+    register_studies(app, built, connected, body, _no_store, _refusal)
+
     @app.get(f"{PREFIX}/status")
     async def status(request: Request) -> JSONResponse:
         try:
@@ -208,6 +236,112 @@ def register(app, built, studio_origin, header: str) -> Connections:
         page = min(max(1, page), pages)
         return _no_store({"ok": True, "contract": CONTRACT, "tools": found[(page - 1) * per: page * per],
                           "total": len(found), "page": page, "pages": pages, "perPage": per, "query": q})
+
+    # --- operations: work an agent starts ---------------------------------------------------------------------------
+    @app.post(f"{PREFIX}/operations")
+    async def start(request: Request) -> JSONResponse:
+        try:
+            c = connected(request)
+            value = await body(request)
+            tool, args = value.get("tool"), value.get("args") or {}
+            if tool == 'workflow':
+                from ..research.studies import service
+                if (type(args) is not dict or not {'study', 'session', 'workflow', 'revision', 'inputs'} <= set(args)
+                        or set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings'}):
+                    raise ValueError('A workflow operation needs its Study, Project, frozen workflow and exact inputs')
+                record, made = await service(built).start_workflow(**args, request=value.get('requestKey'),
+                                                                  actor=c.actor, label=c.label)
+                return _no_store({'ok': True, 'operation': record, 'made': made}, 202 if made else 200)
+            if tool != "example":
+                raise Refused(400, "unknown-tool", f"Unknown operation {tool!r}; choose example or a Study workflow.",
+                              next="discover tools and workflows, then start a Study workflow operation")
+            if not isinstance(args, dict) or args:
+                raise Refused(400, "bad-request", "The example takes no arguments.", next="send args as {}")
+            from . import example
+            revision, generation = await asyncio.to_thread(example_identity)
+            record, made = await operations.admit(
+                by=c.actor, label=c.label, tool=tool, project="example", input_revision=revision,
+                generation=generation, params={}, request_key=value.get("requestKey"),
+                work=lambda record, progress: example.run(built, record, progress))
+        except Refused as error:
+            return _refusal(error)
+        except (ValueError, OSError) as error:
+            from ..scientific_projects import Conflict
+            return _refusal(Refused(409 if isinstance(error, Conflict) else 400, 'research-refused', str(error),
+                                    next='read the Study and workflow readiness before retrying'))
+        return _no_store({"ok": True, "operation": record, "made": made}, 202 if made else 200)
+
+    @app.get(f"{PREFIX}/operations")
+    async def list_operations(request: Request, limit: int = 20) -> JSONResponse:
+        try:
+            connected(request)
+            from ..research.studies import service
+            result = operations.operations(limit)
+            result['operations'] = [await service(built).operation(r) if r.get('execution') else r
+                                    for r in result['operations']]
+        except Refused as error:
+            return _refusal(error)
+        except (ValueError, OSError) as error:
+            return _refusal(Refused(409, 'execution-unreadable', str(error),
+                                   next='inspect the retained Project and original operation; nothing was replayed'))
+        return _no_store({"ok": True, **result})
+
+    @app.get(PREFIX + "/operations/{op_id}")
+    async def get_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            connected(request)
+            record = operations.get(op_id)
+            if record.get('execution'):
+                from ..research.studies import service
+                record = await service(built).operation(record)
+        except Refused as error:
+            return _refusal(error)
+        except (ValueError, OSError) as error:
+            return _refusal(Refused(409, 'execution-unreadable', str(error),
+                                   next='inspect the retained Project and original operation; nothing was replayed'))
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(PREFIX + "/operations/{op_id}/cancel")
+    async def cancel_operation(op_id: str, request: Request) -> JSONResponse:
+        try:
+            caller = connected(request)
+            record = operations.get(op_id)
+            if record.get('execution'):
+                from ..research.studies import service
+                execution = record['execution']
+                await service(built).workflows.command({'action': 'stop', 'run': execution['id'],
+                                                      'session': execution['session']}, actor=caller.actor)
+                record = await service(built).operation(record)
+            else:
+                record = await operations.cancel(op_id)
+        except Refused as error:
+            return _refusal(error)
+        except (ValueError, OSError) as error:
+            return _refusal(Refused(409, 'stop-unconfirmed', str(error),
+                                   next='inspect the original workflow; termination has not been confirmed'))
+        return _no_store({"ok": True, "operation": record})
+
+    @app.post(f"{PREFIX}/open")
+    async def open_in_hooke(request: Request) -> JSONResponse:
+        """Show a page in the Hooke window (an exact result's measurements). Done only when a window says it shows it."""
+        try:
+            connected(request)
+            value = await body(request)
+            page = value.get("page")
+            if not isinstance(page, str) or not PAGE.match(page):
+                raise Refused(400, "bad-page", "That is not a page Hooke can open for an agent.",
+                              next="use the page an operation gave, such as #measurements/<id>?session=…&revision=…")
+            opener = getattr(built, "open_page", None)
+            reply = await opener(None, page) if opener is not None else None
+        except Refused as error:
+            return _refusal(error)
+        if reply is None:
+            return _no_store({"ok": True, "shown": False, "says": "No Hooke window answered, so it isn't shown yet.",
+                              "next": "open Hooke (hooke open), then ask again"})
+        visible = reply.get("visible") is not False
+        return _no_store({"ok": True, "shown": visible,
+                          "says": "Hooke shows it." if visible else "Hooke opened it, but its window is in the background.",
+                          **({} if visible else {"next": "bring the Hooke window forward"})})
 
     # --- the studio's side --------------------------------------------------------------------------------------------
     @app.get("/api/agent-connections")

@@ -1,3 +1,5 @@
+import { mountStudyWorkflows } from './study-workflows';
+import { mountLocalStudyResearcher } from './study-local-researcher';
 import { StudyRefused, studyInputDescription, dollars, studyNeeds, studyState, taskState, taskPhase, providerName, pendingProviderTask, type Effort, type StudyEvidence, type StudyProvider, type StudyInput, type StudyStart, type ReviewOutcome } from './research-efforts';
 import { litCell, type LitCellState } from './lit-cell';
 import { Composer } from './composer';
@@ -5,6 +7,7 @@ import { researchIcon } from './research-workspace';
 
 /** A saved Study is never an instruction to launch. Only its explicit Start action dispatches work. */
 export interface StudyActions {
+  localWorkflows?: boolean;
   control(action: 'pause' | 'continue' | 'stop'): void | Promise<unknown>;
   start?(fields: StudyStart): Promise<unknown>;
   readiness?(): Promise<StudyProvider[]>;
@@ -25,7 +28,7 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', tex
 };
 const field = (label: string, control: HTMLElement) => { const checkbox = control.tagName === 'INPUT' && (control as HTMLInputElement).type === 'checkbox'; const row = node('label', checkbox ? 'study-new-study-field study-choice' : 'study-new-study-field'); if (checkbox) row.append(control, node('span', '', label)); else row.append(node('span', '', label), control); return row; };
 // The core without a research service (effort_api.UNAVAILABLE says the same) lists no researchers: a Study can't start.
-export const STUDY_UNAVAILABLE = 'Running a Study needs a research service this app does not have. You can still write, save and reopen a Study.';
+export const STUDY_UNAVAILABLE = 'Managed cloud research is unavailable here. Use a connected agent, the configured local researcher, or scientific workflows.';
 const details = (title: string, value: unknown) => { const box = node('details', 'study-evidence-details'); box.append(node('summary', '', title), node('pre', '', JSON.stringify(value, null, 2))); return box; };
 export function experimentName(request: string, spec: Record<string, unknown> | undefined): string {
   const named = spec && (spec.title ?? spec.name ?? spec.kind);
@@ -84,7 +87,7 @@ export function studyAllowanceTitle(study: Pick<Effort, 'capMicrousd' | 'spentMi
 
 /** An experiment's lit cell by its phase: needs you, at work, done, or how it ended. */
 const PHASE_CELL: Record<string, LitCellState> = { review: 'needs', unknown: 'needs', waiting: 'queued', planned: 'queued', running: 'working', launching: 'working',
-  cancel_requested: 'still', completed: 'ready', failed: 'attention', cancelled: 'stopped' };
+  cancel_requested: 'still', completed: 'ready', finished: 'ready', failed: 'attention', cancelled: 'stopped' };
 
 export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActions, providers: StudyProvider[] = [], availableInputs: StudyInput[] = []): void {
   root.className = 'study-view study-home'; root.replaceChildren(); delete root.dataset.draft; delete root.dataset.reviewOpen;
@@ -314,6 +317,11 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     if (task.problem) words.append(node('p', 'study-view-task-problem', task.problem));
     if (task.collectionProblem) words.append(node('p', 'study-view-task-problem', task.collectionProblem));
     const buttons = node('div', 'study-task-actions'), evidencePanel = node('section', 'study-task-evidence');
+    if (task.execution?.provider === 'local-researcher' && /^r[0-9]+$/.test(task.execution.id ?? '')) {
+      const open = node('a', 'study-link-button', 'Open researcher');
+      open.href = `#research/${encodeURIComponent(task.execution.id!)}${task.execution.day ? `?day=${encodeURIComponent(task.execution.day)}` : ''}`;
+      buttons.append(open);
+    }
     const scientificGrant = task.specification?.provider === 'scientific-gcp-grant';
     const working = ['running', 'waiting', 'launching'].includes(taskPhase(task));
     if (actions.collect && task.chargedMicrousd == null && task.execution?.provider === 'claude-managed-google' && !!task.execution.session && !scientificGrant && working) {
@@ -533,8 +541,27 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   centreHead.append(filesToggle, tabs);
   const question = node('div', 'm-you'); question.append(node('div', 'm-user', study.objective), criterion);
   log.append(question, notice);
+  for (const problem of study.controlProblems ?? []) log.append(node('p', 'study-warn', `Stop needs checking: ${problem}`));
   if (over > 0) log.append(node('p', 'study-warn', `Spent and held are ${dollars(over)} more than the allowance. Nothing new can start until holds are released.`));
   log.append(...steps);
+  if (study.claims?.length) {
+    const claims = node('section', 'study-reported-claims'); claims.append(node('h3', '', 'What researchers report'));
+    claims.append(node('p', 'study-view-empty', 'Evidence-backed statements for review; agreement alone does not establish correctness.'));
+    for (const claim of study.claims) {
+      const row = node('details'); row.append(node('summary', '', `${claim.byLabel}: ${claim.statement}`));
+      if (claim.limitations) row.append(node('p', '', claim.limitations));
+      if (claim.dependsOn.length) row.append(node('p', 'study-sub', `Depends on: ${claim.dependsOn.join(', ')}`));
+      for (const evidence of claim.evidence) {
+        row.append(actions.openFile ? action(`Open ${evidence.relation} evidence · v${evidence.artifact.revision}`,
+          () => actions.openFile!(evidence.artifact, 'Claim evidence'), 'study-link-button')
+          : node('p', '', `${evidence.relation}: ${evidence.artifact.id} · v${evidence.artifact.revision}`));
+      }
+      for (const change of study.claimChanges ?? []) if (change.claim === claim.request)
+        row.append(node('p', 'study-warn', `${change.byLabel} challenges this: ${change.reason}`));
+      claims.append(row);
+    }
+    log.append(claims);
+  }
   if (!tasks.length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : providers.length ? 'None yet. Prepare the inputs, choose a researcher, then Start research.' : 'None yet.'));
   if (anyMove) log.append(moves);
   // Where Start would be, rather than a Study that can't run without a word.
@@ -577,6 +604,10 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   grid.append(left, centre, right);
   const wrap = node('div', 'rwrap'); wrap.append(grid);
   root.append(wrap, scrim, sheet);
+  if (actions.localWorkflows) {
+    mountStudyWorkflows(rail, study, availableInputs, actions.openFile);
+    mountLocalStudyResearcher(rail, study);
+  }
 
   /** "New experiment" after the experiments: the composer is on this page, so it goes there and puts you in its brief. */
   function launchSlot(): HTMLElement | null {

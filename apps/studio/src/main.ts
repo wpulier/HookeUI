@@ -85,6 +85,7 @@ import { assetFor, isOwnFootage, libraryUrl, readLibrary } from './asset-library
 import { SessionHome } from './session-home';
 import { ExampleGuide, type OnboardingState } from './onboarding';
 import { LibraryPage } from './library-page';
+import { WorkflowPage } from './workflow-page';
 import { SessionsPage } from './sessions-page';
 import { GearMenu } from './gear';
 import { agentConnections } from './agent-connections';
@@ -1107,6 +1108,9 @@ function handleMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'agent-connections': // an outside agent asked to connect, or the list changed (ADR 0026)
       agentConnections.message(message);
+      break;
+    case 'onboarding-changed': // an agent moved the walkthrough on (the door's example): its card rereads where it is
+      void exampleGuide.agentAdvanced();
       break;
     case 'presentation-admitted': // WorkspaceSession owns placement correlation.
     case 'workspace-ready': // Link owns correlated settlement; runtime installation is separate.
@@ -3221,6 +3225,19 @@ panels.start(stage, (room) => {
 // (#research/<id>, so it can be linked to and opened in its own window), test footage (#footage), Datasets,
 // Capabilities, Models. "#research" alone is this session's Researchers: the side bar's section.
 const pageBack = element<HTMLAnchorElement>('page-back');
+const workflowsPanel = document.createElement('section');
+workflowsPanel.id = 'workflows'; workflowsPanel.hidden = true; document.body.append(workflowsPanel);
+const workflowsPage = new WorkflowPage(workflowsPanel, () => sessionsModel.current, (ref, title) => {
+  if (ref.session !== sessionsModel.current) { showHint('Return to the original Project to inspect this result.'); return; }
+  void import('./scientific-document').then(async ({openStudyScientific}) => {
+    if (ref.session !== sessionsModel.current) throw new Error('Return to the original Project to inspect this result.');
+    const opened = await openStudyScientific({resource:{id:ref.id,day:ref.session,version:ref.revision,picture:null},title,zoom:1,pan:[.5,.5]});
+    if (opened) navigateStudio('#');
+    else showHint('The saved result could not be opened. Retry from this run.');
+  }).catch(error => showHint(error instanceof Error ? error.message : String(error)));
+});
+sessionsModel.onChange(() => { if(location.hash.split('?')[0] === '#workflows') void workflowsPage.show(); });
+
 function route(): void {
   const study = document.body.dataset.workspaceStudy === 'true';
   exampleGuide.routeChanged();
@@ -3242,13 +3259,15 @@ function route(): void {
   const toolbox = toolboxTarget(location.hash);
   const showCapabilities = toolbox?.tab === 'all';
   const showAssets = location.hash === '#assets';
+  const showWorkflows = location.hash.split('?')[0] === '#workflows';
+  if (showWorkflows) void workflowsPage.show(); else workflowsPage.hide();
   const showSessions = location.hash === '#sessions';
   const showFootage = location.hash === '#footage';
   const showDatasets = location.hash === '#datasets';
   const showModels = toolbox?.tab === 'tools';
   const measured = measurementsTarget(location.hash);
   const showMeasurements = measured !== undefined;
-  const page = study && location.hash === '#researchers' ? 'researchers' : study && ['#settings','#help','#shortcuts'].includes(location.hash) ? location.hash.slice(1) : showResearch ? 'research' : showCapabilities ? 'capabilities' : showAssets ? 'assets' : showSessions ? 'sessions' : showFootage ? 'footage'
+  const page = study && location.hash === '#researchers' ? 'researchers' : study && ['#settings','#help','#shortcuts'].includes(location.hash) ? location.hash.slice(1) : showResearch ? 'research' : showCapabilities ? 'capabilities' : showWorkflows ? 'workflows' : showAssets ? 'assets' : showSessions ? 'sessions' : showFootage ? 'footage'
     : showDatasets ? 'datasets' : showModels ? 'models' : showMeasurements ? 'measurements' : 'live';
   document.body.dataset.view = study ? 'live' : page;
   document.body.dataset.studySurface = study ? page : '';
@@ -3293,7 +3312,7 @@ function route(): void {
   }
   if (study) {
     if(page==='researchers') renderResearchers();
-    const surfaces: Record<string, HTMLElement> = { models: modelsPanel, capabilities: capabilitiesPanel, assets: assetsPage,
+    const surfaces: Record<string, HTMLElement> = { workflows: workflowsPanel, models: modelsPanel, capabilities: capabilitiesPanel, assets: assetsPage,
       sessions: sessionsPanel, footage: footagePanel, datasets: datasetsPanel, measurements: measurementsPanel, research: researchPanel };
     window.dispatchEvent(new CustomEvent('workspace-study-surface', { detail: { page, hash: location.hash, node: surfaces[page] ?? null } }));
   }

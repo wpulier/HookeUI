@@ -1,5 +1,6 @@
+import { uploadScientificFile, recoverChunkTransfer, ChunkRecoveryRequired, MAX_SOURCE_BYTES, type SourceKind } from './scientific-chunk-upload';
 import { selectedFolder, selectedStack, type Folder } from './scientific-folder';
-import { nativeFolderBridge, chooseNativeFolder, isNativeFolder, uploadNativeFolder, type NativeFolder, recoverNativeFolder, NativeFolderRecoveryRequired } from './scientific-folder-native';
+import { nativeFolderBridge, chooseNativeFolder, isNativeFolder, uploadNativeFolder, type NativeFolder } from './scientific-folder-native';
 import { renderedMovieDescription, validMovieFile } from './scientific-movie';
 import { StudioSheet } from './sheet';
 import { sourceReaders } from './scientific-readers';
@@ -43,7 +44,7 @@ export class ScientificFileImport {
   private picked: (files: File[]) => void = () => {};
   private selected: File | null = null;
   private identity = '';
-  private recovery: {name:string;size:number} | null = null;
+  private recovery: {name:string;size:number;kind:SourceKind} | null = null;
   private controller: AbortController | null = null;
   private saved: SavedSource | null = null;
 
@@ -111,9 +112,9 @@ export class ScientificFileImport {
         catch (error) { this.start.disabled = true; this.selected = null; this.status.textContent = String(error instanceof Error ? error.message : error); }
         return;
       }
-      const tooLarge = this.selected !== null && this.selected.size > MAX_BYTES;
+      const tooLarge = this.selected !== null && this.selected.size > MAX_SOURCE_BYTES;
       this.start.disabled = !this.selected || tooLarge; this.start.textContent='Save source to Project';
-      this.status.textContent = tooLarge ? 'This import currently supports files up to 64 MiB. Your file has not been uploaded.'
+      this.status.textContent = tooLarge ? 'Choose a file up to 64 GiB, subject to free disk space. Your file has not been uploaded.'
         : this.selected ? `${this.selected.name} · ${this.selected.size.toLocaleString()} bytes. Save keeps the original without converting it.` : 'Choose an original scientific file.';
     };
     this.nativePicker.addEventListener('click', () => {
@@ -141,7 +142,7 @@ export class ScientificFileImport {
     });
     const actions = node('div'); actions.className = 'scientific-import-actions';
     actions.append(this.start, this.stop, this.openButton);
-    const limits = node('p', bridge ? 'Native folders transfer in bounded chunks into immutable Project storage (up to 64 GiB and 4,096 files, subject to free disk space). Reader and result limits are separate. Files, browser folders and web imports remain limited to 64 MiB.' : 'Up to 64 MiB total; folders may contain up to 4,096 files; web addresses must be public https. Larger and lazily read remote data remain unavailable here.'); limits.className = 'scientific-import-note';
+    const limits = node('p', `Files${bridge ? ' and native folders' : ''} transfer in bounded chunks up to 64 GiB, subject to free disk space. Reader and result limits are separate. Browser folders, stacks and web imports remain limited to 64 MiB; folders may contain up to 4,096 files.`); limits.className = 'scientific-import-note';
     const background = node('p', 'You can close this sheet while importing. Your completed source will be in Project Data.'); background.className = 'scientific-import-note';
     this.samples.className = 'scientific-import-samples'; this.samples.hidden = true;
     // The sheet owns drops over it: the stage's window handlers (live-view assets) never see them.
@@ -178,8 +179,9 @@ export class ScientificFileImport {
   private async run(): Promise<void> {
     if (this.mode.value === 'url') return this.download();
     const file = this.folder ?? this.selected ?? this.recovery;
-    if (!file || this.controller || this.choosing || (!this.recovery && !('read' in file) && file.size > MAX_BYTES)) return;
-    const directory = this.folder !== null || this.recovery !== null, stacked = directory && this.mode.value === 'stack', controller = new AbortController(); this.controller = controller;
+    if (!file || this.controller || this.choosing || (!this.recovery && this.folder && !isNativeFolder(this.folder) && file.size > MAX_BYTES)
+        || (!this.folder && this.selected && this.selected.size > MAX_SOURCE_BYTES)) return;
+    const directory = this.folder !== null || this.recovery?.kind === 'directory', stacked = directory && this.mode.value === 'stack', controller = new AbortController(); this.controller = controller;
     this.picker.disabled = true; this.nativePicker.disabled = true; this.mode.disabled = true; this.axis.disabled = true; this.start.disabled = true; this.stop.hidden = false; this.progress.hidden = false;
     this.status.textContent = `Saving ${file.name} to ${this.options.title} and verifying the original bytes…`;
     try {
@@ -187,13 +189,17 @@ export class ScientificFileImport {
       const kind = stacked ? 'stack' : directory ? 'directory' : 'file';
       let result: unknown;
       if (this.recovery) {
-        const recovered=await recoverNativeFolder(this.options.session,this.identity);
-        if (recovered.project===null) { this.recovery=null; throw new Error('The stopped import was not accepted. Choose the folder again to retry.'); }
+        const recovered=await recoverChunkTransfer(this.recovery.kind,this.options.session,this.identity);
+        if (recovered.project===null) { this.recovery=null; throw new Error('The stopped import was not accepted. Choose the source again to retry.'); }
         result=recovered; this.recovery=null;
       } else if (this.folder && isNativeFolder(this.folder)) {
         result=await uploadNativeFolder(this.folder,{session:this.options.session,request:this.identity,signal:controller.signal,
           progress:(done,total)=>{ this.progress.max=total; this.progress.value=done; this.status.textContent=done===total
             ? 'All bytes transferred. Verifying and saving the source…' : `Saving ${file.name}: ${done.toLocaleString()} of ${total.toLocaleString()} bytes`; }});
+      } else if (this.selected && this.selected.size > MAX_BYTES) {
+        result=await uploadScientificFile(this.selected,{session:this.options.session,request:this.identity,signal:controller.signal,
+          progress:(done,total)=>{this.progress.max=total;this.progress.value=done;this.status.textContent=done===total
+            ? 'All bytes transferred. Verifying and saving the source…' : `Saving ${file.name}: ${done.toLocaleString()} of ${total.toLocaleString()} bytes`;}});
       } else {
       const response = await fetch(`/api/${{ stack: 'scientific-stacks', directory: 'scientific-directories', file: 'scientific-files' }[kind]}?${query}`, { method: 'POST', headers: { 'X-MicroscopeMind': `import-scientific-${kind}` }, body: this.folder && !isNativeFolder(this.folder) ? this.folder.body : this.selected, signal: controller.signal });
       result = await response.json();
@@ -207,7 +213,7 @@ export class ScientificFileImport {
       this.status.textContent = `Source saved in ${this.options.title}. Original bytes are retained. Reader readiness has not been established.`;
       this.openButton.hidden = false; this.folder = null; this.selected = null; this.picker.value = ''; this.options.saved();
     } catch (error) {
-      if (error instanceof NativeFolderRecoveryRequired) this.recovery={name:file.name,size:file.size};
+      if (error instanceof ChunkRecoveryRequired) this.recovery={name:file.name,size:file.size,kind:directory?'directory':'file'};
       if (controller.signal.aborted && this.folder && isNativeFolder(this.folder)) this.folder=null;
       this.status.textContent = this.recovery ? String(error instanceof Error ? error.message : error) : controller.signal.aborted
         ? 'Import stopped. Choose the folder again if its native selection was released. If acceptance had already completed, the source remains in Project Data. Retry this same file to recover its status without duplicating it.'

@@ -30,7 +30,7 @@ import type { StudyResource } from './workspace-study-model';
 import './data-reader.css';
 
 /** Who made something, as the server says it (wire contract S2); null when its record cannot tell. */
-export interface ReaderMaker { kind: 'you' | 'assistant' | 'researcher'; id?: string; name: string }
+export interface ReaderMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent'; id?: string; name: string }
 /** One form of a write-up, newest first (S4): its findings revisions and its presentation. */
 export interface ReaderForm { label: string; version?: number; outputId?: string; at?: number; state?: 'writing' | 'ready' }
 /** Another thing in Data that this one links to (S5). */

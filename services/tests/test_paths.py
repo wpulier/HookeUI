@@ -93,6 +93,10 @@ def test_constructors_read_the_environment_when_called_not_at_import(tmp_path, m
 SAVE_ENV = re.compile(r"MICROMIND_(HOME|\w*_(LOG|DIR|FILE))\b")
 FROM_HERE = re.compile(r"__file__|\.parents\[")
 ALLOWED = {
+    # The confined worker receives this read-only source package; output is Project-owned staging.
+    ("matrix_capability_runs.py", "package = Path(__file__).resolve().parents[1] / 'scientific_compute'"),
+    # Hashes read-only adapter source to pin a workflow tool generation, never locates saves.
+    ("workflow_execution.py", "return hashlib.sha256(Path(bright_objects.__file__).read_bytes()+Path(__file__).read_bytes()+cv2.__version__.encode()).hexdigest()"),
     # These locate read-only source and bind proof to code, never choose save destinations.
     ("capability_workspace.py", "repo = prompts.SKILL.parents[3]"),
     ("fiji_sandbox.py", 'BOOTSTRAP = Path(__file__).resolve().parents[1] / "fiji_worker" / "functions.groovy"'),

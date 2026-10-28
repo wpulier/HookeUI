@@ -245,7 +245,8 @@ const libraryButton = button('', () => bridge.navigate('#assets'), 'study-librar
 libraryButton.append(icon('assets'),el('span','','Library'));libraryButton.setAttribute('aria-label','Library');libraryButton.title='All recordings, images and uploads across Projects';
 // Hairline groups (the mock's rail): where the Project's work is, what runs on it, the Library; Help, Shortcuts and
 // Settings at the foot.
-rail.append(dataButton,activityButton,researchersButton,inputsButton,railGap(),toolsButton,modelsButton,railGap(),libraryButton);
+const workflowsButton=button('',()=>bridge.navigate('#workflows'));workflowsButton.append(icon('tools'),el('span','','Workflows'));workflowsButton.setAttribute('aria-label','Workflows');
+rail.append(dataButton,activityButton,researchersButton,inputsButton,railGap(),toolsButton,workflowsButton,modelsButton,railGap(),libraryButton);
 const drawer = el('aside', 'study-drawer'); drawer.setAttribute('aria-label', 'Project and tools');
 // One header for every place in the drawer (the mock's dhead): its title, at most one action, and ×.
 const drawerHeader = el('header', 'study-panel-header mm-dhead');
@@ -940,6 +941,7 @@ let openStudyNow:Effort|null=null,studyTimer=0,studyOpening=0;
 let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
+window.addEventListener('workflow-open-study',event=>{const value=(event as CustomEvent<{id:string;session:string}>).detail;if(value.session===snapshot.session&&/^p[0-9a-f]{32}$/.test(value.id)){bridge.navigate('#');void openStudy(value.id);}});
 async function openStudy(id:string):Promise<void>{
   if(!canLeaveStudy(()=>void openStudy(id)))return;
   const owner=workspaceViews.tabOwner(),session=owner.session,opening=++studyOpening;
@@ -964,6 +966,7 @@ async function openStudy(id:string):Promise<void>{
       if(ownsView())closeResearchStage();
     };
     renderStudy(page,next,{
+      localWorkflows:true,
       readiness:async()=>{const latest=await studyReadiness(session,fetch,next.id);if(!current()||currentStudyPage!==page)throw new Error('Return to the original Study.');providers=latest;return latest;},
       control:action=>apply(()=>controlStudy(next.id,session,action)),
       start:fields=>apply(()=>startStudy(next.id,session,fields)),
@@ -996,7 +999,7 @@ async function openStudy(id:string):Promise<void>{
   studyTimer=window.setInterval(()=>{
     if(!current()||researchStage.hidden||currentStudyPage!==page){clearInterval(studyTimer);return;}
     if(page.dataset.pending||page.querySelector('[data-pending]')||page.querySelector('[data-draft]')||page.dataset.draft||page.dataset.reviewOpen||page.contains(document.activeElement))return;
-    void readStudy(id,session).then(next=>{if(current()&&currentStudyPage===page&&!page.dataset.pending&&!page.querySelector('[data-pending]')&&!page.querySelector('[data-draft]')&&!page.dataset.draft&&!page.dataset.reviewOpen&&!page.contains(document.activeElement)&&next.revision!==openStudyNow?.revision)draw(next);}).catch(()=>{});
+    void readStudy(id,session).then(next=>{if(current()&&currentStudyPage===page&&!page.dataset.pending&&!page.querySelector('[data-pending]')&&!page.querySelector('[data-draft]')&&!page.dataset.draft&&!page.dataset.reviewOpen&&!page.contains(document.activeElement)&&(next.revision!==openStudyNow?.revision||next.stopPending!==openStudyNow?.stopPending))draw(next);}).catch(()=>{});
   },4000);
 }
 /** New Study saves a draft. Provider execution requires the separate Start action. */
@@ -1008,7 +1011,7 @@ function newStudy():void{
   const title=el('input');title.required=true;title.placeholder='Name this study';
   const objective=el('textarea');objective.rows=3;objective.className='study-question-input';objective.required=true;objective.placeholder='For example: which segmentation model transfers best to the withheld cell lines?';
   const criteria=el('textarea');criteria.rows=2;criteria.className='study-criteria-input';criteria.required=true;criteria.placeholder='For example: mean IoU against the hand-corrected masks, by line';
-  const budget=el('input');budget.type='number';budget.min='0.10';budget.step='0.10';budget.value='1.00';budget.required=true;
+  const budget=el('input');budget.type='number';budget.min='0';budget.step='0.10';budget.value='1.00';budget.required=true;
   const field=(label:string,control:HTMLElement)=>{const checkbox=control.tagName==='INPUT'&&(control as HTMLInputElement).type==='checkbox';const row=el('label',checkbox?'study-new-study-field study-choice':'study-new-study-field');if(checkbox)row.append(control,el('span','',label));else row.append(el('span','',label),control);return row;};
   const status=el('p','study-note');status.setAttribute('role','status');
   const choices=el('fieldset','study-pick-field');choices.append(el('legend','visually-hidden','What it may use'),el('p','study-note','Loading this Project’s saved inputs…'));
@@ -1032,20 +1035,20 @@ function newStudy():void{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);
-      const use=input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);
+      const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
       words.append(el('strong','',input.title),el('span','study-pick-kind',`${kind} · v${input.revision}`),el('span','study-pick-why',use));
       name.append(check,words);row.append(name);row.title=studyInputDescription(input);pick.append(row);}
     if(inputs.length)choices.append(pick);
-    choices.append(el('p','study-note',inputs.length?'Kept at these versions; later edits don’t change the study. Up to 32 files and 16 MiB travel with experiments; larger data is copied to your private cloud storage.':'No saved input documents yet. You can save a question-only Study.'));save.disabled=false;
+    choices.append(el('p','study-note',inputs.length?'Kept at these versions; later edits don’t change the study. Each tool checks its supported inputs. Starting a model researcher shares the context it reads with your configured provider.':'No saved input documents yet. You can save a question-only Study.'));save.disabled=false;
   }).catch(error=>{if(current()){status.textContent=error instanceof Error?error.message:String(error);choices.replaceChildren(button('Retry inputs',load));}});};
   form.addEventListener('submit',event=>{event.preventDefault();
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();
@@ -1300,7 +1303,7 @@ window.addEventListener('resize',placeCameraMenu);window.addEventListener('works
 find('source').title='Specimen';
 allSessionsButton.setAttribute('aria-haspopup','dialog');
 libraryButton.setAttribute('aria-haspopup','dialog');
-window.addEventListener('workspace-study-surface',event=>{const page=(event as CustomEvent).detail.page;libraryButton.setAttribute('aria-current',page==='assets'?'page':'false');modelsButton.setAttribute('aria-current',page==='models'?'page':'false');});
+window.addEventListener('workspace-study-surface',event=>{const page=(event as CustomEvent).detail.page;workflowsButton.setAttribute('aria-current',page==='workflows'?'page':'false');libraryButton.setAttribute('aria-current',page==='assets'?'page':'false');modelsButton.setAttribute('aria-current',page==='models'?'page':'false');});
 // Library's Open in new Project: begin a Project, then open the recording or picture in it (it becomes its first input).
 window.addEventListener('hooke-open-in-new-project',event=>{const asset=(event as CustomEvent<{asset:AssetMeta}>).detail?.asset;if(!asset)return;void (async()=>{if(!(await changeSession()))return;surfaces.dismiss();await openSource(asset);})();});
 // A setup sheet opened from Tools or Activity (#models/<id>/setup) closes back to the Project; opened inside Models, it closes to Models.

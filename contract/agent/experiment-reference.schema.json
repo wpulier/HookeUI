@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "required": [
+    "operation",
+    "workflowRun",
+    "study",
+    "by",
+    "byLabel"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "operation": {
+      "type": "string",
+      "pattern": "^op_[a-f0-9]{16,32}$"
+    },
+    "workflowRun": {
+      "$ref": "artifact-reference.schema.json"
+    },
+    "study": {
+      "$ref": "artifact-reference.schema.json"
+    },
+    "by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "byLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    }
+  },
+  "$id": "hooke:agent/experiment-reference"
+}

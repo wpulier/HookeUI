@@ -442,6 +442,13 @@ def model_steps(m: catalog.Manifest, have: Callable[[str], bool], environ: Mappi
                               "The app could not establish the required operating-system sandbox; nothing runs"))
             return steps, got, missing
     for what in _need(m.needs_to_run, "install"):
+        owner = catalog.get(what)
+        if not m.env and owner is not None and owner.env and not owner.runner:
+            # An explicitly declared shared environment is prepared through its
+            # own catalog action; it is not an import in the app's environment.
+            owned_steps, _, _ = model_steps(owner, have, environ)
+            steps.extend(owned_steps)
+            continue
         if what == "adapter":  # a skeleton (mine.py): the app can't run it as it is
             steps.append(Step("install", "Write an adapter for it", "it needs an adapter written for it before it can run "
                               "(catalog/README.md, “Add your own”)"))

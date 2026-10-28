@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  dataRows, madeWords, makerChoices, makerKey, researcherKey, researcherWork, roleOf, rowCount, rowFrom, rowHolds, rowIsNew, rowLine,
+  dataRows, madeWords, makerChoices, makerKey, makerName, researcherKey, researcherWork, roleOf, rowCount, rowFrom, rowHolds, rowIsNew, rowLine,
   rowMaker, rowMatches, rowSeenKeys, rowTitle, rowWriting, unseenRows, type DataEntry, type DataRow,
 } from './data-roles';
 import { sessionDOM, SessionNode } from './sessions.test-support';
@@ -145,6 +145,15 @@ describe('Data by what each thing is', () => {
     expect(rows.filter((item) => rowMaker(item) === researcherKey('Researcher 2')).map((item) => item.key)).toEqual(['y', 'r802192', 'r802192:source-26cfa2eb2b96']);
     expect(rows.filter((item) => rowMaker(item) === 'you').map((item) => item.key)).toEqual(['e8', 'b1']);
     expect(makerKey(null)).toBe(null);
+  });
+
+  it('Made by names an outside agent by its own label, after the Assistant and before researchers (ADR 0026)', () => {
+    const byAgent = entry('a1', 'population', { role: 'analysis', maker: { kind: 'agent', id: 'ac_1', name: 'Claude Code' } });
+    const asked = entry('c1', 'result', { role: 'analysis', maker: { kind: 'assistant', name: 'The Assistant' } });
+    const choices = makerChoices(dataRows([byAgent, asked, outlines]));
+    expect(choices.map((choice) => [choice.key, choice.name])).toEqual([['you', 'You'], ['assistant', 'The Assistant'], ['a:Claude Code', 'Claude Code']]);
+    expect(makerName('a:Claude Code')).toBe('Claude Code');
+    expect(dataRows([byAgent, outlines]).filter((item) => rowMaker(item) === 'a:Claude Code').map((item) => item.key)).toEqual(['a1']);
   });
 
   it('search finds a row by any of its parts, its maker, its form and a source’s site', () => {
