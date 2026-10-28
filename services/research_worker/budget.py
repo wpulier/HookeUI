@@ -102,11 +102,11 @@ EFFORTS = {
 REVISE_ONLY = "revise"  # an effort that never starts a researcher of its own
 # The app's own operations a researcher can run for its reading (run; orchestrator/research/hands.py), here
 # so the research process and the app read them without importing each other.
-# What each does, said with the view it runs on ("the live view", or a kept sample's id).
+# What each does, said with the view it runs on ("the picture on the Stage", or a kept sample's id).
 RUN_OPERATIONS = {"segment": "segment every cell in {view} and measure them",
                   "enhance": "make a clearer picture of {view} from real frames",
                   "measure_saved_objects": "measure the explicitly selected saved labels",
-                  "motion": "measure what moves in the live view over its last seconds"}
+                  "motion": "measure what moves on the Stage over its last seconds"}
 # The cell finders a researcher can name for segment (id = name), as the app names them (orchestrator/names.py; a test
 # keeps the two the same): the research process does not import the app (Slice 5, the user's Q24).
 CELL_FINDERS = {"cellpose-sam": "Cellpose-SAM", "cellpose-sam-tuned": "Cellpose-SAM fine-tuned on your corrections",

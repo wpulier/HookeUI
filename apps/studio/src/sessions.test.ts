@@ -3,8 +3,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   chipSubWords, chipView, countWords, dayLabel, daysAgo, factsLine, groupByDay, lastUsedWords, monthDay, READ_FAILED, rowView,
-  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS,
-} from './sessions';
+  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords } from './sessions';
 import type { ClientCommand } from './protocol';
 import { at, list, NOW, row, state } from './sessions.test-support';
 
@@ -232,4 +231,13 @@ describe('the one source both views read', () => {
 test('project wording adapts the generated legacy placeholder but preserves an explicit name', () => {
   expect(sessionName({name:'',label:'Untitled session',started:at(14)},at(15))).toBe('Untitled project');
   expect(sessionName({name:'Untitled session',label:'Untitled session',started:at(14)},at(15))).toBe('Untitled session');
+});
+
+// Ticket 67: a Project's row in the Projects list said "1 inputs · 1 conversations".
+describe('a Project row in the Projects list', () => {
+  test('counts in words, one or many', () => {
+    expect(projectRowWords({ sources: 1, made: 0, researchers: 0, conversations: 1 }, false)).toBe('1 input · 1 conversation');
+    expect(projectRowWords({ sources: 2, made: 3, researchers: 0, conversations: 4 }, true)).toBe('2 inputs · 3 results · 4 conversations · Open project');
+    expect(projectRowWords(undefined, false)).toBe('0 conversations');
+  });
 });

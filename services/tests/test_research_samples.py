@@ -218,7 +218,7 @@ def test_the_researchers_run_tool_passes_its_sample_and_refuses_what_is_not_one(
     assert steps[-2] == "Asking the app to make a clearer picture of a view kept earlier from real frames"  # k1 and the reason: its detail
     motion, _ = asyncio.run(researcher.tool_run({"operation": "motion", "why": "how fast", "seconds": 8}))
     assert motion["ok"] and asked[-1][1]["seconds"] == 8.0 and "input" not in asked[-1][1]
-    assert steps[-2] == "Asking the app to measure what moves in the live view over its last seconds"
+    assert steps[-2] == "Asking the app to measure what moves on the Stage over its last seconds"
     late, _ = asyncio.run(researcher.tool_run({"operation": "motion", "why": "x", "seconds": "a while"}))
     assert "seconds is how long motion watches" in late["error"]
 

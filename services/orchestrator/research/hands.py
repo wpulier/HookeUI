@@ -39,6 +39,12 @@ from research_worker.budget import RUN_OPERATIONS as OPERATIONS, operation_limit
 PRIORITY = "research"  # gpu_client's class for a researcher's own operations
 NEXT = "carry on without it, and say what could not be measured"  # a researcher can't click or wait on the user
 ELSEWHERE = "another session is open now: the live view and what it makes are that session's"
+
+
+def stage_words(still: bool) -> str:
+    """What a run with no kept input worked on, as the Stage showed it: a still picture (its frames carry the still's
+    original, as population.py says it) or the live view (ticket 67: "segmented the live view" for a picture)."""
+    return "the picture on the Stage" if still else "the live view"
 GONE = "that view is not kept any more"  # a sample the session no longer keeps (Amendment 1 A), never re-captured
 LET_GO_MIN_S = 5.0  # the app lets an operation go at the researcher's wait less 2 s, never sooner than this
 MB = 1024 * 1024
@@ -489,8 +495,8 @@ class Hands:
         population = await segment(self.hub, capture=sample.capture if sample is not None else None, origin="background",
                                    priority=PRIORITY, made_for=session.name, thread=(session.origin or {}).get("thread"),
                                    choice=implementation)  # a named cell finder runs raw: that one, or it says why not
-        where = sample.words if sample is not None else "the live view"
         view = population.view or {}
+        where = sample.words if sample is not None else stage_words(bool(view.get("sourceImage")))
         # Which model ran, by the catalog key Tools lists (its cells option's model, else the option's own id), as a
         # capability run records it: the researcher's Tab names the run by it ("Ran Cellpose-SAM"), never from the prose.
         from ..options import GROUPS
@@ -638,7 +644,7 @@ class Hands:
             where = f"{span} of held clip {sample.entry} (held {hhmm(used[0].at)})"
             frames = [{**f.facts(n)} for n, f in zip(numbers, used)]
         else:
-            where = "the live view"
+            where = stage_words(any(getattr(f, "source_image_json", None) for f in used))
             frames = [{"frame": getattr(f, "id", None), "seq": getattr(f, "seq", None), "boot": getattr(f, "boot", None),
                        "at": round(float(getattr(f, "wall_at", 0.0) or 0.0), 3)} for f in used]
         # The researcher's own words (its `why`) are kept with its run (`ran`), never as the user's request here: the
