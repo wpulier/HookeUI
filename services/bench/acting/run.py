@@ -4,10 +4,13 @@
     python -m bench.acting.run --case live-140652 --verbose
     python -m bench.acting.run --models real --attempts 3 --out DIR --arm defaults: --arm early-off:speculate=off
 
-`--models real` runs live_cases.json with the real models, in real time, on real pictures (world.py):
+`--models real` runs the live cases with the real models, in real time, on real pictures (world.py):
 each case `--attempts` times in every arm (settings, one variable at a time), the arms taking turns, every
 attempt and every provider call kept in `--out/<arm>` with the hash of the cases and of the scoring, so arms
-compare only on the same frozen cases. A case passes only when all its attempts pass.
+compare only on the same frozen cases. A case passes only when all its attempts pass. The maintainers' live cases
+are their own words and pictures from live sessions, so they are kept privately, not in this repository: put a cases
+file at live_cases.json beside this file (ignored by Git) or name one with `--cases`; without one the run says so and
+skips.
 
 A case (cases.json) has:
 - `slide`: things on the slide (name, box in frame pixels at rest, outlinable);
@@ -41,6 +44,7 @@ import argparse
 import re
 import asyncio
 import json
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,7 +55,7 @@ from orchestrator.voice.openai_live import findings_text
 from .world import World, kind_of
 
 CASES = Path(__file__).with_name("cases.json")
-LIVE_CASES = Path(__file__).with_name("live_cases.json")
+LIVE_CASES = Path(__file__).with_name("live_cases.json")  # kept privately (the docstring above); ignored by Git
 # Scaled with the case's time. RECENT_VOICE_S is not: it is only ever compared with the speech clock,
 # which the world gives in case seconds.
 TIMINGS = ("JOIN_PIECES_S", "JOIN_UNFINISHED_S", "WAIT_FOR_WORDS_S", "WORDS_GRACE_S", "POINT_AFTER_S", "HANDS_KEPT_S",
@@ -533,9 +537,16 @@ def live(args) -> None:
 
     from orchestrator.keys import load_keys
 
+    path = Path(args.cases) if args.cases else LIVE_CASES
+    if not path.is_file():
+        if args.cases:
+            raise SystemExit(f"No cases file at {path}")
+        print(f"Skipped: no live cases at {path}. The maintainers' live cases are their own words and pictures from "
+              "live sessions, kept privately; give a cases file of your own (load_live's shape) with --cases FILE.",
+              file=sys.stderr)
+        return None
     load_keys()  # from the real keys file, before the saves move to a scratch home
     os.environ.setdefault("MICROMIND_HOME", tempfile.mkdtemp(prefix="micromind-acting-live-"))  # never the real saves
-    path = Path(args.cases) if args.cases else LIVE_CASES
     dirty = bool(subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], capture_output=True,
                                 text=True).stdout.strip())
     stamp = {"frozen": frozen(path), "dirty": dirty,
@@ -611,7 +622,7 @@ def main() -> None:
     parser.add_argument("--scale", type=float, default=0.1, help="how much faster than real time")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--models", choices=("scripted", "real"), default="scripted")
-    parser.add_argument("--cases", help="the cases file (live: live_cases.json)")
+    parser.add_argument("--cases", help="the cases file (live: live_cases.json beside run.py, kept privately)")
     parser.add_argument("--attempts", type=int, default=3, help="live: attempts per case (all must pass)")
     parser.add_argument("--set", action="append", default=[], metavar="GROUP=OPTION", help="live: a setting to compare")
     parser.add_argument("--arm", action="append", metavar="NAME:GROUP=OPTION,...",

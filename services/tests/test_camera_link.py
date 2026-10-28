@@ -485,7 +485,7 @@ def test_another_camera_by_its_stream_address(bridge_module, tmp_path, cleanup):
     args = stream_args(bridge, tmp_path)
     with pytest.raises(ValueError, match="srt://, rtmp:// or rtsp://"):
         bridge_module.switch_source(args, bridge, "other", url="file:///etc/passwd")
-    url = f"rtsp://admin:{SECRET}@192.168.50.20:554/stream1"
+    url = f"rtsp://admin:{SECRET}@192.0.2.20:554/stream1"
     bridge_module.switch_source(args, bridge, "other", url=url)
     health = bridge.health()
     assert health["sourceKind"] == "other" and SECRET not in json.dumps(health)
