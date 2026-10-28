@@ -180,3 +180,107 @@ def test_a_fresh_mac_opens_hooke_instead_of_looping(hooke, tmp_path):
     pinned = run(inside, {**env, "HOOKE_DOOR_URL": "http://127.0.0.1:9"}, "status")
     assert "isn't running" in pinned.stdout
     shutil.rmtree(os.path.expanduser(f"~/Library/Application Support/{folder}"), ignore_errors=True)
+
+
+def test_named_connections_keep_separate_actors_and_revocation(hooke, tmp_path, monkeypatch):
+    """Real CLI/Keychain/door, synthetic consent and operation: not a user's connection approval."""
+    import urllib.request
+    from orchestrator.door import example
+
+    channel = f"test-{uuid.uuid4().hex}"
+    port = free_port()
+    base = f"http://127.0.0.1:{port}"
+    env = {k: v for k, v in os.environ.items() if k not in ('HOOKE_CONNECTION', 'HOOKE_AGENT')}
+    env.update(HOOKE_CHANNEL=channel, HOOKE_DOOR_URL=base)
+
+    async def work(app, record, progress):
+        return {'says': 'Synthetic identity check', 'actor': record['by']}
+
+    monkeypatch.setattr(example, 'run', work)
+    monkeypatch.setattr(example, 'takeover', lambda app, doing='the example', actor=None: None)
+    monkeypatch.setattr(api, 'example_identity', lambda: ('r1', 'abc.0123456789abcdef'))
+    monkeypatch.setenv('HOOKE_DEV_CONFIRM', '1')
+    monkeypatch.delenv('HOOKE_CONFIRM_KEY', raising=False)
+    door = Door(tmp_path, port, work).start()
+    processes = []
+
+    def studio(path, body=None):
+        request = urllib.request.Request(base + '/api/agent-connections' + path,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={'Content-Type': 'application/json', 'Origin': base,
+                     'X-MicroscopeMind': 'agent-connections'})
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return json.load(response)
+
+    def arguments(name):
+        return ['--agent', 'claude-code', *(['--connection', name] if name else [])]
+
+    def status(name, environment=env):
+        result = run(hooke, environment, 'status', '--json', *arguments(name))
+        assert result.returncode == 0, result.stdout + result.stderr
+        return json.loads(result.stdout)
+
+    try:
+        identities = {}
+        for name in (None, 'lead', 'reviewer'):
+            proc = subprocess.Popen([str(hooke), 'connect', '--no-skill', *arguments(name)],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            processes.append(proc)
+            from tests.waiting import until
+            pending = until(lambda: studio('')['pending'])
+            studio('/pending/' + pending[0]['id'], {'answer': 'connect'})
+            out, err = proc.communicate(timeout=60)
+            assert proc.returncode == 0, out + err
+            record = status(name)
+            identities[name] = record['connection']['id']
+            assert record['connectionName'] == name
+
+        assert len(set(identities.values())) == 3
+        assert status(None)['connection']['id'] == identities[None]
+        assert status(None, {**env, 'HOOKE_CONNECTION': 'lead'})['connection']['id'] == identities['lead']
+        assert status('reviewer', {**env, 'HOOKE_CONNECTION': 'lead'})['connection']['id'] == identities['reviewer']
+        # The same request key stays independent across connections; retries retain the original.
+        operations = {}
+        for name in ('lead', 'reviewer'):
+            result = run(hooke, env, 'example', '--json', '--key', 'named-request-0001', *arguments(name))
+            assert result.returncode == 0, result.stdout + result.stderr
+            listing = run(hooke, env, 'operations', '--json', *arguments(name))
+            payload = json.loads(listing.stdout)
+            operation = payload['operations'][0]
+            assert operation['by'] == 'agent:' + identities[name]
+            operations[name] = operation['id']
+            again = run(hooke, env, 'example', '--json', '--key', 'named-request-0001', *arguments(name))
+            assert again.returncode == 0, again.stdout + again.stderr
+            retried = json.loads(run(hooke, env, 'operations', '--json', *arguments(name)).stdout)
+            assert [item['id'] for item in retried['operations']] == [operations[name]]
+        assert operations['lead'] != operations['reviewer']
+
+        studio('/' + identities['lead'] + '/disconnect', {})
+        refused = run(hooke, env, 'status', '--json', *arguments('lead'))
+        assert refused.returncode != 0 and 'disconnected' in refused.stdout.lower()
+        assert status('reviewer')['connection']['id'] == identities['reviewer']
+        assert status(None)['connection']['id'] == identities[None]
+        absent = run(hooke, env, 'tools', '--json', *arguments('missing'))
+        assert absent.returncode != 0 and '--connection missing' in absent.stdout
+        missing_status = status('missing')
+        assert missing_status['connected'] is False
+        assert missing_status['connectionName'] == 'missing'
+        assert missing_status['next'] == 'hooke connect --agent claude-code --connection missing'
+        text_status = run(hooke, env, 'status', *arguments('missing'))
+        assert '--agent claude-code --connection missing' in text_status.stdout
+    finally:
+        for proc in processes:
+            if proc.poll() is None:
+                proc.terminate()
+                proc.communicate(timeout=10)
+        door.stop()
+        for account in ('claude-code', 'claude-code:lead', 'claude-code:reviewer'):
+            subprocess.run(['security', 'delete-generic-password', '-s', f'org.hookeui.agent.{channel}',
+                            '-a', account], capture_output=True)
+
+
+@pytest.mark.parametrize('name', ['', '../reviewer', 'lead:other', 'a' * 65, 'lead\n'])
+def test_invalid_connection_names_refuse_before_access(hooke, name):
+    result = run(hooke, os.environ, 'status', '--json', '--connection=' + name)
+    assert result.returncode != 0
+    assert json.loads(result.stdout)['says'] == 'Invalid connection name.'

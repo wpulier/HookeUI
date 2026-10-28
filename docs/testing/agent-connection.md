@@ -94,3 +94,26 @@ To hand it to an agent, tell it the command's path and to read `.agents/skills/h
   `hooke` don't reach Stable.
 - After a restart, the walkthrough card can still say "Waiting for the outlines to appear" with the outlines drawn.
   Retry and Skip both work.
+
+
+## Independently named connections (source qualification)
+
+The CLI supports `--connection lead` and `--connection reviewer` on every command,
+or `HOOKE_CONNECTION`. Omission preserves the existing unnamed connection. Names
+are exact, 1–64 ASCII letters/digits/dots/underscores/hyphens, starting alphanumeric.
+`--label` changes the displayed name at connection time, not the credential selector.
+
+Connect each separately and confirm its own matching code:
+
+```sh
+/tmp/hooke-dev connect --agent claude-code --connection lead
+/tmp/hooke-dev connect --agent claude-code --connection reviewer
+/tmp/hooke-dev status --agent claude-code --connection lead --json
+/tmp/hooke-dev status --agent claude-code --connection reviewer --json
+```
+
+Check distinct returned connection IDs, independent operations with the same request
+key, and independent Disconnect. The unnamed connection must still work. A missing
+named connection must refuse rather than use another credential. These selectors do
+not grant collaboration or allow access to another connection's Project. Named
+connection support in source does not establish that an installed Beta includes it.

@@ -1,5 +1,6 @@
 """Synthetic process-boundary failures; these never start an app or native worker."""
 import signal
+from types import SimpleNamespace
 
 import pytest
 
@@ -21,7 +22,9 @@ def test_stack_readiness_timeout_reaps_its_process_and_removes_private_home(tmp_
     monkeypatch.setattr(stacks.tempfile, 'mkdtemp', temporary_home)
     monkeypatch.setattr(stacks.subprocess, 'Popen', lambda *a, **k: process)
     clock = iter([0, 121])
-    monkeypatch.setattr(stacks.time, 'monotonic', lambda: next(clock))
+    # Replace this module's clock, not Python's shared time module: unrelated
+    # background writers may still be alive in the same test process.
+    monkeypatch.setattr(stacks, 'time', SimpleNamespace(monotonic=lambda: next(clock), sleep=stacks.time.sleep))
     with pytest.raises(RuntimeError, match='did not become ready'):
         stacks.Stack({'environment': {'MICROMIND_CATALOG': str(tmp_path), 'MICROMIND_ENVS': str(tmp_path)}}, build=False)
     assert process.poll() is not None

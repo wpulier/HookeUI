@@ -9,14 +9,14 @@ import Foundation
 import Security
 
 let interfaceVersion = 1  // the door's interface this command speaks (door/api.py INTERFACE)
-let cliVersion = 1        // what the door's status calls minCli
+let cliVersion = 2        // named connections; the door wire contract is unchanged
 
 // MARK: - Arguments: options anywhere, then the command and its words
 
 var words: [String] = []
 var options: [String: String] = [:]
 var flags: Set<String> = []
-let valued: Set<String> = ["agent", "channel", "key", "label", "project"]
+let valued: Set<String> = ["agent", "channel", "connection", "key", "label", "project"]
 let switches: Set<String> = ["json", "wait", "follow", "no-skill", "help"]
 do {
     // An option it doesn't know is refused, never ignored: a mistyped --key would otherwise start a fresh request.
@@ -57,6 +57,20 @@ func printJSON(_ value: Any) {
     guard let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]) else { return }
     say(String(decoding: data, as: UTF8.self))
 }
+
+// A credential selector, not a server identity or access grant. No normalization: two spellings
+// must not unexpectedly select the same credential. The absent selector keeps the legacy account.
+let connectionName = options["connection"] ?? ProcessInfo.processInfo.environment["HOOKE_CONNECTION"]
+if let name = connectionName,
+   name.range(of: #"\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z"#, options: .regularExpression) == nil {
+    fail("Invalid connection name.", next: "use 1–64 letters, digits, dots, underscores or hyphens, starting with a letter or digit")
+}
+
+func connectionAccount(_ agent: String) -> String {
+    connectionName.map { agent + ":" + $0 } ?? agent
+}
+
+func connectionOption() -> String { connectionName.map { " --connection " + $0 } ?? "" }
 
 // MARK: - Which app
 
@@ -247,9 +261,10 @@ let keychainLocked = "This session can't reach your Keychain (it is locked here,
 let keychainLockedNext = "run hooke in Terminal on this Mac, signed in at its screen"
 
 func saveToken(_ token: String, agent: String, label: String) {
-    SecItemDelete(keychain([kSecAttrAccount as String: agent]) as CFDictionary)
-    let status = SecItemAdd(keychain([kSecAttrAccount as String: agent, kSecValueData as String: Data(token.utf8),
-                                      kSecAttrLabel as String: "Hooke agent connection (\(agent))"]) as CFDictionary, nil)
+    let account = connectionAccount(agent)
+    SecItemDelete(keychain([kSecAttrAccount as String: account]) as CFDictionary)
+    let status = SecItemAdd(keychain([kSecAttrAccount as String: account, kSecValueData as String: Data(token.utf8),
+                                      kSecAttrLabel as String: "Hooke agent connection (\(account))"]) as CFDictionary, nil)
     if status != errSecSuccess {
         fail("Hooke connected \(label), but the connection couldn't be kept in your Keychain (\(status)).",
              next: "disconnect \(label) in Hooke's Settings → Connected agents, then run hooke connect in Terminal on this Mac")
@@ -267,7 +282,7 @@ func checkKeychainWritable() {
 
 func tokenLookup(agent: String) -> (token: String?, locked: Bool) {
     var found: CFTypeRef?
-    let one = keychain([kSecAttrAccount as String: agent, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne])
+    let one = keychain([kSecAttrAccount as String: connectionAccount(agent), kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne])
     let status = SecItemCopyMatching(one as CFDictionary, &found)
     guard status == errSecSuccess, let data = found as? Data else { return (nil, status == errSecInteractionNotAllowed) }
     return (String(decoding: data, as: UTF8.self), false)
@@ -279,7 +294,10 @@ func connected() -> String {
     let me = agent()
     let found = tokenLookup(agent: me)
     if found.locked { fail(keychainLocked, next: keychainLockedNext) }
-    guard let token = found.token else { fail("\(labels[me]!) isn't connected to Hooke.", next: "run hooke connect --agent \(me)") }
+    guard let token = found.token else {
+        let who = labels[me]! + (connectionName.map { " (\($0))" } ?? "")
+        fail("\(who) isn't connected to Hooke.", next: "run hooke connect --agent \(me)\(connectionOption())")
+    }
     return token
 }
 
@@ -329,7 +347,7 @@ func installSkill(agent: String) -> String {
 
 func connect() {
     let me = agent()
-    let label = options["label"] ?? labels[me]!
+    let label = options["label"] ?? (labels[me]! + (connectionName.map { " (\($0))" } ?? ""))
     var bytes = [UInt8](repeating: 0, count: 32)
     guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { fail("No randomness for the secret.") }
     let secret = bytes.map { String(format: "%02x", $0) }.joined()
@@ -347,13 +365,13 @@ func connect() {
             if jsonOutput { printJSON(["ok": true, "connection": connection, "skill": skill as Any]); return }
             say("Connected: \(label) can use Hooke (\(connection["id"] ?? "")).")
             if let skill { say("The Hooke skill is installed at \(skill); new sessions of \(label) will know how to use Hooke.") }
-            say("Next: hooke example --agent \(me)")
+            say("Next: hooke example --agent \(me)\(connectionOption())")
             return
         }
         if claim.status != 202 { refused(claim) }
         Thread.sleep(forTimeInterval: 1)
     }
-    fail("Nobody confirmed the connection in Hooke in ten minutes.", next: "run hooke connect --agent \(me) again")
+    fail("Nobody confirmed the connection in Hooke in ten minutes.", next: "run hooke connect --agent \(me)\(connectionOption()) again")
 }
 
 func status() {
@@ -377,13 +395,16 @@ func status() {
             say("Hooke is open. \(keychainLocked) Next: \(keychainLockedNext).")
             return
         }
-        if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": false]); return }
-        say("Hooke is open. To connect: hooke connect --agent <claude-code|codex|cursor|other>.")
+        let next = "hooke connect --agent \(me ?? "<claude-code|codex|cursor|other>")\(connectionOption())"
+        if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": false,
+                                   "connectionName": connectionName.map { $0 as Any } ?? NSNull(), "next": next]); return }
+        say("Hooke is open. To connect: \(next).")
         return
     }
     let reply = door("GET", "api/agent/v1/status", token: token)
     guard reply.status == 200 else { refused(reply) }
     var body = reply.body
+    body["connectionName"] = connectionName.map { $0 as Any } ?? NSNull()
     let iface = body["interface"] as? [String: Any] ?? [:]
     let installed = skillVersion(at: skillTarget(me))
     let skillOld = (iface["minSkill"] as? Int).map { (installed ?? 0) < $0 } ?? false
@@ -507,6 +528,8 @@ func openPage() {
 let usage = """
 hooke: use the Hooke app this command ships in, from your coding agent. Every command takes --agent <kind>
 (claude-code, codex, cursor, other), or the HOOKE_AGENT environment variable.
+Use --connection <name> (or HOOKE_CONNECTION) on every command for a named connection.
+Omit it to keep using your existing unnamed connection; --label only changes the displayed name at connect.
 
   hooke status [--wait]                  Is Hooke open, and are you connected? --wait opens it and waits.
   hooke connect                          Connect; the researcher confirms once in Hooke's dialog.

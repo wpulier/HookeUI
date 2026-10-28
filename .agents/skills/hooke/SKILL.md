@@ -25,6 +25,14 @@ may contain a space.
 Pass `--agent <claude-code|codex|cursor|other>` on every command: it says which connection is yours. Below, `hooke`
 means the path with your `--agent`.
 
+To keep separate identities for agents of the same kind, add `--connection <name>`
+on every command, including `connect`, or set `HOOKE_CONNECTION`. Each named
+connection needs its own confirmation and is independently revocable. Omit the
+selector to retain the existing unnamed connection. `--label` only chooses the
+name displayed at connection time; it does not select credentials or grant access.
+Never retry a refused named connection using another connection's credentials.
+
+
 ## Start every session the same way
 
 1. `hooke status --wait --json` opens Hooke if needed and says whether you're connected.

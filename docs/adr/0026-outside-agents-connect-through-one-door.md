@@ -128,3 +128,36 @@
 
 **Related.** ADR 0006 (never claim what did not happen), ADR 0021 (added code runs only when activated), ADR 0024 (one
 capability contract). The design: `services/orchestrator/door/AGENTS.md`.
+
+
+## October 28 amendment — durable collaborative research (approved)
+
+The owner approved the following extension of this decision. Earlier implementation descriptions
+above remain historical; each extension is exposed only once implemented and qualified.
+
+- Saved-input scientific operations may execute off-screen against an explicit Project, immutable
+  input revision, method generation and parameters. Live stage/camera operations retain their
+  existing active-session rules. Opening a result remains an explicit presentation action.
+- Connections may be named independently within an agent kind and channel. The unnamed Keychain
+  account remains compatible. Names select credentials; server connection IDs own attribution.
+  Two connections of the same kind must coexist and be independently revocable. A display label
+  never establishes identity or permission.
+- Agent-created Projects retain their creator. The owner's trusted interface may explicitly grant
+  another connection read or contribute access to a Project. Contributor access admits scientific
+  work and publishes findings; it never grants membership administration, keys, settings or spending.
+  Reads, imports, Studies, workflows, operations and exports enforce the same Project boundary.
+- Every new scientific door action remains default-deny with a reason and boundary tests in the
+  shared agent-runnable declarations. CLI and skill remain thin discovery clients.
+- Project evidence and exact revisions are shared scientific state. Study assignments refer to
+  WorkflowService executions; they do not create another execution/attempt ledger. Actor kind,
+  stable connection/researcher/person identity and assignment identity remain distinguishable.
+- External agents are the first research entrance. Launching subscribed agent CLIs from Hooke is
+  deferred pending separate supported-use, consent and resource-control qualification.
+- A shell-capable program acting as this Mac's user can read that user's files. Project permissions
+  cannot establish a sealed local scientific holdout; labels must be outside candidate agents'
+  actual reach before claiming isolation.
+
+Acceptance requires real supported connections, scoped collaboration, retained provenance,
+UI-independent saved-input execution, recoverable outcomes and ordinary UI inspection. Fixture
+connection issuance and direct writes into Project storage are test evidence only, never proof of
+that complete user journey. This amendment does not itself claim shipped behavior.
