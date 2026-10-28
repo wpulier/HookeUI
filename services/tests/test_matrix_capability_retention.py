@@ -14,6 +14,7 @@ from orchestrator import matrix_capability_runs as runs
 from orchestrator.scientific_file_intake import FileIntake
 from orchestrator.scientific_projects import ProjectStore, InvalidProject, Conflict
 from scientific_compute.catalog import descriptor
+from tests.test_scientific_project_api import web  # noqa:F401
 
 
 @pytest.fixture(autouse=True)
@@ -98,3 +99,21 @@ def test_stop_during_materialization_publishes_nothing(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='stopped'):
         runs.run_matrix(**arguments(store, ref), check=stop)
     assert len(store.list('s1')) == 1 and not (tmp_path / 'slot').exists()
+
+
+def test_retained_matrix_result_downloads_exact_bytes_and_refuses_other_projects(web):
+    # Synthetic output bytes through the real output owner, retention and HTTP route.
+    client,built=web;store=built.hub.resources.projects;session=built.day.sid
+    body=b"retained model bytes"
+    owner=runs._Output(store,session,'download-result-0123456789',name='model.npz',size=len(body),
+        max_bytes=len(body),invocation={'format':1},summary={'fixture':True})
+    try:
+        owner.write(body);saved=owner.publish()
+    finally:owner.close()
+    response=client.get('/api/scientific-files/'+saved.id,params={'session':session,'revision':1})
+    assert response.status_code==200,response.text
+    assert response.content==body and 'model.npz' in response.headers['content-disposition']
+    assert client.get('/api/scientific-files/'+saved.id,params={'session':'2026-10-16.999','revision':1}).status_code!=200
+    doc=saved.document;doc['title']='Reviewed model'
+    store.save(saved.id,session,doc,expected_revision=1)
+    assert client.get('/api/scientific-files/'+saved.id,params={'session':session,'revision':1}).content==body

@@ -280,8 +280,8 @@ def register(app,built,studio_origin,header):
             saved=await _owned(store.read,project,session,revision=revision)
             document=saved.document
             state=document['state'].get('sourceFile')
-            if document['kind']!='source-file' or type(state) is not dict or 'reference' not in state:
-                raise Refused('This document is not a selected source file.',next='choose a retained source file in Project Data')
+            if document['kind'] not in ('source-file','matrix-result') or type(state) is not dict or 'reference' not in state:
+                raise Refused('This document has no downloadable retained file.',next='choose a retained file or scientific result in Project Data')
             watcher=asyncio.create_task(watch_disconnect(request,stopping))
             source=await _owned(store.file_source,project,session,revision,state['reference'],check=check,on_cancel=stopping.set)
             response=SourceResponse(source,room);room=None

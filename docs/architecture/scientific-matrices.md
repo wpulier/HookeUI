@@ -126,3 +126,7 @@ refusing estimates over 8 GiB. The 24 GiB RSS supervisor remains an additional b
 does not silently split the target panel. Large-context scoring, full-size packaging, sealed holdout isolation and sustained throughput are
 still qualification work. The service cannot infer a sealed evaluator boundary from separate prompts or Projects.
 No automatically generated labels or local proxy metric can establish the eventual research outcome.
+
+Retained matrix results use the ordinary exact-revision file download route, including fitted models,
+effects and exported prediction files. Download verifies the stored file reference and bytes; it does
+not execute a model or rewrite the result. Source files and computed results retain distinct kinds.
