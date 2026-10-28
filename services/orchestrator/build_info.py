@@ -40,6 +40,15 @@ def identity():
         return {'revision': None, 'dirty': None, 'sourceDigest': None}
 
 
+def version() -> str | None:
+    """The packaged app's own version ("0.5.2", packaged.json), or None for a source checkout. A small file read."""
+    try:
+        said = json.loads(PACKAGED.read_text()).get('version')
+    except (OSError, ValueError, AttributeError):
+        return None
+    return str(said) if isinstance(said, str) and said.strip() else None
+
+
 def runtime_identity(backend=None):
     backend = backend if backend is not None else identity()
     try:

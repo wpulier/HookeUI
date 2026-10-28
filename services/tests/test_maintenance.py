@@ -682,3 +682,43 @@ def test_stop_while_applying_says_the_first_check_still_runs(home, monkeypatch):
     monkeypatch.setattr(maintenance_commands, "_reply", lambda app, m, says: {"ok": True, "says": says})
     out = asyncio.run(maintenance_commands.maintenance_stop(app, None, {"model": KEY}))
     assert "its first check still runs" in out["says"] and not out["says"].startswith("Stopped"), out
+
+
+def test_a_check_that_found_nothing_newer_says_up_to_date_and_when(home, monkeypatch):
+    # Ticket 67, fix 5: Details said nothing after a check found nothing (only Activity said "up to date").
+    m = turned_on(home, monkeypatch)
+    assert status.of(m)["says"] == "", "no check yet: nothing to say"
+    assert discover.check(m)["ok"] is True
+    now = status.of(catalog.get(KEY))
+    at = time.mktime(time.strptime(now["check"]["at"], "%Y-%m-%dT%H:%M:%S"))
+    from orchestrator.library import when_words
+
+    assert now["state"] == "none" and now["says"] == f"Up to date · checked {when_words(at)}"
+    assert "T" not in now["says"].split("checked ")[1], "a readable time, never ISO"
+
+
+def test_an_applied_update_says_when_in_readable_words(home, monkeypatch):
+    import re
+
+    m = turned_on(home, monkeypatch)
+    policy.record(m, "auto", by="you", how="screen")
+    fix(home, "0.2")
+    assert prepare.run(KEY)["state"] == "applied"
+    says = status.of(catalog.get(KEY))["says"]
+    assert re.fullmatch(r"Updated to dark-spots 0\.2 \([A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2} [ap]m\)", says), says
+
+
+def test_a_built_in_entry_is_said_to_update_with_hooke(home, monkeypatch, tmp_path):
+    # Ticket 67, fix 5: built-in Cellpose-SAM had no update state at all in its Details.
+    from orchestrator import build_info
+
+    packaged = tmp_path / "packaged.json"
+    packaged.write_text(json.dumps({"app": "HookeUI", "version": "0.5.2"}))
+    monkeypatch.setattr(build_info, "PACKAGED", packaged)
+    wire = status.wire()
+    assert wire["cellpose-sam"] == {"state": "none", "says": "Updated with Hooke 0.5.2", "next": None, "builtIn": True,
+                                    "version": catalog.get("cellpose-sam").version}
+    assert all(not catalog.get(k).runs == "cloud" for k, u in wire.items() if u.get("builtIn")), "a provider's model isn't"
+    assert status.of(catalog.get("cellpose-sam")) == {}, "maintenance itself still covers only entries with their own Python"
+    packaged.unlink()  # a source checkout: no version of its own to name
+    assert status.wire()["cellpose-sam"]["says"] == "Updated with Hooke: it comes with this copy of the app"

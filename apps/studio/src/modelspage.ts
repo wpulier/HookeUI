@@ -18,7 +18,7 @@ import { toolboxBand, type AddWay } from './keystrip';
  */
 import './modelspage.css';
 import { spaceSection, type SpaceCommands } from './capabilityspace';
-import { maintenanceNode, type MaintenanceCommands } from './maintenance-status';
+import { maintenanceNode, type MaintenanceCommands, type MaintenanceMemory } from './maintenance-status';
 import { openAddKey, sourceWords, keyForm, type KeyForm } from './addkey';
 import { downloadControl, type Downloader } from './capabilities';
 import { needs as volumeNeeds, volumesSection, type VolumeCommands, type VolumeEntry } from './volumespanel';
@@ -483,6 +483,7 @@ export class ModelsPage {
   private ownCandidate: { link: string; model?: string; kind?: string; trial?: string; job?: string } | null = null;
   private ownBusy = false;
   private ownSaid: { words: string; ok: boolean } | null = null; // Add your own's last word, kept across updates
+  private readonly maintenanceMemory = new Map<string, MaintenanceMemory>(); // each Updates: open, and its last reply
   private fiji: FijiInventory | null = null; // the Fiji extensions, asked for when their section first opens
   private fijiOpen = false; // the full extension list's fold
   private fijiAsked = false;
@@ -1848,7 +1849,7 @@ export class ModelsPage {
     more.append(el('h4', {}, 'Facts and files'), this.facts(row, keys, row.facts.filter(f => !preparationFacts.includes(f))), this.details(row));
     const versions = this.versionsNode(row); if (versions) more.append(versions);
     const update = this.wire?.setup?.maintenance?.[row.id];
-    const kept = maintenanceNode(row.id, update, this.commands.maintenance); if (kept) more.append(kept);
+    const kept = maintenanceNode(row.id, update, this.commands.maintenance, this.maintenanceMemory); if (kept) more.append(kept);
     const updateSetup = row.setups?.find(setup => setup.role === `model:${row.id}`);
     if (update?.workflowReview && updateSetup && this.commands.reviewBundle) {
       const review = el('button', {type:'button',class:'mm-control'}, 'Review update results');
