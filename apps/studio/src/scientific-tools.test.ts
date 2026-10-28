@@ -33,6 +33,30 @@ test('explicit choice pins saved values and generation; open and execution are s
   expect(open).toHaveBeenCalledWith({ id: source.id, version: 3, title: 'Accepted scene' });
 });
 
+test('a second tool chosen from the same window follows the first choice and opens', async () => {
+  // final052: Cellpose was chosen from the retained image and labels (revision 2 → 3); Continue with napari-animation in
+  // that same window then saved nothing. The server now records it after the earlier choice, on the same inputs.
+  const project = workspace(); project.revision = 4;
+  project.document.state.scientificToolChoice.source = { id: source.id, session: source.day, revision: 3, digest: 'e'.repeat(64) };
+  fetcher.mockResolvedValueOnce(discovery()).mockResolvedValueOnce(response({ ok: true, project }));
+  fire(button('Find interactive tools'), 'click'); await settle();
+  fire(button('Continue with Native animation'), 'click'); await settle();
+  expect(root.textContent).toContain('Native animation is selected');
+  expect(root.textContent).toContain('Saved revision 4; input revision 2, after the choice in revision 3.');
+  fire(button('Open Native animation'), 'click'); await settle();
+  expect(open).toHaveBeenCalledWith({ id: source.id, version: 4, title: 'Accepted scene' });
+});
+
+test.each([[1, 2], [3, 5]])('refuses a choice from revision %i saved as revision %i', async (from, saved) => {
+  const project = workspace(); project.revision = saved;
+  project.document.state.scientificToolChoice.source = { id: source.id, session: source.day, revision: from, digest: 'e'.repeat(64) };
+  fetcher.mockResolvedValueOnce(discovery()).mockResolvedValueOnce(response({ ok: true, project }));
+  fire(button('Find interactive tools'), 'click'); await settle();
+  fire(button('Continue with Native animation'), 'click'); await settle();
+  expect(root.textContent).toContain('differs from your selected input');
+  expect(button('Open Native animation')).toBeUndefined(); expect(open).not.toHaveBeenCalled();
+});
+
 test('missing preparation links to setup while keeping selected input fixed', async () => {
   fetcher.mockResolvedValueOnce(discovery({ ...item, canReview: false, reason: 'Prepare this integration in Models' }));
   fire(button('Find interactive tools'), 'click'); await settle();

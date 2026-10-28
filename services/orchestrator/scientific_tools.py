@@ -95,9 +95,42 @@ def discover(store, project, session, revision, environ=os.environ):
             'comparison': comparison_availability(saved)}
 
 
+def _same_input(document, original):
+    """Same exact admitted inputs and retained layers: what a tool choice keeps (scientific_provenance._tool_choice)."""
+    view, before = document['state'].get('scientificView'), original['state'].get('scientificView')
+    return (type(view) is dict and type(before) is dict and view.get('inputs') == before.get('inputs')
+            and view.get('layers') == before.get('layers'))
+
+
+def chosen_since(store, saved):
+    """The latest revision when everything saved after `saved` only chose tools for its same inputs, else None.
+
+    A window keeps the revision it opened, and choosing a tool saves the next revision of the same document. Once one
+    tool is chosen from a revision, another chosen from that window's list would conflict ("This project changed").
+    Its inputs are unchanged in every later tool choice, so the new choice goes on the latest one: the same input, and
+    each choice still names the exact revision it was made from."""
+    head = store.read(saved.id, saved.session)
+    if head.revision == saved.revision:
+        return None
+    original = saved.document
+    for number in range(saved.revision + 1, head.revision + 1):
+        record = head if number == head.revision else store.read(saved.id, saved.session, revision=number)
+        choice = record.document['state'].get('scientificToolChoice')
+        if (type(choice) is not dict or type(choice.get('source')) is not dict
+                or choice['source'].get('revision') != number - 1 or not _same_input(record.document, original)):
+            return None
+    return head
+
+
 def bind(store, project, session, revision, key, generation, *, environ=os.environ, check=lambda: None, update_trial=False):
     check()
     saved = scene(store, project, session, revision)
+    latest = chosen_since(store, saved)
+    if latest is not None:
+        chosen = latest.document['state']['scientificToolChoice']
+        if (chosen.get('capability'), chosen.get('generation'), chosen.get('updateTrial', False)) == (key, generation, update_trial):
+            return latest  # already the latest choice for these inputs (a retried request): nothing new to save
+        saved, revision = scene(store, project, session, latest.revision), latest.revision
     with prepared_bundles.prepared_member(key, generation, environ) as prepared:
         if not accepts(prepared.m):
             raise InvalidProject('Choose a declared interactive scientific-scene integration')
