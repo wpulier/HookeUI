@@ -2,6 +2,7 @@
 
 Part of the working context the root `AGENTS.md` maps. The decision is ADR 0026
 (`docs/adr/0026-outside-agents-connect-through-one-door.md`). Read it before changing anything here.
+To try it by hand, from the published Beta or a `dev` checkout, follow `docs/testing/agent-connection.md`.
 
 A researcher's own coding agent (Claude Code, Codex, Cursor) uses Hooke through `/api/agent/v1/` on the orchestrator,
 with no Hooke account. The `hooke` command in the app bundle, the Hooke skill and any later MCP adapter are thin
