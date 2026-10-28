@@ -485,7 +485,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   filesToggle.addEventListener('click', () => setOverlay(grid.dataset.overlay !== 'true'));
   left.addEventListener('keydown', (event) => { if ((event as KeyboardEvent).key === 'Escape' && grid.dataset.overlay === 'true') { event.stopPropagation(); setOverlay(false, true); } });
   const PHASES = [['needs', 'Needs you'], ['progress', 'In progress'], ['done', 'Done']] as const;
-  const GROUPS: Record<string, 'needs' | 'progress' | 'done'> = { review: 'needs', unknown: 'needs', waiting: 'progress', running: 'progress', launching: 'progress', cancel_requested: 'progress', planned: 'progress', failed: 'done', completed: 'done', cancelled: 'done' };
+  const GROUPS: Record<string, 'needs' | 'progress' | 'done'> = { review: 'needs', unknown: 'needs', waiting: 'progress', running: 'progress', launching: 'progress', cancel_requested: 'progress', planned: 'progress', failed: 'done', finished: 'done', completed: 'done', cancelled: 'done' };
   for (const [key, label] of PHASES) {
     const members = tasks.filter(([, task]) => (GROUPS[taskPhase(task)] ?? 'progress') === key);
     if (!members.length) continue;
@@ -510,7 +510,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     }
     leftBody.append(group);
   }
-  if (!tasks.length) leftBody.append(node('p', 'rfiles-empty', 'None yet'));
+  if (!tasks.length) leftBody.append(node('p', 'rfiles-empty', Object.keys(study.experiments ?? {}).length ? 'Workflow experiments are shown in the Study.' : 'None yet'));
   leftBody.append(rail);
   // Study setup: copying large inputs to Google Cloud, the tools it may use and its GPU jobs (workspace-study.ts mounts
   // them here). Before the first experiment they are part of starting it, in its composer card instead.
@@ -562,7 +562,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     }
     log.append(claims);
   }
-  if (!tasks.length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : providers.length ? 'None yet. Prepare the inputs, choose a researcher, then Start research.' : 'None yet.'));
+  if (!tasks.length && !Object.keys(study.experiments ?? {}).length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : providers.length ? 'None yet. Prepare the inputs, choose a researcher, then Start research.' : 'None yet.'));
   if (anyMove) log.append(moves);
   // Where Start would be, rather than a Study that can't run without a word.
   if (!providers.length && study.status === 'active') log.append(node('p', 'm-note study-view-unavailable', STUDY_UNAVAILABLE));
@@ -605,7 +605,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   const wrap = node('div', 'rwrap'); wrap.append(grid);
   root.append(wrap, scrim, sheet);
   if (actions.localWorkflows) {
-    mountStudyWorkflows(rail, study, availableInputs, actions.openFile);
+    mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log);
     mountLocalStudyResearcher(rail, study);
   }
 

@@ -284,18 +284,18 @@ export function openScientificFileImport(options: Options): void {
   current.show();
 }
 
-export function showScientificSource(root: HTMLElement, state: unknown, reference: { id: string; day: string; version: number }, openReader?: (target:{id:string;version:number;title:string})=>Promise<void>, resources?:unknown): void {
+export function showScientificSource(root: HTMLElement, state: unknown, reference: { id: string; day: string; version: number }, openReader?: (target:{id:string;version:number;title:string})=>Promise<void>, resources?:unknown, computed = false): void {
   const source = object(state) ? state.sourceFile : null;
   if (!object(source) || source.format !== 1 || typeof source.name !== 'string' || !Number.isSafeInteger(source.size) || Number(source.size) < 0 || typeof source.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(source.sha256))
     throw new Error('The saved source metadata is invalid. Keep its original revision and retry.');
   const movie = renderedMovieDescription(root, object(state) ? state.movieExport : undefined);
   if (movie && !validMovieFile(source, {id:reference.id,session:reference.day}, resources)) throw new Error('The rendered movie has an incomplete retained file reference. Keep the saved document and check its storage.');
-  root.append(node('h3', source.name), node('p', `${Number(source.size).toLocaleString()} bytes · ${movie ? 'rendered movie saved' : 'original source saved'}`));
+  root.append(node('h3', source.name), node('p', `${Number(source.size).toLocaleString()} bytes · ${movie ? 'rendered movie saved' : computed ? 'computed result saved' : 'original source saved'}`));
   const receipt = object(state) ? state.sourceRemote : null;
   if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
     root.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}. Web content is kept as exact bytes and never run.`));
-  if (!movie) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed to inspect, edit or process this source.'));
-  const download = node('a', movie ? 'Download rendered movie' : 'Download original file');
+  if (!movie && !computed) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed to inspect, edit or process this source.'));
+  const download = node('a', movie ? 'Download rendered movie' : computed ? 'Download result file' : 'Download original file');
   download.href = `/api/scientific-files/${encodeURIComponent(reference.id)}?${new URLSearchParams({ session: reference.day, revision: String(reference.version) })}`;
   download.download = source.name; download.className = 'scientific-source-download';
   const detail = node('details'); detail.append(node('summary', 'Content identity'), node('code', source.sha256));

@@ -182,8 +182,8 @@ class ScientificSteps:
             capture=SimpleNamespace(id=claim['attempt']['id'],analysis_bytes=encoded.tobytes(),width=data.shape[1],height=data.shape[0],source_image=identity(source))
             result=bright_objects.analyze(capture,None,s['generation'],s['parameters'])
             from .evidence import decode_labels
-            from .scientific_outputs import OutputSave
-            output=OutputSave(self.store,source,claim['attempt']['id'],token(claim['attempt'])[:32],
+            from .scientific_outputs import BuiltinOutputSave
+            output=BuiltinOutputSave(self.store,source,claim['attempt']['id'],token(claim['attempt'])[:32],
                 {'semantic':'instance-labels','axes':['y','x']},producer=result['producer'])
             try:
                 worker=ArrayOutput(decode_labels(result['labels']),geometry)

@@ -117,7 +117,7 @@ class ProjectCopy:
         self.publication = ArrayPublication(store, saved, prepared, self.transaction)
         document = saved.document
         view = document['state'].get('scientificView')
-        if (document['kind'] != 'scene' or type(view) is not dict or set(view) not in ({'runtime', 'inputs'}, {'runtime','inputs','layers'}, {'runtime','inputs','files'}, {'runtime','inputs','layers','tool'}, {'runtime','inputs','layers','initializeTool'}, {'runtime','inputs','layers','initializeTool','recipeTool'})
+        if (document['kind'] != 'scene' or type(view) is not dict or set(view) not in ({'inputs'}, {'inputs','layers'}, {'runtime', 'inputs'}, {'runtime','inputs','layers'}, {'runtime','inputs','files'}, {'runtime','inputs','layers','tool'}, {'runtime','inputs','layers','initializeTool'}, {'runtime','inputs','layers','initializeTool','recipeTool'})
                 or type(view['inputs']) is not dict
                 or any(ref not in document['resources'] for ref in view['inputs'].values())):
             raise InvalidProject('This scientific document needs a declared copy integration before it can be copied')

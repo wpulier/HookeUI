@@ -306,3 +306,12 @@ it('does not call a finished local researcher accepted and retains its day-speci
   expect(root.querySelector('a')?.getAttribute('href') ?? (root.querySelector('a') as unknown as {href?:string})?.href)
     .toBe('#research/r123456?day=2026-10-28');
 });
+
+it('does not say no work ran when an agent admitted workflow experiments', () => {
+  const {root, text} = draw({...study, tasks: {}, findings: [], experiments: {
+    first: {operation:'op_first',byLabel:'Agent A',execution:{id:'run_first',session:study.session}},
+  }});
+  expect(root.querySelector('.spill')?.textContent).toBe('Active');
+  expect(text()).toContain('Workflow experiments are shown in the Study.');
+  expect(text()).not.toContain('None yet. Prepare the inputs');
+});

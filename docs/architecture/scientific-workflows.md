@@ -131,3 +131,13 @@ shifted image in another Project, native correction with synthetic display autho
 This is deterministic image processing and native storage evidence, not actual-model or biological validation.
 Browser, packaged Beta, live provider and independent returning-researcher evidence must be reported separately.
 Manual/Fiji task timings and independent adoption remain evaluation work; code completion does not establish superiority.
+
+Computed file choices include their recorded capability and a stable identity suffix
+so distinct outputs called `effects.npz` can be selected deliberately. Display labels
+do not rename saved documents or substitute for their exact revision/digest bindings.
+
+Built-in bright-region output uses the shared bounded atomic native publication path without
+borrowing an external viewer runtime from the input. Its versioned algorithm producer remains
+in provenance. Runtime-free retained image/label documents can be copied for measurement;
+external worker output capture still requires its declared retained runtime. The same workflow
+therefore accepts native images retained from saved populations, including corrected revisions.

@@ -28,6 +28,7 @@ export interface Effort {
   capMicrousd: number; spentMicrousd: number; heldMicrousd: number; availableMicrousd: number;
   inputs: { id: string; revision: number; digest: string }[];
   tasks: Record<string, EffortTask>;
+  experiments?: Record<string, {operation:string; byLabel:string; execution:{id:string;session:string}}> ;
   findings: EffortFinding[];
   claims?: EffortClaim[];
   claimChanges?: {claim:string;reason:string;byLabel:string}[];
@@ -87,14 +88,16 @@ export function studySpending(e: Pick<Effort, 'capMicrousd' | 'spentMicrousd' | 
 }
 
 /** Its experiments counted by state, in the order they matter ("1 needs checking · 2 running · 3 finished"). */
-export function taskCounts(e: Pick<Effort, 'tasks'>): string {
-  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'completed', 'cancelled'];
+export function taskCounts(e: Pick<Effort, 'tasks' | 'experiments'>): string {
+  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'finished', 'completed', 'cancelled'];
   const counts = new Map<string, number>();
   for (const task of Object.values(e.tasks ?? {})) {
     if(task.specification?.provider==='scientific-gcp-grant')continue;
     const phase = taskPhase(task); counts.set(phase, (counts.get(phase) ?? 0) + 1);
   }
   const words = order.filter(phase => counts.get(phase)).map(phase => `${counts.get(phase)} ${phaseWords(phase).toLowerCase()}`);
+  const workflows = Object.keys(e.experiments ?? {}).length;
+  if (workflows) words.push(`${workflows} workflow experiment${workflows === 1 ? '' : 's'}`);
   return words.length ? words.join(' · ') : 'No experiments yet';
 }
 
@@ -184,7 +187,7 @@ export function taskState(task: EffortTask): string { return phaseWords(taskPhas
 export function providerName(provider?: string): string { return ({ 'claude-managed-google': 'Claude', 'gemini-google': 'Gemini' } as Record<string, string>)[provider ?? ''] ?? 'Researcher'; }
 export function studyState(study: Effort): string {
   if (study.stopPending || (study.status === 'stopped' && Object.values(study.tasks).some(t => t.chargedMicrousd == null))) return 'Stop requested — awaiting confirmation';
-  if (study.status === 'active' && !Object.keys(study.tasks).length) return 'Not started';
+  if (study.status === 'active' && !Object.keys(study.tasks).length && !Object.keys(study.experiments ?? {}).length) return 'Not started';
   return STUDY_WORDS[study.status] ?? study.status;
 }
 

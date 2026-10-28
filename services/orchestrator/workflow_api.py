@@ -10,6 +10,15 @@ from .workflow_service import service
 from .workflow_execution import starter
 
 
+def input_title(saved):
+    """Disambiguate computed files without changing their immutable saved titles."""
+    title = saved.document['title']
+    operation = saved.document['state'].get('matrixOperation')
+    if isinstance(operation, dict) and isinstance(operation.get('capability'), str):
+        return f"{title} · {operation['capability']} · {saved.id[-8:]}"
+    return title
+
+
 def register(app,built,studio_origin,header):
     runner=service(built.hub,built.day);w=runner.workflows
     app.state.workflow_service=runner
@@ -30,7 +39,7 @@ def register(app,built,studio_origin,header):
             def listed():
                 from .scientific_recipes import inputs as scenes
                 rows=scenes(w.store,session)
-                rows.extend({'input':identity(s),'title':s.document['title']} for s in w.store.list(session) if s.document['kind']=='source-file' or 'matrixOperation' in s.document['state'])
+                rows.extend({'input':identity(s),'title':input_title(s)} for s in w.store.list(session) if s.document['kind']=='source-file' or 'matrixOperation' in s.document['state'])
                 return rows
             return reply(inputs=await asyncio.to_thread(listed))
         except (ValueError,OSError) as error:return _error(error)

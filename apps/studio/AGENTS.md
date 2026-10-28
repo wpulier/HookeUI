@@ -1766,3 +1766,18 @@ selects a frozen workflow and exact named file bindings. Researchers open in the
 `#research/<id>?day=…` Tabs; workflow rows link to their canonical run. Claims and challenges show
 attributed statements and exact evidence links in the Study. Local completion means finished,
 not scientifically accepted. Stop failures stay visible; the original runs establish termination.
+
+Study workflow admissions count alongside provider tasks in Researchers; an existing
+workflow is never described as “Not started” or “No experiments yet.” The Study's
+central conversation exposes each workflow's observed state, named ordered attempts
+and exact result revisions; setup stays in the inputs rail. Finished local researcher
+reports remain explicitly unreviewed. Tools lists scientific file capabilities with
+links to the same frozen single-capability workflow form, without offering live-view
+execution. Computed matrix documents show their retained numerical summary, runtime,
+parameters and original input revisions, plus a verified file download; opening them
+never recomputes a model or treats its output as independent validation.
+
+Workflow selectors do not mark the Study prose as an unsaved draft. Built-in native
+workflow results open the retained-array tools without requiring or inventing an
+external viewer runtime. Computed file exports are labelled as results, not original
+sources. External worker output still requires its declared retained runtime.

@@ -1076,3 +1076,9 @@ This preserves suffixed/reopened Projects while foreign paths, sessions and deri
 source owners still refuse. Export/reopen never refresh or recompute accepted values.
 
 Scientific workflows use `workflow_service.py` for Studio, local researchers and connected agents. Definitions are personal immutable versions; runs and separate attempts belong to their captured Project. Named file inputs are exact revisions, not paths. `matrix_capability_runs` executes catalog operations without owning another task ledger. Reads do not dispatch; explicit recovery never replays uncertain attempts. See `docs/architecture/scientific-workflows.md`.
+
+Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
+coordinate checks and atomic publication with worker outputs but retaining their own versioned
+producer instead of borrowing an input viewer runtime. External worker `OutputSave` still
+requires its retained runtime. Native inputs/layers without a runtime may be copied for
+measurement; this does not authorize execution or replay.

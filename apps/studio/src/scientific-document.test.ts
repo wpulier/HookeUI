@@ -2075,11 +2075,11 @@ test.each(['cancelled','replacement'])('a queued Labels mode is not resent after
   expect(changes).toEqual([{mode:'polygon'}]);
 });
 
-test('retained native data offers explicit next-tool selection before any scientific session', async () => {
+test.each(['population-labels','scene'])('retained native %s offers explicit next-tool selection before any scientific session', async (kind) => {
   const fetcher = vi.fn(async (input: RequestInfo | URL) => {
     const path=String(input);
     if(path.includes('/tools?')) return reply({source:{id:saved.resource.id,session:'origin',revision:2,digest:'d'.repeat(64)},tools:[]});
-    return reply({project:{id:saved.resource.id,session:'origin',revision:2,document:{kind:'population-labels',title:'Retained corrected labels',state:{scientificView:{inputs:{}},populationSource:{format:1,source:{id:'e1',revision:3},producer:{implementation:'test-producer'},members:[],corrections:[],nativeInputs:{}}}}}});
+    return reply({project:{id:saved.resource.id,session:'origin',revision:2,document:{kind,title:'Retained corrected labels',state:{scientificView:{inputs:{}},populationSource:{format:1,source:{id:'e1',revision:3},producer:{implementation:'test-producer'},members:[],corrections:[],nativeInputs:{}}}}}});
   });
   vi.stubGlobal('fetch',fetcher);
   await openStudyScientific(saved);await settle();

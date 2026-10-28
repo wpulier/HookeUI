@@ -168,15 +168,25 @@ def native_input(w,session='s1',data=None):
     return w.store.save(s.id,session,doc,expected_revision=s.revision)
 
 
-def test_bright_regions_review_measure_export_use_native_values(tmp_path):
+@pytest.mark.parametrize('viewer_runtime', [True, False])
+def test_bright_regions_review_measure_export_use_native_values(tmp_path, viewer_runtime):
     from orchestrator.workflow_execution import ScientificSteps, starter
     from orchestrator import scientific_resource_actions as actions
     w=service(tmp_path);s=native_input(w);driver=ScientificSteps(w)
+    if not viewer_runtime:
+        doc=s.document;doc['runtimes']=[];doc['state']['scientificView'].pop('runtime')
+        s=w.store.save(s.id,s.session,doc,expected_revision=s.revision)
     definition=w.create('Measure bright regions',starter(),'a'*32)
     run=w.start(definition.id,1,s.session,[identity(s)],'b'*32,actor='studio')
     first=w.claim(run.id,s.session);out=driver.execute(first);w.finish(first,out)
     labels=w.store.read(out['output']['id'],s.session,revision=out['output']['revision'])
     assert labels.document['state']['hookeOutput']['base']==identity(s)
+    from orchestrator.scientific_recipes import inputs as listed_inputs
+    listed=next(row for row in listed_inputs(w.store,s.session) if row['input']['id']==labels.id)
+    assert listed['tool'] is None
+    assert labels.document['runtimes']==[]
+    assert 'runtime' not in labels.document['state']['scientificView']
+    assert labels.document['state']['hookeOutput']['producer']['implementation']=='basic-bright-objects'
     second=w.claim(run.id,s.session);w.finish(second,driver.execute(second))
     assert w.status(run.id,s.session)['status']=='awaiting-review'
     w.review(run.id,s.session,second['attempt']['id'],identity(labels),True,'c'*32)
@@ -749,6 +759,10 @@ def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web
     assert status['status']=='completed' and len(status['attempts'])==1
     saved=w.store.read(outcome['output']['id'],built.day.sid)
     assert saved.document['state']['matrixOperation']['capability']=='response-fit'
+    listed=client.get('/api/workflows/inputs',params={'session':built.day.sid}).json()['inputs']
+    display=next(row for row in listed if row['input']['id']==saved.id)
+    assert 'response-fit' in display['title'] and saved.id[-8:] in display['title']
+    assert display['input']==identity(saved)
     ref=saved.document['state']['sourceFile']['reference']
     output=w.store.file_source(saved.id,saved.session,saved.revision,ref)
     with np.load(io.BytesIO(output.read(0,output.size)),allow_pickle=False) as fitted:
