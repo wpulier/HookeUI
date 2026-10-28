@@ -1197,7 +1197,8 @@ The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-par
   Project's inputs from the sources model, in its order, each joined with its index entry, then the index's other
   acquired entries; the live camera is not an item), Analyses, Write-ups, Sources, then Other folded last (bookmarks,
   calibrations, taught labels; its heading opens it, a search opens it, and it carries the New dot while folded), each
-  with its count of rows; Search Data as before (any part of a row, its maker, a write-up's forms, a source's site);
+  with its count of rows. Help and every message that points into Data name these headings from `ROLE_SECTIONS`
+  (`sectionWords`: a researcher's write-ups are "under Write-ups", never "under Research", which Data has no heading for); Search Data as before (any part of a row, its maker, a write-up's forms, a source's site);
   "Made by everyone ▾" lists You, the Assistant and each researcher by its number, each only when a record here says it
   made something (an older record names no maker, so offering You with nothing under it would say you made nothing), and
   a chosen maker is a chip with × (and Open Researcher N). One row per run: entries sharing the server's `run` (and a

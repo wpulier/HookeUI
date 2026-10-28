@@ -1,7 +1,8 @@
 // Synthetic DOM: what Help offers and where each control leads. Browser evidence is in the L7e PR.
 import { afterEach, expect, test, vi } from 'vitest';
 import { TestElement, fire } from './workspace-windows.test-support';
-import { WHEN_SOMETHING_FAILS, failureHelp, workspaceHelp, type HelpPlaces } from './workspace-help';
+import { WHEN_SOMETHING_FAILS, WHERE_WORK_BELONGS, failureHelp, workspaceHelp, type HelpPlaces } from './workspace-help';
+import { ROLE_SECTIONS, sectionWords } from './data-roles';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -60,4 +61,13 @@ test('a failure notice offers Help', () => {
   expect(button.textContent).toBe('Help');
   fire(button, 'click');
   expect(open).toHaveBeenCalledTimes(1);
+});
+
+// Ticket 67, fix 12: Help said a researcher's results land in Data "under Research"; Data's headings are its sections.
+test('help names the sections Data really shows', () => {
+  const said = new Map(WHERE_WORK_BELONGS);
+  for (const [, section] of ROLE_SECTIONS) expect(said.get('Data')).toContain(section);
+  expect(said.get('Researchers')).toContain('under Write-ups');
+  expect([...said.values()].join(' ')).not.toMatch(/under Research\b/);
+  expect(sectionWords('writeup')).toBe('Write-ups'); expect(sectionWords('acquired')).toBe('Pictures and recordings');
 });

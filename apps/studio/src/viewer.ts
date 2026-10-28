@@ -1,4 +1,5 @@
 import { bindArtifactEscape } from './artifact-keyboard';
+import { sectionWords } from './data-roles';
 import { researchCaptureImageUrl } from './research-captures';
 // The result viewer: a researcher's work beside the live view (lesson, video, picture or its
 // written result). The server decides what is open (orchestrator/presenter.py), so voice and
@@ -390,7 +391,7 @@ export class ResultViewer {
       const day = s.day ?? s.snapshot.split('/')[2];
       void fetch(`/api/research/${encodeURIComponent(s.rid)}/presentations/${encodeURIComponent(o.id ?? '')}?day=${encodeURIComponent(day)}`)
         .then(async (response) => {
-          if (!response.ok) throw new Error('The saved presentation is unavailable. Its findings remain in Research.');
+          if (!response.ok) throw new Error(`The saved presentation is unavailable. Its findings remain in Data under ${sectionWords('writeup')}.`);
           const result = await response.json() as ResearchSession['result'];
           if (result?.findingRevision?.digest !== o.findingRevision?.digest || result?.presentation?.id !== o.id) throw new Error('The saved presentation identity did not match.');
           wrap.replaceChildren(renderResearchReport(result, undefined, this.captureOpener(s, result), this.capturePreview(s, result))); wrap.dataset.ready = 'true';
