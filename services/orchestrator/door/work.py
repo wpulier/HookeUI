@@ -123,9 +123,9 @@ async def _upload(app, path: Path) -> dict:
     try:  # opened first, so macOS refusing Hooke the folder is said as that, before anything is sent
         stream = await asyncio.to_thread(path.open, "rb")
     except PermissionError:
-        raise Refused(403, "mac-privacy", f"macOS hasn't let Hooke read files in {path.parent}.",
-                      next="move the file to a folder of its own (not Desktop, Documents or Downloads), or allow Hooke "
-                           "in System Settings → Privacy & Security → Files and Folders, then open it again") from None
+        raise Refused(403, "mac-privacy", f"macOS hasn't let Hooke read files in {path.parent} (System Settings → "
+                      "Privacy & Security → Files and Folders).",
+                      next="move it out of Desktop, Documents and Downloads, or allow Hooke there, then open it again") from None
 
     async def chunks():  # read off the event loop, a megabyte at a time
         try:

@@ -655,7 +655,7 @@ def test_open_says_a_blocked_folder_and_a_bridge_that_stops_as_what_they_are(tmp
     monkeypatch.setattr(Path, "open", blocked)
     with pytest.raises(Refused) as privacy:
         asyncio.run(work._upload(app, picture))
-    assert privacy.value.code == "mac-privacy" and "Privacy & Security" in privacy.value.next
+    assert privacy.value.code == "mac-privacy" and "Privacy & Security" in privacy.value.says
     assert "Errno" not in privacy.value.says
     monkeypatch.setattr(Path, "open", real_open)
 
