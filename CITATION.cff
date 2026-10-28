@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "Please cite HookeUI and the exact version or commit used, along with the underlying methods and datasets."
+type: software
+title: HookeUI
+authors:
+  - name: HookeUI contributors
+repository-code: "https://github.com/wpulier/HookeUI"
+url: "https://hookeui.org"
+license: Apache-2.0
