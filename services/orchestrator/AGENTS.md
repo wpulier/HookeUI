@@ -594,8 +594,15 @@ paths, credentials or exception text. The worker emits the exact
 `SCIENTIFIC_INPUT_REFUSED` response; the parent admits it only during opening with no
 payload and revalidates both fields. HTTP returns 422 with the reason and recovery.
 The failed attempt closes its worker and grants without publishing a result or changing
-accepted Project data. Unexpected exceptions and malformed refusal messages retain the
-contained generic failure; arbitrary `ValueError` text never becomes user guidance.
+accepted Project data. Malformed refusal messages retain the contained generic failure, and
+arbitrary `ValueError` text never becomes user guidance. A tool that fails while opening for
+any other reason is said in its own words, apart from the guidance (`scientific_host.ToolNotOpened`,
+HTTP 422 `SCIENTIFIC_TOOL_FAILED`: "<tool> did not open: “…”"): only its
+first line, with every path, key and token removed and no control character, at most 300
+characters (`shown_words`, `report.py`'s rule). The worker's stderr goes with its temporary
+folder, so its tail is kept first, keys removed, in `logs/tool-failures/<day>/` (pruned with
+the dated logs; `report.local_details` reads it apart). After opening, worker errors keep the
+contained generic failure.
 
 Private source readers declare their contract on the existing scientific-host bundle
 member. Format 3 (`bundle_contract._reader_v3`) is napari-shaped: the kind of source

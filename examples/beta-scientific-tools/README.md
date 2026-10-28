@@ -83,8 +83,14 @@ Recipe replay and complete final packaged workflow qualification remain open.
   a saved output counter above 64)
 - `cellposesam-panel-beta6.observationui.zip` — SHA256 `fc9de4a88e9728f435db9800a3d47bfadc1a4fdfffde8571c5bed6b5deb66aaf`
   (historical local build from 20 October 2026; not yet published).
-  Current `cellposesam-panel/` source is beta-8 and preserves its device self-check,
+  Current `cellposesam-panel/` source is beta-9 and preserves its device self-check,
   prepared model artifact and declared 4096 MiB runtime limit; beta-6 is not its source identity.
+  Beta-9 segments the one saved intensity image of its input: a document kept with Retain labels
+  for tools holds the original image and the corrected labels made from it, and beta-8 refused that
+  pair ("Select one retained 2D intensity image"). The labels stay in their saved revision. No image,
+  several images or an image over 1 MiB is refused through `context.refuse_input`, so the window says
+  why and what to do. The `cellposesam-panel-exact` archive of the 0.5.0 companions is beta-8; beta-9
+  needs a newly built package and its preparation.
 - `animation-camera-recipe.observationui.zip` — SHA256 `62a62b9caa75c97f46a756dfd259711653ee8a87f209523916a3093230f3767d`
 - `bdv-hdf5-reader/` (ticket 59's MT5) — source only, **not packaged**: no `.observationui.zip` and no
   `env.lock` yet (they are resolved and pinned when the package is built). A format-3 folder reader for
