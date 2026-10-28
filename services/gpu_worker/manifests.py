@@ -1010,6 +1010,11 @@ def problems(environ=os.environ) -> dict[str, list[str]]:
 
 # --- channels (orchestrator/channels.py writes them; read here, metadata only) ------------------------------------------
 REVIEWED_CHANNEL = "reviewed"
+REVIEWED_URL = "https://github.com/wpulier/HookeUI.git"
+# Where the reviewed catalog lived before the repository split (2026-10-27). A Mac that updated it then saved one of
+# these in channels.json; it is read as the current address, and saved so at the next update.
+FORMER_REVIEWED_URLS = frozenset({"https://github.com/wpulier/ObservationUI.git",
+                                  "https://github.com/wpulier/microscope-mind.git"})
 CHANNEL_RUNNERS = ("python-env", "fiji")  # what a channel can bring: entries whose code is in their own folder
 
 
@@ -1023,9 +1028,13 @@ def channels(environ=os.environ) -> list[dict]:
 
     try:
         found = json.loads((channels_root(environ) / "channels.json").read_text())
-        return [c for c in found if isinstance(c, dict) and c.get("name")]
+        found = [c for c in found if isinstance(c, dict) and c.get("name")]
     except (OSError, ValueError):
         return []
+    for c in found:
+        if c["name"] == REVIEWED_CHANNEL and c.get("url") in FORMER_REVIEWED_URLS:
+            c["url"] = REVIEWED_URL
+    return found
 
 
 def snapshot(c: dict, environ=os.environ) -> Path | None:

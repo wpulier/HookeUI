@@ -2,6 +2,7 @@
 listed at "Check for catalog updates", with no app update; a community channel's are listed as not reviewed here and run
 nothing until the user allows its code; only entries with their own adapter come through either. A scratch upstream
 repository, a stand-in uv (tests/test_envs.fake_uv)."""
+import json
 import os
 import shutil
 import subprocess
@@ -437,3 +438,18 @@ def test_turn_off_is_refused_while_a_run_uses_it_and_changes_nothing(home, monke
     assert env_runner.turned_off(m) and env_runner.in_use(m) is None
     with generation_leases.use(found.folder):
         pass  # the version itself is kept and usable again by Turn on: no withdrawal left behind
+
+
+def test_a_reviewed_catalog_saved_at_its_former_address_is_read_at_the_current_one(tmp_path, monkeypatch):
+    # A Mac that updated the reviewed catalog before the repository split (2026-10-27) saved the old address; reading
+    # it there would fetch from a repository that no longer exists. Another channel at such an address is left alone.
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "catalog"))
+    saved = catalog.channels_root() / "channels.json"
+    saved.parent.mkdir(parents=True)
+    old = "https://github.com/wpulier/ObservationUI.git"
+    saved.write_text(json.dumps([{"name": "reviewed", "url": old, "commit": "a" * 40, "reviewed": True},
+                                 {"name": "someones", "url": old}]))
+    found = {c["name"]: c for c in catalog.channels()}
+    assert found["reviewed"]["url"] == channels.REVIEWED_URL == "https://github.com/wpulier/HookeUI.git"
+    assert found["reviewed"]["commit"] == "a" * 40, "only the address changes"
+    assert found["someones"]["url"] == old
