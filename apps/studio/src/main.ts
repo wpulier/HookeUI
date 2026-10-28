@@ -3421,7 +3421,7 @@ export function workspaceStudyBridge() {
   if (document.body.dataset.workspaceStudy !== 'true') throw new Error('The workspace study requires its separate entrypoint.');
   const state = (): import('./workspace-study-model').StudySnapshot => {
     const onStage = sourcesModel.state?.onStage ?? null;
-    return { connected, ready: connected && !document.body.dataset.workspaceInputOpening && !document.body.dataset.workspaceInputUnavailable && !studyTransition && !staging && !switchAsked && !stageGate.holding(performance.now()), session: sessionsModel.current, title: currentSessionName(), projects: sessionsModel.rows(),
+    return { connected, ready: connected && !document.body.dataset.workspaceInputOpening && !document.body.dataset.workspaceInputUnavailable && !studyTransition && !staging && !switchAsked && !stageGate.holding(performance.now()), session: sessionsModel.current, title: currentSessionName(), projects: sessionsModel.rows(), projectsRoot: sessionsModel.root(),
       sources: sourcesModel.rows(), source: sourcesModel.rows().find(source => source.id === onStage) ?? null,
       onStage, heard: sourcesModel.state != null, selection: view.selected ? { id: view.selected, label: view.labelOf(view.selected) || view.selected } : null,
       frame: onStage && onStage !== 'live' ? null : view.header ? { id: view.header.id, boot: view.header.boot, w: view.header.w, h: view.header.h } : null, held: viewHeld };

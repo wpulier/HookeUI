@@ -184,6 +184,9 @@ establish ownership across a Project switch.
   (opened and not removed, counted; those that joined on their own need the library's scan, so the list leaves them
   out; its scientific inputs, imported files and folders, are added by `App.sessions_wire` from the scientific store,
   F-L8-6), its researchers and what it made (`product_of`, the one rule: the products Made in this session lists).
+  The `sessions` wire also says where every Project is saved (`root`: `paths.sessions` with `~`), so All projects (the
+  workspace's and `sessions-page.ts`) says "Saved in ~/… · Show in Finder" (`sessions.ts` `savedWhereWords`), and Help
+  says All Projects names it (thesis question 12); Show in Finder is `sessions-reveal` (`open -R`, as `dataset-reveal`).
   Every "made" event is also its claim (`Info.claims`), product or not, so a Record dataset is known to be its. Footage
   held for a researcher is memory only, so the list never counts it; the open session's own wire adds what is held now.
   The studio shows it in one place, the session's title (`session-menu.ts`, the `sessions` wire): the title is the

@@ -1891,7 +1891,9 @@ class App:
             if inputs.get(info.id):
                 row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]}
             rows.append(row)
-        return {"type": "sessions", "current": self.day.sid, "sessions": rows}
+        # Where every Project is saved on this Mac, said with ~ (thesis question 12: the Projects page and Help say it).
+        root = str(self.paths.sessions).replace(str(Path.home()), "~", 1)
+        return {"type": "sessions", "current": self.day.sid, "sessions": rows, "root": root}
 
     async def sessions_message(self) -> dict:
         """The sessions list, its journals and scientific inputs read in a thread."""

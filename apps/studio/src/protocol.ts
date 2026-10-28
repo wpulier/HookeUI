@@ -253,6 +253,7 @@ export interface SessionsList {
   type: 'sessions';
   current: string; // the sid open now
   sessions: SessionRow[];
+  root?: string; // where every Project is saved on this Mac, with ~ ("~/MicroscopeMind/sessions"); an older server sends none
 }
 
 /** The session's conversations (orchestrator/day/store.py). `id` is the session id (sid), opaque. */
@@ -1561,6 +1562,7 @@ export type ClientCommand =
   | { type: 'dataset'; on: boolean }
   | { type: 'dataset-rename'; id: string; name: string }
   | { type: 'dataset-reveal'; id: string }
+  | { type: 'sessions-reveal' } // Show in Finder: the folder every Project is saved in
   | { type: 'dataset-trash'; id: string } // after the user confirmed: moved to datasets/.trash/
   | { type: 'rig'; field: string; value: string | number | null } // a fact about the microscope
   // researchers

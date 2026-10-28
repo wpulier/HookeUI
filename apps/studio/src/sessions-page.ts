@@ -6,7 +6,7 @@
 //
 // It only shows and asks: switching, starting and renaming are the sessions model's (sessions.ts).
 import { matchesSearch } from './session-menu';
-import { groupByDay, inlineRename, rowView, sessionName, type SessionsModel } from './sessions';
+import { groupByDay, inlineRename, rowView, savedWhereWords, sessionName, type SessionsModel } from './sessions';
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
@@ -32,6 +32,10 @@ export class SessionsPage {
   /** What went wrong opening or starting a session (the model's `error`: offline, or a switch the server never echoed),
    * said here as the session menu says it, since a click here that did not open one stays on this page. */
   readonly error = node('p', 'panel-note session-error');
+  /** Where every Project is saved, with Show in Finder (thesis question 12). */
+  readonly saved = node('p', 'lib-lead sessions-saved');
+  private readonly savedWords = node('span', 'sessions-saved-where');
+  readonly reveal = node('button', 'mm-control sessions-reveal', 'Show in Finder');
   private visible = false;
   private stamp = '';
   private renaming: HTMLInputElement | null = null;
@@ -48,7 +52,11 @@ export class SessionsPage {
     const words = node('div', 'lib-words');
     const title = node('h1', 'lib-title', 'All projects');
     title.id = 'sessions-title';
-    words.append(title, node('p', 'lib-lead', 'Every project, newest first. Open one to carry on where it left off.'));
+    words.append(title, node('p', 'lib-lead', 'Every project, newest first. Open one to carry on where it left off.'), this.saved);
+    this.reveal.type = 'button';
+    this.reveal.addEventListener('click', () => { model.reveal(); });
+    this.saved.append(this.savedWords, ' · ', this.reveal);
+    this.saved.hidden = true;
     const right = node('div', 'lib-head-right');
     this.newButton.type = 'button';
     this.newButton.addEventListener('click', () => { if (model.create()) go('#'); });
@@ -83,13 +91,15 @@ export class SessionsPage {
     const rows = model.rows();
     const query = this.search.value;
     const current = model.current ?? '';
-    const stamp = JSON.stringify([rows, current, query, model.creating(), model.error, Math.floor(now / 60)]);
+    const stamp = JSON.stringify([rows, current, query, model.creating(), model.error, model.root(), Math.floor(now / 60)]);
     if (stamp === this.stamp) return;
     this.stamp = stamp;
     this.newButton.textContent = model.creating() ? 'Starting…' : '+ New project';
     this.newButton.disabled = model.creating();
     this.error.textContent = model.error;
     this.error.hidden = !model.error;
+    this.savedWords.textContent = savedWhereWords(model.root());
+    this.saved.hidden = !model.root();
     const shown = rows.filter((row) => matchesSearch(row, query, now));
     const groups: HTMLElement[] = [];
     for (const group of groupByDay(shown, now, 'started')) {

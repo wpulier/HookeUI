@@ -27,7 +27,7 @@ export const TASK_EXAMPLES = ['segment the nuclei', 'measure cell sizes', 'track
 const SECTIONS = ROLE_SECTIONS.map(([, words]) => words);
 
 export const WHERE_WORK_BELONGS: readonly (readonly [string, string])[] = [
-  ['Project', 'A Project owns its inputs, results, notes and conversations. Open Projects are along the top; Projects ▾ and All Projects return to earlier ones.'],
+  ['Project', 'A Project owns its inputs, results, notes and conversations. Open Projects are along the top; Projects ▾ and All Projects return to earlier ones. Every Project is saved on this Mac: All Projects says where, with Show in Finder.'],
   ['Tab', 'Tabs arrange windows inside one Project. Closing a Tab or a window keeps its results in Data; All Tabs (⌄ at the end of the Tab row) reopens it.'],
   ['Runs', 'A run keeps the input and Project it started with, even when you switch tabs or Projects. Its Project shows Running, then Done, and the result is placed in the tab it started from.'],
   ['Data', `Everything this Project holds, under ${SECTIONS.slice(0, -1).join(', ')} and ${SECTIONS[SECTIONS.length - 1]}. Opening a result shows the saved one; nothing is rerun.`],

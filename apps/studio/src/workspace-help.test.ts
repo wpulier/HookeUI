@@ -71,3 +71,10 @@ test('help names the sections Data really shows', () => {
   expect([...said.values()].join(' ')).not.toMatch(/under Research\b/);
   expect(sectionWords('writeup')).toBe('Write-ups'); expect(sectionWords('acquired')).toBe('Pictures and recordings');
 });
+
+// Thesis question 12 (ticket 67, fix 10): Help says where Projects are saved and where Show in Finder is.
+test('help says where Projects are saved', () => {
+  const project = new Map(WHERE_WORK_BELONGS).get('Project') ?? '';
+  expect(project).toContain('saved on this Mac');
+  expect(project).toContain('Show in Finder');
+});
