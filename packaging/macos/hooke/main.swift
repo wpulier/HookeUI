@@ -395,8 +395,10 @@ func status() {
             say("Hooke is open. \(keychainLocked) Next: \(keychainLockedNext).")
             return
         }
-        if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": false]); return }
-        say("Hooke is open. To connect: hooke connect --agent <claude-code|codex|cursor|other>.")
+        let next = "hooke connect --agent \(me ?? "<claude-code|codex|cursor|other>")\(connectionOption())"
+        if jsonOutput { printJSON(["ok": true, "phase": "ready", "connected": false,
+                                   "connectionName": connectionName.map { $0 as Any } ?? NSNull(), "next": next]); return }
+        say("Hooke is open. To connect: \(next).")
         return
     }
     let reply = door("GET", "api/agent/v1/status", token: token)

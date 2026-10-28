@@ -251,6 +251,8 @@ def test_named_connections_keep_separate_actors_and_revocation(hooke, tmp_path, 
             operations[name] = operation['id']
             again = run(hooke, env, 'example', '--json', '--key', 'named-request-0001', *arguments(name))
             assert again.returncode == 0, again.stdout + again.stderr
+            retried = json.loads(run(hooke, env, 'operations', '--json', *arguments(name)).stdout)
+            assert [item['id'] for item in retried['operations']] == [operations[name]]
         assert operations['lead'] != operations['reviewer']
 
         studio('/' + identities['lead'] + '/disconnect', {})
@@ -260,6 +262,12 @@ def test_named_connections_keep_separate_actors_and_revocation(hooke, tmp_path, 
         assert status(None)['connection']['id'] == identities[None]
         absent = run(hooke, env, 'tools', '--json', *arguments('missing'))
         assert absent.returncode != 0 and '--connection missing' in absent.stdout
+        missing_status = status('missing')
+        assert missing_status['connected'] is False
+        assert missing_status['connectionName'] == 'missing'
+        assert missing_status['next'] == 'hooke connect --agent claude-code --connection missing'
+        text_status = run(hooke, env, 'status', *arguments('missing'))
+        assert '--agent claude-code --connection missing' in text_status.stdout
     finally:
         for proc in processes:
             if proc.poll() is None:
