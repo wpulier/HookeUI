@@ -301,7 +301,7 @@ catalog-check:
 	cd services && .venv/bin/python -m orchestrator.catalog_view
 
 catalog-pr:
-	@test -n "$(ID)" || (echo "Usage: make catalog-pr ID=<your entry's id> [REMOTE=origin] [BASE_REMOTE=origin] [BASE=main] [OUTPUT=folder] or PACKAGE=folder PUSH=1 SIGNOFF=1"; exit 2)
+	@test -n "$(ID)" || (echo "Usage: make catalog-pr ID=<your entry's id> [REMOTE=origin] [BASE_REMOTE=origin] [BASE=dev] [OUTPUT=folder] or PACKAGE=folder PUSH=1 SIGNOFF=1"; exit 2)
 	cd services && .venv/bin/python -m orchestrator.publish "$(ID)" $(if $(filter 1,$(PUSH)),--push,) $(if $(filter 1,$(SIGNOFF)),--signoff,) $(if $(REMOTE),--remote "$(REMOTE)",) $(if $(BASE_REMOTE),--base-remote "$(BASE_REMOTE)",) $(if $(BASE),--base "$(BASE)",) $(if $(OUTPUT),--output "$(OUTPUT)",) $(if $(PACKAGE),--package "$(PACKAGE)",)
 
 catalog-install:
