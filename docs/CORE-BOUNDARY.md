@@ -23,8 +23,9 @@ and `app.state.research_lifecycle`, with `start()` and asynchronous `stop()`.
 Configuration errors fail startup. The extension is executable application code,
 not a user upload or an account setting. No HTTP request or document may set it.
 
-Generic desktop packaging accepts a supplied icon via `ICNS`; the core otherwise
-uses its neutral icon. Existing update-feed URLs and public verification keys are
+Generic desktop packaging accepts a supplied icon via `ICNS`, and the studio build a
+supplied mark for its menu button via `HOOKEUI_MARK_DARK` and `HOOKEUI_MARK_LIGHT`;
+the core otherwise uses its neutral icon and mark. Existing update-feed URLs and public verification keys are
 compatibility information, not access to official signing. Official release
 orchestration and signing credentials are maintained outside this repository.
 Forks must use their own release identity, keys and feed before distributing updates.
