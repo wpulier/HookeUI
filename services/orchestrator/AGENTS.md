@@ -597,7 +597,7 @@ The failed attempt closes its worker and grants without publishing a result or c
 accepted Project data. Malformed refusal messages retain the contained generic failure, and
 arbitrary `ValueError` text never becomes user guidance. A tool that fails while opening for
 any other reason is said in its own words, apart from the guidance (`scientific_host.ToolFailed`,
-HTTP 422 `SCIENTIFIC_TOOL_FAILED`: "<tool> did not open this input. It said: “…”"): only its
+HTTP 422 `SCIENTIFIC_TOOL_FAILED`: "<tool> did not open: “…”"): only its
 first line, with every path, key and token removed and no control character, at most 300
 characters (`shown_words`, `report.py`'s rule). The worker's stderr goes with its temporary
 folder, so its tail is kept first, keys removed, in `logs/tool-failures/<day>/` (pruned with

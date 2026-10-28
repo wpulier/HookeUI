@@ -116,8 +116,8 @@ def test_a_tool_that_does_not_open_says_why_in_its_own_words(monkeypatch):
     response = error_response(caught.value)
     body = json.loads(response.body)
     assert response.status_code == 422 and body['code'] == 'SCIENTIFIC_TOOL_FAILED'
-    assert body['error'] == ('Segment cells with Cellpose-SAM did not open this input. '
-                             'It said: “Select one retained 2D intensity image for this rehearsal”')
+    assert body['error'] == ('Segment cells with Cellpose-SAM did not open: '
+                             '“Select one retained 2D intensity image for this rehearsal”')
     assert 'correcting the integration' not in body['error'] and 'unchanged' in body['next']
     assert worker._stopped.is_set()
 

@@ -561,7 +561,7 @@ class ReviewWorker:
                         raise Failed('Saved movie rendering failed. The saved tool is unchanged. ' + header['error'])
                     if (request.get('op') == 'open' and not body and set(header) == {'ok', 'error'}
                             and type(header['error']) is str and (words := shown_words(header['error']))):
-                        raise ToolFailed(f'{self._tool_name()} did not open this input. It said: “{words}”')
+                        raise ToolFailed(f'{self._tool_name()} did not open: “{words}”')
                     if staging is not None:
                         staging.refuse(header, body)
                     raise Failed('The scientific interaction failed; reopen its private review after correcting the integration')
