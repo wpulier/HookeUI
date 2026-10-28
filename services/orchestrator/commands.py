@@ -2148,7 +2148,7 @@ async def channel_add(app, client, msg) -> dict:
                                     str(msg.get("commit") or ""))
     except channels.CantDo as exc:
         raise ToolFailed(str(exc), next=None) from exc  # no next: its words say what to give
-    says = (f"Added the community channel {r['name']} at {r['commit'][:7]}: {r['entries']} entries, not reviewed here. "
+    says = (f"Added the community channel {r['name']} at {r['commit'][:7]}: {channels.entries_words(r['entries'])}, not reviewed here. "
             "None runs until you allow its code.")
     activity.activity(app.hub, "command", says)
     app.catalog_changed()
@@ -2190,9 +2190,9 @@ async def channel_update(app, client, msg) -> dict:
     if r.get('says'):
         says = r['says']
     elif r["commit"] == r["was"]:
-        says = f"Checked {label}: already at its newest commit, {r['commit'][:7]} ({r['entries']} entries)"
+        says = f"Checked {label}: already at its newest commit, {r['commit'][:7]} ({channels.entries_words(r['entries'])})"
     else:
-        says = (f"Checked {label}: now at {r['commit'][:7]} (was {r['was'][:7] or 'none'}), {r['entries']} entries"
+        says = (f"Checked {label}: now at {r['commit'][:7]} (was {r['was'][:7] or 'none'}), {channels.entries_words(r['entries'])}"
                 + (f"; new: {', '.join(r['added'])}" if r["added"] else "")
                 + ". An update of one you installed waits for its own Install")
     activity.activity(app.hub, "command", says)

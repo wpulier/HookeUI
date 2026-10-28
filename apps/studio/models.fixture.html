@@ -5,7 +5,9 @@
      like the capabilities wire's `models` (catalog_view.py): a few with a passed check, one waiting on your key, ones to
      download, a download in progress or stopped, one Fiji needs, one made from your corrections, an agent's cloud model,
      an atlas. Downloads, keys and adds answer from this page (nothing runs, nothing is written). Parameters:
-     ?state=models|add-start|add-link|add-review|added|downloading|failed|details|unchecked|setup|away|storage, &theme=light.
+     ?state=models|add-start|add-link|add-review|added|downloading|failed|details|unchecked|setup|away|storage|maintenance|
+     shared|channels, &theme=light. maintenance: a community channel's tool after Apply (Details → versions and Updates);
+     shared: a tool from a shared file; channels: Advanced contribution with Where entries come from.
      "added" goes the Add way (a link, its review, Review setup) to a model that is ready, as a person reaching Ready. -->
 <style>
  body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
@@ -25,7 +27,7 @@
 import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
 import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/capability-controls.css';import '/src/workspace-feel.css';
 import {ModelsPage} from '/src/modelspage.ts';import {StudySurfaces} from '/src/workspace-study-surfaces.ts';
-import cells from '../../design/workspace-feel/assets/human-cells.png';
+import cells from '../../assets/examples/human_mitosis.png'; // the bundled example (design/ is not in this repository)
 const params=new URLSearchParams(location.search),state=params.get('state')||'models';
 document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
 document.getElementById('specimen').style.backgroundImage=`url(${cells})`;
@@ -74,6 +76,22 @@ const keys={FAL_KEY:{service:'fal',name:'fal.ai',short:'fal',getKey:'',enables:'
 const wire={type:'capabilities',families:[],actors:{you:'',agent:'',auto:'',researcher:''},capabilities:[],roles:[],preferences:[],pending:0,build:'fixture',agentText:'',
  models,setup:{edition:'research',options:{},keys,downloads:[],installs:[],disk:{freeBytes:200e9,spareBytes:1<<30},shelf:{cards:[],behind:[],counts:{green:0,red:0,yellow:0,grey:0}}}};
 const find=id=>models.find(m=>m.id===id);
+// A tool brought in through a community channel, updated from 1 to 2 by maintenance, and one from a shared file.
+const lab=row('lab/spot-shape',{name:'Spot shape (lab)',what:'Measures each dark spot’s area, centre, brightness, roundness and direction',face:on(),
+ channel:'lab',channelSource:'git',channelLabel:'lab',versions:[{generation:'g1',version:'1',at:'2026-10-28T02:56:00',inUse:false,chosen:false},
+ {generation:'g2',version:'2',at:'2026-10-28T02:57:00',inUse:true,chosen:true}],env:{on:true,installed:true}});
+const shared=row('shared-1a2b/spot-shape',{name:'Spot shape',what:'Measures each dark spot’s area, centre, brightness, roundness and direction',face:on(),
+ channel:'shared-1a2b',channelSource:'shared-file',channelLabel:'Agent check’s shared file',
+ versions:[{generation:'s1',version:'1',at:'2026-10-28T02:46:00',inUse:true,chosen:true}],env:{on:true,installed:true}});
+const maintained=over=>({state:'none',says:'',next:null,policy:{policy:'review',words:'Review updates',effective:'review'},
+ check:{state:'ok',at:'2026-10-28T02:57:00'},active:{generation:'g2',version:'2',installedAt:'2026-10-28T02:57:00',promotedAt:'2026-10-28T02:57:00'},
+ candidate:null,held:[{generation:'g1',kind:'rollback',owner:'g2',at:'2026-10-28T02:57:00'}],...over});
+if(state==='maintenance'||state==='shared'){models.unshift(lab,shared);
+ wire.setup.maintenance={'lab/spot-shape':maintained({state:'applied',says:'Updated to 2 (Oct 28, 2:57 am)',next:'undo'}),
+  'shared-1a2b/spot-shape':maintained({says:'From a shared file: it doesn\'t update itself. A newer shared file is added as its own entry',sharedFile:true,
+   policy:{policy:'manual',words:'Update when I choose',effective:'manual'},active:{generation:'s1',version:'1',installedAt:'2026-10-28T02:46:00'},held:[]})};}
+if(state==='channels'){wire.setup.channels=[{name:'shared-1a2b',url:'',commit:'c'.repeat(64),reviewed:false,trusted:true,checked:'',entries:1,label:'Agent check’s shared file',source:'shared-file'},
+ {name:'lab',url:'/Users/someone/HookeLab',commit:'d6c1022aa',reviewed:false,trusted:false,checked:'',entries:1,source:'git'}];}
 if(state==='downloading'){const m=find('micro-sam-lm');m.download={model:m.id,name:m.name,state:'downloading',got:Math.round(m.size*0.42),total:m.size,says:'Downloading'};}
 if(state==='failed'){const m=find('instanseg-brightfield');m.download={model:m.id,name:m.name,state:'failed',got:Math.round(m.size*0.42),total:m.size,says:'no connection'};}
 if(state==='added'){Object.assign(find('micro-sam-lm'),{status:'ready',word:'Ready',next:null,face:on(),mine:true,
@@ -94,6 +112,9 @@ const page=new ModelsPage(document.getElementById('models-page'),{
  reveal:async()=>{},observe:async()=>{},
  add:async()=>({model:'micro-sam-lm',name:'micro-sam (light microscopy)',says:'Found a bioimage.io model the reviewed runner takes: diplomatic-bug.'}),
  shelf:{turnOn:async()=>{},cancel:async()=>{},tryIt:async()=>{},seen:async()=>{},dismiss:async()=>{},get:async()=>{}},
+ setVersion:async()=>({says:''}),catalogUpdate:async()=>{},channelAdd:async()=>({says:'Added the community channel lab at d6c1022: 1 entry, not reviewed here. None runs until you allow its code.'}),
+ channelTrust:async()=>{},channelUpdate:async()=>({says:''}),channelRemove:async()=>{},
+ maintenance:Object.fromEntries(['policy','check','apply','undo','stop','accept','merge'].map(k=>[k,async()=>({says:''})])),
 });
 window.addEventListener('hooke-use-model',e=>console.log('use',JSON.stringify(e.detail)));
 const surfaces=new StudySurfaces(hash=>{});
@@ -111,6 +132,10 @@ if(state==='away'){document.querySelector('[data-category="away"]')?.click();}
 if(state==='storage'){document.querySelector('[data-category="storage"]')?.click();await sleep(50);[...document.querySelectorAll('#capability-space button')].find(b=>/storage/.test(b.textContent))?.click();}
 if(state==='details'){document.querySelector('[data-model="cellpose-sam"] .model-card-hit').click();}
 if(state==='unchecked'){document.querySelector('[data-category="unchecked"]')?.click();}
+if(state==='maintenance'||state==='shared'){document.querySelector(`[data-model="${state==='shared'?'shared-1a2b/spot-shape':'lab/spot-shape'}"] .model-card-hit`).click();await sleep(50);
+ document.querySelector('.tool-details-more > summary').click();await sleep(50);document.querySelector('.model-maintenance-details > summary')?.click();await sleep(50);
+ document.querySelector('.model-maintenance')?.scrollIntoView({block:'center'});}
+if(state==='channels'){window.dispatchEvent(new CustomEvent('hooke-models-category',{detail:'own'}));await sleep(50);document.querySelector('.toolbox-community')?.scrollIntoView({block:'start'});}
 if(state==='downloading'||state==='failed'){document.querySelector('[data-category="setup"]')?.click();}
 await sleep(100);document.activeElement?.blur?.();
 </script>

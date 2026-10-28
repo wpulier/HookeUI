@@ -818,8 +818,8 @@ and independent qualification before public export. The portable paths preserve 
   own**, pinned by its complete content hash, "not reviewed here": nothing of its code runs until you allow code from it (the button names
   who shared it, "Allow code from Maya Okafor's shared file"), then only after its own Install and proof. Removing the
   channel takes it away. Import needs no Git or developer tools. Older Git-backed imports and their identities remain
-  readable; new imports publish read-only snapshots directly into the existing channel store. To update a shared file,
-  import a newer file; it has no online update feed. The legacy channel `commit` field holds its SHA-256 snapshot identity.
+  readable; new imports publish read-only snapshots directly into the existing channel store. A shared file doesn't
+  update itself: it has no online update feed, and a newer file opened is added as its own entry. The legacy channel `commit` field holds its SHA-256 snapshot identity.
 - **Refused whole:** a file holding anything a catalog entry doesn't (another entry, a script, a link, a path out of its
   folder), one too big (weights never travel), or one that says nothing of what it is.
 

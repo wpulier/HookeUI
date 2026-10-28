@@ -3,6 +3,8 @@
 // guessed), and register it to the Allen mouse atlas with brainreg: a job of minutes, cancelled whole, run again when it
 // was interrupted, opened from here or Made in this session once done. The lists are the session's index's.
 
+import { filePicker } from './file-picker';
+
 /** A volume or a job as the session's index lists it (GET /api/resources?kind=volume|job). */
 export interface VolumeEntry {
   id: string; kind: 'volume' | 'job'; title: string; state: string; summary: string; day?: string;
@@ -116,8 +118,10 @@ export function volumesSection(entries: VolumeEntry[], commands: VolumeCommands,
   // Claimed when an action starts, not when this is drawn: the page keeps these forms across its renders, a session
   // switch included, so a form drawn in one session may be submitted in the next (modelspage.ts render's editors).
   const claim = () => commands.owner?.() ?? (() => true);
-  const file = el('input', { type: 'file', accept: '.tif,.tiff', class: 'mm-control', 'aria-label': 'A volume (TIFF or OME-TIFF)',
-    'data-model-editor': 'volume-file' }) as HTMLInputElement;
+  const file = el('input', { type: 'file', accept: '.tif,.tiff', 'aria-label': 'A volume (TIFF or OME-TIFF)' }) as HTMLInputElement;
+  // The studio's own control, never the browser's raw "Choose File"; kept whole across the page's redraws (its editors).
+  const picker = filePicker(file, 'Choose a volume', 'No volume chosen');
+  picker.setAttribute('data-model-editor', 'volume-file');
   file.addEventListener('change', () => {
     const chosen = file.files?.[0];
     if (!chosen) return;
@@ -203,7 +207,7 @@ export function volumesSection(entries: VolumeEntry[], commands: VolumeCommands,
     el('p', {}, registration ? 'Register a whole brain imaged as a volume (a TIFF or OME-TIFF) to the Allen mouse brain atlas at 25 µm. '
       + 'It runs as a job of several minutes in brainreg’s own Python; its result is shown in brainreg’s own downsampled space.'
       : 'Add a TIFF or OME-TIFF stack, then provide the scale, series, channel and time point its file does not state. Select it in a volume tool’s details to run that tool.'),
-    el('div', { class: 'models-own-form' }, file), addForm,
+    el('div', { class: 'models-own-form' }, picker), addForm,
     volumeRows.length ? el('ul', { class: 'volume-list' }, ...volumeRows) : null,
     jobRows.length ? el('ul', { class: 'volume-jobs' }, ...jobRows) : null, said);
 }

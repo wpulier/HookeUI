@@ -697,6 +697,31 @@ def test_a_check_that_found_nothing_newer_says_up_to_date_and_when(home, monkeyp
     assert "T" not in now["says"].split("checked ")[1], "a readable time, never ISO"
 
 
+def test_a_tool_from_a_shared_file_says_it_doesnt_update_itself_never_up_to_date(home, monkeypatch, tmp_path):
+    """The thesis check on 0.5.2: a tool from a shared file said "Up to date", though no shared file has online revisions
+    and a newer one is added as its own entry (channels.update refuses to move it)."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from orchestrator import mine, share
+    from orchestrator.maintenance import commands as maintenance_commands
+    from tests.test_share import yours
+
+    path = share.export(yours(home), by="Agent check")
+    monkeypatch.setenv("MICROMIND_CATALOG", str(tmp_path / "another-mac"))  # opened on another Mac
+    catalog.manifests.cache_clear()
+    m = catalog.get(mine.add(str(path))["model"])
+    assert status.shared_file(m) and not status.shared_file(catalog.get("spot-shape"))
+    assert discover.check(m)["ok"] is True  # a check finds nothing: still not "up to date"
+    now = status.of(catalog.get(m.key))
+    assert now["state"] == "none" and now["says"] == status.SHARED_FILE and now["sharedFile"] is True, now
+    app = SimpleNamespace(day=SimpleNamespace(local_only=False))
+    monkeypatch.setattr(maintenance_commands, "_reply", lambda app, m, says: {"ok": True, "says": says})
+    said = asyncio.run(maintenance_commands.maintenance_check(app, None, {"model": m.key}))["says"]
+    assert said.endswith("doesn't update itself. A newer shared file is added as its own entry"), said
+    assert "up to date" not in said.lower()
+
+
 def test_an_applied_update_says_when_in_readable_words(home, monkeypatch):
     import re
 

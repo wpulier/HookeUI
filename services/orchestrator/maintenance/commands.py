@@ -64,6 +64,9 @@ async def maintenance_check(app, client, msg) -> dict:
     if m.key in await asyncio.to_thread(prepare.unfinished):  # its first check after applying, under any policy
         _maintainer(app).now(m.key)
         return _reply(app, m, f"Checking {m.name}'s update again: its first check after applying didn't finish")
+    if await asyncio.to_thread(status.shared_file, m):  # no online revisions: never "up to date"
+        return _reply(app, m, f"{m.name} came from a shared file, so it doesn't update itself. A newer shared file is "
+                              "added as its own entry")
     if app.day.local_only:
         raise ToolFailed("this session is local only, so nothing is checked online", next=None)  # no next: the session's local-only choice is the user's
     allowed, _less = policy.effective(m)

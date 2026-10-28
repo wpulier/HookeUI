@@ -2252,6 +2252,10 @@ class App:
             for row in wire["models"]:
                 row["checking"] = any(f"{k}:{t}" in observer.checking for k, t in observer.for_model(row["id"]))
         wire["setup"]["catalogProblems"] = catalog_view.problems()
+        from gpu_worker import manifests as catalog
+
+        # Where your own entries live on this instance (MICROMIND_CATALOG / MICROMIND_ASSETS move it): Add your own says it.
+        wire["setup"]["mineFolder"] = catalog_view.home_path(catalog.mine_root())
         from . import catalog_news
 
         # New for you (C1): what arrived in the catalog that this Mac hasn't known, offered, never turned on by itself.

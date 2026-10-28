@@ -1,5 +1,5 @@
 // Synthetic renderer/interaction evidence; actual model demonstrations are a separate acceptance gate.
-import { afterEach, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { powerTool } from './capabilities';
 import { toolboxTarget } from './toolbox';
 import { bandIds } from './keystrip';
@@ -1889,4 +1889,78 @@ test('a comparison row lays its picture and its buttons out apart', async () => 
   const rule = /\.own-trial\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
   expect(rule).toMatch(/display:\s*grid/); expect(rule).toMatch(/gap:/);
   expect(/\.own-input-preview\s*\{[^}]*display:\s*block/.test(css)).toBe(true);
+});
+
+// The thesis check on 0.5.2 (Part 1: "see its maintenance state: version, last check, an offered update").
+describe('a brought-in tool’s maintenance path on Models', () => {
+  const maintained = (over: Record<string, unknown>) => ({ state: 'none', says: '', next: null,
+    policy: { policy: 'review', words: 'Review updates', effective: 'review' }, check: { state: 'ok', at: '2026-10-28T02:57:00' },
+    active: { generation: 'g1', version: '1', installedAt: '2026-10-28T02:56:00' }, candidate: null, held: [], ...over });
+
+  test('Advanced contribution shows where entries come from, with Add channel', async () => {
+    const { root, page, wire, commands } = mounted([tool('a')], { setup: { edition: 'open', options: {}, channels: [] } });
+    commands.catalogUpdate = vi.fn(async () => undefined); commands.channelAdd = vi.fn(async () => ({ says: 'Added' }));
+    page.update(wire);
+    // From the community is one of the page body's own sections, and holds the Add channel form.
+    const body = root.querySelector('.models-page-body')!;
+    const community = body.children.find(c => c.classList.contains('toolbox-community'))!;
+    expect(community.tagName).toBe('SECTION');
+    expect(community.querySelector('[data-model-editor="channel-add"]')).not.toBeNull();
+    // Advanced contribution (category `own`) hides every other body section but its own: never this one.
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync(new URL('./workspace-study-v2.css', import.meta.url), 'utf8');
+    const own = /\.study-overlay\[data-catalog-category='own'\] \.models-page-body>section:not\(([^)]*)\)\{display:none\}/.exec(css);
+    expect(own?.[1].split(',')).toContain('.toolbox-community');
+  });
+
+  test('an update maintenance prepared is not offered as Go back, and after Apply Go back names the version it replaced', () => {
+    // The channel's pin stays at 1 (maintenance never moves it), so the server lists 1 first, then 2.
+    const r = tool('lab/spot-shape', { versions: [
+      { generation: 'g1', version: '1', at: '2026-10-28T02:56:00', inUse: true, chosen: true },
+      { generation: 'g2', version: '2', at: '2026-10-28T02:57:00', inUse: false, chosen: false }] });
+    const { root, page, wire, commands } = mounted([r], { setup: { edition: 'open', options: {}, maintenance: {
+      'lab/spot-shape': maintained({ state: 'ready-to-apply', says: 'Ready to apply: 2', next: 'apply',
+        candidate: { generation: 'g2', version: '2' } }) } as never } });
+    commands.setVersion = vi.fn(async () => ({}));
+    page.update(wire); page.show(r.id);
+    const buttons = () => root.querySelectorAll('button').map(b => b.textContent);
+    expect(buttons()).not.toContain('Go back to 2'); // 2 was never used
+    expect(buttons()).not.toContain('Use the newest'); // its Apply, with its first check, is in Updates
+    // Applied: 2 runs, 1 is kept to go back to; the catalog's pin still lists 1 first.
+    r.versions = [{ generation: 'g1', version: '1', at: '2026-10-28T02:56:00', inUse: false, chosen: false },
+      { generation: 'g2', version: '2', at: '2026-10-28T02:57:00', inUse: true, chosen: true }];
+    wire.setup!.maintenance = { 'lab/spot-shape': maintained({ state: 'applied', says: 'Updated to 2 (Oct 28, 2:57 am)', next: 'undo',
+      active: { generation: 'g2', version: '2', installedAt: '2026-10-28T02:57:00' } }) } as never;
+    page.update(wire);
+    expect(buttons()).toContain('Go back to 1');
+    expect(buttons()).not.toContain('Use the newest'); // it named 1, the older one
+    fire(root.querySelectorAll('button').find(b => b.textContent === 'Go back to 1')!, 'click');
+    expect(commands.setVersion).toHaveBeenCalledWith('lab/spot-shape', 'g1');
+  });
+
+  test('a check’s time is said as people read it, never ISO', () => {
+    const r = tool('cells', { setups: [{ role: 'cells', title: 'Cells', option: 'a', plan: null, recheck: true, canTry: false,
+      check: { state: 'works', why: '', at: '2026-10-28T02:46:10', ms: 1700, detail: 'made a table of 3 rows' } }] });
+    const { root, page } = mounted([r]);
+    page.show('cells');
+    const line = root.querySelector('.tool-details')!.querySelector('.tool-check')!.textContent;
+    expect(line).toContain('works · Oct 28, 2:46 am · 1700 ms');
+    expect(line).not.toContain('2026-10-28T');
+  });
+
+  test('a shared file’s row says it doesn’t update itself, never to import a newer one', () => {
+    const { root, page, wire, commands } = mounted([], { setup: { edition: 'open', options: {}, channels: [
+      { name: 'shared-1a2b', url: '', commit: 'c'.repeat(64), reviewed: false, trusted: true, checked: '', entries: 1,
+        label: 'Agent check’s shared file', source: 'shared-file' }] } });
+    commands.catalogUpdate = vi.fn(async () => undefined);
+    page.update(wire);
+    const row = root.querySelector('[data-channel="shared-1a2b"]')!.textContent;
+    expect(row).toContain('It doesn’t update itself: a newer shared file is added as its own entry.');
+    expect(row).not.toContain('To update');
+  });
+
+  test('Add your own names this instance’s own folder', () => {
+    const { root } = mounted([], { setup: { edition: 'open', options: {}, mineFolder: '~/MicroscopeMind-Beta/catalog/mine/models' } });
+    expect(root.querySelector('.models-own-where')!.textContent).toContain('Yours live in ~/MicroscopeMind-Beta/catalog/mine/models/<name>/');
+  });
 });

@@ -358,7 +358,8 @@ other files.
   every cell of the same view), raw unless the full route is asked for; the app draws what each made side
   by side on that view's pixels in the magnifier and measures it (areas, IoU; counts and cells both
   found), and says when a result was reused (when it was made; its time not counted). Not the blind test.
-  Its view is held (the unsaved allowance) for 5 minutes, until the next comparison or a keep: `keep=<id>`
+  Its view is held (the unsaved allowance) for 5 minutes, until the next comparison or a keep (an outline comparison
+  says so; a cells comparison says each result is kept in Data, as its populations are): `keep=<id>`
   ("keep the SAM 2.1 one") puts that model's outline on the board, made by that arm's execution, in place of
   the app's earlier outline of that thing (never the user's), or shows that arm's cells; cells are framed on
   the whole view when it has no eyepiece circle. A cells comparison the user runs by hand from the workspace's

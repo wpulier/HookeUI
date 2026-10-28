@@ -980,6 +980,7 @@ export interface CapabilitiesWire {
     disk?: { freeBytes?: number; spareBytes?: number }; // the models folder's disk (downloads.disk): Turn on's sheet says whether a plan fits
     channels?: ChannelRow[]; channelUpdate?: ChannelUpdate; catalogProblems?: { entry: string; problems: string[]; incompatible?: boolean }[];
     loose?: { path: string; name: string; bytes: number }[]; // files dropped straight into your folder (mine.py)
+    mineFolder?: string; // where your own entries live on this instance ("~/MicroscopeMind/catalog/mine/models"; manifests.mine_root)
     turning?: Record<string, import('./capabilityshelf').Turning>; // exact owned job and entry setup intents
     news?: import('./capabilityshelf').News; shelf?: import('./capabilityshelf').Shelf;
     ownTrials?: OwnTrial[];

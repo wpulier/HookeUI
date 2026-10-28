@@ -270,9 +270,10 @@ def update(name: str = catalog.REVIEWED_CHANNEL, environ: Mapping[str, str] = os
     before, was = _ids(c, environ), c.get("commit", "")
     if c.get('source') == 'shared-file':
         if commit and commit != was:
-            raise CantDo('a shared file has no online revisions; import the newer file to review its changes')
+            raise CantDo('a shared file has no online revisions; a newer shared file is added as its own entry')
         return {'name': name, 'commit': was, 'was': was, 'entries': len(before), 'added': [], 'later': [],
-                'says': 'This is a shared file, not an online catalog. Import a newer file to review its changes.'}
+                'says': "This is a shared file, not an online catalog: it doesn't update itself. A newer shared file "
+                        "is added as its own entry."}
     target = commit or newest(c["url"])
     n = fetch(c["url"], target, snapshot_dir(name, target, environ), c.get("path", CATALOG_PATH))
     c.update(commit=target, checked=time.strftime("%Y-%m-%dT%H:%M:%S"))
@@ -283,6 +284,11 @@ def update(name: str = catalog.REVIEWED_CHANNEL, environ: Mapping[str, str] = os
         {m.id for m in catalog.mine(environ).values() if m.channel == name}
     return {"name": name, "commit": target, "was": was, "entries": n, "added": sorted(new & listed),
             "later": sorted(i for i in new - listed if f"{name}/{i}" in catalog.problems(environ))}
+
+
+def entries_words(n: int) -> str:
+    """How many entries, said: "1 entry", "3 entries"."""
+    return f"{n} {'entry' if n == 1 else 'entries'}"
 
 
 def label(name: str, environ: Mapping[str, str] = os.environ) -> str:
@@ -401,15 +407,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.action == "update":
             # --commit pins that commit (C7 Window B: the CLI ignored it, so only Python could pin a channel back).
             r = update(args.target or catalog.REVIEWED_CHANNEL, commit=args.commit or None)
-            print(f"{r['name']}: at {r['commit'][:12]}, {r['entries']} entries"
+            print(f"{r['name']}: at {r['commit'][:12]}, {entries_words(r['entries'])}"
                   + (f"; new: {', '.join(r['added'])}" if r["added"] else ""))
         elif args.action == "add":
             r = add(args.target, args.name, args.commit)
-            print(f"{r['name']}: added at {r['commit'][:12]}, {r['entries']} entries (community, not reviewed here; "
+            print(f"{r['name']}: added at {r['commit'][:12]}, {entries_words(r['entries'])} (community, not reviewed here; "
                   "nothing of it runs until you allow code from it)")
         else:
             for c in wire():
-                print(f"{c['name']}: {c['url']} at {c['commit'][:12]}, {c['entries']} entries"
+                print(f"{c['name']}: {c['url']} at {c['commit'][:12]}, {entries_words(c['entries'])}"
                       + ("" if c["reviewed"] else " (community" + (", allowed)" if c["trusted"] else ", not allowed)")))
     except CantDo as exc:
         print(str(exc))
