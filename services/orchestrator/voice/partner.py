@@ -224,7 +224,7 @@ class Partner:
         if "window" in seen["sent"] or n in self._released or "note" not in seen["sent"]:
             return  # sent, too late, or the note's own early send has not run (it sends the window after it)
         seen["sent"].add("window")
-        if not await self.session.early(n, image=self._window_image(seen), detail="low"):
+        if not await self.session.early(n, image=self._window_image(seen), detail="auto"):
             seen["sent"].discard("window")
 
     @staticmethod
@@ -351,7 +351,7 @@ class Partner:
                 sent.add("window")
                 image = self._window_image(seen)
                 images.append(image)
-                details[image[1]] = "low"  # its words are in the note; the picture is for layout
+                details[image[1]] = "auto"
         note = ""
         if "note" not in sent:
             sent.add("note")

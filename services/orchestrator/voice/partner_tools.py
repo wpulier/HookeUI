@@ -327,7 +327,9 @@ class PartnerTools:
         text = f"After {name}, Hooke's screen now: " + (self.partner.screen_now() or "(no report from the studio)")
         images = [(shot["jpeg"], f"Hooke's window after {name} ({shot.get('how') or 'composed'})")] if shot else []
         facts = {"screenChange": True, "reportT": report_at, "confirmed": report_at is not None}
-        return {"images": images, "text": text}, facts
+        # Full detail: whether the change shows is read from this picture (at low detail the model took the new layer
+        # for "hidden behind the tabs panel", the partner bench of 2026-10-29).
+        return {"images": images, "text": text, "detail": "auto"}, facts
 
     # --- its own tools -----------------------------------------------------------------------------
     async def mark(self, args: dict) -> dict:

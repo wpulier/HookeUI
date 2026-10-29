@@ -217,3 +217,19 @@ def test_the_last_session_used_is_the_last_one_asked_in(tmp_path):
     write(tmp_path, "2026-10-11", [{"type": "turn", "role": "user", "thread": "t1", "id": 1, "text": "x", "at": DAY1 + 50}])
     write(tmp_path, "2026-10-12", [{"type": "thread-opened", "thread": "t1", "at": DAY2}])  # midnight's empty one
     assert Catalogue(tmp_path).last_used().id == "2026-10-11"
+
+
+def test_a_session_called_exactly_that_is_the_one_even_when_another_looked_at_the_same(tmp_path):
+    """The partner bench of 2026-10-29: "Open the Nuclei project" also matched the untitled session that had looked at
+    nuclei, so nothing was opened. A session named exactly that is it; words still rank the rest."""
+    write(tmp_path, "2026-10-29", [
+        {"type": "thread-opened", "thread": "t1", "title": "", "at": DAY1},
+        {"type": "subject", "thread": "t1", "name": "fluorescently stained cell nuclei", "at": DAY1},
+    ])
+    write(tmp_path, "2026-10-29.2", [
+        {"type": "session-started", "session": "2026-10-29.2", "name": "Nuclei", "by": "user", "at": DAY1 + 60},
+        {"type": "subject", "thread": "t1", "name": "fluorescently stained cell nuclei", "at": DAY1 + 120},
+    ])
+    cat = Catalogue(tmp_path)
+    assert [i.id for i in cat.find("Nuclei")] == ["2026-10-29.2"]
+    assert len(cat.find("stained")) == 2

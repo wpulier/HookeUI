@@ -270,7 +270,7 @@ def test_a_turn_holds_both_pictures_the_screen_text_and_the_brief_as_they_were_a
         # detail (its words are in the note), the camera at full.
         early = [e["item"] for e in t.sb.sent[:held] if e["type"] == "conversation.item.create"]
         assert note in early and all(i in early for i in images)
-        assert [[p["detail"] for p in i["content"] if p["type"] == "input_image"][0] for i in images] == ["auto", "low"]
+        assert [[p["detail"] for p in i["content"] if p["type"] == "input_image"][0] for i in images] == ["auto", "auto"]
         order = t.sb.types()
         assert order.index("input_audio_buffer.commit") > order.index("conversation.item.create")
         assert t.partner.last_frame == {"id": 41, "crop": [0, 0, 100, 100]}
