@@ -1605,7 +1605,7 @@ class Index:
         store = evidence_of(self.hub) if eid.startswith('e') else tracks_of(self.hub)
         if store.root is None:
             return None
-        root = store.root_for(day).resolve()
+        root = store.root_for(day)
         filed = self._journal(day)['evidence' if eid.startswith('e') else 'tracks'].get(eid)
         if filed is None and self.day is None:  # no session store (a test, a bench): a day was a session
             filed = {'path': str(root / day / eid)}
@@ -1619,8 +1619,10 @@ class Index:
             expected = root / date / eid
             if not sids.is_sid(date) or sids.parse(date)[1] != 1 or (folder.parent if portable else folder) != expected:
                 return None
+            from .project_evidence import _directories
+            _directories(root, folder)
             path = folder / 'manifest.json'
-            if path.resolve() != path:
+            if path.is_symlink():
                 return None
             raw = read_picture_bytes(path, 4*1024*1024)
             record = json.loads(raw) if raw else None
@@ -1943,7 +1945,7 @@ class Index:
         record,folder = retained
         name = 'capture.jpg' if eid.startswith('e') else 'tracks.jpg'
         path = folder/name
-        if path.resolve() != path:
+        if path.is_symlink():
             return None
         raw = read_picture_bytes(path,max_bytes)
         return (raw,'image/jpeg') if raw and hashlib.sha256(raw).hexdigest() == record['files'][name] else None

@@ -602,6 +602,9 @@ class Evidence:
         return getattr(self.day, "date", None) or time.strftime("%Y-%m-%d")  # today's folder, by the session's clock
 
     def root_for(self, session=None, *, write=False):
+        if self._folders is None and self.root is not None:
+            from .project_artifact_folder import ArtifactFolder
+            self._folders = ArtifactFolder(self.root, 'evidence')
         return self._folders.root_for(self.day, session or self._session(), write=write) if self._folders else None
 
     def _day_folders(self, session=None) -> list[Path]:
