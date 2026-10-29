@@ -84,6 +84,12 @@ const clampUnit = (value: number) => Math.max(0, Math.min(1, value));
 const displayKinds: Record<string, string> = { live: 'magnifier', 'saved-image': 'image', composite: 'comparison' };
 const buttonLabels: Record<string, string> = { 'zoom-in': '+', 'zoom-out': '−', 'zoom-fit': 'Fit', front: '↑', close: '×', hide: '−', ungroup: '↔', retry: 'Retry' };
 const derivedKind = (source: WindowSource) => displayKinds[source.kind] ?? source.kind;
+/** A window's name: its own title, else what it shows ("Live magnification", "Reference photo", "Saved work"). The
+ * same name is shown and saved with the Project's arrangement (an empty one was refused there, live 2026-10-29). */
+export function windowTitle(state: Pick<WindowState, 'title' | 'source'>): string {
+  return state.title?.trim() || (state.source.kind === 'live' ? 'Live magnification'
+    : ['reference', 'external-reference'].includes(state.source.media) ? 'Reference photo' : 'Saved work');
+}
 function urlKey(url: string): string {
   return new URL(url, document.baseURI || 'http://localhost/').href;
 }
@@ -341,7 +347,7 @@ export class WorkspaceWindows {
   private create(state: WindowState, batch: WindowBatch): WindowRow {
     const root = document.createElement('section'); root.className = 'workspace-window'; root.dataset.presentationId = state.id;
     const retained = studyResourceReference(state.source.identity.resource);
-    if(retained)root.dataset.studyRetained=JSON.stringify({resource:retained,title:state.title,zoom:1,pan:[.5,.5]});
+    if(retained)root.dataset.studyRetained=JSON.stringify({resource:retained,title:windowTitle(state),zoom:1,pan:[.5,.5]});
     root.dataset.staged = 'true'; // actual media preparation, independent of backend transaction staging
     root.id = `presentation-${uuid()}`; root.setAttribute('aria-label', state.title); root.setAttribute('role', 'region');
     Object.assign(root.style, { position: 'absolute', boxSizing: 'border-box' });
@@ -473,8 +479,7 @@ export class WorkspaceWindows {
     else { this.layoutMedia(row); if (row.load.state === 'loaded' || row.load.state === 'drawn') this.scheduleDraw(row, row.liveSample ?? row.heldSample); }
   }
   private reflect(row: WindowRow): void {
-    const title = row.state.title || (row.state.source.kind === 'live' ? 'Live magnification'
-      : ['reference', 'external-reference'].includes(row.state.source.media) ? 'Reference photo' : 'Saved work');
+    const title = windowTitle(row.state);
     row.title.textContent = title; row.title.title = title; row.root.setAttribute('aria-label', title);
     if (!row.pending.has('open') && !row.pending.has('hidden')) row.root.hidden = row.dismissed || !row.state.open || !!row.state.view.hidden || row.root.dataset.phoneHidden === 'true';
     row.root.dataset.group = row.state.view.group ?? '';

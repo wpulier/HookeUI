@@ -2043,6 +2043,11 @@ function diagnostic(error: unknown, options: LocalNoticeOptions = { deduplicate:
   chat.system(askError(error), options);
   return () => {}; // Activity retains local occurrences after a transient condition retires.
 }
+// The Project arrangement's own checks that did not pass (workspace-views.ts layoutDiagnostic): Activity, never a toast.
+window.addEventListener('workspace-layout-diagnostic', (event) => {
+  const detail = (event as CustomEvent<unknown>).detail;
+  if (typeof detail === 'string' && detail) diagnostic(new Error(detail));
+});
 function requestSendFailed(error: unknown): void {
   updateAskAvailability(); diagnostic(error, { deduplicate: false });
   askStatus.hidden = false;

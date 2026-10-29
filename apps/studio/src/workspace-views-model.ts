@@ -48,6 +48,24 @@ export function layoutForServer(layout:WorkspaceLayout,supported:LayoutSchema):{
  if(supported>=6)return {schema:layout.schema,coordinates:'stage',views:layout.views};
  return {schema:Math.min(layout.schema,supported) as LayoutSchema,coordinates:'stage',views:layout.views.filter(v=>v.kind!=='reader')};
 }
+/** A layout save that met a newer revision, rebased (WorkspaceViews.rebase): `local` (what this window shows) on top
+ * of `server` (saved since this window's base `known`). The Tabs, items and notes added on the server since `known`,
+ * and not here, are kept; everything here stays as it is, so nothing this window shows is lost and nothing another
+ * window added is dropped. A Tab removed here since `known` is not brought back. */
+export function rebasedLayout(local:WorkspaceLayout,server:{schema?:number;views?:WorkspaceView[]},known:{views?:WorkspaceView[]}):WorkspaceLayout {
+ const next=structuredClone(local);
+ const placements=(views:readonly WorkspaceView[]|undefined)=>new Set((views??[]).flatMap(v=>[...v.items,...v.notes].map(i=>i.placementId).filter((p):p is string=>!!p)));
+ const knownViews=new Set((known.views??[]).map(v=>v.id)),knownPlaced=placements(known.views),here=placements(next.views);
+ for(const view of server.views??[]){
+  const mine=next.views.find(v=>v.id===view.id);
+  if(!mine){if(!knownViews.has(view.id)&&next.views.length<24)next.views.push(structuredClone(view));continue;}
+  for(const item of view.items)if(item.placementId&&!here.has(item.placementId)&&!knownPlaced.has(item.placementId))mine.items.push(structuredClone(item));
+  for(const note of view.notes)if(note.placementId&&!here.has(note.placementId)&&!knownPlaced.has(note.placementId))mine.notes.push(structuredClone(note));
+ }
+ if(typeof server.schema==='number'&&LAYOUT_SCHEMAS.includes(server.schema as LayoutSchema)&&server.schema>next.schema)next.schema=server.schema as LayoutSchema;
+ bumpForSchema5(next);
+ return next;
+}
 /** True when the layout holds a field only schema 5 can save. */
 export function needsSchema5(layout:Pick<WorkspaceLayout,'views'>):boolean {
  return layout.views.some(v=>v.kind!==undefined||v.provenance!==undefined||v.compare!==undefined||
