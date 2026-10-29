@@ -99,6 +99,32 @@ def test_a_nudge_is_the_same_field_and_small_nudges_that_add_up_are_a_move():
     assert kinds(told) == ["slide-moved"]
 
 
+def test_continuity_lost_on_the_same_picture_is_not_a_move_and_on_another_picture_is():
+    """The part-2.5-watch bench (a still picture, a starved machine): the tracker lost continuity and the voice said
+    "the slide moved again". After a cut, the picture is compared with the field's last still one (the hub's
+    thumbnail): the same place is no move; another picture still is, with how well it matched."""
+    import numpy as np
+
+    rng = np.random.default_rng(1)
+    here, elsewhere = rng.uniform(0, 255, (64, 64)).astype(np.float32), rng.uniform(0, 255, (64, 64)).astype(np.float32)
+    content = SimpleNamespace(previous=here)
+    hub = SimpleNamespace(latest_info=None, layer=None, view_held=False, content=content)
+    watch, told, logged = watcher("chatty", hub=hub)
+    feed = Feed(watch)
+    feed.still(3)
+    feed.frame(steady=False, tracked=False)
+    feed.epoch = 2  # continuity lost; the picture is the same (plus noise)
+    content.previous = here + rng.normal(0, 8, (64, 64)).astype(np.float32)
+    feed.still(W.CUT_SETTLE_S + 1)
+    assert told == [] and logged[-1]["kind"] == "watch-skip" and logged[-1]["pictureMatch"] >= W.SAME_PLACE_SCORE
+    feed.still(W.REST_S)
+    feed.frame(steady=False, tracked=False)
+    feed.epoch = 3  # continuity lost, and the picture is another place
+    content.previous = elsewhere
+    feed.still(W.CUT_SETTLE_S + 1)
+    assert kinds(told) == ["slide-moved"] and told[0][0].facts["pictureMatch"] < W.SAME_PLACE_SCORE
+
+
 def test_a_nudge_after_a_long_rest_is_measured_from_where_it_rested():
     """The June 14 leaf recording (real footage, bench/watch_bench.py --video): a move said, then an 80 px adjustment,
     108 s at rest, and a 46 px nudge: "the slide moved" was said for the nudge (the adjustment and the nudge added up).
@@ -446,12 +472,12 @@ def test_a_watcher_event_reaches_the_real_session_said_when_quiet_with_its_mark_
         response = t.sb.sent[-1]["response"]
         assert response["metadata"]["cause"] == "proactive" and response["tool_choice"] == "none"
         facts = [i for i in t.sb.items() if i.get("role") == "system" and "slide-moved" in i["content"][0]["text"]]
-        assert facts and '"eventT"' not in facts[0]["content"][0]["text"]  # the wall clock as hh:mm:ss, the log has eventT
+        assert facts and '"eventT"' not in facts[0]["content"][0]["text"]  # hh:mm:ss for the voice; eventT is the log's
         said = await until_async(lambda: next((r for r in t.logged if r["kind"] == "partner-proactive"), None))
         assert said["ref"] == watch.events[0].id and said["markTarget"] == "frame"
         await t.partner.happened("slide-moved", '{"event": "slide-moved"}', ref="v9", delivery="context")
         await asyncio.sleep(0.05)
         assert t.sb.responses == 1
-        assert any(i["content"][0]["text"].startswith("Context only") and '"event": "slide-moved"' in i["content"][0]["text"]
-                   for i in t.sb.items() if i.get("role") == "system")
+        notes = [i["content"][0]["text"] for i in t.sb.items() if i.get("role") == "system"]
+        assert any(n.startswith("Context only") and '"event": "slide-moved"' in n for n in notes)
     asyncio.run(go())

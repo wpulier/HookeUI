@@ -22,7 +22,8 @@ second), light flicker and JPEG at the bridge's quality. Each scenario knows whe
   cd services && .venv/bin/python -m bench.watch_bench --video REC.mp4      # a real recording: every event listed
 
 A real recording has no truth here: its events are listed with their times for a person to check against the video
-(a steady stretch of one, with nothing happening, gives its false alarms per hour). Results: docs/bench/voice-journeys.md, "The watcher on footage".
+(a steady stretch of one, with nothing happening, gives its false alarms per hour).
+Results: docs/bench/voice-journeys.md, "The watcher on footage".
 """
 from __future__ import annotations
 
@@ -40,7 +41,7 @@ from orchestrator import view_watch as W
 from orchestrator.coach import Coach
 from orchestrator.fov import FovTracker, edge_radius
 from orchestrator.motion import MotionTracker
-from orchestrator.quality import Quality, view_stats
+from orchestrator.quality import Content, Quality, thumbnail, view_stats
 
 ROOT = Path(__file__).resolve().parents[2]
 STILL = ROOT / "assets" / "examples" / "human_mitosis.png"
@@ -124,10 +125,10 @@ def scenario(name: str, minutes: float) -> tuple[list, list[tuple[str, str]]]:
 
 def analyse(frames, fps: float, *, mode: str = "chatty", t0: float = 1000.0):
     """Every frame through the hub's analysis and the watcher; yields (t, info) and returns what it raised."""
-    fov_tracker, motion, quality = FovTracker(), MotionTracker(), Quality()
+    fov_tracker, motion, quality, content = FovTracker(), MotionTracker(), Quality(), Content()
     clock = Clock(t0)
     coach = Coach(lambda m: None, clock=clock)
-    hub = SimpleNamespace(latest_info=None, layer=None, view_held=False)
+    hub = SimpleNamespace(latest_info=None, layer=None, view_held=False, content=content)
     logged = []
     watch = W.ViewWatch(hub, mode=lambda: mode, log=logged.append,
                         sweep=lambda: None if coach.sweeping_since is None else ("phone" if coach.phone else "knob"))
@@ -140,6 +141,7 @@ def analyse(frames, fps: float, *, mode: str = "chatty", t0: float = 1000.0):
         fov = fov_tracker.update(gray)
         sample = motion.update(i + 1, gray, fov)
         focus, mean, std, saturated = view_stats(gray, fov)
+        content.update(thumbnail(gray, fov), t)  # the hub's thumbnail of the view (a cut is checked against it)
         info = SimpleNamespace(id=i + 1, width=gray.shape[1], height=gray.shape[0], dx=sample.dx, dy=sample.dy,
                                epoch=sample.epoch, tracked=sample.tracked, steady=sample.steady, fov=fov, wall_at=t,
                                focus=focus, quality=quality.flags(focus, mean, std, saturated, sample.epoch),

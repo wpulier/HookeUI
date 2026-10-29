@@ -13,7 +13,7 @@ frame only). Watches the user asked for ("tell me when they stop moving") are wa
   - **slide-moved:** the view settled (`sight.SETTLE_S` still) on a new place, more than `sight.MOVED_FRACTION` of the
     eyepiece's radius from where it last rested (`REST_S`; Sight's "the view changed"), or after continuity was lost
     (a new motion epoch: too fast to follow, or another picture), confirmed once the tracker had `CUT_SETTLE_S` to
-    rejoin a place seen before (a rejoin to the same place is no move);
+    rejoin a place seen before and only when the picture is not the field's last still one (`same_place`);
   - **focus-drifted:** on a settled field with texture, the sharpness (the Laplacian's variance over the contrast
     squared, so a change of light is not a change of focus) stayed under `DRIFT_SHARE` of the sharpest this field
     looked since it settled for `DRIFT_HOLD_S`, while nobody turned the knob (the coach's sweep); after the knob, the
@@ -66,6 +66,15 @@ CUT_SETTLE_S = 1.2  # after continuity was lost: still this long, so a rejoin of
 # to the ones before (the June 14 leaf recording: an 80 px adjustment after a move, 108 s at rest, then a 46 px nudge
 # said "the slide moved"). Shorter stops in one repositioning still add up.
 REST_S = 3.0
+# After continuity was lost, the picture now is compared with the field's last still picture (the hub's 64 px thumbnail
+# of the eyepiece view, quality.thumbnail, made every frame for Content; refreshed each THUMB_EVERY_S while it rests):
+# matching at least as well as the hub's re-find of an outline across epochs (REFIND_ACROSS_EPOCHS_SCORE), it is the
+# same place, not a move. The part-2.5-watch bench: a still picture lost continuity on a starved machine and the voice
+# said "the slide moved again". The June 14 leaf recording: the same place 0.94-1.00 within 15 s, other fields
+# 0.07-0.30.
+SAME_PLACE_SCORE = 0.8
+SAME_PLACE_MARGIN = 10  # thumbnail px each way the picture may have shifted
+THUMB_EVERY_S = 1.0
 FOCUS_WINDOW_S = 1.0  # sharpness is the median over this long (the scope's breathing: 6% median, 29% at most, a second)
 DRIFT_SHARE = 0.6  # under this share of the field's sharpest...
 DRIFT_HOLD_S = 3.0  # ...for this long, with nobody turning the knob: focus drifted
@@ -190,6 +199,8 @@ class ViewWatch:
         self._field: _Field | None = None
         self._steady_since: float | None = None
         self._previous: tuple | None = None  # (epoch, dx, dy, steady) of the frame before
+        self._thumb = None  # the field's last still picture (the hub's thumbnail), and when it was taken
+        self._thumb_at = 0.0
         self._epochs: set[int] = set()  # every motion epoch seen
         self._focus: deque = deque()
         self._best: tuple | None = None  # (sharpness, raw, at, disc) of the field's sharpest
@@ -252,12 +263,25 @@ class ViewWatch:
         if moved is not None and moved < MOVED_FRACTION * radius:
             if t - self._steady_since >= REST_S and (info.dx, info.dy) != (anchor.dx, anchor.dy):
                 self._field = _Field(info.epoch, info.dx, info.dy, anchor.at)  # it rests here: the same field
+            if t - self._thumb_at >= THUMB_EVERY_S:
+                self._thumb, self._thumb_at = self._picture(), t
             return  # still, or a nudge: the same field
+        if moved is None:
+            score = same_place(self._thumb, self._picture())
+            if score is not None and score >= SAME_PLACE_SCORE:
+                # Continuity was lost (a starved or glitching feed) but the picture is where it rested: not a move.
+                self._field = _Field(info.epoch, info.dx, info.dy, anchor.at)
+                self.log({"kind": "watch-skip", "event": "slide-moved", "frame": info.id,
+                          "pictureMatch": round(score, 2),
+                          "why": "continuity was lost, but the picture is the place the view rested"})
+                return
         since = self._steady_since
         facts: dict = {"stillForS": round(t - self._steady_since, 1), "frame": info.id}
         if moved is None:
             facts["continuity"] = ("lost: the view changed too fast to follow (or to another picture), so how far it "
                                    "moved is not known")
+            if score is not None:
+                facts["pictureMatch"] = round(score, 2)  # with the field's last still picture (1: the same)
         else:
             facts["moved"] = {"fieldsOfView": round(moved / (2 * radius), 2), "px": round(moved)}
             um = self.um_per_px()
@@ -269,8 +293,14 @@ class ViewWatch:
         self._new_field(info, t)
         self._raise("slide-moved", info, t, since, facts, ["frame"], region=[0.04, 0.04, 0.92, 0.92])
 
+    def _picture(self):
+        """The hub's newest thumbnail of the eyepiece view (Content keeps it for the frozen-feed check): a reference,
+        replaced, never changed in place, by the analysis thread."""
+        return getattr(getattr(self.hub, "content", None), "previous", None)
+
     def _new_field(self, info, t: float) -> None:
         self._field = _Field(info.epoch, info.dx, info.dy, t)
+        self._thumb, self._thumb_at = self._picture(), t
         self._focus.clear()
         self._best, self._low_since, self._drift_said, self._blurred = None, None, False, False
         self._pop = None
@@ -436,6 +466,21 @@ class ViewWatch:
                   "sinceT": round(since, 3), "frame": event.frame, "delivery": rule, "to": to, "pointAt": point,
                   "facts": facts})
         return event
+
+
+def same_place(before, now) -> float | None:
+    """How well the middle of one thumbnail matches the other, allowing SAME_PLACE_MARGIN px of shift (normalised
+    correlation; 1: the same picture), or None when either is missing or blank (a blank view says nothing)."""
+    import cv2
+    import numpy as np
+
+    if before is None or now is None or getattr(before, "shape", None) != getattr(now, "shape", None):
+        return None
+    m = SAME_PLACE_MARGIN
+    if before.shape[0] <= 3 * m or float(np.std(before)) < 1.0 or float(np.std(now)) < 1.0:
+        return None
+    template = np.ascontiguousarray(before[m:-m, m:-m], np.float32)
+    return float(cv2.matchTemplate(np.ascontiguousarray(now, np.float32), template, cv2.TM_CCOEFF_NORMED).max())
 
 
 def _member_order(mid: str) -> tuple:
