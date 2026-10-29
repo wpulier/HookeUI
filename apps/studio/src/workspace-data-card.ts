@@ -6,6 +6,8 @@
  * exactly one kind (Other catches the rest, so nothing becomes unreachable); and a card shows at most three actions,
  * the others one step away under Details. No action is removed: `cardActions` places every one the card had. Since the
  * workspace-feel pass (step 4) a result is a row and its actions are its ⋯, in `menuActions` order. */
+import { materialKind } from './project-inputs';
+import type { ProjectMaterial } from './data-roles';
 import { artifactPresentation } from './workspace-study-content';
 import { resultGroup, type StudyResource } from './workspace-study-model';
 import { madeByName } from './tools-catalog';
@@ -18,7 +20,7 @@ export const DATA_FILTERS: readonly [DataFilter, string][] = [
   ['notes', 'Notes'], ['research', 'Research'], ['lessons', 'Lessons & presentations'], ['other', 'Other'],
 ];
 
-type Entry = Pick<StudyResource, 'kind' | 'table' | 'product'>;
+type Entry = Pick<StudyResource, 'kind' | 'table' | 'product'> & {material?: ProjectMaterial};
 
 export function dataKind(entry: Entry): DataKind {
   if (['population', 'named-outline', 'individual'].includes(entry.kind)) return 'masks';
@@ -36,7 +38,7 @@ export function dataKind(entry: Entry): DataKind {
 export function kindWords(entry: Entry & { version?: number | null }): string {
   const words: Record<DataKind, string> = { masks: 'Masks', tables: 'Table', tracks: 'Tracks', answers: 'Answer', notes: 'Note', research: 'Research', lessons: '', other: '' };
   const plain = entry.kind.replace(/-/g, ' ');
-  const word = words[dataKind(entry)] || plain.charAt(0).toUpperCase() + plain.slice(1);
+  const word = entry.kind === 'project' && entry.material ? materialKind(entry.material.kind) : words[dataKind(entry)] || plain.charAt(0).toUpperCase() + plain.slice(1);
   // A missing revision is said under Technical details, not in the eyebrow (2026-10-23 audit: internal facts off the card's face).
   const revision = typeof entry.version === 'number' && entry.version > 0 ? ` · revision ${entry.version}` : '';
   return `${word}${revision}`;

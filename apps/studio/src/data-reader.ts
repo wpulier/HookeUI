@@ -27,6 +27,11 @@ import { daysAgo, monthDay } from './sessions';
 import { clock } from './working-strip';
 import type { AssetMeta, ResearchOutput, ResearchSession } from './protocol';
 import type { StudyResource } from './workspace-study-model';
+import { showScientificSource, showScientificFolder } from './scientific-file-import';
+import { showMatrixResult } from './scientific-matrix-result';
+import { readMaterialRevision } from './project-material-reader';
+import { materialKind } from './project-inputs';
+import type { ProjectMaterial } from './data-roles';
 import './data-reader.css';
 
 /** Who made something, as the server says it (wire contract S2); null when its record cannot tell. */
@@ -47,7 +52,7 @@ export interface ReaderSourceValues { url: string; site: string; title: string; 
  * Project (`asset`, from the sources model). */
 export type ReaderEntry = StudyResource & {
   role?: string | null; maker?: ReaderMaker | null; run?: string | null; forms?: ReaderForm[]; values?: ReaderSourceValues;
-  untrusted?: boolean; asset?: AssetMeta;
+  untrusted?: boolean; asset?: AssetMeta; material?: ProjectMaterial;
 };
 /** The detail route's reply (`GET /api/resources/<id>`), with the contract's `how`. */
 interface Detail { entry?: ReaderEntry; detail?: { text?: string }; how?: ReaderHow; error?: string }
@@ -100,7 +105,8 @@ export function makerOf(entry: Pick<ReaderEntry, 'id' | 'kind' | 'maker' | 'made
 export const makerWords = (maker: ReaderMaker): string => maker.kind === 'you' ? 'You' : maker.kind === 'assistant' ? 'The Assistant' : maker.name;
 
 /** The kind in a word, as the header and the first view say it. */
-export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures'>): string {
+export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material'>): string {
+  if (entry.kind === 'project' && entry.material) return materialKind(entry.material.kind);
   const shape = readerShape(entry);
   switch (shape) {
     case 'masks': return 'Outlines';
@@ -121,7 +127,7 @@ export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | '
   }
 }
 /** The first view's name: Page for a write-up, Source for a source, else the kind's word. */
-export const thingView = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures'>): string =>
+export const thingView = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material'>): string =>
   readerShape(entry) === 'writeup' ? 'Page' : readerShape(entry) === 'source' ? 'Source' : kindWord(entry);
 
 /** Everything a researcher made, as its Tab's reader switches between them (the mock's research-docs frame): Data's
@@ -850,6 +856,24 @@ export class DataReader {
   /** An answer or anything else: its picture when it has one, and its words. */
   private async drawAnswer(body: HTMLElement, signal: AbortSignal): Promise<void> {
     const entry = this.entry!;
+    if (entry.kind === 'project' && ['file', 'folder', 'model', 'analysis'].includes(entry.material?.kind ?? '')) {
+      this.loading(body, 'Reading saved material…');
+      const ref = {id: entry.id, day: entry.day ?? '', version: Number(entry.version)};
+      const document = await readMaterialRevision(ref, entry.source?.sha256, signal);
+      if (signal.aborted) return;
+      const open = async (target: {id: string; version: number; title: string}) => {
+        if (signal.aborted) return;
+        const targetRef = {...ref, id: target.id, version: target.version};
+        const saved = await readMaterialRevision(targetRef, undefined, signal);
+        if (signal.aborted) return;
+        const {openStudyScientific} = await import('./scientific-document');
+        if (!signal.aborted) await openStudyScientific({resource: {...targetRef, picture: null}, title: String(saved.title ?? target.title), zoom: 1, pan: [0, 0]});
+      };
+      body.replaceChildren();
+      if (document.kind === 'source-file') { showScientificSource(body, document.state, ref, undefined, document.resources); return; }
+      if (document.kind === 'source-directory') { showScientificFolder(body, document.state, ref, open); return; }
+      if (document.kind === 'matrix-result') { showMatrixResult(body, document.state, ref, document.resources, open); return; }
+    }
     const parts: HTMLElement[] = [];
     const picture = entry.pictures?.find((p) => typeof p === 'string') as string | undefined;
     if (picture) { const fig = el('div', 'rd-fig rd-fig-free'), img = el('img'); img.src = picture; img.alt = readerTitle(entry.title, entry.kind); img.decoding = 'async'; fig.append(img); parts.push(fig); }
