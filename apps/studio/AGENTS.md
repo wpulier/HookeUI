@@ -1,3 +1,10 @@
+A Project with retained Studies uses its empty stage as a return point to those Studies:
+question, recorded experiment/input/report counts and Open Study. Counts are history,
+not running-status or scientific acceptance. Existing Data and Inputs remain the ways
+to inspect material or choose a camera. Opening starts nothing. Project switches clear
+old summaries immediately; late reads and stale buttons cannot act on another Project.
+The Assistant retains its same connected-agent entry and current-Project setup prompt.
+
 The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
 Settings owns connection and Project grants. Copy setup prompt uses the channel's returned playbook,

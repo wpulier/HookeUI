@@ -1,3 +1,4 @@
+import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
 import {configureDataTableDocuments} from './datatable-presentation';
 import { scientificAskSelection, clearScientificAsk } from './scientific-ask-input';
@@ -439,6 +440,10 @@ const researcherBrowser=el('section','study-researcher-browser');
 // Researchers list (researchers-board.ts), after its researchers.
 /** This Project's studies as last read (All Tabs ⌄ and the Researchers list); null when this build has none. */
 let knownStudies:Effort[]=[];
+const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
+  data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
+});
 let studiesAvailable=false;
 let studiesNote='';
 async function refreshStudies():Promise<void>{
@@ -489,6 +494,7 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote);
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -2200,6 +2206,7 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
+  if (next.session !== previous.session) { knownStudies = []; studiesNote = ''; studiesAvailable = false; }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();
