@@ -99,3 +99,12 @@ test('only refuses when what was to stay is not on the Tab, closing nothing',()=
  expect(()=>Reflect.get(WorkspaceViews.prototype,'only').call(current,v,['v9'])).toThrow(/not open on this Tab/);
  expect(table.close).not.toHaveBeenCalled();
 });
+
+test('the Tab strip\'s report says each Tab\'s kind and what it holds, the same model tabs list reads',()=>{
+ const roots=[root({workspaceView:'main',placementId:'v1',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'https://www.youtube.com/watch?v=abc'})})];
+ const views=[{id:'main',title:'Main',specimen:{visible:true,rect:null},items:[item('table','e3','b')],notes:[]},
+  view([item('masks','e3','a')],{id:'t1'}),{...view([]),id:'r',kind:'reader' as const,items:[{resource:{day:'p',id:'d2',version:null},title:'Report'} as unknown as WorkspaceView['items'][number]]}];
+ const current=Object.assign(Object.create(WorkspaceViews.prototype),{layout:{active:'main',views},roots:()=>roots});
+ expect(Reflect.get(WorkspaceViews.prototype,'holdsReport').call(current)).toEqual({
+  main:{kind:'work',holds:{table:1,video:1}},t1:{kind:'work',holds:{outlines:1}},r:{kind:'reader',holds:{document:1}}});
+});

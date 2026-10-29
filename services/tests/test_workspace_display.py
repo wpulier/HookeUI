@@ -337,8 +337,9 @@ def test_only_closes_everything_else_and_puts_the_specimen_away_done_on_the_repo
                                  'rect': [40, 80, 420, 380], 'representation': 'table',
                                  'resource': {'day': studio.project, 'id': f'd{p[1]}', 'version': 0, 'picture': 0}}
         await studio.send_report()
-        run = await asked(app, studio, 'tabs', {'action': 'only', 'tab': 'main', 'keep': ['document:p2']})
+        run = await asked(app, studio, 'tabs', {'action': 'only', 'tab': 'Main', 'keep': ['document:p2']})
         assert run.ok is True, run.summary
+        assert studio.sent('workspace-tabs')[-1]['action']['tab'] == 'main', 'a Tab named by its title, sent by its id'
         assert list(studio.windows) == ['p2'] and studio.specimens['main']['state'] == 'float', 'Main floats, never hides'
         assert json.loads(run.summary)['shown']['windows'] == ['document:p2']
         intent = intent_of('tabs', {'action': 'only', 'tab': 'main', 'keep': ['document:p2']})

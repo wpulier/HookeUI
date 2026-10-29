@@ -79,6 +79,17 @@ class WorkspaceTabs:
         if action == 'only':
             # A window id as the screen shows it (document:<placement>) is its placement on the Tab.
             args = {**args, 'keep': [k.removeprefix('document:') for k in args['keep']]}
+        if action in ('arrange', 'only') and 'tab' in args:
+            # "This Tab", or a Tab by its title as the screen shows it: its id from the latest report's Tab strip.
+            from .placement import strip as tab_strip
+
+            observed = screen_of(app.hub).observation(ctx.client)
+            tabs = tab_strip(observed.wire() if observed is not None else None).get('tabs') or ()
+            if not any(t.get('id') == args['tab'] for t in tabs):
+                named = [t for t in tabs if " ".join(str(t.get('title') or '').split()).casefold()
+                         == " ".join(args['tab'].split()).casefold()]
+                if len(named) == 1:
+                    args = {**args, 'tab': named[0]['id']}
         if action not in ('list', 'create') and 'tab' not in args:
             raise ToolFailed('name the exact target Tab', next='list the Tabs first')
         if action in ('create', 'rename') and not str(args.get('title') or '').strip():

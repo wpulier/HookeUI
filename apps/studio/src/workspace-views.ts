@@ -1145,7 +1145,7 @@ private revision=0;private generation=0;private revealSequence=0;
   // Each Tab with what it holds, by kind (workspace-model.ts): its items (saved windows, then the windows open on it the
   // arrangement does not save), counted by kind in `holds`, its input and its specimen; a researcher's or Study's Tab
   // with what it shows. "Which Tab has the measurements?" is answered from these kinds, never from a title.
-  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected),roots=this.roots(),limit=args.tab?LIST_ITEMS:8;return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
+  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected),roots=this.roots(),limit=args.tab?LIST_ITEMS:this.layout.views.length>12?4:8;/* within the reply's 64 KiB; holds counts them all */return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
    ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>{const items=tabItems(v,roots);return {id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),
     ...(v.input?{input:{source:v.input.source,kind:this.opts.describeInput?.(v.input.source)??'live'}}:{}),holds:holds(items),omittedItems:Math.max(0,items.length-limit),items:items.slice(0,limit)};}),
    ...research.filter(t=>args.action!=='list'||!args.tab||t.id===args.tab).map(t=>({...t,omittedItems:0,items:[]}))]};};
