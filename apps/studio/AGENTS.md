@@ -1942,3 +1942,5 @@ The Study discussion uses compact attributed question bubbles, readable agent re
 expandable evidence and scope/limitations. Its existing composer keeps the recipient beside
 Send. A pending question exposes a copyable handoff in that question, not a permanent
 page-wide instruction; connection authorization still does not claim a running agent.
+
+Main's research overview aggregates every retained Study in its Project. A Study is an effort, not an actor or an output. Creation dates come from the first retained revision; authorship is grouped by stable identity, never by label. The overview reads existing workflow evidence with bounded fan-out; interrupted, unstarted and failed-refresh states never imply running work. Study lifecycle stays separate from execution. Contributor origins, unanswered questions, reports and dated admissions remain inspectable, and report language is not accepted as a finding. Same-Project refresh preserves disclosures/focus; Project-opening guards still protect stale actions. Existing Hooke researcher records appear separately, with their observed state and model, without inventing external-agent liveness.

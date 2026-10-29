@@ -177,3 +177,20 @@ def test_findings_require_retained_outcomes_and_document_save_cannot_forge_spend
 def test_invalid_money_refuses(value):
     with pytest.raises(InvalidProject):
         money(value)
+
+
+def test_list_dates_creation_from_first_revision_and_keeps_original_initiator(effort):
+    service, saved = effort
+    original = saved.at
+    reserve(service, saved)
+    listing = service.list(saved.session)[0]
+    assert listing['createdAt'] == original
+    assert listing['updatedAt'] == service.read(saved.id, saved.session).at
+    assert 'createdBy' not in listing  # Legacy author is unknown, never guessed.
+    attributed = service.create(saved.session, request='attributed', title='New effort',
+        objective='Compare', criteria='Measured', budget_usd=0,
+        attribution={'by': 'agent:ac_0123456789abcdef', 'byLabel': 'Lead'})
+    reopened = Efforts(ProjectStore(service.store.root))
+    row = next(r for r in reopened.list(saved.session) if r['id'] == attributed.id)
+    assert row['createdAt'] == attributed.at
+    assert row['createdBy']['by'] == 'agent:ac_0123456789abcdef'

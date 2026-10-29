@@ -7,8 +7,9 @@ afterEach(() => vi.unstubAllGlobals());
 const study = (session = 'p1'): Effort => ({id:'s1',session,revision:1,digest:'digest',title:'Response transfer',
   objective:'Does the fitted response generalize?',criteria:'Measured error',status:'active',capMicrousd:0,
   spentMicrousd:0,heldMicrousd:0,availableMicrousd:0,inputs:[{id:'data',revision:2,digest:'data-digest'}],tasks:{},
-  experiments:{first:{operation:'op1',byLabel:'Codex',execution:{id:'run1',session}}},findings:[],
-  claims:[{request:'claim',statement:'Observed a limitation',byLabel:'Claude Code',evidence:[],dependsOn:[]}]});
+  createdAt:1793230000,createdBy:{by:'agent:ac_one',byLabel:'Codex'},
+  experiments:{first:{by:'agent:ac_one',operation:'op1',byLabel:'Codex',execution:{id:'run1',session}}},findings:[],
+  claims:[{by:'agent:ac_two',request:'claim',statement:'Observed a limitation',byLabel:'Claude Code',evidence:[],dependsOn:[]}]});
 function setup() {
   const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
   const host = new TestElement('section'); let current = 'p1';
@@ -22,8 +23,8 @@ test('retained question and evidence replace new-project onboarding without star
   const {home,host,root,actions,button} = setup(); home.update('p1',[study()]);
   expect(host.dataset.projectResearch).toBe('true'); expect(root.hidden).toBe(false);
   expect(root.textContent).toContain('Does the fitted response generalize?');
-  expect(root.textContent).toContain('1Inputs'); expect(root.textContent).toContain('1Experiments');
-  expect(root.textContent).toContain('1Reports'); expect(root.textContent).toContain('0Findings');
+  expect(root.textContent).toContain('1 inputs'); expect(root.textContent).toContain('1Experiments');
+  expect(root.textContent).toContain('1 reports'); expect(root.textContent).toContain('0Findings');
   expect(root.textContent).toContain('Latest report'); expect(root.textContent).toContain('Observed a limitation');
   expect(root.textContent).not.toContain('Start a Project'); expect(actions.openStudy).not.toHaveBeenCalled();
   fire(button('Open Study') as unknown as TestElement, 'click'); expect(actions.openStudy).toHaveBeenCalledWith('s1');
@@ -40,7 +41,7 @@ test('another Project, a stale button and a late foreign Study cannot redirect t
 test('unchanged polling preserves the action node and a failed refresh qualifies the retained overview', () => {
   const {home,root,button} = setup(); home.update('p1',[study()]);const first=button('Open Study');
   home.update('p1',[study()]);expect(button('Open Study')).toBe(first);
-  home.update('p1',[study()],'Reconnect to refresh.');expect(root.textContent).toContain('Showing the last saved overview. Reconnect to refresh.');
+  home.update('p1',[study()],'Reconnect to refresh.');expect(root.textContent).toContain('Showing saved history. Reconnect to refresh.');
   home.update('p1',[]);expect(root.hidden).toBe(true);
 });
 
@@ -49,12 +50,13 @@ test('latest attributed report remains distinct from findings and exposes its li
   value.claims!.push({request:'new',statement:'<script>untrusted</script> New result',byLabel:'Codex',evidence:[],dependsOn:[],limitations:'No independent validation'});
   value.findings.push({request:'finding',statement:'Retained finding',tasks:[]});
   home.update('p1',[value]);
-  expect(root.textContent).toContain('2Reports'); expect(root.textContent).toContain('1Findings');
+  expect(root.textContent).toContain('2 reports'); expect(root.textContent).toContain('1Findings');
   expect(root.textContent).toContain('No independent validation');
   expect(root.textContent).toContain('Researcher report · not an accepted finding');
-  expect(root.textContent).not.toContain('Observed a limitation');
+  expect(root.textContent).toContain('Research history');
   expect(root.querySelectorAll('script')).toHaveLength(0);
-  expect(root.textContent).toContain('Contributions by Claude Code · Codex');
+  expect(root.textContent).toContain('Contributors & origins');
+  expect(root.textContent).toContain('2Agents contributed');
 });
 test('a study with no report offers an honest empty state and retains its question', () => {
   const {home,root} = setup();const value=study();value.claims=[];home.update('p1',[value]);
@@ -69,10 +71,11 @@ test('same-Project updates preserve disclosures, but a new report or Project sta
   details().forEach(item => { item.open = true; });
   const changed = study(); changed.revision++;
   home.update('p1',[changed], 'Refreshing');
-  expect(details().map(item => item.open)).toEqual([true,true]);
+  expect(details().every(item=>item.open)).toBe(true);
   changed.claims!.push({request:'replacement',statement:'Next result',byLabel:'Codex',evidence:[],dependsOn:[]});
   home.update('p1',[changed]);
-  expect(details()[0].open).toBe(true); expect(details()[1].open).not.toBe(true);
+  expect(details()[0].open).toBe(true);
+  expect(details().find(item=>item.dataset.disclosure?.endsWith(':report:replacement'))?.open).not.toBe(true);
   home.update('p2',[study('p2')]);
   expect(details().some(item => item.open)).toBe(false);
 });
