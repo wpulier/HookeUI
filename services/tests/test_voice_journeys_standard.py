@@ -104,7 +104,14 @@ def good():
              {"kind": "partner-proactive", "t": T0 + 70.2, "event": "researcher-done", "ref": "r2", "eventT": T0 + 70.0,
               "userBusy": False, "responseCreatedT": T0 + 70.2, "markTarget": "researcher:2"},
              {"kind": "partner-reconnect", "t": T0 + 81.2, "reason": "bench", "closedT": T0 + 80.05,
-              "readyT": T0 + 81.2, "ms": 1150, "midSpeech": False}]
+              "readyT": T0 + 81.2, "ms": 1150, "midSpeech": False},
+             # Hands: the table opened with its cue first; the user took over during the multi step, in 60 ms.
+             {"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
+              "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
+             {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
+              "version": 3, "revision": 10, "result": "verified"},
+             {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
+              "atServer": T0 + 75.06}]
     verdicts = {"outline": {"claims_on_screen": [1], "answered": True},
                 "table": {"claims_on_screen": [1], "answered": True},
                 "researcher": {"claims_on_screen": [], "answered": True},
@@ -700,8 +707,7 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
     assert result(lines, "do_in_hooke share") == "pass"
     assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
-    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)",
-                                                                       "Hands: cue first, takeover honored"))
+    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
 
 
 def test_think_on_a_quick_step_is_the_wrong_tool():
@@ -800,25 +806,47 @@ def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step
     assert "Here's a dividing nucleus" not in " ".join(rows["researcher"]["lines"])
 
 
-def test_hands_drive_is_reported_cue_first_takeovers_and_no_stale_action():
-    """claude/p25-best, Hands: each cue shown before its effect, the user's takeover reaching the server, no action
-    after a takeover planned on an older control version. Reported, not a gate."""
+def drive_records(stale=False, slow=False, hidden=False):
+    out = [{"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
+            "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
+           {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
+            "version": 3, "revision": 10, "result": "verified"},
+           {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
+            "atServer": T0 + (75.3 if slow else 75.06)}]
+    if hidden:
+        out.append({"kind": "partner-drive", "id": "d2", "intent": "highlight", "tool": "highlight", "target": "outline:o3",
+                    "sentT": T0 + 30.0, "shownT": None, "ok": False, "why": "hidden"})
+    if stale:
+        out.append({"kind": "partner-hands", "t": T0 + 76.0, "intent": "close", "tool": "present", "version": 3, "result": "verified"})
+    return out
+
+
+HANDS = ("partner-drive", "partner-hands", "partner-takeover")
+
+
+def test_drive_gates_cue_first_takeover_in_150_ms_and_nothing_after():
+    """The spec (part-2.5-live-partner-spec.md, section 1): every action visible as it happens, a takeover stops it
+    within 150 ms, no queued action runs after. Actions verified and cues never ended are details within the line."""
     bench, conv, inter, verdicts = good()
-    inter += [{"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
-               "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
-              {"kind": "partner-drive", "id": "d2", "intent": "highlight", "tool": "highlight", "target": "outline:o3",
-               "sentT": T0 + 30.0, "shownT": None, "ok": False, "why": "hidden"},
-              {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
-               "version": 3, "revision": 10, "result": "verified"},
-              {"kind": "partner-takeover", "t": T0 + 40.1, "why": "user-click", "version": 4, "atStudio": T0 + 40.0,
-               "atServer": T0 + 40.06},
-              {"kind": "partner-hands", "t": T0 + 41.0, "intent": "close", "tool": "present", "version": 3, "result": "verified"}]
     bench["events"] += [{"t": ms(12.4), "e": "ws-in", "m": {"type": "drive", "id": "d1"}},
                         {"t": ms(13.6), "e": "ws-in", "m": {"type": "drive-end", "id": "d1", "outcome": "verified"}}]
-    _, summary, lines = board(bench, conv, inter, verdicts)
-    line = lines["Hands: cue first, takeover honored"]
-    assert line["result"] == "reported" and line.get("gate") is False
-    assert "cues shown before the effect 1 of 2" in line["value"] and "studio to server max 0.06 s" in line["value"]
-    assert "older version 1 (must be 0)" in line["value"]
-    assert board(bench, conv, inter, verdicts, voice="gpt-live-1")[2]["Hands: cue first, takeover honored"]["result"] == \
+    inter = [r for r in inter if r.get("kind") not in HANDS]
+    line = lambda **k: board(bench, conv, inter + drive_records(**k), verdicts)[2]["Drive"]
+    good_line = line()
+    assert good_line["result"] == "pass" and "studio to server max 0.06 s" in good_line["value"]
+    assert "actions verified 1 of 1" in good_line["value"]
+    assert line(stale=True)["result"] == "FAIL" and line(slow=True)["result"] == "FAIL" and line(hidden=True)["result"] == "FAIL"
+    no_takeover = board(bench, conv, inter + drive_records()[:2], verdicts)[2]["Drive"]
+    assert no_takeover["result"] == "not measured: no takeover in the run"
+    assert board(bench, conv, inter + drive_records(), verdicts, voice="gpt-live-1")[2]["Drive"]["result"] == \
         "not applicable to this voice"
+
+
+def test_a_takeover_step_is_scored_on_stopping():
+    bench, conv, inter, verdicts = good()
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][4]["expect"] = {"tools": [], "toolRequired": False, "takeover": True}
+    row = lambda i: {r["id"]: r for r in board(bench, conv, i, verdicts, plan)[0]["steps"]}["explain"]
+    assert "no takeover reached the server" in row(inter)["failures"]
+    taken = [{"kind": "partner-takeover", "t": T0 + 42.2, "why": "mouse", "version": 5, "atStudio": T0 + 42.1, "atServer": T0 + 42.18}]
+    assert row(inter + taken)["takeover"] == [0.08] and not row(inter + taken)["failures"]

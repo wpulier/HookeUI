@@ -29,6 +29,12 @@ const page = context.pages()[0] ?? await context.newPage();
 const problems = [];
 page.on('pageerror', (error) => problems.push(`pageerror ${error.message}`.slice(0, 400)));
 page.on('console', (message) => { if (message.type() === 'error') problems.push(`console ${message.text()}`.slice(0, 400)); });
+// A takeover while the partner acts (the Drive line): the person's own mouse or Escape, trusted.
+await page.exposeFunction('__benchTakeover', async (how) => {
+  if (how === 'escape') await page.keyboard.press('Escape');
+  else { await page.mouse.move(700, 450); await page.mouse.move(760, 490, { steps: 6 }); }
+  return Date.now();
+});
 await page.exposeFunction('__benchKey', async (down) => {
   if (down) { await page.keyboard.down('Control'); await page.keyboard.down('Alt'); }
   else { await page.keyboard.up('Alt'); await page.keyboard.up('Control'); }

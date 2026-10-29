@@ -9,6 +9,7 @@
 //   frames  the live view on /ws each second: frames per second and their delay p50/p90 (MMF1 headers)
 //   mark    each mark the studio drew (svg#voice-marks .voice-mark), its rect and its target's, and when it cleared
 //   line    the voice's lines as they grow on /ws (when each part of a line was said, not only when it began)
+//   takeover  the person's mouse or Escape while the partner acted (a plan step's "takeover")
 //   staged  the bench put the specimen back on an empty stage (Use live camera, then the bridge plays the still)
 //   researchers  the Project's researchers from the orchestrator (/api/research; the board only when that fails),
 //           when they change; key, fault, check, recovered (the bench put the journey back where it belongs)
@@ -502,6 +503,27 @@
           if (mode === 'hold') { await sleep(200); record.up = await hold(false); }
           state.steps.push(record);
           if (step.kind === 'restart') continue;
+          if (step.takeover) { // the person takes over while the partner acts: at its first cue (a drive) after release
+            const from = Date.now();
+            let cue = null;
+            while (Date.now() - from < (step.takeover.waitMs ?? 20000) && !cue) {
+              cue = state.events.find((e) => e.e === 'ws-in' && (e.m || {}).type === 'drive' && e.t >= (record.up ?? record.end));
+              if (!cue) await sleep(20);
+            }
+            if (!cue) ev({ e: 'takeover', step: step.id, how: step.takeover.how, skipped: 'no cue to take over from' });
+            else {
+              await sleep(step.takeover.afterMs ?? 100);
+              const how = step.takeover.how || 'mouse';
+              let at;
+              if (typeof window.__benchTakeover === 'function') at = await window.__benchTakeover(how);
+              else {
+                if (how === 'escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                else window.dispatchEvent(new MouseEvent('mousemove', { clientX: 760, clientY: 490, bubbles: true }));
+                at = Date.now();
+              }
+              ev({ e: 'takeover', step: step.id, how, at, cue: (cue.m || {}).id });
+            }
+          }
           if (next && next.interrupt) { // the next words come in the middle of this answer
             await speaking(next.interrupt.afterMs ?? 4500, 30000, record.up ?? record.end);
             continue;

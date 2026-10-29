@@ -51,6 +51,7 @@ STANDARD = {
     "markLatencyMax": 0.2,
     "eventSpokenMax": 2.0,
     "reconnectMax": 2.0,
+    "takeoverMax": 0.15,  # Drive: from the studio's input to the server knowing
     "fpsKept": 0.9,  # live view frame rate at least this share of the baseline before Talk
     "delayAddedMaxS": 0.05,  # live view delay p90 no more than this above the baseline
     "plainShare": 0.9,  # answers of one or two sentences (the bench's reading of "one or two plain sentences")
@@ -708,6 +709,13 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         for e in checks:
             if e.get("ok") is False:
                 fail(f"after restart: {e['name']} missing ({e.get('detail', '')})")
+    if expect.get("takeover"):  # the bench took over while the partner acted: scored on stopping, not on finishing
+        mine = [r for r in inter if r.get("kind") == "partner-takeover" and isinstance(r.get("atServer"), (int, float))
+                and start <= r["atServer"] < end]
+        row["takeover"] = [round(r["atServer"] - r["atStudio"], 3) for r in mine if isinstance(r.get("atStudio"), (int, float))]
+        if not mine:
+            skipped = next((e.get("skipped") for e in bench["events"] if e.get("e") == "takeover" and e.get("step") == step["id"]), None)
+            fail(f"no takeover reached the server{f' ({skipped})' if skipped else ''}")
     recovered = [e for e in bench["events"] if e.get("e") == "recovered" and e.get("step") == step["id"]]
     if recovered:
         row["recovered"] = [{"what": e.get("what"), "from": e.get("from"), "ok": e.get("ok")} for e in recovered]
@@ -1058,7 +1066,7 @@ NOT_APPLICABLE = "not applicable to this voice"
 # Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
 # every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
 # by speaking over it).
-ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Hands: cue first, takeover honored", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Drive", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
 VOICES_WITHOUT = {"gpt-live-1"}
 
@@ -1110,14 +1118,21 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     th = s.get("think") or {}
     kinds = ", ".join(f"{kind} {k[0]} of {k[1]}" for kind, k in (th.get("byKind") or {}).items())
     unexpected = th.get("unexpected") or []
+    # Drive (the spec, section 1): every action visible as it happens, a takeover stops it within 150 ms, and no queued
+    # action runs after. Actions verified and cues never ended are details within the line.
     dv = s.get("drive") or {}
-    L.append({"area": "Acting", "line": "Hands: cue first, takeover honored", "gate": False, "threshold": "reported, not a gate",
-              "value": (f"cues shown before the effect {dv['cueFirst']} of {dv['cues']}; actions verified {dv['verified']} of "
-                        f"{dv['hands']}; takeovers {dv['takeovers']}"
-                        + (f" (studio to server max {dv['takeoverMax']:.2f} s)" if dv.get("takeoverMax") is not None else "")
-                        + f"; actions after a takeover on an older version {dv['staleAfterTakeover']} (must be 0)"
-                        + (f"; cues never ended {dv['unended']}" if dv.get("unended") else "")) if dv.get("cues") or dv.get("hands") else "—",
-              "result": "reported" if dv.get("cues") or dv.get("hands") else "not measured"})
+    measured = bool(dv.get("cues")) and bool(dv.get("takeovers"))
+    L.append(_line("Acting", "Drive",
+                   (f"cues before the effect {dv['cueFirst']} of {dv['cues']}; takeovers {dv['takeovers']}"
+                    + (f", studio to server max {dv['takeoverMax']:.2f} s" if dv.get("takeoverMax") is not None else "")
+                    + f"; actions after a takeover on an older version {dv['staleAfterTakeover']}"
+                    + f"; actions verified {dv['verified']} of {dv['hands']}"
+                    + (f"; cues never ended {dv['unended']}" if dv.get("unended") else "")) if dv.get("cues") or dv.get("hands") else "—",
+                   f"every cue first, takeover ≤ {S['takeoverMax']} s, 0 after a takeover",
+                   False if dv.get("staleAfterTakeover") or (dv.get("cues") and dv["cueFirst"] < dv["cues"])
+                   or (dv.get("takeoverMax") is not None and dv["takeoverMax"] > S["takeoverMax"])
+                   else True if measured else None,
+                   "no takeover in the run" if dv.get("cues") and not dv.get("takeovers") else ""))
     L.append({"area": "Acting", "line": "think share", "gate": False, "threshold": "reported, not a gate",
               "value": (f"{th['calls']} of {th['of']}" + (f" ({th['share']:.0%})" if th.get("share") is not None else "")
                         + (f"; by step kind: {kinds}" if kinds else "")
