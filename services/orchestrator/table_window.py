@@ -398,7 +398,13 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
                           tab=tab, guard=guard)
 
     if placement == "new-tab":
-        tab_id, tab_title, made = await _tab(services, ctx, tab or NEW_TAB_TITLE)
+        title_asked = tab
+        if not title_asked:  # a new Tab of its own: "Cell results", or "Cell results 2" when that one exists
+            listed = await _tabs(services, ctx, {"action": "list"})
+            taken = {" ".join(str(t.get("title") or "").split()).casefold() for t in listed.get("tabs") or ()}
+            title_asked = next(name for name in (NEW_TAB_TITLE, *(f"{NEW_TAB_TITLE} {n}" for n in range(2, 30)))
+                               if name.casefold() not in taken)
+        tab_id, tab_title, made = await _tab(services, ctx, title_asked)
         guard()
         outlines = bool(re.fullmatch(r"e\d+", target))
         if outlines:  # its outlines on their capture first (the masks window), then its table beside them

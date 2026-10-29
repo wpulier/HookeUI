@@ -282,7 +282,10 @@ def test_open_the_cell_results_in_a_new_tab_gives_their_outlines_and_their_table
         assert shown == ['masks', 'table']
         assert 'new Tab "Cell results"' in run.summary and "outlines on their capture" in run.summary
         actions = [m['action']['action'] for m in studio.sent('workspace-tabs')]
-        assert actions[:2] == ['list', 'create'] and 'add' in actions and actions[-1] == 'arrange'
+        assert actions[:3] == ['list', 'list', 'create'] and 'add' in actions and actions[-1] == 'arrange'
+        # A second time, a new Tab of its own again, never the first one reused.
+        run = await asked(app, studio, 'show_measurements', {'of': eid, 'placement': 'new-tab'})
+        assert run.ok is True and 'new Tab "Cell results 2"' in run.summary, run.summary
     asyncio.run(go())
 
 
