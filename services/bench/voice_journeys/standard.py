@@ -31,7 +31,9 @@ SPEAKS_S = 3.0  # a mark drawn this long before the voice starts speaking is "be
 SPEECH_END_CLEAR_S = 2.0  # marks clear about 1.5 s after the voice stops (contract); this is the bound checked
 USER_BUSY_S = 1.5  # "not talking": no key held, no speech in the last 1.5 s (Amendment 4)
 POINTING = {"mark"}  # tools that point rather than act: never the "first try"
-FALLBACK = "do_in_hooke"
+# The one brain's hand-offs of a whole request: do_in_hooke (to the brain), then think (to the frontier mind behind the
+# voice, claude/p25-think): a rare fallback under the standard (under 5% of its acting calls), whichever is used.
+HANDOFFS = ("do_in_hooke", "think")
 
 # The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard"). One place, so the scoreboard and the tests
 # read the same thresholds.
@@ -317,6 +319,8 @@ class Call:
     error: str = ""
     end: float | None = None
     number: int | None = None  # the researcher's number ("Researcher 2"), when the call says it
+    call_id: str | None = None
+    inner: list = None  # think: the frontier mind's own tool calls ({name, ok, confirmed})
 
 
 def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[Call]:
@@ -333,8 +337,46 @@ def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[C
         confirmed = r.get("reportT") if r.get("confirmed") is True and isinstance(r.get("reportT"), (int, float)) else None
         out.append(Call(str(r.get("name")), t, r.get("ok"), confirmed, bool(r.get("screenChange")), r.get("rid"),
                         r.get("ridT") if isinstance(r.get("ridT"), (int, float)) else None, str(r.get("error") or ""),
-                        r.get("endT") if isinstance(r.get("endT"), (int, float)) else None))
+                        r.get("endT") if isinstance(r.get("endT"), (int, float)) else None, call_id=r.get("callId")))
     return sorted(out, key=lambda c: c.start)
+
+
+def thinks(inter: list[dict]) -> dict[str, dict]:
+    """think's tasks by the call that started them (claude/p25-think): the call returns at once; partner-think says how
+    the frontier mind's work ended (its own tool calls inside, doneT); partner-think-said when its result was handed
+    to the voice; the voice's next "think" response says it, often during a later step. callId -> the task."""
+    said = {r.get("task"): r.get("responseCreatedT") for r in inter if r.get("kind") == "partner-think-said"
+            and isinstance(r.get("responseCreatedT"), (int, float))}
+    ends = audio_ends(inter)
+    spoken = sorted((r["firstAudioT"], response_end(r, ends) or r["firstAudioT"] + 10) for r in inter
+                    if r.get("kind") == "partner-response" and r.get("cause") == "think"
+                    and isinstance(r.get("firstAudioT"), (int, float)))
+    out = {}
+    for r in inter:
+        if r.get("kind") != "partner-think" or not r.get("callId"):
+            continue
+        at = said.get(r.get("task"))
+        span = next(((a, b) for a, b in spoken if at is not None and a >= at - NEAR_S), None)
+        out[r["callId"]] = {"task": r.get("task"), "n": r.get("n"), "ok": r.get("ok"), "doneT": r.get("doneT"),
+                            "tools": [t for t in r.get("tools") or [] if isinstance(t, dict)], "error": r.get("error"),
+                            "refused": r.get("refused"), "saidT": at, "span": span}
+    return out
+
+
+def with_thinks(calls: list[Call], tasks: dict[str, dict]) -> list[Call]:
+    """A think call carries its task's end: done when the frontier mind finished, confirmed on screen then when one of
+    its own tool calls was."""
+    for c in calls:
+        task = tasks.get(c.call_id or "") if c.name == "think" else None
+        if task is None:
+            continue
+        c.inner = task["tools"]
+        done = task["doneT"] if isinstance(task["doneT"], (int, float)) else None
+        c.end, c.ok = done or c.end, task["ok"] if task["ok"] is not None else c.ok
+        c.screen_change = any(t.get("confirmed") is not None for t in c.inner)
+        c.confirmed_at = done if any(t.get("confirmed") is True for t in c.inner) else None
+        c.error = str(task.get("error") or c.error or "")
+    return calls
 
 
 def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
@@ -384,11 +426,34 @@ def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
-def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=()) -> list[dict]:
+def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=(), own=(), others=()) -> list[dict]:
     """The voice's lines answering a step (what the judge numbers and the scorer reads, in the same order): the
-    journal's, else the one brain's responses, without what it said on its own (events, reconnects)."""
+    journal's, else the one brain's responses, without what it said on its own (events, reconnects). A think result
+    belongs to the step that handed it over: its spoken span (`own`) is this step's wherever it falls, and another
+    step's (`others`) is not."""
     lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
-    return [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+    lines = [l for l in lines if not any(a <= l["first"] <= b for a, b in [*unprompted, *others])]
+    seen = {l["id"] for l in lines}
+    for a, b in own:
+        for l in voice_lines(conv, a - NEAR_S, b) or lines_from_responses(inter, a - NEAR_S, b):
+            if l["id"] not in seen:
+                seen.add(l["id"])
+                lines.append(l)
+    return sorted(lines, key=lambda l: l["first"])
+
+
+def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[float, float], unprompted=(),
+              tasks: dict | None = None):
+    """A step's turn number, its tool calls (think's with their tasks) and the lines answering it."""
+    start, end = window
+    n = turn_number(bench["events"], start, end)
+    calls = partner_calls(inter, n, start, end)
+    source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
+    calls = with_thinks(calls, tasks or {}) if calls else card_calls(conv, start, end)
+    mine = {c.call_id for c in calls if c.name == "think"}
+    own = [t["span"] for cid, t in (tasks or {}).items() if cid in mine and t["span"]]
+    others = [t["span"] for cid, t in (tasks or {}).items() if cid not in mine and t["span"]]
+    return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)
 
 
 def restart_checks(checks: list[dict], conv: list[dict], step: dict) -> list[dict]:
@@ -421,14 +486,10 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     """One step against its expectation. Every number is None when it does not apply or was not observed."""
     start, end = window
     release = released(step)
-    n = turn_number(bench["events"], start, end)
-    lines = step_lines(conv, inter, start, end, unprompted)
+    n, calls, source, lines = step_view(bench, conv, inter, window, unprompted, bench.get("_thinks"))
     grown = bench.get("_fragments") or {}
     for l in lines:
         l["growth"] = grown.get(l["id"], [])
-    calls = partner_calls(inter, n, start, end)
-    source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
-    calls = calls or card_calls(conv, start, end)
     acting = [c for c in calls if c.name not in POINTING]
     tools = expect.get("tools")  # acceptable first acting tools; [] = none expected
     row: dict = {"id": step["id"], "kind": step.get("kind"), "say": step.get("say"), "n": n, "toolSource": source,
@@ -464,7 +525,10 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
             row["toolRight"] = first_tool in tools
         if not row["toolRight"]:
             fail(f"first tool {first_tool or 'none'}, expected {' or '.join(tools) or 'none'}")
-    row["doInHooke"] = sum(1 for c in calls if c.name == FALLBACK)
+    row["doInHooke"] = sum(1 for c in calls if c.name in HANDOFFS)
+    row["handoffs"] = {name: k for name in HANDOFFS if (k := sum(1 for c in calls if c.name == name))}
+    if any(c.inner is not None for c in calls):  # what the frontier mind did behind think
+        row["thinkTools"] = [t.get("name") for c in calls for t in (c.inner or [])]
     row["acting"] = len(acting)
 
     # Researchers: started in this step, and how soon. The orchestrator's own list says which researchers were made in
@@ -783,6 +847,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
                     board[row["rid"]] = row["number"]
     bench["_researchers"] = api_researchers(bench)
     bench["_fragments"] = fragments(bench)
+    bench["_thinks"] = thinks(inter)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
         # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
@@ -794,7 +859,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             numbers = sorted({board[rid] for rid in row["researcherIds"] if rid in board} | set(row["researcherNumbers"]))
             started_numbers += numbers[-1:]
         rows.append(row)
-    for key in ("_expectedResearcher", "_fragments", "_researchers"):
+    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks"):
         bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
@@ -843,7 +908,8 @@ def summarise(runs: list[dict]) -> dict:
         "cantSee": sum(len(r["cantSee"]) for r in steps),
         "restartAdvice": sum(len(r["restartAdvice"]) for r in steps),
         "toolFirstTry": {"right": sum(1 for r in tool_rows if r["toolRight"]), "n": len(tool_rows)},
-        "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
+        "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None,
+                      "byName": {name: sum(r.get("handoffs", {}).get(name, 0) for r in steps) for name in HANDOFFS}},
         "falseDone": {"count": sum(r["falseDone"] for r in judged), "judgedSteps": len(judged),
                       "unconfirmedThenSpoke": sum(r["unconfirmedThenSpoke"] for r in steps)},
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
@@ -886,7 +952,7 @@ NOT_APPLICABLE = "not applicable to this voice"
 # Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
 # every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
 # by speaking over it).
-ONE_BRAIN_ONLY = {"do_in_hooke share", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+ONE_BRAIN_ONLY = {"Hand-off share (do_in_hooke, think)", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
 VOICES_WITHOUT = {"gpt-live-1"}
 
@@ -933,7 +999,9 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Acting", "Right tool on the first try", f"{t['right']} of {t['n']}", "all",
                    None if not t["n"] else t["right"] == t["n"]))
     d = s["doInHooke"]
-    L.append(_line("Acting", "do_in_hooke share", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
+    by = ", ".join(f"{name} {k}" for name, k in (d.get("byName") or {}).items() if k)
+    L.append(_line("Acting", "Hand-off share (do_in_hooke, think)", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else "")
+                   + (f": {by}" if by else ""),
                    f"< {S['doInHookeShare']:.0%}", None if not d["of"] else d["share"] < S["doInHookeShare"]))
     f = s["falseDone"]
     L.append(_line("Acting", 'False "done"', f"{f['count']} in {f['judgedSteps']} judged steps; unconfirmed then spoke "

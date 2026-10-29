@@ -147,7 +147,7 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Meant for the model | Spoken lines checked for the known leaks ("Nothing was outlined", "Context only", the notes' own wording, tool names), JSON and ids. This is a measurement list, never product logic. 0. |
 | Seeing | "I can't see your screen" and its variants. 0. |
 | Right tool first | The first acting call in the step is in `expect.tools`. Every step. |
-| `do_in_hooke` share | Over the one brain's own acting calls. Under 5%. GPT-Live has no such tool: not measured. |
+| Hand-off share | `do_in_hooke` and `think` (the frontier mind behind the voice) over the one brain's own acting calls. Under 5%. A think call returns at once; its task (`partner-think`, with the frontier mind's own tool calls inside) is done at `doneT`, confirmed on screen when one of those calls was, and its result, said later (`partner-think-said`, then a `think` response), is the asking step's outcome wherever it falls. GPT-Live has neither: not applicable. |
 | False "done" | The judge names each claim that something is on screen or done, with its words. It is false when the page showed those words before any studio confirmation (0.3 s race allowed). 0. Without the judge: not measured. |
 | One researcher | Researchers the orchestrator lists as created in the step (else the successful `start_researcher` calls) equal `expect.researchers`; ≤ 2 s from release to its creation. |
 | Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |

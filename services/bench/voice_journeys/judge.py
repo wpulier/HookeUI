@@ -11,7 +11,7 @@ import asyncio
 import re
 from pathlib import Path
 
-from .standard import card_calls, load_bench, partner_calls, released, step_lines, turn_number, unprompted_spans, windows
+from .standard import load_bench, released, step_view, thinks, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
 COST_PER_STEP_USD = 0.02  # a bounded judge call (one image, about 2,000 tokens in, 600 out), for the worst case
@@ -57,21 +57,21 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     """Each scored step's words, lines and actions, relative to its release (what PROMPT is given)."""
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
-    out, unprompted = [], unprompted_spans(inter)
+    out, unprompted, tasks = [], unprompted_spans(inter), thinks(inter)
     for step, (start, end) in zip(steps, windows(steps)):
         if step.get("kind") in ("idle", "restart"):
             continue
         release = released(step)
-        n = turn_number(bench["events"], start, end)
-        lines = step_lines(conv, inter, start, end, unprompted)
-        calls = partner_calls(inter, n, start, end) or card_calls(conv, start, end)
+        _, calls, _, lines = step_view(bench, conv, inter, (start, end), unprompted, tasks)
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "
                                 f"{'ok' if c.ok else 'failed' if c.ok is False else 'running'}"
                                 + (f", confirmed +{c.confirmed_at - release:.1f} s" if c.confirmed_at is not None else
                                    ", not confirmed" if c.screen_change else "")
-                                + (f" ({c.error[:120]})" if c.error else "") for c in calls]})
+                                + (f" ({c.error[:120]})" if c.error else "")
+                                + (f"; behind it: {', '.join(str(t.get('name')) for t in c.inner)}" if c.inner else "")
+                                for c in calls]})
     return out
 
 
