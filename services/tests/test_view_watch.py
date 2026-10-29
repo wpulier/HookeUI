@@ -34,10 +34,8 @@ class Feed:
         self.t += 1 / FPS
         return info
 
-    def still(self, seconds, jitter=0.0, rng=None):
+    def still(self, seconds):
         for _ in range(int(seconds * FPS)):
-            if jitter and rng is not None:
-                self.focus = 200.0 * (1 + rng.uniform(-jitter, jitter))
             self.frame()
 
     def pan(self, ddx, ddy, seconds=1.0):
