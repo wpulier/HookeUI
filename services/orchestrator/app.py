@@ -573,7 +573,7 @@ class App:
             name, date = str(entry["pictures"][0]), str(entry.get("day") or "")
             optics = {"objective": float(scale.objective)} if scale.asset is None and scale.objective else (
                 {k: v for k, v in (scale.asset or {}).items() if k != "id"})
-            library.register(f"result:{date}/{entry['id']}/0", results.root / date / name, title=str(entry.get("title") or "Clearer picture"),
+            library.register(f"result:{date}/{entry['id']}/0", results.folder_for(date, entry.get("session")) / name, title=str(entry.get("title") or "Clearer picture"),
                              at=float(entry.get("at") or time.time()), origin=entry.get("session"), optics=optics)
 
         results.on_saved.append(clearer_saved)
