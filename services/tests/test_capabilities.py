@@ -171,6 +171,7 @@ DEFAULTS = {
     "gpu_worker.molmo:MODEL": ("pointing", "molmo"),
     "gpu_worker.zeroshot:MODEL": ("zeroshot", "medsiglip-subject"),
     "gpu_worker.worker:DEFAULT_MODEL": ("outline", "edgetam"),
+    "orchestrator.voice.openai_realtime:MODEL": ("voice", "gpt-realtime-2.1"),
 }
 MODEL_PREFIXES = ("gemini-", "gpt-", "claude-", "veo-", "fal-ai/", "imagen-")
 

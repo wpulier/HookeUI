@@ -68,6 +68,17 @@ export function modelLines(models: ModelsHealth | null | undefined): string[] {
 
 const capitalised = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** The panel's "Doing each job now" rows: the job, then its model, where it runs and its calls' typical time lately
+ * (orchestrator/models_in_use.py); the row's title says where to change it. */
+export function inUseRows(models: ModelsHealth | null | undefined): { job: string; doing: string; title: string }[] {
+  return (models?.inUse ?? []).map((row) => {
+    const ms = row.speed?.p50Ms;
+    const speed = ms == null ? '' : ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`;
+    return { job: row.title, doing: [row.model, row.where, speed].filter(Boolean).join(' · '),
+      title: [row.how, row.note, row.speedWords, `Change: ${row.change}`].filter(Boolean).join('. ') };
+  });
+}
+
 /** The view right now, as the studio measures it (main.ts, every 500 ms). */
 export interface ViewNow {
   delayMs: number; // the newest frame's age when it arrived
@@ -366,6 +377,18 @@ export class PerfMeter implements Panel {
         const share = p.cpu >= 100 ? `${(p.cpu / 100).toFixed(1)} cores` : `${p.cpu}% of a core`;
         item.append(Object.assign(document.createElement('span'), { textContent: p.name + (p.ours ? ' (this app)' : '') }),
           Object.assign(document.createElement('span'), { textContent: `${share} · ${p.memMb >= 1024 ? `${gb(p.memMb)} GB` : `${p.memMb} MB`}` }));
+        list.append(item);
+      }
+      children.push(list);
+    }
+    const doing = inUseRows(this.models);
+    if (doing.length) {
+      children.push(Object.assign(document.createElement('p'), { className: 'perf-sub', textContent: 'Doing each job now' }));
+      const list = Object.assign(document.createElement('ul'), { className: 'perf-top perf-in-use' });
+      for (const row of doing) {
+        const item = Object.assign(document.createElement('li'), { title: row.title });
+        item.append(Object.assign(document.createElement('span'), { textContent: row.job }),
+          Object.assign(document.createElement('span'), { textContent: row.doing }));
         list.append(item);
       }
       children.push(list);

@@ -1,0 +1,46 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Window capture · frame-timing probe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;height:100vh;overflow:hidden;background:var(--mm-page);color:var(--mm-text);font:13px/1.4 var(--mm-sans)}
+#view{position:absolute;left:0;top:0;width:100vw;height:100vh}
+.tabs{position:absolute;left:24px;top:12px;display:flex;gap:4px}
+.tabs button{height:30px;padding:0 12px;border-radius:8px;border:0;background:var(--mm-card);color:var(--mm-text-2);font:inherit}
+section.workspace-window{position:absolute;right:24px;top:56px;width:460px;height:70vh;overflow:auto;border-radius:12px;background:var(--mm-card)}
+section.workspace-window header{padding:10px 14px;font-weight:600}
+table{margin:0 14px;border-collapse:collapse;font-size:12px}td,th{padding:3px 8px;border-bottom:1px solid var(--mm-line)}
+#report{position:absolute;left:24px;bottom:16px;padding:10px 14px;border-radius:10px;background:rgb(0 0 0 / 70%);white-space:pre;font:12px/1.5 ui-monospace,monospace}
+</style>
+<body data-workspace-study="true">
+<canvas id="view"></canvas>
+<div class="tabs" id="workspace-tabs-strip"><button aria-selected="true"><span class="workspace-tab-label">Live</span></button><button><span class="workspace-tab-label">Measurements</span></button></div>
+<section class="workspace-window" data-presentation-id="w-1"><header class="workspace-window-title">Measurements · 200 cells</header><table id="grid"></table></section>
+<div id="report">Fixture only: the live view redrawn every frame (as view.ts does), a 200-row table and Tabs. Capturing…</div>
+<script type="module">
+import '/src/style.css';import '/src/workspace-theme.css';import '/src/workspace-feel.css';
+import {captureWindow} from '/src/screen.ts';
+const grid=document.getElementById('grid');
+grid.innerHTML='<tr><th>Cell</th><th>Area µm²</th><th>Length µm</th><th>Width µm</th><th>Class</th></tr>'+Array.from({length:200},(_,i)=>`<tr><td>${i+1}</td><td>${(80+i*1.7).toFixed(1)}</td><td>${(9+i%13).toFixed(1)}</td><td>${(5+i%7).toFixed(1)}</td><td>${i%3?'small':'large'}</td></tr>`).join('');
+// The live view: a full-window canvas at the device's pixel ratio, redrawn every frame.
+const view=document.getElementById('view'),ctx=view.getContext('2d');
+const fit=()=>{view.width=innerWidth*devicePixelRatio;view.height=innerHeight*devicePixelRatio;};fit();addEventListener('resize',fit);
+const gaps=[];let last=performance.now(),t=0;
+const frame=(now)=>{gaps.push(now-last);last=now;t+=0.02;
+ ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.fillStyle='#0b0c10';ctx.fillRect(0,0,innerWidth,innerHeight);
+ const g=ctx.createRadialGradient(innerWidth*.35,innerHeight*.5,10,innerWidth*.35,innerHeight*.5,innerHeight*.45);g.addColorStop(0,'#f3e6ee');g.addColorStop(1,'#b48aa3');
+ ctx.fillStyle=g;ctx.beginPath();ctx.arc(innerWidth*.35,innerHeight*.5,innerHeight*.45,0,Math.PI*2);ctx.fill();
+ for(let i=0;i<40;i++){ctx.fillStyle='#7d3a6c';ctx.beginPath();ctx.arc(innerWidth*.35+Math.cos(i*2.4+t)*innerHeight*.3*(i%5+1)/5,innerHeight*.5+Math.sin(i*1.7+t)*innerHeight*.3*(i%4+1)/4,8+i%9,0,Math.PI*2);ctx.fill();}
+ requestAnimationFrame(frame);};
+requestAnimationFrame(frame);
+const longTasks=[];try{new PerformanceObserver(l=>longTasks.push(...l.getEntries().map(e=>e.duration))).observe({type:'longtask',buffered:false});}catch{}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function probe(runs=10){
+ await wait(1000);gaps.length=0;await wait(1500);const idle=Math.max(...gaps.slice(1));
+ const results=[];
+ for(let i=0;i<runs;i++){gaps.length=0;const shot=await captureWindow(document.body,{maxSide:1280});await wait(50);results.push({longest:shot.longestTaskMs,total:shot.totalMs,gap:Math.max(...gaps.slice(1)),bytes:shot.jpeg.length,w:shot.w,h:shot.h});await wait(250);}
+ const worst=Math.max(...results.map(r=>r.longest)),gap=Math.max(...results.map(r=>r.gap)),median=a=>a.slice().sort((x,y)=>x-y)[a.length>>1];
+ window.probeResult={runs,worstTaskMs:worst,medianTotalMs:median(results.map(r=>r.total)),worstFrameGapMs:gap,idleFrameGapMs:idle,longTasksOver50ms:longTasks.length,size:[results[0].w,results[0].h],jpegChars:results[0].bytes};
+ document.getElementById('report').textContent=JSON.stringify(window.probeResult,null,1);
+}
+window.probe=probe;probe();
+</script>
+</body></html>

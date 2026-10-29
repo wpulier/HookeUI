@@ -35,7 +35,7 @@ from . import claims as claim_check
 from . import evidence as evidence_check
 from . import transcript
 from .limits import FIELD_MAX, HOLD_MAX_S, TooLong, whole
-from .budget import (ALIVE_EVERY_S, CALL_MOST, CELL_FINDERS, CHECK_IN_COST_X, CHECK_IN_S, CHECK_IN_WAIT_S, EFFORTS, PRICES,
+from .budget import (ALIVE_EVERY_S, CALL_MOST, CELL_FINDERS, CHART_TOOLS, CHECK_IN_COST_X, CHECK_IN_S, CHECK_IN_WAIT_S, EFFORTS, PRICES,
                      RUN_OPERATIONS, RUN_WAIT_MAX_S, STALL_ROUNDS, WRAP_UP_AT,
                      Budget, OverBudget, estimate_cancelled, image_cost, operation_limit, tokens_cost)
 from .fidelity import ALTERED_ABOVE, alteration, square_pad
@@ -51,6 +51,8 @@ from .work import (LESSON, UnreadableReply, REVISE_LABELS, REVISE_LESSON, SCHEMA
 
 IMAGE_MODEL_DEFAULT = "gpt-image-2.5-flare"
 VIDEO_MODEL = "veo-3.1-fast-generate-preview"
+VIDEO_NAME = "Veo 3.1 Fast"  # its one name (catalog/models/veo-3.1-fast), said when it can't be used
+CHART_TABLE_MAX = 2_000_000  # characters of one table a chart reads whole (measurement_charts.py)
 LESSON_CLAUDE = "claude-sonnet-5-5"  # lessons when ANTHROPIC_API_KEY is set (capability role fixed:lesson-writer)
 LESSON_FALLBACK = "gpt-6.1-sol"  # lessons otherwise
 
@@ -98,6 +100,30 @@ def said_words(words) -> str:
     text = _re.sub(r",\s*[a-z]\d+(?=\))", "", text)  # "(Cell outlines · 18:04, e7)" -> "(Cell outlines · 18:04)"
     text = _re.sub(r"\s*\((?:[a-z]\d+(?:,\s*)?)+\)", "", text)  # "(e3)", "(m2, m3)" -> ""
     return _re.sub(r"\b(?:entry|population|item)\s+[a-z]\d+\b", "it", text)
+
+def provider_status(error) -> str:
+    """A provider's refusal or failure in a few plain words with its own status ("HTTP 404, NOT_FOUND: models/... is not
+    found"), from the error itself (its HTTP code, its status name and message; an operation's error dict), never a
+    guess. Addresses are left out: the words are said on the researcher's card."""
+    import os
+
+    from .api_usage import OUTCOMES, outcome_of
+
+    if isinstance(error, dict):
+        code, name, message = error.get("code"), error.get("status"), error.get("message")
+        words = ""
+    else:
+        if isinstance(error, ValueError) and not (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")):
+            return "no Gemini key is set here"
+        code = getattr(error, "code", None) or getattr(error, "status_code", None)
+        name, message = getattr(error, "status", None), getattr(error, "message", None) or str(error)
+        outcome = outcome_of(error)
+        words = OUTCOMES[outcome] if outcome != "failed" else ""
+    head = ", ".join(str(x) for x in (f"HTTP {code}" if isinstance(code, int) and code >= 100 else "",
+                                      name if isinstance(name, str) else "", words) if x)
+    text = re.sub(r"https?://\S+", "", " ".join(str(message or "").split()))[:160].strip(" .,;:")
+    return ": ".join(x for x in (head, text) if x) or "it failed without saying why"
+
 
 def said(exc: Exception) -> str:
     """The words of an exception the app writes in plain words for the user (OverBudget, RunFailed): only these are
@@ -474,7 +500,7 @@ class Researcher:
             # A follow-up question about finished work: answered from that work (in the brief)
             # and the web; nothing new is made, so no pictures, snapshots, videos or lessons.
             allowed = [n for n in allowed if n not in ("fetch_reference_image", "snapshot", "annotate_image", "generate_image",
-                                                       "make_video", "make_lesson")]
+                                                       "make_video", "make_lesson", *CHART_TOOLS)]
         if self.spec.get("purpose") == "description":
             # Fast, and about the kind of thing: no pictures, no snapshots (enrich.py fetches refs),
             # and no relabelling, since it never sees the specimen (it only had the label).
@@ -485,7 +511,8 @@ class Researcher:
         if self.session_index is None or self.spec.get("purpose") == "description":
             # No index here, or about a kind of thing, not this session: nothing to read, so nothing to run either
             # (what run makes is read with the session tool).
-            allowed = [n for n in allowed if n not in ("session", "run")]
+            # A chart is drawn from a table the session kept: none can be read here.
+            allowed = [n for n in allowed if n not in ("session", "run", *CHART_TOOLS)]
         if deliverable in ("answer", "revise"):
             allowed = [n for n in allowed if n != "run"]  # it answers from its work, or remakes one thing
         if (self.spec.get("purpose") == "description" or deliverable in ("answer", "revise")
@@ -510,7 +537,7 @@ class Researcher:
             return "a follow-up answers from its earlier work: nothing new is made or run"
         if purpose == "description":
             return "a description is about the kind of thing, not this specimen"
-        if name in ("session", "run") and self.session_index is None:
+        if name in ("session", "run", *CHART_TOOLS) and self.session_index is None:
             return "the session's index can't be read here" + (f" ({self.session_index_error})" if self.session_index_error else "")
         if name == "annotate_image":
             return "there is no photo of the object to label"
@@ -1092,8 +1119,137 @@ class Researcher:
         return ({"ok": True, "output": made["path"], "note": "the illustration is attached"},
                 await asyncio.to_thread(_as_jpeg, made["png"]))
 
+    # --- charts and animations of a table the session kept (measurement_charts.py) ------------------------------------
+    async def _table(self, table) -> tuple[dict | None, str, str]:
+        """(the table's whole document, its exact revision, "") or (None, "", why not): one session entry read whole by
+        the app, at the revision the researcher read (or as it is now when it names none). A document it already read
+        whole is used as kept; otherwise every page is read here, off the model's rounds, and checked against the
+        revision before it is used."""
+        if not isinstance(table, dict):
+            return None, "", "table names the session entry: {id, revision}"
+        entry_id = str(table.get("id") or "").strip()
+        wanted = str(table.get("revision") or "").strip() or None
+        if not re.fullmatch(r"[\w.:-]{1,80}", entry_id):
+            return None, "", f"{entry_id[:40]!r} is not an entry's id (the session tool lists them)"
+        kept = [(rev, doc) for (eid, rev), doc in getattr(self, "session_documents", {}).items()
+                if eid == entry_id and (wanted is None or rev == wanted)]
+        if kept:
+            return kept[-1][1], kept[-1][0], ""
+        if self.session_index is None:
+            return None, "", "the session's index can't be read here, so no table can be charted"
+        parts, offset, revision = [], 0, wanted
+        try:
+            while True:
+                data = await asyncio.to_thread(self.session_index.read_page, entry_id, offset, revision)
+                page = data.get("page")
+                if not isinstance(page, dict):
+                    return None, "", f"{entry_id} could not be read as a table"
+                if revision is not None and page.get("revision") != revision:
+                    return None, "", "that table changed since you read it; read it again and use its new revision"
+                revision = page["revision"]
+                parts.append(str(data.get("text") or ""))
+                if sum(map(len, parts)) > CHART_TABLE_MAX:
+                    return None, "", f"that entry is over {CHART_TABLE_MAX:,} characters; chart a smaller table"
+                if page.get("nextOffset") is None:
+                    break
+                offset = int(page["nextOffset"])
+        except NoEntry:
+            return None, "", f"there is no entry {entry_id!r} in today's session (list gives the ids)"
+        except IndexUnavailable as exc:
+            changed = "409" in str(exc) or "changed" in str(exc)
+            return None, "", ("that table changed since you read it; read it again and use its new revision" if changed
+                              else f"the session's index could not be read: {exc}")
+        text = "".join(parts)
+        if hashlib.sha256(text.encode()).hexdigest() != revision:
+            return None, "", "the table's pages did not make up its revision; read it again"
+        document = json.loads(text)
+        self._looked(entry_id, "chart", {"entry": document.get("entry") or {"id": entry_id}, "page": {"revision": revision}})
+        return document, revision, ""
+
+    async def _chart_series(self, args: dict):
+        """(series, title, kind, None) or (None, "", "", error reply) for make_chart and animate_measurements."""
+        from . import measurement_charts as charts
+
+        title = " ".join(str(args.get("title") or "").split())
+        if not 1 <= len(title) <= 90:
+            return None, "", "", {"error": "give the chart a title of 1-90 characters"}
+        kind = str(args.get("kind") or "sorted")
+        if kind not in charts.KINDS:
+            return None, "", "", {"error": f"kind is one of {', '.join(charts.KINDS)}"}
+        document, revision, why = await self._table(args.get("table"))
+        if document is None:
+            return None, "", "", {"error": why}
+        try:
+            series = await asyncio.to_thread(
+                charts.series, document, revision=revision, rows=str(args.get("rows") or ""),
+                value=str(args.get("value") if args.get("value") is not None else ""),
+                label=args.get("label") if isinstance(args.get("label"), str) else None,
+                group=args.get("group") if isinstance(args.get("group"), str) and args.get("group") else None,
+                order=str(args.get("order") or "ascending"))
+        except ValueError as exc:
+            return None, "", "", {"error": str(exc)}
+        return series, title, kind, None
+
+    def _chart_output(self, series, title: str, kind: str, png: bytes, *, animated: bool, frames: int = 0,
+                      note: str = "") -> str:
+        """Keeps a chart or an animation as one of its outputs (outputs/NN-chart.png, NN-animation.png), with where its
+        numbers came from: a picture the app drew from the table (`derived`), never a photo or a generated picture."""
+        rel = self._save_output("animation" if animated else "chart", png)
+        src = series.source
+        what = (f"Animation of {series.column}, built row by row ({series.n} rows)" if animated
+                else f"Chart of {series.column} ({series.n} rows)")
+        caption = (f"{what}, drawn by the app from {src.get('title') or 'a saved table'}; its values are the table's own"
+                   + (f", {series.excluded} rows without a number left out" if series.excluded else "")
+                   + ("; an animation of the data, not a video of the specimen" if animated else "") + (f". {note}" if note else ""))
+        self.emit_output("image", rel, caption, series.content(title, kind, animated), generated=False,
+                         derived={"from": "table", "source": dict(src), "chart": kind, "animated": animated,
+                                  **({"frames": frames} if animated else {})})
+        return rel
+
+    async def tool_make_chart(self, args: dict):
+        from . import measurement_charts as charts
+
+        series, title, kind, error = await self._chart_series(args)
+        if error is not None:
+            return error, None
+        png = await asyncio.to_thread(charts.chart_png, series, title, kind)
+        rel = self._chart_output(series, title, kind, png, animated=False)
+        self.step(f"Drew a chart of {series.column} from {series.n} rows of a saved table")
+        return ({"ok": True, "output": rel, "rows": series.n, "excluded": series.excluded, "stats": series.stats(),
+                 "note": "the chart is attached; the user sees it with your result"}, await asyncio.to_thread(_as_jpeg, png))
+
+    async def tool_animate_measurements(self, args: dict):
+        """The chart built row by row; when it can't be animated here, the chart instead, said so (never nothing)."""
+        from . import measurement_charts as charts
+
+        series, title, kind, error = await self._chart_series(args)
+        if error is not None:
+            return error, None
+        still = await asyncio.to_thread(charts.chart_png, series, title, kind)
+        why = charts.ready()
+        if not why:
+            try:
+                moving, frames = await asyncio.to_thread(charts.animation_png, series, title, kind,
+                                                         float(args.get("seconds") or 6))
+            except Exception as exc:  # noqa: BLE001 - said, and the chart is made instead
+                why = f"drawing its frames failed ({type(exc).__name__})"
+        if why:
+            note = f"It couldn't be animated here ({why}), so this is the chart instead"
+            rel = self._chart_output(series, title, kind, still, animated=False, note=note)
+            self.step(f"Couldn't animate the table ({why}); drew the chart instead", "warning")
+            return ({"ok": True, "output": rel, "animated": False, "rows": series.n, "stats": series.stats(),
+                     "note": f"{note}: say so in your result, in those words"}, await asyncio.to_thread(_as_jpeg, still))
+        rel = self._chart_output(series, title, kind, moving, animated=True, frames=frames)
+        self.step(f"Animated {series.column} from {series.n} rows of a saved table")
+        return ({"ok": True, "output": rel, "animated": True, "frames": frames, "rows": series.n,
+                 "excluded": series.excluded, "stats": series.stats(),
+                 "note": "its last frame (the whole chart) is attached; the user sees it play with your result"},
+                await asyncio.to_thread(_as_jpeg, still))
+
     async def tool_make_video(self, args: dict):
-        """Veo 3.1 Fast image-to-video from the photo, padded to 16:9 (spike S6)."""
+        """Veo 3.1 Fast image-to-video from the photo, padded to 16:9 (spike S6). When the provider refuses or fails, the
+        error says which model and the provider's own status, so the user hears why (live 2026-10-28: "I can't see the
+        exact error"), and what can be made instead."""
         from google import genai
         from google.genai import types
 
@@ -1107,8 +1263,8 @@ class Researcher:
         self.step(f"Making a {seconds} s video: {motion[:80]}")
         prompt = (f"A still camera looks through a light microscope at the specimen in this photo. {motion} "
                   "Keep the camera and framing still; no text, no labels.")
-        client = genai.Client(http_options={"retry_options": {"attempts": 1}})  # one admitted attempt
         try:
+            client = genai.Client(http_options={"retry_options": {"attempts": 1}})  # one admitted attempt
             operation = await client.aio.models.generate_videos(
                 model=VIDEO_MODEL, prompt=prompt,
                 image=types.Image(image_bytes=pad_to(source, 1280, 720), mime_type="image/png") if source else None,
@@ -1120,8 +1276,10 @@ class Researcher:
             # Asked for, the video is made and billed whether or not anyone waits for it: its price is counted.
             self.cancelled_call(VIDEO_MODEL, usd=PRICES["veo-3.1-fast"] * seconds)
             raise
+        except Exception as exc:  # noqa: BLE001 - the provider's status is said, never hidden behind "a step didn't work"
+            return self._video_unavailable(provider_status(exc), detail=f"{type(exc).__name__}: {exc}"), None
         if operation.error:
-            return {"error": str(operation.error)[:200]}, None
+            return self._video_unavailable(provider_status(operation.error), detail=str(operation.error)), None
         self.spend(VIDEO_MODEL, PRICES["veo-3.1-fast"] * seconds)
         video = operation.response.generated_videos[0].video
         data = video.video_bytes or await asyncio.get_running_loop().run_in_executor(None, lambda: client.files.download(file=video))
@@ -1134,6 +1292,16 @@ class Researcher:
         caption = f"Generated illustration ({VIDEO_MODEL}), starting from your photo; not footage of your slide"
         self.emit_output("video", rel, caption, text_content(motion, caption), generated=True)
         return {"ok": True, "output": rel}, None
+
+    def _video_unavailable(self, status: str, detail: str) -> dict:
+        """The video model refused or failed: said on its card with the provider's status, and told to the model with
+        what it can make instead (an animation of a table it read, when it has that tool)."""
+        self.step(f"The video model was unavailable ({VIDEO_NAME}, {status}); no video was made", "warning",
+                  detail=f"make_video: {detail}"[:600])
+        instead = (" To show measurements changing instead, animate_measurements draws an animation from a table this "
+                   "session kept." if "animate_measurements" in self.tool_names() else "")
+        return {"error": f"the video model was unavailable ({VIDEO_NAME}, {status}); no video was made. Say exactly that "
+                         f"in your result (limitations), with this status.{instead}"}
 
     async def tool_make_lesson(self, args: dict):
         """A one-page interactive lesson: Claude when ANTHROPIC_API_KEY is set, else gpt-6.1-sol."""

@@ -262,6 +262,13 @@ frozen hash of the cases and scoring, `--report` for the table (`docs/bench/acti
 request is answered are chosen there. The maintainers' live cases are their own words and pictures from live
 sessions, kept privately: the run takes `live_cases.json` beside `run.py` (ignored by Git) or `--cases FILE`, and
 without either says so and skips.
+The voice journeys bench (`services/bench/voice_journeys/`, `docs/bench/voice-journeys.md`) measures the live
+partner against its acceptance standard for both voices (GPT-Live and the one brain, hold or open): one command
+(`bench.voice_journeys.run`) reserves the worst case in the budget, starts an isolated second stack, plays a plan's
+recorded words in a real Chromium N times and writes `result.json` and a pass/FAIL scoreboard; `compare` puts the two
+voices side by side; `acoustic` replays through the speakers into the microphone. Its scoring and runner are in the
+Python tests with synthetic event logs that pass and fail each line (`test_voice_journeys_standard.py`,
+`test_voice_journeys_run.py`); the paid runs are the coordinator's.
 
 The testing reference for the end of an effort is the maintainers' Human Interaction Testing Playbook, kept
 privately. In short: agents test as the user does, the live app by voice and typing in the user's casual wording,
@@ -574,7 +581,7 @@ transport/snapshot are inert; it claims no researcher/model or ordinary-UI accep
 publication to check exact comparison selection, Method values, warning/reopen and stale/foreign/input/method
 refusals. It does not establish an actual A/B/C UI workflow or scientific independence.
 
-`test_workflows.py` covers synthetic exact references with real Project storage, frozen definitions, sequential batches, named inputs, actor continuation, review/correction, uncertain recovery and shared HTTP/researcher admission. The capability matrix and voice/chat parity checks discover the actual catalog descriptors and save a frozen definition through the shared registry, with scripted provider transport; those rows execute no scientific model. Managed report execution is explicitly unavailable in standalone core; private provider-deadline qualification remains in its service repository. Workflow Studio tests use synthetic forms/transport. None establishes actual external-agent interoperability, full-size fitting, packaged UI or biological accuracy.
+`test_workflows.py` covers synthetic exact references with real Project storage, frozen definitions, sequential batches, named inputs, actor continuation, review/correction, uncertain recovery and shared HTTP/researcher admission. `test_workflow_entrances.py` runs one saved definition on one retained input from the brain's `workflow` tool, the studio's command route, a researcher's hands and the door's Study operation, through the real steps, and checks the same definition, input and result in the one history (and asserts the gap that a studio-saved workflow is not reachable from the door). The capability matrix and voice/chat parity checks discover the actual catalog descriptors and save a frozen definition through the shared registry, with scripted provider transport; those rows execute no scientific model. Managed report execution is explicitly unavailable in standalone core; private provider-deadline qualification remains in its service repository. Workflow Studio tests use synthetic forms/transport. None establishes actual external-agent interoperability, full-size fitting, packaged UI or biological accuracy.
 
 `test_study_workflows.py`, `test_study_door.py` and `test_study_local_researcher.py` cover retained
 Study/operation identities, lost admission without replay, stop/restart observation, exact evidence,

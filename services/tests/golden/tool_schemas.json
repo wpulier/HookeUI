@@ -122,7 +122,23 @@
   }
  },
  {
-  "description": "Start a new session (a new project, with its own conversations, memory and work) only when the user asks for a new session in so many words; a new topic or starting fresh is new_thread, in this session. When it is unclear, start a conversation with new_thread and say that a new session is theirs to ask for. The live view starts fresh; the session left is kept and can be opened again. Never on your own.",
+  "description": "Start a new Project when the user asks for a new project or a new session (\"create a new project called experiment\", \"start a new session\"): its own conversations, memory, Data and Tabs. A new Tab inside this Project is the tabs tool's create, and a new topic or starting fresh is new_thread, in this Project. The live view starts fresh; the Project left is kept and can be opened again. Never on your own.",
+  "inline_ms": 300,
+  "kind": "effect",
+  "name": "new_project",
+  "params": {
+   "properties": {
+    "name": {
+     "description": "its name, when the user gives one",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Start a new Project as new_project does (its earlier name, kept so saved workflows run); use new_project.",
   "inline_ms": 300,
   "kind": "effect",
   "name": "new_session",
@@ -430,6 +446,17 @@
     "implementation",
     "by"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Which model does each job right now (the brain, the voice, seeing, the running look, quick decisions, pointing, outlining, cells, look-alikes, researching, presentation, pictures, video): its name, cloud or this Mac, how fast it answered lately, and where to change it. For \"what models are powering you?\"; name each job's model as it says.",
+  "inline_ms": 200,
+  "kind": "query",
+  "name": "models_in_use",
+  "params": {
+   "properties": {},
+   "required": [],
    "type": "object"
   }
  },
@@ -860,7 +887,7 @@
   }
  },
  {
-  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. When the user asks for a researcher, always start a new one. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default), annotated_image (labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use reference_photo), report, video or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels or measure what moves for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
+  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. One request starts one researcher; when the user asks for more than one, list each start in the same answer. When the user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, starting or running, from their previous words), pass them to that one with researcher_note instead of starting another; start a new one when they ask for another researcher or separate work. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, drawn from the table's own values), annotated_image (labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels or measure what moves for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "start_researcher",
@@ -2131,7 +2158,7 @@
   }
  },
  {
-  "description": "List this Project\u2019s Tabs and their exact retained placements, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately.",
+  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), their exact retained placements and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "tabs",

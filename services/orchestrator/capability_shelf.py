@@ -252,7 +252,14 @@ def card(role: dict, title: str, what: str, say: str, downloads: list[dict], ins
     privacy, cost, service = _where(disclosed.get("models", []), disclosed.get("runs", ""))
     if turning and turning.get('state') != 'failed':
         privacy, cost = turning.get('privacy', privacy), turning.get('cost', cost)
+    # On is not chosen: an option ready here that the job doesn't use is offered, never taken (TurnOn._done says so);
+    # when the job's own choice can't run, the first one on is offered to use now (the setup sheet's Use it for).
+    chooses = not role.get("fixed") and not role.get("entry")
+    on_not_chosen = [o for o in ready if o is not selected] if chooses else []
+    offer = ({"option": ready[0]["id"], "label": ready[0]["said"] or ready[0]["label"]}
+             if chooses and ready and selected not in ready else None)
     return {"id": role["id"], "title": title, "what": what or role.get("purpose", ""), "colour": colour, "word": word,
+            "onNotChosen": [o["said"] or o["label"] for o in on_not_chosen], "offerUse": offer,
             "using": (selected.get("said") or selected.get("label", "")) if selected and _proven(selected) else "",
             "privacy": privacy, "cost": cost, "service": service, "try": say,
             "tryOption": used.get("id", "") if ready and role["id"] in SHOWN else "",
@@ -311,12 +318,40 @@ def observations(hub) -> dict[str, list[str]]:
             for job, operations in by_operation.items()}
 
 
+def on_words(title: str, role: dict, o: dict, wire: dict | None = None) -> str:
+    """What turning one on made true, said once it is on: on (prepared and offered) is not chosen (the job's model). Live
+    2026-10-28: "I just enabled BioCLIP 2" was answered "I've set BioCLIP 2 as the model for comparing"; it was on, and
+    the job still used DINOv2 small."""
+    name = o.get("said") or o.get("label") or o.get("id")
+    if role.get("entry"):  # one catalog entry turned on from its own card: the jobs it can do keep their own choices
+        row = next((m for m in (wire or {}).get("models") or [] if m.get("id") == role["entry"]), None)
+        jobs = [u for u in (row or {}).get("usedFor") or [] if not u.get("fixed")]
+        if not jobs or any(u.get("current") for u in jobs):
+            return f"{name} is on (ready here)" + ("; it is the model for " + ", ".join(u["title"] for u in jobs if u.get("current"))
+                                                   if jobs else "")
+        return (f"{name} is on (ready here), not chosen for any job: " + ", ".join(u["title"] for u in jobs)
+                + " keep their own models. Use it for one request, or make it the default?")
+    if role.get("fixed") or o.get("id") == role.get("current"):
+        return f"{title} is on: {name} is ready and is the model it uses"
+    current = next((c for c in _options(role) if c["id"] == role.get("current")), None)
+    current_name = (current.get("said") or current.get("label")) if current else str(role.get("current") or "its own choice")
+    if current is not None and _proven(current):
+        return (f"{name} is on for {title}, not chosen: it still uses {current_name}. "
+                "Use it for one request, or make it the default?")
+    return (f"{name} is on for {title}, not chosen yet: its choice, {current_name}, can't run here. "
+            f"Use {name} for {title} now?")
+
+
 def words(shelf: dict) -> str:
-    """The shelf for the agent: each job, on or not, and its one step."""
+    """The shelf for the agent: each job, on or not, and its one step. On (prepared and offered here) and chosen (the
+    job's model, the setting) are said apart: a job can have options on that it doesn't use."""
     lines = []
     for c in shelf.get("cards", []):
         step = (c.get("turnOn") or {}).get("steps") or []
-        lines.append(f"- {c['title']}: {c['word']}" + (f" (using {c['using']})" if c.get("using") else "")
+        others = c.get("onNotChosen") or []
+        lines.append(f"- {c['title']}: {c['word']}" + (f"; chosen (its model): {c['using']}" if c.get("using") else "")
+                     + (f"; also on, not chosen: {', '.join(others)} (use for one request, or set_default to choose)"
+                        if others else "")
                      + (f"; turning it on: {', '.join(s.get('says', '') for s in step)}" if step and c["colour"] == "red" else "")
                      + f"; {c['privacy'].lower()}")
     from .untrusted import block
@@ -467,7 +502,7 @@ class TurnOn:
                 else:
                     o = {**o, 'check': None}
             if _proven(o):
-                self._done(intent, role, o)
+                self._done(intent, role, o, wire)
                 continue
             failed = self._failed(o, downloads, installs, intent)
             if failed:
@@ -678,7 +713,7 @@ class TurnOn:
             return row.get("says") or f"The {kind} didn't finish"
         return ""
 
-    def _done(self, intent: dict, role: dict, o: dict) -> None:
+    def _done(self, intent: dict, role: dict, o: dict, wire: dict | None = None) -> None:
         job = intent['job']
         with self._lock:
             if not self._retained(intent):
@@ -692,7 +727,7 @@ class TurnOn:
         again = intent.get("_on_again") or {}
         says = (f"{title} setup checked; compare your chosen picture, then Use it to add the choice" if awaiting
                 else again['says'] if again.get("says")
-                else f"{title} is ready ({o['said'] or o['label']}); your model choice is unchanged")
+                else on_words(title, role, o, wire))
         on_said = getattr(self.app, "turned_on", None)
         if on_said is not None:
             on_said(job, says, asked=intent.get("_asked"), **({"line": again["line"]} if again.get("line") else {}))

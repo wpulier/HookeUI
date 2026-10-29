@@ -51,6 +51,9 @@ MOST_IN_TOKENS = 200_000  # what a call may take in, at most, when its caller sa
 MOST_OUT_TOKENS = 16_000
 VOICE_BOUND_MIN = 2  # a voice session holds its next minutes ahead, renewed at each usage update, ended before they don't fit
 VOICE_USD_PER_MIN = 0.05
+# Voices billed by the tokens each response reports (voice/route.py records them): their open time writes no charge of
+# its own, and their minutes ahead are held at this estimate (audio both ways, the pictures and the context re-read).
+TOKEN_BILLED_USD_PER_MIN = {"gpt-realtime-2.1": 0.30}
 _settling: contextvars.ContextVar = contextvars.ContextVar("api-usage-settling", default=None)
 
 
@@ -390,6 +393,31 @@ def _seen(provider: str, area: str, outcome: str) -> None:
             _recent.pop(0)
 
 
+# How long each model took lately (models_in_use.py: who's powering what, with its speed): a call's seconds by the name
+# it was made under (a cloud model's API name in `attempt`; an operation's runs by "<setting>:<option>",
+# operations.Runner), only calls that returned. The last RECENT_S, at most LATENCY_MAX in all.
+LATENCY_MAX = 2000
+_latency: list[tuple[float, str, float]] = []  # (monotonic, name, ms)
+
+
+def note_latency(name: str, ms: float) -> None:
+    now = time.monotonic()
+    with _recent_lock:
+        _latency.append((now, str(name), float(ms)))
+        while _latency and (now - _latency[0][0] > RECENT_S or len(_latency) > LATENCY_MAX):
+            _latency.pop(0)
+
+
+def latency(name: str, window_s: float = RECENT_S) -> dict | None:
+    """{"p50Ms", "calls"} of `name`'s calls that returned in the last `window_s`, or None when there were none."""
+    now = time.monotonic()
+    with _recent_lock:
+        took = sorted(ms for at, n, ms in _latency if n == name and now - at <= window_s)
+    if not took:
+        return None
+    return {"p50Ms": round(took[(len(took) - 1) // 2], 1), "calls": len(took)}
+
+
 def recent(window_s: float = RECENT_S) -> dict:
     """Per provider, the calls of the last `window_s` by outcome ("ok" and OUTCOMES' keys)."""
     now = time.monotonic()
@@ -425,6 +453,7 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
         raise
     if token is not None:
         _settling.set((token, model))
+    began = time.monotonic()
     try:
         yield
     except BaseException as exc:
@@ -436,6 +465,7 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
             record(model, provider=provider, area=area, basis=f'Interrupted or failed: {OUTCOMES[outcome]}; usage unavailable')
         raise
     _seen(provider, area, "ok")
+    note_latency(model, (time.monotonic() - began) * 1000)
 
 
 def search_queries(result) -> list[str]:
@@ -545,7 +575,7 @@ class VoiceUsage:
         nxt, begins = self._next_month()
         if begins - self.wall() > VOICE_BOUND_MIN * 60:
             return True
-        return self.ledger.renew(self._hold_of(nxt), VOICE_BOUND_MIN * VOICE_USD_PER_MIN, self.model, 'OpenAI', 'Voice', nxt)
+        return self.ledger.renew(self._hold_of(nxt), VOICE_BOUND_MIN * self.per_min, self.model, 'OpenAI', 'Voice', nxt)
 
     def used(self) -> float:
         """Its seconds so far: what the provider reported, or the time it has been open, whichever is more."""
@@ -568,7 +598,7 @@ class VoiceUsage:
     def _hold_ahead(self) -> bool:
         if self.ledger is None:
             return True
-        return self.ledger.renew(self.hold, VOICE_BOUND_MIN * VOICE_USD_PER_MIN, self.model, 'OpenAI', 'Voice', self.month)
+        return self.ledger.renew(self.hold, VOICE_BOUND_MIN * self.per_min, self.model, 'OpenAI', 'Voice', self.month)
 
     def renew(self) -> bool:
         """Its next minutes held again and its spend counted so far, in one transaction against the cap now; False when
@@ -595,8 +625,16 @@ class VoiceUsage:
                 self._roll()
                 self._record(self.used(), 'Provider-reported seconds')
 
+    @property
+    def per_min(self) -> float:
+        """Its minutes ahead are held at this rate: GPT-Live's per-minute price, or a token-billed voice's estimate."""
+        return TOKEN_BILLED_USD_PER_MIN.get(self.model, VOICE_USD_PER_MIN)
+
     def _record(self, seconds: float, basis: str) -> None:
         here = max(0.0, seconds - self.month_from)  # this month's seconds only
+        if self.model in TOKEN_BILLED_USD_PER_MIN:  # its charges are its responses' tokens, recorded as they come
+            self.seen_used, self.seen_wall = max(self.seen_used, seconds), self.wall()
+            return
         if self.ledger is not None:  # its own ledger's row, as record() would write the app's
             try:
                 self.ledger.record(self.model, here * VOICE_USD_PER_MIN / 60 if self.model == 'gpt-live-1' else None,

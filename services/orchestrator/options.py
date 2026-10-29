@@ -148,6 +148,36 @@ VOICE = {
     o.id: o
     for o in [
         Option("gpt-live-1", "GPT-Live (OpenAI)", "voice ~0.1 s, outline ~2-4 s; the brain does the looking", model="gpt-live-1"),
+        # One model hears, sees the camera and Hooke's window each turn, calls the app's tools itself and points at what
+        # it talks about (voice/openai_realtime.py, voice/partner.py). Not yet measured on the journey bench, so not the
+        # default; WebRTC only.
+        Option("gpt-realtime-2.1", "One brain (hears · sees · acts)",
+               "GPT Realtime 2.1: sees each turn, acts with the app's tools, points; not yet measured against GPT-Live",
+               model="gpt-realtime-2-1"),
+    ]
+}
+
+# How the one-brain voice knows a turn (voice/openai_realtime.py). Hold: the talk key or the Talk button is held while
+# the user speaks, and released to answer (turn detection off; nothing it says is cut by a cough). Open: it listens all
+# the time and its own semantic turn detection decides, and the user can talk over it (needs headphones: otherwise it
+# hears itself). GPT-Live ignores it.
+TALK = {
+    o.id: o
+    for o in [
+        Option("hold", "Hold to talk", "hold the talk key or the Talk button while you speak; release to hear it answer"),
+        Option("open", "Open mic", "it listens all the time and you can talk over it; use headphones, or it hears itself"),
+    ]
+}
+
+# The key held to talk with the one-brain voice (the studio's window-level key handler, also while typing). Control+
+# Option is VoiceOver's modifier: with VoiceOver on, choose Right Option. Holding the Talk button always works.
+TALK_KEY = {
+    o.id: o
+    for o in [
+        Option("control-option", "Control+Option",
+               "hold Control+Option with Hooke in front, also while typing; it is VoiceOver's modifier, so with VoiceOver "
+               "on choose Right Option"),
+        Option("right-option", "Right Option", "hold the right Option key alone with Hooke in front"),
     ]
 }
 
@@ -463,15 +493,14 @@ VOICELINK = {
     ]
 }
 
-# How the app tells that the user asked for a big deliverable (a video, a lesson, a report, deep
-# research; orchestrator/research/policy.py). "quote" (default since 2026-10-06, facts not verdicts):
-# the model judges and quotes the user's words, the app checks they were said. "keywords": the
-# request must match a keyword list (as before; it refused "show me step by step how it works").
+# How the app tells that the user asked for a big deliverable (a generated video, a lesson, deep research;
+# orchestrator/research/policy.py). "quote" (default since 2026-10-06, facts not verdicts): the model judges and quotes
+# the user's words, the app checks they were said. The keyword list that was its other option is gone (2026-10-29): a
+# word list decided for the model (it refused "show me step by step how it works", and matched "animation" to a video).
 ADMIT = {
     o.id: o
     for o in [
         Option("quote", "The model says and the app checks", "the model quotes the user's request; the quote must be in what was said"),
-        Option("keywords", "Keyword list", "the request must name a video, lesson, report or deep research (as before)"),
     ]
 }
 
@@ -747,7 +776,7 @@ LIBRARY_LOOKS = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS}
@@ -898,6 +927,8 @@ class Settings:
     outline_check: str = "fix"  # checking the app's outlines after they are drawn (OUTLINE_CHECK; measured)
     track: str = "objects"  # what keeps an outline on its thing (TRACK)
     voicelink: str = "webrtc"  # native browser media; explicit relay preferences remain supported (VOICELINK)
+    talk: str = "hold"  # how the one-brain voice knows a turn (TALK)
+    talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
     taught: str = "on"  # matching the labels the user teaches (TAUGHT; measured)
     lesson_check: str = "check"  # are lessons' steps answerable without the picture? (LESSON_CHECK; measured)
@@ -990,7 +1021,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
 

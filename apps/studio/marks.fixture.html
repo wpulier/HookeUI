@@ -1,0 +1,48 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Voice marks · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;height:100vh;overflow:hidden;background:var(--mm-page);color:var(--mm-text);font:13px/1.4 var(--mm-sans);-webkit-font-smoothing:antialiased}
+.tabs{position:absolute;left:24px;top:16px;display:flex;gap:4px}
+.tabs button{height:30px;padding:0 12px;border-radius:8px;border:0;background:var(--mm-card);color:var(--mm-text-2);font:inherit}
+.stage{position:absolute;left:24px;top:64px;width:640px;height:480px;border-radius:12px;background:#0b0c10;overflow:hidden}
+.disc{position:absolute;left:80px;top:0;width:480px;height:480px;border-radius:50%;background:radial-gradient(circle at 45% 40%,#f3e6ee,#d9b7cb 60%,#b48aa3)}
+.cell{position:absolute;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b0679a,#7d3a6c);opacity:.85}
+section.workspace-window{position:absolute;left:700px;top:64px;width:380px;height:300px;border-radius:12px;background:var(--mm-card);box-shadow:inset 0 0 0 1px var(--mm-line)}
+section.workspace-window header{padding:10px 14px;font-weight:600}
+table{margin:0 14px;border-collapse:collapse;font-size:12px}td,th{padding:4px 10px;text-align:left;border-bottom:1px solid var(--mm-line)}
+.researchers{position:absolute;left:700px;top:390px;width:380px}
+.researchers-board-row{padding:10px 12px;margin-bottom:6px;border-radius:10px;background:var(--mm-card)}
+.note{position:absolute;left:24px;bottom:16px;color:var(--mm-text-3)}
+</style>
+<body data-workspace-study="true">
+<div class="tabs" id="workspace-tabs-strip"><button id="work-tab-main" data-workspace-view-tab="main"><span class="workspace-tab-label">Live</span></button>
+ <button id="work-tab-t2" data-workspace-view-tab="t2"><span class="workspace-tab-label">Measurements</span></button>
+ <button id="work-tab-t3" data-workspace-view-tab="t3"><span class="workspace-tab-label">Notes</span></button></div>
+<div class="stage" id="stage"><div class="disc"></div>
+ <div class="cell" id="o12" style="left:250px;top:170px;width:54px;height:46px"></div>
+ <div class="cell" style="left:340px;top:250px;width:36px;height:36px"></div>
+ <div class="cell" style="left:300px;top:300px;width:28px;height:30px"></div>
+ <div class="cell" style="left:200px;top:280px;width:30px;height:26px"></div></div>
+<section class="workspace-window" data-presentation-id="w-1"><header>Measurements · 4 cells</header>
+ <table><tr><th>Cell</th><th>Area µm²</th><th>Length µm</th></tr><tr><td>1</td><td>182.4</td><td>16.2</td></tr><tr><td>2</td><td>96.0</td><td>11.0</td></tr></table></section>
+<div class="researchers"><div class="mm-row-wrap researchers-board-row" data-rid="r3">Researcher 3 · two size groups</div>
+ <div class="mm-row-wrap researchers-board-row" data-rid="r4">Researcher 4 · reading the table</div></div>
+<p class="note">Fixture only: the voice's marks (marks.ts) over plain elements: a box on a moving outline, a Tab underlined, an arrow at a researcher, a frame polygon, and the listening ring. <button id="again" type="button">Again</button></p>
+<div class="talk-hold-ring" data-state="listening" style="--level:.4"><span class="talk-hold-dot"></span><span class="talk-hold-words">Listening</span></div>
+<script type="module">
+import '/src/style.css';import '/src/workspace-theme.css';import '/src/workspace-feel.css';import '/src/marks.css';
+import {Marks,SvgMarksPainter,elementPlace} from '/src/marks.ts';
+const viewport=()=>[innerWidth,innerHeight];
+const cell=document.getElementById('o12'),stage=document.getElementById('stage');
+let t=0;setInterval(()=>{t+=0.05;cell.style.left=`${250+Math.sin(t)*30}px`;cell.style.top=`${170+Math.cos(t*0.8)*14}px`;},16);
+const painter=new SvgMarksPainter(document);
+const marks=new Marks({paint:(d,n)=>painter.paint(d,n),frame:fn=>requestAnimationFrame(fn),hooks:{doc:document,viewport,
+ outline:id=>elementPlace(document.getElementById(id),viewport()),member:()=>({why:'hidden'}),panel:()=>({why:'hidden'}),
+ researcherRids:n=>[`r${n}`],anchor:()=>({crop:[0,0,480,480],offset:[0,0,1]}),
+ frame:(points)=>{const r=stage.getBoundingClientRect();return points.map(([x,y])=>[r.left+80+x,r.top+y]);}}});
+const show=()=>console.log(JSON.stringify(marks.show({type:'marks',id:`m${Date.now()}`,until:600000,marks:[
+ {target:'outline:o12',style:'box',label:'this one'},{target:'tab:Measurements',style:'underline'},{target:'researcher:3',style:'point'},
+ {target:'frame',polygon:[[0.38,0.5],[0.6,0.47],[0.66,0.66],[0.42,0.72]]},{target:'window:w-1',style:'box'},{target:'tab:Notes2'}]})));
+show();document.getElementById('again').onclick=show;
+</script>
+</body></html>

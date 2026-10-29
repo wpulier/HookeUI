@@ -19,6 +19,8 @@ export interface ShelfCard {
   options: { id: string; label: string; status: string; word: string; where: string; cost?: string; default?: boolean; check?: ShelfCheck | null }[];
   demonstration?: { url: string; caption: string; kind: 'image' | 'video' } | null;
   check?: ShelfCheck | null; outcomes?: string[];
+  onNotChosen?: string[]; // options on here (ready, checked) that the job does not use: on is not chosen
+  offerUse?: { option: string; label: string } | null; // the first one on, when the job's own choice can't run
   turnOn: { option: string; label: string; model: string; steps: ShelfStep[]; privacy?: string; cost?: string; recipe?: string; service?: string /* the cloud service whose key it uses */ } | null;
   turning?: Turning;
 }

@@ -15,6 +15,7 @@ the viewer, descriptions, the subject). Midnight does nothing.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import threading
@@ -1333,6 +1334,11 @@ class App:
             self.dialogue.notice(producer={"kind": "turn-on", "id": job}, event="on", summary=says, facts={"job": job}, asked=asked)
         except Exception as exc:  # noqa: BLE001 - Activity said it; the conversation's line is logged when it fails
             self.agent.log({"kind": "turn-on", "error": f"{type(exc).__name__}: {exc}"})
+        # The one-brain voice says it in one line when nobody is talking (voice/partner.py `happened`); GPT-Live has none.
+        happened = getattr(getattr(getattr(self, "brain", None), "voice", None), "happened", None)
+        if callable(happened):
+            with contextlib.suppress(RuntimeError):  # no running loop (a test's direct call): nothing to say it on
+                asyncio.get_running_loop().create_task(happened("capability-on", says, ref=job))
 
     async def activate_mine(self, key: str, *, asked=None, attempt=None) -> dict:
         """An owned setup check of a user's weights on the public synthetic example; never private bench footage."""

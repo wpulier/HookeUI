@@ -883,9 +883,12 @@ class Hub:
 
 def _models_health(hub) -> dict:
     from research_worker import api_usage
-    from . import fallbacks
+    from . import fallbacks, models_in_use
 
-    return {"fallbacks": fallbacks.of(hub).recent(), "providers": api_usage.recent()}
+    settings = getattr(hub, "settings", None)
+    return {"fallbacks": fallbacks.of(hub).recent(), "providers": api_usage.recent(),
+            # Who's doing each job now, where it runs and how fast it answered lately (the meter's panel).
+            **({"inUse": models_in_use.rows(settings)} if settings is not None else {})}
 
 
 def _bbox(polygons) -> tuple[float, float, float, float]:

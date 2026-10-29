@@ -1408,3 +1408,49 @@ def test_a_closer_look_that_corrects_the_voice_is_said_and_one_that_repeats_is_t
         last = offered[-1]
         assert (last.delivery != "silent" and "chloroplast, not a stoma" in last.text) is spoken_line
         assert (last.delivery == "silent") is (not spoken_line)
+
+
+def test_a_spoken_requests_identity_travels_with_its_hand_offs_and_its_outcome(tmp_path, monkeypatch):
+    """Part 2.5 (the live voice session of 2026-10-28, one outcome said three times): each spoken request has one id (its
+    ticket's admission), and it travels with each hand-off of it, the findings and the narrator's lines, so what is said
+    of it is said once by that identity, never by its words."""
+    s, brain, hub, agent, day, shown, voice = spoken(tmp_path, {})
+    monkeypatch.setattr(speech, "WAIT_FOR_WORDS_S", 0.3)
+
+    async def go():
+        s.heard("what is that", span=(1000, 1800))
+        await asyncio.sleep(0.2)
+        one = await s.handoff("what is that", "d1", offset_ms=1900)
+        two = await s.handoff("what is that", "d2", offset_ms=2100)  # the voice hands it over again
+        return one, two
+
+    one, two = asyncio.run(go())
+    request = s.requests[-1]
+    rid = request.admission.request_id
+    assert one["requestId"] == two["requestId"] == rid
+    assert s.request_for("d1") == s.request_for("d2") == rid and s.request_for("d-unknown") is None
+
+
+def test_a_request_done_without_a_hand_off_offers_its_outcome_with_its_identity(tmp_path):
+    """The app does a request the voice never handed over and offers its outcome to the narrator; a hand-off of it that
+    comes later reports the same outcome. Both carry the request's identity and the outcome's, so it is said once."""
+    s, brain, hub, agent, day, shown, voice = spoken(
+        tmp_path, {"intent": "request", "needs_look": True},
+        {"answer": "Selecting the plant cell.", "targets": [{"box_2d": [1, 2, 3, 4], "label": "plant cell"}],
+         "actions": [{"tool": "select", "args": {"object": "target 1"}}]})
+    said = []
+    brain.narrator = SimpleNamespace(offer=said.append)
+    agent.fast_model.rewrite = {"answer": "Selecting the plant cell.", "actions": [], "observation_scope": "none",
+                                "input_refs": []}
+
+    async def go():
+        s.heard("Can you select the plant cell")
+        await asyncio.sleep(0.6)  # no hand-off comes
+        return await s.handoff("Can you select the plant cell", "late-1")
+
+    found = asyncio.run(go())
+    from orchestrator.voice.openai_live import split_findings
+
+    line = said[0]
+    assert line.request_id == found["requestId"] == s.requests[-1].admission.request_id
+    assert line.outcomes and line.outcomes == split_findings(found, request_id=found["requestId"]).outcomes

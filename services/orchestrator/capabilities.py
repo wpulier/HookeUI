@@ -33,7 +33,8 @@ ACTORS = {"you": "You", "agent": "I", "auto": "I, in the background", "researche
 STATES = ("works", "broken", "not-yet")
 # Diagnostics and the opaque browser-preference namespace stay outside the capabilities/tool context given to models.
 INTERNAL_COMMANDS = {"tool", "gpu-test", "timing", "execution-recording", "screen", "screen-image", "workspace-hello",
-                     "page-opened", "workspace-tabs-result", "workspace-profile", "workspace-study-profile", "workspace-layout", "session-note"}
+                     "page-opened", "workspace-tabs-result", "table-window-result", "workspace-profile",
+                     "workspace-study-profile", "workspace-layout", "session-note"}
 # The key each cloud service's licence component needs (catalog/services).
 KEYS = {service.licence: service.key for service in _services().values() if service.licence}
 

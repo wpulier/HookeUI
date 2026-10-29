@@ -30,6 +30,8 @@ NOT_OVERLAYS = {
     ("prompts.py", "array"): "a JSON schema for a model's reply",
     ("work.py", "object"): "a JSON schema for a model's reply",
     ("work.py", "array"): "a JSON schema for a model's reply",
+    ("partner_tools.py", "object"): "the JSON schema of the voice's mark tool (its region and polygon are fractions of the camera picture)",
+    ("partner_tools.py", "array"): "the JSON schema of the voice's mark tool (its region and polygon are fractions of the camera picture)",
 }
 
 
