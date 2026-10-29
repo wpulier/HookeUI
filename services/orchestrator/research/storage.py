@@ -146,7 +146,7 @@ class ResearchStorage:
         body = json.dumps(data, indent=2).encode()
         if not self.portable(session.sitting):
             tmp = folder / 'session.json.tmp'
-            tmp.write_bytes(body)
+            tmp.write_text(body.decode('utf-8'))
             os.replace(tmp, path)
             return
         if len(body) > MAX_RECORD:
