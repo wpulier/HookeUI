@@ -31,9 +31,12 @@ SPEAKS_S = 3.0  # a mark drawn this long before the voice starts speaking is "be
 SPEECH_END_CLEAR_S = 2.0  # marks clear about 1.5 s after the voice stops (contract); this is the bound checked
 USER_BUSY_S = 1.5  # "not talking": no key held, no speech in the last 1.5 s (Amendment 4)
 POINTING = {"mark"}  # tools that point rather than act: never the "first try"
-# The one brain's hand-offs of a whole request: do_in_hooke (to the brain), then think (to the frontier mind behind the
-# voice, claude/p25-think): a rare fallback under the standard (under 5% of its acting calls), whichever is used.
-HANDOFFS = ("do_in_hooke", "think")
+# The fallback hand-off ("no tool for this": the whole request to the brain), capped by the standard at under 5% of the
+# one brain's acting calls. think (the frontier mind behind the voice, claude/p25-think) is the intended route for hard
+# and multi-step work, not a fallback (the coordinator, 2026-10-29): it is the right tool where a step expects it and the
+# wrong one where not, and its share is reported by kind of step, never capped.
+FALLBACK = "do_in_hooke"
+THINK = "think"
 
 # The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard"). One place, so the scoreboard and the tests
 # read the same thresholds.
@@ -525,8 +528,9 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
             row["toolRight"] = first_tool in tools
         if not row["toolRight"]:
             fail(f"first tool {first_tool or 'none'}, expected {' or '.join(tools) or 'none'}")
-    row["doInHooke"] = sum(1 for c in calls if c.name in HANDOFFS)
-    row["handoffs"] = {name: k for name in HANDOFFS if (k := sum(1 for c in calls if c.name == name))}
+    row["doInHooke"] = sum(1 for c in calls if c.name == FALLBACK)
+    row["think"] = sum(1 for c in calls if c.name == THINK)
+    row["thinkExpected"] = THINK in (tools or [])
     if any(c.inner is not None for c in calls):  # what the frontier mind did behind think
         row["thinkTools"] = [t.get("name") for c in calls for t in (c.inner or [])]
     row["acting"] = len(acting)
@@ -868,6 +872,20 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             "error": bench.get("error"), "audioFrom": heard_from}
 
 
+def think_share(steps: list[dict]) -> dict:
+    """think's calls over the one brain's acting calls, by kind of step (act, view, ask, status...), and the steps that
+    used it where the plan did not expect it (a quick step: its first-try line fails there too)."""
+    by_kind: dict[str, list[int]] = {}
+    for r in steps:
+        k = by_kind.setdefault(str(r.get("kind") or "?"), [0, 0])
+        k[0] += r.get("think", 0)
+        k[1] += r["acting"]
+    calls, of = sum(k[0] for k in by_kind.values()), sum(k[1] for k in by_kind.values())
+    return {"calls": calls, "of": of, "share": round(calls / of, 3) if of else None,
+            "byKind": {kind: k for kind, k in sorted(by_kind.items()) if k[0]},
+            "unexpected": [r["id"] for r in steps if r.get("think") and not r.get("thinkExpected")]}
+
+
 def summarise(runs: list[dict]) -> dict:
     """Every run pooled: the numbers the standard names."""
     steps = [r for run in runs for r in run["steps"]]
@@ -908,8 +926,8 @@ def summarise(runs: list[dict]) -> dict:
         "cantSee": sum(len(r["cantSee"]) for r in steps),
         "restartAdvice": sum(len(r["restartAdvice"]) for r in steps),
         "toolFirstTry": {"right": sum(1 for r in tool_rows if r["toolRight"]), "n": len(tool_rows)},
-        "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None,
-                      "byName": {name: sum(r.get("handoffs", {}).get(name, 0) for r in steps) for name in HANDOFFS}},
+        "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
+        "think": think_share([r for r in steps if r["toolSource"] == "partner"]),
         "falseDone": {"count": sum(r["falseDone"] for r in judged), "judgedSteps": len(judged),
                       "unconfirmedThenSpoke": sum(r["unconfirmedThenSpoke"] for r in steps)},
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
@@ -952,7 +970,7 @@ NOT_APPLICABLE = "not applicable to this voice"
 # Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
 # every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
 # by speaking over it).
-ONE_BRAIN_ONLY = {"Hand-off share (do_in_hooke, think)", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
 VOICES_WITHOUT = {"gpt-live-1"}
 
@@ -999,10 +1017,17 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Acting", "Right tool on the first try", f"{t['right']} of {t['n']}", "all",
                    None if not t["n"] else t["right"] == t["n"]))
     d = s["doInHooke"]
-    by = ", ".join(f"{name} {k}" for name, k in (d.get("byName") or {}).items() if k)
-    L.append(_line("Acting", "Hand-off share (do_in_hooke, think)", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else "")
-                   + (f": {by}" if by else ""),
+    L.append(_line("Acting", "do_in_hooke share", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
                    f"< {S['doInHookeShare']:.0%}", None if not d["of"] else d["share"] < S["doInHookeShare"]))
+    th = s.get("think") or {}
+    kinds = ", ".join(f"{kind} {k[0]} of {k[1]}" for kind, k in (th.get("byKind") or {}).items())
+    unexpected = th.get("unexpected") or []
+    L.append({"area": "Acting", "line": "think share", "gate": False, "threshold": "reported, not a gate",
+              "value": (f"{th['calls']} of {th['of']}" + (f" ({th['share']:.0%})" if th.get("share") is not None else "")
+                        + (f"; by step kind: {kinds}" if kinds else "")
+                        + (f"; where not expected: {len(unexpected)} ({', '.join(dict.fromkeys(unexpected))})" if unexpected else ""))
+              if th.get("of") else "—",
+              "result": "reported" if th.get("of") else "not measured"})
     f = s["falseDone"]
     L.append(_line("Acting", 'False "done"', f"{f['count']} in {f['judgedSteps']} judged steps; unconfirmed then spoke "
                    f"{f['unconfirmedThenSpoke']}", "0", None if not f["judgedSteps"] else f["count"] == 0))
@@ -1054,7 +1079,7 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     # Overall: how much it felt like a sharp colleague (the judge's partner_quality, 0-3). Reported, not a gate.
     q = s.get("quality") or {}
     under = q.get("under2") or []
-    L.append({"area": "Overall", "line": "Partner quality (0-3, judged)",
+    L.append({"area": "Overall", "line": "Partner quality (0-3, judged)", "gate": False,
               "value": (f"mean {q['mean']:.2f} over {q['n']} steps; under 2: {len(under)}"
                         + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
               "threshold": "reported, not a gate", "result": "reported" if q.get("mean") is not None else "not measured"})
@@ -1067,9 +1092,9 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
 
 def meets(board: list[dict]) -> bool:
     """The standard holds only when every line passes: a line not measured, or not applicable to the voice, is not a
-    pass (a voice without a feature the standard asks for does not meet it). Overall's partner quality is reported only,
-    never a gate."""
-    return all(line["result"] == "pass" for line in board if line["area"] != "Overall")
+    pass (a voice without a feature the standard asks for does not meet it). Reported lines (think's share, partner
+    quality) are never a gate."""
+    return all(line["result"] == "pass" for line in board if line.get("gate", True))
 
 
 def markdown(result: dict) -> str:

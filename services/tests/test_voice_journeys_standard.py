@@ -124,7 +124,7 @@ def result(lines, name):
 
 def test_a_run_that_meets_the_standard_passes_every_line():
     run, summary, lines = board(*good())
-    failed = {name: line for name, line in lines.items() if line["result"] != "pass" and line["area"] != "Overall"}
+    failed = {name: line for name, line in lines.items() if line["result"] != "pass" and line.get("gate", True)}
     assert not failed, json.dumps(failed, indent=1) + json.dumps([r["failures"] for r in run["steps"]], indent=1)
     assert meets(list(lines.values()))
     rows = {r["id"]: r for r in run["steps"]}
@@ -259,7 +259,7 @@ def test_do_in_hooke_over_five_percent_fails():
     plan = copy.deepcopy(PLAN)
     plan["steps"][4]["expect"] = {"tools": ["do_in_hooke"], "toolRequired": False}
     _, summary, lines = board(bench, conv, inter, verdicts, plan)
-    assert summary["doInHooke"]["calls"] == 1 and result(lines, "Hand-off share (do_in_hooke, think)") == "FAIL"
+    assert summary["doInHooke"]["calls"] == 1 and result(lines, "do_in_hooke share") == "FAIL"
 
 
 def test_false_done_fails():
@@ -696,5 +696,19 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert rows["multi"]["firstTool"] == "think" and rows["multi"]["thinkTools"] == ["outline_cells", "measure"]
     assert rows["multi"]["outcomeS"] == pytest.approx(66.3 - 57.1) and rows["multi"]["outcomesSaid"] == 1
     assert "Done: 42 nuclei" not in " ".join(rows["after"]["lines"])
-    assert summary["doInHooke"]["byName"] == {"do_in_hooke": 0, "think": 1}
-    assert result(lines, "Hand-off share (do_in_hooke, think)") == "FAIL"  # 1 of 7 acting calls: over 5%
+    # think is the intended route for multi-step work: never on the fallback's 5% cap, reported by kind of step.
+    assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
+    assert result(lines, "do_in_hooke share") == "pass"
+    assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
+    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
+
+
+def test_think_on_a_quick_step_is_the_wrong_tool():
+    """"Switch back to the main tab": think where the plan expects tabs fails the first-try line, and shows as think
+    where not expected."""
+    bench, conv, inter, verdicts = good()
+    inter.insert(1, {**tool(2, "think", 12.2, 12.3), "callId": "c2"})  # before show_measurements
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["table"]["toolRight"] is False
+    assert result(lines, "Right tool on the first try") == "FAIL"
+    assert summary["think"]["unexpected"] == ["table"] and "where not expected: 1 (table)" in lines["think share"]["value"]
