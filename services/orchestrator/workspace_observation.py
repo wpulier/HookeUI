@@ -464,7 +464,8 @@ def _legacy_style(value):
 def _legacy(value):
     """Closed DOM observations, never native sources, ownership or paint receipts."""
     value = _legacy_fields(value, ("schema", "scope"), ("title", "shows", "source", "beside", "level",
-        "pictures", "step", "placement", "covers", "opacity", "style", "work", "workReady", "document", "workspace"))
+        "pictures", "step", "placement", "covers", "opacity", "style", "work", "workReady", "document", "workspace",
+        "drawn", "members"))
     if value["schema"] != "studio-surface-v1" or value["scope"] != "dom-observation":
         _refuse("INVALID_REPORT", "unknown structural observation scope")
     result = {"schema": value["schema"], "scope": value["scope"]}
@@ -498,10 +499,31 @@ def _legacy(value):
         elif key == "style":
             result[key] = _legacy_style(fact)
         elif key == "workspace":
-            context = _legacy_fields(fact, ("project", "tab"), ("tabTitle",))
+            context = _legacy_fields(fact, ("project", "tab"), ("tabTitle", "tabs"))
             result[key] = {k:_id(context[k]) for k in ("project", "tab")}
             if "tabTitle" in context:  # the Tab in front's title, as its Tab strip shows it (main.ts)
                 result[key]["tabTitle"] = _legacy_text(context["tabTitle"], 80)
+            if "tabs" in context:  # the Project's open Tabs in strip order, one in front (Hands: focus, "the main tab")
+                tabs = _array(context["tabs"])
+                if len(tabs) > 24:
+                    _refuse("REPORT_TOO_LARGE", "structural Tab list exceeds its bound")
+                result[key]["tabs"] = [{"id": _id(t["id"]), "title": _legacy_text(t["title"], 80),
+                                        "front": _boolean(t["front"])}
+                                       for t in (_legacy_fields(t, ("id", "title", "front")) for t in tabs)]
+                if tabs and sum(t["front"] for t in result[key]["tabs"]) != 1:
+                    _refuse("INVALID_REPORT", "exactly one Tab is in front")
+        elif key == "drawn":  # the outlines drawn on the live view now (Hands: highlight and clear verified)
+            drawn = _array(fact)
+            if len(drawn) > 60:
+                _refuse("REPORT_TOO_LARGE", "structural drawn outlines exceed their bound")
+            result[key] = [{"id": _id(d["id"]), "kind": _id(d["kind"])}
+                           for d in (_legacy_fields(d, ("id", "kind")) for d in drawn)]
+        elif key == "members":  # a population layer's members and how many are drawn (Hands: outline verified)
+            members = _legacy_fields(fact, ("count", "drawn"))
+            count, drawn_n = _integer(members["count"]), _integer(members["drawn"])
+            if count < 0 or drawn_n < 0 or drawn_n > count:
+                _refuse("INVALID_REPORT", "invalid structural member counts")
+            result[key] = {"count": count, "drawn": drawn_n}
         elif key == "document":
             document = _legacy_fields(fact, ("project", "tab", "placement", "resource", "representation", "state", "focused"))
             resource = _legacy_fields(document["resource"], ("day", "id", "version", "picture"), ("outputId",))
