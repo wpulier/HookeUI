@@ -218,3 +218,33 @@ def test_harness_and_driver_parse():
     for name in ("harness.js", "drive.mjs"):
         subprocess.run(["node", "--check", str(stack.HERE / name)], check=True)
     assert sys.executable
+
+
+def test_the_judge_numbers_the_lines_the_scorer_reads():
+    """Claims come back by line number: the judge's lines and the scorer's must be the same, in the same order (an
+    event's line in a step's window belongs to neither)."""
+    from bench.voice_journeys.judge import facts, verdicts
+    from bench.voice_journeys.standard import score_run
+
+    bench, conv, inter, _ = good()
+    told = {f["id"]: f for f in facts(bench, conv, inter)}
+    run_ = score_run(bench, conv, inter, PLAN)
+    for row in run_["steps"]:
+        assert [l.split(") ", 1)[1] for l in told[row["id"]]["lines"]] == row["lines"]
+    assert not any("Researcher 2 is done" in l for l in told["multi"]["lines"])
+
+    class Model:
+        def __init__(self):
+            self.prompts = []
+
+        async def ask(self, images, prompt, max_output_tokens=600):
+            self.prompts.append(prompt)
+            data = {"claims_on_screen": [{"line": 2, "words": "Done"}, 1], "outcome_mentions": 1, "answered": True}
+            return type("R", (), {"data": data, "error": None, "raw_text": ""})()
+
+    import asyncio
+
+    model = Model()
+    judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
+    assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
+    assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]

@@ -365,14 +365,20 @@ def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
+def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=()) -> list[dict]:
+    """The voice's lines answering a step (what the judge numbers and the scorer reads, in the same order): the
+    journal's, else the one brain's responses, without what it said on its own (events, reconnects)."""
+    lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
+    return [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+
+
 def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dict, conv: list[dict],
                inter: list[dict], segments, verdict: dict | None = None, unprompted=()) -> dict:
     """One step against its expectation. Every number is None when it does not apply or was not observed."""
     start, end = window
     release = released(step)
     n = turn_number(bench["events"], start, end)
-    lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
-    lines = [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+    lines = step_lines(conv, inter, start, end, unprompted)
     grown = bench.get("_fragments") or {}
     for l in lines:
         l["growth"] = grown.get(l["id"], [])

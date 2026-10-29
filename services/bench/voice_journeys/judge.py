@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from .standard import card_calls, load_bench, partner_calls, released, turn_number, voice_lines, windows
+from .standard import card_calls, load_bench, partner_calls, released, step_lines, turn_number, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
 COST_PER_STEP_USD = 0.02  # a bounded judge call (one image, about 2,000 tokens in, 600 out), for the worst case
@@ -43,13 +43,13 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     """Each scored step's words, lines and actions, relative to its release (what PROMPT is given)."""
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
-    out = []
+    out, unprompted = [], unprompted_spans(inter)
     for step, (start, end) in zip(steps, windows(steps)):
         if step.get("kind") in ("idle", "restart"):
             continue
         release = released(step)
         n = turn_number(bench["events"], start, end)
-        lines = voice_lines(conv, start, end)
+        lines = step_lines(conv, inter, start, end, unprompted)
         calls = partner_calls(inter, n, start, end) or card_calls(conv, start, end)
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
