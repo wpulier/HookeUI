@@ -1513,7 +1513,7 @@ function renderInputs(): void {
         if (entry.material?.kind === 'assignment') void openStudy(entry.id);
         else actions.open(); };
       const {wrap} = dataRow(el('span', 'mm-row-icon', entry.material?.kind === 'assignment' ? '◇' : '▤'),
-        entry.title, materialFacts(entry), 'Preview retained material', open,
+        entry.title, materialFacts(entry), `${entry.title}\n${materialFacts(entry)}\nPreview retained material`, open,
         () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
       materialList.append(wrap);
     }
