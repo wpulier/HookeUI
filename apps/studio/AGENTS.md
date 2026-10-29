@@ -376,7 +376,10 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   the capture's own scale, sortable, medians and middle halves with mean ± SD under them, Download CSV. Every summary
   number (n, median, quartiles, min, max, mean, SD, SEM, the mean's 95% CI) is the server's, from
   `orchestrator/stats.py` (pure, deterministic code; never a model, never recomputed in the studio). From Made (Table),
-  the cells' and tracks' controls (Table), Actions and the agent (`show_measurements`).
+  the cells' and tracks' controls (Table) and Actions. The agent's `show_measurements` opens the window the Data row's
+  Open in Measurements opens (`agent-table.ts`, a `table-window` message, on the Tab it names, fitted), done once the
+  screen report shows it (docs/architecture/on-screen.md "One surface per thing"); a studio without the workspace keeps
+  this page.
 - **The empty stage** (`session-home.ts`) is one box under the session's name, "What will you look at?": side by side,
   Open a picture or video (dropped anywhere on the stage, or chosen: it joins your assets and this session) and the live
   camera (its state, Use live camera for a new session, Connect a camera and Reconnect when it has no picture); under

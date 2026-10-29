@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .brain.registry import ToolFailed
+from .screen import REPORT_NEXT
 from .workspace_observation import ObservationError
 
 READER_SURFACES = ("document:reader-side", "document:reader-tab", "document:reader-research")  # data-reader.ts roots, as the report names them
@@ -110,9 +111,9 @@ def _current(studio: ReaderStudio, guard: Callable[[], None]) -> dict:
     try:
         report = studio.read()
     except ObservationError as exc:
-        raise ToolFailed(str(exc), next="check the studio, then ask again") from None
+        raise ToolFailed(str(exc), next=REPORT_NEXT) from None
     if report is None:
-        raise ToolFailed("the studio is not reporting what it shows", next="open the studio, then ask again")
+        raise ToolFailed("the studio has not reported what it shows", next=REPORT_NEXT)
     strip = next((item for item in report.get("items") or [] if item.get("id") == "workspace-tabs"), None)
     if strip is None or any(strip.get(key) != studio.pin[key] for key in _PIN_FIELDS if key != "client"):
         raise ToolFailed("the Project's workspace was opened again while it was being shown",

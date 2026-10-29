@@ -179,6 +179,7 @@ PLANS: dict[str, Plan] = {
     "new-thread": Plan("new topic", [("new_thread", {"title": "leaf"})]),
     "switch-thread": Plan("back to the previous one", [("switch_thread", {"thread": "t1"})], before=[("new_thread", {"title": "leaf"})]),
     "new-session": Plan("start a new session", [("new_session", {"name": "kidney section"})]),
+    "new-project": Plan("create a new project called experiment", [("new_project", {"name": "experiment"})]),
     # The library (brain/toolbox/library.py): looking touches no session; putting one on stage is the `source` command,
     # here refused for an asset the stand-in world has none of, saying why.
     "find-assets": Plan("which recordings of rotifers do I have?", [("assets", {"words": "rotifer"})]),
@@ -245,8 +246,9 @@ PLANS: dict[str, Plan] = {
                                 [("describe_capability", {"capability": "stand-in-describer"})], setup=("kind",)),
     "turn-on-capability-agent": Plan("turn on Find every cell", [("turn_on", {"job": "Find every cell",
                                                                                "asked_with": "turn on Find every cell"})]),
+    # No studio here: it is not shown, and where it is saved is said (table_window.py; never a page taken as shown).
     "show-measurements": Plan("show me the cell measurements as a table", [("show_measurements", {})], setup=("cells",),
-                              expect="refused: did not say it shows"),
+                              expect="refused: saved in Data"),
     "which-models": Plan("which models can do this?", [("capabilities", {"operation": "{use_as}"})], names_model=True, reach="listed"),
     "use-for-request": Plan("use SAM 2.1 for this one", [("use", {"operation": "outline", "implementation": "SAM 2.1 tiny",
                                                                   "by": "user"})]),

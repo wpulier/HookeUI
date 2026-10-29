@@ -89,6 +89,7 @@ NOT_RUNNABLE: dict[str, str] = {
     "select": "changes the selection on screen",
     "clear": "takes outlines off the screen",
     "tabs": "changes Tab arrangements",
+    "new_project": "starts a Project (agents get theirs from open)",
     "new_session": "starts a Project (agents get theirs from open)",
     "switch_session": "opens another of the researcher's Projects",
     "new_thread": "starts a conversation",

@@ -1,13 +1,57 @@
-"""The measurements table (orchestrator/tables.py; the studio's Measurements page): `show_measurements` opens it in the
-studio that asked, at a cell population or a motion item, when the user asks to see the numbers ("show me the table",
-"give me the measurements as a spreadsheet"). The page has the rows, their median and spread and Download CSV; the
-agent never reads the rows out (query_population and track_motion answer about them)."""
+"""The measurements table (orchestrator/tables.py): `show_measurements` opens it in the studio that asked, at a cell
+population or a motion item, when the user asks to see the numbers ("show me the table", "give me the measurements as a
+spreadsheet"), in the window a person's Open in Measurements opens, on the Tab in front or on a Tab it names (made when
+needed): one action, done once the studio's report shows it there (orchestrator/table_window.py). The window has the
+rows, their median and spread and Download CSV; the agent never reads the rows out (query_population and track_motion
+answer about them). A studio without the Project workspace is shown the Measurements page as before."""
 from __future__ import annotations
 
 from types import SimpleNamespace
 from urllib.parse import urlencode
 
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
+from .resources import require_current
+
+
+def _accepted(ctx, screen) -> bool:
+    """Whether an accepted studio (the Hooke workspace) asked, or counts: a `#measurements` page is no surface there."""
+    client = getattr(ctx, "client", None)
+    if client is not None:
+        return client in getattr(screen, "_accepted", {})
+    return screen.current_accepted() is not None
+
+
+async def open_table(services, ctx, *, session: str, target: str, revision: int, title: str, rows: int, what: str,
+                     tab: str | None, guard) -> str:
+    """The measurements table of `target` on screen, said as the studio showed it (table_window.py): in its table
+    window where the studio has the Project workspace; the Measurements page in a studio without it (an older studio, a
+    test's fixture), as before. Refuses, saying where the table is saved, when nothing shows it."""
+    from ...data_reader import reader_studio
+    from ...screen import screen_of
+
+    hub = services.hub
+    screen = screen_of(hub)
+    studio = reader_studio(screen, ctx, session)
+    if studio is not None and getattr(services, "workspace_tabs", None) is not None:
+        from ...table_window import show
+
+        return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
+                          tab=tab, guard=guard)
+    saved = f"it is saved in Data as {target}, where its row's Open in Measurements opens it"
+    if _accepted(ctx, screen):
+        raise ToolFailed(f"{what} is not shown: the studio that asked is not showing this Project's Tabs; {saved}",
+                         next="ask again once the Project is open")
+    if tab:
+        raise ToolFailed(f"{what} is not shown: this studio has no Project Tabs to put it in; {saved}",
+                         next="ask for it without a Tab")
+    pin = urlencode({'session': session, 'revision': revision})
+    shown = await services.open_page(getattr(ctx, 'client', None), f'#measurements/{target}?{pin}')
+    guard()
+    if shown is None or not shown.get("shown"):
+        raise ToolFailed(f"no studio said it shows {what}; {saved}", next="ask again in a moment")
+    if not shown.get("visible", True):
+        return f"opened {what}; it shows when the user looks at the studio again; Download CSV is there"
+    return f"the studio shows {what}; sortable, with the median and middle half, and Download CSV"
 
 
 def add_table_tools(registry: Registry, services) -> None:
@@ -63,21 +107,27 @@ def add_table_tools(registry: Registry, services) -> None:
         except TableRefused as exc:
             raise ToolFailed(str(exc), next='reopen the result’s Project and measurements') from None
         current()
-        pin = urlencode({'session': session, 'revision': revision})
-        shown = await services.open_page(getattr(ctx, 'client', None), f'#measurements/{target}?{pin}')
-        current()
         what = f"the measurements of {table['title']} ({table['count']} rows; {table['note']})"
-        if shown is None or not shown.get("shown"):
-            raise ToolFailed(f"the studio did not say it shows {what}", next="say it is in Made, under its row's Table")
-        if not shown.get("visible", True):
-            return f"opened {what}; it shows when the user looks at the studio again; Download CSV is there"
-        return f"the studio shows {what}; sortable, with the median and middle half, and Download CSV"
+        tab = " ".join(str(args.get("tab") or "").split())[:80] or None
+
+        def guard():
+            current()
+            require_current(ctx, day)
+
+        return await open_table(services, ctx, session=session, target=target, revision=revision,
+                                title=str(table['title']), rows=int(table['count']), what=what, tab=tab, guard=guard)
 
     registry.add(Tool(
-        "show_measurements", "Open the measurements table in the studio: every cell's (or motion track's) numbers as "
-        "rows, their median and spread, and Download CSV, when the user wants to see the numbers or take them away "
-        "(\"show me the table\", \"export the cell sizes\", \"spreadsheet of the speeds\"). `of`: a population (e3) or "
-        "motion item (m1), or a table a capability the catalog added made (d4); with none, the cells shown or newest, else the "
-        "newest motion.",
-        schema({"of": {"type": "string", "description": "a population (e3) or motion item (m1); empty: the newest"}}),
+        "show_measurements", "Open the measurements table in a table window on a Tab, the window the user's own Open in "
+        "Measurements opens: every cell's (or motion track's) numbers as rows, their median and spread, and Download CSV, "
+        "when the user wants to see the numbers or take them away (\"show me the table\", \"export the cell sizes\", "
+        "\"spreadsheet of the speeds\"). `of`: a population (e3) or motion item (m1), or a table a capability the catalog "
+        "added made (d4); with none, the cells shown or newest, else the newest motion. `tab`: a Tab inside this Project to "
+        "put it in (\"put the table in a new tab called Measurements\"): its title, or exact id from tabs list; a title no "
+        "Tab has makes that Tab. One action: the Tab is made or brought forward and the table fitted to it, in front. Done "
+        "only when the studio shows it; otherwise its answer says where the table is saved.",
+        schema({"of": {"type": "string", "description": "a population (e3) or motion item (m1); empty: the newest"},
+                "tab": {"type": "string", "maxLength": 80,
+                        "description": "a Tab inside this Project to open it in, by title or id; made when none has it; "
+                                       "empty: the Tab in front"}}),
         show_measurements, kind="effect", inline_ms=4000, family="measuring"))

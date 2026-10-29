@@ -70,7 +70,7 @@ function validScreenReportFailure(value: unknown): value is ScreenReportFailure 
 
 export interface ScreenItem {
   work?: StudioSurfaceLegacy['work'];
-  workspace?:{project:string;tab:string};
+  workspace?:{project:string;tab:string;tabTitle?:string};
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   id: string; // live | layer:<population> | outlines | magnifier | viewer | slidemap | card
@@ -139,7 +139,7 @@ export interface StudioSurfaceLegacy {
   step?: string | null; placement?: string; covers?: boolean; opacity?: number;
   style?: { opacity?: number; fillOpacity?: number; lineWidth?: number; colour?: string; color?: string;
     stroke?: string; fill?: boolean; emphasis?: { members: readonly string[]; rest: 'hide' | 'fade' } };
-  workspace?:{project:string;tab:string};
+  workspace?:{project:string;tab:string;tabTitle?:string};
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   work?: { researcherId: string; resource: { day: string; id: string; version: number | null } };
@@ -269,7 +269,10 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
     if (resource.version !== null && (!Number.isSafeInteger(resource.version) || resource.version < 0)) throw new Error('Invalid observed work version');
     result.work = structuredClone(work);
   }
-  if(value.workspace){if(Object.keys(value.workspace).sort().join(',')!=='project,tab')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);result.workspace={...value.workspace};}
+  if(value.workspace){const keys=Object.keys(value.workspace).sort().join(',');if(keys!=='project,tab'&&keys!=='project,tab,tabTitle')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);
+    // The Tab in front's title (main.ts), at most 80 characters as a Tab title is (workspace_observation.py checks the same).
+    if(value.workspace.tabTitle!==undefined&&(typeof value.workspace.tabTitle!=='string'||!value.workspace.tabTitle||value.workspace.tabTitle.length>80))throw new Error('Invalid workspace context');
+    result.workspace={...value.workspace};}
   if(value.document){
     const d=value.document;
     if(Object.keys(d).some(k=>!['project','tab','placement','resource','representation','state','focused'].includes(k)))throw new Error('Unknown document observation');

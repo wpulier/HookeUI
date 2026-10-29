@@ -498,8 +498,10 @@ def _legacy(value):
         elif key == "style":
             result[key] = _legacy_style(fact)
         elif key == "workspace":
-            context = _legacy_fields(fact, ("project", "tab"))
+            context = _legacy_fields(fact, ("project", "tab"), ("tabTitle",))
             result[key] = {k:_id(context[k]) for k in ("project", "tab")}
+            if "tabTitle" in context:  # the Tab in front's title, as its Tab strip shows it (main.ts)
+                result[key]["tabTitle"] = _legacy_text(context["tabTitle"], 80)
         elif key == "document":
             document = _legacy_fields(fact, ("project", "tab", "placement", "resource", "representation", "state", "focused"))
             resource = _legacy_fields(document["resource"], ("day", "id", "version", "picture"), ("outputId",))
@@ -1112,6 +1114,35 @@ def normalize_observation(message: dict, *, client: ClientRef, app_run_id: str,
     if len(json.dumps(result, allow_nan=False, separators=(",", ":")).encode()) > limits.normalized_bytes:
         _refuse("REPORT_TOO_LARGE", "normalized observation byte limit")
     return Observation(_freeze(result), client, app_run_id, received_at)
+
+
+def front(wire: Mapping) -> dict:
+    """What is in front in one observation (docs/architecture/on-screen.md): the Project and Tab its Tab strip reports
+    (with the Tab's title), the window highest in the stacking among the windows open and laid out on that Tab, and
+    whether the studio itself was in view and focused when it reported. A fact the report does not give is None, never
+    guessed: no Tab strip, no Tab; no window open, no window; another Project's or Tab's windows never count."""
+    from .screen import closable
+
+    items = list(wire.get("items") or [])
+    strip = next((i for i in items if i.get("id") == "workspace-tabs"), None)
+    workspace = ((strip or {}).get("view") or {}).get("legacy", {}).get("workspace") or {}
+    project, tab = workspace.get("project"), workspace.get("tab")
+
+    def legacy(item):
+        return (item.get("view") or {}).get("legacy") or {}
+
+    def here(item):
+        document = legacy(item).get("document")
+        return document is None or (document.get("project") == project and document.get("tab") == tab)
+
+    windows = [i for i in items if i.get("id") != "workspace-tabs" and closable(i) and i.get("open") and i.get("visible")
+               and here(i)]
+    window = max(windows, key=lambda i: i.get("z") or 0, default=None)
+    viewport = wire.get("viewport") or {}
+    return {"project": project, "tab": tab, "tabTitle": workspace.get("tabTitle"),
+            "window": window["id"] if window is not None else None,
+            "title": (window.get("title") or legacy(window).get("title")) if window is not None else None,
+            "studioVisible": viewport.get("visible"), "studioFocused": viewport.get("documentFocused")}
 
 
 def pin_request(observation: Observation, *, snapshot_id: str, timing: str,

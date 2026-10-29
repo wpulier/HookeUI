@@ -2438,11 +2438,25 @@
       ]
     },
     {
+      "id": "new-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "New Project",
+      "what": "Starts a new Project with its own conversations, Data and Tabs",
+      "how": {
+        "tool": "new_project",
+        "say": "create a new project called experiment"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
       "id": "new-session",
       "family": "conversation",
       "actor": "agent",
       "title": "New session",
-      "what": "Starts a new session, a project with its own conversations",
+      "what": "New Project's earlier name, kept so saved workflows run",
       "how": {
         "tool": "new_session",
         "say": "start a new session"

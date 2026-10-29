@@ -174,6 +174,11 @@ NAMES = {"document": "the Project document", "live": "the live view", "populatio
          "viewer": "the result viewer", "slidemap": "the slide map", "card": "the details card",
          "made-today": "what was made in this session", "tracks": "the motion tracks",
          "sidebar": "the sidebar", "sessions": "the sessions list"}
+# The next step said when the studio's report cannot confirm something (ToolFailed.next). The studio is this app's own
+# window: there is nothing to open, refresh or restart, and what was asked is saved (live 2026-10-28: next steps telling
+# the user to check or to open the app's window became "I can't see your screen ... quit and reopen the app"). Asking
+# again reads the next report.
+REPORT_NEXT = "ask again in a moment: saved work is kept, and the next report is read"
 CONFIRM_S = 4.0  # how long a change waits for the report that shows it
 REPORT_FRESH_S = 30.0  # a studio that has not reported for this long is not counted as showing anything
 

@@ -193,7 +193,8 @@ Talking with it (Asking by text or voice, and how it answers):
 - I: New conversation: Starts a new conversation (say "new topic")
 - You: Conversation menu: Start, rename or go back to a conversation
 - I: Back to a conversation: Goes back to an earlier conversation (say "back to the blood smear")
-- I: New session: Starts a new session, a project with its own conversations (say "start a new session")
+- I: New Project: Starts a new Project with its own conversations, Data and Tabs (say "create a new project called experiment")
+- I: New session: New Project's earlier name, kept so saved workflows run (say "start a new session")
 - You: Sessions: Start, name or go back to a session
 - I: Back to a session: Goes back to an earlier session, its conversations and work (say "go back to yesterday's leaf session")
 - I: Let you find things: Stops pointing things out until you ask (say "let me find it myself")

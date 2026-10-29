@@ -122,7 +122,23 @@
   }
  },
  {
-  "description": "Start a new session (a new project, with its own conversations, memory and work) only when the user asks for a new session in so many words; a new topic or starting fresh is new_thread, in this session. When it is unclear, start a conversation with new_thread and say that a new session is theirs to ask for. The live view starts fresh; the session left is kept and can be opened again. Never on your own.",
+  "description": "Start a new Project when the user asks for a new project or a new session (\"create a new project called experiment\", \"start a new session\"): its own conversations, memory, Data and Tabs. A new Tab inside this Project is the tabs tool's create, and a new topic or starting fresh is new_thread, in this Project. The live view starts fresh; the Project left is kept and can be opened again. Never on your own.",
+  "inline_ms": 300,
+  "kind": "effect",
+  "name": "new_project",
+  "params": {
+   "properties": {
+    "name": {
+     "description": "its name, when the user gives one",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Start a new Project as new_project does (its earlier name, kept so saved workflows run); use new_project.",
   "inline_ms": 300,
   "kind": "effect",
   "name": "new_session",
@@ -2131,7 +2147,7 @@
   }
  },
  {
-  "description": "List this Project\u2019s Tabs and their exact retained placements, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately.",
+  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), their exact retained placements and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "tabs",

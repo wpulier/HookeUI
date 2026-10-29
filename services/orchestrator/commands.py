@@ -1565,6 +1565,14 @@ async def page_opened(app, client, msg) -> dict:
     return {"ok": True}
 
 
+@command('table-window-result')
+async def table_window_result(app, client, msg):
+    """The studio's answer to `table-window` (table_window.py): the table window it opened on that Tab, or why not."""
+    from .table_window import table_windows
+
+    return {'ok': table_windows(app.hub).reply(client, msg)}
+
+
 @command('workspace-tabs-result')
 async def workspace_tabs_result(app, client, msg):
     try:
