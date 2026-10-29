@@ -72,7 +72,11 @@ STANDARD = {
 # What was meant for the model and must never be spoken (live 2026-10-28 and the app's own note wording).
 LEAK_PHRASES = ("nothing was outlined", "nothing's outlined", "nothing is outlined", "context only", "silent context",
                 "not a user request", "do not acknowledge", "ask_app", "do_in_hooke", "look_hard", "function call",
-                "tool call", "the delegation", "screen now:", "project brief", "untrusted")
+                "tool call", "the delegation", "screen now:", "project brief", "untrusted",
+                # Hooke's internal checks, never the user's to hear (the live partner spec, 4.8 horizontal 3; Will's
+                # try-out, 29 Oct: "the workspace report was out of date ... ask again in a moment").
+                "workspace report", "workspace view was out of date", "report was out of date", "report was stale",
+                "ask again in a moment", "saved revision", "the observation", "source grant", "bounded name")
 LEAK_PATTERNS = (
     re.compile(r"[{\[]\s*\""),  # JSON
     re.compile(r"\"\s*:\s*[\"{\[\d]"),
