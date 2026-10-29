@@ -141,3 +141,7 @@ reads do not recompute motion. This closes the tracks adapter gap but not Librar
 Record, researcher, snapshot/bookmark or full dependency-collection coverage.
 Live App activation remains off. Synthetic points/images through real journals and
 workspace recovery establish storage behavior, not a real microscopy experiment.
+
+### Staged bookmark adapter
+
+Bookmarks join the opt-in Project-owned artifact stores. Each accepted bookmark keeps its original owner, date, identity, note and picture digest; it can be read after relocation without a camera. Background decoding cannot retarget a later Project selection. Library assets, recordings and remaining research dependencies still block live activation and complete collection.

@@ -14,6 +14,7 @@ asked to keep ("bookmark this", "mark this spot"), and the way back to one from 
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import threading
@@ -36,18 +37,34 @@ class Bookmarks:
         # Taking an id and writing its files is one step: two bookmarks at once (each in its own thread) never take
         # the same id, so neither overwrites the other (the M3.3 re-check).
         self._lock = threading.Lock()
+        from .project_artifact_folder import ArtifactFolder
+        self._folder = ArtifactFolder(self.root, 'bookmarks') if self.root is not None else None
+        self._uncertain = set()
         self._given = 0  # the highest number given in this run (day/ids.py)
 
-    def folder(self, day: str | None = None) -> Path | None:
-        """A date's folder (default: today's, where new ones go)."""
-        return self.root / (day or self.today()) if self.root is not None else None
+    def folder(self, day: str | None = None, *, session=None, write=False) -> Path | None:
+        """Resolve the captured owner; changing the view never moves saved bookmarks."""
+        if self._folder is None:
+            return None
+        date = day or self.today()
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+            raise ValueError("Choose a valid bookmark date")
+        root = self._folder.root_for(self.store, session or self.session(), write=write)
+        folder = root / date
+        if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+            raise ValueError("Bookmark storage changed; restore its original folder")
+        return folder
+
+    def _portable(self, session):
+        locations = getattr(self.store, 'locations', None)
+        return locations is not None and locations.project(session) is not None
 
     def _next_id(self, folder: Path, session: str | None = None) -> str:
         """New for the session it is kept in (on any of its days) and for the date folder (day/ids.py), and never a
         file already there."""
         from .day.ids import next_number, owner
 
-        used = [int(m.group(1)) for p in folder.glob("b*.json") if (m := re.fullmatch(r"b(\d+)\.json", p.name))]
+        used = [int(m.group(1)) for p in folder.glob("b*.*") if (m := re.fullmatch(r"b(\d+)\.(?:json|jpg|pending)", p.name))]
         self._given = next_number(owner(self.store, session), "b", max([self._given, *used]), folder.name)
         return f"b{self._given}"
 
@@ -64,8 +81,9 @@ class Bookmarks:
         Off the event loop: it decodes and writes."""
         from .capture import RUN
 
-        folder = self.folder()
         session = session or self.session()
+        date = self.today()
+        folder = self.folder(date, session=session, write=True)
         if folder is None:
             raise ValueError("there is no folder for bookmarks in this run")
         fov = getattr(capture, "fov", None)
@@ -87,15 +105,45 @@ class Bookmarks:
                   "disc": float(getattr(capture, "disc", 0.0) or 0.0), "tracked": True,
                   **({"actor": actor} if actor else {})}  # who kept it (ticket 66, S2): Data's "Made by"
         with self._lock:
+            if self.folder(date, session=session, write=True) != folder:
+                raise ValueError("Bookmark destination changed during capture")
+            portable = self._portable(session)
+            from .scientific_projects import ProjectStore
+            publish = (lambda path, data: ProjectStore._write(path, data, immutable=True)) if portable else _atomic
             folder.mkdir(parents=True, exist_ok=True)
+            if portable:
+                ProjectStore._sync_directory(folder.parent)
             bid = self._next_id(folder, session)
             record = {"id": bid, **record}
+            pending = folder / f"{bid}.pending"
+            if portable:
+                ProjectStore._write(pending, b'Bookmark publication incomplete. Preserve these files.\n')
             if jpeg:
-                _atomic(folder / f"{bid}.jpg", jpeg)
+                publish(folder / f"{bid}.jpg", jpeg)
                 record["picture"] = f"{bid}.jpg"
+                if portable:
+                    record["pictureSha256"] = hashlib.sha256(jpeg).hexdigest()
             elif missing:
                 record["pictureMissing"] = missing  # said with it: kept without its picture, and why
-            _atomic(folder / f"{bid}.json", json.dumps(record).encode())  # the record last: listed once whole
+            if self.folder(date, session=session, write=True) != folder:
+                raise ValueError("Bookmark destination changed before publication")
+            publish(folder / f"{bid}.json", json.dumps(record).encode())
+            if portable:
+                if self.folder(date, session=session, write=True) != folder:
+                    raise ValueError("Bookmark destination changed before acceptance")
+                self._uncertain.add((folder, bid))
+                try:
+                    pending.unlink()
+                    ProjectStore._sync_directory(folder)
+                except OSError:
+                    # Preserve an on-disk recovery marker; do not list a failed
+                    # admission even if the filesystem also refuses recovery.
+                    try:
+                        ProjectStore._write(pending, b'Bookmark publication uncertain. Preserve these files.\n')
+                    except OSError:
+                        pass
+                    raise
+                self._uncertain.discard((folder, bid))
         return record
 
     def journal(self, mark: dict) -> None:
@@ -109,15 +157,18 @@ class Bookmarks:
             except Exception:
                 pass  # the bookmark is kept whatever happens to its line in the journal
 
-    def in_folder(self, day: str) -> list[dict]:
+    def in_folder(self, day: str, *, session=None) -> list[dict]:
         """Every bookmark kept in a date's folder, whatever session (each with its date: "day")."""
-        folder = self.folder(day)
+        folder = self.folder(day, session=session)
         if folder is None or not folder.is_dir():
             return []
         out = []
         for path in sorted(folder.glob("b*.json"), key=lambda p: int(re.sub(r"\D", "", p.stem) or 0)):
+            if (folder / f"{path.stem}.pending").exists() or (folder, path.stem) in self._uncertain:
+                continue
             try:
-                mark = json.loads(path.read_text())
+                from .scientific_projects import ProjectStore
+                mark = json.loads(ProjectStore._read(path, 1 << 20))
             except (OSError, ValueError):
                 continue
             if isinstance(mark, dict):
@@ -134,7 +185,7 @@ class Bookmarks:
             store = self.store
             dates = (sorted(set(getattr(store, "days", []) or []) | {self.today()})
                      if store is not None and sid == getattr(store, "sid", None) else [self.today()])
-        marks = [m for date in dates for m in self.in_folder(date) if session_of(m, date) == sid]
+        marks = [m for date in dates for m in self.in_folder(date, session=sid) if session_of(m, date) == sid]
         return sorted(marks, key=lambda m: float(m.get("at") or 0.0))
 
     def all(self, day: str | None = None) -> list[dict]:
@@ -164,17 +215,30 @@ class Bookmarks:
         named = [m for m in marks if wanted and wanted <= set(re.findall(r"[a-z0-9]+", (m.get("note") or "").lower()))]
         return list(reversed(named))
 
-    def picture(self, bid: str, day: str | None = None, max_bytes: int | None = None) -> bytes | None:
+    def picture(self, bid: str, day: str | None = None, max_bytes: int | None = None, *, session=None) -> bytes | None:
         """A bookmark's picture from its date's folder (`day`; default: the open session's bookmark by that id)."""
         from .resources import read_picture_bytes
         if day is None:
-            mark = next((m for m in self.session_marks() if m.get("id") == bid), None)
+            mark = next((m for m in self.session_marks(session) if m.get("id") == bid), None)
             day = mark.get("day") if mark is not None else None
             if day is None:
                 return None
-        folder = self.folder(day)
+        if not re.fullmatch(r"b\d+", bid):
+            return None
+        folder = self.folder(day, session=session)
+        if folder is not None and ((folder / f"{bid}.pending").exists() or (folder, bid) in self._uncertain):
+            return None
         path = folder / f"{bid}.jpg" if folder is not None else None
-        return read_picture_bytes(path, max_bytes) if path is not None and path.is_file() else None
+        if path is None or not path.is_file():
+            return None
+        if self._portable(session or self.session()):
+            from .scientific_projects import ProjectStore
+            record = json.loads(ProjectStore._read(folder / f"{bid}.json", 1 << 20))
+            data = ProjectStore._read(path, max_bytes if max_bytes is not None else 16 << 20)
+            if hashlib.sha256(data).hexdigest() != record.get('pictureSha256'):
+                raise ValueError('The retained bookmark picture changed; restore its accepted bytes')
+            return data
+        return read_picture_bytes(path, max_bytes)
 
 
 def conversation_of(mark: dict, day, session: str | None = None) -> str | None:

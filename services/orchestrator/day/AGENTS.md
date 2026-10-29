@@ -324,3 +324,5 @@ journal references as populations. Their points, captured image, rendered tracks
 provenance and each prior save move with the Project. Workspace recovery and inactive
 Project reads share that resolver; missing/corrupt archives cannot be resaved as fresh
 accepted measurements. Legacy tracks keep their current layout.
+
+Opt-in portable bookmarks resolve the captured Project before decoding and again before publication. Records and their pictures are retained under artifacts/bookmarks; reads and Record capture use that same owner after a UI switch. Pictures carry their retained digest. Legacy bookmark paths remain unchanged.

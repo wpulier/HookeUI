@@ -1999,7 +1999,7 @@ class Index:
             return (data, "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg") if data else None
         if re.fullmatch(r"b\d+", eid) and self.bookmarks is not None:
             mark = next((m for m in self.bookmarks.session_marks(day, self.dates(day)) if m.get("id") == eid), None)
-            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes) if mark is not None else None
+            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes, session=day) if mark is not None else None
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"[vj]\d+", eid) and self.registrations is not None:
             data = self.registrations.picture(eid, day, max_bytes=max_bytes)
