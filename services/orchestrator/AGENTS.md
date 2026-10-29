@@ -1131,3 +1131,5 @@ Live App activation and complete legacy collection remain separate qualification
 not proof of dependency closure. Incomplete destinations cannot open; sealed
 snapshots cannot acquire a writer. Caller settlement, external/shared dependencies
 and eventual explicit working-copy import remain separate responsibilities.
+
+Portable snapshots accept only after all output and directory syncing finishes. The durable pending marker is removed as the last fallible action; failures remain uncertain across host restart without a recovery write. Explicit reconciliation remains required before using uncertain output.
