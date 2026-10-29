@@ -11,10 +11,11 @@ other files.
   registry's tools). `toolbox.build(Services)` is the one way the tool list is made (the app,
   tests and benches; a tool is there only when what it acts on exists; ADR 0003); a tool fails
   with `ToolFailed` (an `orchestrator/tools.ToolError` is one).
-- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
-  each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
-  lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
-  camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
+- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, a choice picked by hand) hears and speaks
+  and hands each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
+  lifecycle. **The one brain** (`gpt-realtime-2.1`, the default since 29 Oct 2026, when the live partner's stack became
+  Hooke's default; `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the camera and Hooke's window
+  at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
   through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands hard questions, many steps and comparisons to `think`'s
   frontier backend (option THINK; it replaced `do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
   taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen

@@ -51,9 +51,10 @@ def test_a_find_step_names_the_vision_model_that_found_and_edgetam_that_drew():
     drawn = execution()
     hub = hub_with(drawn)
     models = models_of(hub, step(hub, [drawn], reads=("outline", "pointing", "vision")))
-    assert models == [{"role": "found by", "name": "Gemini 3.8 Flash", "said": "Gemini 3.8 Flash (cloud)"},
+    # The default eyes (Claude Opus 5.5 in fast mode) found them.
+    assert models == [{"role": "found by", "name": "Claude Opus 5.5 (fast mode)", "said": "Claude Opus 5.5 (fast mode) in the cloud"},
                       {"role": "drawn by", "name": "EdgeTAM", "said": "EdgeTAM (on this Mac)"}]
-    assert activity.brief(models) == "Gemini 3.8 Flash → EdgeTAM"
+    assert activity.brief(models) == "Claude Opus 5.5 (fast mode) → EdgeTAM"
 
 
 def test_a_request_that_named_sam_2_1_and_another_vision_model_says_those():
@@ -89,7 +90,7 @@ def test_a_blind_trials_step_names_no_model_until_the_vote():
     blind = step(hub, [arm], reads=("vision",))
     assert models_of(hub, blind) == []  # not even the vision model: nothing of the run is said
     runner(hub).reveal(arm.id)
-    assert [m["name"] for m in models_of(hub, blind)] == ["Gemini 3.8 Flash", "SAM 2.1 tiny"]
+    assert [m["name"] for m in models_of(hub, blind)] == ["Claude Opus 5.5 (fast mode)", "SAM 2.1 tiny"]
 
 
 def test_a_settings_read_that_runs_no_model_is_not_a_model():
@@ -117,7 +118,7 @@ def test_the_registry_names_a_runs_models_when_it_ends_and_the_model_is_never_to
         return r
 
     done = run(go())
-    assert [m["name"] for m in done.models] == ["Gemini 3.8 Flash", "EdgeTAM"]
+    assert [m["name"] for m in done.models] == ["Claude Opus 5.5 (fast mode)", "EdgeTAM"]
     assert done.wire()["models"] == done.models
     block = answer_facts([done])
     told = json.loads(block.split('untrusted="true">', 1)[1].split("</answer-facts>", 1)[0])

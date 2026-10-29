@@ -54,10 +54,16 @@ def test_a_google_key_alone_leaves_talking_needing_openai(nothing_downloaded, mo
     needs = {r["id"]: r for r in found.values() if r["group"] == "needs-you"}
     assert found["gemini-3.8-flash"]["status"] == "ready"
     assert found["gemini-3.8-flash"]["group"] == "available", "a key permits a check, but does not prove it"
-    assert "gpt-live-1" in needs and needs["gpt-live-1"]["word"] == "Needs your OpenAI API key"
-    assert all("OPENAI" in r["next"]["how"] or r["next"].get("service") == "openai" for r in needs.values()), needs.keys()
+    assert found["gemini-4-argon"]["status"] == "ready"  # the voice's close look (LOOK_HARD) runs on the Google key
+    # The default stack (the live partner's): talking is GPT Realtime 2.1 (OpenAI); seeing and the thinking behind the
+    # voice are Claude Opus 5.5 (Anthropic). A Google key alone leaves those two keys to add, and nothing else.
+    assert "gpt-realtime-2-1" in needs and needs["gpt-realtime-2-1"]["word"] == "Needs your OpenAI API key"
+    assert "claude-opus-5-5" in needs and needs["claude-opus-5-5"]["word"] == "Needs your Anthropic API key"
+    assert all(r["next"].get("service") in ("openai", "anthropic") for r in needs.values()), needs.keys()
     found = rows({"GEMINI_API_KEY": True, "OPENAI_API_KEY": True})
-    assert not [r["id"] for r in found.values() if r["group"] == "needs-you"], "both keys: all set"
+    assert [r["id"] for r in found.values() if r["group"] == "needs-you"] == ["claude-opus-5-5"], "seeing waits on Anthropic"
+    found = rows({"GEMINI_API_KEY": True, "OPENAI_API_KEY": True, "ANTHROPIC_API_KEY": True})
+    assert not [r["id"] for r in found.values() if r["group"] == "needs-you"], "the three keys: all set"
 
 
 def test_the_facts_say_why_each_with_its_reference(nothing_downloaded):

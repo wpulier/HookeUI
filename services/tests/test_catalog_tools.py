@@ -14,7 +14,10 @@ from orchestrator.brain.toolbox import catalogue
 KEY_FACTS = {
     "GEMINI_API_KEY": {"service": "gemini", "name": "Google Gemini API", "short": "Google", "present": True,
                        "sourceSays": "from your keys file", "getKey": "https://aistudio.google.com/apikey",
-                       "enables": "Seeing, naming and pointing at things, the running look, quick decisions and web lookups"},
+                       "enables": "The running look, quick decisions, the voice's close look and web lookups"},
+    "ANTHROPIC_API_KEY": {"service": "anthropic", "name": "Anthropic API", "short": "Anthropic", "present": False, "sourceSays": "",
+                          "getKey": "https://console.anthropic.com/settings/keys",
+                          "enables": "Seeing, naming and pointing at things, the thinking behind the voice, and lessons written by Claude"},
     "OPENAI_API_KEY": {"service": "openai", "name": "OpenAI API", "short": "OpenAI", "present": False, "sourceSays": "",
                        "getKey": "https://platform.openai.com/api-keys", "enables": "Talking by voice, research, and the pictures researchers make"},
     "HF_TOKEN": {"service": "huggingface", "name": "Hugging Face", "short": "Hugging Face", "present": False, "sourceSays": "",
@@ -65,9 +68,11 @@ def test_what_do_i_need_says_the_users_choices_and_keys_in_plain_words(nothing_d
     reg = registry(svc)
     said = asyncio.run(reg.tools["models"].handler(ctx(), {}))
     assert said.startswith("Needs the user (their current choices use these and they can't run yet):")
-    assert "Talking: GPT-Live needs your OpenAI API key." in said, said
+    # The default stack (the live partner's): the voice is GPT Realtime 2.1 (OpenAI), the eyes Claude Opus 5.5 (Anthropic).
+    assert "Talking: GPT Realtime 2.1 needs your OpenAI API key." in said, said
+    assert "Seeing: Claude Opus 5.5 needs your Anthropic API key." in said, said
     assert "Outlining: EdgeTAM download 56 MB" in said, "a download is a step of its own"
-    assert "Keys added: Google." in said and "OpenAI (Talking by voice" in said
+    assert "Keys added: Google." in said and "OpenAI (Talking by voice" in said and "Anthropic (Seeing, naming" in said
     assert "Offered (p" in said and "get_model with model 'EdgeTAM'" in said, "each download the choices wait on is offered"
     assert "Setup and checks" in said
     available = [row for row in svc.capabilities()["models"] if row["group"] == "available"]
@@ -84,7 +89,10 @@ def test_what_do_i_need_says_the_users_choices_and_keys_in_plain_words(nothing_d
 
 def test_all_set_is_said_only_when_every_choice_can_run(monkeypatch):
     monkeypatch.setenv("MICROMIND_MODEL_FILES", "standin")
-    said = asyncio.run(registry(services({"GEMINI_API_KEY": True, "OPENAI_API_KEY": True})).tools["models"].handler(ctx(), {}))
+    keys = {"GEMINI_API_KEY": True, "OPENAI_API_KEY": True}  # the default eyes and the voice's thinking are Claude's
+    said = asyncio.run(registry(services(keys)).tools["models"].handler(ctx(), {}))
+    assert said.startswith("Needs the user") and "Seeing: Claude Opus 5.5 needs your Anthropic API key." in said, said
+    said = asyncio.run(registry(services({**keys, "ANTHROPIC_API_KEY": True})).tools["models"].handler(ctx(), {}))
     assert said.startswith("All set: every model the user's current choices use can run here.")
 
 
@@ -151,7 +159,8 @@ def test_an_offer_expires(nothing_downloaded, monkeypatch):
 def test_a_key_is_the_users_to_add_and_what_it_turns_on_is_the_catalogs(nothing_downloaded):
     reg = registry(services({"GEMINI_API_KEY": True}))
     said = asyncio.run(reg.tools["models"].handler(ctx("what does my Google key turn on?"), {"about": "my Google key"}))
-    assert said.startswith("The Google key: added (from your keys file). It turns on: Seeing, naming")
+    assert said.startswith("The Google key: added (from your keys file). It turns on: The running look, quick decisions, "
+                           "the voice's close look")
     assert "Gemini 3.8 Flash" in said and "It turns on only what it lists" in said
     assert "Never ask them to say or type a key" in said
     gated = asyncio.run(reg.tools["models"].handler(ctx(), {"about": "SAM 3.1 (this Mac)"}))
