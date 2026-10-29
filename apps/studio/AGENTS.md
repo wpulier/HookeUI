@@ -1055,14 +1055,16 @@ everything above. It talks over WebRTC only, whatever the saved Voice link. Its 
   ends with a plain message and a Talk again button (`.voice-session-retry`).
 - **The voice's speaking** goes to the server as it changes: `{type:"voice-phase",phase:"speaking"|"listening",at}`,
   the studio's own measure of the output (its sideband may not hear the output buffer).
-- **A Project the server opened lands while Talk is on** (`session-view.ts` `ProjectLanding`, `voiceBlocks`). Such a
-  Project is one opened by the voice's switch_session or new_project, or by another window. From its `session-cleared`
-  until the Tabs show it (the body's `workspaceProject`, no `workspaceOpening`; at most 30 s), Talk does not hold back
-  restoring its Tab's input. Talk still holds back the switches and input changes the user starts ("End voice before
-  switching projects"). Before this, with Talk on, the opened Project's Tab input was refused ("End voice before
-  changing the input"), its Tabs said "Not opened", and the studio kept reporting the Project left. Every
-  show_measurements, tabs and present-close then failed for the rest of Talk ("the studio that asked is not showing
-  this Project's Tabs"; bench think-broad-1, 2026-10-29). The same held for GPT-Live after a switch made by voice.
+- **Talk never holds the user back** (`session-view.ts` `switchBlock`; Will, 2026-10-29: HeyClicky never blocks the
+  user). With either voice on, the user may switch Projects and change the input, and so may the voice.
+  - What still holds a switch back: no connection, a document that must be saved first, a recording.
+  - Both voices follow the open Project. The server injects the new Project's recap into the open voice
+    (`App._session_event`). The one brain also refreshes its brief and clears its marks (`Partner.project_changed`;
+    the studio clears its marks on `session-cleared` too). Each tool takes a fresh pin of this studio's report.
+  - Before this, with Talk on, the user was told "End voice before switching projects / changing the input".
+  - A Project the voice itself opened had its Tab input refused, so its Tabs said "Not opened" and the studio kept
+    reporting the Project left. Every show_measurements, tabs and present-close then failed for the rest of Talk
+    ("the studio that asked is not showing this Project's Tabs"; bench think-broad-1).
 - **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
   the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
   `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`

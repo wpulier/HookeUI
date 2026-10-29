@@ -23,8 +23,10 @@ other files.
   (docs/architecture/seeing-and-acting.md "The one-brain loop"). The one brain follows the open Project.
   - Its binding is the studio connection (`workspace-bind`), not a Project, so each tool's pin is that studio's
     report now.
-  - On a switch it is told the new Project (`App._session_event`'s recap) and its brief is refreshed at once
-    (`Partner.project_changed`).
+  - On a switch it is told the new Project (`App._session_event`'s recap); its brief is refreshed at once and its
+    marks on the Project left are cleared (`Partner.project_changed`). GPT-Live is told the same recap and its
+    delegations take a fresh pin, so the studio no longer asks the user to end Talk before switching Projects or
+    inputs, whichever voice is on.
   - A Tab tool (show_measurements, tabs, present) that fails while the studio has not yet shown the open Project's
     Tabs waits for them (`LANDING_WAIT_S`, its progress line saying so) and is tried once more. If they never show,
     that is said plainly (`partner_tools.py`; tests/test_voice_follows_project.py).

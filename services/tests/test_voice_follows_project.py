@@ -134,7 +134,9 @@ def test_a_studio_that_never_lands_the_project_is_said_once_not_retried_forever(
     asyncio.run(go())
 
 
-def test_the_voice_s_brief_follows_the_project_switch(tmp_path, monkeypatch):
+def test_the_voice_s_brief_follows_the_project_switch_and_the_old_project_s_marks_clear(tmp_path, monkeypatch):
+    """The user's own switch with Talk on (no longer blocked by the studio): the partner is told (the recap), its brief
+    is the new Project's at once, and what it pointed at in the Project left is cleared."""
     async def go():
         app, studio, partner = await voice_with_studio(tmp_path, monkeypatch)
         briefs = []
@@ -152,10 +154,39 @@ def test_the_voice_s_brief_follows_the_project_switch(tmp_path, monkeypatch):
         partner.session = session
         session.project_changed = partner.project_changed
         app.brain.voice = session
+        send = []
+
+        async def tell(message):
+            send.append(message)
+        partner.send = tell
         app.day.new('Nuclei', by='user')
         for _ in range(50):
-            if briefs:
+            if briefs and send:
                 break
             await asyncio.sleep(0.02)
         assert briefs, 'the brief is refreshed when the Project changes, not at the next key press'
+        assert {'type': 'marks-clear'} in send, 'marks on the Project left are cleared'
+    asyncio.run(go())
+
+
+def test_gpt_live_is_told_the_project_the_user_switched_to(tmp_path, monkeypatch):
+    """Why the studio no longer blocks GPT-Live either: its path follows a switch too. The server tells the open voice
+    the new Project's recap (App._session_event), and its delegations take a fresh pin each time (route.py)."""
+    async def go():
+        app, studio, partner = await voice_with_studio(tmp_path, monkeypatch)
+        told = []
+
+        class Live:  # what App._session_event uses of a GPT-Live session
+            closed = False
+
+            async def inject(self, text, **kwargs):
+                told.append((text, kwargs))
+        app.brain.voice = Live()
+        app.day.new('Nuclei', by='user')
+        for _ in range(50):
+            if told:
+                break
+            await asyncio.sleep(0.02)
+        assert told and told[0][1].get('source') == 'recap' and told[0][1].get('respond') is False
+        assert 'Nuclei' in told[0][0]
     asyncio.run(go())
