@@ -368,3 +368,18 @@ def test_how_it_was_made_is_each_model_in_order_from_the_outlines_own_record():
     assert facts.splitlines()[1] == f"How it was made, each model in order: {how_made(find)}."
     # And each part names a model only as names.py says it (one name each, no commas inside a part).
     assert all("," not in part for part in known.chain(repaired))
+
+
+def test_an_outline_named_the_way_marks_name_it_is_the_same_outline():
+    """Will's feel check, 29 Oct: the voice selected "outline:o7" (the marks' way of naming the user's clicked outline)
+    and was told it was not on screen."""
+    from types import SimpleNamespace
+
+    from orchestrator.board import Board
+
+    o7 = SimpleNamespace(id="o7", label="")
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={"o7": o7}))
+    board = Board.__new__(Board)
+    board.hub = hub
+    ctx = SimpleNamespace(aliases={}, targets=None, objects=[])
+    assert board.resolve("outline:o7", ctx) is o7

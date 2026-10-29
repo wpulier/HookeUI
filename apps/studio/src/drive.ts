@@ -162,7 +162,6 @@ export class Takeover {
   owner: 'partner' | 'user' = 'user';
   /** The last takeover's input time and when the server said it knew (performance.now ms): the Drive line. */
   last: { why: string; inputAt: number; stoppedAt: number; sentAt: number; knownAt: number | null } | null = null;
-  private start: { x: number; y: number } | null = null;
   private readonly options: { cursor: Pick<PartnerCursor, 'stop'>; send: (command: PartnerCommand) => boolean; now?: () => number;
     trusted?: (event: PointerLike) => boolean };
   private readonly now: () => number;
@@ -181,10 +180,12 @@ export class Takeover {
     if (message.version < this.version) return; // an older state, overtaken
     this.version = message.version;
     this.owner = message.owner === 'partner' ? 'partner' : 'user';
-    this.start = null;
   }
 
-  /** Listen on the window (capture phase): the pointer moving and Escape. The talk key comes from TalkHold (input). */
+  /** Listen on the window (capture phase): a press of the mouse or trackpad (a click or the start of a drag), a scroll,
+   * and Escape. The talk key comes from TalkHold (input). The pointer only moving is not a takeover: the partner's
+   * cursor is drawn in Hooke and never moves the user's own, so a hand resting on or moving the mouse fights nothing
+   * (the spec, decision 2). Taking it as one stopped every action a second in (Will's feel check, 29 Oct). */
   attach(win: Listening): () => void {
     const moved = (event: Event) => this.pointer(event as unknown as PointerLike, (event as Event).timeStamp);
     const key = (event: Event) => {
@@ -193,18 +194,18 @@ export class Takeover {
       e.preventDefault(); e.stopPropagation(); // it stops the partner; it closes nothing else
       this.input('escape', e.timeStamp);
     };
-    win.addEventListener('pointermove', moved, true);
+    win.addEventListener('pointerdown', moved, true);
+    win.addEventListener('wheel', moved, true);
     win.addEventListener('keydown', key, true);
-    return () => { win.removeEventListener('pointermove', moved, true); win.removeEventListener('keydown', key, true); };
+    return () => {
+      win.removeEventListener('pointerdown', moved, true); win.removeEventListener('wheel', moved, true);
+      win.removeEventListener('keydown', key, true);
+    };
   }
 
+  /** A press or a scroll of the user's own: an event a script made is not a hand on the mouse. */
   pointer(event: PointerLike, at?: number): void {
-    // Only the user's own pointer: an event a script made is not a hand on the mouse.
     if (!this.acting || !(this.options.trusted ?? ((e: PointerLike) => e.isTrusted !== false))(event)) return;
-    // The first event's own movement counts too: one quick move of the mouse is a single event.
-    const own = Math.hypot(event.movementX ?? 0, event.movementY ?? 0);
-    if (!this.start) { this.start = { x: event.clientX, y: event.clientY }; if (own < MOVE_PX) return; }
-    else if (Math.hypot(event.clientX - this.start.x, event.clientY - this.start.y) < MOVE_PX && own < MOVE_PX) return;
     this.input('mouse', at);
   }
 
@@ -213,7 +214,6 @@ export class Takeover {
   input(why: 'mouse' | 'escape' | 'talk', inputAt = this.now()): boolean {
     if (!this.acting) return false;
     this.owner = 'user';
-    this.start = null;
     if (why !== 'talk') this.options.cursor.stop();
     const stoppedAt = this.now();
     this.options.send({ type: 'takeover', version: this.version, why, at: Date.now() });

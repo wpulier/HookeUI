@@ -88,22 +88,20 @@ function taking(acting = true) {
 }
 const move = (x: number, y: number, isTrusted = true) => ({ clientX: x, clientY: y, isTrusted, timeStamp: 1000 });
 
-test('the user\'s own pointer moving over the window takes control back: the cursor stops and the server is told, in that task', () => {
+test('a press or a scroll of the user\'s own takes control back: the cursor stops and the server is told, in that task', () => {
   const t = taking();
-  t.listeners.pointermove(move(500, 500));
-  t.listeners.pointermove(move(501, 501)); // a hand resting on the mouse
+  expect(t.listeners.pointermove).toBeUndefined(); // the pointer only moving is no takeover: nothing listens for it
+  t.listeners.pointerdown(move(510, 505, false)); // a script's event is not a hand
   expect(t.sent).toEqual([]);
-  t.listeners.pointermove(move(510, 505, false)); // a script's event is not a hand
-  expect(t.sent).toEqual([]);
-  t.listeners.pointermove(move(504, 502));
+  t.listeners.pointerdown(move(504, 502));
   expect(t.cursor.stop).toHaveBeenCalledOnce();
   expect(t.sent).toEqual([{ type: 'takeover', version: 7, why: 'mouse', at: expect.any(Number) }]);
   expect(t.takeover.acting).toBe(false);
-  t.listeners.pointermove(move(600, 600));
+  t.listeners.pointerdown(move(600, 600));
   expect(t.sent).toHaveLength(1); // once
-  const quick = taking();
-  quick.listeners.pointermove({ ...move(700, 400), movementX: 40, movementY: 12 }); // one quick move is one event
-  expect(quick.sent.at(-1)).toMatchObject({ type: 'takeover', why: 'mouse' });
+  const scroll = taking();
+  scroll.listeners.wheel(move(700, 400));
+  expect(scroll.sent.at(-1)).toMatchObject({ type: 'takeover', why: 'mouse' });
   t.later(4);
   t.takeover.control({ type: 'control', version: 8, owner: 'user', ack: true, at: Date.now() });
   expect(t.takeover.last!.knownAt! - t.takeover.last!.stoppedAt).toBe(4);
@@ -138,8 +136,8 @@ test('the talk key is a pause: the server is told, and the cursor stays on the a
 
 test('while the user has control nothing is a takeover, and Escape is the page\'s own', () => {
   const t = taking(false);
-  t.listeners.pointermove(move(0, 0));
-  t.listeners.pointermove(move(200, 200));
+  t.listeners.pointerdown(move(0, 0));
+  t.listeners.wheel(move(200, 200));
   const escape = { key: 'Escape', repeat: false, preventDefault: vi.fn(), stopPropagation: vi.fn() };
   t.listeners.keydown(escape);
   expect(t.takeover.input('talk')).toBe(false);
