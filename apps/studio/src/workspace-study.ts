@@ -446,11 +446,14 @@ const projectResearchHome = new ProjectResearchHome(find('session-home'), {
 });
 let studiesAvailable=false;
 let studiesNote='';
+let studyReadGeneration = 0;
 async function refreshStudies():Promise<void>{
-  const owner=workspaceViews.tabOwner(),session=owner.session;if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
+  const session = snapshot.session, generation = ++studyReadGeneration;
+  const current = () => snapshot.session === session && generation === studyReadGeneration;
+  if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!inputOwnerCurrent(owner))return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
-  if(!inputOwnerCurrent(owner))return;
+  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  if(!current())return;
   studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
 }
@@ -1525,6 +1528,8 @@ async function refreshBackgroundRun(): Promise<void> {
   } catch { /* Retained state is authoritative; a failed poll never marks a job complete. */ }
 }
 async function refreshResults(): Promise<void> {
+  // Project research is visible on return, independent of which drawer is open.
+  void refreshStudies();
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
@@ -2206,7 +2211,7 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
-  if (next.session !== previous.session) { knownStudies = []; studiesNote = ''; studiesAvailable = false; }
+  if (next.session !== previous.session) { studyReadGeneration++; knownStudies = []; studiesNote = ''; studiesAvailable = false; }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();
