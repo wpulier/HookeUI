@@ -138,6 +138,7 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         kind_ = {"switch": "focus", "create": "open", "close": "close"}.get(action, "present")
         caption = {"switch": "Switching Tabs", "create": "Making a Tab", "close": "Closing the Tab",
                    "rename": "Renaming the Tab", "add": "Adding it to the Tab",
+                   "arrange": "Putting them side by side", "only": "Closing the rest",
                    "specimen": SPECIMEN_CAPTIONS.get(str(args.get("specimen") or ""), "Moving the specimen"),
                    }.get(action, "Arranging Tabs")
         return Intent(kind_, tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs", caption=caption,
@@ -245,7 +246,8 @@ def screen_facts(observation: dict | None) -> dict:
     the selection, the magnifier, the layers."""
     facts: dict[str, Any] = {"seq": (observation or {}).get("seq"), "tabs": [], "front": None, "windows": set(),
                              "documents": [], "top": None, "drawn": None, "emphasis": set(), "selected": [],
-                             "magnifier": None, "layers": {}, "reported": observation is not None}
+                             "magnifier": None, "layers": {}, "reported": observation is not None,
+                             "observation": observation}
     for item in _items(observation):
         legacy, iid = _legacy(item), str(item.get("id") or "")
         if iid == "workspace-tabs":
@@ -322,6 +324,21 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
             if shown is None:
                 return None
             return shown.get("state") == SPECIMEN_ASKED.get(str(intent.args.get("specimen") or ""))
+        if action in ("only", "arrange") and ids:
+            # The placement words' only and beside, as the report shows them (placement.py): the Tab in front, and
+            # only what was kept on it with the specimen hidden (Main's floating), or its windows side by side.
+            from ..placement import beside_shown, only_shown, windows_on
+
+            observation = facts.get("observation")
+            if observation is None or not _tab_is(front, ids[0]):
+                return None if observation is None else False
+            tab = front.get("id")
+            if action == "only":
+                home = tab == "main" or front.get("title") == "Main"
+                keep = [str(k).removeprefix("document:") for k in intent.args.get("keep") or []]
+                return only_shown(observation, tab, keep, home=home)[0]
+            shown = windows_on(observation, tab)
+            return beside_shown(observation, tab, [w.get("id") for w in shown])[0] if shown else True
         if action == "add":
             resource = _target_of(intent.args.get("resource"))
             if not resource or not facts["documents"]:

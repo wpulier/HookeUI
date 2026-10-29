@@ -10,6 +10,7 @@ import {fitTabRow,measureTabRow,type TabRowParts} from './tab-row-fit';
 import {holdUntilLanded} from './side-motion';
 import {flyTo} from './tab-close-motion';
 import {tabMark,type TabMark} from './tab-marks';
+import {tabItems,holds,LIST_ITEMS,type TabItemFact} from './workspace-model';
 import './workspace-views.css';
 interface Options {
  /** More things "+" can add beside a Tab (a researcher, a study), each opening as a Tab of its own. Without them "+" adds a Tab. */
@@ -51,7 +52,7 @@ interface Options {
 /** A row of All Tabs (⌄) that another owner provides: a researcher's or Study's Tab, or a study to open as one. */
 export interface MenuTab {id:string;name:string;title?:string;mark?:Element|null;act:()=>void}
 /** A researcher's or Study's Tab as the Assistant's Tab report lists it beside the work Tabs. */
-export interface ResearchTabReport {id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft'}
+export interface ResearchTabReport {id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft';shows?:import('./workspace-model').ResearchShows[]}
 const el=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',text='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=text;return n;};
 /** The drag type a Data card carries: its Project and resource, re-checked on drop. */
 export const ENTRY_DRAG='application/x-hooke-entry';
@@ -217,7 +218,7 @@ private revision=0;private generation=0;private revealSequence=0;
   window.addEventListener('workspace-new-tab',()=>void this.addView());
   window.addEventListener('workspace-tabs-request',event=>{const detail=(event as CustomEvent).detail;detail.result=this.agentCommand(detail.session,detail.action,detail.check);});
   // The screen report's Tab strip (main.ts) asks each Tab's specimen here, as the Stage shows it.
-  window.addEventListener('workspace-specimen-report',event=>{(event as CustomEvent).detail.specimens=this.specimenReport();});
+  window.addEventListener('workspace-specimen-report',event=>{const detail=(event as CustomEvent).detail;detail.specimens=this.specimenReport();detail.holds=this.holdsReport();});
   // ⌘T, ⌘W, ⌘⇧T, ⌘1–9, ⌘⇧[ and ⌘⇧] (Ctrl off a Mac). In the Mac app its Tab menu claims these keys first and calls
   // hookeTabCommand, except ⌘T: the focused scientific view gets its existing transpose shortcut first.
   // Unclaimed keys reach this fallback; a browser keeps most for its own tabs.
@@ -645,6 +646,34 @@ private revision=0;private generation=0;private revealSequence=0;
    const state=specimenState(v.specimen),r=v.specimen.rect;
    out[v.id]=state==='float'&&r?{state,rect:[stage.left+r[0],stage.top+r[1],r[2],r[3]].map(Math.round) as Rect}:{state};
   }
+  return out;
+ }
+ /** Only these on the Tab in front (`keep`: placement or window ids): every other window there closed through its
+  * own ×, as a person's click closes it (a document's Data is kept; a native window's close goes to the server as
+  * theirs), the specimen hidden, or on Main floated small in its corner (Main always keeps it), and the kept window
+  * fitted to the room left. Done is the report showing it (workspace_tabs.py). */
+ private only(v:WorkspaceView,keep:string[]){
+  const kept=new Set(keep),roots=this.visibleRoots(),stay=roots.filter(root=>kept.has(root.dataset.placementId??'')||kept.has(root.dataset.presentationId??''));
+  if(keep.length&&!stay.length)throw new Error('That window is not open on this Tab. List the Tabs again.');
+  for(const root of roots){
+   if(stay.includes(root))continue;
+   const close=root.querySelector<HTMLButtonElement>(':scope > header .workspace-window-close, :scope > header button[aria-label^="Close"]');
+   close?.click();
+  }
+  const home=this.isHome(v.id);
+  v.specimen.visible=home;v.specimen.rect=home?this.floatingRect():null;if(v.id===this.layout.active)this.applySpecimen();
+  const width=this.stage.clientWidth,height=this.stage.clientHeight-60;
+  if(stay.length===1&&width>0&&height>0){
+   const left=home&&v.specimen.rect?v.specimen.rect[0]+v.specimen.rect[2]+12:12;
+   this.changing=true;try{this.place(stay[0],[left,12,Math.max(240,width-left-12),Math.max(180,height-24)]);}finally{this.changing=false;}
+  }
+  this.capture();this.changed();
+ }
+ /** What each Tab holds, counted by kind, for the screen report's Tab strip (main.ts; workspace_observation `holds`), and
+  * each Tab's kind (work, output, compare, reader). */
+ holdsReport():Record<string,{kind:string;holds:Partial<Record<TabItemFact['kind'],number>>}>{
+  const out:Record<string,{kind:string;holds:Partial<Record<TabItemFact['kind'],number>>}>={},roots=this.roots();
+  for(const v of this.layout.views)out[v.id]={kind:v.kind??'work',holds:holds(tabItems(v,roots))};
   return out;
  }
  /** A new Tab: the specimen floating small in its corner (Will, 2026-10-29: a new Tab's own content is not covered), for
@@ -1113,8 +1142,12 @@ private revision=0;private generation=0;private revealSequence=0;
  async agentCommand(session:string,args:Record<string,any>,original=()=>true):Promise<Record<string,unknown>>{
   const owner=this.tabOwner(),check=()=>{if(!original()||session!==owner.session||!this.ownsTabChoice(owner))throw new Error('The Project changed. Ask again in its workspace.');};
   // Researcher and Study Tabs are reported beside the work Tabs; while one is in front, no work Tab is the selected one.
-  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected);return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
-   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>({id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),omittedItems:Math.max(0,v.items.length-(args.tab?64:8)),items:v.items.slice(0,args.tab?64:8).map(i=>({placement:i.placementId,resource:i.resource,title:i.title}))})),
+  // Each Tab with what it holds, by kind (workspace-model.ts): its items (saved windows, then the windows open on it the
+  // arrangement does not save), counted by kind in `holds`, its input and its specimen; a researcher's or Study's Tab
+  // with what it shows. "Which Tab has the measurements?" is answered from these kinds, never from a title.
+  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected),roots=this.roots(),limit=args.tab?LIST_ITEMS:8;return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
+   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>{const items=tabItems(v,roots);return {id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),
+    ...(v.input?{input:{source:v.input.source,kind:this.opts.describeInput?.(v.input.source)??'live'}}:{}),holds:holds(items),omittedItems:Math.max(0,items.length-limit),items:items.slice(0,limit)};}),
    ...research.filter(t=>args.action!=='list'||!args.tab||t.id===args.tab).map(t=>({...t,omittedItems:0,items:[]}))]};};
   try{
    // A Tab still opening, a save under way or a dialog up is waited for (bounded), then the action goes on: it is the
@@ -1159,6 +1192,17 @@ private revision=0;private generation=0;private revealSequence=0;
     if(!['fill','float','hide'].includes(args.specimen))throw new Error('Say fill, float or hide for the specimen.');
     if(target!.kind==='reader'||legacyResearcher(target!))throw new Error('This Tab shows one thing on its own; its specimen stays as it is.');
     this.setSpecimen(target!,args.specimen);
+   }else if(args.action==='arrange'||args.action==='only'){
+    // The placement vocabulary's beside and only (docs/architecture/on-screen.md "Placing things"), by the Tab's own
+    // gestures: beside is its Arrange (its windows and its specimen side by side, tiled); only closes every other
+    // window through its own × and hides the specimen (Main's floats small: it always keeps it).
+    if(target!.kind==='reader'||legacyResearcher(target!))throw new Error('This Tab shows one thing on its own.');
+    if(target!.id!==this.layout.active){
+     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+     if(!await this.goTo(target!.id,owner))throw new Error('The target Tab did not open. Check its input and saved work.');check();
+    }
+    if(args.action==='arrange')this.arrange();
+    else this.only(target!,Array.isArray(args.keep)?args.keep.map(String):[]);
    }else if(args.action==='add'){
     const item=args.item as StudyRetainedView;
     if(!item?.resource||item.resource.day!==session||!item.resource.id||target!.items.length>=64)throw new Error('Choose a retained resource in this Project and a Tab with room.');

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import uuid
 from dataclasses import dataclass
 
@@ -164,10 +165,12 @@ async def _tab(services, ctx, asked: str) -> tuple[str, str, bool]:
 
 
 async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: int, title: str, rows: int, what: str,
-               tab: str | None, guard) -> str:
+               tab: str | None, guard, beside: bool = False, moved: str | None = None, fit: bool | None = None) -> str:
     """Opens the measurements table of `target` at `revision` in its window on the Tab named (made when needed, fitted)
     or the Tab in front, and returns what the report showed. Refuses (saying where the table is saved) when the report
-    never shows it there."""
+    never shows it there. `beside`: the Tab is then arranged, its windows and the live view side by side (placement.py),
+    and it is done only once the report shows them so. `moved`: the table's placement, already moved to that Tab (tabs
+    move), so no window is opened."""
     from .brain.registry import CURRENT_RUN
 
     run = CURRENT_RUN.get()
@@ -188,15 +191,23 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
                          + facts(target, revision, rows, displayed="no", front="no"),
                          next="ask again to open it there")
 
-    message = {"type": "table-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
-               "workspacePin": studio.pin, "item": {"resource": ref, "title": title}, "fit": bool(tab)}
-    answer = await table_windows(services.hub).ask(studio, message, ANSWER_WAIT_S)
-    guard()
-    if answer is None:
-        refused("the studio did not answer")
-    if not answer.get("ok"):
-        refused(f"the studio said {inline(str(answer.get('error') or 'it could not open it'), 160)!r}")
-    placement = str(answer.get("placement") or "") or None
+    if moved is None:
+        message = {"type": "table-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
+                   "workspacePin": studio.pin, "item": {"resource": ref, "title": title},
+                   "fit": bool(tab) and not beside if fit is None else fit}
+        answer = await table_windows(services.hub).ask(studio, message, ANSWER_WAIT_S)
+        guard()
+        if answer is None:
+            refused("the studio did not answer")
+        if not answer.get("ok"):
+            refused(f"the studio said {inline(str(answer.get('error') or 'it could not open it'), 160)!r}")
+        placement = str(answer.get("placement") or "") or None
+    else:
+        placement = moved
+    if beside:  # the Tab's own Arrange: done when the report below shows them side by side
+        await _arrange(services, ctx, tab_id)
+        guard()
+    from .placement import beside_shown
 
     loop = asyncio.get_running_loop()
     tick = asked_at = loop.time()
@@ -214,7 +225,8 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
         if item is not None and state == "failed":
             refused("its rows could not be read there")
         if (item is not None and state == "rendered" and item.get("visible") and visible is not False
-                and strip.get("tab") == tab_id and last.over is None):
+                and strip.get("tab") == tab_id and last.over is None
+                and (not beside or beside_shown(report, tab_id, [item["id"]])[0])):
             break
         now = loop.time()
         if visible is False:  # the studio in the background paints nothing: waited for, its time out of view not counted
@@ -262,8 +274,200 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
     if state != "rendered" or not item.get("visible"):
         refused("its window is open there but its rows were still loading when the studio last reported"
                 if state != "rendered" else "its window is open there but not visible")
+    if beside:
+        ok, why = beside_shown(report, tab_id, [item["id"]])
+        if not ok:
+            refused(f"its window is open there but not side by side yet: {why}")
+        specimen = ((next((t for t in _strip(report).get("tabs") or () if t.get("id") == tab_id), None) or {})
+                    .get("specimen") or {}).get("state")
+        with_what = "beside the live view" if specimen == "float" else "beside what is open there"
+        how = ", moved there from the Tab it was in" if moved else ""
+        return (f"the studio shows {what} in a table window in {where}{new}{how}, {with_what}, tiled side by side "
+                f"({item['id']}); sortable, with the median and middle half, and Download CSV. "
+                + facts(target, revision, rows, displayed=f"yes, {where}", front="yes"))
     is_fitted = fitted(item, report)
     fit = (", fitted to the Tab" if is_fitted else ", not fitted to the Tab (its size was kept)") if tab else ""
     return (f"the studio shows {what} in a table window in {where}{new}, in front{fit} ({item['id']}); sortable, "
             "with the median and middle half, and Download CSV. "
+            + facts(target, revision, rows, displayed=f"yes, {where}", front="yes"))
+
+
+# --- placing the table (placement.py's vocabulary) ---------------------------------------------------------------------
+NEW_TAB_TITLE = "Cell results"  # a population's results Tab, as Will's own "Cell outlines" Tab: its outlines and its table
+
+
+async def _tabs(services, ctx, args: dict) -> dict:
+    """One Tab action through the broker the person's Tab gestures use (workspace_tabs.py)."""
+    return await services.workspace_tabs(ctx, args)
+
+
+async def _arrange(services, ctx, tab_id: str) -> None:
+    """The Tab's windows and the live view side by side (beside): the Tab's own Arrange, through the broker; the caller
+    waits for the report to show it."""
+    broker = getattr(services.hub, "workspace_tabs", None)
+    if broker is not None and hasattr(broker, "run"):
+        await broker.run(ctx, {"action": "arrange", "tab": tab_id}, verify=False)
+    else:
+        await _tabs(services, ctx, {"action": "arrange", "tab": tab_id})
+
+
+async def _open_on(services, ctx, studio, *, ref: dict, title: str, tab_id: str, guard) -> str | None:
+    """The table window opened on the Tab in front (`tab_id`), unfitted; its placement as the studio answers."""
+    message = {"type": "table-window", "id": uuid.uuid4().hex, "session": studio.project, "tab": tab_id,
+               "workspacePin": studio.pin, "item": {"resource": ref, "title": title}, "fit": False}
+    answer = await table_windows(services.hub).ask(studio, message, ANSWER_WAIT_S)
+    guard()
+    if answer is None or not answer.get("ok"):
+        why = "the studio did not answer" if answer is None else inline(str(answer.get("error") or "it could not open it"), 160)
+        raise ToolFailed(f"the table was not opened: {why}", next="ask again to open it there")
+    return str(answer.get("placement") or "") or None
+
+
+async def _wait_for(studio, guard, ok) -> tuple[dict | None, str]:
+    """The studio's report until `ok(report)` says it shows what was asked (asking for reports meanwhile), at most
+    TABLE_WAIT_S of the studio's time in view; the last report and what `ok` said is missing."""
+    loop = asyncio.get_running_loop()
+    deadline, asked_at, why, report = loop.time() + TABLE_WAIT_S, loop.time(), "", None
+    while True:
+        report = _current(studio, guard)
+        shown, why = ok(report)
+        if shown:
+            return report, ""
+        if loop.time() >= deadline:
+            return report, why
+        if loop.time() - asked_at >= ASK_EVERY_S:
+            studio.client.offer(json.dumps({"type": "screen-ask"}))
+            asked_at = loop.time()
+        await asyncio.sleep(0.05)
+
+
+def _tab_title(report: dict | None, tab_id: str) -> str:
+    from .placement import tab_of
+
+    return str((tab_of(report, tab_id) or {}).get("title") or tab_id)
+
+
+async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: int, title: str, rows: int, what: str,
+                tab: str | None, guard, placement: str, instead: bool = False) -> str:
+    """The measurements table of `target` placed as asked (placement.py): `beside` the live view and what else is on
+    the Tab, tiled (the Tab named or the Tab in front; `instead` moves it there from the Tab it is open in), in a
+    `new-tab` with its cells' outlines on their capture beside it (a population's), `only` it on its Tab, or `close`d.
+    `window` (and `replace`, which first closes the window in front) is `show`. Each done only once the studio's report
+    shows it; otherwise said with what the report shows and where the table is saved."""
+    from .placement import beside_shown, identities, only_shown, windows_on
+
+    project = studio.project
+    ref = {"day": project, "id": target, "version": revision}
+    saved = f"it is saved in Data as {target}, where its row's Open in Measurements opens it"
+
+    def table_on(report, tab_id):
+        return window_in(report, None, ref, project, tab_id)
+
+    def refused(why: str, where: str):
+        raise ToolFailed(f"{what} is not shown {where}: {why}; {saved}. "
+                         + facts(target, revision, rows, displayed="no", front="no"),
+                         next="ask again to place it there")
+
+    if placement == "overlay":
+        raise ToolFailed("a table is not drawn on the live view; its cells' outlines are",
+                         next=f"present show {target} draws its outlines on the specimen")
+    if placement == "close":
+        strip = _strip(_current(studio, guard))
+        tab_id = strip.get("tab") or studio.tab
+        report = _current(studio, guard)
+        open_here = [i for i in windows_on(report, tab_id) if ref["id"] in identities(i)
+                     and ((i.get("document") or {}).get("representation") == "table")]
+        if not open_here:
+            return f"{what} is not open in the Tab in front; nothing was closed; {saved}."
+        from .brain.toolbox.present import act
+
+        for item in open_here:
+            await act(services, {"do": "close", "what": item["id"]}, ctx=ctx)
+        return f"closed {what} in Tab \"{inline(_tab_title(report, tab_id), 80)}\"; {saved}."
+    if placement in ("window", "replace"):
+        if placement == "replace":
+            report = _current(studio, guard)
+            from .workspace_observation import front
+
+            before = front(report).get("window")
+            if before and before.startswith("document:"):
+                from .brain.toolbox.present import act
+
+                await act(services, {"do": "close", "what": before}, ctx=ctx)
+        return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
+                          tab=tab, guard=guard)
+
+    if placement == "new-tab":
+        tab_id, tab_title, made = await _tab(services, ctx, tab or NEW_TAB_TITLE)
+        guard()
+        outlines = bool(re.fullmatch(r"e\d+", target))
+        if outlines:  # its outlines on their capture first (the masks window), then its table beside them
+            entry = await asyncio.to_thread(services.hub.resources.get, target, project)
+            guard()
+            if entry is None:
+                refused("its outlines are not in Data", f'in Tab "{inline(tab_title, 80)}"')
+            await _tabs(services, ctx, {"action": "add", "tab": tab_id, "resource": {"id": target, "version": entry.version}})
+            guard()
+        await _open_on(services, ctx, studio, ref=ref, title=title, tab_id=tab_id, guard=guard)
+        await _arrange(services, ctx, tab_id)
+        guard()
+
+        def shown(report):
+            here = windows_on(report, tab_id)
+            if _strip(report).get("tab") != tab_id:
+                return False, "another Tab came to the front"
+            table = table_on(report, tab_id)
+            if table is None or (table.get("document") or {}).get("state") != "rendered":
+                return False, "its table is not drawn there yet"
+            if outlines and not any((i.get("document") or {}).get("representation") == "masks"
+                                    and target in identities(i) for i in here):
+                return False, "its outlines are not shown there"
+            return beside_shown(report, tab_id, [i["id"] for i in here])
+
+        report, why = await _wait_for(studio, guard, shown)
+        if why:
+            refused(why, f'in Tab "{inline(tab_title, 80)}"')
+        new = "a new Tab" if made else "the Tab"
+        holds = "the cells' outlines on their capture, with its table beside them" if outlines else "its table"
+        return (f'{new} "{inline(tab_title, 80)}" in front holds {holds}: {what}; '
+                + facts(target, revision, rows, displayed=f'yes, Tab "{inline(tab_title, 80)}"', front="yes"))
+
+    # beside and only: on the Tab named (made when none has that title) or the Tab in front
+    moved = None
+    if instead:  # moved here from the Tab it is open in, the person's own "Move this view instead"
+        if tab:
+            tab_id, _title, _made = await _tab(services, ctx, tab)
+        else:
+            tab_id = _strip(_current(studio, guard)).get("tab") or studio.tab
+        listed = await _tabs(services, ctx, {"action": "list"})
+        for other in listed.get("tabs") or ():
+            if other.get("id") == tab_id:
+                continue
+            item = next((i for i in other.get("items") or () if i.get("kind") == "table"
+                         and (i.get("resource") or {}).get("id") == target), None)
+            if item is not None and item.get("placement"):
+                await _tabs(services, ctx, {"action": "move", "tab": tab_id, "from": other["id"],
+                                            "placement": item["placement"]})
+                moved = item["placement"]
+                break
+        guard()
+    if placement == "beside":
+        return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
+                          tab=tab, guard=guard, beside=True, moved=moved)
+    # only: shown first (as a window), then everything else on its Tab closed and the specimen put away
+    said = await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
+                      tab=tab, guard=guard, moved=moved, fit=True)
+    report = _current(studio, guard)
+    tab_id = _strip(report).get("tab") or studio.tab
+    table = table_on(report, tab_id)
+    if table is None:
+        return said
+    await _tabs(services, ctx, {"action": "only", "tab": tab_id, "keep": [table["id"]]})
+    home = tab_id == "main"
+    report, why = await _wait_for(studio, guard, lambda r: only_shown(r, tab_id, [table["id"]], home=home))
+    where = f'in Tab "{inline(_tab_title(report, tab_id), 80)}"'
+    if why:
+        refused(why, where)
+    rest = "the live view floats small in its corner" if home else "the live view is hidden there"
+    return (f"{what} is now the only window {where}; {rest}. "
             + facts(target, revision, rows, displayed=f"yes, {where}", front="yes"))

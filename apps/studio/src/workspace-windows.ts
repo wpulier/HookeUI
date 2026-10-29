@@ -324,6 +324,7 @@ export class WorkspaceWindows {
       row.root.dataset.phoneHidden = String(tucked);
       if (tucked) row.root.hidden = true;
       else if (was && !row.pending.has('open') && !row.pending.has('hidden')) row.root.hidden = row.dismissed || !row.state.open || !!row.state.view.hidden;
+      row.root.dataset.windowOpen = String(!row.dismissed && row.state.open);
       row.shell.frame(); this.layoutMedia(row);
     }
     this.refreshShelf();
@@ -346,6 +347,8 @@ export class WorkspaceWindows {
   }
   private create(state: WindowState, batch: WindowBatch): WindowRow {
     const root = document.createElement('section'); root.className = 'workspace-window'; root.dataset.presentationId = state.id;
+    // What it shows, for the workspace model (workspace-model.ts nativeKind): a magnifier, a reference photo, a video...
+    root.dataset.sourceKind = state.source.kind; root.dataset.sourceMedia = state.source.media;
     const retained = studyResourceReference(state.source.identity.resource);
     if(retained)root.dataset.studyRetained=JSON.stringify({resource:retained,title:windowTitle(state),zoom:1,pan:[.5,.5]});
     root.dataset.staged = 'true'; // actual media preparation, independent of backend transaction staging
@@ -482,6 +485,7 @@ export class WorkspaceWindows {
     const title = windowTitle(row.state);
     row.title.textContent = title; row.title.title = title; row.root.setAttribute('aria-label', title);
     if (!row.pending.has('open') && !row.pending.has('hidden')) row.root.hidden = row.dismissed || !row.state.open || !!row.state.view.hidden || row.root.dataset.phoneHidden === 'true';
+    row.root.dataset.windowOpen = String(!row.dismissed && row.state.open);
     row.root.dataset.group = row.state.view.group ?? '';
     if (!row.pending.has('opacity')) row.root.style.opacity = String(row.state.view.opacity ?? 1);
     if (!row.state.open) row.root.remove();
@@ -653,7 +657,7 @@ export class WorkspaceWindows {
       row.view.pan = values.center.slice(); this.layoutMedia(row); this.emit(row, action, values, 'pan');
     } else if (action === 'close') {
       const focused = row.root.contains(document.activeElement);
-      row.dismissed = true; row.root.hidden = true; this.emptyMedia(row);
+      row.dismissed = true; row.root.hidden = true; row.root.dataset.windowOpen = 'false'; this.emptyMedia(row);
       if (focused) this.restoreFocus(row);
       this.emit(row, action, values, 'open');
     }

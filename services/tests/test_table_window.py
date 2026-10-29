@@ -356,7 +356,8 @@ def test_a_slow_report_is_waited_for_past_the_answer_and_its_outcome_said_when_i
         app, studio = await built(tmp_path, monkeypatch, report_after=0.6)
         tool = app.brain.registry.tools['show_measurements']
         assert tool.inline_ms / 1000 < table_window.TABLE_WAIT_S  # a slow report goes late, it does not fail
-        run = await asked(app, studio, 'show_measurements', {'of': 'd4'}, wait=False)
+        # As a window: the default (beside) arranges the Tab, and that answer's own report shows it sooner here.
+        run = await asked(app, studio, 'show_measurements', {'of': 'd4', 'placement': 'window'}, wait=False)
         await asyncio.sleep(0.3)
         assert run.ok is None, 'still working while the report is on its way'
         await run.task
