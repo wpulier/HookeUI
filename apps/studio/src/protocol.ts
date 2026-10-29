@@ -1850,7 +1850,7 @@ export class Connection extends Link {
 
   send(command: ClientCommand & { requestId?: string }): boolean {
     if (this.socket?.readyState === WebSocket.OPEN) { this.socket.send(JSON.stringify(command)); return true; }
-    else if (command.requestId !== undefined) throw new Error('Connection is not open for this request');
+    else if (command.requestId !== undefined) throw new Error('Hooke’s workspace connection is unavailable. This action was not sent. Wait for the workspace to reconnect, then try again.');
     return false;
   }
 }

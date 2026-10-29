@@ -544,6 +544,8 @@ anything automatically. A corrected retry keeps the initiating saved input.
 Startup notices distinguish initial connection, connected-but-waiting status and observed
 interruption. A missing first health message does not establish that Hooke is stopped.
 Automatic reconnect keeps drafts; uncertain work must be checked in Activity before retry.
+A request refused before socket send names the workspace connection, says the action was not sent,
+and asks the person to retry after reconnection. It is never queued for automatic replay.
 
 Accepted scientific array revisions expose **How these changes were made**: the exact original
 revision and producing scientific history, opened as saved Data without executing code. History
