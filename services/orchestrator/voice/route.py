@@ -129,9 +129,11 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             await websocket.close()
             return
         session = OpenAILiveSession(VoiceConfig(model=model, system_prompt=instructions, tools=[brain_tool(spoken_requests)],
-                                                input_rate=rate, history=[("developer", recap)] if recap else []), link=link)
+                                                input_rate=rate, history=[("developer", recap)] if recap else []), link=link,
+                                    said=getattr(brain, "said", None))  # the brain's: what an earlier Talk said stays said
         session.noted = brain.agent.log  # every silent note, whole, as a voice-note record
         spoken_requests.voice = session
+        session.spoken = spoken_requests  # which request a delegation is, and whether it is still the newest
         # The journal and the talking window render the same line IDs. Raw voice events
         # provide status only; two sockets must never independently construct chat rows.
         spoken_requests.user_line.caption = spoken_requests.reply_line.caption = True

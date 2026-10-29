@@ -306,3 +306,30 @@ def test_startup_view_is_not_replayed_after_the_same_recap(monkeypatch, requeste
         sight.view = sight.question_view = SimpleNamespace(current=lambda info: True)
         until(lambda: len(session.injected) == 2)
         assert session.injected[1][2]['facts']['why'] == ["the look the user's first words asked for"]
+
+
+def test_every_talk_session_shares_the_brains_record_of_what_was_said(monkeypatch):
+    """Part 2.5: an outcome is said once per request, also when Talk is pressed again; and the session knows which
+    request each delegation is and whether it is still the newest (the route used not to tell it: SpokenRequests.voice
+    was set after the session existed, so `newest` was never asked)."""
+    from orchestrator.brain.narrator import Said
+
+    app_with(monkeypatch)  # the stand-in session in place of OpenAILiveSession
+    said = Said()
+    made = []
+    original = FakeSession.__init__
+
+    def init(self, config, link="relay", **kw):
+        original(self, config, link)
+        made.append(kw)
+
+    monkeypatch.setattr(FakeSession, "__init__", init)
+    brain = SimpleNamespace(agent=SimpleNamespace(log=lambda r: None), voice=None, voice_notes=[], sight=None, said=said,
+                            voice_recap=lambda: "", moment=lambda: None, registry=SimpleNamespace(tools={}))
+    app = FastAPI()
+    route.add_voice_route(app, SimpleNamespace(settings=Settings(), latest_info=None), brain, dialogue=None)
+    for _ in range(2):
+        with TestClient(app).websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+            assert json.loads(ws.receive_text())["kind"] == "model"
+    assert [kw.get("said") for kw in made] == [said, said]
+    assert all(getattr(s, "spoken", None) is not None for s in FakeSession.made[-2:])

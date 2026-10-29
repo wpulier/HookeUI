@@ -293,6 +293,9 @@ class Brain:
         self.presenter = None  # orchestrator/presenter.Presenter: the result viewer
         self.voice_notes: list[str] = []  # chat happenings the voice should know, sent with the next view note
         self.board = None  # board.Board: what is on screen (app.App.build sets it)
+        from .narrator import Said
+
+        self.said = Said()  # what the voice was asked to say, by identity: one per brain, so every Talk session shares it
 
     async def _look(self, question, view, *, phase="look", **kwargs):
         with answer_phase(phase):
@@ -630,7 +633,7 @@ class Brain:
         table, selected = context.scene_table(moment)
         tool_text = (look.tool_text if look is not None and look.moment is moment
                      else (self.registry.prompt_section(), table, selected))
-        from .claims import observation_limit
+        from .claims import Draft, observation_limit
 
         draft_offered = False
 
@@ -641,7 +644,9 @@ class Brain:
             if (not draft_offered and draft is not None and answer and not unavailable
                     and not query_dependent and not any(run.ok is False for run in runs)):
                 draft_offered = True
-                task = asyncio.create_task(draft(answer))
+                # The steps it still waits on travel with it: with any, it is a plan, not an outcome (claims.Draft).
+                pending = [name for name, _ in actions] + [run.tool for run in runs if run.ok is None]
+                task = asyncio.create_task(draft(Draft(answer, pending)))
                 self._drafts = {t for t in getattr(self, "_drafts", set()) if not t.done()} | {task}
 
         async def think(q: str, pointing_now: str, phase="look", *, preceding=()):
@@ -1293,6 +1298,7 @@ class Brain:
             "turnId": user_turn.id,
             "asked": asked_in,  # not for the wire: the server files the shown answer with it
             "objectIds": ctx.objects,
+            "targets": len(targets),  # the things its look asked to outline: an outline was asked for when any
             # Retain each actual step, including failed attempts before useful
             # later work; a later outline does not replace the earlier receipt.
             "actions": [r.wire() for r in runs],

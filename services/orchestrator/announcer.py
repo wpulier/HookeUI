@@ -114,12 +114,12 @@ class Announcer:
                 # with no model answer (live 2026-10-11 12:21: a failed photo was silent context, and the voice
                 # improvised "I found the photo, it's on your screen").
                 notify=True,
-                # ...unless the user has asked something newer since: then it is context, never said over them.
-                # A raw outcome already said for this step is not said again; a model's own late answer is (it is the
-                # considered one).
-                still=lambda: _newest(voice, occurrence.request_id if occurrence is not None else None)
-                and (bool(run.answer) or occurrence is None
-                     or occurrence.action_id not in (getattr(voice, "spoken_actions", None) or set()))))
+                # Said once: an outcome the voice was asked to say already, by any path (the hand-off's findings, a
+                # second hand-off), raw or a model's own late answer, is told, not said again (narrator.Said; live
+                # 2026-10-28: one outline said three times).
+                outcomes=frozenset({f"action:{occurrence.action_id}"}) if occurrence is not None else frozenset(),
+                # ...and unless the user has asked something newer since: then it is context, never said over them.
+                still=lambda: _newest(voice, occurrence.request_id if occurrence is not None else None)))
 
     # --- a step still running that now waits on something ------------------------------------------
     def progressed(self, run: ToolRun, ctx: ToolContext) -> None:

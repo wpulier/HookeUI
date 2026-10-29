@@ -37,6 +37,19 @@ Protocol differences hidden here, so the route and studio treat both providers a
     (silence included): user speech that starts while the model is audibly speaking is
     reported as `interrupted`, and the model's turn is complete when the user speaks again
     or the model has been quiet for a moment.
+
+Turn-taking is GPT-Live's own (checked against OpenAI's documentation on 2026-10-28, for Part 2.5): the session
+reference (developers.openai.com/api/reference/resources/live: model, audio, client, delegation, input,
+instructions, store, triggers), the Live guides (developers.openai.com/api/docs/guides/live,
+live-conversations, live-migration, voice-websockets) and the prompting guide (guides/live-prompting)
+document no `turn_detection`, `server_vad`/`semantic_vad`, `eagerness`, `interrupt_response` or `create_response`
+for `gpt-live-1`: "GPT-Live decides when to speak; remove manual audio commits and voice-turn triggers"
+(live-migration), "Transcript deltas have no item ID or event that marks a completed conversational turn" and
+"Gaps between transcript events alone do not establish silence" (live-conversations). Yielding is shaped only by
+the instructions (the voice prompt's Interruption section follows the prompting guide's recipe). So nothing is
+configured here and the app's own guesses stay as they were (QUIET_TURN_END_S, SPEECH_PEAK): they decide only the
+app's bookkeeping (captions, `interrupted` for the relay's playback, when it is idle), never when the model speaks.
+What the app asks the voice to say waits while the user's words are still coming (`_hold_for_user`).
 """
 from __future__ import annotations
 
@@ -47,11 +60,13 @@ import json
 import uuid
 import os
 import time
+from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable
 
 import numpy as np
 
 from ..brain.claims import DOING
+from ..brain.narrator import Said
 from .base import VoiceConfig, VoiceEvent, VoiceSession
 
 RATE = 24000
@@ -63,6 +78,10 @@ SPEECH_PEAK = 400
 # up) gets at most this long, each on its own, so all of them fit inside the route's SHUTDOWN_S and the hangup is always
 # attempted, whatever an earlier step did (Codex's reviews of 3023699e).
 CLOSE_STEP_S = 2.0
+# What the app asks the voice to say (findings, an early answer) waits at most this long while the user's words are
+# still coming (live 2026-10-28: an earlier answer was said over "No, it wasn't cancelled. The researcher..."); past it,
+# it goes anyway, since it is what they asked for.
+HOLD_FOR_USER_S = 6.0
 
 
 async def append_context(part, content: str, *, delegation_id=None, event_id=None, staging=None):
@@ -140,42 +159,115 @@ def _initial_item(role: str, text: str) -> dict:
     return {"type": "message", "role": role, "content": [{"type": kind, "text": text}]}
 
 
-def findings_text(result: dict[str, Any], said: str = "") -> str:
-    """What the app found, as the commentary GPT-Live paraphrases (max ~500 tokens). When the
-    answer was already said (`said`, sent early), only what happened since: the outcomes, and
-    the answer again only if the app rewrote it (a step failed, nothing could be outlined)."""
+@dataclass(frozen=True)
+class Findings:
+    """A hand-off's findings, split by who they are for (live 2026-10-28: "Nothing's outlined" was said after a table, a
+    researcher, a status and a tab request; it was a fact written for the model, read aloud):
+    - `spoken`: what the voice is asked to say (session.commentary.append, paraphrased aloud);
+    - `facts`: what only the model should know (session.thinking.append on the delegation, never asked to be said):
+      steps still running, nothing outlined;
+    - `outcomes`: the identities of what `spoken` reports (brain/narrator.Said), so it is said once."""
+    spoken: str = ""
+    facts: str = ""
+    outcomes: frozenset = frozenset()
+
+
+def _outlining(tool) -> bool:
+    """A step that makes outlines on the view, by what it declares it makes (produces.py: named outlines, cells)."""
+    from ..produces import TOOLS, kinds_of
+
+    return bool({"named-outline", "population"} & set(kinds_of(TOOLS.get(str(tool or "")))))
+
+
+def split_findings(result: dict[str, Any], said: str = "", request_id: str | None = None, already=()) -> Findings:
+    """What the app found for one spoken request (`request_id`, else the result's `requestId`), as what the voice says
+    and what only the model knows (max ~500 tokens). When the answer was already said (`said`, sent early), only what
+    happened since: the outcomes, and the answer again only if the app rewrote it (a step failed, nothing came of it).
+    `already` (a Said, or a set): identities said before, by any path; their parts are left out of `spoken`."""
+    rid = request_id or result.get("requestId") or None
+
+    def action_key(a: dict) -> str | None:
+        if a.get("actionId"):
+            return f"action:{a['actionId']}"
+        return f"action:{rid}:{a.get('tool')}:{a.get('summary')}" if rid else None
+
+    def new(key) -> bool:
+        return key is None or key not in already
+
     if result.get("error"):
-        return f"The app could not look at the view: {result['error']}"
+        key = f"error:{rid}" if rid else None
+        return Findings(f"The app could not look at the view: {result['error']}" if new(key) else "",
+                        outcomes=frozenset({key} - {None}))
     if result.get("unmatched"):
         doing = "; ".join(str(w) for w in (result.get("inProgress") or [])[:3])
-        return ("The app heard no new request for this, so it started nothing new."
-                + (f" Still being done ({DOING}): {doing}." if doing else "")
-                + " If the user asked for something, ask them to say it again in a few words.")
+        return Findings("The app heard no new request for this, so it started nothing new. If the user asked for "
+                        "something, ask them to say it again in a few words.",
+                        f"Still being done ({DOING}): {doing}." if doing else "")
     answer = str(result.get("answer") or "").strip()
+    actions = result.get("actions") or []
     outlined = [str(x) for x in result.get("outlined") or [] if x]
-    done = [str(a.get("summary")) for a in result.get("actions") or [] if a.get("ok") and a.get("summary")]
-    failed = [str(a.get("summary")) for a in result.get("actions") or [] if a.get("ok") is False and a.get("summary")]
+    done = [a for a in actions if a.get("ok") and a.get("summary")]
+    failed = [a for a in actions if a.get("ok") is False and a.get("summary")]
     doing = [str(a.get("tool")) + (f" ({a['progress']})" if a.get("progress") else "")
-             for a in result.get("actions") or [] if a.get("ok") is None]
+             for a in actions if a.get("ok") is None]
+    spoken: list[str] = []
+    facts: list[str] = []
+    outcomes: set[str] = set()
     # What was already said stands unless the receipts contradict it (a step failed, or nothing came of it):
     # a reworded answer is not said again as a correction (live 2026-10-10: 6 of 7 replies were re-said).
     reworded = bool(said) and answer and " ".join(answer.split()) != " ".join(said.split())
     contradicted = bool(failed) or not (outlined or done or doing)
-    parts = [f"Correction to what you said: {answer}" if reworded and contradicted else ("" if said else answer)]
+    answer_key = f"answer:{rid}" if rid else None
+    settled = {action_key(a) for a in actions if a.get("ok") is not None} - {None}
+    # The answer to a request whose every settled step was said already (its late result, another hand-off) says
+    # nothing new: its outcome was said.
+    told = (answer_key is not None and answer_key in already) or (bool(settled) and not any(new(k) for k in settled))
+    if reworded and contradicted:
+        key = f"correction:{rid}" if rid else None
+        if new(key):
+            spoken.append(f"Correction to what you said: {answer}")
+            outcomes.add(key)
+    elif answer and not said and not told:
+        spoken.append(answer)
+        outcomes.add(answer_key)
     if outlined:
-        parts.append(f"Outlined on screen: {', '.join(outlined[:8])}.")
-    elif result.get("answer") and not said:
-        parts.append("Nothing was outlined.")
-    if done:
-        parts.append(f"Done on screen: {'; '.join(done[:4])}.")
+        key = f"outlined:{rid}:" + ",".join(sorted(str(i) for i in result.get("outlinedIds") or outlined)) if rid else None
+        if new(key):
+            spoken.append(f"Outlined on screen: {', '.join(outlined[:8])}.")
+            outcomes.add(key)
+    # "Nothing outlined" is a fact only for a request that asked for outlines (its look's targets, or a step that makes
+    # them) and got none; the voice says it once, with what to try next. A step that failed says it itself.
+    asked = int(result.get("targets") or 0) > 0 or any(_outlining(a.get("tool")) for a in actions)
+    made = bool(outlined) or any(a.get("ok") is not False and _outlining(a.get("tool")) for a in actions)
+    if asked and not made:
+        facts.append("Nothing was outlined for this request.")
+        key = f"nothing-outlined:{rid}" if rid else None
+        if not any(a.get("ok") is False and _outlining(a.get("tool")) for a in actions) and new(key):
+            spoken.append("Nothing could be outlined for this request: say so once, with the next useful thing to try.")
+            outcomes.add(key)
+    fresh = [a for a in done if new(action_key(a))]
+    if fresh:
+        spoken.append(f"Done on screen: {'; '.join(str(a['summary']) for a in fresh[:4])}.")
+        outcomes |= {action_key(a) for a in fresh}
     if doing:
-        # Still running when the findings went out: the app says when it lands (brain/claims.py).
-        parts.append(f"Still being done ({DOING}): {'; '.join(doing[:4])}.")
-    if failed:
-        parts.append(f"Could not: {'; '.join(failed[:4])}. Tell the user plainly what did not work.")
-    if not any(parts) and not said:
-        parts.append("The app has no answer and did nothing for this request. Tell the user plainly, in a few words.")
-    return " ".join(p for p in parts if p)[:1800]
+        # Still running when the findings went out: the app says when it lands (brain/claims.py). A wait is never said.
+        facts.append(f"Still being done ({DOING}): {'; '.join(doing[:4])}.")
+    fresh = [a for a in failed if new(action_key(a))]
+    if fresh:
+        said_failed = "; ".join(str(a["summary"]) + (f" (next: {a['next']})" if a.get("next") else "") for a in fresh[:4])
+        spoken.append(f"Could not: {said_failed}. Tell the user plainly what did not work.")
+        outcomes |= {action_key(a) for a in fresh}
+    if not (answer or outlined or actions or said or asked):
+        key = f"nothing:{rid}" if rid else None
+        if new(key):
+            spoken.append("The app has no answer and did nothing for this request. Tell the user plainly, in a few words.")
+            outcomes.add(key)
+    return Findings(" ".join(spoken)[:1800], " ".join(facts)[:900], frozenset(outcomes - {None}))
+
+
+def findings_text(result: dict[str, Any], said: str = "") -> str:
+    """What the voice is asked to say of a hand-off's findings (`split_findings(...).spoken`)."""
+    return split_findings(result, said=said).spoken
 
 
 def only_in_progress(result: dict[str, Any]) -> bool:
@@ -190,7 +282,7 @@ def only_in_progress(result: dict[str, Any]) -> bool:
 class OpenAILiveSession(VoiceSession):
     def __init__(self, config: VoiceConfig, *, api_key: str | None = None, connect: Callable[..., Any] | None = None,
                  link: str = "relay", create: Callable[..., Any] | None = None, sideband: Callable[..., Any] | None = None,
-                 hangup: Callable[..., Any] | None = None) -> None:
+                 hangup: Callable[..., Any] | None = None, said: Said | None = None) -> None:
         """`connect()` returns an async context manager yielding a live connection with
         `.session.start/close`, `.session.input_audio.append`, `.session.commentary.append`,
         `.session.thinking.append`, `.session.instructions.append` and async iteration over
@@ -221,7 +313,6 @@ class OpenAILiveSession(VoiceSession):
         self._last_user_at = 0.0
         self._model_speaking = False
         self._barged = False  # the user has spoken over the model's current speech (said once per speech)
-        self._said: dict[str, str] = {}  # delegation id -> the answer already said for it (say)
         self._notes = 0
         self._event_ids: set[str] = set()
         self._event_order: list[str] = []
@@ -229,7 +320,11 @@ class OpenAILiveSession(VoiceSession):
         # The interaction log (the route sets it): every silent note is written there as it is sent (`voice-note`).
         self.noted: Callable[[dict], None] | None = None
         self.last_commentary_at = 0.0  # when the app last gave the model something to say
-        self.spoken_actions: set[str] = set()  # steps whose outcome the voice was asked to say: never asked twice
+        # What the voice was asked to say, by identity (brain/narrator.Said): the brain's, shared by every Talk session
+        # (voice/route.py), so an outcome is said once per request whichever path, delegation or session reports it.
+        self.said = said if said is not None else Said()
+        self.spoken_actions: set[str] = self.said.actions  # steps whose outcome the voice was asked to say
+        self.spoken = None  # brain/speech.SpokenRequests: which request a delegation is, and whether it is the newest
         self.closed = False
         self._closed_ack = asyncio.Event()
         self.usage_seconds = None  # cumulative provider total retained after the UI event pump stops
@@ -442,6 +537,36 @@ class OpenAILiveSession(VoiceSession):
         """The user is talking and the model is not: silent context sent now lands before the reply."""
         return bool(self._heard.strip()) and not self._model_speaking
 
+    def _user_talking(self) -> bool:
+        """The user's words are still coming: heard since the voice last answered, the last within QUIET_TURN_END_S."""
+        return self.user_speaking() and time.monotonic() - self._last_user_at < QUIET_TURN_END_S
+
+    async def _hold_for_user(self) -> bool:
+        """What the app asks the voice to say waits while the user's words are still coming, at most HOLD_FOR_USER_S
+        (GPT-Live itself decides when to speak; this only keeps the app from handing it words to say over the user's).
+        True when it waited."""
+        waited, until = False, time.monotonic() + HOLD_FOR_USER_S
+        while self._user_talking() and not self.closed and time.monotonic() < until:
+            waited = True
+            await asyncio.sleep(0.1)
+        return waited
+
+    def adopt_said(self, said: Said) -> None:
+        """Share the brain's record of what was said (a new Talk session knows what the last one said)."""
+        self.said, self.spoken_actions = said, said.actions
+
+    def _request_of(self, did: str | None, result: dict | None = None) -> str:
+        """The spoken request a delegation is (its admission's id: brain/speech.SpokenRequests.request_for), else the
+        delegation itself: what is said is said once per this identity."""
+        rid = (result or {}).get("requestId")
+        if not rid and self.spoken is not None and hasattr(self.spoken, "request_for"):
+            rid = self.spoken.request_for(did)
+        return rid or f"delegation:{did}"
+
+    def _newest(self, rid: str) -> bool:
+        spoken = self.spoken
+        return spoken.newest(rid) if spoken is not None and hasattr(spoken, "newest") else True
+
     def last_speech_at(self) -> float:
         return self._last_audio_at
 
@@ -605,13 +730,24 @@ class OpenAILiveSession(VoiceSession):
         did = call.call_id
 
         async def say(text: str) -> None:
-            """The answer as soon as it is written, before its tools have run (it says what is
-            being done, never that it is done: Brain.turn's draft)."""
-            if text.strip() and self._conn is not None and not self.closed and did not in self._said:
-                self._said[did] = text.strip()
-                self.last_commentary_at = time.monotonic()
+            """The answer as soon as it is written, before its tools have run: said once per spoken request (Said), and
+            only an answer that waits on no step. One that does (claims.Draft.pending) is a plan, never an outcome: the
+            voice has acknowledged the request itself, is told the plan, and says the outcome when it lands (live
+            2026-10-28: "I've brought up the measurements table" before any tool had run)."""
+            if not text.strip() or self._conn is None or self.closed:
+                return
+            if getattr(text, "pending", ()):
                 with contextlib.suppress(Exception):
-                    await append_context(self._conn.session.commentary, text.strip()[:1800], delegation_id=did, staging=self._conn.session.thinking)
+                    await self._think("Context only, do not say: being done for the user's request, not done yet (its "
+                                      "outcome follows on this delegation): " + text.strip()[:1800],
+                                      source="draft", delegation_id=did)
+                return
+            if not self.said.said_answer(self._request_of(did), text.strip()):
+                return
+            await self._hold_for_user()
+            self.last_commentary_at = time.monotonic()
+            with contextlib.suppress(Exception):
+                await append_context(self._conn.session.commentary, text.strip()[:1800], delegation_id=did, staging=self._conn.session.thinking)
 
         try:
             result = await spec.handler({**call.args, "say": say}) if spec else {"error": "no tool to handle it"}
@@ -626,33 +762,40 @@ class OpenAILiveSession(VoiceSession):
         if result.get("superseded"):
             # The user corrected this request since: its outcome stays in the chat and the records,
             # and is not spoken as the answer now.
-            self._said.pop(call.call_id, None)
             self._emit(VoiceEvent("tool_result", call_id=call.call_id, name=call.name, result=result, data={"ms": ms}))
             return
         try:
-            said = self._said.pop(call.call_id, "")
-            text = findings_text(result, said=said)
-            if text and result.get("stale"):
+            rid = self._request_of(did, result)
+            said = self.said.answer(rid)
+            whole = split_findings(result, said=said, request_id=rid)
+            body = " ".join(part for part in (whole.spoken, whole.facts) if part)
+            stale = bool(result.get("stale"))
+            if body and not stale and not only_in_progress(result) and await self._hold_for_user():
+                stale = not self._newest(rid)  # the user's words meanwhile were a newer request: not said over it
+            # Computed after any wait: whatever said it meanwhile (the narrator, another hand-off) is left out.
+            fresh = split_findings(result, said=said, request_id=rid, already=self.said)
+            if body and stale:
                 # The user has asked something newer since (brain/speech.py newest): the outcome is in the chat and
                 # told to the voice as context, never said over the new question (ADR 0016's waits).
                 await self._think("Context only, do not say now: the outcome of the user's earlier request, which they "
-                                  "have since followed with a newer one.\n" + text, source="stale", delegation_id=call.call_id)
-            elif text and only_in_progress(result):
+                                  "have since followed with a newer one.\n" + body, source="stale", delegation_id=did)
+            elif body and only_in_progress(result):
                 # Nothing has happened yet: the voice is told, never asked to say it (live 2026-10-11: "Still pulling
                 # that photo. Still at it."; "It's still being done"). The chat's row shows it working; the outcome
                 # is spoken when it lands.
                 await self._think("Not to be said again: the user has been told this is being done; its outcome follows "
-                                  "on this delegation.\n" + text, source="in-progress", delegation_id=call.call_id)
-            elif text:
-                settled = {a.get("actionId") for a in result.get("actions") or [] if a.get("ok") is not None and a.get("actionId")}
-                if settled and settled <= self.spoken_actions:
-                    # Every outcome here was said already, as its late result (narrator): told, not said again
-                    # (run 4 of the voice journeys: the photo's outcome was said twice).
-                    await self._think("Context only, already said: " + text, source="said", delegation_id=call.call_id)
-                else:
-                    self.last_commentary_at = time.monotonic()
-                    await append_context(self._conn.session.commentary, text, delegation_id=call.call_id, staging=self._conn.session.thinking)
-                    self.spoken_actions |= settled
+                                  "on this delegation.\n" + body, source="in-progress", delegation_id=did)
+            elif fresh.spoken and (not fresh.outcomes or self.said.claim(fresh.outcomes)):
+                if fresh.facts:
+                    await self._think("For you only, not to be read out: " + fresh.facts, source="facts", delegation_id=did)
+                self.last_commentary_at = time.monotonic()
+                await append_context(self._conn.session.commentary, fresh.spoken, delegation_id=did, staging=self._conn.session.thinking)
+            elif whole.spoken:
+                # Every outcome here was said already (its late result, another hand-off of the same request, an earlier
+                # Talk session): told, not said again (run 4 of the voice journeys; live 2026-10-28, said three times).
+                await self._think("Context only, already said: " + body, source="said", delegation_id=did)
+            elif body:
+                await self._think("For you only, not to be read out: " + body, source="facts", delegation_id=did)
         except Exception as exc:
             self._emit(VoiceEvent("error", data={"message": f"delegation result failed: {type(exc).__name__}: {exc}"[:300]}))
         self._emit(VoiceEvent("tool_result", call_id=call.call_id, name=call.name, result=result, data={"ms": ms}))

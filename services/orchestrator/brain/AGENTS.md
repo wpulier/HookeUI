@@ -31,9 +31,36 @@ other files.
   a delegation done, so the app keeps each request's state). Live 2026-10-11, without it, a still-running step was
   said twice ("Still pulling that photo. Still at it.") and a failed photo, left as silent context, became an
   improvised "I found the photo, it's on your screen".
+  - **One identity per request:** a spoken request's id is its ticket's admission (`request.admission.request_id`).
+    It travels with every hand-off of it (`SpokenRequests.request_for(delegation_id)`), its findings (`requestId`), the
+    narrator's lines (`Line.request_id`) and each step's late result (`Line.outcomes`: `action:<action id>`). What the
+    voice is asked to say is claimed by those identities in one record, `narrator.Said` (`Brain.said`, shared by every
+    Talk session through `voice/route.py`), so an answer or outcome is said once whichever path reports it first: the
+    hand-off's findings, the voice handing the same request over again, a replayed delegation, a request the app did
+    without a hand-off (`speech.outcome_line`), the step's raw late result or the model's own late answer about it
+    (`Announcer.late_tool`), or a new Talk session. Never by comparing words. A model's answer that arrives while its
+    step's raw facts still wait in the narrator's queue is said in their place (live 2026-10-28: one outline's outcome
+    said three times: the raw late result, the chat's model answer, then that answer again by voice).
   - **Acknowledged, once:** by the voice itself. A question's answer is said as soon as the brain has written it
-    (`Brain.turn(draft=)`, never a claim that something is done); a request to act's early answer is told to the voice,
-    not said (`SpokenRequests._answer`; the user's decision, 2026-10-11: "Sure", the card, then "There it is").
+    (`Brain.turn(draft=)`), only when it waits on no step: a draft offered with steps still to run
+    (`claims.Draft.pending`) is a plan, never an outcome, and is told to the voice, not said; its answer is said with
+    the outcome (`voice/openai_live` `say`; live 2026-10-28: "I've brought up the measurements table" before any tool
+    ran). A request to act's early answer is told too (`SpokenRequests._answer`; the user's decision, 2026-10-11:
+    "Sure", the card, then "There it is").
+  - **Spoken and facts apart:** `openai_live.split_findings` says apart what the voice is asked to say (`spoken`,
+    commentary) and what only the model should know (`facts`, thinking on the delegation): steps still running, and
+    "nothing was outlined", a fact only for a request that asked for outlines (its look's `targets`, or a step that
+    `produces.py` says makes them) and got none; then the voice says it once, with the next useful thing to try. A
+    failed step's own `next` goes with its "Could not". Live 2026-10-28, "Nothing's outlined" was said after a table, a
+    researcher, a status and a tab request.
+  - **Not over the user:** what the app asks the voice to say (findings, an early answer, a failure from the narrator)
+    waits while the user's words are still coming (`OpenAILiveSession._hold_for_user`, at most `HOLD_FOR_USER_S`); if
+    they asked something newer meanwhile (`SpokenRequests.newest`), the earlier outcome is told, not said. GPT-Live's
+    own turn-taking has no settings (OpenAI's Live reference and guides, checked 2026-10-28: no `turn_detection`, VAD,
+    `eagerness` or `interrupt_response` for `gpt-live-1`; the module docstring of `voice/openai_live.py` quotes them);
+    yielding is shaped only by the prompt's Interruption section, which follows OpenAI's prompting guide ("Keep
+    listening while the user pauses to think"). The app's `QUIET_TURN_END_S` and `SPEECH_PEAK` stay as they were: they
+    decide only captions, `interrupted` and idleness.
   - **Still working:** findings with nothing but steps running go as thinking on the delegation, said or not before
     (`openai_live.only_in_progress`).
   - **A wait:** a late step whose progress changes (a model loading, the studio out of view:

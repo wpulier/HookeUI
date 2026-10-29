@@ -23,6 +23,54 @@ CONFIRM_S = 4.0
 MAX_WAIT_S = 20.0
 MIN_GAP_S = 20.0
 EXPIRES_S = 60.0
+SAID_KEPT = 512  # outcome identities remembered (oldest forgotten first): far more than one day's spoken requests
+
+
+class Said:
+    """What the voice has been asked to say, by identity: a spoken request's answer (`answer:<request id>`), each step's
+    outcome (`action:<action id>`), its outlines and the like (voice/openai_live.split_findings names them). Every path
+    that reports an outcome (the hand-off's findings, a second hand-off of the same request, a replayed delegation, a
+    late result, a request the app did without a hand-off) claims its identities before asking the voice to say it, so
+    one outcome is said once, never by comparing words (live 2026-10-28: one outline said three times). The brain keeps
+    one (Brain.said), so a new Talk session knows what the last one said.
+
+    `actions` holds the bare action ids said, kept as `spoken_actions` on the voice session (the narrator and the
+    announcer read it)."""
+
+    def __init__(self) -> None:
+        self._keys: dict[str, None] = {}  # insertion-ordered: the oldest is forgotten first
+        self._answers: dict[str, str] = {}  # request id -> the answer said early for it (the draft)
+        self.actions: set[str] = set()
+
+    def __contains__(self, key: str) -> bool:
+        return key in self._keys or (key.startswith("action:") and key[len("action:"):] in self.actions)
+
+    def claim(self, keys) -> set[str]:
+        """Mark these identities said; returns those that were not said before (empty: all were)."""
+        new = {k for k in keys if k and k not in self}
+        for key in new:
+            self._keys[key] = None
+            if key.startswith("action:"):
+                self.actions.add(key[len("action:"):])
+        while len(self._keys) > SAID_KEPT:
+            oldest = next(iter(self._keys))
+            del self._keys[oldest]
+            if oldest.startswith("action:"):
+                self.actions.discard(oldest[len("action:"):])
+        return new
+
+    def answer(self, request_id: str | None) -> str:
+        """The answer said early for this request (its draft), "" when none was."""
+        return self._answers.get(request_id or "", "")
+
+    def said_answer(self, request_id: str, text: str) -> bool:
+        """The answer to this request is being said early: True the first time, False when it was said already."""
+        if not self.claim({f"answer:{request_id}"}):
+            return False
+        self._answers[request_id] = text
+        while len(self._answers) > SAID_KEPT:
+            del self._answers[next(iter(self._answers))]
+        return True
 
 
 @dataclass(frozen=True)
@@ -51,6 +99,9 @@ class Line:
     # whose request the user has since followed with a newer one, is given to the voice as context, not said over them
     # (ADR 0016's waits: "still working" was said after the work had finished, live 2026-10-11 16:18:40 and 16:20:14).
     still: Callable[[], bool] | None = field(default=None, repr=False, compare=False)
+    # The identities of the outcomes it reports (Said): asked to be said only when one of them has not been said yet,
+    # whichever path said it first (the hand-off's findings, another line); otherwise it is told, not said.
+    outcomes: frozenset = frozenset()
 
     @property
     def requested(self) -> bool:
@@ -79,6 +130,12 @@ class Narrator:
         # Freeze the delivery's session before any await, including legacy callers.
         line = replace(line, at=self.clock(), voice_owner=(
             line.voice_owner if line.voice_owner is not None else self._voice()))
+        if line.provenance == "model" and line.outcomes:
+            # A model's own answer about an outcome whose raw facts are still waiting to be said: the answer is said,
+            # the facts are told (said once, the considered words preferred while nothing has been said yet).
+            self.waiting = [replace(l, delivery="silent", notify=False)
+                            if l.provenance == "data" and l.outcomes & line.outcomes and l.voice_owner is line.voice_owner
+                            else l for l in self.waiting]
         self.waiting.append(line)
         self._wake.set()
         if self._task is None or self._task.done():
@@ -112,7 +169,10 @@ class Narrator:
             others = [l for l in self.waiting if not l.requested]
             idle = voice.idle_since() if voice is not None else float("inf")
             overdue = any(now - l.at >= MAX_WAIT_S for l in requested)
-            urgent = any(l.delivery == "interrupt" for l in requested)
+            # A failure does not wait for the voice to finish, but never cuts into the user's own words (live
+            # 2026-10-28: "why are you talking over me?").
+            user_talking = voice is not None and bool(getattr(voice, "user_speaking", lambda: False)())
+            urgent = any(l.delivery == "interrupt" for l in requested) and not user_talking
             if requested and (idle >= QUIET_S or overdue or urgent):
                 for line in requested:
                     self.waiting.remove(line)
@@ -141,6 +201,9 @@ class Narrator:
                 holds = True
             if not holds:
                 line = replace(line, delivery="silent", notify=False)  # told, never said: it no longer holds now
+        said = getattr(voice, "said", None)
+        if line.outcomes and line.delivery != "silent" and isinstance(said, Said) and not said.claim(line.outcomes):
+            line = replace(line, delivery="silent", notify=False)  # its outcome was said already: told, not said again
         text = line.text
         if line.provenance != "model" or line.delivery == "silent":
             # Reuse the receipt's bounded facts; legacy text is information too.

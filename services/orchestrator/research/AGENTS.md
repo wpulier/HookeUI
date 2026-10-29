@@ -33,6 +33,15 @@ other files.
   Effort sets their usual time, spend and tools (`research_worker/budget.py`): instant 15 s / $0.08, describe 25 s /
   $0.08 (descriptions only, instant pool), quick 75 s / $0.25, standard 6 min / $1, deep 18 min / $5. A lesson can be made
   from quick up, a video from standard (the 2026-10-11 demo: a short lesson at quick was refused for want of the tool).
+  - **One request, one researcher** (Part 2.5; live 2026-10-28, "create a researcher that looks at the data on the
+    table ... creates an animation of it", split by a pause, made two): `start_researcher` admits one researcher per
+    request, by its identity (the action occurrence's `request_id`, kept in the researcher's `origin`), never its
+    words. The same request answered again (its hand-off after hands started one, a completion round, a retry, a
+    replay) gets the researcher already started back, with its run reference, and nothing new starts; starts listed in
+    one answer of the request (`Steps.occurrences`: "make two researchers, one on X, the other on Y") are each their
+    own. The tool no longer says "always start a new one": words that add to what the user just asked a researcher for
+    go to that one (`researcher_note`), which the model judges from Researchers (it is listed queued, starting or
+    running) and the conversation; a new one starts when they ask for another or for separate work.
   - **Its model's key, first** (the 0.4.0 release candidate): `ResearchManager.start` refuses at once when the model
     researchers use has no key (`engine_key_refusal`): the model is the one the research process runs (its override
     `MICROMIND_RESEARCH_ENGINE`, else the research setting; `research_worker/engines.make_engine`), and a key is there

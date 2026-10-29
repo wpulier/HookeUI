@@ -407,3 +407,30 @@ def test_a_line_that_no_longer_holds_when_spoken_is_told_not_said():
                  provenance='model', still=lambda: True)
     narrator, chats, queued = run(voice, [holds])
     assert voice.injected[0]['kwargs']['respond'] is True
+
+
+def test_one_outcome_is_said_once_and_a_model_answer_waiting_with_its_facts_is_the_one_said():
+    """Live 2026-10-28 (one outline said three times): a late step's raw facts and the model's own answer about the
+    same step are one outcome (its identity, Line.outcomes). Both queued while the voice was busy: the answer is said,
+    the facts told. Once one of them was said (narrator.Said), the other is told."""
+    voice = FakeVoice(speaking=True)
+    facts = Line('{"outline_cells": "341 nuclei"}', delegation_id='d1', notify=True, request_id='r1', action_id='a1',
+                 outcomes=frozenset({'action:a1'}))
+    answer = Line('I have outlined 341 nuclei.', delegation_id='d1', provenance='model', request_id='r1',
+                  action_id='a1', outcomes=frozenset({'action:a1'}))
+
+    async def quiet_later(v, narrator, queued):
+        await asyncio.sleep(0.1)
+        v.speaking = False
+
+    narrator, chats, _ = run(voice, [facts, answer], during=quiet_later)
+    respond = [sent for sent in voice.injected if sent['kwargs'].get('respond')]
+    assert [sent['text'] for sent in respond] == ['I have outlined 341 nuclei.']
+    from orchestrator.brain.narrator import Said
+
+    said = Said()
+    voice = FakeVoice()
+    voice.said = said
+    narrator, chats, _ = run(voice, [facts])
+    narrator, chats, _ = run(voice, [answer])
+    assert [sent['kwargs'].get('respond') for sent in voice.injected] == [True, False]

@@ -519,10 +519,15 @@ def test_actual_eligible_late_model_answer_reaches_original_voice_delegation_int
             assert not rig.ticket.closed
             admission = await rig.settle()
             assert admission.attempts[-1].status == 'done'
-            replies = [row for row in rig.connection.messages('commentary')
-                       if row.args.get('content') == LATE]
-            assert len(replies) == 1, 'BEHAVIOR: actual eligible late model text must be delivered intact once'
-            assert replies[0].args.get('delegation_id') == DELEGATION
+            # Part 2.5 (live 2026-10-28, one outline's outcome said three times): one outcome is said once, by its
+            # identity. The raw notice above already said this step's outcome, so the model's own later answer about
+            # the same step reaches the voice intact, once, as context, and is not said a second time.
+            spoken = rig.connection.messages('commentary')
+            assert len(spoken) == 1 and spoken[0].args.get('delegation_id') == DELEGATION
+            assert 'Requested notification' in spoken[0].args.get('content')
+            assert not [row for row in spoken if row.args.get('content') == LATE]
+            told = [row for row in rig.connection.messages('thinking') if LATE in (row.args.get('content') or '')]
+            assert len(told) == 1, 'BEHAVIOR: actual eligible late model text must reach the voice intact once'
             assert any(event.kind == 'audio' and event.audio for event in rig.events)
             assert rig.run.answer is None, 'BEHAVIOR: raw producer receipt was not rewritten into the model notice'
             rig.assert_no_generated_assistant(model_answers=(LATE,))
