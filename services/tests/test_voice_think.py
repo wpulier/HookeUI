@@ -143,6 +143,72 @@ def test_thinks_backend_acts_through_the_registry_and_looks_again(monkeypatch):
     asyncio.run(go())
 
 
+def test_think_waits_for_a_long_tools_real_outcome_and_it_is_never_said_on_its_own(monkeypatch):
+    """think-broad-1 (2026-10-29): the backend's compare_models was still running at the voice's 12 s, so think
+    reported "they're still running" and the comparison itself came ~40 s later as a separate tool-done line, during
+    another step. Behind the voice, think waits for the outcome; it reaches the backend, and is said only in think's
+    result, never as a line of its own."""
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.05)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = asyncio.Event()
+
+    async def comparing(ctx, args):
+        await gate.wait()
+        return "Cellpose-SAM 342, micro-sam 309 (300 matched), InstanSeg 41"
+
+    async def go():
+        backend = FakeBackend(steps=[("compare_models", {"what": "outline"})],
+                              report={"say": "Cellpose-SAM and micro-sam agree.", "checked": True, "done": True})
+        t = await with_backend(monkeypatch, backend, tools={"compare_models": comparing})
+        t.brain.registry.tools["compare_models"].inline_ms = 20
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "run three outline models and compare them"})
+        await until_async(lambda: t.ran)
+        await asyncio.sleep(0.3)  # well past the voice's own wait: the backend is still waiting for the outcome
+        assert not backend.seen
+        gate.set()
+        await until_async(lambda: backend.seen)
+        name, out = backend.seen[0]
+        assert out["ok"] is True and "300 matched" in out["summary"] and "still_working" not in out
+        await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        await asyncio.sleep(0.2)
+        assert not [i for i in t.sb.items() if i.get("role") == "system" and "Something happened" in i["content"][0]["text"]], \
+            "the comparison is think's to say, not a line of its own"
+    asyncio.run(go())
+
+
+def test_a_tool_think_gave_up_waiting_for_is_still_said_when_it_lands(monkeypatch):
+    """Past think's own wait the outcome is not lost: the backend is told it is still running, and when it lands it is
+    said as one line, as any long tool's is."""
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.05)
+    monkeypatch.setattr("orchestrator.voice.partner_tools.THINK_TOOL_WAIT_S", 0.1)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = asyncio.Event()
+
+    async def comparing(ctx, args):
+        await gate.wait()
+        return "Cellpose-SAM 342, micro-sam 309"
+
+    async def go():
+        backend = FakeBackend(steps=[("compare_models", {"what": "outline"})],
+                              report={"say": "The comparison is still running.", "checked": False, "done": False})
+        t = await with_backend(monkeypatch, backend, tools={"compare_models": comparing})
+        t.brain.registry.tools["compare_models"].inline_ms = 20
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "compare them"})
+        await until_async(lambda: backend.seen)
+        assert backend.seen[0][1]["still_working"] is True
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        await done(t.sb, "resp_1")
+        await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"), None))
+        await done(t.sb, "resp_2")
+        t.session._last_user_at = 0.0
+        gate.set()
+        await until_async(lambda: [i for i in t.sb.items() if i.get("role") == "system"
+                                   and "Something happened" in i["content"][0]["text"]])
+    asyncio.run(go())
+
+
 def test_a_refusal_is_said_as_a_refusal_with_the_other_model_offered(monkeypatch):
     """Anthropic's safeguards can refuse life-science requests: said as that, the other backend offered by name; never
     answered silently by another model."""

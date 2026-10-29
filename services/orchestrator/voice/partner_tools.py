@@ -48,6 +48,7 @@ SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight"
 # researcher; live 2026-10-28: two researchers from one request).
 ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "switch_session", "cancel_researcher"})
 TOOL_WAIT_S = 12.0  # a tool still running after this is answered "still working"; its outcome follows as one line
+THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long tool's real outcome (a comparison)
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
 MARKS_WAIT_S = 1.0  # the studio's marks-shown, at most
@@ -96,6 +97,7 @@ class PartnerTools:
         self._once: dict[tuple, asyncio.Future] = {}  # (turn, tool) -> its result, for ONCE_PER_TURN
         self._screen = asyncio.Lock()  # tools that change the screen run one after another (parallel tool calls)
         self.reported: set[str] = set()  # action ids whose outcome went back to the model
+        self.held: set[str] = set()  # action ids think waits on: their outcome goes back to think, not said alone
         self.fail_next: str | None = None  # the bench's fault hook (MICROMIND_BENCH_FAULTS): the next call fails
         self.running: dict[object, tuple] = {}  # calls still going: (tool, started, run), for a specific progress line
         self.thinking: dict[str, asyncio.Task] = {}  # think's tasks by id
@@ -160,7 +162,9 @@ class PartnerTools:
         return run
 
     # --- a registry tool ---------------------------------------------------------------------------
-    async def run(self, name: str, args: dict, *, n: int | None = None) -> dict:
+    async def run(self, name: str, args: dict, *, n: int | None = None, patient: bool = False) -> dict:
+        """`patient`: a caller behind the voice (think) that waits for a long tool's outcome: past TOOL_WAIT_S the
+        result carries `_pending` for `outcome`, and the outcome is held from being said on its own."""
         args = {k: v for k, v in (args or {}).items() if not k.startswith("_") and k != "after_steps"}
         n = self.partner.turn() if n is None else n
         distinct = str(args.pop("distinct_from", "") or "").strip() if name == "start_researcher" else ""
@@ -170,8 +174,8 @@ class PartnerTools:
         if name not in ONCE_PER_TURN:
             if name in SCREEN_CHANGING:
                 async with self._screen:  # changes on screen one after another, each with its own look after it
-                    return await self._run(name, args, n)
-            return await self._run(name, args, n)
+                    return await self._run(name, args, n, patient)
+            return await self._run(name, args, n, patient)
         # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second
         # call of it in the same turn, in parallel or later and whatever its words, waits for the first's result.
         key = (n, name)
@@ -193,14 +197,14 @@ class PartnerTools:
         self._once = {k: v for k, v in self._once.items() if k[0] == n}  # only this turn's are kept
         slot = self._once[key] = asyncio.get_running_loop().create_future()
         try:
-            result = await self._run(name, args, n)
+            result = await self._run(name, args, n, patient)
         except BaseException as exc:
             slot.set_result({"ok": False, "error": f"it did not finish ({type(exc).__name__})"})
             raise
         slot.set_result(result)
         return result
 
-    async def _run(self, name: str, args: dict, n: int) -> dict:
+    async def _run(self, name: str, args: dict, n: int, patient: bool = False) -> dict:
         words = await self.partner.words(n, WORDS_WAIT_S)
         before = self._reported_at()
         key = object()
@@ -212,12 +216,23 @@ class PartnerTools:
                 await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
         finally:
             self.running.pop(key, None)
+        action = getattr(getattr(run, "occurrence", None), "action_id", None)
+        if patient and action and run.task is not None and not run.task.done():
+            self.held.add(action)  # before anything awaits: landing now, it is filed quietly (_late), not said
+        result = await self._answer(name, run, ctx, before)
+        if action in self.held:
+            result["_pending"] = (run, ctx, before, action)
+        return result
+
+    async def _answer(self, name: str, run, ctx, before: float, *, file: bool = True) -> dict:
+        """A run's result for the model: its receipt, filed in the chat, and, after a change on screen, a fresh look."""
         log: dict[str, Any] = {"requestId": getattr(getattr(run, "occurrence", None), "request_id", None)}
         result = self._result(run)
         if name == "models_in_use":  # the app's own list leaves out the voice answering: this one
             result["this_voice"] = (f"{self.voice_label()}: the voice the user hears, which also sees the camera and "
                                     "Hooke's window and acts with Hooke's tools")
-        self._file(run, ctx)
+        if file:
+            self._file(run, ctx)
         if run.ok is not None and getattr(run.occurrence, "action_id", None):
             self.reported.add(run.occurrence.action_id)
         if name == "start_researcher" and run.ok:
@@ -235,6 +250,25 @@ class PartnerTools:
                 result["_point"], result["pointed_at"] = points, points
                 result["pointing"] = "Hooke points at this as you speak about it: do not call mark for it."
         result["_log"] = log
+        return result
+
+    async def outcome(self, name: str, early: dict, run, ctx, before: float, action: str) -> dict:
+        """Behind the voice, think waits for a long tool's real outcome (a comparison of three models), up to
+        THINK_TOOL_WAIT_S, and gets its result as the voice would have; past that it is told it is still running, and the
+        outcome is said as one line when it lands, as any long tool's is (think-broad-1: "they're still running")."""
+        try:
+            await asyncio.wait([run.task], timeout=THINK_TOOL_WAIT_S)
+        finally:
+            self.held.discard(action)
+        if not run.task.done():
+            return early
+        filed = action in self.reported  # _late filed it already, quietly, while it was held
+        if name in SCREEN_CHANGING:
+            async with self._screen:
+                result = await self._answer(name, run, ctx, before, file=not filed)
+        else:
+            result = await self._answer(name, run, ctx, before, file=not filed)
+        result["_log"] = {**early.get("_log", {}), **result.get("_log", {}), "waited": True}
         return result
 
     def voice_label(self) -> str:
@@ -322,6 +356,8 @@ class PartnerTools:
         self._file(run, ctx)
         if action:
             self.reported.add(action)
+        if action in self.held:  # think is waiting for it: its outcome goes back to think and is said in think's result
+            return
         status = "done" if run.ok else ("stopped" if run.stopped else "failed")
         text = json.dumps({"tool": run.tool, "status": status, "summary": run.summary,
                            **({"next": run.next} if run.next else {})}, ensure_ascii=False)
@@ -533,7 +569,9 @@ class PartnerTools:
         async def call_tool(name: str, args: dict) -> dict:
             if name not in THINK_TOOLS:
                 return {"ok": False, "error": f"there is no {name} tool here"}
-            return await self.run(name, args, n=n)
+            result = await self.run(name, args, n=n, patient=True)
+            pending = result.pop("_pending", None)
+            return await self.outcome(name, result, *pending) if pending is not None else result
 
         log = getattr(self.partner, "log", lambda record: None)
         missing = "ANTHROPIC_API_KEY" if not option.startswith("gpt-") else "OPENAI_API_KEY"

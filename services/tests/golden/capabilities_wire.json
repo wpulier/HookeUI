@@ -12070,7 +12070,9 @@
    "title": "Talk key"
   },
   {
-   "agentCanChange": [],
+   "agentCanChange": [
+    "set_default"
+   ],
    "current": "claude-opus-5-5",
    "default": "claude-opus-5-5",
    "defaultReason": null,

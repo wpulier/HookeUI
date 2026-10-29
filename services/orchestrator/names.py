@@ -328,7 +328,8 @@ def choice_operations() -> list:
 # when only from now on (`set_default`): the running look is no request's own, and naming a click with MedSigLIP is
 # each click's.
 SETTINGS: dict[str, bool] = {"vision": True, "fast": True, "outline_check": True, "research": True, "image": True,
-                             "presentation": True, "sight": False, "zeroshot": False}
+                             "presentation": True, "sight": False, "zeroshot": False,
+                             "think": False}
 
 
 def roles(*, request: bool = False, settable: bool = False) -> list[tuple[str, str]]:

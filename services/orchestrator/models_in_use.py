@@ -18,6 +18,7 @@ from . import options
 JOBS: tuple[tuple[str, str, str], ...] = (
     ("brain", "Thinking (the brain)", "vision"),
     ("voice", "Talking (the voice)", "voice"),
+    ("think", "Thinking behind the voice", "think"),  # the one-brain voice's hard questions and many steps (think.py)
     ("vision", "Seeing (the eyes)", "vision"),
     ("sight", "Running look", "sight"),
     ("fast", "Quick decisions", "fast"),
@@ -143,4 +144,5 @@ def text(settings) -> str:
         note = f"; {row['note']}" if row.get("note") else ""
         lines.append(f"- {row['title']}: {model}{how}{note}; {row['speedWords']}; change: {row['change']}")
     return ("The models doing each job now (the settings in force; speeds are this app's own calls in the last 10 "
-            "minutes). The voice hears and speaks, and hands every request to the brain:\n" + "\n".join(lines))
+            "minutes). GPT-Live hears and speaks and hands every request to the brain; the one-brain voice sees and acts "
+            "itself and hands hard questions and many steps to its thinking:\n" + "\n".join(lines))

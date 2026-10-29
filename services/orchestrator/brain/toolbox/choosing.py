@@ -74,7 +74,8 @@ BY = ("user", "brain")  # who chose a request's model (`use`): its run's origin,
 SETTING_WORDS = {"vision": "the vision model (looking and answering)", "fast": "the quick-decision model",
                  "outline_check": "the outline check", "research": "the researchers' model",
                  "image": "the researchers' picture model", "presentation": "the presentation model",
-                 "sight": "the running look", "zeroshot": "the medical-names model for clicks"}
+                 "sight": "the running look", "zeroshot": "the medical-names model for clicks",
+                 "think": "the voice's thinking (its hard questions and many steps)"}
 # What already ran for a request with a setting's model, by the request's answer phases (brain/admission.py): a
 # choice made after it does not change it, and that is said (Slice 5).
 RAN_BY_PHASE = {"vision": (("look", "look"), ("query", "look")), "fast": (("fast", "quick decision"),

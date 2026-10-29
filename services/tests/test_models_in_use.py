@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from tests.test_resources import app_at
 
-JOBS = ("Thinking (the brain)", "Talking (the voice)", "Seeing (the eyes)", "Running look", "Quick decisions", "Pointing",
+JOBS = ("Thinking (the brain)", "Talking (the voice)", "Thinking behind the voice", "Seeing (the eyes)", "Running look", "Quick decisions", "Pointing",
         "Outlining", "Cells", "Look-alikes", "Researching", "Presentation", "Pictures", "Video")
 
 
@@ -46,6 +46,9 @@ def test_what_models_are_powering_you_names_each_jobs_model_and_where_it_runs(tm
     seeing = VISION[settings.vision].label
     assert lines["Thinking (the brain)"].startswith(f"- Thinking (the brain): {seeing} (cloud), acting by: {BRAIN[settings.brain].label}")
     assert "Talking (the voice): GPT-Live (OpenAI) (cloud)" in lines["Talking (the voice)"]
+    # The one-brain voice's thinking (think.py), and how to change it: "switch your brain to Claude".
+    assert "Thinking behind the voice: Claude Opus 5.5 (cloud)" in lines["Thinking behind the voice"]
+    assert "use <model> from now on" in lines["Thinking behind the voice"]
     assert "Outlining: SAM 2.1 tiny (this Mac)" in lines["Outlining"] and "70 ms" in lines["Outlining"]
     assert "Cells: Cellpose-SAM (this Mac)" in lines["Cells"] and "no calls in the last 10 minutes" in lines["Cells"]
     assert "1.8 s" in lines["Seeing (the eyes)"] and "use <model> from now on" in lines["Seeing (the eyes)"]
