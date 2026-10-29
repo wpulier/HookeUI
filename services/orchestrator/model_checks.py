@@ -182,7 +182,7 @@ def _build() -> list[Entry]:
                                  WEIGHTS.get(impl.id) or next((WEIGHTS[s] for s in impl.steps if s in WEIGHTS), ""),
                                  chosen))
                 continue
-            if option.id in VISION and rid in ("vision", "sight", "fast"):
+            if option.id in VISION and rid in ("vision", "sight", "fast", "look_hard"):
                 probe = ("vision", option.id)  # Agent.vision(option): the same provider spec in each of the three
             elif rid == "zeroshot":
                 probe = ("zeroshot", "medsiglip")

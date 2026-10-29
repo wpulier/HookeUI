@@ -19,6 +19,7 @@ JOBS: tuple[tuple[str, str, str], ...] = (
     ("brain", "Thinking (the brain)", "vision"),
     ("voice", "Talking (the voice)", "voice"),
     ("think", "Thinking behind the voice", "think"),  # the one-brain voice's hard questions and many steps (think.py)
+    ("look_hard", "Looking closely (for the voice)", "look_hard"),  # the partner's close look (partner_tools.look_hard)
     ("vision", "Seeing (the eyes)", "vision"),
     ("sight", "Running look", "sight"),
     ("fast", "Quick decisions", "fast"),

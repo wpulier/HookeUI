@@ -2309,7 +2309,9 @@
         "voicelink",
         "talk",
         "talk_key",
+        "heard_cue",
         "think",
+        "look_hard",
         "fixed:voice-words",
         "fast",
         "speculate",
@@ -4588,11 +4590,25 @@
       "hint": "Control+Option, or Right Option with VoiceOver on"
     },
     {
+      "id": "heard_cue",
+      "kind": "policy",
+      "title": "Heard you",
+      "purpose": "The sign it heard you as you let go of the talk key",
+      "hint": "the ring settles with a soft tone, or the ring alone"
+    },
+    {
       "id": "think",
       "kind": "model",
       "title": "Thinking behind the voice",
       "purpose": "Takes hard questions and many steps from the one-brain voice",
       "hint": "the frontier mind the voice hands work to"
+    },
+    {
+      "id": "look_hard",
+      "kind": "model",
+      "title": "Looking closely",
+      "purpose": "Names a thing exactly for the voice when a few seconds is fine",
+      "hint": "the voice says it is taking a closer look"
     },
     {
       "id": "watch",

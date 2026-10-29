@@ -151,22 +151,27 @@ OUTLINE = {
     ]
 }
 
-# The voice of the brain (docs/bench/live.md). GPT-Live hears and speaks and hands every
-# request to the same brain you type to, so voice and chat share one mind and one set of
-# tools. Gemini 3.8 Live (its own separate tools) was retired from the studio when the brain
-# was unified; voice/gemini_live.py remains for bench/live_probe.py.
+# The voice (docs/architecture/live-partner-contract.md; the live partner spec, section 4). The default is the live
+# partner: one model hears, sees the camera and Hooke's window each turn, acts through Hands and points at what it talks
+# about (voice/openai_realtime.py, voice/partner.py; WebRTC only). Will, 29 Oct 2026: "dont default to anything old, we
+# are building anew the right way": the partner's stack is the default, and it is judged against the spec's standard,
+# never against GPT-Live. GPT-Live hears and speaks and hands every request to the brain you type to; it stays a choice
+# someone picks by hand (options, not replacements), and nothing falls back to it. Gemini 3.8 Live (its own separate
+# tools) was retired from the studio when the brain was unified; voice/gemini_live.py remains for bench/live_probe.py.
 VOICE = {
     o.id: o
     for o in [
-        Option("gpt-live-1", "GPT-Live (OpenAI)", "voice ~0.1 s, outline ~2-4 s; the brain does the looking", model="gpt-live-1"),
-        # One model hears, sees the camera and Hooke's window each turn, calls the app's tools itself and points at what
-        # it talks about (voice/openai_realtime.py, voice/partner.py). Not yet measured on the journey bench, so not the
-        # default; WebRTC only.
         Option("gpt-realtime-2.1", "One brain (hears · sees · acts)",
-               "GPT Realtime 2.1: sees each turn, acts with the app's tools, points; not yet measured against GPT-Live",
+               "GPT Realtime 2.1, the live partner: sees each turn, acts in Hooke with a receipt, points as it talks",
                model="gpt-realtime-2-1"),
+        Option("gpt-live-1", "GPT-Live (OpenAI)", "voice ~0.1 s, outline ~2-4 s; the brain does the looking", model="gpt-live-1"),
     ]
 }
+
+# The live partner's close look (voice/partner_tools.py look_hard): naming a thing exactly, when a few seconds is fine,
+# with the wait said. The vision bench of 2026-10-29 (docs/bench/vision-2026-10-29.md): Gemini 4 Argon named most
+# exactly (80% exact on a click, at 5-9 s); Claude Opus 5.5 is the other choice (about 5 s). The quick look is VISION.
+LOOK_HARD = {k: VISION[k] for k in ("gemini-4-argon", "claude-opus-5-5")}
 
 # The frontier mind behind the one-brain voice (voice/think.py; part-2.5 architecture, item 2): a hard question, many
 # steps, a comparison or a close look, handed over with the user's words and both pictures. On τ-Voice a fast voice with
@@ -202,6 +207,16 @@ TALK_KEY = {
                "hold Control+Option with Hooke in front, also while typing; it is VoiceOver's modifier, so with VoiceOver "
                "on choose Right Option"),
         Option("right-option", "Right Option", "hold the right Option key alone with Hooke in front"),
+    ]
+}
+
+# The sign it heard you, as you let go of the talk key (the live partner spec, decision 1: a subtle sound or a visual
+# cue, never a canned word; apps/studio/src/heard.ts). The studio plays it on the server's `heard` (voice/partner.py).
+HEARD_CUE = {
+    o.id: o
+    for o in [
+        Option("tone", "Ring and a soft tone", "the hold ring settles and a very soft tone plays"),
+        Option("ring", "Ring only", "the hold ring settles, silently"),
     ]
 }
 
@@ -816,7 +831,7 @@ WATCH = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "think": THINK, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
@@ -943,10 +958,13 @@ class Settings:
                 return chosen[name]  # this request's own choice (contract 7)
         return object.__getattribute__(self, name)
 
-    vision: str = "gemini-3.8-flash"  # camera vision; the fast notes/action path stays separate
+    # The live partner's stack is the default (the live partner spec, section 4): the quick look Claude Opus 5.5 in fast
+    # mode (grounding 44/45 at 0.94 s, best calibrated; docs/bench/vision-2026-10-29.md), the voice gpt-realtime-2.1, the
+    # mind behind it Claude Opus 5.5, the close look Gemini 4 Argon. Typed chat's camera look uses the same eyes.
+    vision: str = "claude-opus-5-5-fast"  # camera vision; the fast notes/action path stays separate
     pointing: str = "box"
     outline: str = "edgetam"
-    voice: str = "gpt-live-1"
+    voice: str = "gpt-realtime-2.1"  # the live partner (VOICE)
     brain: str = "json-actions"
     dissect: str = "grid"
     research: str = "gpt-6.1-sol"
@@ -970,7 +988,9 @@ class Settings:
     voicelink: str = "webrtc"  # native browser media; explicit relay preferences remain supported (VOICELINK)
     talk: str = "hold"  # how the one-brain voice knows a turn (TALK)
     talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
+    heard_cue: str = "tone"  # the sign it heard you (HEARD_CUE)
     think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
+    look_hard: str = "gemini-4-argon"  # the live partner's close look (LOOK_HARD)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
     taught: str = "on"  # matching the labels the user teaches (TAUGHT; measured)
     lesson_check: str = "check"  # are lessons' steps answerable without the picture? (LESSON_CHECK; measured)
@@ -1064,7 +1084,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "think": self.think, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "watch": self.watch,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}

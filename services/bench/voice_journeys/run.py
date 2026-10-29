@@ -4,10 +4,7 @@ each scored against the acceptance standard (standard.py), written as result.jso
 
   cd services && .venv/bin/python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --talk hold \\
       --plan part-2.5 --reps 3 --out /tmp/p25-rt --budget <path to budget.py>
-  cd services && .venv/bin/python -m bench.voice_journeys.run --voice gpt-live-1 --plan part-2.5 --reps 3 \\
-      --out /tmp/p25-live --budget <path to budget.py>
   cd services && .venv/bin/python -m bench.voice_journeys.run --score-only --out /tmp/p25-rt   # nothing started or spent
-  cd services && .venv/bin/python -m bench.voice_journeys.compare /tmp/p25-live /tmp/p25-rt
 
 Every paid run reserves its worst case first (`budget.py reserve pr <usd> <owner> <purpose>`) and refuses when the
 reservation is refused; it settles afterwards from what the stack recorded (its Spending: /api/spending, plus the one

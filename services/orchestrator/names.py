@@ -329,7 +329,7 @@ def choice_operations() -> list:
 # each click's.
 SETTINGS: dict[str, bool] = {"vision": True, "fast": True, "outline_check": True, "research": True, "image": True,
                              "presentation": True, "sight": False, "zeroshot": False,
-                             "think": False}
+                             "think": False, "look_hard": False}
 
 
 def roles(*, request: bool = False, settable: bool = False) -> list[tuple[str, str]]:

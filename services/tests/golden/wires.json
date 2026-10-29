@@ -374,11 +374,13 @@
   "early_look_typed": "sequential",
   "embed": "dinov2-small",
   "fast": "off",
+  "heard_cue": "tone",
   "hintsFirst": true,
   "image": "gpt-image-2.5-flare",
   "lesson_check": "check",
   "level": "technical",
   "library_looks": "off",
+  "look_hard": "gemini-4-argon",
   "menu": "flat",
   "naming": "one",
   "orb_every": "1",
@@ -409,8 +411,8 @@
   "think": "claude-opus-5-5",
   "track": "objects",
   "userLeads": true,
-  "vision": "gemini-3.8-flash",
-  "voice": "gpt-live-1",
+  "vision": "claude-opus-5-5-fast",
+  "voice": "gpt-realtime-2.1",
   "voicelink": "webrtc",
   "watch": "quiet",
   "zeroshot": "off"
@@ -655,9 +657,9 @@
  "toolRun": {
   "models": [
    {
-    "name": "Gemini 3.8 Flash",
+    "name": "Claude Opus 5.5 (fast mode)",
     "role": "found by",
-    "said": "Gemini 3.8 Flash (cloud)"
+    "said": "Claude Opus 5.5 (fast mode) in the cloud"
    },
    {
     "name": "EdgeTAM",

@@ -1407,6 +1407,7 @@ export interface Settings {
   talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
   talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
   think?: string; // the frontier mind behind the one-brain voice: "claude-opus-5-5" | "gpt-6.1-sol" (options.py THINK)
+  look_hard?: string; // the live partner's close look: "gemini-4-argon" | "claude-opus-5-5" (options.py LOOK_HARD)
   watch?: string; // what the watcher says unasked: "quiet" | "chatty" | "off" (options.py WATCH; view_watch.py)
   taught?: string; // matching the labels the user teaches: "on" | "off"
   lesson_check?: string; // lessons' steps checked for needing the picture (research_worker/lesson_check.py)

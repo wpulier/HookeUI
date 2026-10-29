@@ -156,7 +156,8 @@ class PartnerTools:
                               "Tab, researcher card or panel by its id, or a region of the camera picture. Returns which "
                               "marks the studio drew.", MARK, self.mark))
         specs.append(ToolSpec("look_hard", "Look closely at the camera picture (and Hooke's window if needed) with the "
-                              "app's strongest vision model when a detail matters and you are unsure. Returns its answer.",
+                              "app's most exact naming model when a detail or a name matters and you are unsure. It "
+                              "takes a few seconds, so tell the user you are taking a closer look. Returns its answer.",
                               {"type": "object", "properties": {
                                   "question": {"type": "string"},
                                   "window": {"type": "boolean", "description": "also send Hooke's window picture"}},
@@ -627,7 +628,7 @@ class PartnerTools:
         return await self._bounded("look_hard", self._look_hard(args), args.get("_call_id"))
 
     async def _look_hard(self, args: dict) -> dict:
-        """The frame (and the window, when asked) with the question, to the app's frontier vision model."""
+        """The frame (and the window, when asked) with the question, to the close-look model (option LOOK_HARD)."""
         question = str(args.get("question") or "").strip()
         if not question:
             return {"ok": False, "error": "no question"}
@@ -641,7 +642,7 @@ class PartnerTools:
                 images.append(shot["jpeg"])
         if not images:
             return {"ok": False, "error": "no fresh camera frame and no window picture to look at"}
-        option = getattr(self.hub.settings, "vision", None)
+        option = getattr(self.hub.settings, "look_hard", None)
         try:
             vision = self.brain.agent.vision(option)
             result = await vision.ask(images, "Answer the question about the picture(s) as JSON {\"answer\": \"...\"}: "
