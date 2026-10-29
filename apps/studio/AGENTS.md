@@ -1960,3 +1960,5 @@ retry skips them, and uncertain acceptance must be recovered before replacing
 the selection. The sheet retains progress and opens each exact saved source.
 Folder-drop refusal still directs users to the complete native folder chooser
 so hidden scientific metadata is not silently omitted.
+
+Main uses the same retained Inputs projection even before a Study exists, showing material and a route to inspect it instead of camera onboarding. Project changes clear that projection; failed refreshes qualify retained counts. The Project menu preserves catalogue source counts (including scientific files) when live session updates report only camera/library sources; newer catalogue counts can decrease as well as increase.

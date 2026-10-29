@@ -96,3 +96,33 @@ test('Main aggregates all owned Studies without counting another Projects effort
  expect(root.textContent).toContain('2Studies');expect(root.textContent).toContain('2Agents contributed');
  expect(root.textContent).toContain('2Experiments');expect(root.textContent).toContain('Second question');
 });
+
+test('retained material replaces camera onboarding before any Study exists',()=>{
+ const {home,host,root,button,actions,setCurrent}=setup();
+ home.update('p1',[],'',{},[],{count:3,groups:['Reference documents']});
+ expect(host.dataset.projectResearch).toBe('true');expect(root.hidden).toBe(false);
+ expect(root.textContent).toContain('Your Project material');
+ expect(root.textContent).toContain('3 Project inputs');
+ expect(root.textContent).toContain('Reference documents');
+ expect(root.textContent).toContain('No Study yet');
+ expect(root.textContent).not.toContain('0Experiments');
+ const browse=button('Browse inputs');fire(browse as unknown as TestElement,'click');
+ expect(actions.inputs).toHaveBeenCalledOnce();
+ setCurrent('p2');fire(browse as unknown as TestElement,'click');expect(actions.inputs).toHaveBeenCalledOnce();
+ home.update('p2',[]);expect(root.hidden).toBe(true);
+});
+test('material refresh failures qualify retained counts without clearing the Project',()=>{
+ const {home,root}=setup();home.update('p1',[],'',{},[],{count:1,groups:[],error:'Project material could not be refreshed.'});
+ expect(root.textContent).toContain('1 Project input');
+ expect(root.textContent).toContain('Project material could not be refreshed.');
+ expect(root.hidden).toBe(false);
+});
+
+test('material freshness does not invalidate independent workflow observations',()=>{
+ const {home,root}=setup();const value=study();value.experiments={};
+ home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[],error:'Material refresh failed'});
+ expect(root.textContent).toContain('Material refresh failed');
+ expect(root.textContent).toContain('No experiments running');
+ home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[]});
+ expect(root.textContent).not.toContain('Material refresh failed');
+});

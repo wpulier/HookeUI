@@ -307,7 +307,9 @@ export class SessionsModel {
         if (state.name !== undefined) row.name = state.name;
         if (state.named !== undefined) row.named = state.named;
         if (state.started) row.started = state.started; // the chip and the rail say the same "since"
-        if (state.counts) row.counts = state.counts;
+        // The live session counts only stage/library sources. The catalogue adds
+        // retained scientific files; a live update must not erase that inventory.
+        if (state.counts) row.counts = { ...state.counts, ...(row.counts?.sources !== undefined ? {sources: row.counts.sources} : {}) };
         if (state.lastActive) row.lastActive = Math.max(row.lastActive, state.lastActive);
         if (state.days) row.days = state.days;
       }
