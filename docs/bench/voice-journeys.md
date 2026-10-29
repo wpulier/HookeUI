@@ -123,6 +123,21 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
   - `fails`: the request cannot succeed, so the failure is its outcome;
   - `judge`: what a good answer does, for the judge.
 
+## The gates, and what is reported
+
+Spec #80 (Will: "our benchmark subjective matters most"). The standard is met only when the gates pass; they come first
+on the scoreboard, in this order:
+1. **Partner quality** (judged, 0-3): a mean of at least 2.5 and no step under 2.
+2. **False "done"**: zero, from receipts and app state.
+3. **Receipts**: every action (each Hands cue) ends in a receipt checked against its expected result.
+4. **Drive**, its truthful parts: a cue for every action, and no action after a takeover on an older control version.
+
+The other correctness lines (right tool first, outcome said once, nothing meant for the model, researchers, status,
+marks on target, events never over you, runs with zero step failures...) stay gates after those. **Every timing is
+reported, never a gate**: the sign it heard you, first meaningful words, barge-in, single- and multi-step seconds,
+silence, researcher start, mark ms, cleared ms, event-to-speech, reconnect, the live view, and the takeover's ms
+(inside the Drive line). A reported timing says "reported: within" or "reported: over" its number.
+
 ## What is measured, and from where
 
 Everything is on one clock (epoch seconds). Three logs are joined:

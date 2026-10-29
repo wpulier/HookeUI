@@ -109,7 +109,7 @@ def good():
              {"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
               "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
              {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
-              "version": 3, "revision": 10, "result": "verified"},
+              "version": 3, "revision": 10, "result": "verified", "expected": "verified"},
              {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
               "atServer": T0 + 75.06}]
     # A sign it heard you, 0.15 s after each release (decision 1).
@@ -127,7 +127,10 @@ def board(bench, conv, inter, verdicts=None, plan=PLAN, voice=None, baseline=Non
 
 
 def result(lines, name):
-    return lines[name]["result"]
+    """A line's result; a timing line is reported (spec #80), "reported: within" or "reported: over", read here as the
+    measurement's pass or FAIL."""
+    got = lines[name]["result"]
+    return {"reported: within": "pass", "reported: over": "FAIL"}.get(got, got)
 
 
 def test_a_run_that_meets_the_standard_passes_every_line():
@@ -734,7 +737,7 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
     assert result(lines, "do_in_hooke share") == "pass"
     assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
-    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
+    assert lines["think share"].get("gate") is False  # think's share is reported, never a gate
 
 
 def test_think_on_a_quick_step_is_the_wrong_tool():
@@ -771,7 +774,7 @@ def test_a_receipt_for_a_note_needs_its_success_not_a_studio_report():
     stands on the call having succeeded (and is false if it did not)."""
     bench, conv, inter, verdicts = good()
     inter += [tool(5, "researcher_note", 41.7, 41.9),
-              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified"}]
+              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified", "expected": "verified"}]
     row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
     assert row()["falseDone"] == 0
     inter[-2]["ok"] = False
@@ -782,7 +785,7 @@ def test_a_note_or_a_setting_receipt_is_backed_by_the_apps_own_state():
     """Confirmed by the state the app reports (/api/research's notes, the settings the studios are sent)."""
     bench, conv, inter, verdicts = good()
     inter += [tool(5, "researcher_note", 41.7, 41.9),
-              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified"}]
+              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified", "expected": "verified"}]
     rows = lambda notes: {"rows": [{"source": "api", "rid": "r2", "number": 2, "created": T0 + 23.9, "notes": notes}]}
     bench["events"] += [{"t": ms(41.0), "e": "researchers", **rows(0)}, {"t": ms(41.95), "e": "researchers", **rows(1)}]
     row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
@@ -801,7 +804,7 @@ def test_a_verified_receipt_for_a_visible_change_needs_the_studios_report():
     bench, conv, inter, verdicts = good()
     inter += [tool(5, "highlight", 41.7, 41.9, screen=True),  # no report came
               {"kind": "partner-hands", "t": T0 + 42.0, "intent": "highlight", "tool": "highlight", "target": "outline:o3",
-               "result": "verified"}]
+               "result": "verified", "expected": "verified"}]
     assert {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]["falseDone"] == 1
 
 
@@ -839,21 +842,21 @@ def drive_records(stale=False, slow=False, hidden=False):
     out = [{"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
             "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
            {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
-            "version": 3, "revision": 10, "result": "verified"},
+            "version": 3, "revision": 10, "result": "verified", "expected": "verified"},
            {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
             "atServer": T0 + (75.3 if slow else 75.06)}]
     if hidden:
         out.append({"kind": "partner-drive", "id": "d2", "intent": "highlight", "tool": "highlight", "target": "outline:o3",
                     "sentT": T0 + 30.0, "shownT": None, "ok": False, "why": "hidden"})
     if stale:
-        out.append({"kind": "partner-hands", "t": T0 + 76.0, "intent": "close", "tool": "present", "version": 3, "result": "verified"})
+        out.append({"kind": "partner-hands", "t": T0 + 76.0, "intent": "close", "tool": "present", "version": 3, "result": "verified", "expected": "verified"})
     return out
 
 
 HANDS = ("partner-drive", "partner-hands", "partner-takeover")
 
 
-def test_drive_gates_cue_first_takeover_in_150_ms_and_nothing_after():
+def test_drive_gates_a_cue_for_every_action_and_nothing_after_a_takeover():
     """The spec (part-2.5-live-partner-spec.md, section 1): every action visible as it happens, a takeover stops it
     within 150 ms, no queued action runs after. Actions verified and cues never ended are details within the line."""
     bench, conv, inter, verdicts = good()
@@ -864,7 +867,9 @@ def test_drive_gates_cue_first_takeover_in_150_ms_and_nothing_after():
     good_line = line()
     assert good_line["result"] == "pass" and "studio to server max 0.06 s" in good_line["value"]
     assert "actions verified 1 of 1" in good_line["value"]
-    assert line(stale=True)["result"] == "FAIL" and line(slow=True)["result"] == "FAIL" and line(hidden=True)["result"] == "FAIL"
+    assert line(stale=True)["result"] == "FAIL" and line(hidden=True)["result"] == "FAIL"
+    slow = line(slow=True)  # the takeover's milliseconds are reported (spec #80), the line still passes
+    assert slow["result"] == "pass" and "studio to server max 0.30 s, reported" in slow["value"]
     no_takeover = board(bench, conv, inter + drive_records()[:2], verdicts)[2]["Drive"]
     assert no_takeover["result"] == "not measured: no takeover in the run"
     assert board(bench, conv, inter + drive_records(), verdicts, voice="gpt-live-1")[2]["Drive"]["result"] == \
@@ -879,3 +884,31 @@ def test_a_takeover_step_is_scored_on_stopping():
     assert "no takeover reached the server" in row(inter)["failures"]
     taken = [{"kind": "partner-takeover", "t": T0 + 42.2, "why": "mouse", "version": 5, "atStudio": T0 + 42.1, "atServer": T0 + 42.18}]
     assert row(inter + taken)["takeover"] == [0.08] and not row(inter + taken)["failures"]
+
+
+
+def test_the_gates_come_first_and_every_timing_is_reported():
+    """Spec #80 (Will: "our benchmark subjective matters most"): the gates, in order, are partner quality, false
+    "done" from receipts, receipts, and Drive's truthful parts; every timing is reported, never a gate."""
+    bench, conv, inter, verdicts = good()
+    for at in (2.0, 12.5, 23.5, 32.0):
+        shift_audio_on(bench, at, at + 2.0)
+    for c in conv:
+        c["at"] += 3.0  # every answer slow
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    board_ = scoreboard(summary)
+    assert [l["line"] for l in board_[:4]] == ["Partner quality (0-3, judged)", 'False "done"', "Receipts", "Drive"]
+    for name in standard.TIMING_LINES:
+        assert lines[name].get("gate") is False and lines[name]["result"].startswith(("reported", "not measured")), name
+    assert lines["First meaningful words"]["result"] == "reported: over"
+    assert meets(board_) is (all(l["result"] == "pass" for l in board_ if l.get("gate", True)))
+
+
+def test_receipts_gate_every_action_ending_in_a_checked_receipt():
+    bench, conv, inter, verdicts = good()
+    assert result(board(bench, conv, inter, verdicts)[2], "Receipts") == "pass"
+    unreceipted = inter + [{"kind": "partner-drive", "id": "d9", "intent": "close", "tool": "present", "target": "window:w1",
+                            "sentT": T0 + 30.0, "shownT": T0 + 30.2, "ok": True}]
+    assert result(board(bench, conv, unreceipted, verdicts)[2], "Receipts") == "FAIL"
+    unchecked = [{k: v for k, v in r.items() if k != "expected"} if r.get("kind") == "partner-hands" else r for r in inter]
+    assert result(board(bench, conv, unchecked, verdicts)[2], "Receipts") == "FAIL"

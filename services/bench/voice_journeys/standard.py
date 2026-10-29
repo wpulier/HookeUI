@@ -41,7 +41,7 @@ THINK = "think"
 # The scorer's version, recorded with every result: a kept run rescored by the same version gives the same result
 # (hooke-web part-2.5-live-partner-spec.md, section 2 "The rescore is a warning about the gate itself"). Raise it with
 # any change to what is scored.
-SCORER_VERSION = "2026-10-29.2"
+SCORER_VERSION = "2026-10-29.3"
 
 # The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
@@ -608,8 +608,7 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
             row["bargeS"] = round(heard[1] - down, 3)
             again = first_on_after(segments, heard[1], release)
             row["bargeLeak"] = again is not None
-            if row["bargeS"] > STANDARD["bargeSilentMax"] or again is not None:
-                fail("barge-in not silent")
+            # A timing: reported on its line, never a step failure (spec #80).
 
     # Acting: the right tool on the first try.
     first_tool = acting[0].name if acting else None
@@ -869,6 +868,7 @@ def proactive(inter: list[dict], segments, busy, researchers: dict | None = None
     return out
 
 
+RECEIPTS = ("verified", "failed", "uncertain", "running")
 CUE_WAIT_S = 0.5  # Hands waits this long for the studio to show its cue before the effect (voice/hands.py)
 
 
@@ -889,7 +889,10 @@ def drive(inter: list[dict], bench: dict) -> dict:
              and isinstance(h.get("version"), int) and isinstance(t.get("version"), int) and h["version"] < t["version"]]
     sent = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive"}
     ended = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive-end"}
+    receipted = {h.get("driveId") for h in hands if h.get("result") in RECEIPTS}
     return {"cues": len(drives), "cueFirst": len(first), "notShown": [r.get("why") for r in drives if not r.get("ok")],
+            "unreceipted": sum(1 for r in drives if r.get("id") not in receipted),
+            "invalidReceipts": sum(1 for h in hands if h.get("result") not in RECEIPTS or "expected" not in h),
             "takeovers": len(takeovers), "takeoverS": ways, "staleAfterTakeover": len(stale),
             "unended": len(sent - ended) if sent else None,
             "results": {k: sum(1 for h in hands if h.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}}
@@ -1065,7 +1068,7 @@ def summarise(runs: list[dict]) -> dict:
         "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
         "think": think_share([r for r in steps if r["toolSource"] == "partner"]),
         "drive": {k: sum((run.get("drive") or {}).get(k, 0) for run in runs)
-                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover")}
+                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover", "unreceipted", "invalidReceipts")}
                  | {"takeoverMax": max((w for run in runs for w in (run.get("drive") or {}).get("takeoverS", [])), default=None),
                     "unended": sum((run.get("drive") or {}).get("unended") or 0 for run in runs),
                     "verified": sum(((run.get("drive") or {}).get("results") or {}).get("verified", 0) for run in runs),
@@ -1114,9 +1117,17 @@ NOT_APPLICABLE = "not applicable to this voice"
 # Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
 # every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
 # by speaking over it).
-ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Drive", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Drive", "Receipts", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
 VOICES_WITHOUT = {"gpt-live-1"}
+
+
+# The gates, first and in this order (spec #80); every timing is reported only.
+GATES_FIRST = ("Partner quality (0-3, judged)", 'False "done"', "Receipts", "Drive")
+TIMING_LINES = {"A sign it heard you", "First meaningful words", "Barge-in silent", "Single-step: visible and spoken",
+                "Multi-step: visible and spoken", "Longest silence while working", "Researcher started",
+                "Mark after speech starts", "Cleared at speech end", "Event spoken when idle", "Reconnect",
+                "Live view frame rate and delay unchanged"}
 
 
 def _line(area, name, value, threshold, ok, why: str = "") -> dict:
@@ -1173,18 +1184,25 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     # Drive (the spec, section 1): every action visible as it happens, a takeover stops it within 150 ms, and no queued
     # action runs after. Actions verified and cues never ended are details within the line.
     dv = s.get("drive") or {}
+    # Drive's truthful parts gate (spec #80): a cue for every action, nothing after a takeover on an older control
+    # version. The takeover's milliseconds are reported (every timing is).
     measured = bool(dv.get("cues")) and bool(dv.get("takeovers"))
     L.append(_line("Acting", "Drive",
-                   (f"cues before the effect {dv['cueFirst']} of {dv['cues']}; takeovers {dv['takeovers']}"
-                    + (f", studio to server max {dv['takeoverMax']:.2f} s" if dv.get("takeoverMax") is not None else "")
-                    + f"; actions after a takeover on an older version {dv['staleAfterTakeover']}"
+                   (f"cues before the effect {dv['cueFirst']} of {dv['cues']}; actions after a takeover on an older "
+                    f"version {dv['staleAfterTakeover']}; takeovers {dv['takeovers']}"
+                    + (f" (studio to server max {dv['takeoverMax']:.2f} s, reported)" if dv.get("takeoverMax") is not None else "")
                     + f"; actions verified {dv['verified']} of {dv['hands']}"
                     + (f"; cues never ended {dv['unended']}" if dv.get("unended") else "")) if dv.get("cues") or dv.get("hands") else "—",
-                   f"every cue first, takeover ≤ {S['takeoverMax']} s, 0 after a takeover",
+                   "a cue for every action, 0 after a takeover",
                    False if dv.get("staleAfterTakeover") or (dv.get("cues") and dv["cueFirst"] < dv["cues"])
-                   or (dv.get("takeoverMax") is not None and dv["takeoverMax"] > S["takeoverMax"])
                    else True if measured else None,
                    "no takeover in the run" if dv.get("cues") and not dv.get("takeovers") else ""))
+    L.append(_line("Acting", "Receipts",
+                   f"actions without a receipt {dv.get('unreceipted', 0)} of {dv.get('cues', 0)}; receipts without a checked "
+                   f"result {dv.get('invalidReceipts', 0)} of {dv.get('hands', 0)}" if dv.get("cues") or dv.get("hands") else "—",
+                   "every action ends in a receipt checked against its expected result",
+                   None if not (dv.get("cues") or dv.get("hands")) else not dv.get("unreceipted") and not dv.get("invalidReceipts"),
+                   "no receipts (no Hands)" if not (dv.get("cues") or dv.get("hands")) else ""))
     L.append({"area": "Acting", "line": "think share", "gate": False, "threshold": "reported, not a gate",
               "value": (f"{th['calls']} of {th['of']}" + (f" ({th['share']:.0%})" if th.get("share") is not None else "")
                         + (f"; by step kind: {kinds}" if kinds else "")
@@ -1250,11 +1268,19 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
                     + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
                    f"mean ≥ {S['qualityMean']}, no step under {S['qualityMin']}",
                    None if q.get("mean") is None else q["mean"] >= S["qualityMean"] and not under))
+    # Every timing line is reported, not a gate (spec #80: the subjective benchmark matters most); it says whether it is
+    # within its number. The gates come first, in the spec's order.
+    for line in L:
+        if line["line"] in TIMING_LINES and line.get("gate", True):
+            line["gate"] = False
+            line["result"] = {"pass": "reported: within", "FAIL": "reported: over"}.get(line["result"], line["result"])
     if voice in VOICES_WITHOUT:
         for line in L:
             if line["line"] in ONE_BRAIN_ONLY:
                 line["result"] = NOT_APPLICABLE
-    return L
+    first = [next(l for l in L if l["line"] == name) for name in GATES_FIRST]
+    rest = [l for l in L if l["line"] not in GATES_FIRST]
+    return first + [l for l in rest if l.get("gate", True)] + [l for l in rest if not l.get("gate", True)]
 
 
 def meets(board: list[dict]) -> bool:
