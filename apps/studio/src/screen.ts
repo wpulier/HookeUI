@@ -72,6 +72,8 @@ function validScreenReportFailure(value: unknown): value is ScreenReportFailure 
 export interface ScreenItem {
   work?: StudioSurfaceLegacy['work'];
   workspace?:{project:string;tab:string;tabTitle?:string};
+  drawn?: StudioSurfaceLegacy['drawn'];
+  members?: StudioSurfaceLegacy['members'];
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   id: string; // live | layer:<population> | outlines | magnifier | viewer | slidemap | card
@@ -140,7 +142,9 @@ export interface StudioSurfaceLegacy {
   step?: string | null; placement?: string; covers?: boolean; opacity?: number;
   style?: { opacity?: number; fillOpacity?: number; lineWidth?: number; colour?: string; color?: string;
     stroke?: string; fill?: boolean; emphasis?: { members: readonly string[]; rest: 'hide' | 'fade' } };
-  workspace?:{project:string;tab:string;tabTitle?:string};
+  workspace?:{project:string;tab:string;tabTitle?:string;tabs?:readonly VerifierTab[]};
+  drawn?: readonly { id: string; kind: string }[]; // the outlines drawn on the live view now (the "outlines" item)
+  members?: { count: number; drawn: number }; // the population layer's members, and how many are drawn now
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   work?: { researcherId: string; resource: { day: string; id: string; version: number | null } };
@@ -220,7 +224,7 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
   // This closed projection deliberately has no native source, paint or ownership fields.
   const result: StudioSurfaceLegacy = { schema: 'studio-surface-v1', scope: 'dom-observation' };
   if (value.schema !== result.schema || value.scope !== result.scope) throw new Error('Invalid legacy observation scope');
-  const allowed = ['schema', 'scope', 'title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'style', 'work', 'workReady', 'document', 'workspace'];
+  const allowed = ['schema', 'scope', 'title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'style', 'work', 'workReady', 'document', 'workspace', 'drawn', 'members'];
   if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unknown legacy observation field');
   for (const key of ['title', 'shows', 'source', 'beside', 'step', 'placement'] as const) {
     const field = value[key]; if (field === undefined) continue;
@@ -270,10 +274,22 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
     if (resource.version !== null && (!Number.isSafeInteger(resource.version) || resource.version < 0)) throw new Error('Invalid observed work version');
     result.work = structuredClone(work);
   }
-  if(value.workspace){const keys=Object.keys(value.workspace).sort().join(',');if(keys!=='project,tab'&&keys!=='project,tab,tabTitle')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);
+  if(value.drawn!==undefined){
+    if(!Array.isArray(value.drawn)||value.drawn.length>60)throw new Error('Invalid drawn outlines');
+    result.drawn=value.drawn.map(row=>{if(Object.keys(row).sort().join(',')!=='id,kind')throw new Error('Invalid drawn outline');boundedIdentity(row.id);boundedIdentity(row.kind);return {id:row.id,kind:row.kind};});
+  }
+  if(value.members!==undefined){
+    const m=value.members;
+    if(Object.keys(m).sort().join(',')!=='count,drawn'||![m.count,m.drawn].every(v=>Number.isSafeInteger(v)&&v>=0)||m.drawn>m.count)throw new Error('Invalid layer members');
+    result.members={count:m.count,drawn:m.drawn};
+  }
+  if(value.workspace){const keys=Object.keys(value.workspace).filter(k=>k!=='tabs').sort().join(',');if(keys!=='project,tab'&&keys!=='project,tab,tabTitle')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);
     // The Tab in front's title (main.ts), at most 80 characters as a Tab title is (workspace_observation.py checks the same).
     if(value.workspace.tabTitle!==undefined&&(typeof value.workspace.tabTitle!=='string'||!value.workspace.tabTitle||value.workspace.tabTitle.length>80))throw new Error('Invalid workspace context');
-    result.workspace={...value.workspace};}
+    const tabs=value.workspace.tabs;
+    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>Object.keys(t).sort().join(',')!=='front,id,title'||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80)))throw new Error('Invalid workspace Tabs');
+    tabs?.forEach(t=>boundedIdentity(t.id));
+    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t}))}:{})};}
   if(value.document){
     const d=value.document;
     if(Object.keys(d).some(k=>!['project','tab','placement','resource','representation','state','focused'].includes(k)))throw new Error('Unknown document observation');
@@ -283,6 +299,30 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
   }
   return result;
 }
+
+export type VerifierTab = { id: string; title: string; front: boolean };
+/** What Hands' verifier checks an intent's outcome against (the live-partner spec 4.2), kept within the bounds
+ * workspace_observation._legacy accepts: the Project's open Tabs in strip order (24, titles of 80, the one in front
+ * kept), the outlines drawn now (60), and the population layer's members (drawn never over count). */
+export function verifierLegacy(facts: { tabs?: readonly VerifierTab[]; drawn?: readonly { id: string; kind: string }[];
+  members?: { count: number; drawn: number } }): Pick<StudioSurfaceLegacy, 'drawn' | 'members'> & { tabs?: VerifierTab[] } {
+  const out: Pick<StudioSurfaceLegacy, 'drawn' | 'members'> & { tabs?: VerifierTab[] } = {};
+  if (facts.tabs) {
+    const front = facts.tabs.findIndex((t) => t.front);
+    const kept = facts.tabs.slice(0, 24);
+    if (front >= 24) kept[23] = facts.tabs[front];
+    const at = front < 0 ? -1 : Math.min(front, 23);
+    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at }));
+  }
+  if (facts.drawn) out.drawn = facts.drawn.slice(0, 60).map((d) => ({ id: d.id, kind: d.kind }));
+  if (facts.members) {
+    const count = Math.max(0, Math.trunc(facts.members.count)), drawn = Math.max(0, Math.min(count, Math.trunc(facts.members.drawn)));
+    out.members = { count, drawn };
+  }
+  return out;
+}
+/** The report's own closed check of a surface observation, for tests. */
+export const observeLegacyForTest = (value: StudioSurfaceLegacy): StudioSurfaceLegacy => observedLegacy(value);
 
 function legacyMeaning(legacy: StudioSurfaceLegacy): string {
   return JSON.stringify([legacy.shows ?? null, legacy.source ?? null, legacy.beside ?? null,

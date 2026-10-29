@@ -28,6 +28,7 @@ export type Target =
   | { kind: 'tab'; key: string }
   | { kind: 'researcher'; key: string }
   | { kind: 'panel'; name: string }
+  | { kind: 'control'; id: string } // a control by its element id (the partner cursor's target: control:talk)
   | { kind: 'frame' };
 
 /** `outline:o12`, `population:e1` (or `layer:e1`: a whole layer of cell outlines), `member:<population>:<member>`,
@@ -51,6 +52,7 @@ export function parseTarget(target: unknown): Target | null {
     case 'window': case 'document': return { kind, id: rest };
     case 'tab': case 'researcher': return { kind, key: rest };
     case 'panel': return { kind, name: rest };
+    case 'control': return { kind, id: rest };
     default: return null;
   }
 }
@@ -167,6 +169,7 @@ export function resolveTarget(spec: MarkSpec, hooks: MarkHooks, anchor: FrameAnc
     case 'outline': return hooks.outline(target.id);
     case 'member': return hooks.member(target.population, target.member);
     case 'population': return hooks.population ? hooks.population(target.id) : { why: 'not-found' };
+    case 'control': return elementPlace(hooks.doc.querySelector(`[id="${attr(target.id)}"]`), viewport);
     case 'window': return elementPlace(hooks.doc.querySelector(`section.workspace-window[data-presentation-id="${attr(target.id)}"]`), viewport);
     case 'document': return elementPlace(hooks.doc.querySelector(`#study-artifacts > [data-placement-id="${attr(target.id)}"]`), viewport);
     case 'tab': return tabPlace(hooks.doc, target.key, viewport);

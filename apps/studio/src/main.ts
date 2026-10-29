@@ -21,7 +21,7 @@ document.documentElement.dataset.buildDigest = __MICROMIND_BUILD__.sourceDigest 
 import { itemSpace } from './spaces';
 import type { WorkspaceViewport } from './workspace-runtime';
 import { livePlacementObject } from './window-placement';
-import { captureWindow, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
+import { captureWindow, verifierLegacy, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
 import './style.css';
 import { assertNever, Connection, type CapabilitiesWire, type AssetMeta, type SessionCleared, type SessionState, type DatasetState, type DayState, type ArenaState, type ClientCommand, type Health, type Reveal, type Scores, type ServerMessage, type Settings, type TopProgram, type ToolRun, type Trial } from './protocol';
 import { BoxDrag, frameBox } from './boxdrag';
@@ -72,6 +72,8 @@ import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
 import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
 import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
+import { CursorPainter, PartnerCursor, Takeover } from './drive';
+import './drive.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
 import { partnerHandler, windowSnapshot, type WindowCapture } from './partner';
@@ -1747,7 +1749,7 @@ const turns = new TalkTurns({
 const talkHold = new TalkHold({
   enabled: holdToTalk,
   key: () => talkKeySetting,
-  press: () => turns.press(),
+  press: () => { takeover.input('talk'); turns.press(); }, // the talk key while the partner acts takes control back first
   heldAlone: (via) => turns.heldAlone(via),
   release: () => { const said = turns.open; turns.release(); if (said) voiceStatus.textContent = 'Sent · waiting for a response'; },
   cancel: (why) => { const said = turns.open; turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
@@ -1826,7 +1828,14 @@ function panelPlace(name: string): Place {
 }
 
 /** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear (partner.ts). */
-voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks });
+// Hands (drive.ts): the partner cursor before each intent, and the user's input taking control back in that task.
+const partnerCursor = new PartnerCursor({ hooks: markHooks, paint: (state) => cursorPainter.paint(state), reply: (command) => voice.tellVoice(command),
+  frame: (fn) => requestAnimationFrame(fn), still: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches });
+const cursorPainter = new CursorPainter(document);
+const takeover = new Takeover({ cursor: partnerCursor, send: (command) => voice.tellVoice(command) });
+takeover.attach(window);
+voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks,
+  drive: { cursor: partnerCursor, takeover } });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
@@ -3190,11 +3199,13 @@ function screenItems(): ScreenItem[] {
   const items: ScreenItem[] = [{ id: 'live', kind: 'live', open: true, visible: true, opacity: view.liveOpacity,
     rect: rectOf(view.canvas.getBoundingClientRect()), z: 0 }];
   const population = populationScreenItem(view);
-  if (population) items.push(population);
+  // What Hands' verifier checks (screen.ts verifierLegacy): the layer's members drawn now, the outlines drawn now.
+  const members = view.layerMembers();
+  if (population) items.push({ ...population, ...(members ? verifierLegacy({ members }) : {}) });
   const tracks = tracksScreenItem(view);
   if (tracks) items.push(tracks);
   items.push({ id: 'outlines', kind: 'outlines', visible: view.outlinesVisible && !view.hideOverlays, opacity: view.outlinesOpacity,
-    style: { colour: outlineColourName, fill: view.outlineStyle === 'classic' }, z: 2 });
+    style: { colour: outlineColourName, fill: view.outlineStyle === 'classic' }, z: 2, ...verifierLegacy({ drawn: view.drawnOutlines() }) });
   SCREEN_PANELS.forEach(([id, panel], i) => items.push({ id, kind: id, open: panel.isOpen(), visible: panel.isVisible?.() !== false && panel.isOpen(), rect: panel.isOpen() ? rectOf(panel.footprint()) : null,
     z: fronted[id] ?? 10 + i, shows: id === 'viewer' ? viewer.state.rid : id === 'magnifier' ? magnifier.objectId() : null,
     ...(id === 'magnifier' ? { source: magnifier.source(), beside: magnifier.besideShown(), level: magnifier.levelShown(), covers: magnifier.covers(), pictures: magnifier.picturesShown() } : {}),
@@ -3220,8 +3231,11 @@ function studioSurfaces(): StudioSurfaceCollection {
     const open=!!project&&!!tab&&!document.body.dataset.workspaceOpening,rect=rectOf(tabStrip.getBoundingClientRect());
     // The Tab in front by its title as its button shows it (workspace-views.ts workTab), so "in Tab Measurements" is said.
     const tabTitle=tab?document.getElementById(`work-tab-${tab}`)?.querySelector('.workspace-tab-label')?.textContent?.trim().slice(0,80):undefined;
+    // Every open Tab of the Project, in strip order, the one in front marked: focus(tab) and close are checked on these.
+    const tabs=verifierLegacy({tabs:[...tabStrip.querySelectorAll<HTMLElement>('[data-workspace-view-tab]')].map(button=>({id:button.dataset.workspaceViewTab!,
+      title:(button.querySelector('.workspace-tab-label')?.textContent??button.textContent??'').trim()||button.dataset.workspaceViewTab!,front:button.dataset.workspaceViewTab===tab}))}).tabs;
     return {kind:'panel',open,visible:surfaceVisible(tabStrip,open,true,rect),rect,z:null,space:'workspace',
-      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{})}}:{})},
+      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{}),...(tabs?.some(t=>t.front)?{tabs}:{})}}:{})},
       contentKey:tabStrip.dataset.opening??null,controls:[]};
   }}]:[];
   return { surfaces: [...tabSurfaces,...documentSurfaces(),...current.map((item) => {
@@ -3229,7 +3243,7 @@ function studioSurfaces(): StudioSurfaceCollection {
     if (item.id === 'magnifier') return magnifierSurface(magnifier, root, () => item.z ?? 10);
     return { id: item.id, root, read: () => {
       const legacy: StudioSurfaceLegacy = { schema: 'studio-surface-v1', scope: 'dom-observation' };
-      for (const key of ['title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'work', 'workReady'] as const) {
+      for (const key of ['title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'work', 'workReady', 'drawn', 'members'] as const) {
         if (item[key] !== undefined) Object.assign(legacy, { [key]: item[key] });
       }
       if(item.id==='live'&&document.body.dataset.workspaceProject&&document.body.dataset.activeWorkspaceView)legacy.workspace={project:document.body.dataset.workspaceProject,tab:document.body.dataset.activeWorkspaceView};

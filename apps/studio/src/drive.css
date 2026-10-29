@@ -1,0 +1,19 @@
+/* The partner cursor (drive.ts): Hooke's own pointer for the partner, drawn in the window, never the Mac's. One fixed
+   layer moved by transforms; it takes no clicks. Calm: eased in drive.ts, nothing bounces. */
+.partner-cursor { position: fixed; inset: 0; z-index: 962; pointer-events: none; }
+.partner-cursor[hidden] { display: none; }
+.partner-cursor-pointer { position: absolute; left: 0; top: 0; will-change: transform; }
+.partner-cursor-pointer[hidden] { display: none; }
+.partner-cursor-pointer svg { display: block; margin: -2px 0 0 -3px; fill: var(--mm-accent, #79adff);
+  stroke: rgb(8 10 16 / 80%); stroke-width: 1.4; stroke-linejoin: round; filter: drop-shadow(0 2px 4px rgb(0 0 0 / 35%)); }
+.partner-cursor-caption { position: absolute; left: 20px; top: 18px; white-space: nowrap; padding: 3px 9px; border-radius: 999px;
+  background: rgb(16 18 24 / 88%); color: #fff; font: 500 12px/16px var(--mm-sans, system-ui, sans-serif);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mm-accent, #79adff) 45%, transparent), 0 6px 18px rgb(0 0 0 / 30%); }
+.partner-cursor-caption[hidden], .partner-cursor-badge[hidden] { display: none; }
+.partner-cursor-badge { position: absolute; left: 12px; top: -8px; width: 16px; height: 16px; border-radius: 50%;
+  display: grid; place-items: center; font: 700 11px/1 var(--mm-sans, system-ui, sans-serif); color: #fff;
+  background: var(--mm-accent, #79adff); }
+.partner-cursor[data-outcome='failed'] .partner-cursor-badge { background: var(--mm-attention, #e5534b); }
+.partner-cursor-ring { position: absolute; left: 0; top: 0; box-sizing: border-box; border-radius: 12px; will-change: transform;
+  border: 2px solid var(--mm-accent, #79adff); box-shadow: 0 0 0 3px rgb(8 10 16 / 40%), 0 0 18px color-mix(in srgb, var(--mm-accent, #79adff) 35%, transparent); }
+.partner-cursor-ring[hidden] { display: none; }
