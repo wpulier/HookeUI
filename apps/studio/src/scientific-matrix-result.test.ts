@@ -13,7 +13,9 @@ it('renders saved numerical evidence, exact export and same-Project input links 
  const link=root.querySelector('a') as unknown as HTMLAnchorElement;
  expect(link.href).toBe('/api/scientific-files/result?session=project&revision=2');
  expect(link.textContent).toBe('Download result file');
- const buttons=root.querySelectorAll('button');expect(buttons).toHaveLength(1);fire(buttons[0],'click');
+ const methods=root.querySelectorAll('details').find(d=>d.className==='scientific-result-method')!;
+ const buttons=methods.querySelectorAll('button');expect(buttons).toHaveLength(1);
+ expect(buttons[0].textContent).toBe('Open effects input · v3');fire(buttons[0],'click');
  expect(open).toHaveBeenCalledWith({id:'input',version:3,title:'effects'});
 });
 
