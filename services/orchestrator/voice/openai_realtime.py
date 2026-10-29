@@ -66,28 +66,33 @@ COALESCE_S = 0.12
 COALESCE_MAX_S = 0.5
 BATCH_MAX = 4
 WATCH_EVERY_S = 0.1
-UNPROMPTED = ("proactive", "think", "progress", "prep")  # the bus's own responses: an interrupting event may stop them
+UNPROMPTED = ("proactive", "think", "progress", "prep", "opener")  # the bus's own responses: an interrupting event may stop them
 RESPONSE_WAIT_S = 3.0  # a response whose end never comes is cancelled and let go after this (the gate never blocks)
 RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the connection to come back
-# Tools still running and the voice quiet this long: a short line asking to wait (the standard: no silence over 1.5 s
-# while it works; the line takes ~0.6 s to start). At most PROGRESS_LINES per round, never the same words twice.
-PROGRESS_AFTER_S = 0.8  # a tool round this long without its outputs: a progress line may be due
-PROGRESS_LINES = 2
-PROGRESS_EVERY_S = 2.0  # the second line may be asked for as the first ends (the bench: a 1.6 s gap at 4.0)
-# The progress line is asked for when the voice's current words have this little left to play (the measured time from
-# response.create to the first audio is ~0.9 s): its words follow them without a silence.
-PROGRESS_LEAD_S = 1.0
-PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran on for 5 s of speech
-# think works behind the voice (no tool round pending): a line on what is under way once the voice has been quiet this
-# long, then at most every THINK_PROGRESS_EVERY_S, THINK_PROGRESS_LINES in all (think-broad-1: 20-40 s said nothing).
-THINK_PROGRESS_AFTER_S = 3.0
-THINK_PROGRESS_EVERY_S = 10.0
+# Progress while the user's own tool runs (a tool round): at most one line, and only once the voice has said nothing
+# for PROGRESS_AFTER_S with the tool still running, so silence that would feel broken is filled and nothing else is.
+# The smoke run of 29 Oct (judged 1 of 3, "robotic"): two lines from 1 s in, each cut off mid-sentence, then the result.
+# If the result lands before the line is heard starting, the line is let go unheard and the result is said instead;
+# one already playing is heard to its end. Its outputs then going on as "still running" are not said again.
+PROGRESS_AFTER_S = 5.0
+PROGRESS_LINES = 1
+# A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
+# length is set by its instructions; this only stops a runaway.
+PROGRESS_TOKENS = 400
+# Words for any progress line (a tool round's and a job's): what is under way, as a colleague says it mid-task.
+PROGRESS_WORDS = ("In one short sentence (under 12 words), say what Hooke is doing now or waiting on, the way a "
+                  "colleague would mid-task (\"Still running the three models.\"). Only what it is doing, never what "
+                  "it may find; how long only if it has been a while.")
+# A job behind the voice (think, a slow tool): a line on what is under way once the voice has been quiet this long, then
+# another only when what it is doing has changed, at least THINK_PROGRESS_EVERY_S later, THINK_PROGRESS_LINES in all.
+THINK_PROGRESS_AFTER_S = 6.0
+THINK_PROGRESS_EVERY_S = 15.0
 THINK_PROGRESS_LINES = 2  # think-check-2: three a task, two tasks at once, was judged "repeatedly narrated"
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
 AUDIO_TOKEN_S = 0.05  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
-ACK_TOKENS = 60  # "On it." is a few words
+ACK_TOKENS = 200  # "On it." is a few words; the cap counts its reasoning too, so it is never cut off
 PREP_WAIT_S = 4.0  # think's result prepared out of band at most this long, else the backend's own words
 # A result's words follow its receipt (voice/hands.py): "done" is Hooke's verified receipt, never the voice's judgement.
 RECEIPT_RULES = {
@@ -96,6 +101,14 @@ RECEIPT_RULES = {
     "uncertain": "Hooke could not check all of it: never say it is done; say what is not known, from its words.",
     "running": "It is still under way: never say it is done or found; say what is under way, from its words.",
 }
+# It talks first (Will's feel check, 29 Oct: HeyClicky "literally talks to you FIRST"): the instruction for its first
+# line as Talk connects. The words are the voice's own, from the pictures and the Project it was just given.
+OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak first, once, in one or two short "
+               "sentences: what is on the stage right now, as specifically as the pictures and the Project let you say "
+               "it, and the one obvious next thing, offered as a question (the shape: \"That's onion epidermis; the "
+               "nuclei are easy to see. Want me to outline them?\"). Point with mark at what you name as you say it. "
+               "With nothing on the stage, say in one sentence how to start. No greeting on its own, no list of what "
+               "you can do.")
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
 # this soon after it still stops the voice (the studio mutes its audio element at once too).
 AUDIBLE_AFTER_DONE_S = 20.0
@@ -249,9 +262,12 @@ class RealtimeSession(VoiceSession):
         self._asks: list[Ask] = []  # responses waiting for the gate, one at a time
         self._gate_wake = asyncio.Event()
         self._requested: dict | None = None  # a response.create sent, not yet created
+        self._unsay: int | None = None  # a turn whose progress line, asked for, is let go as it is created
+        self._opened_line = False  # its first line as Talk connects was offered (once per Talk session)
         self._response: str | None = None  # the response in progress
         self._causes: dict[str, dict] = {}  # response id -> {"cause", "n", "createdT"}
         self._transcripts: dict[str, str] = {}  # response id -> the assistant's words so far
+        self._parts: dict[str, tuple] = {}  # response id -> the (item, content part) its last words came in
         self._speaking = False
         self._last_audio_at = 0.0
         self._last_user_at = 0.0
@@ -659,6 +675,8 @@ class RealtimeSession(VoiceSession):
         self._held, self._held_at, self._held_epoch = self.n, self.clock(), self._epoch
         self._last_user_at = self.clock()
         self._log({"kind": "partner-talk", "n": self.n, "down": True, "barge": barge})
+        for event in self.bus.withdraw("opener"):  # the user spoke first: its first line is let go unsaid
+            self._event_log(event, "the user spoke first")
         if barge:
             await self.stop_speaking()
         with contextlib.suppress(ConnectionError):  # reconnecting: the release waits for it
@@ -787,6 +805,8 @@ class RealtimeSession(VoiceSession):
         """A typed line while talking: a user turn like speech."""
         if self._sb is None or self.closed or not text.strip():
             return
+        for event in self.bus.withdraw("opener"):
+            self._event_log(event, "the user spoke first")
         await self.add(text_item("user", text))
         self._last_user_at = self.clock()
         self.respond("typed")
@@ -847,6 +867,23 @@ class RealtimeSession(VoiceSession):
             await self._tell_context()
         else:
             self._consume()
+        return found
+
+    async def opener(self, *, note: str, images: list[tuple[bytes, str]]) -> Event | None:
+        """Its first line as Talk first connects, once per Talk session (never on a reconnect): what it sees now goes
+        into the conversation as a turn's perception does (the note kept, the pictures gone at the next turn), and one
+        idle event goes on the bus, so it is said in a pause, never over the user, and let go if they speak first."""
+        if self.closed or self._opened_line or self._sb is None:
+            return None
+        self._opened_line = True
+        if note:
+            self.notes.append(note[:600])
+            del self.notes[:-NOTES_KEPT]
+            await self.add(text_item("system", note))
+        for image in images:
+            self._images.append(await self.add(image_item([image], detail="auto")))
+        found, _ = self.bus.publish("opener", note or "Talk connected", ref=f"open-{self.call_id or id(self)}")
+        self._consume()
         return found
 
     async def deliver(self, task: str, *, facts: dict, say: str, points: list[str],
@@ -950,7 +987,14 @@ class RealtimeSession(VoiceSession):
             now = self.bus.clock()
             if now - max(e.since for e in due) < COALESCE_S and now - min(e.since for e in due) < COALESCE_MAX_S:
                 return  # another may come within the window: said together
-            self._saying = self._spawn(self._say(due[:BATCH_MAX]))
+            openers = [e for e in due if e.kind == "opener"]
+            if openers and len(openers) == len(due):
+                self._ask_opener(openers[0])
+                return
+            for event in openers:  # something else is due: said instead, and the first line is let go
+                self.bus.withdraw("opener")
+                self._event_log(event, "something else was due")
+            self._saying = self._spawn(self._say([e for e in due if e.kind != "opener"][:BATCH_MAX]))
             return
         progress = self.bus.progress_due()
         if progress is not None:
@@ -1056,6 +1100,22 @@ class RealtimeSession(VoiceSession):
                      dropped=dropped, tool_choice="none", metadata=metadata,
                      input=[text_item("system", "\n\n".join(self._part(e) for e in batch))],
                      instructions=self.config.system_prompt + "\n\n" + rule)
+
+    def _ask_opener(self, event: Event) -> None:
+        """Its first line: in the conversation's own context (the brief, and the pictures just added), with mark as its
+        only tool, so what it names is pointed at as it is said."""
+        n = self.n
+        marks = [d for d in self.tool_declarations() if d["name"] == "mark"]
+        self.bus.asked([event])
+
+        def sent() -> None:
+            self.bus.sent([event])
+            self._log({"kind": "partner-opener", "n": n, "eventId": event.id, "responseCreatedT": self.wall()})
+
+        self.respond("opener", n=n, still=lambda: self._held is None and not self.user_busy() and self.n == n,
+                     sent=sent, dropped=lambda why: self.bus.withdraw("opener"), metadata={"events": event.id},
+                     tools=marks, tool_choice="auto" if marks else "none",
+                     instructions=self.config.system_prompt + "\n\n" + OPENER_RULE)
 
     def _ask_progress(self, event: Event) -> None:
         """One progress line: in a pause, spaced per job (events.PROGRESS_SPACING_S), never owed."""
@@ -1272,6 +1332,9 @@ class RealtimeSession(VoiceSession):
                                  "createdT": self.wall(), "task": meta.get("task"), "events": meta.get("events")}
             if meta.get("events"):
                 self._carry(rid, str(meta["events"]))
+            if self._unsay is not None and meta.get("cause") == "progress" and str(meta.get("n")) == str(self._unsay):
+                self._unsay = None  # its round's result came while it was asked for: let go before it is heard
+                self._spawn(self._cancel_unheard(rid))
         elif kind == "output_audio_buffer.started" or (kind == "response.output_audio.delta" and self.link != "webrtc"):
             # Over WebRTC the browser plays the audio: only the output buffer's events (and the studio's own
             # voice-phase) say when it is audible; a response's audio is generated faster than it plays.
@@ -1308,11 +1371,12 @@ class RealtimeSession(VoiceSession):
                     self._cut_off(ev.get("response_id") or None, "its audio was cleared")
         elif kind in ("response.output_audio_transcript.delta", "response.output_text.delta"):
             rid = ev.get("response_id") or self._response or ""
+            delta = self._joined(rid, ev)
             if self._causes.get(rid, {}).get("cause") == "prep":
-                self._transcripts[rid] = self._transcripts.get(rid, "") + (ev.get("delta") or "")
+                self._transcripts[rid] = self._transcripts.get(rid, "") + delta
                 return  # the out-of-band text the voice will say in its own words: never the chat's line
-            self._transcripts[rid] = self._transcripts.get(rid, "") + (ev.get("delta") or "")
-            self._emit(VoiceEvent("output_transcript", text=ev.get("delta") or "", data={"responseId": rid}))
+            self._transcripts[rid] = self._transcripts.get(rid, "") + delta
+            self._emit(VoiceEvent("output_transcript", text=delta, data={"responseId": rid}))
         elif kind == "conversation.item.input_audio_transcription.delta":
             self._emit(VoiceEvent("input_transcript", text=ev.get("delta") or "",
                                   data={"interim": True, "delta": ev.get("delta") or "", "itemId": ev.get("item_id")}))
@@ -1348,6 +1412,28 @@ class RealtimeSession(VoiceSession):
         elif kind == "session.created":
             session = ev.get("session") or {}
             self.session_id = session.get("id") or self.session_id
+
+    @staticmethod
+    def _said_in(response: dict) -> str:
+        """A response's words from its output items, each part joined to the one before by a space."""
+        parts = [str(part.get("transcript") or part.get("text") or "").strip()
+                 for item in response.get("output") or [] if item.get("type") == "message"
+                 for part in item.get("content") or []]
+        return " ".join(p for p in parts if p)
+
+    def _joined(self, rid: str, ev: dict) -> str:
+        """A transcript delta as the response's words go on: the first delta of a new part (another message or content
+        part of the same response, as around a tool call) starts with a space when the words before it end without one
+        (Will's feel check, 29 Oct: "…easy to spot.That central oval…")."""
+        delta = ev.get("delta") or ""
+        part = (ev.get("item_id"), ev.get("content_index"))
+        last = self._parts.get(rid)
+        self._parts[rid] = part
+        before = self._transcripts.get(rid, "")
+        if last is not None and part != last and before and delta and not before[-1].isspace() \
+                and not delta[0].isspace():
+            return " " + delta
+        return delta
 
     def _provider_error(self, error: dict) -> None:
         """A provider error is logged, never an error that ends Talk: each one the API sends here is about one request
@@ -1392,12 +1478,9 @@ class RealtimeSession(VoiceSession):
         self._gate_wake.set()
         cause = self._causes.pop(rid, {"cause": "unknown", "n": self.n, "createdT": None})
         facts = usage_facts(response.get("usage"))
+        self._parts.pop(rid, None)
         if cause.get("cause") == "prep":
-            words = self._transcripts.pop(rid, "")
-            if not words:
-                for item in response.get("output") or []:
-                    for part in item.get("content") or [] if item.get("type") == "message" else []:
-                        words += part.get("text") or part.get("transcript") or ""
+            words = self._transcripts.pop(rid, "") or self._said_in(response)
             meta = response.get("metadata") or {}
             future = self._prepared.get(meta.get("task") or cause.get("task") or "")
             if future is not None and not future.done():
@@ -1417,11 +1500,7 @@ class RealtimeSession(VoiceSession):
             else:
                 self._out_audio[rid] = facts["outAudio"]
         status = response.get("status")
-        transcript = self._transcripts.pop(rid, "")
-        if not transcript:
-            for item in response.get("output") or []:
-                for part in item.get("content") or [] if item.get("type") == "message" else []:
-                    transcript += part.get("transcript") or part.get("text") or ""
+        transcript = self._transcripts.pop(rid, "") or self._said_in(response)
         self._emit(VoiceEvent("usage", data={"seconds": None, "tokens": facts, "usd": usage_usd(facts, self.config.model),
                                              "responseId": rid, "cause": cause["cause"]}))
         self._emit(VoiceEvent("generation_complete", data={"responseId": rid, "status": status}))
@@ -1452,12 +1531,15 @@ class RealtimeSession(VoiceSession):
             spoke = bool(transcript.strip())
             # think and mark only, after speaking: the acknowledgement was said; think's result follows on its own.
             # think without a word said: one short acknowledgement, never two (HeyClicky's duplicate one).
-            # Marks alone go on: the words before a mark were often only "Pointing it out." (think-check-2), and its
-            # result asks for the answer when they were not it.
+            # Pointing goes with the words (HeyClicky's point_at_element sits alongside speech): marks after words get
+            # no response of their own unless one was not shown (Will's feel check, 29 Oct: "It's highlighted around
+            # the central oval…" said again after the reply had said it). Marks with no words before them go on to the
+            # answer.
             quiet_round = names <= {"mark"} | self.started_tools
             ack = bool(names & self.started_tools) and quiet_round and not spoke
-            go_on = (not (quiet_round and spoke) or names == {"mark"}) and not ack
-            self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack))
+            pointing = names == {"mark"} and spoke
+            go_on = (not (quiet_round and spoke) or pointing) and not ack
+            self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack, pointing=pointing))
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:
@@ -1504,17 +1586,22 @@ class RealtimeSession(VoiceSession):
                               result={k: v for k, v in result.items() if k != "_look"}, data={"ms": ms}))
         return result
 
-    async def _finish_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False) -> None:
+    async def _finish_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False,
+                            pointing: bool = False) -> None:
         """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
         dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has
-        been replaced (a new call never had these call ids: nothing is posted to it)."""
+        been replaced (a new call never had these call ids: nothing is posted to it). `pointing`: marks made beside the
+        reply's words, which go on only if one was not shown (the Realtime API leaves the next response.create to the
+        client)."""
         ids = self._round.pop(rid, [])
         epoch = next((self._call_epoch[cid] for cid in ids if cid in self._call_epoch), self._epoch)
         tasks = {cid: self._calls[cid] for cid in ids if cid in self._calls}
-        progress_said: list[float] = []
+        progress: list[Ask] = []
         began = self.clock()
         pending = set(tasks.values())
         looked = False
+        still_running = True  # every output so far says its tool is still running
+        shown = True  # every mark of a pointing round was drawn
         sent: set[str] = set()
         while pending:
             done, pending = await asyncio.wait(pending, timeout=0.1)
@@ -1524,27 +1611,36 @@ class RealtimeSession(VoiceSession):
                     if epoch != self._epoch:
                         self._log({"kind": "partner-output-dropped", "callId": cid, "why": "its call was replaced"})
                         continue
+                    still_running &= self._still_running(task)
+                    shown &= self._all_shown(task)
                     looked |= await self._output(cid, task)
-            # A line about what is still running, asked for so that it starts as the voice's current words end (their
-            # length is known from response.done's audio tokens), not after a silence; at most PROGRESS_LINES a round.
+            # One line, once the voice has said nothing for PROGRESS_AFTER_S while the tool runs: only a silence that
+            # would feel broken is filled.
             now = self.clock()
-            if (pending and now - began >= PROGRESS_AFTER_S and len(progress_said) < PROGRESS_LINES
-                    and self._audio_until - now <= PROGRESS_LEAD_S and self._requested is None and self._response is None
-                    and not self._asks and self._held is None and n == self.n and epoch == self._epoch
-                    and (not progress_said or now - progress_said[-1] > PROGRESS_EVERY_S)):
-                progress_said.append(now)
+            quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
+            if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= PROGRESS_AFTER_S
+                    and not self.audible() and self._requested is None and self._response is None and not self._asks
+                    and self._held is None and n == self.n and epoch == self._epoch):
                 facts = self.running_facts() or "the tool you called"
-                self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress_said)})
-                again = (" You already told them once: say what has changed, in different words." if len(progress_said) > 1
-                         else "")
-                self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
-                             tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
-                             instructions=self.config.system_prompt + "\n\nStill running in Hooke: " + facts + ". In one "
-                             "short sentence, under 12 words, tell the user what is still being done and how long it has "
-                             "taken so far. Do not say anything is done or shown." + again)
+                self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress) + 1})
+                progress.append(self.respond(
+                    "progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
+                    tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
+                    instructions=self.config.system_prompt + "\n\nStill running in Hooke for what the user asked: "
+                    + facts + ". " + PROGRESS_WORDS))
+        if progress:
+            self._unsay_progress(n)  # its result is here: a line not yet heard is let go, and the result said instead
         for cid in ids:
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:
+            return
+        if progress and still_running and go_on and not ack:
+            # The line said it is under way; outputs that only say so again are not said a second time (the outcome
+            # comes as one line when it lands).
+            self._log({"kind": "partner-round-quiet", "n": n, "why": "a progress line said it is under way"})
+            return
+        if pointing and shown:
+            self._log({"kind": "partner-round-quiet", "n": n, "why": "the marks went with the words"})
             return
         if ack:
             self.respond("ack", n=n, tool_choice="none", max_output_tokens=ACK_TOKENS,
@@ -1559,6 +1655,45 @@ class RealtimeSession(VoiceSession):
             self.respond("tool", n=n, tool_choice="none")
             return
         self.respond("look" if looked else "tool", n=n)
+
+    @staticmethod
+    def _still_running(task: asyncio.Task) -> bool:
+        """Whether a call's output only says its tool is still running (answered "still working" after TOOL_WAIT_S)."""
+        try:
+            result = task.result()
+        except BaseException:  # noqa: BLE001 - a broken handler is an outcome to say
+            return False
+        return isinstance(result, dict) and bool(result.get("still_working")) and result.get("result") in (None, "running")
+
+    @staticmethod
+    def _all_shown(task: asyncio.Task) -> bool:
+        """Whether a mark call's output says every mark it asked for was drawn (read only for a round of marks)."""
+        try:
+            result = task.result()
+        except BaseException:  # noqa: BLE001 - a broken handler drew nothing
+            return False
+        return (isinstance(result, dict) and result.get("ok") is not False and bool(result.get("shown"))
+                and not result.get("not_shown"))
+
+    def _unsay_progress(self, n: int) -> None:
+        """The round's result is here while its progress line may still be on its way. A line not yet heard starting is
+        let go: one still queued drops itself (its `still` is now false), one asked for or being made is cancelled
+        before its first audio. The result is said instead. A line already playing is heard to its end, never cut."""
+        rid = self._response
+        cause = self._causes.get(rid or "") if rid else None
+        if rid and cause and cause.get("cause") == "progress" and cause.get("n") == n:
+            self._spawn(self._cancel_unheard(rid))
+        elif self._requested is not None and self._requested.get("cause") == "progress":
+            self._unsay = n  # cancelled as it is created (response.created)
+
+    async def _cancel_unheard(self, rid: str) -> None:
+        if rid in self._first_audio or self._response != rid:
+            return  # already heard starting: it plays to its end, and the result follows it
+        self._log({"kind": "partner-progress-unsaid", "responseId": rid, "n": self.n})
+        with contextlib.suppress(Exception):
+            await self._send({"type": "response.cancel", "response_id": rid, "event_id": best_effort()})
+        with contextlib.suppress(Exception):
+            await self._send({"type": "output_audio_buffer.clear", "event_id": best_effort()})
 
     async def _output(self, call_id: str, task: asyncio.Task) -> bool:
         """One call's output into the conversation; a fresh look after a change on screen goes in beside it."""

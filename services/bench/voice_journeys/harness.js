@@ -439,7 +439,9 @@
         if (from === 0 && !setup) await sleep(baselineMs); // the live view before Talk: the baseline
         if (from > 0 && steps[from - 1]?.kind === 'restart') await checks(steps[from - 1]);
         const spokenAhead = steps.slice(from).some((s) => !['typed', 'idle', 'restart', 'stage'].includes(s.kind));
-        if (spokenAhead) { await connect(true); await sleep(3000); }
+        // Connected, it may talk first (its opening line, one-brain voice): the first step waits until it is quiet,
+        // so its first press never cuts that line and the line is never taken for the step's answer.
+        if (spokenAhead) { await connect(true); await sleep(3000); await quiet(2500, 20000, 0); }
         for (let i = from; i < steps.length; i++) {
           const step = steps[i], next = steps[i + 1];
           if (step.footage) {

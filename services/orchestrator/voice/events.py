@@ -83,6 +83,9 @@ KINDS: dict[str, Kind] = {
     "population-changed": WATCHED,
     "cell-divided": Kind("interrupt", one_per="kind", newest=True, once=False),
     "reconnect": Kind("idle", kept_s=30.0),
+    # its first line as Talk connects (it talks first): in a pause, never owed, let go if the user speaks first or it
+    # is not said soon (`withdraw`, RealtimeSession.talk_down)
+    "opener": Kind("idle", kept_s=20.0),
 }
 OTHER = Kind("idle")  # a kind not registered: said once in a pause if it can be, never chased
 
@@ -318,6 +321,13 @@ class Bus:
 
     def told(self, event: Event) -> None:
         self._end(event, "told")
+
+    def withdraw(self, kind: str) -> list[Event]:
+        """Waiting events of a kind that is never owed, let go unsaid (the user spoke first). Returns them."""
+        out = [e for e in self.events.values() if e.kind == kind and e.state in WAITING and not e.owed]
+        for e in out:
+            self._end(e, "dropped")
+        return out
 
     def _end(self, event: Event, state: str) -> None:
         event.state, event.since, event.asking, event.rid = state, self.clock(), False, None

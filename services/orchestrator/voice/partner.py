@@ -36,6 +36,7 @@ from .openai_realtime import Perception, RealtimeSession
 from .partner_tools import STARTED_TOOLS, PartnerTools
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
+OPENER_LOOK_S = 1.0  # its first line's pictures (the camera, the window) are waited for this long at most
 OFFER_WAIT_S = 5.0  # a reconnect waits this long for the browser's new offer
 SCREEN_CHARS = 1000  # the screen now as text, at most
 NOTICE_TAG_S = 120.0  # a researcher's finish is matched to the narrator's lines naming it within this long
@@ -84,6 +85,7 @@ class Partner:
         self._reattached_at = -1e9  # a sideband reattached that drops again this soon means its call has ended
         self._reconnects: list[float] = []  # when each recent reconnect began (a storm stops Talk)
         self._dropped_because = ""
+        self._opened = False  # its first line as Talk connected was offered (once per Talk session)
 
     # --- binding -----------------------------------------------------------------------------------
     def bind(self, session: RealtimeSession) -> None:
@@ -199,6 +201,10 @@ class Partner:
                 self._spawn(self._studio_offer(message))
         elif kind == "voice-phase" and self.session is not None:
             self.session.studio_phase(str(message.get("phase") or ""))
+            if message.get("phase") == "listening" and not self._opened and self.session.n == 0:
+                # The studio is live (its audio connected) before any turn: it talks first, once this Talk session.
+                self._opened = True
+                self._spawn(self.open_line())
         elif kind == "bench" and os.environ.get("MICROMIND_BENCH_FAULTS") == "1":
             await self.bench_fault(str(message.get("fault") or ""))
         else:
@@ -361,6 +367,34 @@ class Partner:
                   "sentT": sent, "shownT": time.time() if shown is not None else None,
                   "resolved": (shown or {}).get("resolved")})
         return shown
+
+    async def open_line(self) -> None:
+        """It talks first (Will's feel check, 29 Oct): as this Talk session first connects, what the microscope and
+        Hooke's window show now, with the Project brief, go to the voice, which says one short line about what is on
+        the stage and the obvious next thing, pointing at what it names (RealtimeSession.opener: an idle event, never
+        over the user). Facts only: with no camera picture the note says so, and the voice judges what to say."""
+        session = self.session
+        if session is None or session.closed:
+            return
+        seen, shot = await asyncio.gather(self._quiet_camera(), self.snapshot(1280, timeout=OPENER_LOOK_S))
+        images = []
+        if seen is not None:
+            jpeg, frame_id, crop = seen
+            self.last_frame = {"id": frame_id, "crop": crop}
+            images.append((jpeg, f"Camera, frame {frame_id}: what the microscope shows now, as Talk connects"))
+        if shot is not None:
+            images.append((shot["jpeg"], f"Hooke's window now ({shot.get('how') or 'composed'})"))
+        when = time.strftime("%H:%M:%S")
+        note = (f"Talk connected at {when}. Screen now: {self.screen_now() or 'no report from the studio'}."
+                + ("" if seen is not None else " No camera picture now."))
+        await self.refresh_brief()
+        if session.n == 0 and not session.closed:  # nobody has pressed talk meanwhile
+            await session.opener(note=note, images=images)
+
+    async def _quiet_camera(self):
+        with contextlib.suppress(Exception):
+            return await asyncio.wait_for(self.camera(768), OPENER_LOOK_S)
+        return None
 
     async def clear_marks(self) -> None:
         if self.send is not None:

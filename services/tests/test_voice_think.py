@@ -112,7 +112,9 @@ def test_one_acknowledgement_only(monkeypatch):
         await release(t, 2)
         await think_call(t, call_id="c2", rid="resp_2")
         ack = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "ack"), None))
-        assert ack["response"]["tool_choice"] == "none" and ack["response"]["max_output_tokens"] <= 60
+        # Short by its instruction; its cap counts its reasoning too, so it only stops a runaway (never cuts it off).
+        assert ack["response"]["tool_choice"] == "none" and "two- or three-word" in ack["response"]["instructions"]
+        assert ack["response"]["max_output_tokens"] == openai_realtime.ACK_TOKENS
         await asyncio.sleep(0.3)
         assert [e["response"]["metadata"]["cause"] for e in creates(t)] == ["turn", "turn", "ack"]
     asyncio.run(go())

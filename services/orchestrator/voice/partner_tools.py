@@ -801,10 +801,13 @@ class PartnerTools:
         resolved = [r for r in shown.get("resolved") or [] if isinstance(r, dict)]
         drawn = [r.get("target") for r in resolved if r.get("ok")]
         missed = [{"target": r.get("target"), "why": r.get("why") or "not drawn"} for r in resolved if not r.get("ok")]
-        return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {}),
-                **({"note": "Marked. If your words before it already answered the user, end now without a word; "
-                            "otherwise answer them now in one short sentence, without mentioning the mark."}
-                   if drawn else {})}
+        # Marks go with the words: one that was shown after words gets no reply of its own (openai_realtime
+        # `_finish_round`). These notes are for the reply that does follow: no words were said, or a mark was not shown.
+        note = ("Not all of it could be pointed at. Say so once, briefly, only if your words said you were pointing at "
+                "it." if missed else
+                "Shown. If you have not answered the user yet, answer now in one short sentence, without mentioning "
+                "the mark.")
+        return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {}), "note": note}
 
     async def _bounded(self, name: str, work, call_id: str | None) -> dict:
         """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working", and what

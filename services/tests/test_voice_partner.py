@@ -1276,23 +1276,121 @@ def test_what_a_tool_put_on_screen_is_pointed_at_as_its_answer_is_heard(monkeypa
     asyncio.run(go())
 
 
-def test_a_mark_goes_on_to_the_answer_when_its_words_were_only_a_preamble(monkeypatch):
-    """think-check-2: "What's that bright one at the top?" got "Pointing it out." and a mark, and no answer. A round of
-    marks alone goes on, and the mark's result asks for the answer only if the words before it were not it."""
+async def mark_round(t, words: str, resolved: list[dict]) -> None:
+    """Turn 1: the reply says `words` (or nothing) and calls mark on outline:o1; the studio answers `resolved`."""
+    await press(t, 1)
+    await release(t, 1)
+    if words:
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": words})
+    t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "m1",
+               "name": "mark", "arguments": json.dumps({"targets": [{"target": "outline:o1"}]})})
+    await done(t.sb, "resp_1")
+    sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+    await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": resolved})
+    await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()))
+    await asyncio.sleep(0.3)
+
+
+def test_a_mark_that_was_shown_goes_with_the_words_and_gets_no_reply_of_its_own(monkeypatch):
+    """Will's feel check, 29 Oct: "That central oval is likely a stoma. I'm marking it now." and a mark, then a second
+    reply, "It's highlighted around the central oval…", repeating the first. Pointing sits alongside speech (HeyClicky's
+    point_at_element): a mark after words that was shown asks for nothing more."""
     async def go():
         t = await partner_session(monkeypatch)
-        await press(t, 1)
-        await release(t, 1)
-        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": "There it is."})
-        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "m1",
-                   "name": "mark", "arguments": json.dumps({"targets": [{"target": "outline:o1"}]})})
-        await done(t.sb, "resp_1")
-        sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
-        await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": [{"target": "outline:o1", "ok": True}]})
-        await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()))
+        await mark_round(t, "That central oval is likely a stoma.", [{"target": "outline:o1", "ok": True}])
+        assert t.sb.responses == 1, "no second reply"
+        assert any(r["kind"] == "partner-round-quiet" and "words" in r["why"] for r in t.logged)
+    asyncio.run(go())
+
+
+def test_a_mark_that_was_not_shown_is_said_once(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        await mark_round(t, "That one is dividing.", [{"target": "outline:o1", "ok": False, "why": "hidden"}])
         await until_async(lambda: t.sb.responses == 2)
         output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
-        assert output["shown"] == ["outline:o1"] and "already answered" in output["note"]
+        assert output["ok"] is False and "once, briefly" in output["note"]
+    asyncio.run(go())
+
+
+def test_a_mark_with_no_words_before_it_goes_on_to_the_answer(monkeypatch):
+    """think-check-2: "What's that bright one at the top?" got a mark and no answer. With nothing said, the reply that
+    follows is the answer."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await mark_round(t, "", [{"target": "outline:o1", "ok": True}])
+        await until_async(lambda: t.sb.responses == 2)
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["shown"] == ["outline:o1"] and "answer now" in output["note"]
+    asyncio.run(go())
+
+
+def test_it_talks_first_once_from_what_it_sees_when_talk_connects(monkeypatch):
+    """Will's feel check, 29 Oct: HeyClicky "literally talks to you FIRST". As the studio goes live before any turn, the
+    camera picture and the window go in, and one idle line is asked for, with mark as its only tool; never again in
+    that Talk session."""
+    monkeypatch.setattr(partner_module, "OPENER_LOOK_S", 0.3)
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        await t.partner.command({"type": "voice-phase", "phase": "listening", "at": 0})
+        request = await until_async(lambda: next((m for m in t.studio if m["type"] == "snapshot-request"), None))
+        await t.partner.command({"type": "snapshot", "id": request["id"], "jpeg": base64.b64encode(b"WINDOW").decode()})
+        opener = await until_async(lambda: next((e for e in creates_of(t) if e["response"]["metadata"]["cause"] == "opener"),
+                                                None), seconds=10)
+        response = opener["response"]
+        assert [tool["name"] for tool in response["tools"]] == ["mark"] and response["tool_choice"] == "auto"
+        assert openai_realtime.OPENER_RULE in response["instructions"]
+        shown = [pictures(i) for i in t.sb.items() if any(p["type"] == "input_image" for p in i["content"])]
+        assert [b"CAMERA-AT-KEY-DOWN"] in shown and [b"WINDOW"] in shown
+        assert any(i.get("role") == "system" and i["content"][0]["text"].startswith("Talk connected") for i in t.sb.items())
+        await done(t.sb, "resp_1")
+        await t.partner.command({"type": "voice-phase", "phase": "listening", "at": 0})
+        await asyncio.sleep(0.5)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["opener"], "once a Talk session"
+    asyncio.run(go())
+
+
+def test_its_first_line_is_let_go_when_the_user_speaks_first(monkeypatch):
+    monkeypatch.setattr(partner_module, "OPENER_LOOK_S", 0.1)
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.session._last_user_at = t.session.clock()  # someone just spoke: it waits for a pause
+        await t.partner.command({"type": "voice-phase", "phase": "listening", "at": 0})
+        await until_async(lambda: any(e.kind == "opener" for e in t.session.bus.events.values()), seconds=10)
+        await press(t, 1)
+        await release(t, 1)
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(2.0)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn"], "the user's turn, and nothing else"
+        assert all(e.state == "dropped" for e in t.session.bus.events.values() if e.kind == "opener")
+    asyncio.run(go())
+
+
+def test_a_reply_in_two_parts_is_joined_with_a_space(monkeypatch):
+    """Will's feel check: "…so it's easy to spot.That central oval…": the words of two parts of one response, either side
+    of a tool call, ran together in the chat."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        heard = []
+        t.session.on(lambda event: heard.append(event.text) if event.kind == "output_transcript" else None)
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "item_id": "a",
+                   "content_index": 0, "delta": "Easy to spot."})
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "item_id": "b",
+                   "content_index": 0, "delta": "That central"})
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "item_id": "b",
+                   "content_index": 0, "delta": " oval."})
+        await done(t.sb, "resp_1")
+        assert "".join(heard) == "Easy to spot. That central oval."
+        said = next(r for r in t.logged if r["kind"] == "partner-response")
+        assert said["transcript"] == "Easy to spot. That central oval."
+        # Read from the response's own items when no words streamed: each part joined the same way.
+        assert RealtimeSession._said_in({"output": [
+            {"type": "message", "content": [{"transcript": "Easy to spot."}]}, {"type": "function_call"},
+            {"type": "message", "content": [{"transcript": "That central oval."}]}]}) == "Easy to spot. That central oval."
     asyncio.run(go())
 
 
@@ -1312,45 +1410,121 @@ def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
     asyncio.run(go())
 
 
-def test_a_long_tool_gets_at_most_two_specific_progress_lines_that_follow_the_words(monkeypatch):
-    """The bench: 2.0 s of silence between the preamble's end and a "please wait" line, and lines that said nothing.
-    A progress line says what is still running and how long so far (partner_tools.running_facts), is asked for so it
-    starts as the current words end (their length from response.done's audio tokens), at most twice a round."""
-    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.1)
-    monkeypatch.setattr(openai_realtime, "PROGRESS_EVERY_S", 0.3)
-    gate = None
-
+def slow_resources(gate_box):
     async def slow(ctx, args):
-        await gate.wait()
+        await gate_box[0].wait()
         return "7 cells"
+    return slow
+
+
+async def resources_round(t, *, audio_tokens=40):
+    """Turn 1 says a lead-in (2 s of words at 40 audio tokens) and calls resources, which waits on the test's gate."""
+    await press(t, 1)
+    await release(t, 1)
+    t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+               "transcript": "what data do we have?"})
+    t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_1"})
+    t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+               "name": "resources", "arguments": "{}"})
+    await done(t.sb, "resp_1", usage={"output_token_details": {"audio_tokens": audio_tokens}})
+    t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_1"})
+    await settle()
+
+
+def creates_of(t) -> list[dict]:
+    return [e for e in t.sb.sent if e["type"] == "response.create"]
+
+
+def test_a_long_tool_gets_one_progress_line_after_a_real_silence_and_never_a_second(monkeypatch):
+    """The smoke run of 29 Oct (judged 1 of 3, "robotic"): "It's still working on outlining the nuclei…" and "The
+    outlining is still in progress and nothing is finished yet…", from 1 s in, each cut off mid-sentence. One line at
+    most, once the voice has said nothing for PROGRESS_AFTER_S, worded to say what is under way, and long enough never to
+    be cut off; then the outcome."""
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.4)
+    gate = [None]
 
     async def go():
-        nonlocal gate
-        gate = asyncio.Event()
-        t = await partner_session(monkeypatch, tools={"resources": slow})
-        await press(t, 1)
-        await release(t, 1)
-        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
-                   "transcript": "what data do we have?"})
-        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_1"})
-        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
-                   "name": "resources", "arguments": "{}"})
-        spoke = time.monotonic()
-        await done(t.sb, "resp_1", usage={"output_token_details": {"audio_tokens": 40}})  # 2 s of words
+        gate[0] = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        await resources_round(t)
+        quiet_from = time.monotonic()
+        line = await until_async(lambda: next((e for e in creates_of(t) if e["response"]["metadata"]["cause"] == "progress"),
+                                              None), seconds=10)
+        assert time.monotonic() - quiet_from >= 0.35, "after a silence, not over the words or right after them"
+        response = line["response"]
+        assert response["max_output_tokens"] == openai_realtime.PROGRESS_TOKENS >= 400, "never cut off mid-sentence"
+        assert "resources" in response["instructions"] and "never what it may find" in response["instructions"]
+        assert "nothing is finished" not in response["instructions"] and "how long it has taken" not in response["instructions"]
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await done(t.sb, "resp_2", usage={"output_token_details": {"audio_tokens": 10}})
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_2"})
+        await asyncio.sleep(1.2)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn", "progress"], "one line, never two"
+        gate[0].set()
+        await until_async(lambda: t.sb.responses == 3)
+        assert creates_of(t)[2]["response"]["metadata"]["cause"] == "tool", "then the outcome"
+    asyncio.run(go())
+
+
+def test_a_progress_line_not_yet_heard_is_let_go_when_the_result_lands(monkeypatch):
+    """"If a result is due, say the result instead": a line asked for whose audio has not started when the tool's output
+    lands is cancelled before it is heard, and the outcome is said."""
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.3)
+    gate = [None]
+
+    async def go():
+        gate[0] = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        await resources_round(t)
+        await until_async(lambda: t.sb.responses == 2, seconds=10)  # the progress line, created, no audio yet
+        gate[0].set()
+        cancel = await until_async(lambda: next((e for e in t.sb.sent if e["type"] == "response.cancel"
+                                                 and e.get("response_id") == "resp_2"), None))
+        assert cancel and any(r["kind"] == "partner-progress-unsaid" for r in t.logged)
+        await done(t.sb, "resp_2", status="cancelled")
+        await until_async(lambda: t.sb.responses == 3)
+        assert creates_of(t)[2]["response"]["metadata"]["cause"] == "tool"
+    asyncio.run(go())
+
+
+def test_a_progress_line_already_playing_is_heard_to_its_end(monkeypatch):
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.3)
+    gate = [None]
+
+    async def go():
+        gate[0] = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        await resources_round(t)
         await until_async(lambda: t.sb.responses == 2, seconds=10)
-        assert time.monotonic() - spoke >= 2.0 - openai_realtime.PROGRESS_LEAD_S - 0.1, "not over the words, after them"
-        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_1"})
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await settle()
+        gate[0].set()
+        await asyncio.sleep(0.5)
+        assert not [e for e in t.sb.sent if e["type"] in ("response.cancel", "output_audio_buffer.clear")], "never cut"
         await done(t.sb, "resp_2")
-        await until_async(lambda: t.sb.responses == 3, seconds=10)
-        await done(t.sb, "resp_3")
-        await asyncio.sleep(1.0)
-        creates = [e for e in t.sb.sent if e["type"] == "response.create"]
-        assert [e["response"]["metadata"]["cause"] for e in creates] == ["turn", "progress", "progress"]
-        line = creates[1]["response"]
-        assert line["max_output_tokens"] == openai_realtime.PROGRESS_TOKENS and "resources" in line["instructions"]
-        assert "s so far" in line["instructions"] and "different words" in creates[2]["response"]["instructions"]
-        gate.set()
-        await until_async(lambda: t.sb.responses == 4)
+        await until_async(lambda: t.sb.responses == 3)
+    asyncio.run(go())
+
+
+def test_after_its_progress_line_a_still_running_output_is_not_said_again(monkeypatch):
+    """One action, one progress line: its output past TOOL_WAIT_S ("still working") asks for no reply of its own after
+    the line said it is under way; the outcome comes once, when it lands."""
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.2)
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.8)
+    gate = [None]
+
+    async def go():
+        gate[0] = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        await resources_round(t)
+        await until_async(lambda: t.sb.responses == 2, seconds=10)
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await done(t.sb, "resp_2", usage={"output_token_details": {"audio_tokens": 10}})
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_2"})
+        await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()), seconds=10)
+        await until_async(lambda: any(r["kind"] == "partner-round-quiet" for r in t.logged))
+        assert t.sb.responses == 2
+        gate[0].set()
     asyncio.run(go())
 
 
