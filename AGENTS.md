@@ -27,9 +27,10 @@ intended golden changes. Keep source, weights, data and service terms separate.
 Public API names and stored formats may retain historical identifiers for compatibility.
 
 Release and review authority: read `packaging/macos/RELEASING.md` and
-`CONTRIBUTING.md` before release work. Contributions target `dev`; only Will may
-promote an accepted Beta's exact source to `main`. Never infer owner acceptance
-or publication authorization from a merge, tag or passing check. Official commands
+`CONTRIBUTING.md` before release work. Contributions target `dev`. Since 2026-10-29 Will's own
+release agents accept a Beta by its fresh-Mac run, promote its exact source to `main` and publish, under his standing
+authorization and the private runbook's guards. Never infer acceptance or publication authorization from a merge, tag or
+passing check alone. Official commands
 and credentials belong to the private publisher, not this core repository.
 
 Component contracts (read the relevant file before editing):
