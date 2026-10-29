@@ -2605,6 +2605,7 @@
     "talk",
     "talk_key",
     "heard_cue",
+    "partner_acts",
     "think",
     "look_hard",
     "fixed:voice-words",
@@ -12234,6 +12235,63 @@
   },
   {
    "agentCanChange": [],
+   "current": "brain",
+   "default": "brain",
+   "defaultReason": null,
+   "fallbackFor": [],
+   "hint": "Hooke's brain does it (the default), or the voice calls Hooke's tools itself",
+   "id": "partner_acts",
+   "kind": "policy",
+   "options": [
+    {
+     "available": true,
+     "id": "brain",
+     "label": "Hooke's brain does it",
+     "licence": "",
+     "models": [],
+     "note": "the voice talks and points; Hooke's brain does what is asked and answers",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Hooke's brain does it",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    },
+    {
+     "available": true,
+     "id": "direct",
+     "label": "The voice does it itself",
+     "licence": "",
+     "models": [],
+     "note": "the voice calls Hooke's tools itself (will-leaf: 0.86 of 3)",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "The voice does it itself",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    }
+   ],
+   "powers": [
+    "talk"
+   ],
+   "purpose": "Whether Hooke's brain or the voice itself does what you ask by voice",
+   "title": "How it acts"
+  },
+  {
+   "agentCanChange": [],
    "current": "tone",
    "default": "tone",
    "defaultReason": null,
@@ -14103,6 +14161,7 @@
    "outline": "edgetam",
    "outline_check": "fix",
    "outline_repair": "same",
+   "partner_acts": "brain",
    "pointing": "box",
    "presentation": "off",
    "quality": "tell",

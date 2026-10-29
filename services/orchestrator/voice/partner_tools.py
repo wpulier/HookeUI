@@ -54,6 +54,13 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
                               "outline_cells", "find", "start_researcher", "run_capability"})
 HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
+# The one tool the voice acts with when Hooke's brain does the work (PARTNER_ACTS "brain").
+DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Project, in the user's own words: outline, "
+               "segment or find a thing, magnify it or move the magnifier, Tabs, windows and what is in them, reference "
+               "photos and pictures, tables, graphs, counts and measurements, models and settings, researchers (start "
+               "one, tell one something, how they are doing, cancel one), Projects. Hooke's brain sees the view, knows "
+               "what the user clicked and what \"that\" is, does it with its own tools, checks it on screen and returns "
+               "its answer and what it did; say the outcome from that answer, a failure with its reason.")
 TURN_CHOICE_S = 20.0  # a voice `use` holds its choice for the later steps of its turn this long
 APPROVED = {"approved": {"type": "string", "description": (
     "Only after Hands asked permission for this (its result had result \"permission\") and the user said yes: that "
@@ -175,7 +182,14 @@ class PartnerTools:
         return "; ".join(rows)
 
     # --- what the model is offered ------------------------------------------------------------------
+    def acts(self) -> str:
+        """How the partner gets things done in Hooke (option PARTNER_ACTS): "brain" (the default) or "direct"."""
+        return str(getattr(getattr(self.hub, "settings", None), "partner_acts", "brain") or "brain")
+
     def names(self) -> list[str]:
+        """The registry's tools the voice calls itself: none when Hooke's brain does the work (PARTNER_ACTS "brain")."""
+        if self.acts() == "brain":
+            return []
         tools = getattr(self.brain.registry, "tools", {})
         return [name for name in PARTNER_TOOLS if name in tools]
 
@@ -196,6 +210,13 @@ class PartnerTools:
                                   "window": {"type": "boolean", "description": "also send Hooke's window picture"}},
                                "required": ["question"]}, self.look_hard))
         specs.append(ToolSpec("activity", knowing.DESCRIPTION, knowing.SPEC, self.activity))
+        if self.acts() == "brain":
+            specs.append(ToolSpec("do_in_hooke", DO_IN_HOOKE, {"type": "object", "properties": {
+                "request": {"type": "string", "description": (
+                    "the user's request in their own words, whole, as they said it (\"use a segmentation model on the "
+                    "center thing\"); not split, rephrased into steps or into tool names")}},
+                "required": ["request"]}, self.do_in_hooke))
+            return specs
         specs.append(ToolSpec("think", "Hand a hard question, a request with several steps, a comparison of models or a "
                               "close look to Hooke's frontier mind, which sees this turn's pictures, uses Hooke's tools, "
                               "checks the screen and reports back. Returns at once that it started; its result is told "
@@ -820,8 +841,9 @@ class PartnerTools:
         def landed(t: asyncio.Task) -> None:
             if t.cancelled():
                 return
-            if t.exception() is not None:
-                found = {"tool": name, "status": "failed", "error": "something went wrong in the app"}
+            if t.exception() is not None:  # said with its reason, as every failure is
+                exc = t.exception()
+                found = {"tool": name, "status": "failed", "error": f"it did not finish: {type(exc).__name__}: {str(exc)[:200]}"}
             else:
                 found = {"tool": name, **{k: v for k, v in t.result().items() if not k.startswith("_")}}
             asyncio.ensure_future(self.partner.happened("tool-done", json.dumps(found, ensure_ascii=False, default=str),
@@ -873,7 +895,15 @@ class PartnerTools:
         from ..ticket import issue
 
         brain, hub = self.brain, self.hub
-        kwargs: dict[str, Any] = {"voice_owner": self.partner.session}
+        n = self.partner.turn()
+        # The user's words as they said them (the turn's transcript), so the conversation keeps one copy of them
+        # (Conversation.add_once), and what they were pointing at when they pressed talk ("that": board.WhenAsked).
+        words = await self.partner.words(n, 0)  # never waited for: the voice's request goes alone if they are not in
+        kwargs: dict[str, Any] = {"voice_owner": self.partner.session, "said": words or text}
+        with contextlib.suppress(Exception):
+            asked_at = self.partner.when_asked(n)
+            if asked_at is not None:
+                kwargs["when_asked"] = asked_at
         if self.client is not None:
             request = issue(hub, "turn", asked=brain.conversation.here(), channel="voice")
             try:
@@ -882,7 +912,10 @@ class PartnerTools:
             except Exception:
                 request.seal()
         before = self._reported_at()
-        result = await brain.turn(text, "voice", **kwargs)
+        # Hooke's brain is asked in the user's own words; the voice's reading of them goes with it as context.
+        asked = text if not words or words.strip().lower() == text.lower() else (
+            f"{words.strip()}\n(The voice partner, who sees the same view, took this to mean: {text})")
+        result = await brain.turn(asked, "voice", **kwargs)
         actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
                    for a in (result.get("actions") or [])][:8]
         answer = str(result.get("answer") or "")[:1800]

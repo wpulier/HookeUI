@@ -134,7 +134,7 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             moment = brain.moment(request_snapshot=pin) if client is not None else brain.moment()
             initial_view_key = context.view_key(moment)
             initial_question_view = getattr(brain.sight, "question_view", None)
-        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain)
+        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain, hub)
         try:  # under a monthly cap the session is admitted first (its first minutes at their most), never after it opens
             usage_meter = api_usage.VoiceUsage(model)
         except (api_usage.CapReached, api_usage.ProviderRefused) as exc:
@@ -621,10 +621,13 @@ def brain_tool(spoken_requests: SpokenRequests) -> ToolSpec:
                     parameters={"type": "object"}, handler=ask_brain)
 
 
-def partner_prompt(brain) -> str:
-    """The one-brain voice's instructions (prompts.PARTNER). What it can do is its tools' declarations, sent with the
-    session, and the capabilities tool when asked: not repeated here (context earns its place)."""
-    return PARTNER
+def partner_prompt(brain, hub=None) -> str:
+    """The one-brain voice's instructions (prompts.partner_prompt: its Acting follows option PARTNER_ACTS). What it can do
+    is its tools' declarations, sent with the session, and the capabilities tool when asked: not repeated here (context
+    earns its place)."""
+    from ..prompts import partner_prompt as written
+
+    return written(getattr(getattr(hub, "settings", None), "partner_acts", "brain") if hub is not None else "brain")
 
 
 def voice_prompt(brain) -> str:

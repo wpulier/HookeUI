@@ -613,6 +613,11 @@ class Partner:
             # The researcher's own words come from the web: information, inside the untrusted wrapper (ADR 0002).
             text += "\nIts finding, in its own words:\n" + block(result["one_liner"], tag="researchers", source="web",
                                                                 limit=600)
+        if isinstance(result, dict) and result.get("summary"):
+            # Its summary says what went wrong and why when part of it failed (29 Oct: "the video model was
+            # unavailable (HTTP 404)"), which the one-liner leaves out: the voice says the reason, not only the miss.
+            text += "\nIts summary, with what did not work and why:\n" + block(result["summary"], tag="researchers",
+                                                                                 source="web", limit=700)
         self._spawn(self.happened(event, text, ref=rid, mark=f"researcher:{rid}"))
 
     # --- reconnecting ------------------------------------------------------------------------------

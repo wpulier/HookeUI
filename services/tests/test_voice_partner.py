@@ -162,7 +162,9 @@ class Screen:
         return self.reported_at > after
 
 
-def app(tools: dict | None = None):
+def app(tools: dict | None = None, acts: str = "direct"):
+    """A stand-in app. `acts`: the partner's PARTNER_ACTS; these tests are of the voice calling Hooke's tools itself
+    ("direct") unless they ask for Hooke's brain doing the work ("brain", the default in the app)."""
     registry = Registry()
     ran = []
     for name, reply in (tools or {}).items():
@@ -172,6 +174,7 @@ def app(tools: dict | None = None):
         registry.add(Tool(name, f"{name} does its job.", schema({"what": {"type": "string"}}), handler,
                           kind="query" if name in ("resources", "research_status") else "effect"))
     hub = SimpleNamespace(settings=Settings(), latest_info=None, scene=SimpleNamespace(objects={}), screen=Screen())
+    hub.settings.partner_acts = acts
     logged = []
     brain = SimpleNamespace(registry=registry, hub=hub, agent=SimpleNamespace(log=logged.append), conversation=Conversation(),
                             board=None, sight=None, services=None, voice=None, narrator=None,
@@ -180,9 +183,9 @@ def app(tools: dict | None = None):
     return hub, brain, ran, logged
 
 
-async def partner_session(monkeypatch, tools=None, frames=None, talk="hold"):
+async def partner_session(monkeypatch, tools=None, frames=None, talk="hold", acts="direct"):
     """A Partner bound to a RealtimeSession on a fake sideband; the studio's messages recorded in `studio`."""
-    hub, brain, ran, logged = app(tools)
+    hub, brain, ran, logged = app(tools, acts)
     studio = []
     frames = frames if frames is not None else [(b"CAMERA-AT-KEY-DOWN", 41, [0, 0, 100, 100])]
     grabs = []
@@ -1578,4 +1581,44 @@ def test_the_announcers_late_line_about_a_researcher_is_never_said_again(monkeyp
                                    respond=True)
         await asyncio.sleep(0.4)
         assert t.sb.responses == 1, "each researcher said once"
+    asyncio.run(go())
+
+
+def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands_the_rest_over(monkeypatch):
+    """PARTNER_ACTS "brain", the default (Will, 29 Oct: the old voice "just worked" because the brain did the work): the
+    voice has no Hooke tools of its own, only pointing, the close look, activity and do_in_hooke, and its instructions
+    say so."""
+    from orchestrator import prompts
+    from orchestrator.options import Settings
+
+    assert Settings().partner_acts == "brain"
+
+    async def go():
+        t = await partner_session(monkeypatch, tools={"find": "outlined it", "zoom": "magnified"}, acts="brain")
+        names = sorted(spec.name for spec in t.partner.tools.specs())
+        assert names == ["activity", "do_in_hooke", "look_hard", "mark"]
+    asyncio.run(go())
+    written = prompts.partner_prompt("brain")
+    assert "do_in_hooke" in written and "call find" not in written and "think" not in written.split("# Acting")[1]
+    assert prompts.partner_prompt("direct") == prompts.PARTNER
+
+
+def test_do_in_hooke_asks_the_brain_in_the_users_own_words_with_what_they_pointed_at(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        asked = {}
+
+        async def turn(text, channel, **kw):
+            asked.update(text=text, channel=channel, **kw)
+            return {"answer": "Outlined the stoma in the middle.",
+                    "actions": [{"tool": "find", "ok": True, "summary": "outlined the oval"}]}
+        t.brain.turn = turn
+        n = t.partner.turn()
+        t.partner._heard[n] = "I need you to use a segmentation model on the center thing"
+        out = await t.partner.tools.do_in_hooke({"request": "segment the oval in the middle"})
+        assert asked["channel"] == "voice"
+        assert asked["text"].startswith("I need you to use a segmentation model on the center thing")
+        assert "segment the oval in the middle" in asked["text"], "the voice's reading goes with it as context"
+        assert asked["said"] == "I need you to use a segmentation model on the center thing"
+        assert out["ok"] is True and out["answer"] == "Outlined the stoma in the middle."
     asyncio.run(go())

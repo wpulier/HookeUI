@@ -2310,6 +2310,7 @@
         "talk",
         "talk_key",
         "heard_cue",
+        "partner_acts",
         "think",
         "look_hard",
         "fixed:voice-words",
@@ -4588,6 +4589,13 @@
       "title": "Talk key",
       "purpose": "The key you hold to talk",
       "hint": "Control+Option, or Right Option with VoiceOver on"
+    },
+    {
+      "id": "partner_acts",
+      "kind": "policy",
+      "title": "How it acts",
+      "purpose": "Whether Hooke's brain or the voice itself does what you ask by voice",
+      "hint": "Hooke's brain does it (the default), or the voice calls Hooke's tools itself"
     },
     {
       "id": "heard_cue",

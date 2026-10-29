@@ -369,7 +369,7 @@ def test_every_one_brain_talk_session_is_handed_the_brains_one_bus(monkeypatch):
 
     monkeypatch.setattr(route, "RealtimeSession", Realtime)
     monkeypatch.setattr(route, "Partner", FakePartner)
-    monkeypatch.setattr(route, "partner_prompt", lambda brain: "prompt", raising=False)
+    monkeypatch.setattr(route, "partner_prompt", lambda brain, hub=None: "prompt", raising=False)
     said = Said()
     brain = SimpleNamespace(agent=SimpleNamespace(log=lambda r: None), voice=None, voice_notes=[], sight=None, said=said,
                             voice_recap=lambda: "", moment=lambda: None, registry=SimpleNamespace(tools={}))

@@ -321,6 +321,41 @@ out. Say each outcome once. When the app tells you something happened while the 
 sentence."""
 
 
+# The voice's Acting when it hands what is done in Hooke to Hooke's brain (option PARTNER_ACTS "brain", the default):
+# the voice talks, looks and points; the brain, the one typed chat uses, does the work through its own tools, recovers,
+# checks the screen and answers (Will, 29 Oct: the old voice "just worked" because the brain did the work; the voice
+# calling Hooke's tools itself failed his own requests, journey will-leaf at 9719b4f: 0.86 of 3).
+PARTNER_ACTING_BRAIN = """# Acting
+You talk, look and point; Hooke does the work. Anything done in Hooke or read from its Project goes to Hooke with
+do_in_hooke as one request in the user's own words, whole: outlining, segmenting or finding a thing, magnifying it or
+moving the magnifier, Tabs, windows and what is in them, reference photos and pictures, tables, graphs, counts and
+measurements, models and settings, researchers (starting one, telling one something, how they are doing, cancelling),
+and Projects ("use a segmentation model on the center thing", "put that photo in a new tab as the main item"). Do not
+split it into steps, rephrase it into tools or choose how: Hooke's brain sees the view, knows what the user clicked and
+what "that" is, does it, checks it on screen and answers. Say its answer in your own words, the outcome first. When
+something failed, say what failed and why, from its answer, and what the user can do ("The video model has been
+retired; want me to use another?"). A request still under way is not done: say once, in a few words, that it is under
+way; its outcome is told to you when it lands. Answer yourself only what needs nothing done in Hooke: what the
+pictures show, and what the brief or activity already says. Never tell the user to restart, refresh, reload or quit
+the app.
+
+"""
+
+
+def partner_prompt(acts: str = "brain") -> str:
+    """The voice's instructions for how it acts (option PARTNER_ACTS): "brain" hands what is done in Hooke to Hooke's
+    brain (PARTNER_ACTING_BRAIN); "direct" is the voice calling Hooke's tools itself (PARTNER's own Acting)."""
+    if acts != "brain":
+        return PARTNER
+    head, rest = PARTNER.split("# Acting\n", 1)
+    _, tail = rest.split("# Pointing\n", 1)
+    tail = tail.replace("never for what a tool just showed: highlight and outline tools show what they\nact on, and "
+                        "after a tool that changes the screen Hooke points at its result as you speak (its result says\n"
+                        "pointed_at)", "never for what Hooke just showed: what it outlines or opens shows itself, and "
+                        "Hooke points at its result as you speak (its result says pointed_at)")
+    return head + PARTNER_ACTING_BRAIN + "# Pointing\n" + tail
+
+
 LIVE_VOICE_DELEGATE = MIND + """
 
 # Role

@@ -573,6 +573,12 @@ def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[fl
     calls = partner_calls(inter, n, start, end)
     source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
     calls = with_thinks(calls, tasks or {}) if calls else card_calls(conv, start, end)
+    if source == "partner" and any(c.name == FALLBACK for c in calls) and all(c.name in (FALLBACK, *POINTING) for c in calls):
+        # The voice handed it to Hooke's brain (PARTNER_ACTS "brain"): the tools that did it are the brain's own, read
+        # from its tool cards as GPT-Live's are; the voice's pointing stays its own.
+        cards = card_calls(conv, start, end)
+        if cards:
+            calls, source = [c for c in calls if c.name in POINTING] + cards, "brain"
     mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
     own = [x for cid, t in (tasks or {}).items() if cid in mine for x in (t.get("spans") or [t["span"]]) if x]
     others = [x for cid, t in (tasks or {}).items() if cid not in mine for x in (t.get("spans") or [t["span"]]) if x]

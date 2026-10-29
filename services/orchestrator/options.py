@@ -168,6 +168,19 @@ VOICE = {
     ]
 }
 
+# How the live partner gets things done in Hooke (voice/partner_tools.py, prompts.partner_prompt). "brain": the voice
+# talks, looks and points, and hands everything done in Hooke to Hooke's brain (the one typed chat uses) in the user's
+# own words; the brain does it with its own tools, recovers, checks the screen and answers (Will, 29 Oct: the old voice
+# "just worked" this way). "direct": the voice calls Hooke's tools itself, through Hands; on Will's own requests on real
+# footage (journey will-leaf, 9719b4f) it scored 0.86 of 3, so it is a choice someone picks by hand, never the default.
+PARTNER_ACTS = {
+    o.id: o
+    for o in [
+        Option("brain", "Hooke's brain does it", "the voice talks and points; Hooke's brain does what is asked and answers"),
+        Option("direct", "The voice does it itself", "the voice calls Hooke's tools itself (will-leaf: 0.86 of 3)"),
+    ]
+}
+
 # The live partner's close look (voice/partner_tools.py look_hard): naming a thing exactly, when a few seconds is fine,
 # with the wait said. The vision bench of 2026-10-29 (docs/bench/vision-2026-10-29.md): Gemini 4 Argon named most
 # exactly (80% exact on a click, at 5-9 s); Claude Opus 5.5 is the other choice (about 5 s). The quick look is VISION.
@@ -831,7 +844,7 @@ WATCH = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
@@ -989,6 +1002,7 @@ class Settings:
     talk: str = "hold"  # how the one-brain voice knows a turn (TALK)
     talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
     heard_cue: str = "tone"  # the sign it heard you (HEARD_CUE)
+    partner_acts: str = "brain"  # how the live partner gets things done in Hooke (PARTNER_ACTS)
     think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
     look_hard: str = "gemini-4-argon"  # the live partner's close look (LOOK_HARD)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
@@ -1084,7 +1098,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "watch": self.watch,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
