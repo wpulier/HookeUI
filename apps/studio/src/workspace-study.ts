@@ -1490,6 +1490,8 @@ function renderInputs(): void {
   const drawMaterial = () => {
     if (!inputOwnerCurrent(owner)) return;
     materialList.replaceChildren();
+    const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
+    if (empty) empty.hidden = !!inputQuery || !!snapshot.sources.length || !!projectInputs(resourceSession === snapshot.session ? entries : []).length;
     const needle = inputQuery.trim().toLocaleLowerCase();
     let matchingMedia = 0;
     for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
@@ -1511,7 +1513,7 @@ function renderInputs(): void {
   controls.append(button('Add material', () => { if (inputOwnerCurrent(owner)) importScientificSource(); }, 'study-primary'), search);
   drawerBody.append(controls, materialList, list); drawMaterial();
   if (!snapshot.sources.length && !material.length && !inputQuery) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
+    const empty=el('div','mm-drawer-empty project-input-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
     empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
     empty.append(example);drawerBody.append(empty);

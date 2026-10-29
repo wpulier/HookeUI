@@ -81,7 +81,7 @@ def attach_usage(entries, store=None) -> list[str]:
                 continue
             current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
             use = {'study': study.id, 'revision': ref['revision'], 'digest': ref['digest'],
-                   'title': entry.title, 'available': current, 'material': describe(entry.values)}
+                   'title': entry.title, 'available': current, 'material': describe(entry.values) if current else describe({})}
             if not current and store is not None:
                 try:
                     old = store.read(entry.id, entry.day, revision=ref['revision'])
