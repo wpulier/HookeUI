@@ -188,3 +188,17 @@ Agents still discover only their own or explicitly granted Projects. No new agen
 administration route, automatic sharing or replacement Project is introduced.
 Revocation removes that connection's authority and retains prior authorship. Missing
 Projects and invalid IDs refuse before permission records are written.
+
+### Retained Study questions — October 29
+
+A person or contributor may save a question for an existing contributing connection.
+The question pins a retained Study revision and keeps its original author, recipient
+and request identity. The recipient reads the substantive captured context and exact
+Project evidence through the door, then publishes an attributed, immutable answer.
+Answers are not human-accepted findings. Retries return the same question/answer;
+revoked or read-only connections cannot answer. No membership or spending is granted.
+
+This is correspondence within Project evidence, not a new execution ledger. Saving
+it does not launch a subscribed CLI or claim an agent is online. Independent agents
+or orchestrators pick it up through the supported interface. The Study shows waiting
+until a response is actually retained, and shows replies inline with evidence.

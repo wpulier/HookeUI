@@ -191,3 +191,17 @@ packaged app, rejecting bearer credentials and unsigned requests. Source develop
 requires explicit developer confirmation mode plus its Studio origin/referrer and
 header; this is not an OS-level isolation boundary against local shell access.
 Catalogue reads and complete synchronous grant operations run off the event loop.
+
+## Study correspondence
+
+Status advertises `interface.studyQuestions`. `GET studies/{id}/questions` lists saved
+questions; `GET .../questions/{question}` returns the pinned substantive Study revision,
+including earlier claims, failures' operation locators and exact inputs. Existing artifact
+and operation reads supply detailed evidence. `POST .../questions` takes session, request,
+question, basis (artifact-reference), recipient (stable agent actor). `POST .../{question}/answer`
+takes session, statement, evidence (exact artifact references), limitations. The selected
+contributing connection alone may answer. Stable caller attribution is server-derived.
+Both resources are deliberately declared in agent_runnable; authorization and revocation
+are checked on every call. Questions never launch agents or grant new access. Polling agents
+use their own runtime and subscription; the UI never reports them running merely because
+a question waits. Shared schemas: study-question and study-answer.

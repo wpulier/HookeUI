@@ -432,6 +432,14 @@ reported as uncertain, never silently replayed. Stop requests all children, reta
 failures, and stays pending until termination is observed. Managed execution remains an optional
 operator extension; these local paths do not depend on a cloud project or a named agent family.
 
+Study conversations (`study_questions.py`) retain questions and attributed answers in the
+Study's versioned document. Each question pins an immutable Study revision; subsequent
+changes do not rewrite its context. Exact answer evidence must resolve in the same Project.
+Request retries do not duplicate questions, and different answers cannot overwrite the first.
+The current UI keeps this conversation inline, separately from reviewed findings. The
+connector recipient operates externally: no subprocess launcher, provider billing or new
+workflow attempt ledger is implied by saving a question.
+
 ### One saved workflow from every entrance
 
 `tests/test_workflow_entrances.py` qualifies the integrated WorkflowService across the entrances (Part 2.5): one saved
