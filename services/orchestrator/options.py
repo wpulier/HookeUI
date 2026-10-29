@@ -164,10 +164,8 @@ VOICE = {
 TALK = {
     o.id: o
     for o in [
-        Option("hold", "Hold to talk", "hold the talk key or the Talk button while you speak; release to hear it answer",
-               uses=("openai-api",)),
-        Option("open", "Open mic", "it listens all the time and you can talk over it; use headphones, or it hears itself",
-               uses=("openai-api",)),
+        Option("hold", "Hold to talk", "hold the talk key or the Talk button while you speak; release to hear it answer"),
+        Option("open", "Open mic", "it listens all the time and you can talk over it; use headphones, or it hears itself"),
     ]
 }
 

@@ -38,6 +38,7 @@ OFFER_WAIT_S = 5.0  # a reconnect waits this long for the browser's new offer
 SCREEN_CHARS = 1000  # the screen now as text, at most
 NOTICE_TAG_S = 10.0  # a researcher's finish is matched to the narrator's line about it within this long
 BRIEF_CHARS = 3000
+REATTACH_AGAIN_S = 10.0  # a reattached sideband dropping again within this: the call is gone, so a new one
 
 
 class Partner:
@@ -68,6 +69,8 @@ class Partner:
         self.reconnecting: asyncio.Task | None = None
         self.fault: str | None = None
         self._talk_lock = asyncio.Lock()
+        self._released: set[int] = set()  # turns whose key was released (or cancelled): their perception is fixed
+        self._reattached_at = -1e9  # a sideband reattached that drops again this soon means its call has ended
 
     # --- binding -----------------------------------------------------------------------------------
     def bind(self, session: RealtimeSession) -> None:
@@ -107,6 +110,13 @@ class Partner:
         """One message from the studio for the partner; False when it is not one."""
         kind = message.get("type")
         if kind == "talk":
+            if message.get("down") and not message.get("cancel") and self.session is not None:
+                # What the turn sees is taken now, as the message arrives, before anything awaits: the studio's window
+                # picture follows at once on the same socket and must find its turn (p25-rt-studio's review).
+                n = message.get("n") if isinstance(message.get("n"), int) else self.session.n + 1
+                self.capture(n)
+            elif self.session is not None:
+                self._released.add(message.get("n") if isinstance(message.get("n"), int) else self.session.n)
             # In order, and never holding up the socket's reader (a release waits for its tail and its response).
             self._spawn(self._talk_in_order(message))
         elif kind == "snapshot":
@@ -138,7 +148,6 @@ class Partner:
             if session.speaking():
                 self._spawn(self.clear_marks())
             await session.talk_down(n)
-            self.capture(session.n)
             await self._tools_changed()
         else:
             await session.talk_up(n)
@@ -147,7 +156,7 @@ class Partner:
         """What this turn sees, taken now: the camera off the loop, the screen as text, the brief refreshed."""
         from .scene_tools import view_frame
 
-        seen = self._seen.setdefault(n, {"window": None, "camera": None})
+        seen = self._seen.setdefault(n, {"window": None})  # a window picture that came first is kept
         seen["screen"] = self.screen_now()
         seen["at"] = time.time()
         loop = asyncio.get_running_loop()
@@ -174,8 +183,8 @@ class Partner:
         if sid.startswith("talk-"):
             with contextlib.suppress(ValueError):
                 n = int(sid.split("-", 1)[1])
-                if n in self._seen and self.session is not None and self.session._held == n:
-                    self._seen[n]["window"] = shot  # after release it is too late for that turn: dropped
+                if n not in self._released and n >= self.turn():  # after release it is too late for that turn: dropped
+                    self._seen.setdefault(n, {"window": None})["window"] = shot
             return
         self._answer(sid, shot)
 
@@ -387,9 +396,10 @@ class Partner:
         to the user only if it happened while the voice was speaking (one quiet line)."""
         session = self.session
         try:
-            if why == "close":
+            if why == "close" and self.clock() - self._reattached_at > REATTACH_AGAIN_S:
                 try:
                     await session.reconnect(None, why=why)
+                    self._reattached_at = self.clock()
                     return
                 except Exception:
                     pass  # the call itself ended: a new one

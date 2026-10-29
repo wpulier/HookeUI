@@ -819,3 +819,83 @@ class RealtimeSession(VoiceSession):
                 self._images.append(await self.add(image_item(look["images"])))
             return True
         return False
+
+
+# --- one real session without a browser (the paid smoke test and the app's own model check) -------------------------
+PROBE_TOOL = {"type": "function", "name": "count_cells",
+              "description": "Count the cells in the camera picture with the app's counter. Always use it for a count.",
+              "parameters": {"type": "object", "properties": {"what": {"type": "string"}}, "required": ["what"]}}
+
+
+async def probe(model: str = MODEL, *, image: bytes | None = None, api_key: str | None = None, open_sideband=None,
+                timeout: float = 30.0) -> dict:
+    """One session over the WebSocket alone: the config with a tool and no turn detection, a user item with a picture and
+    words, the tool's call answered with function_call_output, then a spoken answer. Returns what happened: the event
+    types in order, the call, the answer's transcript, the usage and the times from each response.create to its first
+    audio delta (docs/bench/realtime-partner.md)."""
+    if open_sideband is None:
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(api_key=api_key or os.environ["OPENAI_API_KEY"], max_retries=0)
+        sb = await SdkSideband(client.realtime.connect(model=model)).open()
+    else:
+        sb = await open_sideband(model)
+    seen: list[str] = []
+    out: dict[str, Any] = {"events": seen, "firstAudioMs": [], "usage": [], "transcript": "", "call": None,
+                           "errors": []}
+    session = {"type": "realtime", "model": model, "output_modalities": ["audio"],
+               "instructions": "You are a microscope assistant. Answer in one short spoken sentence. Use count_cells "
+                               "for any count.",
+               "audio": {"input": {"turn_detection": None, "noise_reduction": {"type": "far_field"},
+                                   "transcription": {"model": TRANSCRIBE_MODEL}}},
+               "tools": [PROBE_TOOL], "tool_choice": "auto", "reasoning": {"effort": "low"},
+               "truncation": {"type": "retention_ratio", "retention_ratio": 0.8}}
+    content: list[dict] = [{"type": "input_text", "text": "How many cells are in this picture? Count them."}]
+    if image is not None:
+        content.insert(0, {"type": "input_image", "detail": "low",
+                           "image_url": "data:image/jpeg;base64," + base64.b64encode(image).decode()})
+
+    async def until(kinds: set[str]) -> dict:
+        while True:
+            ev = await asyncio.wait_for(sb.recv(), timeout)
+            kind = ev.get("type", "")
+            if not seen or seen[-1] != kind:
+                seen.append(kind)
+            if kind == "error":
+                out["errors"].append(ev.get("error"))
+            if kind == "response.output_audio.delta" and out.get("_asked") is not None:
+                out["firstAudioMs"].append(round((time.perf_counter() - out.pop("_asked")) * 1000))
+            if kind in ("response.output_audio_transcript.delta",):
+                out["transcript"] += ev.get("delta") or ""
+            if kind in kinds:
+                return ev
+
+    try:
+        await until({"session.created"})
+        await sb.send({"type": "session.update", "session": session})
+        await until({"session.updated"})
+        await sb.send({"type": "conversation.item.create",
+                       "item": {"type": "message", "role": "user", "content": content}})
+        out["_asked"] = time.perf_counter()
+        await sb.send({"type": "response.create"})
+        first = await until({"response.done"})
+        response = first.get("response") or {}
+        out["usage"].append(usage_facts(response.get("usage")))
+        call = next((o for o in response.get("output") or [] if o.get("type") == "function_call"), None)
+        if call is None:
+            raise RuntimeError(f"no tool call (status {response.get('status')}: {response.get('status_details')})")
+        out["call"] = {"name": call.get("name"), "arguments": call.get("arguments")}
+        await sb.send({"type": "conversation.item.create", "item": {
+            "type": "function_call_output", "call_id": call["call_id"],
+            "output": json.dumps({"ok": True, "count": 7, "summary": "7 cells counted"})}})
+        out["_asked"] = time.perf_counter()
+        await sb.send({"type": "response.create"})
+        second = await until({"response.done"})
+        out["usage"].append(usage_facts((second.get("response") or {}).get("usage")))
+        out["status"] = (second.get("response") or {}).get("status")
+    finally:
+        out.pop("_asked", None)
+        with contextlib.suppress(Exception):
+            await sb.close()
+    out["usd"] = round(sum(usage_usd(u, model) for u in out["usage"]), 5)
+    return out

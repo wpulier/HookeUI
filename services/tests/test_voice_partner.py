@@ -1,0 +1,744 @@
+"""The one-brain voice (voice/openai_realtime.py, voice/partner.py, voice/partner_tools.py) against a fake sideband:
+a stand-in for OpenAI's realtime connection that records every event sent and emits the server's events.
+
+The 28 Oct chat log (~/Desktop/chatlog.rtf) failures this path must not repeat are named on the tests that hold them."""
+import asyncio
+import base64
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from orchestrator.brain.registry import Registry, Tool, schema
+from orchestrator.options import Settings
+from orchestrator.prompts import PARTNER
+from orchestrator.voice import openai_realtime, partner as partner_module
+from orchestrator.voice.base import VoiceConfig
+from orchestrator.voice.openai_realtime import Perception, RealtimeSession, usage_facts, usage_usd
+from orchestrator.voice.partner import Partner
+from tests.waiting import until_async
+
+
+class FakeSideband:
+    """The realtime sideband: what was sent, in order; the server's events emitted by the test (or answered here:
+    a response.create is acknowledged with response.created carrying its metadata, as the API does)."""
+
+    def __init__(self):
+        self.sent: list[dict] = []
+        self.inbox: asyncio.Queue = asyncio.Queue()
+        self.responses = 0
+        self.closed = False
+
+    async def send(self, event: dict) -> None:
+        self.sent.append(event)
+        if event["type"] == "response.create":
+            self.responses += 1
+            self.inbox.put_nowait({"type": "response.created", "response": {
+                "id": f"resp_{self.responses}", "metadata": event["response"].get("metadata")}})
+
+    async def recv(self) -> dict:
+        event = await self.inbox.get()
+        if event is None:
+            raise ConnectionError("the sideband closed")
+        return event
+
+    async def close(self) -> None:
+        self.closed = True
+        self.inbox.put_nowait(None)
+
+    def emit(self, event: dict) -> None:
+        self.inbox.put_nowait(event)
+
+    def types(self) -> list[str]:
+        return [e["type"] for e in self.sent]
+
+    def items(self) -> list[dict]:
+        return [e["item"] for e in self.sent if e["type"] == "conversation.item.create"]
+
+
+async def realtime(tools=(), talk="hold", sidebands=None):
+    sidebands = sidebands if sidebands is not None else []
+    made = {"configs": [], "hung": []}
+
+    async def create_call(offer, session):
+        made["configs"].append((offer, session))
+        return f"answer to {offer}", f"rtc_{len(made['configs'])}"
+
+    async def open_sideband(call_id):
+        sb = FakeSideband()
+        sidebands.append(sb)
+        return sb
+
+    async def hangup(call_id):
+        made["hung"].append(call_id)
+
+    session = RealtimeSession(VoiceConfig(model="gpt-realtime-2.1", system_prompt="be brief", tools=list(tools)),
+                              talk=talk, create_call=create_call, open_sideband=open_sideband, hangup=hangup)
+    logged = []
+    session.noted = logged.append
+    await session.start("v=0 offer")
+    return session, sidebands, made, logged
+
+
+@pytest.fixture(autouse=True)
+def no_tail(monkeypatch):
+    monkeypatch.setattr(openai_realtime, "RELEASE_TAIL_S", 0.0)
+
+
+async def settle():
+    for _ in range(5):
+        await asyncio.sleep(0.01)
+
+
+async def done(sb, rid, output=(), usage=None, status="completed"):
+    sb.emit({"type": "response.done", "response": {"id": rid, "status": status, "output": list(output),
+                                                   "usage": usage or {}}})
+    await settle()
+
+
+# --- a stand-in app ---------------------------------------------------------------------------------------------
+class Conversation:
+    def __init__(self):
+        self.turns, self.heard = [], []
+        self.store = SimpleNamespace(elsewhere=lambda session: SimpleNamespace(
+            edit_turn=lambda turn, text: setattr(turn, "text", text)))
+
+    def here(self):
+        return None
+
+    def was_heard(self, piece):
+        self.heard.append(piece)
+
+    def add(self, role, channel, text, asked=None, **refs):
+        turn = SimpleNamespace(role=role, channel=channel, text=text, refs=refs)
+        self.turns.append(turn)
+        return turn
+
+    add_once = add
+
+    def asked_of(self, turn):
+        return SimpleNamespace(session="s1")
+
+    def window(self, n=8):
+        return self.turns[-2 * n:]
+
+
+class Screen:
+    """The studio's reports: `report()` is a fresh one arriving; `until` waits for one newer than `after`."""
+
+    def __init__(self, lines=("w-1: Measurements table, in front",)):
+        self._lines, self.reported_at, self.asked = list(lines), 1.0, 0
+        self.arrived = asyncio.Event()
+
+    def lines(self):
+        return list(self._lines)
+
+    def report(self, lines):
+        self._lines, self.reported_at = list(lines), self.reported_at + 1
+        self.arrived.set()
+
+    async def until(self, check, after, timeout=None):
+        self.asked += 1
+        try:
+            await asyncio.wait_for(self.arrived.wait(), timeout)
+        except asyncio.TimeoutError:
+            return False
+        return self.reported_at > after
+
+
+def app(tools: dict | None = None):
+    registry = Registry()
+    ran = []
+    for name, reply in (tools or {}).items():
+        async def handler(ctx, args, name=name, reply=reply):
+            ran.append((name, args, ctx))
+            return await reply(ctx, args) if callable(reply) else reply
+        registry.add(Tool(name, f"{name} does its job.", schema({"what": {"type": "string"}}), handler,
+                          kind="query" if name in ("resources", "research_status") else "effect"))
+    hub = SimpleNamespace(settings=Settings(), latest_info=None, scene=SimpleNamespace(objects={}), screen=Screen())
+    logged = []
+    brain = SimpleNamespace(registry=registry, hub=hub, agent=SimpleNamespace(log=logged.append), conversation=Conversation(),
+                            board=None, sight=None, services=None, voice=None, narrator=None,
+                            _remember_run_outputs=lambda *a, **k: False, voice_recap=lambda **k: "recap")
+    brain.quick = lambda *a, **k: pytest.fail("the partner never hands the user's words to the brain's hands")
+    return hub, brain, ran, logged
+
+
+async def partner_session(monkeypatch, tools=None, frames=None, talk="hold"):
+    """A Partner bound to a RealtimeSession on a fake sideband; the studio's messages recorded in `studio`."""
+    hub, brain, ran, logged = app(tools)
+    studio = []
+    frames = frames if frames is not None else [(b"CAMERA-AT-KEY-DOWN", 41, [0, 0, 100, 100])]
+    grabs = []
+
+    def view_frame(hub_, max_side):
+        grabs.append(max_side)
+        return frames[min(len(grabs), len(frames)) - 1]
+
+    monkeypatch.setattr("orchestrator.voice.scene_tools.view_frame", view_frame)
+
+    async def send(message):
+        studio.append(message)
+
+    partner = Partner(hub, brain, None, send=send, log=logged.append)
+
+    async def brief():
+        return "Project Leaf: 341 nuclei measured; Researcher 3 running.", "rev-1"
+    partner.brief = brief
+    session = RealtimeSession(VoiceConfig(model="gpt-realtime-2.1", system_prompt="be brief"), talk=talk,
+                              create_call=None, open_sideband=None, hangup=None)
+    sidebands = []
+
+    async def create_call(offer, config):
+        return "answer", f"rtc_{len(sidebands) + 1}"
+
+    async def open_sideband(call_id):
+        sb = FakeSideband()
+        sidebands.append(sb)
+        return sb
+
+    async def hangup(call_id):
+        pass
+
+    session._create_call, session._open_sideband, session._hangup = create_call, open_sideband, hangup
+    session.noted = logged.append
+    partner.bind(session)
+    session.config.tools = partner.tools.specs()
+    await session.start("v=0 offer")
+    return SimpleNamespace(partner=partner, session=session, sb=sidebands[0], sidebands=sidebands, studio=studio,
+                           hub=hub, brain=brain, ran=ran, logged=logged, grabs=grabs, frames=frames)
+
+
+async def press(t, n, *, snapshot=b"WINDOW-AT-KEY-DOWN", how="tab-share"):
+    await t.partner.command({"type": "talk", "down": True, "n": n})
+    await settle()
+    if snapshot is not None:
+        await t.partner.command({"type": "snapshot", "id": f"talk-{n}", "jpeg": base64.b64encode(snapshot).decode(),
+                                 "w": 1280, "h": 800, "at": 0, "how": how})
+
+
+async def release(t, n):
+    await asyncio.sleep(openai_realtime.MIN_HOLD_S + 0.01)
+    await t.partner.command({"type": "talk", "down": False, "n": n})
+    await until_async(lambda: "input_audio_buffer.commit" in t.sb.types())
+    await settle()
+
+
+def pictures(item) -> list[bytes]:
+    return [base64.b64decode(part["image_url"].split(",", 1)[1]) for part in item["content"]
+            if part["type"] == "input_image"]
+
+
+# --- seeing --------------------------------------------------------------------------------------------------------
+def test_a_turn_holds_both_pictures_the_screen_text_and_the_brief_as_they_were_at_key_down(monkeypatch):
+    """Perception at key-down (amendment 1): the camera frame and the studio's window as the key went down, the screen
+    as text and the Project brief, in the conversation before the answer is asked for. Chat log: "I can't see your
+    screen right now" and "the only thing we've got is the original image" came from a voice that saw no pixels."""
+    async def go():
+        t = await partner_session(monkeypatch, frames=[(b"CAMERA-AT-KEY-DOWN", 41, [0, 0, 100, 100]),
+                                                       (b"CAMERA-LATER", 42, [0, 0, 100, 100])])
+        await press(t, 1)
+        t.hub.screen._lines = ["w-9: something opened after the key went down"]
+        await release(t, 1)
+        items = t.sb.items()
+        brief = [i for i in items if i.get("role") == "system" and "Project Leaf" in i["content"][0]["text"]]
+        assert len(brief) == 1, "the brief is one system item"
+        note = next(i for i in items if i.get("role") == "system" and i["content"][0]["text"].startswith("Turn 1"))
+        assert "w-1: Measurements table, in front" in note["content"][0]["text"]  # as at key-down
+        images = next(i for i in items if any(p["type"] == "input_image" for p in i["content"]))
+        assert pictures(images) == [b"CAMERA-AT-KEY-DOWN", b"WINDOW-AT-KEY-DOWN"]
+        labels = [p["text"] for p in images["content"] if p["type"] == "input_text"]
+        assert "frame 41" in labels[0] and "tab-share" in labels[1]
+        order = t.sb.types()
+        assert order.index("input_audio_buffer.commit") > order.index("conversation.item.create")
+        assert t.partner.last_frame == {"id": 41, "crop": [0, 0, 100, 100]}
+        turn = next(r for r in t.logged if r["kind"] == "partner-turn")
+        assert turn["camera"] is True and turn["window"]["how"] == "tab-share" and turn["screenNowChars"] > 0
+    asyncio.run(go())
+
+
+def test_the_window_picture_sent_right_behind_the_key_down_is_kept_for_its_turn(monkeypatch):
+    """The studio sends talk-down and its snapshot back to back; the snapshot may be read before the talk task runs
+    (p25-rt-studio's review of 02f60c3). A picture arriving after release is too late for that turn."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await t.partner.command({"type": "talk", "down": True, "n": 1})
+        await t.partner.command({"type": "snapshot", "id": "talk-1", "jpeg": base64.b64encode(b"FIRST").decode(),
+                                 "how": "composed", "at": 0})
+        await release(t, 1)
+        await t.partner.command({"type": "snapshot", "id": "talk-1", "jpeg": base64.b64encode(b"LATE").decode(),
+                                 "how": "composed", "at": 0})
+        images = next(i for i in t.sb.items() if any(p["type"] == "input_image" for p in i["content"]))
+        assert pictures(images) == [b"CAMERA-AT-KEY-DOWN", b"FIRST"]
+        assert t.partner._seen[1]["window"]["jpeg"] == b"FIRST"
+    asyncio.run(go())
+
+
+def test_release_commits_and_asks_for_the_answer_with_nothing_fetched_after_it(monkeypatch):
+    """Release is commit then response.create at once: no camera grab, no snapshot-request, no brief read after it."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        grabs_before, studio_before = len(t.grabs), len(t.studio)
+        sent_before = len(t.sb.sent)
+        await release(t, 1)
+        after = t.sb.types()[sent_before:]
+        assert after[-2:] == ["input_audio_buffer.commit", "response.create"]
+        assert set(after[:-2]) <= {"conversation.item.create", "conversation.item.delete"}
+        assert len(t.grabs) == grabs_before and len(t.studio) == studio_before, "nothing fetched after release"
+        create = t.sb.sent[-1]
+        assert create["response"]["metadata"] == {"cause": "turn", "n": "1"}
+    asyncio.run(go())
+
+
+def test_the_last_turns_pictures_are_deleted_and_its_text_note_kept(monkeypatch):
+    """Amendment 9: images go, a short text note per turn stays (and seeds a reconnect)."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        await release(t, 1)
+        first = next(i["id"] for i in t.sb.items() if any(p["type"] == "input_image" for p in i["content"]))
+        await done(t.sb, "resp_1")
+        await press(t, 2)
+        await release(t, 2)
+        deleted = [e["item_id"] for e in t.sb.sent if e["type"] == "conversation.item.delete"]
+        assert first in deleted
+        assert [n.split(" at ")[0] for n in t.session.notes] == ["Turn 1", "Turn 2"]
+    asyncio.run(go())
+
+
+def test_a_tap_and_a_cancel_ask_for_nothing():
+    async def go():
+        session, sbs, _, _ = await realtime()
+        sb = sbs[0]
+        await session.talk_down(1)
+        assert await session.talk_up(1) is False  # a tap: shorter than MIN_HOLD_S
+        await session.talk_down(2)
+        await session.talk_cancel(2)
+        assert "response.create" not in sb.types() and "input_audio_buffer.commit" not in sb.types()
+        assert sb.types().count("input_audio_buffer.clear") >= 3
+    asyncio.run(go())
+
+
+def test_the_session_config_holds_tools_and_no_turn_detection_for_hold_and_semantic_vad_for_open():
+    async def go():
+        from orchestrator.voice.base import ToolSpec
+
+        async def handler(args):
+            return {}
+        _, _, made, _ = await realtime(tools=[ToolSpec("mark", "point", {"type": "object"}, handler)])
+        config = made["configs"][0][1]
+        assert config["audio"]["input"]["turn_detection"] is None
+        assert config["tools"] == [{"type": "function", "name": "mark", "description": "point", "parameters": {"type": "object"}}]
+        assert config["reasoning"] == {"effort": "low"} and config["truncation"]["retention_ratio"] == 0.8
+        assert config["audio"]["input"]["noise_reduction"] == {"type": "far_field"}
+        _, _, made, _ = await realtime(talk="open")
+        turn = made["configs"][0][1]["audio"]["input"]["turn_detection"]
+        assert turn["type"] == "semantic_vad" and turn["interrupt_response"] is True and turn["create_response"] is False
+    asyncio.run(go())
+
+
+# --- acting --------------------------------------------------------------------------------------------------------
+def test_a_function_call_runs_the_registry_tool_and_returns_its_output(monkeypatch):
+    """The model's call runs the brain's own tool, in a voice request attributed to the Assistant, and its receipt goes
+    back as function_call_output before the model is asked to go on."""
+    async def go():
+        t = await partner_session(monkeypatch, tools={"resources": "341 nuclei measured: area and shape per cell."})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "what data do we have?"})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "call_1",
+                   "name": "resources", "arguments": json.dumps({"what": "data"})})
+        await done(t.sb, "resp_1", output=[{"type": "function_call", "call_id": "call_1", "name": "resources",
+                                            "arguments": json.dumps({"what": "data"})}])
+        await until_async(lambda: t.sb.responses == 2)
+        name, args, ctx = t.ran[0]
+        assert name == "resources" and args == {"what": "data"}
+        assert ctx.channel == "voice" and ctx.voice_owner is t.session and ctx.question == "what data do we have?"
+        assert ctx.admission is not None and ctx.request_id == ctx.admission.request_id
+        output = next(i for i in t.sb.items() if i["type"] == "function_call_output")
+        assert output["call_id"] == "call_1" and json.loads(output["output"])["summary"].startswith("341 nuclei")
+        sent = t.sb.types()
+        assert sent.index("response.create", sent.index("input_audio_buffer.commit") + 2) > \
+            [k for k, e in enumerate(t.sb.sent) if e.get("item", {}).get("type") == "function_call_output"][0]
+        assert t.sb.sent[-1]["response"]["metadata"]["cause"] == "tool"
+        record = next(r for r in t.logged if r["kind"] == "partner-tool")
+        assert record["name"] == "resources" and record["ok"] is True and record["requestId"] == ctx.request_id
+        assert len(t.ran) == 1, "the call ran once though it came in two events"
+    asyncio.run(go())
+
+
+def test_act_then_look_waits_for_the_studios_report_and_adds_a_fresh_window_picture(monkeypatch):
+    """After a change on screen the model gets the studio's report and a fresh picture before it says done.
+    Chat log: "I've brought up the measurements table" / "the table is still not open" (said with no check)."""
+    async def go():
+        t = await partner_session(monkeypatch, tools={"show_measurements": "the table is in front on Tab Measurements"})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "show_measurements", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.hub.screen.asked == 1)
+        await settle()
+        assert not [m for m in t.studio if m["type"] == "snapshot-request"], "the look waits for the report first"
+        assert t.sb.responses == 1
+        t.hub.screen.report(["w-2: Measurements table, in front"])
+        request = await until_async(lambda: next((m for m in t.studio if m["type"] == "snapshot-request"), None))
+        await t.partner.command({"type": "snapshot", "id": request["id"], "jpeg": base64.b64encode(b"AFTER").decode(),
+                                 "how": "composed", "at": 0})
+        await until_async(lambda: t.sb.responses == 2)
+        items = t.sb.items()
+        out = next(i for i in items if i["type"] == "function_call_output")
+        note = next(i for i in items if i.get("role") == "system" and "After show_measurements" in i["content"][0]["text"])
+        shot = next(i for i in items if i.get("role") == "user" and b"AFTER" in pictures(i))
+        assert items.index(out) < items.index(note) < items.index(shot)
+        assert "w-2: Measurements table, in front" in note["content"][0]["text"]
+        assert t.sb.sent[-1]["response"]["metadata"]["cause"] == "look"
+        record = next(r for r in t.logged if r["kind"] == "partner-tool")
+        assert record["screenChange"] is True and record["confirmed"] is True and record["reportT"]
+    asyncio.run(go())
+
+
+def test_a_mark_reports_only_what_the_studio_said_it_drew(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        mark = next(s for s in t.session.config.tools if s.name == "mark")
+        call = asyncio.ensure_future(mark.handler({"targets": [{"target": "outline:o12"}, {"target": "tab:Measurements"}],
+                                                   "style": "box"}))
+        sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert sent["marks"] == [{"target": "outline:o12", "style": "box"}, {"target": "tab:Measurements", "style": "box"}]
+        assert sent["until"] == "speech-end"
+        await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": [
+            {"target": "outline:o12", "ok": True, "rect": [1, 2, 3, 4]},
+            {"target": "tab:Measurements", "ok": False, "why": "ambiguous"}]})
+        result = await call
+        assert result["ok"] is True and result["shown"] == ["outline:o12"]
+        assert result["not_shown"] == [{"target": "tab:Measurements", "why": "ambiguous"}]
+        # A frame region carries the frame the model saw, so the studio maps it exactly.
+        t.partner.last_frame = {"id": 41, "crop": [5, 6, 700, 700]}
+        call = asyncio.ensure_future(mark.handler({"targets": [{"target": "frame", "region": [0.1, 0.2, 0.3, 0.3]}]}))
+        sent = await until_async(lambda: [m for m in t.studio if m["type"] == "marks"][1:] or None)
+        assert sent[0]["frame"] == {"id": 41, "crop": [5, 6, 700, 700]} and sent[0]["marks"][0]["region"] == [0.1, 0.2, 0.3, 0.3]
+        await t.partner.command({"type": "marks-shown", "id": sent[0]["id"], "resolved": [{"target": "frame", "ok": False,
+                                                                                       "why": "out-of-view"}]})
+        assert (await call)["ok"] is False
+    asyncio.run(go())
+
+
+def test_a_mark_the_studio_never_answers_is_not_claimed(monkeypatch):
+    monkeypatch.setattr("orchestrator.voice.partner_tools.MARKS_WAIT_S", 0.05)
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        mark = next(s for s in t.session.config.tools if s.name == "mark")
+        result = await mark.handler({"targets": ["researcher:3"]})
+        assert result["ok"] is False and "do not say" in result["error"]
+    asyncio.run(go())
+
+
+def test_one_request_one_researcher_through_this_path(monkeypatch):
+    """Chat log: "Why did you create two researchers?" One spoken request starts one researcher: the model's call is the
+    only actor (the words never go to the brain's hands), and the same call again in that turn is not run twice."""
+    async def go():
+        t = await partner_session(monkeypatch, tools={"start_researcher": "Researcher 4 started on the table"})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "create a researcher that looks at the data on the table"})
+        args = json.dumps({"what": "look at the data on the table"})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "start_researcher", "arguments": args})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.sb.responses == 2)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_2", "call_id": "c2",
+                   "name": "start_researcher", "arguments": args})
+        await done(t.sb, "resp_2")
+        await until_async(lambda: t.sb.responses == 3)
+        assert [r[0] for r in t.ran] == ["start_researcher"]
+        second = [json.loads(i["output"]) for i in t.sb.items() if i["type"] == "function_call_output"][1]
+        assert "not done again" in second["note"]
+        assert t.brain.conversation.heard == ["create a researcher that looks at the data on the table"]
+    asyncio.run(go())
+
+
+def test_a_long_tool_is_answered_still_working_and_its_outcome_said_once_later(monkeypatch):
+    """Chat log: one outcome said three times ("I've opened the table..." again and again). A tool past its wait is
+    "still working" (never done), and its outcome is one line when it lands, not repeated in its output."""
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.05)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "grouped 341 cells into 2 look groups"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.sb.responses == 2)
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["ok"] is None and output["still_working"] is True
+        await done(t.sb, "resp_2")
+        t.session._last_user_at = 0.0  # quiet
+        gate.set()
+        await until_async(lambda: t.sb.responses == 3)
+        proactive = t.sb.sent[-1]["response"]
+        assert proactive["metadata"]["cause"] == "proactive" and proactive["tool_choice"] == "none"
+        facts = [i for i in t.sb.items() if i.get("role") == "system" and "Something happened" in i["content"][0]["text"]]
+        assert len(facts) == 1 and "grouped 341 cells" in facts[0]["content"][0]["text"]
+        await done(t.sb, "resp_3")
+        await asyncio.sleep(0.4)
+        assert t.sb.responses == 3, "said once"
+    asyncio.run(go())
+
+
+# --- talking -------------------------------------------------------------------------------------------------------
+def test_pressing_talk_while_it_speaks_cancels_and_clears_its_audio(monkeypatch):
+    """Barge-in (amendment 2): response.cancel and output_audio_buffer.clear, then listening afresh; marks cleared.
+    Chat log: "Wait, why are you talking over me?"."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_1"})
+        await settle()
+        before = len(t.sb.sent)
+        await press(t, 2, snapshot=None)
+        sent = t.sb.types()[before:]
+        assert sent[:3] == ["response.cancel", "output_audio_buffer.clear", "input_audio_buffer.clear"]
+        assert {"type": "marks-clear"} in t.studio
+        barge = next(r for r in t.logged if r["kind"] == "partner-barge")
+        assert barge["n"] == 2 and barge["clearT"] >= barge["cancelT"]
+        assert next(r for r in t.logged if r["kind"] == "partner-talk" and r["n"] == 2)["barge"] is True
+    asyncio.run(go())
+
+
+def test_a_line_nobody_asked_for_waits_for_quiet_and_is_said_once(monkeypatch):
+    """Amendment 4: an event is one sentence, only when nobody is talking (no key held, no speech for 1.5 s), at most
+    once; it points at the researcher's card. Chat log: the voice talked over the user."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)  # the user is holding the key
+        await t.partner.happened("researcher-done", '{"researcher": "Researcher 3", "status": "done"}', ref="R3",
+                                 mark="researcher:R3")
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 0, "never over the user"
+        await release(t, 1)
+        await done(t.sb, "resp_1")
+        t.session._last_user_at -= 2.0  # 2 s of quiet
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert marks["marks"] == [{"target": "researcher:R3", "style": "box"}]
+        await until_async(lambda: t.sb.responses == 2)
+        assert t.sb.sent[-1]["response"]["metadata"]["cause"] == "proactive"
+        await done(t.sb, "resp_2")
+        await t.partner.happened("researcher-done", '{"researcher": "Researcher 3", "status": "done"}', ref="R3")
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 2, "one line per event"
+        said = [r for r in t.logged if r["kind"] == "partner-proactive"]
+        assert said[0]["markTarget"] == "researcher:R3" and said[0]["responseCreatedT"]
+        assert said[1]["skipped"] == "duplicate"
+    asyncio.run(go())
+
+
+def test_a_researcher_the_announcer_speaks_is_tagged_with_its_card_not_said_twice(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        researcher = SimpleNamespace(purpose="research", status="done", rid="R3", name="Researcher 3",
+                                     origin={"channel": "voice"}, result={"one_liner": "two size groups"})
+        t.partner._research_done(researcher)
+        await settle()
+        assert t.sb.responses == 0, "a researcher asked for by voice is said by the announcer's line"
+        t.session._last_user_at = 0.0
+        await t.session.inject("Requested notification: Researcher 3 finished.", respond=True)
+        await until_async(lambda: t.sb.responses == 1)
+        said = next(r for r in t.logged if r["kind"] == "partner-proactive")
+        assert said["event"] == "researcher-done" and said["ref"] == "R3" and said["markTarget"] == "researcher:R3"
+        # One asked for by chat is said here, once.
+        await done(t.sb, "resp_1")
+        typed = SimpleNamespace(purpose="research", status="failed", rid="R4", name="Researcher 4", origin={"channel": "chat"},
+                                result=None)
+        t.partner._research_done(typed)
+        await until_async(lambda: t.sb.responses == 2)
+        assert [r["event"] for r in t.logged if r["kind"] == "partner-proactive"][-1] == "researcher-failed"
+    asyncio.run(go())
+
+
+def test_nothing_meant_for_the_model_is_spoken(monkeypatch):
+    """App text (the brief, notes, tool receipts, what happened) reaches the model only as system items, user pictures or
+    function outputs, never as assistant words or as words a response is told to say; the chat files only what the
+    voice itself said. Chat log: stray JSON fragments ("nt"}ffield"}) were read aloud."""
+    async def go():
+        t = await partner_session(monkeypatch, tools={"resources": '{"kind": "summary"} 7 cells'})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.sb.responses == 2)
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_2", "delta": "Seven cells."})
+        await done(t.sb, "resp_2")
+        t.session._last_user_at = 0.0
+        await t.partner.happened("tool-done", '{"tool": "count", "status": "done"}', ref="a1")
+        await until_async(lambda: t.sb.responses == 3)
+        assert not [i for i in t.sb.items() if i.get("role") == "assistant"], "the app never writes the voice's words"
+        for event in t.sb.sent:
+            if event["type"] == "response.create":
+                said = event["response"].get("instructions") or ""
+                assert '"tool"' not in said and "7 cells" not in said and "Project Leaf" not in said
+        assistant = [turn.text for turn in t.brain.conversation.turns if turn.role == "assistant"]
+        assert assistant == ["Seven cells."]
+        assert "Nothing was outlined" not in json.dumps(t.sb.sent), "no appended filler (chat log: \"Nothing's outlined.\")"
+    asyncio.run(go())
+
+
+def test_the_prompt_never_sends_the_user_away_or_denies_seeing():
+    """Chat log: "Quit and reopen the app for a clean refresh" and "I can't see your screen right now"."""
+    said = " ".join(PARTNER.split())
+    assert "Never tell the user to restart, refresh, reload or quit the app" in said
+    assert "Never say you cannot see the screen" in said
+    assert "Start a researcher only when the user asks for one, and only one per request" in said
+
+
+# --- one conversation, reconnecting, usage -----------------------------------------------------------------------
+def test_voice_turns_are_filed_in_the_shared_conversation(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.brain.conversation.add("user", "chat", "what is this?")
+        t.brain.conversation.add("assistant", "chat", "Onion skin.")
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "outline the biggest one"})
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": "Here it is."})
+        await done(t.sb, "resp_1")
+        roles = [(turn.role, turn.channel, turn.text) for turn in t.brain.conversation.turns]
+        assert ("user", "voice", "outline the biggest one") in roles and ("assistant", "voice", "Here it is.") in roles
+        assert t.partner.history()[:2] == [("user", "what is this?"), ("assistant", "Onion skin.")]
+    asyncio.run(go())
+
+
+def test_reconnect_seeds_the_new_call_with_the_conversation_the_brief_and_what_was_seen(monkeypatch):
+    """Amendment 8: a call that ended asks the studio for a new offer; the new call starts knowing the recent turns, the
+    brief and the per-turn notes, as the same session object (researchers' delivery still reaches it)."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.brain.conversation.add("user", "chat", "how many cells?")
+        t.brain.conversation.add("assistant", "voice", "341.")
+        await press(t, 1)
+        await release(t, 1)
+        await done(t.sb, "resp_1")
+        await settle()
+        session = t.session
+        opened = session._open_sideband
+
+        async def only_live_calls(call_id):
+            if call_id == "rtc_1":
+                raise ConnectionError("that call has ended")
+            return await opened(call_id)
+        session._open_sideband = only_live_calls
+        t.sb.emit(None)  # the connection drops, and the call with it
+        offer = await until_async(lambda: next((m for m in t.studio if m["type"] == "reoffer"), None))
+        assert offer["why"] == "close"
+        await t.partner.command({"type": "offer", "id": offer["id"], "sdp": "v=0 new offer"})
+        await until_async(lambda: {"type": "voice", "kind": "answer", "data": {"sdp": "answer"}} in t.studio)
+        new = t.sidebands[-1]
+        assert new is not t.sb and t.partner.session is session and session.call_id == "rtc_2"
+        texts = [(i.get("role"), i["content"][0]["text"]) for i in new.items() if i.get("type") == "message"]
+        assert ("user", "how many cells?") in texts and ("assistant", "341.") in texts
+        assert any(role == "system" and "Turn 1" in text for role, text in texts)
+        assert any(role == "system" and "Project Leaf" in text for role, text in texts)
+        record = next(r for r in t.logged if r["kind"] == "partner-reconnect")
+        assert record["reason"] == "close" and record["ms"] >= 0
+    asyncio.run(go())
+
+
+def test_a_sideband_that_drops_on_a_live_call_is_reattached_without_a_new_offer(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        calls = []
+        original = t.session._open_sideband
+
+        async def reopen(call_id):
+            calls.append(call_id)
+            return await original(call_id)
+        t.session._open_sideband = reopen
+        t.sb.emit(None)
+        await until_async(lambda: len(t.sidebands) == 2)
+        await settle()
+        assert calls == ["rtc_1"] and not [m for m in t.studio if m["type"] == "reoffer"]
+    asyncio.run(go())
+
+
+def test_response_usage_is_reported_in_tokens_and_dollars():
+    async def go():
+        session, sbs, _, logged = await realtime()
+        events = []
+        session.on(events.append)
+        usage = {"input_token_details": {"text_tokens": 1000, "audio_tokens": 600, "image_tokens": 800, "cached_tokens": 0},
+                 "output_token_details": {"text_tokens": 50, "audio_tokens": 1200}}
+        await done(sbs[0], "resp_x", usage=usage)
+        event = next(e for e in events if e.kind == "usage")
+        assert event.data["tokens"] == usage_facts(usage)
+        expected = (1000 * 4 + 600 * 32 + 800 * 5 + 50 * 24 + 1200 * 64) / 1e6
+        assert event.data["usd"] == pytest.approx(expected) == pytest.approx(usage_usd(usage_facts(usage)))
+        record = next(r for r in logged if r["kind"] == "partner-response")
+        assert record["usage"]["outAudio"] == 1200
+    asyncio.run(go())
+
+
+def test_the_route_opens_the_one_brain_voice_over_webrtc_only(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from orchestrator.voice import route
+
+    made = []
+
+    class FakeRealtime:
+        def __init__(self, config, talk="hold", **kw):
+            self.config, self.talk, self.closed, self.n = config, talk, False, 0
+            self.answer_sdp, self.session_id, self.last_commentary_at, self.usage_seconds = None, "rtc_1", 0.0, None
+            made.append(self)
+
+        def on(self, callback):
+            pass
+
+        def seed_brief(self, text, revision):
+            self.brief = text
+
+        async def start(self, offer_sdp=None):
+            self.answer_sdp = "v=0 answer"
+
+        async def events(self):
+            from orchestrator.voice.base import VoiceEvent
+            yield VoiceEvent("closed", data={"reason": "test"})
+
+        async def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(route, "RealtimeSession", FakeRealtime)
+
+    async def brief(self):
+        return "Project Leaf", "r1"
+    monkeypatch.setattr(partner_module.Partner, "brief", brief)
+    hub, brain, _, _ = app()
+    hub.settings.voice, hub.settings.talk = "gpt-realtime-2.1", "hold"
+    web = FastAPI()
+    route.add_voice_route(web, hub, brain, dialogue=None)
+    client = TestClient(web)
+    with client.websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+        assert "WebRTC only" in ws.receive_json()["data"]["message"]
+    with client.websocket_connect("/ws/voice?link=webrtc", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+        ws.send_text(json.dumps({"type": "offer", "sdp": "v=0 offer"}))
+        assert ws.receive_json() == {"type": "voice", "kind": "answer", "data": {"sdp": "v=0 answer"}}
+        model = ws.receive_json()
+        assert model["kind"] == "model" and model["data"]["talk"] == "hold" and model["data"]["talkKey"] == "control-option"
+    assert made[0].config.model == "gpt-realtime-2.1" and made[0].brief == "Project Leaf"
+    assert {"mark", "look_hard", "do_in_hooke"} <= {t.name for t in made[0].config.tools}
