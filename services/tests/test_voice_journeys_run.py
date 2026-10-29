@@ -41,7 +41,8 @@ def calls(path: Path) -> list[list[str]]:
 
 def complete(judged: dict) -> dict:
     """A verdict for every step of the synthetic run, as verdicts() writes them (a step without one is judged again)."""
-    return {sid: {"answered": True} for sid in ("outline", "table", "researcher", "status", "explain", "barge", "multi")} | judged
+    return {sid: {"answered": True, "partner_quality": 3}
+            for sid in ("outline", "table", "researcher", "status", "explain", "barge", "multi")} | judged
 
 
 def kept_run(out: Path, verdicts=True) -> None:
@@ -274,7 +275,8 @@ def test_the_judge_numbers_the_lines_the_scorer_reads():
 
     model = Model()
     judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
-    assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
+    # Answer quality only: anything else the judge says is not kept (the app's records score the rest).
+    assert set(judged["outline"]) == {"answered"} and "claims_on_screen" not in model.prompts[0]
     assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]
     assert "partner_quality: 0-3" in model.prompts[0] and "I've circled it." in model.prompts[0]  # calibrated
     assert "Earlier" not in model.prompts[0] and 'Earlier, the user said "outline"' in model.prompts[1]  # the turns before
@@ -464,3 +466,21 @@ def test_only_the_steps_without_an_answer_are_judged_again(tmp_path, monkeypatch
     after = json.loads((out / "run-1" / "verdicts.json").read_text())
     assert after["_judge"] == "gpt-6.1-sol + gemini-3.8-flash" and after["explain"]["partner_quality"] == 2
     assert calls(log)[0][2] == f"{1 * judge.COST_PER_STEP_USD:.2f}"  # one step's worst case reserved
+
+
+
+def test_a_kept_run_rescored_twice_gives_the_same_result(tmp_path, monkeypatch):
+    """The spec: a kept run scored twice by the same scorer gives the same result; result.json names the scorer."""
+    out = tmp_path / "out"
+    kept_run(out)
+    monkeypatch.setattr(run.stacks, "up", lambda *_: pytest.fail("score-only started a stack"))
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps({**PLAN, "id": "synthetic"}))
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])
+    first = (out / "result.json").read_text()
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])
+    assert (out / "result.json").read_text() == first
+    from bench.voice_journeys.standard import SCORER_VERSION
+
+    assert json.loads(first)["about"]["scorer"] == SCORER_VERSION
+    assert f"Scorer {SCORER_VERSION}." in (out / "scoreboard.md").read_text()

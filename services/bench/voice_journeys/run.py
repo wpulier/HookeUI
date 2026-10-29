@@ -28,7 +28,7 @@ from pathlib import Path
 
 from . import stack as stacks
 from .judge import COST_PER_STEP_USD, JUDGES
-from .standard import markdown, meets, read_jsonl, realtime_cost, score_run, scoreboard, summarise
+from .standard import SCORER_VERSION, markdown, meets, read_jsonl, realtime_cost, score_run, scoreboard, summarise
 
 HERE = Path(__file__).resolve().parent
 SERVICES = HERE.parents[1]
@@ -194,7 +194,7 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
              "transcripts": "from the transcripts' first words (no audio timing)"}
     result = {"about": {**about, "plan": plan["id"], "reps": len(runs),
                         "audioFrom": "; ".join(heard.get(s, s) for s in sorted(sources)) or "nowhere: no runs",
-                        "judge": ", ".join(dict.fromkeys(judges)) or "none",
+                        "judge": ", ".join(dict.fromkeys(judges)) or "none", "scorer": SCORER_VERSION,
                         **({"judgesPassedOver": passed_over} if passed_over else {})},
               "summary": summary, "scoreboard": board, "meets": meets(board), "recovered": recovered,
               "staged": staged, "runs": runs}

@@ -38,10 +38,17 @@ POINTING = {"mark"}  # tools that point rather than act: never the "first try"
 FALLBACK = "do_in_hooke"
 THINK = "think"
 
-# The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard"). One place, so the scoreboard and the tests
+# The scorer's version, recorded with every result: a kept run rescored by the same version gives the same result
+# (hooke-web part-2.5-live-partner-spec.md, section 2 "The rescore is a warning about the gate itself"). Raise it with
+# any change to what is scored.
+SCORER_VERSION = "2026-10-29.2"
+
+# The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
 STANDARD = {
-    "firstAudioP50": 0.8, "firstAudioP95": 1.5,
+    "heardMax": 0.3,  # a sign it heard you, after release (decision 1)
+    "meaningfulP50": 1.2, "meaningfulP95": 1.8,  # the first meaningful words (decision 1, replacing first audio)
+    "qualityMean": 2.5, "qualityMin": 2,  # Overall: the judge's partner quality
     "bargeSilentMax": 0.15,
     "singleP50": 3.0, "singleP95": 5.0,
     "multiMax": 8.0,
@@ -95,6 +102,18 @@ def phrases(text: str, among: tuple[str, ...]) -> list[str]:
 
 def sentences(text: str) -> int:
     return max(1, len([s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()])) if text.strip() else 0
+
+
+# First words that say nothing yet (a measurement list, deciding nothing for the app): a reply opening with only these is
+# not yet meaningful; the first word beyond them is.
+FILLER = {"mm", "mmm", "mhm", "hmm", "hm", "um", "uh", "okay", "ok", "sure", "right", "alright", "so", "yeah", "yes",
+          "yep", "got", "it", "one", "sec", "second", "moment", "let", "me", "see", "check", "look", "well", "oh", "ah",
+          "great", "thanks", "on", "it's", "i'm", "just", "a"}
+
+
+def meaningful(text: str) -> bool:
+    """Whether a reply's words so far say something beyond filler ("mm", "okay", "one sec", "let me look")."""
+    return any(w not in FILLER for w in re.findall(r"[a-z0-9']+", text.lower()))
 
 
 def researcher_numbers(text: str) -> list[int]:
@@ -424,6 +443,16 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
     return sorted(calls.values(), key=lambda c: c.start)
 
 
+def heard_cues(bench: dict, inter: list[dict]) -> list[float]:
+    """When a sign it heard you was given (decision 1): the server's partner-heard record (its cueT), else the studio's
+    own heard cue as the page saw it (a /ws/voice message of type heard)."""
+    out = [r.get("cueT") if isinstance(r.get("cueT"), (int, float)) else r.get("t") for r in inter
+           if r.get("kind") == "partner-heard"]
+    out += [e["t"] for e in bench["events"] if e.get("e") in ("ws-in", "ws-out")
+            and (e.get("m") or {}).get("type") in ("heard", "heard-cue")]
+    return sorted(t for t in out if isinstance(t, (int, float)))
+
+
 def turn_number(bench_events: list[dict], start: float, end: float):
     """The studio's turn number for this step (its talk down message on /ws/voice)."""
     for e in bench_events:
@@ -442,6 +471,22 @@ def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
             end = response_end(r, ends)
             out.append((r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10))
     return out
+
+
+VISIBLE_INTENTS = {"open", "close", "focus", "highlight", "select", "zoom", "outline", "present"}
+
+
+def backed(receipt: dict, calls: list[Call], bench: dict) -> bool:
+    """Whether the app's state backs a verified receipt: its tool's call confirmed by the studio's report (a visible
+    change) or the state a note or a setting changes; True where the page kept no such state to contradict it."""
+    tool = receipt.get("tool")
+    mine = [c for c in calls if c.name == tool and c.start <= receipt["t"] + NEAR_S]
+    if receipt.get("intent") in VISIBLE_INTENTS or any(c.screen_change for c in mine):
+        return any(c.confirmed_at is not None and c.confirmed_at <= receipt["t"] + 1.0 for c in mine)
+    for c in mine:
+        if c.ok is True and state_backed(c, bench) is not None:
+            return True
+    return not mine
 
 
 SETTING_TOOLS = {"set_default", "use", "set_level", "set_lead", "set_research_cap", "set_objective"}
@@ -543,6 +588,15 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     spoken_step = step.get("kind") not in ("idle", "restart")
     first = first_on_after(segments, release, end) if spoken_step else None
     row["firstAudioS"] = round(first - release, 3) if first is not None else None
+    # The first meaningful words: when the page first showed a line's words beyond filler (else when such a line began).
+    row["meaningfulS"] = None
+    if spoken_step:
+        times = [at for l in lines for at, text in (l.get("growth") or [(l["first"], l["text"])]) if meaningful(text)]
+        times += [l["first"] for l in lines if not l.get("growth") and meaningful(l["text"])]
+        after = [t for t in times if t >= release - NEAR_S]
+        row["meaningfulS"] = round(max(0.0, min(after) - release), 3) if after else None
+    cue = next((t for t in bench.get("_heard") or [] if release - NEAR_S <= t < end), None) if spoken_step else None
+    row["heardS"] = round(max(0.0, cue - release), 3) if cue is not None else None
 
     # Barge-in: the key down while the voice was audible, to silence (and staying silent while held).
     if step.get("interrupt"):
@@ -630,11 +684,9 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         outcome_lines = [l for l in lines if grew_after(l, anchor - NEAR_S) is not None]
         if any(c.confirmed_at is not None and c.screen_change for c in acting):
             fail("a request that cannot succeed changed the screen")
-    # Said once: lines after the confirmation (the judge's count when it ran).
+    # Said once: the lines with words after the confirmation (scored from the record, never by the judge).
     if expect.get("visible") or expect.get("outcome"):
-        said = (verdict or {}).get("outcome_mentions")
-        counted = len(outcome_lines) if visible_at is not None or expect.get("fails") else None
-        row["outcomesSaid"] = said if isinstance(said, int) else counted
+        row["outcomesSaid"] = len(outcome_lines) if visible_at is not None or expect.get("fails") else None
         if row["outcomesSaid"] is not None and row["outcomesSaid"] != 1:
             fail(f"outcome said {row['outcomesSaid']} times")
     else:
@@ -673,29 +725,18 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     row["unaskedChanges"] = sum(1 for c in acting if c.screen_change and c.confirmed_at is not None
                                 and tools is not None and c.name not in (tools or []))
 
-    # False done: a line the judge says claims a visible change, with no confirmation by the time it was said.
-    # A claim is {"line": i, "words": "..."} (or just i): it was said when the page first showed its words.
-    claims = (verdict or {}).get("claims_on_screen")
-    if isinstance(claims, list):
-        confirmed = [c.confirmed_at for c in calls if c.confirmed_at is not None]
-        # A step whose tools change nothing on screen (a note to a researcher, a setting) has no studio report to wait
-        # for: its claim is backed by the call having succeeded before it.
-        if not any(c.screen_change for c in calls):
-            confirmed += [t for c in calls if c.ok is True and c.name not in POINTING and c.name not in (FALLBACK, THINK)
-                          and (t := state_backed(c, bench)) is not None]  # a hand-off may do anything: not by its ok
-        confirmed.sort()
-        false = []
-        for claim in claims:
-            i, words = (claim.get("line"), claim.get("words")) if isinstance(claim, dict) else (claim, None)
-            if isinstance(i, int) and 0 <= i < len(lines):
-                at = said_at(lines[i], words)
-                if not any(t <= at + NEAR_S for t in confirmed):
-                    false.append((words or lines[i]["text"])[:60])
-        row["falseDone"] = len(false)
-        if false:
-            fail(f"said done without a studio report: {false}")
-    else:
-        row["falseDone"] = None
+    # Receipts (the spec, section 4.2): every action ends in one (verified, failed, uncertain, running). A false "done" is
+    # a receipt saying verified that the app's own state does not back (no studio report of a visible change; for a
+    # note or a setting, the researcher's notes or the setting unchanged): scored from receipts and app state, never
+    # by the judge.
+    receipts = [r for r in inter if r.get("kind") == "partner-hands" and isinstance(r.get("t"), (int, float))
+                and start <= r["t"] < end]
+    row["receipts"] = {k: sum(1 for r in receipts if r.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}
+    false = [r for r in receipts if r.get("result") == "verified" and not backed(r, calls, bench)]
+    row["falseDone"] = len(false) if receipts else None
+    if false:
+        named = [" ".join(str(r.get(k) or "") for k in ("intent", "target")).strip() for r in false]
+        fail(f"verified without the app's state behind it: {named}")
     # Without the judge: a screen change that was never confirmed, and the voice spoke after it (to be read).
     row["unconfirmedThenSpoke"] = sum(1 for c in acting if c.screen_change and c.confirmed_at is None
                                       and any(l["first"] > c.start for l in lines))
@@ -934,6 +975,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
                     board[row["rid"]] = row["number"]
     bench["_researchers"] = api_researchers(bench)
     bench["_fragments"] = fragments(bench)
+    bench["_heard"] = heard_cues(bench, inter)
     bench["_thinks"] = thinks(inter)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
@@ -952,7 +994,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             by_step[step["id"]] = numbers
             started_numbers += numbers[-1:]
         rows.append(row)
-    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks"):
+    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard"):
         bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
@@ -1005,6 +1047,10 @@ def summarise(runs: list[dict]) -> dict:
     return {
         "runs": len(runs), "steps": len(steps),
         "firstAudio": {"p50": median(first), "p95": pct(first, 95), "n": len(first)},
+        "meaningful": {"p50": median(m := [r["meaningfulS"] for r in steps if r.get("meaningfulS") is not None]),
+                       "p95": pct(m, 95), "n": len(m)},
+        "heard": {"max": max(h) if (h := [r["heardS"] for r in steps if r.get("heardS") is not None]) else None, "n": len(h),
+                  "of": sum(1 for r in steps if r.get("meaningfulS") is not None or r.get("firstAudioS") is not None)},
         "barge": {"max": max(barge) if barge else None, "leaks": sum(1 for r in steps if r.get("bargeLeak")), "n": len(barge)},
         "single": {"p50": median(single), "p95": pct(single, 95), "n": len(single)},
         "multi": {"max": max(multi) if multi else None, "n": len(multi)},
@@ -1025,6 +1071,8 @@ def summarise(runs: list[dict]) -> dict:
                     "verified": sum(((run.get("drive") or {}).get("results") or {}).get("verified", 0) for run in runs),
                     "hands": sum(sum(((run.get("drive") or {}).get("results") or {}).values()) for run in runs)},
         "falseDone": {"count": sum(r["falseDone"] for r in judged), "judgedSteps": len(judged),
+                      "receipts": {k: sum((r.get("receipts") or {}).get(k, 0) for r in steps)
+                                   for k in ("verified", "failed", "uncertain", "running")},
                       "unconfirmedThenSpoke": sum(r["unconfirmedThenSpoke"] for r in steps)},
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
                         "startMax": max((r["researcherStartS"] for r in researcher_rows), default=None),
@@ -1086,10 +1134,14 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     features, those lines are not applicable to it (still not a pass)."""
     S = STANDARD
     L = []
-    fa = s["firstAudio"]
-    L.append(_line("Feel", "Release to first audio", f"p50 {_fmt(fa['p50'])}, p95 {_fmt(fa['p95'])} (n {fa['n']})",
-                   f"p50 ≤ {S['firstAudioP50']} s, p95 ≤ {S['firstAudioP95']} s",
-                   None if not fa["n"] else fa["p50"] <= S["firstAudioP50"] and fa["p95"] <= S["firstAudioP95"]))
+    fa, mw, hd = s["firstAudio"], s["meaningful"], s["heard"]
+    L.append(_line("Feel", "A sign it heard you", f"max {_fmt(hd['max'])} ({hd['n']} of {hd['of']} turns)",
+                   f"≤ {S['heardMax']} s after release, every turn",
+                   None if not hd["n"] else hd["max"] <= S["heardMax"] and hd["n"] == hd["of"],
+                   "no heard cue recorded (partner-heard, or the studio's heard message)" if not hd["n"] else ""))
+    L.append(_line("Feel", "First meaningful words", f"p50 {_fmt(mw['p50'])}, p95 {_fmt(mw['p95'])} (n {mw['n']}); first audio "
+                   f"p50 {_fmt(fa['p50'])}, p95 {_fmt(fa['p95'])}", f"p50 ≤ {S['meaningfulP50']} s, p95 ≤ {S['meaningfulP95']} s",
+                   None if not mw["n"] else mw["p50"] <= S["meaningfulP50"] and mw["p95"] <= S["meaningfulP95"]))
     b = s["barge"]
     L.append(_line("Feel", "Barge-in silent", f"max {_fmt(b['max'])}, came back {b['leaks']} (n {b['n']})",
                    f"≤ {S['bargeSilentMax']} s, stays silent", None if not b["n"] else b["max"] <= S["bargeSilentMax"] and not b["leaks"]))
@@ -1140,8 +1192,11 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
               if th.get("of") else "—",
               "result": "reported" if th.get("of") else "not measured"})
     f = s["falseDone"]
-    L.append(_line("Acting", 'False "done"', f"{f['count']} in {f['judgedSteps']} judged steps; unconfirmed then spoke "
-                   f"{f['unconfirmedThenSpoke']}", "0", None if not f["judgedSteps"] else f["count"] == 0))
+    rc = f.get("receipts") or {}
+    L.append(_line("Acting", 'False "done"', f"{f['count']} of {rc.get('verified', 0)} verified receipts; receipts "
+                   + ", ".join(f"{k} {v}" for k, v in rc.items()) + f"; unconfirmed then spoke {f['unconfirmedThenSpoke']}",
+                   "0, from receipts and app state", None if not f["judgedSteps"] else f["count"] == 0,
+                   "no receipts (no Hands)" if not f["judgedSteps"] else ""))
     r = s["researchers"]
     L.append(_line("Acting", "One researcher per request", f"{r['wrongCount']} steps wrong", "0",
                    r["wrongCount"] == 0 if s["steps"] else None))
@@ -1187,13 +1242,14 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Elegance", "One or two sentences", f"{_fmt(pl['share'], '')} of {pl['n']} lines", f"≥ {S['plainShare']:.0%}",
                    None if pl["share"] is None else pl["share"] >= S["plainShare"]))
     L.append(_line("Elegance", "Nothing on screen not asked for", str(s["unasked"]), "0", s["unasked"] == 0 if s["steps"] else None))
-    # Overall: how much it felt like a sharp colleague (the judge's partner_quality, 0-3). Reported, not a gate.
+    # Overall (the spec's section 1): the judge's partner quality, 0-3, a mean of at least 2.5 and no step under 2.
     q = s.get("quality") or {}
     under = q.get("under2") or []
-    L.append({"area": "Overall", "line": "Partner quality (0-3, judged)", "gate": False,
-              "value": (f"mean {q['mean']:.2f} over {q['n']} steps; under 2: {len(under)}"
-                        + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
-              "threshold": "reported, not a gate", "result": "reported" if q.get("mean") is not None else "not measured"})
+    L.append(_line("Overall", "Partner quality (0-3, judged)",
+                   (f"mean {q['mean']:.2f} over {q['n']} steps; under 2: {len(under)}"
+                    + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
+                   f"mean ≥ {S['qualityMean']}, no step under {S['qualityMin']}",
+                   None if q.get("mean") is None else q["mean"] >= S["qualityMean"] and not under))
     if voice in VOICES_WITHOUT:
         for line in L:
             if line["line"] in ONE_BRAIN_ONLY:
@@ -1211,10 +1267,12 @@ def meets(board: list[dict]) -> bool:
 def markdown(result: dict) -> str:
     """The short scoreboard: one table, then each failed step."""
     head = result.get("about", {})
+    head = {**head, "scorer": head.get("scorer", SCORER_VERSION)}
     out = [f"# Live partner journey: {head.get('voice', '?')} ({head.get('talk', '?')}), plan {head.get('plan', '?')}", "",
            f"{result['summary']['runs']} run(s), {result['summary']['steps']} steps. Audio heard {head.get('audioFrom', 'in the page')}; "
            f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room. "
-           f"Judged by {head.get('judge', 'none')} (judges are not interchangeable: compare runs judged by the same one)."
+           f"Scorer {head['scorer']}. Judged by {head.get('judge', 'none')} (answer quality only; judges are not "
+           "interchangeable: compare runs judged by the same one)."
            + (f" Settings: {json.dumps(head['settings'])}." if head.get("settings") else ""), "",
            f"**Standard met: {'yes' if meets(result['scoreboard']) else 'no'}**", "",
            *([f"The bench put the journey back in its Project after {len(result['recovered'])} step(s) that left it "
