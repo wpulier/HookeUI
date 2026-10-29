@@ -64,6 +64,36 @@ def test_confined_fit_retains_exact_inputs_retry_and_changed_intent(tmp_path, mo
     assert len(store.list('s1')) == 2
 
 
+def test_confined_effect_transfer_retains_model_reference_and_compact_receipt(tmp_path, monkeypatch):
+    from tests.test_response_effect_evaluation import prepared
+    monkeypatch.setenv('MICROMIND_HEAVY_SLOT', str(tmp_path/'slot'))
+    store=ProjectStore(tmp_path/'projects')
+    def reference(saved):
+        return {'id':saved.id,'session':'s1','revision':saved.revision,'digest':saved.digest}
+    def import_file(path, name):
+        content=path.read_bytes()
+        intake=FileIntake(store,'s1','effect-test-'+name,name=path.name,size=len(content),max_bytes=len(content))
+        try:
+            intake.write(content)
+            return reference(intake.publish())
+        finally:
+            intake.close()
+    train=import_file(prepared(tmp_path,'train',[[2.,-2.],[4.,0.]],context='training'),'train')
+    target=import_file(prepared(tmp_path,'target',[[2.,-1.],[1.,0.]]),'target')
+    fitted=runs.run_matrix(store=store,session='s1',capability='response-fit',
+        generation=descriptor('response-fit')['generation'],inputs={'effects':train},
+        params={'regularization':1},request='effect-test-fit-0001')
+    result=runs.run_matrix(store=store,session='s1',capability='response-effect-evaluate',
+        generation=descriptor('response-effect-evaluate')['generation'],
+        inputs={'model':reference(fitted),'reference':target},params={},request='effect-test-evaluate-0001')
+    operation=result.document['state']['matrixOperation']
+    assert operation['inputs']['model']['digest']==fitted.digest
+    assert operation['inputs']['reference']['digest']==target['digest']
+    summary=operation['output']['summary']
+    assert summary['overall']['mse']==.5 and summary['competitionScore'] is False
+    assert summary['evaluatedPairs']==2 and 'rows' not in summary
+
+
 def test_foreign_stale_path_and_changed_generation_refuse_before_compute(tmp_path, monkeypatch):
     store = ProjectStore(tmp_path / 'projects'); ref = kept(store)
     monkeypatch.setattr(runs, '_compute', lambda *a: pytest.fail('Must refuse before computation'))
