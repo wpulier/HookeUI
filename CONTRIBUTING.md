@@ -43,10 +43,10 @@ and maintainers have no bypass. This exception is not a second person's review.
 
 ## Beta and Stable
 
-**PR → `dev` → publish Beta → Will accepts → promote to `main` → publish Stable.**
+**PR → `dev` → publish Beta → the Beta is accepted → promote to `main` → publish Stable.**
 
-Maintainers can merge reviewed work into `dev`. Only Will can merge the promotion
-PR into `main`. Releases use fixed commits and explicit publication; a merge or
+Maintainers can merge reviewed work into `dev`. Only the owner can merge the promotion
+PR into `main`: Will, or his own release agents under his standing authorization of 2026-10-29. Releases use fixed commits and explicit publication; a merge or
 tag does not update installed apps. Maintainer access to the public repository
 does not itself grant access to official signing keys or release publication.
 See [the release policy](packaging/macos/RELEASING.md) for the handoff between roles.

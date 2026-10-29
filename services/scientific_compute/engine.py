@@ -278,7 +278,12 @@ def predict(inputs, params, output, check):
         raise Refused('Predictions must not include the non-targeting control label')
     model_targets = {v: i for i, v in enumerate(model['targets'])}
     model_genes = {v: i for i, v in enumerate(model['genes'])}
-    parts = []; missing = []
+    if __package__:
+        from .count_emission import proportions as convert_effect
+    else:
+        from count_emission import proportions as convert_effect
+    model_meaning = json.loads(model['metadata'].item())
+    parts = []; missing = []; projected_genes = 0
     with _adata(inputs['controls']) as data:
         contexts, labels = _columns(data, params)
         if set(labels.tolist()) != {params['control_label']}:
@@ -306,7 +311,8 @@ def predict(inputs, params, output, check):
                 exponent = effect * params['response_strength']
                 if np.any(np.abs(exponent) > 50):
                     raise Refused('Fitted effects are outside the emitter numerical range; calibrate explicitly')
-                probability = proportions * np.exp2(exponent); probability /= probability.sum()
+                probability, projected = convert_effect(proportions, exponent, data.var_names.tolist(), model_meaning, params['effect_interpretation'])
+                projected_genes += projected
                 for first in range(0, params['cells_per_target'], BLOCK_ROWS):
                     check(); count = min(BLOCK_ROWS, params['cells_per_target'] - first)
                     rows = []
@@ -331,6 +337,10 @@ def predict(inputs, params, output, check):
                   'sparse': True, 'rawCounts': True, 'seed': params['seed'], 'responseStrength': params['response_strength'],
                   'unseenTargets': sorted(set(missing)), 'unmeasuredGenes': data.var_names[~covered].tolist(),
                   'generator': 'control-conditioned-negative-binomial-v1', 'seedScope': 'context-target-cell',
+                  'effectInterpretation': params['effect_interpretation'], 'negativeExpressionProjections': projected_genes,
+                  'compositionalClosure': 'whole-output-gene-axis',
+                  'libraryDepthMeaning': 'sampled expected depth; emitted total also varies',
+                  'independentGeneSampling': True,
                   'assembly': 'anndata-concat-on-disk', 'fullShapeQualified': False}
         path = output / 'prediction.h5ad'; _concat(parts, path, check)
         with _adata(path) as produced:
@@ -424,8 +434,16 @@ def evaluate_effects(inputs, params, output, check):
     return operation(inputs, params, output, check)
 
 
+def concatenate_counts(inputs, params, output, check):
+    if __package__:
+        from .matrix_assembly import concatenate
+    else:
+        from matrix_assembly import concatenate
+    return concatenate(inputs, params, output, check)
+
+
 OPERATIONS = {'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,
-              'response-effect-evaluate': evaluate_effects}
+              'response-effect-evaluate': evaluate_effects, 'matrix-concatenate': concatenate_counts}

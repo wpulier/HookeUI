@@ -453,3 +453,8 @@ lock and performs the same environment/import checks. This is dependency readine
 not an operation proof or scientific qualification. Consumers retain their own
 capability contract and exact runtime generation. Unknown kinds fail closed in
 older apps; runtime entries do not gain a community-channel execution path.
+
+`matrix-concatenate` is a counts-only retained-file operation: exact gene order and unique cell identities,
+explicit limits, no silent annotation loss. `response-predict` keeps proportional fold as an explicit legacy
+approximation and offers pseudocount inversion only with compatible fitted normalization. Both are ordinary
+catalog/workflow declarations; numerical qualification and full-size scientific acceptance remain separate.

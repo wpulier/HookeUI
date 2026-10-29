@@ -96,6 +96,14 @@ label = "Maximum Cell Counts"
 min = 1
 max = 16777216
 
+[[inputs]]
+id = "effect_interpretation"
+type = "choice"
+default = "proportional-fold-v1"
+options = ["proportional-fold-v1", "pseudocount-inverse-v1"]
+label = "Effect interpretation"
+tooltip = "Proportional fold is an approximation; inverse requires fitted normalization and reports negative-expression projection."
+
 [[outputs]]
 id = "result"
 type = "matrix.anndata"

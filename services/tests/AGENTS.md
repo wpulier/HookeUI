@@ -607,3 +607,9 @@ ownership and cancellation without asserting scheduling speed.
 loopback HTTP servers with synthetic credentials: redirects never reach another
 endpoint in either JSON or streamed-download mode, and direct responses still work.
 This is transport qualification, not real Keychain access or a connected-agent journey.
+
+`test_matrix_assembly.py` checks tiny AnnData count assembly, unchanged sources, exact identities/values and
+annotation/precision/resource refusals. `test_count_effect_conversion.py` uses analytical compositions to check
+pseudocount inversion, normalization subsets, explicit negative projection and legacy interpretation. The optional
+prepared-runtime retention probe runs the actual confined concatenation operation with synthetic count inputs;
+none establishes full-shape packaging, generator distribution quality or competition performance.
