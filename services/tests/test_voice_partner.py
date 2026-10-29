@@ -822,15 +822,19 @@ def test_a_refused_best_effort_step_is_logged_not_said_as_an_error(monkeypatch):
     asyncio.run(go())
 
 
-def test_a_capability_turned_on_is_one_line_through_the_voice(monkeypatch):
-    """App.turned_on reaches the one-brain voice through brain.voice.happened (one line, when quiet)."""
+def test_a_capability_turned_on_is_silent_context_through_the_voice(monkeypatch):
+    """App.turned_on reaches the one-brain voice through brain.voice.happened; a capability turned on is silent context
+    (the part 2.5 spec, 4.5): one system item, never answered, once per capability."""
     async def go():
         t = await partner_session(monkeypatch)
         t.session._last_user_at = 0.0
         await t.session.happened("capability-on", "BioCLIP 2 is on: it compares how cells look.", ref="bioclip-2")
-        await until_async(lambda: t.sb.responses == 1)
-        said = next(r for r in t.logged if r["kind"] == "partner-proactive")
-        assert said["event"] == "capability-on" and said["ref"] == "bioclip-2"
+        await t.session.happened("capability-on", "BioCLIP 2 is on: it compares how cells look.", ref="bioclip-2")
+        await asyncio.sleep(0.4)
+        assert t.sb.responses == 0, "told, not said"
+        told = [c["text"] for i in t.sb.items() if i.get("role") == "system" for c in i["content"]
+                if "BioCLIP 2 is on" in c["text"]]
+        assert len(told) == 1 and told[0].startswith("Context only")
     asyncio.run(go())
 
 
@@ -847,14 +851,16 @@ def test_two_lines_nobody_asked_for_never_send_two_responses_at_once(monkeypatch
         async def slow_mark():
             await asyncio.sleep(0.2)
         await asyncio.gather(session.proactive("Researcher 3 finished", event="researcher-done", ref="r3", before=slow_mark),
-                             session.proactive("Cellpose is on", event="capability-on", ref="cellpose"))
+                             session.proactive("The count finished: 341", event="tool-done", ref="a1"))
         sb = sbs[-1]
         await until_async(lambda: sb.responses == 1)
         await asyncio.sleep(0.3)
         assert sb.refused == 0 and sb.responses == 1, "one response at a time"
+        said = next(e for e in sb.sent if e["type"] == "response.create")["response"]["input"][0]["content"][0]["text"]
+        assert "Researcher 3 finished" in said and "341" in said, "two results together are said in one response"
         await done(sb, "resp_1")
-        await until_async(lambda: sb.responses == 2)
-        assert sb.refused == 0
+        await asyncio.sleep(0.3)
+        assert sb.refused == 0 and sb.responses == 1
         assert not [e for e in events if e.kind == "error"], "nothing that ends Talk"
     asyncio.run(go())
 
@@ -923,16 +929,19 @@ def test_a_narrator_line_is_tagged_as_a_researcher_only_when_its_facts_name_it(m
         t.session._last_user_at = 0.0
         t.partner._research_done(SimpleNamespace(purpose="research", status="done", rid="R3", name="Researcher 3",
                                                  origin={"channel": "voice"}, result=None))
-        await t.session.inject('Requested notification: {"tool": "outline_cells", "status": "done"}', respond=True)
-        await until_async(lambda: t.sb.responses == 1)
-        first = next(r for r in t.logged if r["kind"] == "partner-proactive")
-        assert first.get("markTarget") is None and first["ref"] != "R3", "an outline's outcome is not Researcher 3's"
+        await until_async(lambda: t.sb.responses == 1)  # Researcher 3's finish, said on its own
         await done(t.sb, "resp_1")
+        await t.session.inject('Requested notification: {"tool": "outline_cells", "status": "done"}', respond=True)
+        await until_async(lambda: t.sb.responses == 2)
+        first = [r for r in t.logged if r["kind"] == "partner-proactive"][-1]
+        assert first.get("markTarget") is None and first["ref"] != "R3", "an outline's outcome is not Researcher 3's"
+        await done(t.sb, "resp_2")
         await t.session.inject('Requested notification: <voice-context>{"event": "completed", "facts": '
                                '{"researchId": "R3", "status": "done"}}</voice-context>', respond=True)
-        await until_async(lambda: t.sb.responses == 2)
+        await settle()
         second = [r for r in t.logged if r["kind"] == "partner-proactive"][-1]
-        assert second["markTarget"] == "researcher:R3" and second["event"] == "researcher-done"
+        assert second["event"] == "researcher-done" and second["ref"] == "R3", "tagged as Researcher 3"
+        assert second["skipped"] == "duplicate" and t.sb.responses == 2, "and so not said again"
     asyncio.run(go())
 
 
@@ -1292,7 +1301,7 @@ def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
         t = await partner_session(monkeypatch)
         await press(t, 1)  # busy: the line waits
         before = time.time()
-        await t.partner.happened("capability-on", "Cellpose is on", ref="cellpose")
+        await t.partner.happened("tool-done", '{"tool": "count", "status": "done"}', ref="a1")
         await asyncio.sleep(0.3)
         await release(t, 1)
         await done(t.sb, "resp_1")
@@ -1382,17 +1391,17 @@ def test_the_announcers_late_line_about_a_researcher_is_never_said_again(monkeyp
         t.session._last_user_at = 0.0
         clock = [1000.0]
         t.partner.clock = lambda: clock[0]
-        for rid in ("R2", "R3"):  # two finish close together
+        for rid in ("R2", "R3"):  # two finish close together: said together, in one response
             t.partner._research_done(SimpleNamespace(purpose="research", status="done", rid=rid, name=rid,
                                                      origin={"channel": "voice"}, result=None))
         await until_async(lambda: t.sb.responses == 1)
         await done(t.sb, "resp_1")
-        await until_async(lambda: t.sb.responses == 2)
-        await done(t.sb, "resp_2")
+        said = [r["ref"] for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT")]
+        assert sorted(said) == ["R2", "R3"]
         clock[0] += 30  # the announcer's lines, 30 s later
         for rid in ("R2", "R3"):
             await t.session.inject(f'Requested notification: {{"event": "completed", "facts": {{"researchId": "{rid}"}}}}',
                                    respond=True)
         await asyncio.sleep(0.4)
-        assert t.sb.responses == 2, "each researcher said once"
+        assert t.sb.responses == 1, "each researcher said once"
     asyncio.run(go())
