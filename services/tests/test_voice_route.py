@@ -310,8 +310,8 @@ def test_startup_view_is_not_replayed_after_the_same_recap(monkeypatch, requeste
 
 def test_every_talk_session_shares_the_brains_record_of_what_was_said(monkeypatch):
     """Part 2.5: an outcome is said once per request, also when Talk is pressed again; and the session knows which
-    request each delegation is and whether it is still the newest (the route used not to tell it: SpokenRequests.voice
-    was set after the session existed, so `newest` was never asked)."""
+    request each delegation is (`requests`). It is not given `spoken`, which would let any later words, a cough or a
+    "thanks" included, turn the narrator's late results into silent context (review defect 4): as before Part 2.5."""
     from orchestrator.brain.narrator import Said
 
     app_with(monkeypatch)  # the stand-in session in place of OpenAILiveSession
@@ -332,4 +332,5 @@ def test_every_talk_session_shares_the_brains_record_of_what_was_said(monkeypatc
         with TestClient(app).websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
             assert json.loads(ws.receive_text())["kind"] == "model"
     assert [kw.get("said") for kw in made] == [said, said]
-    assert all(getattr(s, "spoken", None) is not None for s in FakeSession.made[-2:])
+    assert all(getattr(s, "requests", None) is not None for s in FakeSession.made[-2:])
+    assert all(getattr(s, "spoken", None) is None for s in FakeSession.made[-2:])

@@ -49,7 +49,8 @@ for `gpt-live-1`: "GPT-Live decides when to speak; remove manual audio commits a
 the instructions (the voice prompt's Interruption section follows the prompting guide's recipe). So nothing is
 configured here and the app's own guesses stay as they were (QUIET_TURN_END_S, SPEECH_PEAK): they decide only the
 app's bookkeeping (captions, `interrupted` for the relay's playback, when it is idle), never when the model speaks.
-What the app asks the voice to say waits while the user's words are still coming (`_hold_for_user`).
+What the app asks the voice to say waits while the user's words are still coming (`_hold_for_user`); what they say
+meanwhile never turns it into silent context.
 """
 from __future__ import annotations
 
@@ -324,7 +325,7 @@ class OpenAILiveSession(VoiceSession):
         # (voice/route.py), so an outcome is said once per request whichever path, delegation or session reports it.
         self.said = said if said is not None else Said()
         self.spoken_actions: set[str] = self.said.actions  # steps whose outcome the voice was asked to say
-        self.spoken = None  # brain/speech.SpokenRequests: which request a delegation is, and whether it is the newest
+        self.requests = None  # brain/speech.SpokenRequests: which request a delegation is (route.py sets it)
         self.closed = False
         self._closed_ack = asyncio.Event()
         self.usage_seconds = None  # cumulative provider total retained after the UI event pump stops
@@ -537,8 +538,9 @@ class OpenAILiveSession(VoiceSession):
         """The user is talking and the model is not: silent context sent now lands before the reply."""
         return bool(self._heard.strip()) and not self._model_speaking
 
-    def _user_talking(self) -> bool:
-        """The user's words are still coming: heard since the voice last answered, the last within QUIET_TURN_END_S."""
+    def user_talking(self) -> bool:
+        """The user's words are still coming: heard since the voice last answered, the last within QUIET_TURN_END_S
+        (time-bounded, unlike user_speaking, which holds until the model answers)."""
         return self.user_speaking() and time.monotonic() - self._last_user_at < QUIET_TURN_END_S
 
     async def _hold_for_user(self) -> bool:
@@ -546,7 +548,7 @@ class OpenAILiveSession(VoiceSession):
         (GPT-Live itself decides when to speak; this only keeps the app from handing it words to say over the user's).
         True when it waited."""
         waited, until = False, time.monotonic() + HOLD_FOR_USER_S
-        while self._user_talking() and not self.closed and time.monotonic() < until:
+        while self.user_talking() and not self.closed and time.monotonic() < until:
             waited = True
             await asyncio.sleep(0.1)
         return waited
@@ -559,13 +561,9 @@ class OpenAILiveSession(VoiceSession):
         """The spoken request a delegation is (its admission's id: brain/speech.SpokenRequests.request_for), else the
         delegation itself: what is said is said once per this identity."""
         rid = (result or {}).get("requestId")
-        if not rid and self.spoken is not None and hasattr(self.spoken, "request_for"):
-            rid = self.spoken.request_for(did)
+        if not rid and self.requests is not None and hasattr(self.requests, "request_for"):
+            rid = self.requests.request_for(did)
         return rid or f"delegation:{did}"
-
-    def _newest(self, rid: str) -> bool:
-        spoken = self.spoken
-        return spoken.newest(rid) if spoken is not None and hasattr(spoken, "newest") else True
 
     def last_speech_at(self) -> float:
         return self._last_audio_at
@@ -730,24 +728,21 @@ class OpenAILiveSession(VoiceSession):
         did = call.call_id
 
         async def say(text: str) -> None:
-            """The answer as soon as it is written, before its tools have run: said once per spoken request (Said), and
-            only an answer that waits on no step. One that does (claims.Draft.pending) is a plan, never an outcome: the
-            voice has acknowledged the request itself, is told the plan, and says the outcome when it lands (live
-            2026-10-28: "I've brought up the measurements table" before any tool had run)."""
-            if not text.strip() or self._conn is None or self.closed:
+            """The answer as soon as it is written, before its tools have run, said once per spoken request (Said:
+            marked only once its send returned). One that waits on steps (claims.Draft.pending) is said with those
+            steps named as not done yet, so only what it says of them waits for their outcome, which the model judges
+            (live 2026-10-28: "I've brought up the measurements table" before any tool had run)."""
+            rid = self._request_of(did)
+            if not text.strip() or self._conn is None or self.closed or f"answer:{rid}" in self.said:
                 return
-            if getattr(text, "pending", ()):
-                with contextlib.suppress(Exception):
-                    await self._think("Context only, do not say: being done for the user's request, not done yet (its "
-                                      "outcome follows on this delegation): " + text.strip()[:1800],
-                                      source="draft", delegation_id=did)
-                return
-            if not self.said.said_answer(self._request_of(did), text.strip()):
-                return
-            await self._hold_for_user()
+            pending = getattr(text, "pending", ())
+            words = text.strip()[:1800] + (f" Steps still being done ({DOING}): {', '.join(pending)}." if pending else "")
             self.last_commentary_at = time.monotonic()
-            with contextlib.suppress(Exception):
-                await append_context(self._conn.session.commentary, text.strip()[:1800], delegation_id=did, staging=self._conn.session.thinking)
+            try:
+                await append_context(self._conn.session.commentary, words, delegation_id=did, staging=self._conn.session.thinking)
+            except Exception:
+                return
+            self.said.said_answer(rid, text.strip())
 
         try:
             result = await spec.handler({**call.args, "say": say}) if spec else {"error": "no tool to handle it"}
@@ -770,8 +765,10 @@ class OpenAILiveSession(VoiceSession):
             whole = split_findings(result, said=said, request_id=rid)
             body = " ".join(part for part in (whole.spoken, whole.facts) if part)
             stale = bool(result.get("stale"))
-            if body and not stale and not only_in_progress(result) and await self._hold_for_user():
-                stale = not self._newest(rid)  # the user's words meanwhile were a newer request: not said over it
+            if body and not stale and not only_in_progress(result):
+                await self._hold_for_user()  # never over the user's words; what they said meanwhile changes nothing
+                if self._conn is None or self.closed:
+                    return  # Talk ended while it waited: not said, so the next session may say it
             # Computed after any wait: whatever said it meanwhile (the narrator, another hand-off) is left out.
             fresh = split_findings(result, said=said, request_id=rid, already=self.said)
             if body and stale:
@@ -785,11 +782,12 @@ class OpenAILiveSession(VoiceSession):
                 # is spoken when it lands.
                 await self._think("Not to be said again: the user has been told this is being done; its outcome follows "
                                   "on this delegation.\n" + body, source="in-progress", delegation_id=did)
-            elif fresh.spoken and (not fresh.outcomes or self.said.claim(fresh.outcomes)):
+            elif fresh.spoken:
                 if fresh.facts:
                     await self._think("For you only, not to be read out: " + fresh.facts, source="facts", delegation_id=did)
                 self.last_commentary_at = time.monotonic()
                 await append_context(self._conn.session.commentary, fresh.spoken, delegation_id=did, staging=self._conn.session.thinking)
+                self.said.claim(fresh.outcomes)  # marked said only once its send returned (a failed send raises above)
             elif whole.spoken:
                 # Every outcome here was said already (its late result, another hand-off of the same request, an earlier
                 # Talk session): told, not said again (run 4 of the voice journeys; live 2026-10-28, said three times).

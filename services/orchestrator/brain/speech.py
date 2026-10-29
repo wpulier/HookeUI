@@ -231,6 +231,7 @@ class SpokenRequests:
         if voice is not None:
             with contextlib.suppress(Exception):
                 voice.spoken = self  # what the narrator asks before speaking a late outcome (newest)
+                voice.requests = self  # which request a delegation is (voice/openai_live)
 
     def newest(self, request_id: str | None) -> bool:
         """Whether the request (by its admission id) is still the user's latest: no later words heard since that are

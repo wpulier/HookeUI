@@ -133,7 +133,9 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                                     said=getattr(brain, "said", None))  # the brain's: what an earlier Talk said stays said
         session.noted = brain.agent.log  # every silent note, whole, as a voice-note record
         spoken_requests.voice = session
-        session.spoken = spoken_requests  # which request a delegation is, and whether it is still the newest
+        # Which request a delegation is (its identity only). Not `spoken`: that would let any later words, a cough or a
+        # "thanks" included, turn the narrator's late results into silent context (Announcer._newest).
+        session.requests = spoken_requests
         # The journal and the talking window render the same line IDs. Raw voice events
         # provide status only; two sockets must never independently construct chat rows.
         spoken_requests.user_line.caption = spoken_requests.reply_line.caption = True

@@ -646,9 +646,9 @@ def test_one_outcome_is_said_once_per_request_whichever_delegation_or_session_re
     asyncio.run(go())
 
 
-def test_a_late_outcome_said_by_the_narrator_is_not_said_again_and_the_reverse():
-    """The late result (Announcer.late_tool, a model's own late answer) and the hand-off's findings report one outcome:
-    whichever is first says it, the other is told."""
+def test_a_late_raw_result_already_said_is_told_but_the_models_own_late_answer_is_said():
+    """The findings said the step's outcome; its raw late result is then told, not said again. The model's own late
+    answer about it has an identity of its own and is said (review defect 2: never silenced by a raw receipt)."""
     from types import SimpleNamespace
 
     from orchestrator.announcer import Announcer
@@ -664,22 +664,113 @@ def test_a_late_outcome_said_by_the_narrator_is_not_said_again_and_the_reverse()
         await conn.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d1"}})
         await drain(session, 0.1)
         assert len(commentary(conn)) == 1
+        session.last_speech_at = lambda: time.monotonic()  # the voice is heard saying what it is asked to
         narrator = N.Narrator(lambda: session, chat=lambda *a, **k: None)
         announcer = Announcer(conversation=None, dialogue=SimpleNamespace(show=lambda *a, **k: None), narrator=narrator,
                               presenter=None, research=None, scene=None, voice=lambda: session,
                               note_to_voice=lambda *a, **k: None, log=lambda record: None)
         ctx = ToolContext("voice", 7, None, "outline the nuclei", "d1")
         ctx.voice_owner = session
-        run = ToolRun("outline_cells", {}, ok=True, summary=OUTLINED_341["summary"],
-                      answer="I have outlined 341 cells in the picture using Cellpose-SAM.")
-        run.occurrence = ActionOccurrence("r1", "a1")
-        await announcer.late_tool(ctx, run)
-        for _ in range(30):
+
+        async def late(answer):
+            run = ToolRun("outline_cells", {}, ok=True, summary=OUTLINED_341["summary"], answer=answer)
+            run.occurrence = ActionOccurrence("r1", "a1")
+            await announcer.late_tool(ctx, run)
+            for _ in range(40):
+                await asyncio.sleep(0.05)
+                if not narrator.waiting and (narrator._task is None or narrator._task.done()):
+                    return
+
+        await late(None)
+        assert len(commentary(conn)) == 1  # the raw result: said already by the findings, told
+        await late("I have outlined 341 cells in the picture using Cellpose-SAM.")
+        assert len(commentary(conn)) == 2 and "341 cells" in commentary(conn)[1]  # the model's own answer: said
+        await session.close()
+
+    import time
+    asyncio.run(go())
+
+
+def test_an_outcome_told_silently_is_still_said_by_the_hand_off():
+    """Review defect 1: a request the app did without a hand-off offers its outcome to the narrator as context (it
+    was never asked to be said; a failure too). That claims nothing: the hand-off's findings for the same request say
+    it, the failure included."""
+    from orchestrator.brain import narrator as N
+    from orchestrator.brain.speech import outcome_line
+
+    failed = {"requestId": "r1", "answer": "I couldn't select it.", "outlined": [], "actions": [
+        {"tool": "select", "ok": False, "summary": "no plant cell is outlined", "actionId": "a1"}]}
+
+    async def go():
+        async def brain(args):
+            return dict(failed)
+
+        session, conn, _ = make(brain)
+        await session.start()
+        narrator = N.Narrator(lambda: session, chat=lambda *a, **k: None)
+        narrator.offer(outcome_line(dict(failed), session, delivery="interrupt"))
+        for _ in range(20):
             await asyncio.sleep(0.05)
             if not narrator.waiting and (narrator._task is None or narrator._task.done()):
                 break
-        assert len(commentary(conn)) == 1  # told, not said again
+        assert commentary(conn) == [] and any("no plant cell" in t for t in thinking(conn))
+        await conn.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d1"}})
+        await drain(session, 0.1)
+        assert len(commentary(conn)) == 1 and "Could not: no plant cell is outlined" in commentary(conn)[0]
         await session.close()
+
+    asyncio.run(go())
+
+
+def test_what_a_closed_session_did_not_say_a_new_one_says():
+    """Review defect 5: the record of what was said is the brain's, shared by Talk sessions; an outcome is marked
+    said only once it was sent. One whose session closed while it waited for the user, or whose send failed, is said
+    by the next session or hand-off."""
+    import orchestrator.voice.openai_live as live
+    from orchestrator.brain.narrator import Said
+
+    async def go():
+        heard_more = asyncio.Event()
+
+        async def brain(args):
+            if args.get("delegation_id") == "d1":
+                await heard_more.wait()  # the answer comes while the user is still talking
+            return {"requestId": "r1", "answer": "Researcher 3 is still running.", "outlined": [], "actions": []}
+
+        said = Said()
+        first, conn, _ = make(brain)
+        first.adopt_said(said)
+        await first.start()
+        await conn.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d1"}})
+        await asyncio.sleep(0.05)
+        await conn.inbox.put({"type": "session.input_transcript.delta", "delta": "and also the other one"})
+        await asyncio.sleep(0.05)
+        heard_more.set()
+        await asyncio.sleep(0.1)
+        await first.close()  # Talk ends while the findings wait for the user
+        await asyncio.sleep(live.QUIET_TURN_END_S + 0.3)
+        assert commentary(conn) == [] and "answer:r1" not in said
+        failing, conn2, _ = make(brain)
+        failing.adopt_said(said)
+        await failing.start()
+        sends = conn2.session.commentary.append
+
+        async def broken(**kw):
+            raise ConnectionError("socket closed")
+
+        conn2.session.commentary.append = broken
+        await conn2.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d2"}})
+        await drain(failing, 0.1)
+        assert "answer:r1" not in said  # the send failed: not said
+        conn2.session.commentary.append = sends
+        await failing.close()
+        again, conn3, _ = make(brain)
+        again.adopt_said(said)
+        await again.start()
+        await conn3.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d3"}})
+        await drain(again, 0.1)
+        assert len(commentary(conn3)) == 1 and "answer:r1" in said
+        await again.close()
 
     asyncio.run(go())
 
@@ -732,26 +823,27 @@ def test_nothing_outlined_is_not_said_after_a_table_request():
     asyncio.run(go())
 
 
-def test_a_draft_written_before_its_steps_have_run_is_told_not_said():
+def test_a_draft_is_said_with_its_pending_steps_marked_not_done():
     """Log line 28: "I've brought up the measurements table" was said before the table had been brought up. A draft
-    that waits on steps (Brain.turn: claims.Draft) is a plan: the voice is told it; the answer is said with the outcome."""
+    that waits on steps (Brain.turn: claims.Draft) is said with those steps named as not done yet, so only what it
+    says of them waits for their outcome (the model judges which words those are); its answer is never held back
+    (review defect 3: "What is that? Get me a reference photo" must still say "That's a diatom")."""
     from orchestrator.brain.claims import Draft
 
     async def go():
         async def brain(args):
-            await args["say"](Draft("I've brought up the measurements table.", pending=("show_measurements",)))
+            await args["say"](Draft("That's a diatom. I'm getting you a reference photo.", pending=("reference_photo",)))
             await asyncio.sleep(0.05)
-            assert commentary(conn) == []  # nothing said before the step ran and reported
-            return {"requestId": "r1", "answer": "I've brought up the measurements table.", "outlined": [],
-                    "actions": [{"tool": "show_measurements", "ok": True, "summary": "opened the measurements table",
-                                 "actionId": "a1"}]}
+            return {"requestId": "r1", "answer": "That's a diatom. I'm getting you a reference photo.", "outlined": [],
+                    "actions": [{"tool": "reference_photo", "ok": None, "summary": "", "actionId": "a1"}]}
 
         session, conn, _ = make(brain)
         await session.start()
         await conn.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d1"}})
         await drain(session, 0.2)
-        assert any("measurements table" in t and "do not say" in t.lower() for t in thinking(conn))
-        assert len(commentary(conn)) == 1 and "opened the measurements table" in commentary(conn)[0]
+        said = commentary(conn)
+        assert len(said) == 1 and "That's a diatom" in said[0]  # the answer is said, once
+        assert "reference_photo" in said[0] and "never that it is done" in said[0]  # the pending step: not done yet
         await session.close()
 
     asyncio.run(go())
@@ -774,6 +866,11 @@ def test_findings_wait_while_the_user_is_talking(monkeypatch):
             return {"requestId": "r1", "answer": "Researcher 3 is still running.", "outlined": [], "actions": []}
 
         session, conn, _ = make(brain)
+        from types import SimpleNamespace
+
+        # Wired as the route wires it: the session knows which request a delegation is; what counts as newer is the
+        # spoken requests' own business, and the words heard meanwhile are only words.
+        session.requests = session.spoken = SimpleNamespace(request_for=lambda did: "r1", newest=lambda rid: False)
         await session.start()
         await conn.inbox.put({"type": "session.delegation.created", "delegation": {"id": "d1"}})
         await drain(session, 0.05)
@@ -783,7 +880,9 @@ def test_findings_wait_while_the_user_is_talking(monkeypatch):
             release.set()
         assert commentary(conn) == []  # not over the user's words
         await asyncio.sleep(live.QUIET_TURN_END_S + 0.5)
-        assert len(commentary(conn)) == 1  # said once their words stopped coming
+        # Said once their words stopped coming, whatever they were (a cough, "thanks", talk to someone in the room):
+        # noise never turns an answer into silent context (review defect 4).
+        assert len(commentary(conn)) == 1
         await session.close()
 
     asyncio.run(go())

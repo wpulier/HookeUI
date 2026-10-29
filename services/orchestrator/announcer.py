@@ -114,10 +114,12 @@ class Announcer:
                 # with no model answer (live 2026-10-11 12:21: a failed photo was silent context, and the voice
                 # improvised "I found the photo, it's on your screen").
                 notify=True,
-                # Said once: an outcome the voice was asked to say already, by any path (the hand-off's findings, a
-                # second hand-off), raw or a model's own late answer, is told, not said again (narrator.Said; live
-                # 2026-10-28: one outline said three times).
-                outcomes=frozenset({f"action:{occurrence.action_id}"}) if occurrence is not None else frozenset(),
+                # Said once by identity (narrator.Said): a raw result already said (by the hand-off's findings, an
+                # earlier late result) is told, not said again. A model's own late answer is an identity of its own: a
+                # raw receipt said before never silences it (it is the considered one).
+                outcomes=(frozenset() if occurrence is None else
+                          frozenset({f"answer:action:{occurrence.action_id}" if run.answer
+                                     else f"action:{occurrence.action_id}"})),
                 # ...and unless the user has asked something newer since: then it is context, never said over them.
                 still=lambda: _newest(voice, occurrence.request_id if occurrence is not None else None)))
 
