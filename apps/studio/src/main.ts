@@ -73,6 +73,7 @@ import { ARM_DASH, OUTLINE_COLORS, View } from './view';
 import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
 import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
 import { CursorPainter, PartnerCursor, Takeover } from './drive';
+import { HeardRing, HeardTone, heardCue, heardHandler, type HeardCue } from './heard';
 import './drive.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
@@ -1303,6 +1304,7 @@ function handleMessage(message: ServerMessage): void {
       voiceSetting = message.settings.voice ?? '';
       talkSetting = message.settings.talk === 'open' ? 'open' : 'hold';
       talkKeySetting = talkKey(message.settings.talk_key);
+      heardCueSetting = heardCue(message.settings.heard_cue);
       voice.link = message.settings.voicelink === 'webrtc' || voiceSetting === PARTNER_VOICE ? 'webrtc' : 'relay';
       renderTalk();
       view.outlineColor = OUTLINE_COLORS[message.settings.outlineColor ?? 'pink'] ?? OUTLINE_COLORS.pink;
@@ -1724,6 +1726,7 @@ function startTalk(): void {
 let voiceSetting = '';
 let talkSetting: 'hold' | 'open' = 'hold';
 let talkKeySetting: TalkKey = 'control-option';
+let heardCueSetting: HeardCue = 'tone';
 /** Whether Talk is held for each turn: the session's own word once it has said it, else the settings. */
 function holdToTalk(): boolean {
   if (voice.state === 'live' || voice.state === 'connecting') {
@@ -1749,11 +1752,21 @@ const turns = new TalkTurns({
 const talkHold = new TalkHold({
   enabled: holdToTalk,
   key: () => talkKeySetting,
-  press: () => { takeover.input('talk'); turns.press(); }, // the talk key while the partner acts takes control back first
+  press: () => { takeover.input('talk'); heardRing.clear(); turns.press(); }, // the talk key while the partner acts takes control back first
   heldAlone: (via) => turns.heldAlone(via),
-  release: () => { const said = turns.open; turns.release(); if (said) voiceStatus.textContent = 'Sent · waiting for a response'; },
-  cancel: (why) => { const said = turns.open; turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
+  release: () => {
+    const said = turns.open;
+    if (said) heardRing.released(); // the ring stays as sent until the server says it heard the turn (heard.ts)
+    turns.release();
+    if (said) voiceStatus.textContent = 'Sent · waiting for a response';
+  },
+  cancel: (why) => { const said = turns.open; heardRing.clear(); turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
 });
+// The sign it heard you (heard.ts; the live-partner spec, decision 1): the ring settles and, with HEARD_CUE "tone", a
+// soft tone plays in the voice's own speaker context, once per turn and never for one older than the newest begun.
+const heardRing = new HeardRing({ render: () => renderTalk() });
+const heardTone = new HeardTone({ shared: () => voice.cueContext() });
+const heardSign = heardHandler({ turn: () => turns.turn, cue: () => heardCueSetting, settle: () => heardRing.settle(), tone: () => heardTone.play() });
 talkHold.attach(window, document);
 talkHold.attachButton(talkButton);
 
@@ -1835,7 +1848,7 @@ const cursorPainter = new CursorPainter(document);
 const takeover = new Takeover({ cursor: partnerCursor, send: (command) => voice.tellVoice(command) });
 takeover.attach(window);
 voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks,
-  drive: { cursor: partnerCursor, takeover } });
+  drive: { cursor: partnerCursor, takeover }, heard: (message) => { heardSign(message); } });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
@@ -1865,9 +1878,11 @@ function renderTalk(): void {
   voiceMute.hidden = state !== 'live' || hold; // held turns: the microphone is on only while held
   const holding = !!talkHold.held && (turns.open || turns.pending);
   if (holding) talkButton.dataset.holding = ''; else delete talkButton.dataset.holding;
-  holdRing.hidden = !holding;
-  holdRing.dataset.state = turns.open ? 'listening' : 'connecting';
-  holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
+  // After a release the ring stays as sent, then settles once heard (heard.ts HeardRing); its words fade, unchanged.
+  const after = holding ? null : heardRing.state;
+  holdRing.hidden = !holding && !after;
+  holdRing.dataset.state = after ?? (turns.open ? 'listening' : 'connecting');
+  if (holding) holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
 }
 
 function renderVoiceState(state: VoiceState, detail?: string): void {
@@ -1877,7 +1892,7 @@ function renderVoiceState(state: VoiceState, detail?: string): void {
   voiceStatus.textContent = state === 'connecting' ? detail ?? 'Connecting microphone and voice provider…'
     : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
   turns.stateChanged(state, !!talkHold.held);
-  if (state === 'off' || state === 'error') marks.clear();
+  if (state === 'off' || state === 'error') { marks.clear(); heardRing.clear(); }
   renderTalk();
   if (state === 'error' && detail) chat.system(detail);
   if (state !== 'live') {

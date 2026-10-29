@@ -2,7 +2,7 @@
 // server asks (act, then look) or when a turn starts, and the marks it asks for, each answered at once. The window is
 // taken in the task the request arrives in and composed in short tasks after it (screen.ts captureWindow), so the live
 // view never waits for it.
-import type { ControlMessage, DriveEnd, DriveMessage, MarksMessage, MarkResolution, PartnerCommand, PartnerMessage } from './protocol';
+import type { ControlMessage, DriveEnd, DriveMessage, HeardMessage, MarksMessage, MarkResolution, PartnerCommand, PartnerMessage } from './protocol';
 
 export type WindowPicture = { jpeg: string; w: number; h: number };
 export interface WindowCapture {
@@ -28,7 +28,8 @@ export async function windowSnapshot(id: string, maxSide: number, capture: Windo
   }
 }
 
-/** Answers each partner message: a snapshot request with the window now, marks with which were drawn. */
+/** Answers each partner message: a snapshot request with the window now, marks with which were drawn, `heard` with its
+ * sign. */
 export function partnerHandler(options: {
   reply: (command: PartnerCommand) => boolean;
   capture: WindowCapture;
@@ -37,8 +38,11 @@ export function partnerHandler(options: {
    * user took control back since) is never drawn. */
   drive?: { cursor: { show(message: DriveMessage): void; end(message: DriveEnd): void };
     takeover: { readonly version: number; control(message: ControlMessage): void } };
+  /** The sign it heard you (heard.ts heardHandler): the hold ring settles, and a soft tone with HEARD_CUE "tone". */
+  heard?: (message: HeardMessage) => void;
 }): (message: PartnerMessage) => void {
   return (message) => {
+    if (message.type === 'heard') { options.heard?.(message); return; }
     if (message.type === 'control') { options.drive?.takeover.control(message); return; }
     if (message.type === 'drive') {
       if (options.drive && Number(message.version) >= options.drive.takeover.version) options.drive.cursor.show(message);
