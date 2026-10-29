@@ -1,5 +1,12 @@
 # The orchestrator
 
+`scientific_text.page` gives the connector and ordinary file preview the same bounded
+UTF-8 byte-page meaning. UI text reads validate the accepted source manifest and hash
+the displayed chunks only; they never claim fresh integrity of unread content. Exact
+Project/document/revision, source hash and byte range accompany the response. Downloads
+keep their whole-source verification. Text is untrusted data, never executed markup or
+proof of a ready scientific reader.
+
 Scientific tool selection distinguishes the active local tool from an explicit current-update
 trial. The latter records the exact prepared generation and captured saved input without
 moving selection. Candidate workflow acceptance lives in the existing maintenance decisions

@@ -2270,6 +2270,10 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .scientific-reader-choices code { overflow-wrap: anywhere; font-size: 11px; }
 .scientific-reader-choices details { margin-top: 12px; color: var(--mm-text-2); }
 .scientific-source-download { display: inline-block; margin: 8px 0; }
+.scientific-text-preview { margin: 20px 0; min-width: 0; }
+.scientific-text-preview p { color: var(--mm-muted); font-size: 13px; }
+.scientific-text-preview pre { box-sizing: border-box; max-height: 52vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 18px; border: 1px solid var(--mm-line-strong); border-radius: 10px; font-size: 13px; line-height: 1.6; text-align: left; }
+.scientific-text-navigation { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) { .scientific-file-import { padding: 20px; } }
 /* A Library field's save (library-page.ts fields): Saving…, Saved, or Not saved with the reason and Try again. */
 .lib-field-status { display: block; margin-top: 4px; font: 400 var(--mm-11, 11px)/1.4 var(--mm-sans); color: var(--mm-text-3); }
