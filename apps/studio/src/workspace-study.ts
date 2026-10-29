@@ -170,7 +170,8 @@ let resourceSession = '';
 /** The index's revision as Data last read it (ticket 66, S7): the poll sends it back, and an unchanged index draws nothing. */
 let resourceRevision = '';
 /** Data shows that its last read failed (its notice and Retry): the next good read draws the list again. */
-let resultsFailed = false;
+let resultsFailedSession = '';
+const resultsFailed = () => !!resultsFailedSession && resultsFailedSession === snapshot.session;
 /** Data's Made by: everyone (null), you, the Assistant or one researcher (data-roles.ts MakerKey). */
 let makerFilter: MakerKey | null = null;
 let sourceFilter: string | null = null;
@@ -1492,7 +1493,12 @@ function renderInputs(): void {
     if (!inputOwnerCurrent(owner)) return;
     materialList.replaceChildren();
     const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
-    if (empty) empty.hidden = !!inputQuery || !!snapshot.sources.length || !!projectInputs(resourceSession === snapshot.session ? entries : []).length;
+    if (empty) empty.hidden = resultsFailed() || resourceSession !== snapshot.session || !!inputQuery || !!snapshot.sources.length || !!projectInputs(entries).length;
+    if (resultsFailed() || resourceSession !== snapshot.session) {
+      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : 'Loading Project material…');
+      notice.setAttribute('role', 'status'); materialList.append(notice);
+      if (resultsFailed()) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) void refreshResults(); }, 'mm-control'));
+    }
     const needle = inputQuery.trim().toLocaleLowerCase();
     let matchingMedia = 0;
     for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
@@ -1511,7 +1517,7 @@ function renderInputs(): void {
         () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
       materialList.append(wrap);
     }
-    if (inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
+    if (resourceSession === snapshot.session && inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
   };
   refreshInputRows = drawMaterial;
   search.addEventListener('input', () => { inputQuery = search.value; drawMaterial(); });
@@ -1521,7 +1527,7 @@ function renderInputs(): void {
     const empty=el('div','mm-drawer-empty project-input-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
     empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
-    empty.append(example);drawerBody.append(empty);
+    empty.append(example);empty.hidden = resultsFailed() || resourceSession !== snapshot.session;drawerBody.append(empty);
   }
   refreshLiveCameraStatus();
 }
@@ -1607,7 +1613,7 @@ async function refreshResults(): Promise<void> {
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
     if (generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
-    if (data.unchanged === true && resourceSession === session) { if (resultsFailed) { resultsFailed = false; renderResults(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
     // ticket). Its lessons, pictures, tables and sources are the server's own entries now (S4), no longer made up here.
     const next = (data.entries ?? []).map(entry => {const base={...entry,day:entry.day??session};if(entry.kind!=='research')return base;
@@ -1615,14 +1621,20 @@ async function refreshResults(): Promise<void> {
     // An index without a revision (before ticket 66) is compared whole, as before.
     const changed = resourceSession !== session || (data.revision ? data.revision !== resourceRevision : JSON.stringify(entries) !== JSON.stringify(next));
     entries = next; resourceSession = session; resourceRevision = data.revision ?? '';
-    if (!changed && !resultsFailed) { if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
-    resultsFailed = false;
+    if (!changed && !resultsFailed()) { if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    resultsFailedSession = '';
     madeMemo.clear();
     if (dataOpen) renderResults();
     if (drawerOpen && section === 'inputs') refreshInputRows?.();
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
-  } catch (error) { if (dataOpen && generation === refreshGeneration) { resultsFailed = true; dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults())); } }
+  } catch (error) {
+    if (generation === refreshGeneration && snapshot.session === session) {
+      resultsFailedSession = session;
+      if (dataOpen) dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults()));
+      if (drawerOpen && section === 'inputs') refreshInputRows?.();
+    }
+  }
 }
 /** One row of Data (the mock's shared row anatomy): its picture or kind, its title, one quiet line, the New dot and ⋯. */
 function dataRow(lead:HTMLElement,title:string,sub:string,tip:string,open:()=>void,menu:()=>MenuItem[],menuLabel:string,name=title):{wrap:HTMLElement;row:HTMLButtonElement}{
