@@ -31,17 +31,43 @@ other files.
   - A Tab tool (show_measurements, tabs, present) that fails while the studio has not yet shown the open Project's
     Tabs waits for them (`LANDING_WAIT_S`, its progress line saying so) and is tried once more. If they never show,
     that is said plainly (`partner_tools.py`; tests/test_voice_follows_project.py).
-- **Lines nobody asked for (the one brain's proactive events)** all go through `Partner.happened(event, text, ref=,
-  delivery=, marks=, frame=)` → `RealtimeSession.proactive`: a researcher finished or failed, a long tool done, a
-  capability turned on, and the watcher's events (`orchestrator/view_watch.py`: the slide settled on a new place, the
-  focus drifted, counted cells no longer where they were counted; a division is an interface with no detector yet).
-  The text is facts as JSON (what was measured, when it happened, the ids to point at), never words to read out: the
-  voice model decides how to say them, in one sentence. Each kind of the watcher's events has one delivery rule per
-  WATCH choice (`view_watch.DELIVERY`, the one table): "context" (a silent system item), "idle" (said when no key is
-  held, nothing is said and nobody spoke for 1.5 s) or "interrupt" (the voice's own words stopped for it, never the
-  user's); the user's quieter or "let me find things" makes them all context. Detector state is never pushed into the
-  prompt every turn: only events, and only by their rule (a standing note would be an option that must beat "model
-  alone"). GPT-Live has no `happened`, so it gets none of them; every watcher event is still logged (`watch-event`).
+- **Lines nobody asked for (the one brain's proactive events)** all go on one bus (`voice/events.py`), the brain's
+  (`events.bus_of(brain)`, handed with `Brain.said` to every Talk session by `voice/route.py`), so a result still owed
+  when Talk ends, or one that lands after, is said by the next session. Publishers: `Partner.happened(event, text,
+  ref=, delivery=, marks=, frame=)` → `RealtimeSession.proactive` (a researcher finished or failed, a long tool done,
+  a capability turned on, the watcher's events: `orchestrator/view_watch.py`: the slide settled on a new place, the
+  focus drifted, counted cells no longer where they were counted; a division is an interface with no detector yet),
+  `deliver` (a job's result, a background tool's, a job's question or cancellation) and `inject` (the user's own
+  actions as `user-action`, chat notes). The text is facts as JSON (what was measured, when it happened, the ids to
+  point at), never words to read out: the voice model decides how to say them, in one sentence. Each kind has one
+  route in `events.KINDS`; the publisher may give its own (`delivery`: the watcher's per WATCH choice,
+  `view_watch.DELIVERY`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
+  nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (the bus stops
+  the voice's own unprompted words for it, never the user's answer); the user's quieter or "let me find things"
+  makes the watcher's all context. A result is owed until heard (the end of its audio); cut off, it comes back once
+  ("as I started to say…"); cut twice it is retired, and `Partner.retired` files one Activity line. Progress is its
+  own channel, spaced, never owed. Detector state is never pushed into the prompt every turn: only events, and only
+  by their rule (a standing note would be an option that must beat "model alone"). GPT-Live has no `happened`, so it
+  gets none of them; every watcher event is still logged (`watch-event`).
+- **What the voice says of a result is its receipt** (`voice/hands.py`: verified, failed, uncertain, running): a
+  background tool's (`reference_photo`, `retrieve_page`) and a job's go with their facts to `deliver`, and the
+  out-of-band wording follows `openai_realtime.RECEIPT_RULES` ("done" only for verified), falling back to the
+  receipt's own `said`. `reference_photo` in a native workspace is two actions: the lookup as background work (no UI
+  lease, no screen lock), then its window opened with `present` under a lease of its own, so a takeover meanwhile
+  leaves no window opened without a fresh look.
+- **`think` is a job** (`voice/jobs.py`, partner_tools `think`, `jobs`, `update_job`, `cancel_job`): queued, running,
+  cancelling, then done, failed or cancelled, with no cap on how many run. Jobs live on the hub (`jobs_of`), not on a
+  Talk session. Interrupting speech, a takeover or Talk ending never cancels one; `cancel_job` does, and "cancelled"
+  is said only from the job's own `job-cancelled` event once its task has stopped. A follow-up goes to the job
+  (`update_job` → `ThinkTask.updates`, read at its next step; a job waiting on its question or one that ended runs
+  again under the same id with what it did, `ThinkTask.previous`). A job's question, and a permission Hands asked
+  during it with its approval id, is a `job-question` with the job's id; the voice relays only those, and the user's
+  answer comes back through `update_job` (think's tools take `approved`). Done is decided from the receipts of its
+  acting calls (`jobs.outcome`): done only when every one ended verified (or it made none and answered); the
+  backend's `checked` is advisory, and what is not verified goes with the result. Researchers are jobs too:
+  `update_job` and `cancel_job` reach one through `researcher_note` and `cancel_researcher` (Hands, their records).
+  Each think job files one Activity line, and `project_state.jobs` numbers researchers and think jobs together by
+  when each started, in the brief and the `resources` answer, so "the second one" resolves the same way everywhere.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

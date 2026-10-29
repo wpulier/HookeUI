@@ -171,14 +171,17 @@ reachable by the voice or think, and that each acting one has a receipt contract
   `highlight`, `select`, `zoom`, `outline` (with its model), `find`, `present`, `project`, `research`, `cancel`,
   `steer`, `run`, `setting`, `choice`, `make`, typed from the tool, its arguments and the registry's own words for it
   (kind, produces, family, sets: `hands.intent_of`). UI intents (the screen tools, Projects, an asset, a reference
-  photo) take the lease, the cue and the lock below; the others (researchers, runs, settings, analysis) do not, and a
+  photo's window) take the lease, the cue and the lock below; the others (researchers, runs, settings, analysis, a
+  reference photo's lookup, kept without a window: `show=false`, opened afterwards with `present`) do not, and a
   takeover never stops them, but they keep the action id, the Project precondition, permission, the Activity line and
   the receipt.
 - **Hooke's own record** is the check where the screen is not the right one (`voice/records.py`): a researcher's record
   (`running` while it works, its finish an event later), a cancel only once the record says cancelled, a note or
   question recorded on that researcher, a capability or workflow run's record, a setting read back changed, the
-  Project changed and shown ("already in" and "nothing opened" are not done), the asset on stage, a reference photo's
-  window when its result lands, and what an analysis saved, resolving in its store with its numbers.
+  Project changed and shown ("already in" and "nothing opened" are not done), a setting already reading what was
+  asked ("already the default"), the asset on stage, a reference photo's window when its result lands, and what an
+  analysis saved, resolving in its store with its numbers. `think`'s jobs are done only when every acting call they
+  made ended verified (`voice/jobs.py`).
 - **The target by id.** A target the screen now shows (the report's ids and Tab titles) or the conversation pointed at
   (marks and `pointed_at`, newest first) is used as given. A target given as nothing the screen or the pointing
   history knows is filled from them when one candidate of its kind is there, and asked about in one short question
