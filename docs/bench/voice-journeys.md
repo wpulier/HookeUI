@@ -123,6 +123,21 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
   - `fails`: the request cannot succeed, so the failure is its outcome;
   - `judge`: what a good answer does, for the judge.
 
+## The gates, and what is reported
+
+Spec #80 (Will: "our benchmark subjective matters most"). The standard is met only when the gates pass; they come first
+on the scoreboard, in this order:
+1. **Partner quality** (judged, 0-3): a mean of at least 2.5 and no step under 2.
+2. **False "done"**: zero, from receipts and app state.
+3. **Receipts**: every action (each Hands cue) ends in a receipt checked against its expected result.
+4. **Drive**, its truthful parts: a cue for every action, and no action after a takeover on an older control version.
+
+The other correctness lines (right tool first, outcome said once, nothing meant for the model, researchers, status,
+marks on target, events never over you, runs with zero step failures...) stay gates after those. **Every timing is
+reported, never a gate**: the sign it heard you, first meaningful words, barge-in, single- and multi-step seconds,
+silence, researcher start, mark ms, cleared ms, event-to-speech, reconnect, the live view, and the takeover's ms
+(inside the Drive line). A reported timing says "reported: within" or "reported: over" its number.
+
 ## What is measured, and from where
 
 Everything is on one clock (epoch seconds). Three logs are joined:
@@ -143,7 +158,8 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 
 | Line | How it is measured |
 |---|---|
-| Release → first audio | Key up (hold), or the end of the words (open), to the first audible audio. Median ≤ 0.8 s, p95 ≤ 1.5 s. |
+| A sign it heard you | Release to the first heard cue (the server's `partner-heard` record, else the studio's `heard` message): ≤ 0.3 s, on every turn (decision 1). |
+| First meaningful words | Release to the first words beyond filler ("mm", "okay", "one sec" are not meaningful), as the page saw them arrive: median ≤ 1.2 s, p95 ≤ 1.8 s (decision 1, replacing first audio ≤ 0.8 s / 1.5 s; first audio is still shown). |
 | Barge-in → silent | Key down while audible, to silence: track level and the element muted. ≤ 150 ms, and it must stay silent while the key is held. |
 | Visible and spoken | Release to the later of the studio's confirmation (`partner-tool` `reportT`, or GPT-Live's tool card first shown ok) and the first words said after it (as the page saw them arrive). A researcher step's change is its start. Single steps: median ≤ 3 s, p95 ≤ 5 s. Multi-step: ≤ 8 s, at the last confirmation. |
 | Longest silence while working | The longest gap without audio from release until the outcome is said. ≤ 1.5 s. |
@@ -153,7 +169,7 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Right tool first | The first acting call in the step is in `expect.tools`. Every step. |
 | `do_in_hooke` share | The fallback hand-off ("no tool for this") over the one brain's own acting calls. Under 5%. GPT-Live has none: not applicable. |
 | `think` share (reported) | `think`, the frontier mind behind the voice, is the intended route for hard and multi-step work, not a fallback: it is the right tool on the first-try line wherever a step lists it, and the wrong one where it does not (a quick step such as "switch back to the main tab"). Its share is reported by kind of step, with the steps that used it where not expected, never capped. A think call returns at once; its task (`partner-think`, with the frontier mind's own tool calls inside) is done at `doneT`, confirmed on screen when one of those calls was, and its result, said later (`partner-think-said`, then a `think` response), is the asking step's outcome wherever it falls. Calls that run in the background the same way (`reference_photo`, `retrieve_page`: the call's record names its task, `partner-background` says when it landed) are joined and credited alike; a picture counts as shown when it lands. |
-| False "done" | The judge names each claim that something is on screen or done, with its words. It is false when the page showed those words before any studio confirmation (0.3 s race allowed). In a step whose tools change nothing on screen (a note to a researcher, a setting), no studio report can come: there the claim is backed by the app's own state (the researcher's notes rising in `/api/research`, a setting changing in what the studios are sent), else, for runs without that state, by the call's success. A hand-off (`think`, `do_in_hooke`) never backs a claim by its own success. 0. Without the judge: not measured. |
+| False "done" | From receipts and app state, never by the judge (the spec, sections 2 and 4.2): a `partner-hands` receipt saying verified that the app does not back. A visible change needs its tool's studio report; a note or a setting needs the researcher's notes rising (`/api/research`) or the setting changing (what the studios are sent), else, for runs without that state, the call's success. 0. Not measured in a run with no receipts (no Hands, e.g. GPT-Live). |
 | One researcher | Researchers the orchestrator lists as created in the step (else the successful `start_researcher` calls) equal `expect.researchers`; ≤ 2 s from release to its creation. |
 | Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
@@ -164,9 +180,12 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Robustness | Runs with no failed step. A step fails on any of the above, no answer, or a missing restart check. |
 | Elegance | Lines of one or two sentences: at least 90% (the bench's reading of "one or two plain sentences"). No confirmed screen change by a tool outside `expect.tools`. |
 
-**The judge** (`judge.py`, the same model as `score.py`) is shown the specimen picture, the two turns before, the
-user's words, the lines and the tool calls with their confirmations. It judges claims, outcome mentions and whether
-the request was answered. Times, counts and identities are code. `--no-judge` leaves false "done" unmeasured.
+**The judge** (`judge.py`) is shown the specimen picture, the two turns before, the user's words, the lines and the tool
+calls with their confirmations, and scores only the answer's quality: answered, meets the expectation, partner quality.
+Everything the app records (false "done", what opened, which researcher, outcomes said) is scored from receipts and app
+state. **The scorer is versioned** (`standard.SCORER_VERSION`, in `result.json` and on the scoreboard): a kept run
+rescored by the same version gives the same result (a test holds it); raise the version with any change to what is
+scored.
 
 **Which judge.** `--judge` chooses it: `gpt-6.1-sol` (the default, so new runs compare with old ones),
 `claude-opus-5-5` (the Messages API over plain httpx, effort low, server-side fallbacks on) or `gemini-3.8-flash`. All
@@ -182,11 +201,10 @@ while it still speaks. The judge is told the cut was the user's on purpose: the 
 before it, and stopping at once and giving what was asked next are judged on the interrupting request. A re-score
 judges again only the steps without an answer: delete one step's verdict from `verdicts.json` to judge just that step.
 
-**Overall: partner quality.** The judge also gives every step a `partner_quality` from 0 to 3: did the reply feel like a
+**Overall: partner quality.** The judge gives every step a `partner_quality` from 0 to 3: did the reply feel like a
 sharp, dynamic colleague? That means specific to what is on screen and in the Project, pointing at what it talks about,
 using earlier turns, brief and natural, with no filler or hedging. The prompt calibrates it with one good and one bad
-answer. The scoreboard's Overall line reports the mean and the steps under 2. It is reported only, never a gate: the
-standard is met or not on its own lines.
+answer. The Overall line (the spec, section 1) needs a mean of at least 2.5 and no step under 2.
 
 **GPT-Live** has no `do_in_hooke`, marks, events told unprompted or reconnect of its own: those lines say "not
 applicable to this voice" for it. Barge-in applies to both voices (GPT-Live's open microphone is interrupted by

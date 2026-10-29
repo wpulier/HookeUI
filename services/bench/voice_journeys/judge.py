@@ -1,8 +1,7 @@
-"""What code can't time in a partner step, judged by a model (standard.py reads its verdicts): which spoken lines claim
-that something is now on screen or done (checked there against the studio's reports, so a false "done" is the judge's
-reading of the words and the app's record of the screen together), how many lines state the request's outcome, whether
-the request was answered, whether the answer meets the step's expectation, and how much it felt like a sharp
-colleague (`partner_quality`, 0-3: reported on the scoreboard's Overall line, never a gate). The judge sees the camera picture the
+"""What only judgement can score in a partner step, the answer's quality (the spec, section 2: "the model judge scores
+only what needs judgement"): whether the request was answered, whether the answer meets the step's expectation, and how
+much it felt like a sharp colleague (`partner_quality`, 0-3: the scoreboard's Overall line). Everything the app records
+(false "done" from receipts, what opened, which researcher, outcomes said) is scored by standard.py, never here. The judge sees the camera picture the
 plan names (the bundled still), the user's words, the voice's lines and the tools with their confirmations.
 
 The judge is a choice (`--judge`): GPT-6.1 Sol (the default, so new runs compare with the old ones), Claude Opus 5.5
@@ -150,13 +149,6 @@ What the app did (seconds after the user finished; "confirmed" = the studio repo
 {actions}
 
 Judge from these facts only:
-- claims_on_screen: each claim that a change is now on screen or complete (open, shown, highlighted, outlined, done),
-  as {{"line": its line's number (1-based), "words": the few words of the line that make the claim, exactly as said}}.
-  Not claims: a description of the specimen; a promise or a preamble ("opening it now", "outlining the nuclei");
-  a statement that work is still under way ("it's still outlining"); and a researcher's state ("Researcher 2 is
-  still running", "I started a researcher"), which the bench checks against the app's own list of researchers.
-- outcome_mentions: how many separate lines state the request's outcome (its result, or its failure). A preamble
-  ("pulling that up") is not an outcome; a line that says the same outcome again counts again.
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
 - meets_expectation: true if the answer does what "a good answer does here" says; null if that says nothing.
 - partner_quality: 0-3, how much the reply felt like a sharp, dynamic colleague at the microscope. 3: specific to what
@@ -172,8 +164,7 @@ Judge from these facts only:
 - why: one sentence.
 
 Reply with JSON only:
-{{"claims_on_screen": [{{"line": 2, "words": "the table is open"}}], "outcome_mentions": 1, "answered": true,
- "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
+{{"answered": true, "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
 
 
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
@@ -203,7 +194,7 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
 
 async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict, picture: bytes | None,
                    model=None, name: str = DEFAULT_JUDGE, only: set | None = None) -> dict:
-    """{step id: verdict} for every scored step (claims_on_screen as 0-based line indices, as standard.py reads), and
+    """{step id: verdict} for every scored step (answered, meets_expectation, partner_quality, why), and
     "_judge": the judge's name."""
     if model is None:
         name, model = await achoose(name)
@@ -234,13 +225,9 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
         if data is None:
             out[step["id"]] = {"error": (getattr(result, "error", None) or getattr(result, "raw_text", ""))[:200]}
             continue
-        claims = []
-        for claim in data.get("claims_on_screen") or []:  # 1-based from the judge, 0-based for standard.py
-            if isinstance(claim, int) and claim >= 1:
-                claims.append(claim - 1)
-            elif isinstance(claim, dict) and isinstance(claim.get("line"), int) and claim["line"] >= 1:
-                claims.append({"line": claim["line"] - 1, "words": str(claim.get("words") or "")})
-        out[step["id"]] = {**data, "claims_on_screen": claims}
+        # Answer quality only: what the app records (false "done", what opened, which researcher, outcomes said) is
+        # scored from receipts and app state (standard.py), never from the judge's reading.
+        out[step["id"]] = {k: data[k] for k in ("answered", "meets_expectation", "partner_quality", "why") if k in data}
     return out
 
 
