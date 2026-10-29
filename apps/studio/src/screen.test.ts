@@ -162,4 +162,18 @@ describe('the report carries what the verifier checks', () => {
     expect(observed.members).toEqual({ count: 3, drawn: 2 });
     expect(() => observeLegacyForTest({ schema: 'studio-surface-v1', scope: 'dom-observation', members: { count: 1, drawn: 2 } })).toThrow();
   });
+
+  // Each Tab's specimen (the live view): filling the Tab, floating with its place, or hidden (on-screen.md).
+  test('each Tab carries its specimen: its state, and its place only when floating', () => {
+    const legacy = verifierLegacy({ tabs: [{ id: 'main', title: 'Main', front: true, specimen: { state: 'fill', rect: [0, 0, 9, 9] } },
+      { id: 't2', title: 'Stoma Reference', front: false, specimen: { state: 'float', rect: [16.4, 620.2, 240, 216] } },
+      { id: 't3', title: 'Counts', front: false, specimen: { state: 'hidden' } }, { id: 't4', title: 'Older', front: false }] });
+    expect(legacy.tabs!.map((t) => t.specimen)).toEqual([{ state: 'fill' }, { state: 'float', rect: [16, 620, 240, 216] }, { state: 'hidden' }, undefined]);
+    const observed = observeLegacyForTest({ schema: 'studio-surface-v1', scope: 'dom-observation',
+      workspace: { project: 'p1', tab: 'main', tabs: legacy.tabs } });
+    expect(observed.workspace!.tabs![1].specimen).toEqual({ state: 'float', rect: [16, 620, 240, 216] });
+    for (const specimen of [{ state: 'gone' }, { state: 'fill', rect: [0, 0, 1, 1] }, { state: 'float', rect: [0, 0, -1, 1] }, { state: 'float', where: 'left' }])
+      expect(() => observeLegacyForTest({ schema: 'studio-surface-v1', scope: 'dom-observation',
+        workspace: { project: 'p1', tab: 'main', tabs: [{ id: 'main', title: 'Main', front: true, specimen: specimen as never }] } })).toThrow();
+  });
 });

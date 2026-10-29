@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,SCHEMA5_PRESENTATIONS,bumpForSchema5,layoutForServer,mainLayout,needsSchema5,needsSchema6,readerItem,readerView,renewPlacements,setTabKind,tileRects,transferItem,undoArrange} from './workspace-views-model';
+import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,SCHEMA5_PRESENTATIONS,bumpForSchema5,floatingSpecimen,layoutForServer,mainLayout,needsSchema5,needsSchema6,readerItem,readerView,renewPlacements,setTabKind,specimenState,tileRects,transferItem,undoArrange} from './workspace-views-model';
 describe('session arrangements',()=>{
  it('moves the exact revision without duplicating or deleting content',()=>{
   const l=mainLayout(),item={resource:{day:'2026-10-16',id:'e14',version:2,picture:0},title:'Masks',zoom:1,pan:[.5,.5]};
@@ -142,4 +142,14 @@ describe('layout schema 6: the reader Tab (ticket 66)',()=>{
   const view=readerView('t9',item);renewPlacements(view,()=>'new');
   expect(view.items).toEqual([{resource:item.resource,title:item.title}]);
  });
+});
+
+it('floats the specimen small in the Stage\'s lower-left corner, its picture 4:3 under its bar, inside the Stage',()=>{
+ for(const [w,h] of [[1400,860],[900,600],[640,420]]){
+  const [x,y,a,b]=floatingSpecimen(w,h);
+  expect(a).toBeGreaterThanOrEqual(240);expect(a).toBeLessThanOrEqual(320);expect(b-36).toBe(Math.round(a*3/4));
+  expect(x).toBe(16);expect(y+b).toBeLessThanOrEqual(h-16);expect(y).toBeGreaterThanOrEqual(40);
+ }
+ expect(specimenState({visible:true,rect:null})).toBe('fill');expect(specimenState({visible:true,rect:[1,2,3,4]})).toBe('float');
+ expect(specimenState({visible:false,rect:[1,2,3,4]})).toBe('hidden');
 });

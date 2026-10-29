@@ -41,10 +41,13 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+from ..workspace_observation import SPECIMEN_ASKED
+
 CUE_WAIT_S = 0.5  # the studio's drive-shown, at most; the cue never blocks the action
 RECONCILE_S = 30.0  # after a takeover, a cut-off effect is reconciled in the background for this long
 APPROVAL_S = 120.0  # a permission asked is good for this long
 RESULTS = ("verified", "failed", "uncertain", "running")
+SPECIMEN_CAPTIONS = {"fill": "Filling the Tab", "float": "Floating the specimen", "hide": "Hiding the specimen"}
 KEPT_RESULTS = ("verified", "uncertain", "running")  # a retry of these returns the receipt; a failed one may be tried again
 
 # Actions checked against Hooke's own record of them (records.py), never the screen: intent kind and caption.
@@ -134,7 +137,9 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
             return None
         kind_ = {"switch": "focus", "create": "open", "close": "close"}.get(action, "present")
         caption = {"switch": "Switching Tabs", "create": "Making a Tab", "close": "Closing the Tab",
-                   "rename": "Renaming the Tab", "add": "Adding it to the Tab"}.get(action, "Arranging Tabs")
+                   "rename": "Renaming the Tab", "add": "Adding it to the Tab",
+                   "specimen": SPECIMEN_CAPTIONS.get(str(args.get("specimen") or ""), "Moving the specimen"),
+                   }.get(action, "Arranging Tabs")
         return Intent(kind_, tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs", caption=caption,
                       ids=[tab] if tab else [])
     if tool == "show_measurements":
@@ -311,6 +316,12 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
             if made is None:
                 return False
             return action == "rename" or _tab_is(front, made.get("id"))  # a new Tab comes to the front
+        if action == "specimen" and ids:
+            # The Tab's specimen as its Tab strip reports it (fill, float or hidden); None when the studio does not say.
+            shown = (next((t for t in facts["tabs"] if _tab_is(t, ids[0])), None) or {}).get("specimen")
+            if shown is None:
+                return None
+            return shown.get("state") == SPECIMEN_ASKED.get(str(intent.args.get("specimen") or ""))
         if action == "add":
             resource = _target_of(intent.args.get("resource"))
             if not resource or not facts["documents"]:
@@ -419,7 +430,7 @@ def known(intent: Intent, facts: dict) -> bool:
     ids = [i for i in intent.ids if i]
     if not ids:
         return True
-    if intent.tool == "tabs" and intent.kind in ("focus", "close"):
+    if intent.tool == "tabs" and (intent.kind in ("focus", "close") or intent.args.get("action") == "specimen"):
         return not facts["tabs"] or any(_tab_is(t, ids[0]) for t in facts["tabs"])
     if intent.tool == "present" and intent.kind == "close":
         return not facts["windows"] or any(i in facts["windows"] or f"document:{i}" in facts["windows"] for i in ids)
@@ -448,6 +459,12 @@ def said(intent: Intent, result: dict, facts: dict, before: dict | None) -> str:
     if intent.tool == "show_measurements":
         tab = front.get("title") or front.get("id")
         return "Done: the table is open" + (f" in {tab}" if tab else "") + "."
+    if intent.tool == "tabs" and intent.args.get("action") == "specimen":
+        named = next((t for t in facts.get("tabs") or () if _tab_is(t, (intent.ids or [""])[0])), None) or {}
+        where = named.get("title") or named.get("id") or "that Tab"
+        words = {"fill": f"Done: the specimen fills {where}.", "hide": f"Done: the specimen is hidden in {where}.",
+                 "float": f"Done: the specimen floats as a window in {where}."}
+        return words.get(str(intent.args.get("specimen") or ""), "Done.")
     if intent.kind == "close":
         return "Done: it is closed."
     if intent.kind == "highlight":

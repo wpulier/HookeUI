@@ -461,6 +461,19 @@ def _legacy_style(value):
     return result
 
 
+SPECIMEN_STATES = ("fill", "float", "hidden")  # how a Tab holds the specimen (the live view): workspace-views-model.ts
+SPECIMEN_ASKED = {"fill": "fill", "float": "float", "hide": "hidden"}  # tabs specimen, as the Tab strip then reports it
+
+
+def _specimen(value) -> dict:
+    """A Tab's specimen as its Tab strip reports it (main.ts, workspace-views.ts specimenReport): filling the Tab behind
+    its windows, floating as a window (its place in workspace px, when laid out), or hidden from the Tab."""
+    value = _legacy_fields(value, ("state",), ("rect",))
+    if value["state"] not in SPECIMEN_STATES or ("rect" in value and value["state"] != "float"):
+        _refuse("INVALID_REPORT", "invalid structural specimen")
+    return {"state": value["state"], **({"rect": _rect(value["rect"])} if "rect" in value else {})}
+
+
 def _legacy(value):
     """Closed DOM observations, never native sources, ownership or paint receipts."""
     value = _legacy_fields(value, ("schema", "scope"), ("title", "shows", "source", "beside", "level",
@@ -508,8 +521,10 @@ def _legacy(value):
                 if len(tabs) > 24:
                     _refuse("REPORT_TOO_LARGE", "structural Tab list exceeds its bound")
                 result[key]["tabs"] = [{"id": _id(t["id"]), "title": _legacy_text(t["title"], 80),
-                                        "front": _boolean(t["front"])}
-                                       for t in (_legacy_fields(t, ("id", "title", "front")) for t in tabs)]
+                                        "front": _boolean(t["front"]),
+                                        **({"specimen": _specimen(t["specimen"])} if "specimen" in t else {})}
+                                       for t in (_legacy_fields(t, ("id", "title", "front"), ("specimen",))
+                                                 for t in tabs)]
                 if tabs and sum(t["front"] for t in result[key]["tabs"]) != 1:
                     _refuse("INVALID_REPORT", "exactly one Tab is in front")
         elif key == "drawn":  # the outlines drawn on the live view now (Hands: highlight and clear verified)
@@ -1161,9 +1176,12 @@ def front(wire: Mapping) -> dict:
                and here(i)]
     window = max(windows, key=lambda i: i.get("z") or 0, default=None)
     viewport = wire.get("viewport") or {}
+    # The Tab in front's specimen (the live view), as its Tab strip reports it: part of what that Tab holds.
+    specimen = next((t.get("specimen") for t in workspace.get("tabs") or () if t.get("front")), None)
     return {"project": project, "tab": tab, "tabTitle": workspace.get("tabTitle"),
             "window": window["id"] if window is not None else None,
             "title": (window.get("title") or legacy(window).get("title")) if window is not None else None,
+            "specimen": specimen,
             "studioVisible": viewport.get("visible"), "studioFocused": viewport.get("documentFocused")}
 
 
