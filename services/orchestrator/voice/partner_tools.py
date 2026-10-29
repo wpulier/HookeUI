@@ -422,7 +422,7 @@ class PartnerTools:
                  **({"shown_confirmed": result["_log"].get("confirmed")} if "confirmed" in result.get("_log", {}) else {})}
         log = getattr(self.partner, "log", lambda record: None)
         log({"kind": "partner-background", "task": task, "name": name, "n": n, "ok": result.get("ok"),
-             "points": points, "doneT": time.time()})
+             "pointAt": points, "doneT": time.time()})
         await self.said_when_landed(task, name, facts, "", points)
 
     async def said_when_landed(self, task: str, what: str, facts: dict, say: str, points: list[str]) -> None:
@@ -776,6 +776,6 @@ class PartnerTools:
                             f"Offer to try it with {other} for thinking, if the user wants.")
         log({"kind": "partner-think", "task": task.id, "callId": call_id, "n": n, "model": result.model,
              "ok": result.ok, "checked": result.checked, "refused": result.refused, "error": result.error,
-             "rounds": result.rounds, "tools": result.tools, "points": result.points, "ms": result.usage.get("ms"),
+             "rounds": result.rounds, "tools": result.tools, "pointAt": result.points, "ms": result.usage.get("ms"),
              "usage": {k: v for k, v in result.usage.items() if k != "ms"}, "doneT": time.time()})
         await self.said_when_landed(task.id, "think", result.facts(), result.say, result.points)
