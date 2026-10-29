@@ -1022,21 +1022,31 @@ class GeminiPartnerSession(VoiceSession):
             self._spawn(self._answer(batch, gen["n"], self._epoch))
 
     async def _withdrawn_result(self, call_id: str, name: str, result: Any, n: int) -> None:
-        """A call Gemini withdrew while it ran (a line it was asked to say meanwhile can make it): its call id is gone, so
-        what it did is told as one line, as a long tool's outcome is (journey bench 2026-10-29: two outcomes never said);
-        for an older turn, or a mark, only as context."""
+        """A call Gemini withdrew while it ran (a progress line asked meanwhile can make it): its call id is gone, so
+        what it did is asked for as the turn's own answer once it is quiet (journey bench 2026-10-29: the highlight's and
+        the outline's outcomes were dropped unsaid); for an older turn, or a mark, only as context."""
         facts = json.dumps({"tool": name, **payload(result)}, ensure_ascii=False, default=str)[:3000]
         if n != self.n or name == "mark":
             with contextlib.suppress(Exception):
                 await self._text(item_text("A tool finished (context only): " + facts))
             return
         points = result.get("_point") if isinstance(result, dict) else None
-        mark = str(points[0]) if isinstance(points, list) and points else None
-        happened = getattr(self, "happened", None)  # the partner's: it points at the mark as the line is said
-        if callable(happened):
-            await happened("tool-done", facts, ref=call_id, mark=mark)
-        else:
-            await self.proactive(facts, event="tool-done", ref=call_id)
+        self._spawn(self._say_outcome(n, facts, [str(t) for t in points][:4] if isinstance(points, list) else []))
+
+    async def _say_outcome(self, n: int, facts: str, points: list[str]) -> None:
+        end = self.clock() + PROACTIVE_KEPT_S
+        while self.clock() < end and not self.closed and n == self.n:
+            if not (self.user_busy() or self.speaking() or self._calls or not self.connected()):
+                if points:
+                    with contextlib.suppress(Exception):
+                        self.on_point(points)
+                if await self._ask("tool", n, "Now say in one short spoken sentence what it did for the user's "
+                                   "request, from the facts above. No question, no offer, no tool.",
+                                   "A tool you called has finished (facts):\n" + facts):
+                    return
+            await asyncio.sleep(0.1)
+        with contextlib.suppress(Exception):
+            await self._text(item_text("A tool finished (context only): " + facts))
 
     @staticmethod
     async def _repeat(first: asyncio.Task) -> dict:

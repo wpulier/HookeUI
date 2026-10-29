@@ -743,8 +743,9 @@ chat, lines nobody asked for, the `partner-*` records) is the same code; only th
   only pointed after the answer was spoken. Progress lines (client content completing a turn, "call no tool"), at most
   two, 2.5 s apart, when a round runs past 1.2 s with the voice quiet, or past 0.6 s when it called the tool without a
   word (it often does, whatever the prompt says). Such a line can make Gemini withdraw the running call
-  (`tool_call_cancellation`; seen twice in one journey): its call id is then gone, so its outcome is told as a line
-  nobody asked for (`tool-done`, pointing at what it made), never dropped. `PARTNER_GEMINI` adds Google's own cap to
+  (`tool_call_cancellation`; seen on most long tools in the journeys, always after the second line): its call id is
+  then gone, so its facts are given back as client content asking for the turn's own answer (cause `tool`, pointing at
+  what it made) once it is quiet, never dropped; for an older turn they are context only. `PARTNER_GEMINI` adds Google's own cap to
   the prompt (never more than two tools in a row without speaking) and, from the smoke journey (it outlined the
   nuclei for "What am I looking at?"), that a question is answered in words with no tool unless it needs data: with
   the partner's tools, the question called a tool 3 of 3 times without that line and 0 of 3 with it, while "Outline

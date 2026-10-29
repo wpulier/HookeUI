@@ -906,7 +906,12 @@ def test_a_call_gemini_withdrew_while_it_ran_has_its_outcome_said_as_one_line(mo
         t.session._last_user_at = 0.0
         gate.set()
         lines = await until_async(lambda: [x for x in asked(t.live) if "outlined 341 nuclei" in x] or None)
-        assert len(lines) == 1 and "exactly one short spoken sentence" in lines[0]
+        assert len(lines) == 1 and "A tool you called has finished" in lines[0] and "one short spoken sentence" in lines[0]
         assert not t.live.responses(), "no result for a call id Gemini no longer has"
-        assert any(r["kind"] == "partner-proactive" and r["event"] == "tool-done" for r in t.logged)
+        t.live.emit(audio(0.1))
+        t.live.emit(said("I outlined 341 nuclei."))
+        t.live.emit(turn_done())
+        await settle()
+        answer = [r for r in t.logged if r["kind"] == "partner-response" and r["transcript"]][-1]
+        assert answer["cause"] == "tool" and answer["n"] == 1, "the turn's own answer, not a line nobody asked for"
     asyncio.run(go())
