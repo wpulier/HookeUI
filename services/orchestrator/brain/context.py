@@ -1059,11 +1059,15 @@ def selected_as_asked(hub, when_asked) -> str | None:
 
 
 def _roster(research, n: int = 4) -> str:
-    """The latest researchers in a line: who made what, and whether it is ready."""
+    """Researchers in a line, in the Project view's one order (project_state.ordered: running first, then finished,
+    then stopped; newest first in each), at most `n`, so a stopped one comes last or not at all: who made what, and
+    whether it is ready."""
     if research is None:
         return ""
+    from ..project_state import ordered
+
     rows = []
-    for s in research.researchers()[-n:]:
+    for s in ordered(research.researchers())[:n]:
         title = inline((s.result or {}).get("title") or s.label or s.brief, 60)
         open_ = next((q for q in getattr(s, "requests", None) or [] if q.get("status") == "asked"), None)
         asking = f", asking the user for {inline(open_.get('what'), 80)} ({open_['id']})" if open_ else ""

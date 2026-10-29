@@ -381,17 +381,43 @@ def add_research_tools(registry: Registry, services) -> None:
                 raise ToolFailed(str(exc), next=getattr(exc, "next", None)) from exc  # next: passed on
             record_output(ctx, {"kind": "resource", "resource": ref})
             return block(f"{session.name}, original run {attempt.number}: done. " + str((outcome.get("result") or {}).get("summary") or ""))
-        if args.get("researcher"):
-            s, _attempt, _ref = bound_researcher(ctx, args["researcher"], manager, desk)
+        def one(s) -> str:
             text = s.line()
             if s.result:  # its summary whole: read_result reads the rest of its work
                 text += f". Summary: {s.result.get('summary', '')}"
             if s.outputs:
                 kinds = {"html": "lesson", "video": "video", "image": "picture"}
                 text += " (made: " + ", ".join(kinds.get(o.get("kind"), "result") for o in s.outputs) + ")"
-            return block(text)
-        lines = manager.lines(limit=None)  # every one of this session's, not the brain's capped roster
-        return block(lines) if lines else "no researchers yet"
+            return text
+
+        if args.get("researcher"):
+            s, _attempt, _ref = bound_researcher(ctx, args["researcher"], manager, desk)
+            return block(one(s))
+        # None named: every one of this session's, in the Project view's one order (project_state.ordered: running
+        # first, then finished, then stopped), led by the one this is about: the running one(s), else the one last
+        # spoken of in this conversation (a turn filed about it: its refs' rid), else the newest that was not stopped.
+        from ...project_state import GROUP_SAYS, group_of, ordered
+
+        research = ordered(manager.researchers())
+        if not research:
+            return "no researchers yet"
+        focus = [s for s in research if group_of(s.status) == "running"]
+        lead = "Running now"
+        if not focus:
+            ids = {s.rid: s for s in research}
+            thread = getattr(services.day, "active", None) if services.day is not None else None
+            spoken = next((ids[t.refs["rid"]] for t in reversed((getattr(thread, "turns", None) or [])[-60:])
+                           if isinstance(getattr(t, "refs", None), dict) and t.refs.get("rid") in ids), None)
+            lead = "None running; the one last spoken of" if spoken is not None else "None running; the newest"
+            focus = [spoken or next((s for s in research if group_of(s.status) != "cancelled"), research[0])]
+        def said(s, line: str) -> str:
+            return line + (f" ({GROUP_SAYS['cancelled']})" if group_of(s.status) == "cancelled" else "")
+
+        rest = [s for s in research if all(s is not f for f in focus)]
+        text = f"{lead}:\n" + "\n".join(said(s, one(s)) for s in focus)
+        if rest:
+            text += "\nThe others, running first, then finished, then stopped:\n" + "\n".join(said(s, s.line()) for s in rest)
+        return block(text)
 
     registry.add(Tool("research_status", "How the researchers are doing, or one researcher's result. "
                       "wait=true waits for the explicitly selected original run while conversation continues; "

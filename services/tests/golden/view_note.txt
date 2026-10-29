@@ -12,9 +12,9 @@ View: A leaf epidermis with stomata.
 View: Specimen: lucerne leaf.
 View: Things in view: s1 stoma (centre); s2 guard cell (left).
 View: Focus: sharp.
-Work: Researcher 1: a lesson about "Guard cells", done
-Work: Researcher 2: research about "Stomata /researchers", done
 Work: Researcher 3: a labelled picture about "leaf section", running
+Work: Researcher 2: research about "Stomata /researchers", done
+Work: Researcher 1: a lesson about "Guard cells", done
 Outlined: On screen: slidemap: the slide map
 Outlined: On screen: outlines: the app's outlines are hidden
 Outlined: On screen: live: the live view, at 40% opacity

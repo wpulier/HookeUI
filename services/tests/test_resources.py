@@ -199,7 +199,8 @@ def test_what_data_do_we_have_is_answered_from_the_index_by_the_resources_tool(t
     tool = built.brain.registry.tools["resources"]
     ctx = ToolContext("chat", 1, None, "what data do we have?")
     said = asyncio.run(tool.handler(ctx, {}))
-    assert said.startswith("What has been made in this session") and "Motion · " in said and "Could also be made here now:" in said
+    # The Project's one view (project_state.py): each item with its exact reference, kind and maker, then what could be made.
+    assert said.startswith("Project ") and "Motion · " in said and "(d1, result)" in said and "Could also be made here now:" in said
     one = asyncio.run(tool.handler(ctx, {"id": "d1"}))
     assert one.startswith("Motion · ") and '"moving": 14' in one
     assert "could be made here now" in asyncio.run(tool.handler(ctx, {"kind": "snapshot"})).lower()
