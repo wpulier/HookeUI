@@ -6,8 +6,9 @@ tells, in numbers, whether the live research partner meets the acceptance standa
 - `gpt-live-1` (GPT-Live, the default today): open microphone, every request handed to the brain;
 - `gpt-realtime-2.1` (the one brain): hold to talk (or open), sees the window and the frame, calls tools itself;
 - `gemini-3.8-live` (the one brain on Gemini 3.8 Live): the same partner, its audio relayed through the app, the camera
-  also as 1 fps video. Its audio is heard in the page only through the studio's own `voice-phase`, so its times come
-  from the server's records (`partner-response`, `partner-audio`); the scoreboard says so.
+  also as 1 fps video. Its audio has no WebRTC track to tap, so the player takes the studio's own `voice-phase` (sent as
+  its playback starts and ends) as what is heard in the page; without it the player's quiet wait ignored the voice and
+  ended Talk while a tool still ran.
 
 The default switches to the one brain with hold to talk only when it meets every line. A line that was not measured
 is not met.

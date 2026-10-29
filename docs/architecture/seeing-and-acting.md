@@ -740,9 +740,13 @@ chat, lines nobody asked for, the `partner-*` records) is the same code; only th
   is answered with the first's result and never run twice; a fresh look (the studio's report and window) goes in
   before the result. Scheduling: `INTERRUPT`, sent once the words already sent have played (on the real API a
   `WHEN_IDLE` result ended the turn without the answer being said); `SILENT` when a newer turn has begun or the calls
-  only pointed after the answer was spoken. One progress line (client content completing a turn, "call no tool") when
-  a round runs past 1.2 s with the voice quiet. `PARTNER_GEMINI` adds Google's own cap to the prompt: never more than
-  two tools in a row without speaking.
+  only pointed after the answer was spoken. Progress lines (client content completing a turn, "call no tool"), at most
+  two, 2.5 s apart, when a round runs past 1.2 s with the voice quiet, or past 0.6 s when it called the tool without a
+  word (it often does, whatever the prompt says). Such a line can make Gemini withdraw the running call
+  (`tool_call_cancellation`; seen twice in one journey): its call id is then gone, so its outcome is told as a line
+  nobody asked for (`tool-done`, pointing at what it made), never dropped. `PARTNER_GEMINI` adds Google's own cap to
+  the prompt (never more than two tools in a row without speaking) and, from the smoke journey, that tools are only
+  for what the user asked (it outlined the nuclei for "What am I looking at?").
 - **Lines nobody asked for, typed lines, a reconnect's line:** client content that completes a turn (which Gemini
   answers), only when nobody talks and nothing is said, once per event, as for the OpenAI voice.
 - **Session length:** a GoAway (about a minute before a connection ends) and a change of tools (Gemini takes none
