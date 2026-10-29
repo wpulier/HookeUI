@@ -10,8 +10,8 @@ changes what is on screen, for the voice and for think's backend alike:
   partner's **control**, bound to a control version and the screen revision it was planned against and checked again
   just before the effect;
 - **takeover**: the user's mouse, Escape or talk key raises the version, sets the one cancel signal the running
-  intent's every await races against, drains at most DRAIN_S, and drops what was queued; an effect cut off is
-  *uncertain*;
+  intent's every await races against and discards what was queued; control is the user's at once, and an effect cut
+  off is *uncertain* now and reconciled in the background (its real receipt in Activity when it finishes);
 - a **verifier** that decides the result from the app, not the model: the tool's own run (report-confirmed tools fail
   when the studio does not show the change) and the studio's report showing what was asked (`expected`). The result is
   verified, failed, uncertain or running, and the voice says exactly that;
@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
 CUE_WAIT_S = 0.5  # the studio's drive-shown, at most; the cue never blocks the action
-DRAIN_S = 1.0  # after a takeover, a running effect may finish within this; otherwise it is uncertain
+RECONCILE_S = 30.0  # after a takeover, a cut-off effect is reconciled in the background for this long
 APPROVAL_S = 120.0  # a permission asked is good for this long
 RESULTS = ("verified", "failed", "uncertain", "running")
 # Tools whose own run fails when the studio does not show the change (present's completion, the Tab broker, the
@@ -52,6 +52,8 @@ class Intent:
     version: int = 0
     revision: int | None = None
     id: str = field(default_factory=lambda: f"dr-{uuid.uuid4().hex[:8]}")
+    project: str | None = None  # the precondition: the Project it was planned in
+    before: dict | None = None  # the screen it was planned against (its facts), for what the receipt says
 
 
 def _target_of(value) -> str:
@@ -241,6 +243,41 @@ def known(intent: Intent, facts: dict) -> bool:
     return True
 
 
+def said(intent: Intent, result: dict, facts: dict, before: dict | None) -> str:
+    """What the receipt is, in a few plain words for the voice to say as its own ("Done, Sizes is in front"): the
+    facts of the receipt, never more than it shows."""
+    receipt = result.get("result")
+    why = str(result.get("error") or result.get("summary") or "").strip()
+    if receipt == "failed":
+        return f"It did not work: {why}" if why else "It did not work."
+    if receipt == "running":
+        return "It is under way, not done yet."
+    if receipt == "uncertain":
+        return f"Not sure it happened: {why}" if why else "Not sure it happened."
+    front = (facts.get("front") or {})
+    was = ((before or {}).get("front") or {})
+    if intent.kind == "focus":
+        name = front.get("title") or front.get("id") or "that Tab"
+        back = was.get("title") or was.get("id")
+        return f"Done: {name} is in front" + (f" (it was {back}, for \"go back\")" if back and back != name else "") + "."
+    if intent.tool == "show_measurements":
+        tab = front.get("title") or front.get("id")
+        return "Done: the table is open" + (f" in {tab}" if tab else "") + "."
+    if intent.kind == "close":
+        return "Done: it is closed."
+    if intent.kind == "highlight":
+        return "Done: it is highlighted."
+    if intent.kind == "zoom":
+        return "Done: it is magnified."
+    if intent.kind == "select":
+        return "Done: it is selected."
+    if intent.kind == "outline":
+        layers = [layer.get("members") for layer in facts.get("layers", {}).values() if layer.get("members")]
+        count = max((m.get("count", 0) for m in layers), default=0)
+        return f"Done: {count} outlined." if count else "Done: outlined."
+    return "Done."
+
+
 # --- control, cue, takeover, verifier ---------------------------------------------------------------------------------
 @dataclass
 class Approval:
@@ -264,6 +301,9 @@ class Hands:
         self._shown: dict[str, asyncio.Future] = {}
         self._approvals: dict[str, Approval] = {}
         self._lock = asyncio.Lock()
+        self._receipts: dict[str, dict] = {}  # action id -> its receipt (a retry is never a second effect)
+        self._background: set[asyncio.Task] = set()
+        self.project: Callable[[], str | None] | None = None  # the open Project, for the precondition
         self._ids = itertools.count(1)
 
     # --- facts --------------------------------------------------------------------------------------------------
@@ -306,7 +346,8 @@ class Hands:
         why = str(message.get("why") or "")
         stale = message.get("version") not in (None, self.version)
         if self.owner != "partner":
-            self.log({"kind": "partner-takeover", "why": why, "version": message.get("version"), "ignored": "not acting"})
+            self.log({"kind": "partner-takeover", "why": why, "version": message.get("version"), "ignored": "not acting",
+                      "atStudio": message.get("at"), "atServer": at})
             return
         self.owner, self.version = "user", self.version + 1
         self.cancel.set()
@@ -359,12 +400,18 @@ class Hands:
         return None
 
     async def act(self, tool: str, args: dict, effect: Callable[[], Awaitable[dict]], *, approved: str | None = None,
-                  frame: dict | None = None, from_think: bool = False) -> dict:
-        """One intent: resolved, cued, re-checked, run, verified. Returns the tool's own result with Hands' `result`
-        (verified, failed, uncertain, running), and what to say about it."""
+                  frame: dict | None = None, from_think: bool = False, action_id: str | None = None,
+                  project: str | None = None) -> dict:
+        """One action under its contract (intent, target, precondition, action id, expected result), ending in its
+        receipt: verified, failed(reason), uncertain or running, checked against the app's state."""
         intent = intent_of(tool, args)
         if intent is None:
             return await effect()
+        if action_id:  # a retry of the same action (the same call) gets its receipt, never a second effect
+            kept = self._receipts.get(action_id)
+            if kept is not None:
+                return {**kept, "note": "already done for this call; not done again"}
+            intent.id = f"dr-{action_id[-12:]}"
         if from_think and not self.looked:
             return {"ok": False, "result": "failed", "error": "the user took over; look at the screen again before acting",
                     "_hands": {"intent": intent.kind, "rejected": "no fresh look since the takeover"}}
@@ -390,28 +437,39 @@ class Hands:
         self.active += 1
         try:
             await self._take()
-            intent.version, intent.revision = self.version, facts.get("seq")
-            async with self._lock:  # one at a time; one queued behind a takeover never runs
-                if intent.version != self.version or self.cancel.is_set():
-                    return self._ended(intent, {"ok": False, "result": "failed",
-                                                "error": "the user took over before it ran; nothing was done"},
-                                       None, "failed")
+            intent.version, intent.revision, intent.project = self.version, facts.get("seq"), project
+            intent.before = facts
+            async with self._lock:  # one at a time; one queued behind a takeover is discarded
                 line = self._activity(intent, "running")
-                await self._cue(intent, frame)
-                # Checked again just before the effect: the same control, and its target still there.
-                why = ("the user took over before it ran; nothing was done"
-                       if intent.version != self.version or self.cancel.is_set()
-                       else None if not planned or known(intent, self.facts())
-                       else "the screen changed before it ran; look again")
+                # Checked at the moment of dispatch: the same control lease, the same Project, the target still there.
+                why = self._precondition(intent, planned, project)
                 if why is not None:
-                    await self._send({"type": "drive-end", "id": intent.id, "outcome": "failed"})
                     return self._ended(intent, {"ok": False, "result": "failed", "error": why}, line, "failed")
-                outcome = await self._run(intent, effect)
+                # The cue runs alongside the action and never delays it (the spec, 4.2: the cursor is feedback).
+                self._spawn(self._cue(intent, frame))
+                outcome = await self._run(intent, effect, line)
                 await self._send({"type": "drive-end", "id": intent.id, "outcome": outcome["result"]})
-                return self._ended(intent, outcome, line, outcome["result"])
+                receipt = self._ended(intent, outcome, line, outcome["result"])
+                if action_id and receipt["result"] != "running":
+                    self._receipts[action_id] = {k: v for k, v in receipt.items() if not k.startswith("_")}
+                return receipt
         finally:
             self.active -= 1
             await self._release()
+
+    def _precondition(self, intent: Intent, planned: bool, project: str | None) -> str | None:
+        if intent.version != self.version or self.cancel.is_set() or self.owner != "partner":
+            return "the user took over before it ran; nothing was done"
+        if project is not None and self.project is not None and self.project() != project:
+            return "another Project opened before it ran; nothing was done"
+        if planned and not known(intent, self.facts()):
+            return "the screen changed before it ran; look again"
+        return None
+
+    def _spawn(self, coro) -> None:
+        task = asyncio.ensure_future(coro)
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
 
     def _retarget(self, intent: Intent, target: str) -> Intent:
         args = dict(intent.args)
@@ -427,7 +485,7 @@ class Hands:
         return (found is not None and found.expires > self.clock() and found.intent.tool == intent.tool
                 and found.intent.ids == intent.ids)
 
-    async def _run(self, intent: Intent, effect: Callable[[], Awaitable[dict]]) -> dict:
+    async def _run(self, intent: Intent, effect: Callable[[], Awaitable[dict]], line: str | None) -> dict:
         task = asyncio.ensure_future(effect())
         stop = asyncio.ensure_future(self.cancel.wait())
         try:
@@ -435,43 +493,49 @@ class Hands:
         finally:
             if not stop.done():
                 stop.cancel()
-        if task not in done:  # taken over mid-effect: a bounded drain, then uncertain
-            with contextlib.suppress(Exception):
-                await asyncio.wait({task}, timeout=DRAIN_S)
-            if not task.done():
-                return {"ok": None, "result": "uncertain", "error": "you took over while it was being done; it may or may "
-                        "not have happened", "_hands": {"intent": intent.kind, "drained": False}}
+        if task not in done:
+            # Taken over mid-effect: control is the user's at once; the receipt now is uncertain, and the effect is
+            # reconciled in the background (finished, it gets its real receipt in Activity and the log).
+            self._spawn(self._reconcile(intent, task, line))
+            return {"ok": None, "result": "uncertain", "error": "you took over while it was being done; it may or may "
+                    "not have happened", "_hands": {"intent": intent.kind, "reconciling": True}}
         try:
             result = task.result()
         except Exception as exc:
             return {"ok": False, "result": "failed", "error": f"it did not run ({type(exc).__name__})"}
         return self.verify(intent, result)
 
+    async def _reconcile(self, intent: Intent, task: asyncio.Future, line: str | None) -> None:
+        with contextlib.suppress(Exception):
+            await asyncio.wait({task}, timeout=RECONCILE_S)
+        if not task.done() or task.cancelled() or task.exception() is not None:
+            receipt = {"ok": None, "result": "uncertain", "error": "cut off by the user's takeover; not known"}
+        else:
+            receipt = self.verify(intent, task.result())
+        self._ended(intent, receipt, line, receipt["result"], reconciled=True)
+
     def verify(self, intent: Intent, result: dict) -> dict:
-        """The result from the app: the tool's run and the studio's report showing what was asked."""
+        """The receipt, from the app's state: the tool's own run and the studio's report showing what was asked
+        (`expected`). A report that cannot show it is uncertain, unless the tool's own run checked the report."""
         result = dict(result)
         ok = result.get("ok")
+        facts = self.facts()
         if ok is False:
             result["result"] = "failed"
         elif ok is None or result.get("still_working"):
             result["result"] = "running"
         else:
-            shows = expected(intent, self.facts())
-            confirmed = (result.get("_log") or {}).get("confirmed")
-            if shows is True:
+            shows = expected(intent, facts)
+            if shows is True or (shows is None and intent.tool in REPORT_CONFIRMED):
                 result["result"] = "verified"
             elif shows is False:
                 result["result"] = "failed"
-                result["error"] = "the studio does not show it yet: " + (result.get("summary") or "not on screen")
-            elif intent.tool in REPORT_CONFIRMED:
-                result["result"] = "verified"  # the tool itself refused anything the studio's report did not show
+                result["error"] = "the studio does not show it: " + (result.get("summary") or "not on screen")
             else:
-                result["result"] = "verified" if confirmed else "uncertain"
-        result["say"] = {"verified": "Say it is done, in a few words.",
-                         "failed": "Say it did not work, why in plain words, and what to try.",
-                         "uncertain": "Say you are not sure it happened; do not say it is done.",
-                         "running": "Say it is under way; do not say it is done."}[result["result"]]
-        result.setdefault("_hands", {})["expected"] = None if result["result"] == "running" else result["result"]
+                result["result"] = "uncertain"
+                result["error"] = "the studio's report cannot show whether it happened"
+        result["said"] = said(intent, result, facts, getattr(intent, "before", None))
+        result.setdefault("_hands", {})["expected"] = result["result"]
         return result
 
     def _activity(self, intent: Intent, state: str, text: str | None = None) -> str | None:
@@ -486,7 +550,7 @@ class Hands:
                                                    **({"target": intent.target} if intent.target else {})})
         return line_id
 
-    def _ended(self, intent: Intent, outcome: dict, line: str | None, result: str) -> dict:
+    def _ended(self, intent: Intent, outcome: dict, line: str | None, result: str, *, reconciled: bool = False) -> dict:
         outcome.setdefault("result", result)
         state = {"verified": "done", "failed": "failed", "running": "running"}.get(outcome["result"], "done")
         words = {"verified": "done", "failed": "did not work", "running": "still going",
@@ -495,6 +559,7 @@ class Hands:
             self._activity(intent, state, f"Assistant: {intent.caption.lower()}: {words}")
         hands = outcome.setdefault("_hands", {})
         hands.update(intent=intent.kind, tool=intent.tool, target=intent.target, driveId=intent.id,
-                     version=intent.version, revision=intent.revision, result=outcome["result"])
+                     version=intent.version, revision=intent.revision, project=getattr(intent, "project", None),
+                     result=outcome["result"], **({"reconciled": True} if reconciled else {}))
         self.log({"kind": "partner-hands", **hands, "error": outcome.get("error")})
         return outcome

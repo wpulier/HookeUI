@@ -126,6 +126,7 @@ class PartnerTools:
         # Hands: actions in Hooke typed, cued, verified and yielding to the user (hands.py); None runs tools directly.
         self.hands: Hands | None = Hands(send=self._send_studio, observe=self._observation,
                                          log=lambda record: self.partner.log(record), hub=hub)
+        self.hands.project = self._project
         self.backend = None  # think's backend factory (option -> backend); tests pass a fake
 
     def running_facts(self) -> str:
@@ -184,6 +185,13 @@ class PartnerTools:
         """Recent Activity lines, newest first (knowing.py)."""
         return knowing.read(self.hub, args or {})
 
+    def _project(self) -> str | None:
+        with contextlib.suppress(Exception):
+            from ..resources import resources_of
+
+            return resources_of(self.hub).session()
+        return None
+
     async def _send_studio(self, message: dict) -> None:
         if getattr(self.partner, "send", None) is not None:
             await self.partner.send(message)
@@ -213,6 +221,7 @@ class PartnerTools:
     async def run(self, name: str, args: dict, *, n: int | None = None, patient: bool = False) -> dict:
         """`patient`: a caller behind the voice (think) that waits for a long tool's outcome: past TOOL_WAIT_S the
         result carries `_pending` for `outcome`, and the outcome is held from being said on its own."""
+        call_id = str((args or {}).get("_call_id") or "") or None  # the action's id: a retry is never a second effect
         args = {k: v for k, v in (args or {}).items() if not k.startswith("_") and k != "after_steps"}
         n = self.partner.turn() if n is None else n
         if name in BACKGROUND and not patient:
@@ -229,7 +238,8 @@ class PartnerTools:
                 if self.hands is not None and intent_of(name, args) is not None:
                     # An action in Hooke: typed, cued, re-checked, verified by the app, yielding to the user (hands.py).
                     approved = str(args.pop("approved", "") or "") or None
-                    return await self.hands.act(name, args, screen_change, approved=approved, from_think=patient)
+                    return await self.hands.act(name, args, screen_change, approved=approved, from_think=patient,
+                                                action_id=call_id, project=self._project())
                 return await screen_change()
             return await self._run(name, args, n, patient)
         # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second

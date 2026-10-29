@@ -52,7 +52,7 @@ RATE = 24000
 TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 # WebRTC audio is still in flight when the key is released: the commit waits this long so the last word is in the
 # buffer (the studio keeps the track on a little longer). Measured on the journey bench, not guessed beyond this.
-RELEASE_TAIL_S = 0.05  # the tuning micro-bench: a commit even 0.12 s before the words' end lost none of them
+RELEASE_TAIL_S = 0.15  # the user's last word kept whole (the spec, 29 Oct: no design choice made for a millisecond number)
 MIN_HOLD_S = 0.25  # a press shorter than this is a tap: nothing to commit, so no answer
 IDLE_S = 1.5  # nobody has spoken for this long: a line nobody asked for may be said
 PROACTIVE_KEPT_S = 60.0  # a waiting proactive line is dropped (only noted) after this long
@@ -253,6 +253,7 @@ class RealtimeSession(VoiceSession):
         self._started_at: dict[str, float] = {}  # response id -> when its audio started (monotonic)
         self._out_audio: dict[str, int] = {}  # response id -> its audio tokens (50 ms each)
         self._unsaid: dict[str, tuple] = {}  # task -> its delivery, until its words are heard (or cut and re-said)
+        self.heard: Callable[[int], None] = lambda n: None  # a real turn released: the studio's heard cue (partner)
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
         self._first_audio: dict[str, float] = {}
@@ -299,9 +300,9 @@ class RealtimeSession(VoiceSession):
         session: dict[str, Any] = {
             "type": "realtime", "model": self.config.model, "output_modalities": ["audio"],
             "audio": {"input": audio_in, **({"output": {"voice": self.config.voice}} if self.config.voice else {})},
-            # "minimal": response.create to the first audio 0.82 s vs 1.10 s at "low" (the tuning micro-bench of
-            # 2026-10-29: real WebRTC calls with the partner's prompt, tools, brief and pictures).
-            "reasoning": {"effort": extra.get("reasoning", "minimal")},
+            # "low": the model's default and its better answers and tool choices; "minimal" was chosen for first-audio
+            # speed (0.82 s vs 1.10 s) and is undone (Will, 29 Oct: quality first, timing reported only).
+            "reasoning": {"effort": extra.get("reasoning", "low")},
             "truncation": {"type": "retention_ratio", "retention_ratio": 0.8},
         }
         if self.config.system_prompt:
@@ -673,6 +674,8 @@ class RealtimeSession(VoiceSession):
                 await self._send({"type": "input_audio_buffer.clear"})
                 await self._forget_turn(n)
             return False
+        with contextlib.suppress(Exception):
+            self.heard(n)  # a sign it heard you, at once: the studio's soft cue (never a word)
         seen = self.turn_items(n)  # as it was at key-down, taken now
         if not await self._wait_connected(RECONNECT_WAIT_S):
             self._log({"kind": "partner-turn-lost", "n": n, "why": "no connection came back"})

@@ -308,7 +308,10 @@ def test_release_commits_and_asks_for_the_answer_with_nothing_fetched_after_it(m
         after = t.sb.types()[sent_before:]
         assert after[-2:] == ["input_audio_buffer.commit", "response.create"]
         assert set(after[:-2]) <= {"conversation.item.create", "conversation.item.delete"}
-        assert len(t.grabs) == grabs_before and len(t.studio) == studio_before, "nothing fetched after release"
+        asked = [m for m in t.studio[studio_before:] if m["type"] != "heard"]  # the heard cue is told, not asked
+        assert len(t.grabs) == grabs_before and not asked, "nothing fetched after release"
+        assert [m for m in t.studio if m["type"] == "heard"] == [{"type": "heard", "n": 1}]
+        assert any(r["kind"] == "partner-heard" and r["n"] == 1 for r in t.logged)
         create = t.sb.sent[-1]
         assert create["response"]["metadata"] == {"cause": "turn", "n": "1"}
     asyncio.run(go())
@@ -353,7 +356,7 @@ def test_the_session_config_holds_tools_and_no_turn_detection_for_hold_and_seman
         config = made["configs"][0][1]
         assert config["audio"]["input"]["turn_detection"] is None
         assert config["tools"] == [{"type": "function", "name": "mark", "description": "point", "parameters": {"type": "object"}}]
-        assert config["reasoning"] == {"effort": "minimal"} and config["truncation"]["retention_ratio"] == 0.8
+        assert config["reasoning"] == {"effort": "low"} and config["truncation"]["retention_ratio"] == 0.8
         assert config["audio"]["input"]["noise_reduction"] == {"type": "far_field"}
         _, _, made, _ = await realtime(talk="open")
         turn = made["configs"][0][1]["audio"]["input"]["turn_detection"]

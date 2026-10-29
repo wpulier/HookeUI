@@ -89,6 +89,7 @@ class Partner:
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
         session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
+        session.heard = self.heard
         if knowing.UserActions.enabled():  # the user's own actions as silent context (knowing.py)
             from .. import activity
 
@@ -128,6 +129,13 @@ class Partner:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return task
+
+    def heard(self, n: int) -> None:
+        """A sign it heard you (spec, section 1): the studio plays its soft cue on `heard` as a released turn begins,
+        never a word; timed here as sent."""
+        self.log({"kind": "partner-heard", "n": n, "cueT": time.time()})
+        if self.send is not None:
+            self._spawn(self.send({"type": "heard", "n": n}))
 
     def turn(self) -> int:
         return self.session.n if self.session is not None else 0

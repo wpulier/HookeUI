@@ -61,7 +61,8 @@ def test_an_action_is_cued_under_the_partners_control_then_verified_from_the_rep
             return {"ok": True, "summary": "switched to Measurements"}
         out = await hands.act("tabs", {"action": "switch", "tab": "Measurements"}, effect)
         assert out["result"] == "verified"
-        assert ran == [["control", "drive"]], "the cue, under the partner's control, comes before the effect"
+        assert ran[0][:1] == ["control"], "the partner's control comes before the effect"
+        assert "drive" in studio.types(), "the cue runs alongside the action, never delaying it"
         control, drive = studio.sent[0], studio.sent[1]
         assert control == {"type": "control", "version": 1, "owner": "partner"}
         assert drive["version"] == 1 and drive["intent"] == {"kind": "focus", "target": "tab:Measurements",
@@ -104,7 +105,7 @@ def test_a_report_that_cannot_show_it_leaves_it_uncertain_unless_the_tool_checks
         assert out["result"] == "uncertain"
         confirmed = await hands.act("highlight", {"things": ["o3"]},
                                     lambda: asyncio.sleep(0, {"ok": True, "_log": {"confirmed": True}}))
-        assert confirmed["result"] == "verified"
+        assert confirmed["result"] == "uncertain", "a report newer than the change is not the state asked for"
         opened = await hands.act("show_measurements", {"of": "e2"}, lambda: asyncio.sleep(0, {"ok": True}))
         assert opened["result"] == "verified", "the table window's own check is the studio's report"
         running = await hands.act("show_measurements", {"of": "e2"},
@@ -117,7 +118,7 @@ def test_takeover_mid_effect_is_uncertain_and_nothing_queued_runs_after():
     """Mouse, Escape or the talk key: the version rises, the one cancel signal stops the running intent within the
     drain, and an intent queued behind it never runs (HeyClicky's Windows fix: a drive that kept typing)."""
     async def go():
-        hands_mod.DRAIN_S = 0.1
+        hands_mod.RECONCILE_S = 1.0
         screen = {"now": report()}
         hands, studio, logged = make(screen)
         gate, ran = asyncio.Event(), []
@@ -149,7 +150,7 @@ def test_takeover_mid_effect_is_uncertain_and_nothing_queued_runs_after():
         ack = next(m for m in studio.sent if m.get("ack"))
         assert ack["owner"] == "user" and ack["version"] >= 2 and isinstance(ack["at"], float)
         assert any(r["kind"] == "partner-takeover" and r["why"] == "mouse" for r in logged)
-        hands_mod.DRAIN_S = 1.0
+        hands_mod.RECONCILE_S = 30.0
     asyncio.run(go())
 
 
@@ -198,12 +199,14 @@ def test_spending_asks_once_and_runs_on_the_approval():
 
         async def effect():
             ran.append(True)
-            return {"ok": True, "_log": {"confirmed": True}}
-        asked = await hands.act("find", {"what": "nuclei"}, effect)
+            screen["now"]["items"].append({"id": "layer:e5", "open": True,
+                                           "view": {"legacy": {"members": {"count": 12, "drawn": 12}}}})
+            return {"ok": True}
+        asked = await hands.act("outline_cells", {}, effect)
         assert asked["result"] == "permission" and "paid per use" in asked["ask"] and not ran
-        out = await hands.act("find", {"what": "nuclei"}, effect, approved=asked["approval"])
-        assert out["result"] == "verified" and ran == [True]
-        again = await hands.act("find", {"what": "nuclei"}, effect, approved=asked["approval"])
+        out = await hands.act("outline_cells", {}, effect, approved=asked["approval"])
+        assert out["result"] == "verified" and ran == [True] and out["said"] == "Done: 12 outlined."
+        again = await hands.act("outline_cells", {}, effect, approved=asked["approval"])
         assert again["result"] == "permission", "an approval is used once"
     asyncio.run(go())
 
@@ -211,11 +214,11 @@ def test_spending_asks_once_and_runs_on_the_approval():
 def test_a_cue_the_studio_does_not_answer_never_blocks_the_action():
     async def go():
         hands_mod.CUE_WAIT_S = 0.05
-        screen = {"now": report()}
+        screen = {"now": report(selected=["o3"])}
         hands, studio, logged = make(screen, answer=False)
-        out = await hands.act("select", {"object": "o3"}, lambda: asyncio.sleep(0, {"ok": True, "_log": {"confirmed": True}}))
+        out = await hands.act("select", {"object": "o3"}, lambda: asyncio.sleep(0, {"ok": True}))
         assert out["result"] == "verified"
-        drive = next(r for r in logged if r["kind"] == "partner-drive")
+        drive = await until_async(lambda: next((r for r in logged if r["kind"] == "partner-drive"), None))
         assert drive["shownT"] is None
         hands_mod.CUE_WAIT_S = 0.5
     asyncio.run(go())
@@ -248,4 +251,38 @@ def test_the_partner_routes_its_screen_changes_through_hands_and_the_studio_answ
         t.partner.tools.hands.owner = "partner"
         await t.partner.command({"type": "takeover", "version": t.partner.tools.hands.version, "why": "talk", "at": 5})
         assert any(m.get("ack") for m in t.studio if m["type"] == "control")
+    asyncio.run(go())
+
+
+def test_a_retried_action_gets_its_receipt_not_a_second_effect_and_a_cut_off_one_is_reconciled_later():
+    """The sharpened spec (hooke-web #78): an action id makes retries safe; a takeover gives control at once and the
+    cut-off action is reconciled in the background, its real receipt in the log when it finishes."""
+    async def go():
+        screen = {"now": report(front="main")}
+        hands, _, logged = make(screen)
+        ran = []
+
+        async def effect():
+            ran.append(True)
+            screen["now"] = report(front="Measurements")
+            return {"ok": True}
+        first = await hands.act("tabs", {"action": "switch", "tab": "Measurements"}, effect, action_id="call_1")
+        again = await hands.act("tabs", {"action": "switch", "tab": "Measurements"}, effect, action_id="call_1")
+        assert first["result"] == again["result"] == "verified" and ran == [True]
+        assert first["said"] == "Done: Measurements is in front (it was Main, for \"go back\")."
+        gate = asyncio.Event()
+
+        async def slow():
+            await gate.wait()
+            screen["now"] = report(front="main")
+            return {"ok": True}
+        cut = asyncio.ensure_future(hands.act("tabs", {"action": "switch", "tab": "main"}, slow))
+        await asyncio.sleep(0.05)
+        await hands.takeover({"type": "takeover", "version": hands.version, "why": "escape", "at": 1})
+        out = await asyncio.wait_for(cut, 0.5)
+        assert out["result"] == "uncertain", "control is the user's at once"
+        gate.set()
+        reconciled = await until_async(lambda: next((r for r in logged if r["kind"] == "partner-hands"
+                                                     and r.get("reconciled")), None))
+        assert reconciled["result"] == "verified"
     asyncio.run(go())
