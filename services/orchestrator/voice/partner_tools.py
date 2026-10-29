@@ -24,6 +24,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from .base import ToolSpec
+from . import knowing
+from .hands import Hands, intent_of
 
 # The registry's tools the voice gets, by name (tests/golden/tool_schemas.json): those this registry has are offered.
 # Web search is retrieve_page; a capability by name is run_capability (there once one is turned on); pictures are
@@ -39,6 +41,11 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                "make_table", "edit_table", "analyze", "make_graph", "read_analysis", "recall",
                                "where_is", "magnifier_picture", "show_result", "close_result", "close_magnifier",
                                "dissect", "contrast", "enhance", "snapshot", "outcomes", "individuals", "follow_cells")
+HANDS_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
+                         "outline_cells", "find"})  # what Hands wraps (hands.intent_of)
+APPROVED = {"approved": {"type": "string", "description": (
+    "Only after Hands asked permission for this (its result had result \"permission\") and the user said yes: that "
+    "approval's id.")}}
 MAX_RESEARCHERS_A_TURN = 3  # deliberately distinct researchers one request may start (distinct_from)
 DISTINCT = {"distinct_from": {"type": "string", "description": (
     "Only when the user asked for more than one researcher in this request: the brief of the other researcher this "
@@ -116,6 +123,9 @@ class PartnerTools:
         self.thinking: dict[str, asyncio.Task] = {}  # think's tasks by id
         self._task_started: dict[str, float] = {}  # task behind the voice -> when it started (its progress line)
         self._task_now: dict[str, str] = {}  # task -> what it is doing now, in words
+        # Hands: actions in Hooke typed, cued, verified and yielding to the user (hands.py); None runs tools directly.
+        self.hands: Hands | None = Hands(send=self._send_studio, observe=self._observation,
+                                         log=lambda record: self.partner.log(record), hub=hub)
         self.backend = None  # think's backend factory (option -> backend); tests pass a fake
 
     def running_facts(self) -> str:
@@ -150,6 +160,7 @@ class PartnerTools:
                                   "question": {"type": "string"},
                                   "window": {"type": "boolean", "description": "also send Hooke's window picture"}},
                                "required": ["question"]}, self.look_hard))
+        specs.append(ToolSpec("activity", knowing.DESCRIPTION, knowing.SPEC, self.activity))
         specs.append(ToolSpec("think", "Hand a hard question, a request with several steps, a comparison of models or a "
                               "close look to Hooke's frontier mind, which sees this turn's pictures, uses Hooke's tools, "
                               "checks the screen and reports back. Returns at once that it started; its result is told "
@@ -163,13 +174,35 @@ class PartnerTools:
                 params = json.loads(json.dumps(spec.parameters))
                 params.setdefault("properties", {}).update(DISTINCT)
                 spec.parameters = params
+            if self.hands is not None and spec.name in HANDS_TOOLS:  # an approval Hands asked for, given back
+                params = json.loads(json.dumps(spec.parameters))
+                params.setdefault("properties", {}).update(APPROVED)
+                spec.parameters = params
         return specs
+
+    async def activity(self, args: dict) -> dict:
+        """Recent Activity lines, newest first (knowing.py)."""
+        return knowing.read(self.hub, args or {})
+
+    async def _send_studio(self, message: dict) -> None:
+        if getattr(self.partner, "send", None) is not None:
+            await self.partner.send(message)
+
+    def _observation(self) -> dict | None:
+        """The bound studio's latest report (Hands' facts), or the studio whose report counts."""
+        screen = getattr(self.hub, "screen", None)
+        if screen is None:
+            return None
+        client = self.client if self.client is not None else getattr(screen, "current_accepted", lambda: None)()
+        observed = screen.observation(client) if client is not None and hasattr(screen, "observation") else None
+        return observed.wire() if observed is not None else None
 
     def think_tools(self) -> list[dict]:
         """The tools think's backend may call, as {name, description, parameters}."""
         tools = getattr(self.brain.registry, "tools", {})
         declared = {d["name"]: d for d in self.brain.registry.responses_tools()}
-        return [realtime_tool(declared[name]) for name in THINK_TOOLS if name in tools and name in declared]
+        return ([realtime_tool(declared[name]) for name in THINK_TOOLS if name in tools and name in declared]
+                + [{"name": "activity", "description": knowing.DESCRIPTION, "parameters": knowing.SPEC}])
 
     def _runner(self, name: str):
         async def run(args: dict) -> dict:
@@ -190,8 +223,14 @@ class PartnerTools:
             return {"ok": False, "error": why, "_log": {"fault": "bench"}}
         if name not in ONCE_PER_TURN:
             if name in SCREEN_CHANGING:
-                async with self._screen:  # changes on screen one after another, each with its own look after it
-                    return await self._run(name, args, n, patient)
+                async def screen_change() -> dict:
+                    async with self._screen:  # changes on screen one after another, each with its own look after it
+                        return await self._run(name, args, n, patient)
+                if self.hands is not None and intent_of(name, args) is not None:
+                    # An action in Hooke: typed, cued, re-checked, verified by the app, yielding to the user (hands.py).
+                    approved = str(args.pop("approved", "") or "") or None
+                    return await self.hands.act(name, args, screen_change, approved=approved, from_think=patient)
+                return await screen_change()
             return await self._run(name, args, n, patient)
         # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second
         # call of it in the same turn, in parallel or later and whatever its words, waits for the first's result.
@@ -695,11 +734,17 @@ class PartnerTools:
             self.running[key] = (f"thinking with {option}, now running {tool}", self.running[key][1], None)
 
         async def call_tool(name: str, args: dict) -> dict:
+            if name == "activity":
+                return knowing.read(self.hub, args or {})
             if name not in THINK_TOOLS:
                 return {"ok": False, "error": f"there is no {name} tool here"}
             result = await self.run(name, args, n=n, patient=True)
             pending = result.pop("_pending", None)
-            return await self.outcome(name, result, *pending) if pending is not None else result
+            if pending is None:
+                return result
+            result = await self.outcome(name, result, *pending)
+            intent = intent_of(name, args) if self.hands is not None else None
+            return self.hands.verify(intent, result) if intent is not None else result
 
         log = getattr(self.partner, "log", lambda record: None)
         missing = "ANTHROPIC_API_KEY" if not option.startswith("gpt-") else "OPENAI_API_KEY"

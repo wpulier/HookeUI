@@ -30,7 +30,8 @@ import os
 import time
 from typing import Any, Awaitable, Callable
 
-from .openai_realtime import Perception, RealtimeSession
+from . import knowing
+from .openai_realtime import Perception, RealtimeSession, text_item
 from .partner_tools import STARTED_TOOLS, PartnerTools
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
@@ -88,6 +89,16 @@ class Partner:
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
         session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
+        if knowing.UserActions.enabled():  # the user's own actions as silent context (knowing.py)
+            from .. import activity
+
+            found = activity.sink(self.hub)
+            if found is not None:
+                async def tell(text: str) -> None:
+                    if self.session is not None and not self.session.closed:
+                        await self.session.add(text_item("system", text))
+                self._user_actions = knowing.UserActions(tell)
+                found.listeners.append(self._user_actions.line)
         session.started_tools = STARTED_TOOLS  # think and the slow tools: an acknowledgement now, the result later
         session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
                                                                  timeout=1.0))
@@ -150,6 +161,10 @@ class Partner:
             self.got_snapshot(message)
         elif kind == "marks-shown":
             self._answer(str(message.get("id") or ""), message)
+        elif kind == "drive-shown" and self.tools.hands is not None:  # Hands' cue arrived (hands.py)
+            self.tools.hands.shown(message)
+        elif kind == "takeover" and self.tools.hands is not None:  # the user's mouse, Escape or talk key
+            await self.tools.hands.takeover(message)
         elif kind == "offer" and message.get("id"):
             if str(message["id"]) in self._waiting:
                 self._answer(str(message["id"]), message)  # the new offer this server asked for (reoffer)
@@ -192,6 +207,8 @@ class Partner:
         from .scene_tools import view_frame
 
         seen = self._seen.setdefault(n, {"window": None})  # a window picture that came first is kept
+        if self.tools.hands is not None:
+            self.tools.hands.fresh_look()  # control may come back to the partner: this turn looks afresh
         seen["screen"] = self.screen_now()
         board = getattr(self.brain, "board", None)
         with contextlib.suppress(Exception):
@@ -313,6 +330,8 @@ class Partner:
         message = {"type": "marks", "id": f"mk-{next(self._ids)}", "marks": marks, "until": until,
                    **({"frame": frame} if frame else {})}
         sent = time.time()
+        if self.tools.hands is not None:  # the conversation's pointing history ("that one")
+            self.tools.hands.point([str(m.get("target") or "") for m in marks])
         shown = await self._ask(message, timeout)
         self.log({"kind": "partner-marks", "id": message["id"], "targets": [m.get("target") for m in marks],
                   "sentT": sent, "shownT": time.time() if shown is not None else None,
