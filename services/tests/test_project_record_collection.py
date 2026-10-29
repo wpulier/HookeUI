@@ -1,5 +1,4 @@
 """Real immutable intake with synthetic Record bytes; no playback or owner UI proof."""
-from dataclasses import replace
 import json
 import os
 import shutil
@@ -168,3 +167,43 @@ def test_collection_refuses_event_loop_work(tmp_path):
         with pytest.raises(ProjectLocationError, match='background'):
             review_record(folder, max_bytes=1 << 20)
     asyncio.run(on_loop())
+
+
+@pytest.mark.parametrize('missing', ['file', 'channelsFile'])
+def test_missing_declared_workspace_recording_refuses_review(tmp_path, missing):
+    folder = dataset(tmp_path)
+    summary = json.loads((folder / 'dataset.json').read_text())
+    screen = {'file': 'video/screen-1.webm', 'channelsFile': 'video/screen-1.channels.jsonl', 'finished': True}
+    for name in ('file', 'channelsFile'):
+        (folder / screen[name]).write_bytes(b'synthetic workspace capture')
+    summary['screen'] = [screen]
+    (folder / 'dataset.json').write_text(json.dumps(summary))
+    (folder / screen[missing]).unlink()
+    with pytest.raises(ProjectLocationError, match='screen recording'):
+        review_record(folder, max_bytes=1 << 20)
+
+
+def test_growing_source_never_reads_beyond_reviewed_size_plus_probe(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    import orchestrator.project_record_collection as collection
+    folder = dataset(tmp_path)
+    video = folder / 'video/part-1.mp4'
+    size = video.stat().st_size
+    consumed = []
+    original = collection._file
+    class Growing:
+        def __init__(self, stream): self.stream = stream
+        def fileno(self): return self.stream.fileno()
+        def read(self, count):
+            body = self.stream.read(count)
+            consumed.append(len(body))
+            with video.open('ab') as output: output.write(b'x' * 100_000)
+            return body
+    @contextmanager
+    def file(root, name):
+        with original(root, name) as stream:
+            yield Growing(stream) if name == 'video/part-1.mp4' else stream
+    monkeypatch.setattr(collection, '_file', file)
+    with pytest.raises(ProjectLocationError, match='changed'):
+        review_record(folder, max_bytes=1 << 20)
+    assert sum(consumed) == size + 1

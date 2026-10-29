@@ -129,15 +129,18 @@ def _stream(source, stamp, check, output=None):
     if _stamp(os.fstat(source.fileno())) != stamp:
         raise ProjectLocationError('Recorded bytes changed; review the whole dataset again')
     digest = hashlib.sha256()
-    while True:
+    remaining = stamp[2]
+    while remaining:
         check()
-        block = source.read(CHUNK_BYTES)
+        block = source.read(min(CHUNK_BYTES, remaining))
         if not block:
-            break
+            raise ProjectLocationError('Recorded bytes ended before their reviewed size')
+        remaining -= len(block)
         digest.update(block)
         if output is not None:
             output(block)
-    if _stamp(os.fstat(source.fileno())) != stamp:
+    check()
+    if source.read(1) or _stamp(os.fstat(source.fileno())) != stamp:
         raise ProjectLocationError('Recorded bytes changed during collection')
     return digest.hexdigest()
 
@@ -171,6 +174,18 @@ def _summary(root, files):
                 continue
             if not isinstance(name, str) or name not in sizes:
                 raise ProjectLocationError('A declared Record part is missing; recover it before collection')
+    screens = value.get('screen', [])
+    if not isinstance(screens, list) or len(screens) > MAX_ENTRIES:
+        raise ProjectLocationError('Record screen membership is unreadable')
+    for screen in screens:
+        if not isinstance(screen, dict):
+            raise ProjectLocationError('Record screen membership is unreadable')
+        for field in ('file', 'channelsFile'):
+            if field == 'channelsFile' and field not in screen:
+                continue
+            name = screen.get(field)
+            if not isinstance(name, str) or name not in sizes:
+                raise ProjectLocationError('A declared screen recording or channel sidecar is missing')
     return raw
 
 
