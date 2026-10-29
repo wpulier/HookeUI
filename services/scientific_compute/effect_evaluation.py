@@ -43,12 +43,13 @@ def evaluate(inputs, params, output, check):
     strength = params['response_strength']
     for context, target, actual in zip(reference['contexts'], reference['targets'], reference['effects']):
         check()
-        if target in lookup:
-            predicted = model['effects'][lookup[target]] * strength
-        else:
-            predicted = np.zeros(len(actual)); missing.add(str(target))
+        actual = np.asarray(actual, dtype=np.float64)
         with np.errstate(over='raise', invalid='raise'):
             try:
+                if target in lookup:
+                    predicted = np.asarray(model['effects'][lookup[target]], dtype=np.float64) * strength
+                else:
+                    predicted = np.zeros(len(actual)); missing.add(str(target))
                 error = predicted - actual
                 values = [np.mean(error**2), np.mean(np.abs(error)), np.mean(actual**2), np.mean(np.abs(actual))]
             except FloatingPointError as exc:
@@ -71,4 +72,7 @@ def evaluate(inputs, params, output, check):
                     'evaluatedPairs':len(rows),'panel':'all reference context-target pairs'},
         'inputs':{name:_digest(inputs[name],check) for name in ('model','reference')},
         'overall':average(by_context),'contexts':by_context,'rows':rows}
-    return _json(output/'effect-evaluation.json',result), result
+    summary={key:result[key] for key in ('format','competitionScore','sealedHoldout','overall','responseStrength','inputs')}
+    summary.update(contexts=len(contexts), evaluatedPairs=len(rows), genes=len(model['genes']),
+                   unseenTargets=len(missing), detailsRetained=True)
+    return _json(output/'effect-evaluation.json',result), summary

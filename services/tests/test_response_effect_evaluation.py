@@ -23,8 +23,11 @@ def model(tmp_path, values=((2.,-2.),(4.,0.))):
 
 def evaluate(tmp_path, fitted, reference):
     folder=tmp_path/'evaluate';folder.mkdir()
-    return engine.OPERATIONS['response-effect-evaluate']({'model':fitted,'reference':reference},
+    path, summary = engine.OPERATIONS['response-effect-evaluate']({'model':fitted,'reference':reference},
         parameters('response-effect-evaluate',{}),folder,lambda:None)
+    assert 'rows' not in summary and 'normalization' not in summary
+    assert len(json.dumps(summary)) < 4096
+    return path, json.loads(path.read_text())
 
 
 def test_transfer_matches_hand_calculated_error_and_zero_effect_baseline(tmp_path):
@@ -81,3 +84,16 @@ def test_legacy_model_without_preparation_meaning_is_explicitly_refused(tmp_path
     reference=prepared(tmp_path,'reference',[[1.,1.],[2.,2.]])
     with pytest.raises(engine.Refused,match='refit'):
         evaluate(tmp_path,fitted,reference)
+
+
+def test_integer_backed_reference_arithmetic_does_not_wrap(tmp_path):
+    fitted=model(tmp_path,values=((0.,0.),(0.,0.)))
+    reference=prepared(tmp_path,'reference',[[2**32,0.],[0.,0.]])
+    with np.load(reference,allow_pickle=False) as archive:
+        arrays={name:archive[name] for name in archive.files}
+    arrays['effects']=arrays['effects'].astype(np.int64)
+    np.savez_compressed(reference,**arrays)
+    _, result=evaluate(tmp_path,fitted,reference)
+    assert result['overall']['zeroEffectMse']==2**62
+    assert result['overall']['zeroEffectMae']==2**30
+    assert result['overall']['mseSkill']==0.
