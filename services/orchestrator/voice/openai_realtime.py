@@ -213,6 +213,11 @@ class Ask:
 
 
 USER_CAUSES = ("turn", "typed")  # the user's own turns: first in the queue, and never dropped for waiting
+# Responses that answer the user (their turn, a tool round, the acknowledgement, a turn lost on a reconnect): one waiting
+# at the gate is the voice thinking (`phase`); a line nobody asked for waiting for quiet is not.
+ANSWER_CAUSES = ("turn", "typed", "tool", "look", "ack", "reconnect")
+# Tools whose work is Hooke's, not the voice's: their wait shows as Hooke working, with the hand-off's row (presence.py).
+HANDED_TOOLS = frozenset({"do_in_hooke", "think"})
 
 
 class RealtimeSession(VoiceSession):
@@ -281,6 +286,10 @@ class RealtimeSession(VoiceSession):
         self._started_at: dict[str, float] = {}  # response id -> when its audio started (monotonic)
         self._out_audio: dict[str, int] = {}  # response id -> its audio tokens (50 ms each)
         self.heard: Callable[[int], None] = lambda n: None  # a real turn released: the studio's heard cue (partner)
+        # The voice's own phase may have changed (voice/presence.py reads `phase()` and sends the studio its state).
+        self.on_phase: Callable[[], None] = lambda: None
+        self._heard_n: int | None = None  # a released turn taken, its answer not yet asked for: "heard"
+        self._rounds_open = 0  # tool rounds being answered (`_finish_round`), between a call ending and the next response
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
         self._first_audio: dict[str, float] = {}
@@ -441,6 +450,7 @@ class RealtimeSession(VoiceSession):
         self.answer_sdp = None
         self.termination = "confirmed" if not unresolved else "unconfirmed: " + "; ".join(unresolved)
         self._emit(VoiceEvent("closed", data={"reason": "client"}))
+        self._phase_changed()
 
     async def _end_call(self, sb, task, call_id) -> list[str]:
         unresolved = []
@@ -542,6 +552,7 @@ class RealtimeSession(VoiceSession):
         else:
             self._asks.append(ask)
         self._gate_wake.set()
+        self._phase_changed()
         return ask
 
     def _why_not(self, ask: Ask) -> str | None:
@@ -575,6 +586,7 @@ class RealtimeSession(VoiceSession):
                 if ask.dropped is not None:
                     with contextlib.suppress(Exception):
                         ask.dropped(why)
+                self._phase_changed()
                 continue
             if ask.prepare is not None:
                 prepare, ask.prepare = ask.prepare, None
@@ -608,6 +620,7 @@ class RealtimeSession(VoiceSession):
         while self._requested is not None or self._response is not None:
             if self._requested is not None and self.clock() - self._requested["since"] > RESPONSE_WAIT_S:
                 self._requested = None  # asked, and nothing was made of it: none is coming
+                self._phase_changed()
                 continue
             if self.clock() - start > RESPONSE_WAIT_S:
                 self._log({"kind": "partner-response-forced", "responseId": self._response})
@@ -617,6 +630,7 @@ class RealtimeSession(VoiceSession):
                 while self._response is not None and self.clock() < end:
                     await asyncio.sleep(0.02)
                 self._response = self._requested = None
+                self._phase_changed()
                 return
             await asyncio.sleep(0.02)
 
@@ -638,6 +652,38 @@ class RealtimeSession(VoiceSession):
     def speaking(self) -> bool:
         return self._speaking or self._response is not None or self._requested is not None
 
+    def phase(self) -> str:
+        """What the voice itself is doing now, for its state on screen (voice/presence.py; W3 "alive and available"):
+          - listening: a turn's key is held;
+          - speaking: its words are audible (the output buffer's events, else the studio's measured voice-phase);
+          - heard: a released turn was taken, its answer not yet asked for (the commit's tail);
+          - thinking: an answer is being made with nothing audible: a response asked for or being generated, a user's
+            answer waiting at the gate, or a tool of its own running or its round being answered. A hand-off's tool
+            (`HANDED_TOOLS`) is not the voice thinking: it is Hooke's work, shown as working with its row;
+          - quiet: none of these (idle, or Hooke's work alone in flight); off: the session closed."""
+        if self.closed:
+            return "off"
+        if self._held is not None:
+            return "listening"
+        if self._speaking:
+            return "speaking"
+        if self._heard_n is not None:
+            return "heard"
+        if self._requested is not None or self._response is not None:
+            return "thinking"
+        if any(ask.cause in ANSWER_CAUSES for ask in self._asks):
+            return "thinking"
+        running = [cid for cid, task in self._calls.items() if not task.done()]
+        if any(self._call_names.get(cid) not in HANDED_TOOLS for cid in running):
+            return "thinking"  # a tool of its own (a closer look, a mark) runs
+        if self._rounds_open and not running:
+            return "thinking"  # every call answered: its outputs going in and the next response asked for
+        return "quiet"
+
+    def _phase_changed(self) -> None:
+        with contextlib.suppress(Exception):
+            self.on_phase()
+
     def studio_phase(self, phase: str) -> None:
         """The studio's own measured state of its audio (`voice-phase`): speaking or listening. With the sideband's
         output_audio_buffer events, a source of truth for whether the voice is audible."""
@@ -658,6 +704,7 @@ class RealtimeSession(VoiceSession):
             self._last_audio_at = now
             self._emit(VoiceEvent("turn_complete", data={"reason": "quiet"}))
             self._gate_wake.set()
+        self._phase_changed()
 
     def _point_now(self) -> None:
         """What a tool just put on screen is pointed at as the answer about it starts to be heard (no round trip
@@ -678,8 +725,10 @@ class RealtimeSession(VoiceSession):
         self.n = n if isinstance(n, int) else self.n + 1
         barge = self.speaking() or self._maybe_audible()
         self._held, self._held_at, self._held_epoch = self.n, self.clock(), self._epoch
+        self._heard_n = None
         self._last_user_at = self.clock()
         self._log({"kind": "partner-talk", "n": self.n, "down": True, "barge": barge})
+        self._phase_changed()
         for event in self.bus.withdraw("opener"):  # the user spoke first: its first line is let go unsaid
             self._event_log(event, "the user spoke first")
         if barge:
@@ -698,6 +747,7 @@ class RealtimeSession(VoiceSession):
         self._audio_until = min(self._audio_until, self.clock())
         self._cut_off(None, "the voice was stopped")  # a result it was saying stays owed
         self._emit(VoiceEvent("interrupted"))
+        self._phase_changed()
         self._log({"kind": "partner-barge", "n": self.n, "cancelT": cancel_at, "clearT": self.wall()})
 
     async def talk_up(self, n: int | None = None) -> bool:
@@ -711,32 +761,40 @@ class RealtimeSession(VoiceSession):
         self._log({"kind": "partner-talk", "n": n, "down": False})
         self._gate_wake.set()
         if held_for < MIN_HOLD_S:
+            self._phase_changed()
             with contextlib.suppress(ConnectionError):
                 await self._send({"type": "input_audio_buffer.clear"})
                 await self._forget_turn(n)
             return False
         with contextlib.suppress(Exception):
             self.heard(n)  # a sign it heard you, at once: the studio's soft cue (never a word)
-        seen = self.turn_items(n)  # as it was at key-down, taken now
-        if not await self._wait_connected(RECONNECT_WAIT_S):
-            self._log({"kind": "partner-turn-lost", "n": n, "why": "no connection came back"})
-            return False
-        if self._epoch != held_epoch:
-            # Its audio went to a call that has since been replaced: said once, plainly.
-            self._log({"kind": "partner-turn-lost", "n": n, "why": "a new call was made while the key was held"})
-            self.respond("reconnect", n=n, tool_choice="none", instructions=self.config.system_prompt + (
-                "\n\nSay only, in your own words: the connection dropped for a moment, so please say that again."))
-            return False
-        await self._perceived(n, seen)
-        await asyncio.sleep(RELEASE_TAIL_S)
-        await self._send({"type": "input_audio_buffer.commit"})
-        committed = self.wall()
-        self._rounds_this_turn = 0
-        self._last_user_at = self.clock()
-        self.respond("turn", n=n, sent=lambda: self._log({
-            "kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
-            "responseCreatedT": self.wall(), **seen.facts}))
-        return True
+        self._heard_n = n  # taken: "heard" until its answer is asked for, then thinking
+        self._phase_changed()
+        try:
+            seen = self.turn_items(n)  # as it was at key-down, taken now
+            if not await self._wait_connected(RECONNECT_WAIT_S):
+                self._log({"kind": "partner-turn-lost", "n": n, "why": "no connection came back"})
+                return False
+            if self._epoch != held_epoch:
+                # Its audio went to a call that has since been replaced: said once, plainly.
+                self._log({"kind": "partner-turn-lost", "n": n, "why": "a new call was made while the key was held"})
+                self.respond("reconnect", n=n, tool_choice="none", instructions=self.config.system_prompt + (
+                    "\n\nSay only, in your own words: the connection dropped for a moment, so please say that again."))
+                return False
+            await self._perceived(n, seen)
+            await asyncio.sleep(RELEASE_TAIL_S)
+            await self._send({"type": "input_audio_buffer.commit"})
+            committed = self.wall()
+            self._rounds_this_turn = 0
+            self._last_user_at = self.clock()
+            self.respond("turn", n=n, sent=lambda: self._log({
+                "kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
+                "responseCreatedT": self.wall(), **seen.facts}))
+            return True
+        finally:
+            if self._heard_n == n:  # asked for now (thinking), or lost (said, or nothing to answer)
+                self._heard_n = None
+            self._phase_changed()
 
     async def talk_cancel(self, n: int | None = None) -> None:
         if self._held is None:
@@ -745,6 +803,7 @@ class RealtimeSession(VoiceSession):
         self._log({"kind": "partner-talk", "n": n, "down": False, "cancel": True})
         self._held = None
         self._gate_wake.set()
+        self._phase_changed()
         with contextlib.suppress(ConnectionError):
             await self._send({"type": "input_audio_buffer.clear"})
             await self._forget_turn(n)
@@ -1340,7 +1399,14 @@ class RealtimeSession(VoiceSession):
             self._emit(VoiceEvent("go_away", data={"reason": "close", "message": f"{type(exc).__name__}: {exc}"[:300]}))
 
     async def handle(self, ev: dict) -> None:
-        """One server event, translated into VoiceEvents and the turn machine's state."""
+        """One server event, translated into VoiceEvents and the turn machine's state; the voice's phase is read again
+        after it (a response created, its audio starting or stopping, a call, a response done)."""
+        try:
+            await self._handle(ev)
+        finally:
+            self._phase_changed()
+
+    async def _handle(self, ev: dict) -> None:
         kind = ev.get("type")
         now = self.clock()
         if kind == "response.created":
@@ -1583,6 +1649,7 @@ class RealtimeSession(VoiceSession):
         event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args)
         self._emit(event)
         self._calls[call_id] = asyncio.ensure_future(self._run_tool(event))
+        self._phase_changed()
 
     async def _run_tool(self, call: VoiceEvent) -> dict:
         spec = next((t for t in self.config.tools if t.name == call.name), None)
@@ -1604,9 +1671,21 @@ class RealtimeSession(VoiceSession):
                    "screenChange": False, "reportT": None, "confirmed": None, **log})
         self._emit(VoiceEvent("tool_result", call_id=call.call_id, name=call.name,
                               result={k: v for k, v in result.items() if k != "_look"}, data={"ms": ms}))
+        self._phase_changed()
         return result
 
     async def _finish_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False,
+                            pointing: bool = False) -> None:
+        """A tool round being answered is the voice thinking (`phase`) from its first call to the response it asks for
+        (or none): counted open while `_answer_round` runs."""
+        self._rounds_open += 1
+        try:
+            await self._answer_round(rid, n, go_on=go_on, ack=ack, pointing=pointing)
+        finally:
+            self._rounds_open -= 1
+            self._phase_changed()
+
+    async def _answer_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False,
                             pointing: bool = False) -> None:
         """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
         dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has

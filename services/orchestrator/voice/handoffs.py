@@ -125,6 +125,8 @@ class Handoffs:
                  clock: Callable[[], float] = time.time) -> None:
         self.dialogue, self.send, self.spawn, self.log, self.clock = dialogue, send, spawn, log, clock
         self.open: dict[str, Handoff] = {}
+        # Told after each state is filed: the voice's state on screen counts the hand-offs in flight (presence.py).
+        self.changed: Callable[[], None] = lambda: None
 
     def _flying(self) -> set | None:
         flying = getattr(self.dialogue, "flying", None)
@@ -225,9 +227,10 @@ class Handoffs:
         if self.dialogue is not None:
             with contextlib.suppress(Exception):
                 self.dialogue.show(line, asked=handoff.asked)
-            return
-        if self.send is not None and self.spawn is not None:
+        elif self.send is not None and self.spawn is not None:
             self.spawn(self.send(line))
+        with contextlib.suppress(Exception):
+            self.changed()
 
 
 def replayed(line: dict, flying: set) -> dict:
