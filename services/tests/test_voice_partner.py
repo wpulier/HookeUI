@@ -1365,3 +1365,27 @@ def test_a_connection_that_keeps_dropping_ends_talk_and_says_so(monkeypatch):
         assert any(r["kind"] == "partner-reconnect-failed" and r["reason"] == "storm" for r in t.logged)
         assert any(m.get("kind") == "error" and "kept dropping" in m["data"]["message"] for m in t.studio)
     asyncio.run(go())
+
+
+def test_the_announcers_late_line_about_a_researcher_is_never_said_again(monkeypatch):
+    """part-2.5 x3: the announcer's line came more than 10 s after the researcher finished (it opens the work first), was
+    not recognised as the same researcher, and Researcher 2's finish was said twice."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.session._last_user_at = 0.0
+        clock = [1000.0]
+        t.partner.clock = lambda: clock[0]
+        for rid in ("R2", "R3"):  # two finish close together
+            t.partner._research_done(SimpleNamespace(purpose="research", status="done", rid=rid, name=rid,
+                                                     origin={"channel": "voice"}, result=None))
+        await until_async(lambda: t.sb.responses == 1)
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.sb.responses == 2)
+        await done(t.sb, "resp_2")
+        clock[0] += 30  # the announcer's lines, 30 s later
+        for rid in ("R2", "R3"):
+            await t.session.inject(f'Requested notification: {{"event": "completed", "facts": {{"researchId": "{rid}"}}}}',
+                                   respond=True)
+        await asyncio.sleep(0.4)
+        assert t.sb.responses == 2, "each researcher said once"
+    asyncio.run(go())

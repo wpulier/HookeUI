@@ -36,7 +36,7 @@ from .partner_tools import PartnerTools
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
 OFFER_WAIT_S = 5.0  # a reconnect waits this long for the browser's new offer
 SCREEN_CHARS = 1000  # the screen now as text, at most
-NOTICE_TAG_S = 10.0  # a researcher's finish is matched to the narrator's line about it within this long
+NOTICE_TAG_S = 120.0  # a researcher's finish is matched to the narrator's lines naming it within this long
 BRIEF_CHARS = 3000
 REATTACH_AGAIN_S = 10.0
 STORM_S, STORM_RECONNECTS = 60.0, 3  # more than this many reconnects in this long: Talk ends, and says so  # a reattached sideband dropping again within this: the call is gone, so a new one
@@ -65,7 +65,7 @@ class Partner:
         self._ids = itertools.count(1)
         self._tasks: set = set()
         self._research = None
-        self._research_seen: tuple | None = None  # (rid, event, at): tags the narrator's line about it
+        self._finished: dict[str, tuple] = {}  # researcher id -> (event, at): tags the narrator's lines about it
         self._tools_named: tuple = ()
         self.reconnecting: asyncio.Task | None = None
         self.fault: str | None = None
@@ -460,15 +460,16 @@ class Partner:
         await self.session.proactive(text, event=event, ref=ref, before=before, mark=mark)
 
     def tag_notice(self, text: str) -> dict | None:
-        """A narrator line is about the researcher that just finished only when its own facts name that researcher
-        (the announcer's facts carry `"researchId": "<rid>"`); timing alone tags nothing."""
-        seen = self._research_seen
-        if seen is None or self.clock() - seen[2] > NOTICE_TAG_S:
+        """A narrator line is about a researcher that finished lately only when its own facts name that researcher
+        (the announcer's facts carry `"researchId": "<rid>"`); timing alone tags nothing. Every researcher that finished
+        in the last NOTICE_TAG_S is looked for: the announcer's line can come many seconds after (it opens the work
+        first), and two can finish close together (the part-2.5 bench: an untagged line said a researcher twice)."""
+        now = self.clock()
+        self._finished = {rid: seen for rid, seen in self._finished.items() if now - seen[1] <= NOTICE_TAG_S}
+        found = next((rid for rid in self._finished if f'"researchId": {json.dumps(rid)}' in text), None)
+        if found is None:
             return None
-        rid, event = seen[0], seen[1]
-        if f'"researchId": {json.dumps(rid)}' not in text:
-            return None
-        self._research_seen = None
+        rid, event = found, self._finished[found][0]
         mark = f"researcher:{rid}"
 
         async def before() -> None:
@@ -484,7 +485,7 @@ class Partner:
         status = str(getattr(session, "status", "") or "")
         event = "researcher-done" if status in ("done", "partial") else "researcher-failed"
         rid = str(getattr(session, "rid", "") or "")
-        self._research_seen = (rid, event, self.clock())
+        self._finished[rid] = (event, self.clock())
         from ..untrusted import block
 
         result = getattr(session, "result", None) or {}
