@@ -49,6 +49,8 @@ REPORT = {
             "checked": {"type": "boolean", "description": "true only if every change said to be done was confirmed"},
             "done": {"type": "boolean", "description": "true when the request is fully done; false when it failed or "
                                                        "only part of it was done"},
+            "question": {"type": "string", "description": "only when you cannot go on without the user: the one short "
+                                                          "question the voice asks them (their answer comes back to you)"},
         },
         "required": ["say", "checked", "done"],
     },
@@ -65,11 +67,21 @@ class ThinkTask:
     history: list[tuple[str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     id: str = field(default_factory=lambda: f"t{uuid.uuid4().hex[:10]}")
+    previous: str = ""  # a follow-up's job so far: what it said and found (update_job on a finished job)
+    updates: list[str] = field(default_factory=list)  # the user's follow-ups while it works (update_job)
+    taken: int = 0
+
+    def new_updates(self) -> list[str]:
+        """The follow-ups not yet given to the backend, given once."""
+        fresh, self.taken = self.updates[self.taken:], len(self.updates)
+        return fresh
 
     def context(self) -> str:
         parts = [f"The voice handed you this: {self.request}"]
         if self.why:
             parts.append(f"Why it needs you: {self.why}")
+        if self.previous:
+            parts.append(f"This continues your earlier work on it: {self.previous}")
         if self.words:
             parts.append(f"The user's own words: {self.words}")
         if self.history:
@@ -94,9 +106,11 @@ class ThinkResult:
     rounds: int = 0
     tools: list[dict] = field(default_factory=list)  # each call: {name, ok, confirmed}
     usage: dict = field(default_factory=dict)
+    question: str = ""  # asked of the user; their answer goes to the same job (update_job)
 
     def facts(self) -> dict:
         return {"done": self.ok is True, "checked": self.checked, "say": self.say, "points": self.points,
+                **({"question": self.question} if self.question else {}),
                 "steps": self.tools[-8:], **({"refused": self.refused} if self.refused else {}),
                 **({"error": self.error} if self.error else {})}
 
@@ -200,6 +214,9 @@ class ClaudeThinker:
                                                                    "data": jpeg_b64(jpeg)}})
                 answers.append({"type": "tool_result", "tool_use_id": use["id"], "content": blocks_out,
                                 **({"is_error": True} if out.get("ok") is False else {})})
+            fresh = task.new_updates()
+            if fresh:  # the user's follow-ups while it worked, in order (update_job)
+                answers.append({"type": "text", "text": "The user added, while you worked: " + " / ".join(fresh)})
             messages.append({"role": "user", "content": answers})
             if final is not None:
                 return finish(result, final)
@@ -292,6 +309,10 @@ class SolThinker:
                     look.append({"type": "input_text", "text": label})
                     look.append({"type": "input_image", "image_url": "data:image/jpeg;base64," + jpeg_b64(jpeg)})
                 items.append({"role": "user", "content": look})
+            fresh = task.new_updates()
+            if fresh:
+                items.append({"role": "user", "content": [{"type": "input_text", "text": "The user added, while you "
+                                                           "worked: " + " / ".join(fresh)}]})
             if final is not None:
                 return finish(result, final)
         result.error = "it took more steps than allowed"
@@ -303,6 +324,7 @@ def finish(result: ThinkResult, report: dict) -> ThinkResult:
     result.say = str(report.get("say") or "").strip()
     result.points = [str(p) for p in (report.get("points") or [])][:4]
     result.checked = bool(report.get("checked"))
+    result.question = str(report.get("question") or "").strip()
     done = bool(report.get("done"))
     result.ok = True if done and result.checked else (False if not done else None)
     return result
