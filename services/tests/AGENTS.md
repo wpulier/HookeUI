@@ -269,6 +269,8 @@ comparing at each step what was asked, what the workspace shows and what the rec
 retesting. It is a tester's document: never put it into the app's prompts. When and how: the partner plan's "The end
 of the effort" (`docs/design/2026-10-07-the-partner.md`).
 The user's live cases of 2026-10-07 are crucial acceptance cases there (the partner plan's §5 lists them).
+The Part 2.5 journey (`docs/testing/part-2.5-journey.md`) is the public form of that check for one Project across
+voice, the manual UI, a researcher and a connected agent; its cases from the 2026-10-28 session are on the benches.
 
 Isolated-profile browser checks (`tests/scientific_browser.py`) build the production Studio from the tree when its
 build is stale, start the real orchestrator on a fresh home (own assets, empty keys file, no camera, no keychain,
