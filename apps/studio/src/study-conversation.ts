@@ -75,7 +75,8 @@ export function studyConversation(initial:Effort, options:{
       }
       if(existing){existing.replaceChildren(...card.children);existing.dataset.signature=rowSignature;}else log.append(card);
     }
-    if(follow)log.scrollTop=log.scrollHeight;
+    // A long reply opens at its question/author, not halfway through its closing paragraph.
+    if(follow)log.scrollTop=(log.lastElementChild as HTMLElement|null)?.offsetTop??0;
   }
   async function refresh(){
     if(reading||!options.current())return;reading=true;
