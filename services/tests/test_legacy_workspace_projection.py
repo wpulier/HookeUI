@@ -284,8 +284,26 @@ def test_legacy_structural_revisions_cannot_hide_a_content_change_or_regress(tmp
     assert rig.observed().wire() == before and calls == []
 
 
-@pytest.mark.parametrize('change', ['unknown-ack', 'native-ack', 'missing-user-target',
-    'unknown-user-property', 'unchanged-user-claim', 'native-source-token', 'native-draw-token'])
+@pytest.mark.parametrize('change', ['missing-user-target', 'unchanged-user-claim'])
+def test_a_user_claim_with_no_original_taken_is_left_unowned_and_the_report_kept(tmp_path, change):
+    """The studio owns a drag against the last report it sent, which the server may not have taken (live 2026-10-29:
+    "User change has no represented original structural property", and the report refused): the report is taken,
+    and the claim earns no ownership."""
+    rig, calls = structural_rig(tmp_path)
+    asyncio.run(ingest(rig, structural_report(rig)))
+    before = rig.observed().wire()
+    report = structural_report(rig, seq=11)
+    report['user'] = ([{'id': 'absent-legacy-root', 'prop': 'rect'}] if change == 'missing-user-target'
+                      else [{'id': 'magnifier', 'prop': 'rect'}])
+    reply = asyncio.run(rig.ingest(report))
+    assert reply.get('ok') is True, reply
+    assert rig.observed().wire()['seq'] == 11 > before['seq']
+    assert rig.screen.owner('magnifier', 'rect') is None and rig.screen.owner('absent-legacy-root', 'rect') is None
+    assert calls == []
+
+
+@pytest.mark.parametrize('change', ['unknown-ack', 'native-ack',
+    'unknown-user-property', 'native-source-token', 'native-draw-token'])
 def test_structural_reports_cannot_mint_ack_ownership_source_or_draw_authority(tmp_path, change):
     rig, calls = structural_rig(tmp_path)
     asyncio.run(ingest(rig, structural_report(rig)))

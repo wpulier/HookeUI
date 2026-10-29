@@ -21,6 +21,14 @@ MAGNIFIER_MIN_W = 160  # the studio's narrowest magnifier (magnifier.ts resizeTo
 # How long a window change waits for a studio in the background to be in view again, within its request's life
 # (ticket.MAX_TICKET_S): after it, the change was sent and applied but is said not confirmed, never "could not".
 BACKGROUND_WAIT_S = 300.0
+# A window change with no report since it was sent asks the studio for one this often while it waits (`screen-ask`).
+ASK_REPORT_S = 0.5
+
+
+def _no_report_since(result, actual, fence) -> bool:
+    """The comparison found no report newer than the command (REPORT_STALE): none taken from the studio since."""
+    return (result.get("status") == "unobserved" and (result.get("error") or {}).get("code") == "REPORT_STALE"
+            and actual is not None and type(actual.get("seq")) is int and actual["seq"] <= fence["afterReportSeq"])
 # A look at the screen that did not happen says only that, and that it says nothing about what the user sees (live
 # 2026-10-28: a capture past its deadline became "I can't see your screen ... try refreshing", then "quit and reopen the
 # app"); the windows the studio reports still say what is shown.
@@ -1478,7 +1486,7 @@ async def _native_present(services, ctx, args):
     original_ticket = tickets.current()
     leases, prepared, effect = [], None, None
     receipts, initial_children = [], {}
-    unseen = {"background": False}  # a change the studio applied while in the background, never seen in time
+    unseen = {"background": False, "unreported": False}  # applied in the background / no report since it was sent
     arrangement = None
     children_receipt, cleanup = None, None
     core, store, screen = services.presentations, services.prepared_sources, screen_of(services.hub)
@@ -1659,7 +1667,7 @@ async def _native_present(services, ctx, args):
                 raise PresentationError("request_canceled", "the original request Ticket is no longer current")
             core.compensation_guard(committed, pctx)
 
-        async def deliver(committed, op, original, *, compensation=False):
+        async def deliver(committed, op, original, *, compensation=False, required=False):
             if compensation:
                 compensation_guard(committed)
             states = tuple(core.get(pctx.workspace_id, iid) for iid in committed.targets)
@@ -1691,6 +1699,7 @@ async def _native_present(services, ctx, args):
             # The deadline counts only time the studio is in view: in the background it paints nothing, and paints
             # what it was given once shown again, so that wait is the user's, never a failure (completion.compare).
             background_s, background_since, waited_since = 0.0, None, None
+            asked_at = screen._observation_clock()
             while True:
                 error = None
                 if compensation:
@@ -1769,6 +1778,12 @@ async def _native_present(services, ctx, args):
                     break
                 if not in_background and screen._observation_clock() >= effective["deadlineMono"]:
                     break
+                if (not in_background and _no_report_since(result, actual, fence)
+                        and screen._observation_clock() - asked_at >= ASK_REPORT_S):
+                    # No report since the command: Hooke asks the studio for one (a studio reports on a change and
+                    # every few seconds), rather than waiting the deadline out and failing it as "stale".
+                    asked_at = screen._observation_clock()
+                    services.hub.broadcast({"type": "screen-ask"})
                 await asyncio.sleep(0.25 if in_background else 0.025)
             receipts.append(result)
             if facet is not None:
@@ -1781,7 +1796,23 @@ async def _native_present(services, ctx, args):
             if result["status"] == "unobserved" and (result.get("error") or {}).get("code") == "STUDIO_IN_BACKGROUND":
                 unseen["background"] = True
                 return False  # sent and applied by the studio, not a failure: it shows once the studio is in view
+            if not compensation and not required and _no_report_since(result, actual, fence):
+                # Sent, and the studio took no report Hooke could read since, though it was asked: not confirmed,
+                # said as that, never a failure with "ask again" (an internal check is not the user's to repeat).
+                unseen["unreported"] = True
+                plain = {"code": "STUDIO_UNREPORTED", "boundary": "observe", "retryable": False, "next": None,
+                         "reason": "the studio has not reported what it shows since the change was sent"}
+                receipts[-1] = {**result, "error": plain}
+                run.outcome = {**receipts[-1], "receipts": list(receipts), "failure": plain}
+                if facet is not None:
+                    facet["row"].update(status="unobserved", confirmation=copy.deepcopy(receipts[-1]), error=dict(plain))
+                return False
             if result["status"] != "confirmed":
+                if _no_report_since(result, actual, fence):
+                    # A step the whole action needs (a split's retirement of its original): not confirmed is not done.
+                    raise ToolFailed(f"the {op} was sent, but not confirmed on screen: the studio has not reported "
+                                     "what it shows since",
+                                     next=None)  # no next: it was asked for a report already; nothing is the user's to do
                 raise ToolFailed((result.get("error") or {}).get("reason") or "the display could not be verified",
                                  next=(result.get("error") or {}).get("next") or REPORT_NEXT)
             raw = screen.observation(ctx.client).wire()
@@ -1878,11 +1909,14 @@ async def _native_present(services, ctx, args):
             retired = await apply(services.hub, lambda _place: core.retire_group(effect, pctx), scope="session", destination=WORKSPACE)
             if not retired.ok:
                 failure("request_canceled", retired.reason)
-            await deliver(retired.value.retirement, "close", parent_before)
+            await deliver(retired.value.retirement, "close", parent_before, required=True)
             run.outcome = {**children_receipt, "retirement": receipts[-1], "receipts": list(receipts)}
         if not confirmed and unseen["background"]:
             return ("the window change was sent to the studio, which stayed in the background: it shows once the "
                     "studio is in view again, not confirmed on screen yet")
+        if not confirmed and unseen["unreported"]:
+            return ("sent, but not confirmed on screen: the studio has not reported what it shows since it was sent "
+                    "(not known whether it happened; not done and not failed)")
         if not confirmed:
             return "the window change was sent; its display is unverified"
         # This is also the receipt carried into conversation/voice reconciliation.

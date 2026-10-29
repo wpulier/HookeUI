@@ -683,6 +683,8 @@ class PartnerTools:
                                   request_id=request.admission.request_id, voice_owner=self.partner.session,
                                   when_asked=asked_at)
                 if self.client is not None:
+                    with contextlib.suppress(Exception):  # the studio's report now, as a typed Send carries its own
+                        await hub.screen.refresh(self.client)
                     with contextlib.suppress(Exception):  # no current report: the tool runs on the app's own view
                         pin = hub.screen.pin(self.client, request_id=request.admission.request_id,
                                              timing="server-handoff-arrival")
@@ -904,27 +906,45 @@ class PartnerTools:
             asked_at = self.partner.when_asked(n)
             if asked_at is not None:
                 kwargs["when_asked"] = asked_at
+        request = None
         if self.client is not None:
+            # The hand-off is pinned to what the studio shows now (its report asked for at once), as a typed Send is
+            # pinned to the report it carries: never to a periodic report from before the user's last change.
+            with contextlib.suppress(Exception):
+                await hub.screen.refresh(self.client)
             request = issue(hub, "turn", asked=brain.conversation.here(), channel="voice")
             try:
                 pin = hub.screen.pin(self.client, request_id=request.admission.request_id, timing="server-handoff-arrival")
                 kwargs.update(client=self.client, request_snapshot=pin, request_ticket=request, asked=request.asked)
             except Exception:
                 request.seal()
+                request = None
         before = self._reported_at()
         # Hooke's brain is asked in the user's own words; the voice's reading of them goes with it as context.
         asked = text if not words or words.strip().lower() == text.lower() else (
             f"{words.strip()}\n(The voice partner, who sees the same view, took this to mean: {text})")
-        result = await brain.turn(asked, "voice", **kwargs)
+        try:
+            result = await brain.turn(asked, "voice", **kwargs)
+        finally:
+            if request is not None:
+                request.seal()  # as a typed Send's: what it started finishes, then its holds are let go
         actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
                    for a in (result.get("actions") or [])][:8]
         answer = str(result.get("answer") or "")[:1800]
         failed = [f"{a['tool']}: {a['summary']}" for a in actions if a["ok"] is False]
         working = [a["tool"] for a in actions if a["ok"] is None]
-        out: dict[str, Any] = {"ok": None if working and not failed else (not failed and bool(answer or actions)),
+        # Sent but not confirmed on screen (no report came since, present's STUDIO_UNREPORTED): neither done nor
+        # failed, said as that; never "done" and never "ask again".
+        uncertain = [a.get("tool") for a in (result.get("actions") or [])[:8]
+                     if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
+        out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
                                "answer": answer, "actions": actions}
         if failed:
             out["failed"] = failed
+        if uncertain:
+            out["result"], out["uncertain"] = "uncertain", uncertain
+            out["note"] = ("I sent it but couldn't confirm it on screen: say exactly that for "
+                           + ", ".join(str(t) for t in uncertain) + "; never that it is done, never to ask again.")
         if result.get("error"):
             out["ok"], out["error"] = False, str(result["error"])[:300]
         changed = [a["tool"] for a in actions if a["ok"] and a["tool"] in SCREEN_CHANGING]

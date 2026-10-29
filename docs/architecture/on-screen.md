@@ -77,6 +77,30 @@ other files.
   work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
   open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen
   that did not happen says no picture was taken and that this says nothing about what the user sees.
+- **An internal check is Hooke's to resolve, never the user's** (live 2026-10-29, 17:17-17:26: two closes, a highlight,
+  a table, a researcher's graphic and the researcher's own result all said "out of date ... ask again" while the studio
+  kept reporting). Each failure path is a state Hooke re-checks and recovers from itself:
+  - **A report naming a window whose grant has ended** (its pin released when it closed, or never granted to this
+    connection; `App._workspace_source` sets `ended`) is taken without that window (`Screen._without_sources`: complete
+    false, its items, targets, edges and pointer left out), never refused whole: refusing it froze what Hooke knew of
+    the screen. The reply says what was left out (`partial`) and the log has a `screen-partial` line; the studio shows
+    no notice. Facts that differ from a source still prepared here, and a live window still claiming to draw from a
+    producer that stopped, are still refused whole (`screen-refused`).
+  - **A user change with no original in the last report taken**, or one that changed nothing, is left unowned, never
+    a refused report (a property no window has is still refused).
+  - **A change with no report since it was sent** asks the studio for one (`screen-ask`, every `ASK_REPORT_S`) while it
+    waits. If none comes it is **uncertain**: "sent, but not confirmed on screen" (STUDIO_UNREPORTED; Hands'
+    receipt `uncertain`, "I sent it but couldn't confirm it on screen"), never done, never "ask again". A step the
+    whole action needs (a split's retirement of its original) still fails the action.
+  - **A request whose studio report is older than `REPORT_FRESH_S`** asks for a fresh one before its steps run
+    (`ActionRunner._current_report`), so its tools do not each fail as stale.
+  - **A voice hand-off and every voice tool** ask the bound studio for its report and pin that one (`Screen.refresh`),
+    as a typed Send pins the report it carries; the hand-off seals its Ticket after the turn, as a Send does.
+  - **The Tab arrangement** (studio `workspace-views.ts`): a save that meets a newer revision is rebased on it
+    (`rebasedLayout`: what was added there kept, everything shown here kept) and saved again, at most twice; a window
+    is always saved with a name (`windowTitle`, `savedTitle`); a refusal of the arrangement is said on its layout line
+    and in Activity (`layoutDiagnostic`), never a toast; the Tabs broker waits for a Tab still opening instead of
+    "ask again". Tests: `tests/test_voice_screen_recovery.py`, `workspace-layout-recovery.test.ts`.
 - **Done means the screen shows it** (ADR 0006 extended to the screen). A change is sent with an id. It is
   done only once a report says it was applied and shows it; otherwise it failed, and that is said. Live 2026-10-11,
   10 of the user's own window changes were refused in under 35 ms; their causes:

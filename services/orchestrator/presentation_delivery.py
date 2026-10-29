@@ -1271,6 +1271,16 @@ class PreparedSources:
             lease = self._lease(pins[0])
             return ResolvedSource(lease.source, lease.release)
 
+    def prepared_key(self, key, context) -> bool:
+        """Whether any source is prepared under this exact key for this context's origin (metadata only: it grants
+        nothing). A report naming a key with nothing prepared behind it shows a window whose grant has ended."""
+        try:
+            origin = _origin(context)
+        except PresentationError:
+            return False
+        with self._lock:
+            return any(pin.origin == origin and pin.source.key == key for pin in self._pins.values())
+
     def get(self, token, context):
         origin = _origin(context)
         with self._lock:

@@ -1396,6 +1396,14 @@ def test_native_confirmation_uses_four_second_origin_and_request_policy(tmp_path
             assert item['phase'] == 'drawn' and item['drawRef']
             assert item['sourceToken'] == wire['fence']['targets'][item['id']]['sourceToken']
             assert item['payloadBinding']['servedDigest'] == digest(jpeg())
+        elif mode == 'wrong-origin':
+            # No report from the originating studio since the command (it was asked for one): neither done nor failed.
+            # The receipt says it was sent and not confirmed on screen, never "ask again" (2026-10-29).
+            assert captured['transport']['ok'] is False and captured['transport']['code'] == 'CLIENT_MISMATCH'
+            assert captured['origin_report']['seq'] <= wire['fence']['afterReportSeq']
+            assert app.hub.screen.observation(peer) is None
+            assert outcome['status'] == 'unobserved' and outcome['failure']['code'] == 'STUDIO_UNREPORTED'
+            assert 'not confirmed on screen' in run.summary and 'ask again' not in run.summary and run.next is None
         else:
             assert run.ok is False and outcome['status'] != 'confirmed'
             if mode == 'after-four-seconds':
