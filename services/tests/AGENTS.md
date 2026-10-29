@@ -660,3 +660,8 @@ population evidence resolver; full microscopy collection is a separate gate.
 The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
 
 `test_project_identity_routing.py` uses synthetic observations with real Project journals and identity replay. It covers move/reopen, merged-ID retention, independent writer refusal, replaced storage and interrupted tails. It is storage evidence, not biological identity accuracy or live portability acceptance.
+
+`test_project_media_history.py` uses real Library edits and immutable file intake
+with synthetic pixels. It checks retained calibration revisions, unrelated-item
+exclusion, stable retries, change-during-copy refusal and bounded history recovery.
+It does not qualify playback, live capture or complete Project collection.

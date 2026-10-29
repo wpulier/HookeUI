@@ -5,7 +5,7 @@ not register that ID in another host's Library or follow a mutable original late
 This is selected-media retention, not collection of a whole Record dataset or its
 Library edit history. Callers must run the bounded file work off the event loop.
 """
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 import asyncio
 import os
@@ -40,9 +40,10 @@ class MediaReference:
 
 
 class _MediaIntake(FileIntake):
-    def __init__(self, *args, metadata, check_source, **kwargs):
+    def __init__(self, *args, metadata, check_source, source_guard, **kwargs):
         self.metadata = frozen(metadata)
         self.check_source = check_source
+        self.source_guard = source_guard
         super().__init__(*args, **kwargs)
 
     def document(self, ref):
@@ -52,15 +53,23 @@ class _MediaIntake(FileIntake):
 
     @contextmanager
     def acceptance(self):
-        self.check_source()
-        yield
+        with self.source_guard():
+            self.check_source()
+            yield
 
 
 class ProjectMedia:
     def __init__(self, stores):
         self.stores = stores
 
-    def retain(self, session, asset: Asset, *, request, max_bytes, producer, stopping=lambda: False):
+    def retain_library(self, session, library, identity, **options):
+        """Copy selected bytes and all available Library metadata revisions together."""
+        _background()
+        from .project_media_history import capture
+        selected = capture(library, identity)
+        return self.retain(session, selected.asset, _capture=selected, **options)
+
+    def retain(self, session, asset: Asset, *, request, max_bytes, producer, stopping=lambda: False, _capture=None):
         """Retain one admitted source and its known metadata; no parsing or execution.
 
         A lost reply retries the same request/content through FileIntake. A changed
@@ -77,6 +86,8 @@ class ProjectMedia:
             raise ProjectLocationError('Collect this Record dataset with its shared captures; a single part is not a complete dataset')
         metadata = {'format': 1, 'projectOrigin': root.origin, 'asset': asset.metadata(),
                     'libraryKey': asset.key, 'scope': 'selected-media', 'history': 'metadata-at-retention'}
+        if _capture is not None:
+            metadata.update(history='retained-library-metadata', libraryHistory=_capture.history)
         descriptor = os.open(asset.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(descriptor, 'rb') as source:
             original = os.fstat(source.fileno())
@@ -89,7 +100,8 @@ class ProjectMedia:
                     raise ProjectLocationError('The selected source or Project changed during retention; preserve it and retry')
             intake = _MediaIntake(self.stores, session, request, name=asset.path.name,
                 size=original.st_size, max_bytes=max_bytes, producer=producer,
-                metadata=metadata, check_source=check_source)
+                metadata=metadata, check_source=check_source,
+                source_guard=_capture.acceptance if _capture is not None else nullcontext)
             try:
                 while True:
                     if stopping():

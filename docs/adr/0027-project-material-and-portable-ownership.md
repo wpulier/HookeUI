@@ -189,3 +189,14 @@ This adapter does not remap live Library aliases, collect Library edit history,
 materialize playback files or collect Record datasets. Record parts refuse until
 whole-dataset inclusion is reviewed. Live portable activation and complete mixed
 Project collection remain off pending those integrations.
+
+### Selected media metadata history
+
+Collection of a Library source preserves its available metadata revisions, including
+calibration and user corrections, alongside the exact copied bytes. Only records
+for that source and applicable shared example classifications enter the Project;
+the rest of the Library stays outside. A bounded, complete journal read and a
+publication-time Library guard prevent mixed metadata/byte captures. Truncated,
+conflicting or oversized history refuses rather than claiming complete collection.
+This extends selected-media retention; shared Record capture collection, playback
+identity mapping and full Project migration remain separate acceptance gates.
