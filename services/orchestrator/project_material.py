@@ -24,6 +24,8 @@ def describe(document: dict) -> dict:
                         origin='imported', input=True, section='files', category='import')
     elif kind == 'research-effort':
         material.update(kind='assignment', origin='authored', input=True, section='study', category='study-result')
+    elif kind == 'project-material-membership':
+        material.update(kind='organization', origin='authored', section='history', category='organization', record=True)
     elif kind.startswith('scientific-workflow-'):
         material.update(kind='workflow', origin='generated', section='history', category='workflow', record=True)
         attempt = state.get('workflowAttempt', {})
@@ -93,4 +95,38 @@ def attach_usage(entries, store=None) -> list[str]:
             entry.material['uses'].append(use)
             if current:
                 entry.material['input'] = True
+    from .project_material_edit import record, membership_id
+    for membership in materials.values():
+        if membership.values.get('kind') != 'project-material-membership':
+            continue
+        try:
+            value = record(membership.values['state']['materialMembership'], session=membership.day)
+            ref = value['reference']
+            if membership.id != membership_id(ref):
+                raise ValueError('organization identity mismatch')
+            entry = materials.get(ref['id'])
+            if entry is None:
+                raise ValueError('organized material unavailable')
+            organization = {k: value[k] for k in ('role', 'input', 'by')}
+            organization['revision'] = membership.version
+            current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
+            if current:
+                entry.material['organization'] = organization
+                entry.material['input'] = value['input'] or any(u['revision'] == entry.version for u in entry.material['uses'])
+            for use in entry.material['uses']:
+                if use['revision'] == ref['revision'] and use['digest'] == ref['digest']:
+                    use['material']['organization'] = organization
+            # Explicitly selected historical material remains visible even outside a Study.
+            if not current and value['input'] and not any(u['revision'] == ref['revision'] and u['digest'] == ref['digest'] for u in entry.material['uses']):
+                if store is None:
+                    raise ValueError('historical organization needs retained storage')
+                old = store.read(entry.id, entry.day, revision=ref['revision'])
+                if old.digest != ref['digest']:
+                    raise ValueError('organized revision digest mismatch')
+                old_material = describe(old.document)
+                old_material.update(organization=organization, input=True)
+                entry.material['uses'].append({'membership': membership.id, 'revision': ref['revision'],
+                    'digest': ref['digest'], 'title': old.document['title'], 'available': True, 'material': old_material})
+        except (ValueError, OSError, KeyError):
+            problems.append(f'Material organization {membership.id} is unavailable')
     return problems

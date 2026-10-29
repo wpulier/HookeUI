@@ -51,3 +51,10 @@ it('keeps historical Tabs readable independently of Study membership', () => {
   expect(retainedProjectEntry(pin, 'foreign')).toBeNull();
   expect(retainedProjectEntry({...pin, version: null}, pin.day)).toBeNull();
 });
+
+it('searches explicit Project groups while preserving generated origin', () => {
+  const model = entry('candidate', true, {kind:'model', origin:'generated', organization:{role:'Candidate models',input:true,by:'agent:codex'}});
+  expect(projectInputs([model], 'Candidate models')).toEqual([model]);
+  expect(materialFacts(model)).toBe('Candidate models · Model · Revision 2');
+  expect(model.material?.origin).toBe('generated');
+});

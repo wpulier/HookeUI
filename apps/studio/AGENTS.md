@@ -1939,3 +1939,10 @@ Send. A pending question exposes a copyable handoff in that question, not a perm
 page-wide instruction; connection authorization still does not claim a running agent.
 
 Main's research overview aggregates every retained Study in its Project. A Study is an effort, not an actor or an output. Creation dates come from the first retained revision; authorship is grouped by stable identity, never by label. The overview reads existing workflow evidence with bounded fan-out; interrupted, unstarted and failed-refresh states never imply running work. Study lifecycle stays separate from execution. Contributor origins, unanswered questions, reports and dated admissions remain inspectable, and report language is not accepted as a finding. Same-Project refresh preserves disclosures/focus; Project-opening guards still protect stale actions. Existing Hooke researcher records appear separately, with their observed state and model, without inventing external-agent liveness.
+
+Inputs and Data's material menu includes Organize material. A shared sheet records
+an explicit group and input choice against the captured Project/revision. Closing it
+keeps the draft; lost replies retry the same request. Inputs groups/searches these
+server-recorded roles. Generated artifacts retain generated origin; Study dependencies
+remain visible independently of the checkbox for a later revision. This controls
+organization, not scientific reinterpretation or a file conversion.
