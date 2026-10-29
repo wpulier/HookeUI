@@ -139,6 +139,7 @@ TOOLS = {
     "recall": "none: reads today's conversations",
     "capabilities": "none: reads what the app can do",
     "models": "none: reads the Models page's rows (catalog_view.py)",
+    "models_in_use": "none: reads the settings, which model does each job (models_in_use.py)",
     "get_model": "none: starts a download into the models folder, said in Activity (downloads.py)",
     "turn_on": "none: starts the downloads and installs a job's option needs, each its own (capability_shelf.py)",
     "run_capability": "result",

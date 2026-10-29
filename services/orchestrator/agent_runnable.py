@@ -102,6 +102,7 @@ NOT_RUNNABLE: dict[str, str] = {
     "retrieve_page": "fetches web pages",
     "capabilities": "the door's own listing says this",
     "models": "the Models page; setting models up is the researcher's choice",
+    "models_in_use": "the app's own settings in words; the door's listing says what each capability runs",
     "get_model": "downloads models",
     "turn_on": "downloads and installs",
     "use": "chooses a model for one request; the door runs the researcher's choices",
