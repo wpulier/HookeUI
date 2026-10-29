@@ -118,3 +118,70 @@ def test_date_folder_link_is_not_a_project_result_destination(tmp_path):
         assert not list(elsewhere.iterdir())
     finally:
         locations.close()
+
+
+@pytest.mark.parametrize('failure', ['closed', 'missing'])
+def test_storage_failure_wakes_admitted_picture_waiters(tmp_path, monkeypatch, failure):
+    day, locations, results = setup(tmp_path)
+    entered, release, settled = threading.Event(), threading.Event(), threading.Event()
+    write = results._write
+    def delayed(date, name, data, **kwargs):
+        if name.endswith('.jpg'):
+            entered.set()
+            assert release.wait(HANG_S)
+        return write(date, name, data, **kwargs)
+    monkeypatch.setattr(results, '_write', delayed)
+    try:
+        sid = day.new('Delayed writer')
+        entry = results.add('measure', {}, 'Synthetic result', picture_bytes=[b'pixels'], session=sid)
+        until(entered.is_set)
+        error = []
+        def wait():
+            try:
+                results.wait_for_picture(entry['day'], entry['pictures'][0], session=sid)
+            except ValueError as exc:
+                error.append(str(exc))
+            finally:
+                settled.set()
+        waiter = threading.Thread(target=wait); waiter.start()
+        if failure == 'closed':
+            locations.close()
+        else:
+            folder = results.root_for(sid)
+            folder.rename(folder.with_name('preserved'))
+        release.set(); until(settled.is_set); waiter.join()
+        assert error == ['This original could not be saved. Check local storage and rerun its producer.']
+        assert not results._picture_writes
+        assert results._pending  # bytes remain display-only, never declared retained
+    finally:
+        release.set(); locations.close()
+
+
+def test_routed_picture_is_reusable_as_exact_capability_input_after_switch(tmp_path):
+    import cv2
+    import numpy as np
+    from orchestrator import retained_inputs
+    from tests.test_resources import app_at
+    day, locations, results = setup(tmp_path)
+    built = app_at(tmp_path / 'isolated-input-reader').state.app
+    built.hub.resources.results = results
+    try:
+        sid = day.new('Retained RGB')
+        png = cv2.imencode('.png', np.full((7, 9, 3), 71, np.uint8))[1].tobytes()
+        entry = results.add('run_capability', {}, 'Synthetic pixels', values={
+            'output': 'image.2d.rgb8',
+            'scientific': {'dtype': 'uint8', 'axes': ['y', 'x', 'c'], 'shape': [7, 9, 3]}},
+            picture_bytes=[png], session=sid)
+        results.wait_for_picture(entry['day'], entry['pictures'][0], session=sid)
+        day.new('Different visible Project')
+        reference = retained_inputs.reference_for(built.hub.resources, entry['id'], sid)
+        assert reference is not None
+        assert retained_inputs.layout(built.hub, reference, sid)['shape'] == [7, 9, 3]
+        capture, hold = retained_inputs.resolve(built.hub, reference, sid)
+        try:
+            assert capture.analysis_bytes == png
+            assert capture.source_image['scientific']['reference'] == reference
+        finally:
+            hold.release()
+    finally:
+        locations.close()

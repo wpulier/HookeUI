@@ -466,8 +466,9 @@ class Results:
         return folder
 
     def _file_key(self, date, name, session=None):
-        root = self.root_for(session)
-        return (str(self.folder_for(date, session)) if root != self.root else date, name)
+        # Cleanup must wake original waiters even when a locator is gone/closed.
+        # A routed host uses stable owner keys, never mutable filesystem paths.
+        return (f'{session or self._session()}:{date}' if getattr(self.day, 'locations', None) is not None else date, name)
 
     def picture_pending(self, date, name, session=None):
         return self._file_key(date, name, session) in self._pending
@@ -864,6 +865,8 @@ class Results:
                         if self._write(day, name, data, session=session):  # a write that fails keeps its picture readable from memory
                             self._pending.pop(self._file_key(day, name, session), None)
                         finished(name)
+                except (OSError, ValueError):
+                    pass  # retained pending bytes make confirmation fail honestly
                 finally:
                     # Failure wakes consumers too; pending bytes remain display-only.
                     for name, _ in writes:
@@ -1083,8 +1086,9 @@ class Results:
         if entry is None:
             return None
         if entry.get("full") and self.root is not None:
+            folder = self.folder_for(entry.get("day") or self._day_name(), session_of(entry, entry.get("day") or self._session()))
             try:
-                return json.loads((self.folder_for(entry.get("day") or self._day_name(), session_of(entry, entry.get("day") or self._session())) / f"{rid}.json").read_text())["values"]
+                return json.loads((folder / f"{rid}.json").read_text())["values"]
             except (OSError, ValueError, KeyError):
                 pass
         return entry.get("values")
