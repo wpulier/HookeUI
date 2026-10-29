@@ -92,13 +92,13 @@ VISION = {
         # Claude and Gemini 4, measured 2026-10-29 beside the Gemini defaults in the same hour (docs/bench/vision-2026-10-29.md):
         # grounding 15 questions x 3 (box), BCCD find, naming 180 uBench pictures x 4 conditions.
         Option("claude-opus-5-5", "Claude Opus 5.5",
-               "grounding 43/45, p50 2.3 s; naming 54% exact looking (3.8 Flash 47%), 50% on a click (57%); best calibrated, ECE 0.14; most red cells found",
+               "grounding 43/45, p50 2.3 s; naming 62% exact looking (3.8 Flash 54%), 61% on a click (63%); best calibrated, ECE 0.14; most red cells found",
                "anthropic:claude-opus-5-5@low", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
         Option("claude-opus-5-5-fast", "Claude Opus 5.5 (fast mode)",
-               "grounding 44/45, p50 0.94 s (3.5 Flash 45/45, 1.46 s); naming as exact as 3.5 Flash (51%), ECE 0.14-0.20 against 0.34-0.42, no blank disc named, 2.1 s; twice the price",
+               "grounding 44/45, p50 0.94 s (3.5 Flash 45/45, 1.46 s); naming 60% exact (3.5 Flash 54-58%), ECE 0.12-0.15 against 0.36, no blank disc named, 2.0 s; twice the price",
                "anthropic:claude-opus-5-5@low+fast", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
         Option("gemini-4-argon", "Gemini 4 Argon",
-               "grounding 45/45, p50 4.6 s, p95 11 s; naming 78% exact on a click, 66% looking (the most, p < 0.001), at 5.2-9.2 s",
+               "grounding 45/45, p50 4.6 s, p95 11 s; naming 80% exact on a click, 69% looking (the most), at 5.2-9.2 s",
                "gemini:gemini-4-argon@low", "GEMINI_API_KEY", model="gemini-4-argon"),
     ]
 }

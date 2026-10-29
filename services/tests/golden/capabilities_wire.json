@@ -9212,7 +9212,7 @@
      "models": [
       "Anthropic API"
      ],
-     "note": "grounding 43/45, p50 2.3 s; naming 54% exact looking (3.8 Flash 47%), 50% on a click (57%); best calibrated, ECE 0.14; most red cells found",
+     "note": "grounding 43/45, p50 2.3 s; naming 62% exact looking (3.8 Flash 54%), 61% on a click (63%); best calibrated, ECE 0.14; most red cells found",
      "readiness": {
       "group": "Needs setup",
       "next": {
@@ -9254,7 +9254,7 @@
      "models": [
       "Anthropic API"
      ],
-     "note": "grounding 44/45, p50 0.94 s (3.5 Flash 45/45, 1.46 s); naming as exact as 3.5 Flash (51%), ECE 0.14-0.20 against 0.34-0.42, no blank disc named, 2.1 s; twice the price",
+     "note": "grounding 44/45, p50 0.94 s (3.5 Flash 45/45, 1.46 s); naming 60% exact (3.5 Flash 54-58%), ECE 0.12-0.15 against 0.36, no blank disc named, 2.0 s; twice the price",
      "readiness": {
       "group": "Needs setup",
       "next": {
@@ -9296,7 +9296,7 @@
      "models": [
       "Google Gemini API"
      ],
-     "note": "grounding 45/45, p50 4.6 s, p95 11 s; naming 78% exact on a click, 66% looking (the most, p < 0.001), at 5.2-9.2 s",
+     "note": "grounding 45/45, p50 4.6 s, p95 11 s; naming 80% exact on a click, 69% looking (the most), at 5.2-9.2 s",
      "readiness": {
       "group": "Ready",
       "next": null,
