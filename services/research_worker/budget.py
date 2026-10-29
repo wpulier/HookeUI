@@ -27,7 +27,9 @@ PRICES = {
     "web_search": 0.010,      # OpenAI, per call (search content tokens are billed as input)
     "google_search": 0.014,   # Gemini, per query beyond the monthly free tier (counted as paid)
     "veo-3.1-fast": 0.10,     # per second at 720p
-    "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
+    # Lessons when ANTHROPIC_API_KEY is set, and a brain choice. Anthropic's pricing page, read 2026-10-29: $2/$10 (it was
+    # priced here at an older Sonnet's $3/$15).
+    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00},
     "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations and vision; fast mode is twice this (vision.py)
     "gemini-4-argon": {"in": 4.00, "out": 20.00},  # vision; $2/$10 until 2026-11-30, priced at the list price after it
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and

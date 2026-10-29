@@ -17,7 +17,7 @@ import time
 
 from ..prompts import OUTLINE_SCHEMA
 from .. import execution
-from ..vision import _diagnostic_entry, _diagnostic_result, image_mime
+from ..vision import _diagnostic_entry, _diagnostic_note, _diagnostic_result, _plan_diagnostics, image_mime
 from .dispatch import PLANNER_OUTPUT_TOKENS
 
 MAX_OUTPUT_TOKENS = PLANNER_OUTPUT_TOKENS
@@ -25,7 +25,7 @@ OUTLINE_DESCRIPTION = "Outline things in the current microscope view so the user
 
 
 class FunctionCallingBrain:
-    """Calls the selected model ('gemini:...' or 'openai:...' spec) with the registry's tools."""
+    """Calls the selected model ('gemini:...', 'openai:...' or 'anthropic:...' spec) with the registry's tools."""
 
     def __init__(self) -> None:
         self._clients: dict[tuple[str, str], object] = {}  # (provider, key) -> its client (`_client`)
@@ -61,6 +61,12 @@ class FunctionCallingBrain:
             effort = "low" if level in ("", "none") else level
             return await dispatch_answer(lambda: self._openai(model, effort, jpeg, prompt, registry),
                                          model=model, effort=effort)
+        if provider == "anthropic":
+            # As the look reads the spec (vision.make_vision): effort low unless named, '+fast' for Opus fast mode.
+            level, _, mode = level.partition("+")
+            effort = None if level == "default" else (level or "low")
+            return await dispatch_answer(lambda: self._anthropic(model, effort, mode == "fast", jpeg, prompt, registry),
+                                         model=model, effort=effort or "")
         raise ValueError(f"unknown provider in {spec}")
 
     async def _gemini(self, model: str, level: str, jpeg: bytes, prompt: str, registry) -> tuple[dict, dict]:
@@ -122,6 +128,61 @@ class FunctionCallingBrain:
                     calls.append(None)  # missing original call, never a shifted later success
         data = _normalise(response.output_text or "", calls)
         _diagnostic_result(response, "openai", data)
+        return data, {"model": model, "latency_ms": ms, "marks": None}
+
+    async def _anthropic(self, model: str, effort: str | None, fast: bool, jpeg: bytes, prompt: str,
+                         registry) -> tuple[dict, dict]:
+        """Claude with the tools, over the look's own Messages API client (vision.AnthropicVision.http_client): the
+        same server-side fallbacks and fast mode, Anthropic's own reason for an error, a refusal said as one."""
+        from ..vision import AnthropicVision
+
+        key = os.environ["ANTHROPIC_API_KEY"]
+        client = await self._client(("anthropic-fast" if fast else "anthropic", key),
+                                    lambda: AnthropicVision.http_client(key, fast))
+        tools = [{"name": "outline", "description": OUTLINE_DESCRIPTION, "input_schema": OUTLINE_SCHEMA}] + registry.anthropic_tools()
+        content = [{"type": "image", "source": {"type": "base64", "media_type": image_mime(jpeg),
+                                                "data": base64.b64encode(jpeg).decode()}},
+                   {"type": "text", "text": prompt}]
+        # Thinking shares max_tokens with the answer, so the cap leaves it room beyond the answer's own (as the look's).
+        body: dict = {"model": model, "max_tokens": MAX_OUTPUT_TOKENS + 2000, "fallbacks": "default", "tools": tools,
+                      "messages": [{"role": "user", "content": content}]}
+        if effort:
+            body["output_config"] = {"effort": effort}
+        if fast:
+            body["speed"] = "fast"
+        t0 = time.perf_counter()
+        _diagnostic_entry(prompt, body["max_tokens"])
+        async with api_usage.attempt(model, provider="Anthropic", area="Chat", out_tokens=body["max_tokens"],
+                                     in_tokens=api_usage.tokens_in(prompt, 1, extra=json.dumps(tools, default=str))):
+            response = await client.post("/v1/messages", json=body)
+            if response.is_error:  # Anthropic's own reason ("credit balance is too low"), not a bare status
+                try:
+                    reason = response.json()["error"]["message"]
+                except Exception:
+                    reason = response.text[:200]
+                raise RuntimeError(f"Anthropic {response.status_code}: {reason}")
+            reply = response.json()
+            usage = reply.get("usage") or {}
+            tokens = (usage.get("input_tokens"), usage.get("output_tokens"))  # output includes thinking
+            price = api_usage.PRICES.get(model)
+            usd = ((tokens[0] * price["in"] + tokens[1] * price["out"]) / 1e6 * (2 if fast else 1)
+                   if isinstance(price, dict) and all(isinstance(n, int) for n in tokens) else None)
+            api_usage.record(model, usd, provider="Anthropic", area="Chat",
+                             basis=("Reported tokens · list price before discounts" + (" · fast mode" if fast else ""))
+                             if usd is not None else "Usage or price unavailable")
+        ms = (time.perf_counter() - t0) * 1000
+        execution.note(reportedModel=reply.get("model"))  # a fallback model, when one answered instead
+        if reply.get("stop_reason") == "refusal":
+            category = (reply.get("stop_details") or {}).get("category")
+            _diagnostic_note(inputTokens=tokens[0], outputTokens=tokens[1], finishReason="refusal", parseOk=False)
+            raise RuntimeError(f"refused by the model's safeguards ({category or 'no category'})")
+        blocks = reply.get("content") or []
+        text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+        # Tool calls in the order made; one whose input is not an object keeps its slot as the missing call.
+        calls = [(b.get("name"), b.get("input")) for b in blocks if b.get("type") == "tool_use"]
+        data = _normalise(text, calls)
+        _diagnostic_note(inputTokens=tokens[0], outputTokens=tokens[1], finishReason=reply.get("stop_reason"),
+                         parseOk=True, **_plan_diagnostics(data))
         return data, {"model": model, "latency_ms": ms, "marks": None}
 
 
