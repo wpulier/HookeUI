@@ -37,6 +37,9 @@ LINES = {RAW: "From the original imported image; acquisition is not inferred", C
          WRITTEN: "What the researcher found, in its words",
          UNKNOWN: "A picture; how it was made is not recorded"}
 VIDEO_LINE = "AI video, not microscope footage"
+# A researcher's chart or animation of a kept table (media DERIVED, `derived` on the output): what it is, in a line.
+CHART_LINE = "Drawn by the app from a saved table; its values are the table's own"
+ANIMATION_LINE = "An animation the app drew from a saved table's rows, not a video of the specimen"
 
 # How the models are told what the magnifier shows (brain/context.py's screen line).
 WORDS = {RAW: "the original imported image", CAPTURE: "a picture from the camera's frames", LABELLED: "a labelled photo of this slide",
@@ -47,7 +50,8 @@ WORDS = {RAW: "the original imported image", CAPTURE: "a picture from the camera
 
 def of_output(output: dict) -> str:
     """A researcher's output's kind, from what was recorded when it was made: a lesson; a video or picture a
-    model made (`generated`); a real photo with labels added. An image with no record is never called real."""
+    model made (`generated`); a chart or animation the app drew from a kept table (`derived`); a real photo with labels
+    added. An image with no record is never called real."""
     kind = output.get("kind")
     if kind == "presentation":
         return WRITTEN
@@ -56,6 +60,8 @@ def of_output(output: dict) -> str:
     if kind == "video":
         return GENERATED  # every video is made by a model from the photo (research_worker: Veo)
     if kind == "image":
+        if isinstance(output.get("derived"), dict):
+            return DERIVED  # a chart or animation the app drew from a kept table (research_worker/measurement_charts.py)
         if output.get("generated") is True:
             return GENERATED
         if output.get("generated") is False:

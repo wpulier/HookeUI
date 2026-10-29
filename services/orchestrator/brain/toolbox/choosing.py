@@ -480,6 +480,17 @@ def add_choosing_tools(registry: Registry, services) -> None:
                              ["operation", "implementation", "by"]),
                       set_default, inline_ms=200, family="conversation", sets=kept_groups()))
 
+    async def models_in_use(ctx: ToolContext, args: dict) -> str:
+        from ... import models_in_use as in_use
+
+        return in_use.text(services.hub.settings)
+
+    registry.add(Tool("models_in_use", "Which model does each job right now (the brain, the voice, seeing, the running "
+                      "look, quick decisions, pointing, outlining, cells, look-alikes, researching, presentation, pictures, "
+                      "video): its name, cloud or this Mac, how fast it answered lately, and where to change it. For "
+                      "\"what models are powering you?\"; name each job's model as it says.",
+                      schema({}), models_in_use, kind="query", inline_ms=200, family="conversation"))
+
 
 KEPT_COMPARISON_S = 300.0  # a comparison's arms are kept to choose from for 5 minutes (or until the next, or a keep)
 

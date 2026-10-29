@@ -1,6 +1,6 @@
 """Admission: whether a researcher may start or run again, and at what effort (CONTEXT.md).
 
-Big deliverables (a video, a lesson, a report, deep research) only when the user asked for one
+Big deliverables (a generated video, a lesson, deep research) only when the user asked for one
 in so many words (AGENTS.md): their last half minute of speech counts, not only the piece that
 started it. The same rule holds for a new researcher, for "continue" (more of the same) and
 for a new version of a video; a question about finished work, and a change to a lesson or a
@@ -8,6 +8,12 @@ picture's labels (the request names the change), are admitted. The selected effo
 resource bound: incompatible deliverables are refused, never promoted to a larger budget.
 `ResearchManager.start` and `followup` call `admit`, so no tool, studio
 command or path can skip it.
+
+Which deliverable a request wants is the model's judgment, from the deliverables and tools it is shown (a chart or an
+animation of measurements is drawn from the table by a research researcher: research_worker/measurement_charts.py; a
+generated video is its own deliverable). No word list decides it or admits it (live 2026-10-28: "create an animation" of
+a measurements table became an eight-second Veo video; the keyword rule that matched "animat*" to a video is gone): the
+model quotes the user's words and the app checks they were said (`quoted`).
 """
 from __future__ import annotations
 
@@ -16,18 +22,9 @@ from dataclasses import dataclass
 
 from research_worker.budget import EFFORTS
 
-EXPLICIT = {
-    "video": re.compile(r"\b(video|animat\w*|clip|movie|short film)\b", re.I),
-    "lesson": re.compile(r"\b(lesson|interactive|tutorial|quiz|teach me|presentation|slides?|slideshow|explainer|"
-                         r"walk ?through|walk me through|deck|worksheet)\b", re.I),
-    "report": re.compile(r"\b(report|write[- ]?up|summary sheet)\b", re.I),
-    "deep": re.compile(r"\b(deep|thorough\w*|in[- ]depth|dig into|properly research|research (it|this|that) properly)\b", re.I),
-}
-# The user asked for research (otherwise the brain started it on its own, and its result reaches the voice only as
-# silent data: brain/narrator.py).
-ASKED_FOR_RESEARCH = re.compile(r"\b(research\w*|look (it |this |that |them )?up|look into|find out|check|investigate|"
-                                r"picture|diagram|image|label\w*|illustrat\w*|report|video|lesson|teach|learn|"
-                                r"tell me more|explain more|more about|go deeper|dig into)\b", re.I)
+# What only starts on the user's own words, quoted by the model and found in what they said (explicit_refusal). A
+# report is research (DELIVERABLES), checked as research is.
+THEIR_WORDS = ("video", "lesson", "deep")
 # What the brain may choose. "report" is no longer offered (it ran as "research" and only added a quote to ask for);
 # a caller or a saved record that still says it is read as research (admit), never refused for it.
 DELIVERABLES = ("research", "annotated_image", "image", "video", "lesson")
@@ -107,24 +104,21 @@ def users_own(words: str) -> str:
 def explicit_refusal(words: str, effort: str, deliverable: str | None, asked_with: str = "", mode: str = "quote") -> str | None:
     """Why a researcher may not start without an explicit request, or None if it may.
 
-    mode "quote" (the default; facts, not verdicts): the model judges whether the user asked for
-    it and quotes the words (`asked_with`); the app checks the quote is in what the user said in the
-    last half minute. mode "keywords": the request must match EXPLICIT (the rule before 2026-10-06,
-    which refused "show me step by step how it works")."""
+    Facts, not verdicts: the model judges whether the user asked for it and quotes the words (`asked_with`); the app
+    checks the quote is in what the user said in the last half minute. `mode` is kept for older callers and retained
+    records: a record admitted under the keyword list (option ADMIT "keywords", removed 2026-10-29) is checked the same
+    way, never by a word list."""
     own = users_own(words)
     if effort in ("standard", "deep") and (words or "").strip() and not own.strip():
         return ("a press of Look deeper allows a closer look or a quick researcher; a longer one starts when the user "
                 "asks for it in their own words")
     words = own
     for kind in (deliverable, "deep" if effort == "deep" else None):
-        if kind not in EXPLICIT:
+        if kind not in THEIR_WORDS:
             continue
-        if mode == "keywords":
-            if not EXPLICIT[kind].search(words or ""):
-                return f"a {kind} researcher only starts when the user asks for one explicitly"
-        elif not asked_with:
+        if not asked_with:
             return f"a {kind} researcher starts only when the user asked for one: quote their words in asked_with"
-        elif not quoted(asked_with, words):
+        if not quoted(asked_with, words):
             return f'a {kind} researcher starts only when the user asked for one; "{asked_with}" is not what they said'
     return None
 
@@ -136,11 +130,8 @@ def admit(kind: str, *, words: str = "", effort: str | None = None, deliverable:
     illustration, video), "answer" (a question about finished work) or "describe" (a label's
     description, enrich.py). Raises ResearchRefused with the reason."""
     # Whether the user asked for this research (its result is then spoken; otherwise the brain
-    # started it on its own and only a significant result is). "quote": the model's quote checks out.
-    if mode == "keywords":
-        asked = bool(ASKED_FOR_RESEARCH.search(words or "") or any(rule.search(words or "") for rule in EXPLICIT.values()))
-    else:
-        asked = quoted(asked_with, words)
+    # started it on its own and only a significant result is): the model's quote checks out.
+    asked = quoted(asked_with, words)
     if kind == "describe":
         return Admitted("describe", deliverable or "research", asked=False)
     if kind == "answer":

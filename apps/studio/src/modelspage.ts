@@ -23,7 +23,7 @@ import { openAddKey, sourceWords, keyForm, type KeyForm } from './addkey';
 import { downloadControl, type Downloader } from './capabilities';
 import { needs as volumeNeeds, volumesSection, type VolumeCommands, type VolumeEntry } from './volumespanel';
 import { newsSection, yourControl, type ShelfCommands } from './capabilityshelf';
-import type { DraftReview, OwnComparison, OwnTrial, CapabilitiesWire, ChannelRow, DownloadRow, InstallRow, KeyFacts, ModelFact, ModelRow, ToolSetup } from './protocol';
+import type { DraftReview, OwnComparison, OwnTrial, CapabilitiesWire, ChannelRow, DownloadRow, InstallRow, KeyFacts, ModelFact, ModelRow, Role, ToolSetup } from './protocol';
 import { cardKindWords, cardLook, faceState, firstStepWords, licenceName, type CardLook, type FaceState } from './model-status';
 import { keyOf, MODEL_SECTIONS, modelSection, type ModelSection } from './run-spec';
 import { litCell } from './lit-cell';
@@ -98,6 +98,23 @@ export function action(row: ModelRow): Action {
 /** "Outlining (your choice) · Cells · Find all like this (in use)": what it is used for, the current ones said. */
 export function usedForWords(row: ModelRow): string {
   return row.usedFor.map((u) => u.current ? `${u.title} (${u.fixed ? 'in use' : 'your choice'})` : u.title).join(' · ');
+}
+
+/** On is not chosen (capability_shelf.on_words): the first job an entry serves whose own choice can't run here, offered
+ * the entry now ("Look-alikes uses DINOv3 small, which can't run here. Use BioCLIP 2 for Look-alikes now?"); null when
+ * every job it serves runs its own model (it stays on, not chosen) or it is already a job's choice. */
+export function useForJob(row: ModelRow, roles: Role[]): { role: string; option: string; title: string; current: string; recipe: string; says: string } | null {
+  for (const s of row.setups ?? []) {
+    if (s.role.startsWith('model:') || !s.recipe) continue;
+    const role = roles.find((r) => r.id === s.role);
+    if (!role || role.fixed || role.current === s.option) continue;
+    const current = role.options?.find((o) => o.id === role.current);
+    if (current?.readiness?.status === 'ready') continue;
+    const title = s.title || role.title;
+    return { role: s.role, option: s.option, title, current: s.current ?? role.current ?? '', recipe: s.recipe,
+      says: `${title} uses ${current?.label ?? role.current}, which can’t run here. Use ${row.name} for ${title} now?` };
+  }
+  return null;
 }
 
 /** ✓, ✗ or · for a fact. */
@@ -1638,6 +1655,16 @@ export class ModelsPage {
             acts.append(press(`Try ${row.name}`, () => commands.tryIt(setup.role, setup.option, false), tryPrimary ? 'mm-primary' : ''));
             if (this.commands.chooseInput) body.append(press('Choose a picture or video', async () => { this.commands.chooseInput?.(); }));
           }
+        }
+      }
+      // An entry turned on from its own card is on, not chosen: the jobs it serves keep their models. When one of them
+      // can't run its own choice, the first is offered it now ("Use it for Look-alikes now?"; capability_shelf.on_words).
+      if (ready && !working && setup.role.startsWith('model:') && this.commands.selectCapability) {
+        const job = useForJob(row, this.wire?.roles ?? []);
+        if (job) {
+          body.append(el('div', { class: 'tool-setup-select-row' }, el('p', {}, job.says),
+            press(`Use it for ${job.title}`, () => this.commands.selectCapability!({ job: job.role, option: job.option,
+              session: open.session ?? '', current: job.current, recipe: job.recipe }), 'mm-primary tool-setup-select')));
         }
       }
       // Ready, and it serves a task here: its primary becomes Use it here ("Try it on Human cells"), landing on that task's

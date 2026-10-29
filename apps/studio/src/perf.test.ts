@@ -1,6 +1,6 @@
 // The performance meter (perf.ts): each part now against its ideal, the dot the worst of them.
 import { describe, expect, test } from 'vitest';
-import { atLeast, atMost, atMostHeld, modelLines, overall, readings, verdict, viewRows, type PerfInput, type Reading } from './perf';
+import { atLeast, atMost, atMostHeld, inUseRows, modelLines, overall, readings, verdict, viewRows, type PerfInput, type Reading } from './perf';
 
 const calm: PerfInput = {
   live: true, fps: 30, screenMs: 36, analyseMs: 15, gpu: { ready: true, device: 'mps', error: '' },
@@ -110,6 +110,21 @@ describe('Models, the last 10 minutes (which defaults really ran; live 2026-10-1
   });
   test('nothing known, nothing said', () => {
     expect(modelLines(null)).toEqual([]);
+  });
+});
+
+describe('Doing each job now (models_in_use.py; live 2026-10-28: "Gemini and GPT")', () => {
+  test('each job its model, where it runs and its typical time, and where to change it on hover', () => {
+    const rows = inUseRows({ fallbacks: [], providers: {}, inUse: [
+      { role: 'brain', title: 'Thinking (the brain)', model: 'Gemini 3.8 Flash', runs: 'cloud', where: 'cloud', setting: 'gemini-3.8-flash',
+        how: 'Answer with actions', speed: { p50Ms: 1940, calls: 6 }, speedWords: 'its calls here typically took 1.9 s (last 6 in 10 minutes)',
+        change: 'Models › Seeing (the brain answers with it)' },
+      { role: 'cells', title: 'Cells', model: 'Cellpose-SAM', runs: 'mac', where: 'this Mac', setting: 'cellpose-sam', speed: null,
+        speedWords: 'no calls in the last 10 minutes', change: 'Models › Cells' },
+    ] });
+    expect(rows.map((r) => [r.job, r.doing])).toEqual([['Thinking (the brain)', 'Gemini 3.8 Flash · cloud · 1.9 s'], ['Cells', 'Cellpose-SAM · this Mac']]);
+    expect(rows[1].title).toBe('no calls in the last 10 minutes. Change: Models › Cells');
+    expect(inUseRows(null)).toEqual([]);
   });
 });
 

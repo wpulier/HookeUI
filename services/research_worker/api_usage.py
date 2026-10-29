@@ -390,6 +390,31 @@ def _seen(provider: str, area: str, outcome: str) -> None:
             _recent.pop(0)
 
 
+# How long each model took lately (models_in_use.py: who's powering what, with its speed): a call's seconds by the name
+# it was made under (a cloud model's API name in `attempt`; an operation's runs by "<setting>:<option>",
+# operations.Runner), only calls that returned. The last RECENT_S, at most LATENCY_MAX in all.
+LATENCY_MAX = 2000
+_latency: list[tuple[float, str, float]] = []  # (monotonic, name, ms)
+
+
+def note_latency(name: str, ms: float) -> None:
+    now = time.monotonic()
+    with _recent_lock:
+        _latency.append((now, str(name), float(ms)))
+        while _latency and (now - _latency[0][0] > RECENT_S or len(_latency) > LATENCY_MAX):
+            _latency.pop(0)
+
+
+def latency(name: str, window_s: float = RECENT_S) -> dict | None:
+    """{"p50Ms", "calls"} of `name`'s calls that returned in the last `window_s`, or None when there were none."""
+    now = time.monotonic()
+    with _recent_lock:
+        took = sorted(ms for at, n, ms in _latency if n == name and now - at <= window_s)
+    if not took:
+        return None
+    return {"p50Ms": round(took[(len(took) - 1) // 2], 1), "calls": len(took)}
+
+
 def recent(window_s: float = RECENT_S) -> dict:
     """Per provider, the calls of the last `window_s` by outcome ("ok" and OUTCOMES' keys)."""
     now = time.monotonic()
@@ -425,6 +450,7 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
         raise
     if token is not None:
         _settling.set((token, model))
+    began = time.monotonic()
     try:
         yield
     except BaseException as exc:
@@ -436,6 +462,7 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
             record(model, provider=provider, area=area, basis=f'Interrupted or failed: {OUTCOMES[outcome]}; usage unavailable')
         raise
     _seen(provider, area, "ok")
+    note_latency(model, (time.monotonic() - began) * 1000)
 
 
 def search_queries(result) -> list[str]:

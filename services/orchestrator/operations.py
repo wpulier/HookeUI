@@ -997,6 +997,13 @@ class Runner:
                 output = await self._fallbacks(op, impl, policy, capture, prompt, params, record, output)
             finally:
                 record.ms = (time.perf_counter() - t0) * 1000
+                if op.selected_by:  # each implementation's speed lately, by the setting that chooses it (models_in_use.py)
+                    from research_worker.api_usage import note_latency
+
+                    for attempt in record.attempts:
+                        ran = op.impl(attempt.impl) if attempt.ok and attempt.ms else None
+                        if ran is not None and ran.option:
+                            note_latency(f"{op.selected_by}:{ran.option}", attempt.ms)
                 if job.stopped:  # it began and the user stopped it: not "never ran", not a failure
                     for attempt in record.attempts:
                         if attempt.not_run == "cancelled":

@@ -233,6 +233,7 @@ PLANS: dict[str, Plan] = {
     # The Models page in words (brain/toolbox/catalog.py): in this rig every model on this Mac counts as downloaded, so
     # nothing is offered and the yes is refused saying so; no studio answers open-page, so the card is refused too.
     "ask-about-models": Plan("what do I need to set up?", [("models", {})]),
+    "models-in-use": Plan("what models are powering you right now?", [("models_in_use", {})]),
     "get-model": Plan("yes, download it", [("get_model", {"model": "all", "asked_with": "yes, download it"})],
                       before=[("models", {})], expect="refused: not offered just now"),
     "open-model-card": Plan("add my OpenAI key", [("open_models", {"model": "OpenAI key"})],
@@ -280,6 +281,12 @@ PLANS: dict[str, Plan] = {
     "research-motion": Plan("have a researcher measure how fast these swim", [("start_researcher", {
         "brief": "measure how fast these swim", "effort": "quick",
         "asked_with": "have a researcher measure how fast these swim"})], not_on_path={"researcher:research": RUN_ENGINE}),
+    # A chart or an animation of a kept table: a research researcher's own tools (measurement_charts.py), never a video.
+    "research-chart": Plan("have a researcher chart the nucleus areas", [("start_researcher", {
+        "brief": "chart the nucleus areas", "effort": "quick", "asked_with": "have a researcher chart the nucleus areas"})]),
+    "research-animation": Plan("have a researcher animate the measurements table", [("start_researcher", {
+        "brief": "animate the measurements table", "effort": "quick",
+        "asked_with": "have a researcher animate the measurements table"})]),
 }
 
 

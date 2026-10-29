@@ -201,6 +201,7 @@ Talking with it (Asking by text or voice, and how it answers):
 - I: Explain simpler or deeper: Changes how things are explained (say "explain it more simply")
 - I: Suggest what next: Offers something worth looking at next (say "what should I look at next?")
 - I: Say what models need: Which models run here, why not, and how to turn on (say "what do I need to set up?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Say what powers it: Each job's model now, where it runs, its speed (say "what models are powering you right now?")
 - I: Download on your yes: Starts a model's download it offered, once you say yes (say "yes, download it"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Open a model's card: Opens the Models page at a model, its Add key there (say "add my OpenAI key"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Read its capabilities: Reads this list, as you see it (say "what can you do?")
@@ -218,6 +219,8 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - My researchers: Outline cells for itself: Segments the view now or a kept one, never on screen (say "have a researcher measure how much these cells vary"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
 - My researchers: Clearer picture for itself: Averages or picks real frames for its reading, never on screen (say "have a researcher take the clearest picture of the clip it held"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - My researchers: Motion for itself: Measures what moves in the live view, never on screen (say "have a researcher measure how fast these swim"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Chart saved measurements: Draws a chart from a saved table's own values (say "have a researcher chart the nucleus areas"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Animate saved measurements: Animates a saved table row by row, not a generated video (say "have a researcher animate the measurements table"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: Start a researcher: Starts background research on what you asked; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: Schedule camera clips: Keeps scheduled camera clips and records failed or missed captures (say "capture ten five-second clips every thirty seconds")
 - I: How is it going: Says how the researchers are doing (say "how is the researcher doing?")

@@ -1737,7 +1737,7 @@ class ResearchManager:
             raise ResearchRefused("the researcher's retained admission does not authorize this effort and deliverable",
                                   next="ask for the mission in your own words")
         if (not isinstance(basis.get("words"), str) or not isinstance(basis.get("askedWith"), str)
-                or basis.get("mode") not in ("quote", "keywords")):
+                or basis.get("mode") not in ("quote", "keywords")):  # "keywords": an older record, checked as a quote
             raise ResearchRefused("the researcher's retained admission cannot be read",
                                   next="ask for the mission in your own words")
         # Explicit formats without retained validated words are refused before slots or money are reserved.
@@ -2467,7 +2467,9 @@ class ResearchManager:
             versions.number(session.outputs)
             # A new version replaces the current version of its line (lines never branch).
             old = versions.head(session.outputs, message.get("replaces")) if message.get("replaces") else None
-            session.outputs.append({k: message[k] for k in ("kind", "path", "caption", "fidelity", "content", "check") if k in message}
+            # `derived`: a chart or animation the app drew from a kept table (research_worker/measurement_charts.py), with its
+            # exact source; it is neither a photo nor a generated picture (media.of_output).
+            session.outputs.append({k: message[k] for k in ("kind", "path", "caption", "fidelity", "content", "check", "derived") if k in message}
                                    | {"generated": bool(message.get("generated")), "altered": bool(message.get("altered")),
                                       "id": versions.next_id(session.outputs),
                                       "version": int(old.get("version") or 1) + 1 if old else 1,

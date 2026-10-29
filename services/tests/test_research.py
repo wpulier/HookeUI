@@ -181,9 +181,8 @@ def test_big_deliverables_need_an_explicit_request():
     assert explicit_refusal("tell me about it", "quick", "video", "tell me about it as a video")
     assert explicit_refusal("make me a short video of how it opens", "quick", "video", "make me a short video") is None
     assert explicit_refusal("look into it", "quick", "research") is None
-    # The keyword rule (option ADMIT "keywords"), as before.
-    assert explicit_refusal("tell me about it", "quick", "video", mode="keywords")
-    assert explicit_refusal("make me a short video of how it opens", "quick", "video", mode="keywords") is None
+    # No word list decides (the keyword rule is gone): a word naming the format is not the user's quoted request.
+    assert explicit_refusal("make me a short video of how it opens", "quick", "video", mode="keywords")
 
 
 def run_in_process(tmp_path, effort: Effort, script: dict):

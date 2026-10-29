@@ -87,3 +87,22 @@ gone, or a capability with no parts fails the test. Each family says in a line w
   runner (an explicit choice, raw, origin `headless`) and result store, and checks that the output is what the
   capability declares. An implementation whose adapter runs in its own process (Fiji, python-env:
   `kinds.Backend.own_process`) needs no GPU worker to be available.
+- **Who's powering what** (`orchestrator/models_in_use.py`, Part 2.5; live 2026-10-28 the voice said "Gemini and GPT"):
+  one row per job (the brain, which is the Seeing model answering by the Acting method; the voice; seeing; the running
+  look; quick decisions; pointing; outlining; cells; look-alikes; researching; presentation; pictures; video) with its
+  model's one name, cloud or this Mac (`runs`), the typical time of that model's calls here in the last ten minutes
+  (`research_worker/api_usage.latency`: a cloud call by its API name in `attempt`, an operation's run by
+  "<setting>:<option>" in `operations.Runner`; none is "no calls in the last 10 minutes", never a stale number) and where
+  to change it (the Models menu's job, and by asking when `set_default` can). Read from `options.GROUPS` and the settings
+  through `to_wire` (a list, never the work in progress's reads), so it is cheap enough for every health poll. The
+  agent's `models_in_use` tool says it in words; the performance meter's panel shows the same rows ("Doing each job
+  now", `/api/health` `models.inUse`).
+- **On is not chosen** (`orchestrator/capability_shelf.py`, `catalog_view.py`; live 2026-10-28: "I just enabled BioCLIP
+  2" was answered "I've set BioCLIP 2 as the model"): turning a capability on prepares it and offers it; the job's model
+  (the setting) changes only when someone chooses it (`use` for one request, `set_default` or the setup sheet's Use for
+  from now on). Every word the agent reads says the two apart: the shelf's line ("chosen (its model): DINOv2 small; also
+  on, not chosen: BioCLIP 2"), a model's uses ("Look-alikes (not chosen: the job uses another model)") and what Turn on
+  says once it is on (`on_words`: "BioCLIP 2 is on for Spot look-alikes, not chosen: it still uses DINOv2 small. Use it
+  for one request, or make it the default?"). When the job's own choice can't run, the first option on is offered to use
+  now: the card's `offerUse`, and the setup sheet of an entry turned on from its own card ("Use it for Look-alikes",
+  `modelspage.ts` `useForJob`, through `capability-select`).

@@ -463,15 +463,14 @@ VOICELINK = {
     ]
 }
 
-# How the app tells that the user asked for a big deliverable (a video, a lesson, a report, deep
-# research; orchestrator/research/policy.py). "quote" (default since 2026-10-06, facts not verdicts):
-# the model judges and quotes the user's words, the app checks they were said. "keywords": the
-# request must match a keyword list (as before; it refused "show me step by step how it works").
+# How the app tells that the user asked for a big deliverable (a generated video, a lesson, deep research;
+# orchestrator/research/policy.py). "quote" (default since 2026-10-06, facts not verdicts): the model judges and quotes
+# the user's words, the app checks they were said. The keyword list that was its other option is gone (2026-10-29): a
+# word list decided for the model (it refused "show me step by step how it works", and matched "animation" to a video).
 ADMIT = {
     o.id: o
     for o in [
         Option("quote", "The model says and the app checks", "the model quotes the user's request; the quote must be in what was said"),
-        Option("keywords", "Keyword list", "the request must name a video, lesson, report or deep research (as before)"),
     ]
 }
 
