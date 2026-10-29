@@ -163,3 +163,14 @@ an explicit gate before live activation or complete-portability claims.
 ### Staged volume and registration storage
 
 Volume copies, inspections, job outputs and previous metadata states route through the captured owner. Existing registration state and output-acceptance semantics remain authoritative. Equal local job IDs are scoped by Project for cancellation and publication visibility. Host installations remain external dependencies. This adapter alone does not qualify collection, imported execution recovery or live portable activation.
+
+### Staged identity history
+
+Identity links and observations use their captured Project’s append-only event file. Original IDs and merge history replay unchanged after relocation; failed writes are not applied to in-memory accepted state. File/root replacement refuses. A crash-torn tail is preserved and isolated from later complete events. This does not route cross-Project taught/seen memory or enable complete collection.
+
+Portable identity publication keeps a durable pending marker before append. Failed
+publication leaves the journal uncertain: retries and fresh replay refuse, retaining
+all bytes for explicit reconciliation. Removing that marker is the final acceptance
+action; a crash may conservatively restore uncertainty. Background identity lifecycle
+binding and reconciliation UI remain open gates: the staged adapter explicitly
+refuses event-loop use, rather than blocking live frames or silently claiming a save.

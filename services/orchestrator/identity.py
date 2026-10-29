@@ -125,6 +125,8 @@ class Identity:
         self.hub = hub
         self.log = log or (lambda record: None)
         self.store = store
+        from .project_events import ProjectEvents
+        self._project_events = ProjectEvents(self.root, 'identity') if self.root is not None else None
         self.day = ""
         self.session = ""
         self._given = 0  # the highest individual number given or read back in this run (day/ids.py)
@@ -147,8 +149,14 @@ class Identity:
             return [self.today()]
         return sorted(set(getattr(self.store, "days", []) or []) | {self.today()})
 
+    def _portable(self):
+        locations = getattr(self.store, 'locations', None)
+        return locations is not None and locations.project(self.session or self._sid()) is not None
+
     def _path(self, day: str | None = None) -> Path | None:
         """A date's file (default: today's, where new events go)."""
+        if self._project_events is not None and self._portable():
+            return self._project_events.path(self.store, self.session or self._sid(), day or self.today())
         return self.root / (day or self.today()) / "events.jsonl" if self.root is not None else None
 
     def _load(self) -> None:
@@ -166,11 +174,12 @@ class Identity:
         self.lost: dict[str, float] = {}  # node -> when continuity was lost (cleared when it is found again)
         for date in self._dates():
             path = self._path(date)
-            if path is None or not path.exists():
+            if path is None or (not self._portable() and not path.exists()):
                 continue
-            for line in path.read_text().splitlines():
+            records = self._project_events.read(self.store, self.session, date) if self._portable() else path.read_text().splitlines()
+            for line in records:
                 try:
-                    event = json.loads(line)
+                    event = line if isinstance(line, dict) else json.loads(line)
                     if session_of(event, date) != self.session:
                         continue  # another session's, filed on the same date
                     self._apply({**event, "day": event.get("day") or date})
@@ -236,6 +245,10 @@ class Identity:
 
     def _write(self, event: dict) -> None:
         event = {**event, "session": self.session}  # filed under today's date, with the session it was made in
+        if self._project_events is not None and self._portable():
+            self._project_events.append(self.store, self.session, self.today(), event)
+            self._apply({**event, "day": self.today()})
+            return
         self._apply({**event, "day": self.today()})
         path = self._path()
         if path is None:
