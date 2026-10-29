@@ -110,6 +110,11 @@ closure is not verified. It is not exposed as Collect Project or complete export
 legacy assets, shared captures and external dependencies still require their
 collector and inclusion review. No accepted research is rewritten or replayed.
 
+Copy intent is synced before retained-looking files are created. Final directory
+syncs finish before completion is published; a failed sync or marker removal leaves
+the destination incomplete across restart. No fallible storage read or sync follows
+marker removal. A crash may conservatively restore the incomplete marker.
+
 ## Numeric snapshot routing checkpoint
 
 Dataset tables and derived analyses/graphs retain their existing versioned snapshot

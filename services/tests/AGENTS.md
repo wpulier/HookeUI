@@ -1,5 +1,10 @@
 # Checks
 
+Folder-copy completion tests inject final sync/removal failures and reopen the
+destination independently. Incomplete markers survive and original data remains;
+successful publication performs no post-completion storage verification that could
+report failure after making the copy visible. These are isolated storage checks.
+
 `test_project_table_routing.py` uses synthetic measurements through real table
 publication, journal revisions and analysis. It checks relocated historical
 snapshots, read-only access by a second host, closed/missing/replaced destinations
