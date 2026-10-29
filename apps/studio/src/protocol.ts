@@ -1370,7 +1370,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key';
 
 export interface ModelOption {
   id: string;
@@ -1404,6 +1404,8 @@ export interface Settings {
   outline_check?: string;
   track?: string;
   voicelink?: string;
+  talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
+  talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
   taught?: string; // matching the labels the user teaches: "on" | "off"
   lesson_check?: string; // lessons' steps checked for needing the picture (research_worker/lesson_check.py)
   seen?: string; // telling naming the outline named earlier today most like it (orchestrator/seen.py): "on" | "off"
@@ -1428,6 +1430,34 @@ export interface Frame {
   header: FrameHeader;
   bitmap: ImageBitmap;
 }
+
+// The one-brain voice's own messages on /ws/voice (voice.ts), beside its {type:"voice"} events (the partner contract,
+// services/orchestrator/voice/openai_realtime.py). Server -> studio:
+/** Act, then look: the window as it is now, answered within 1.5 s or the server goes on without it. */
+export interface SnapshotRequest { type: 'snapshot-request'; id: string; maxSide?: number }
+/** A camera frame the model saw: its id and the eyepiece crop of it (source px) its normalised frame marks are in. */
+export interface MarkFrameRef { id: number; crop: [number, number, number, number] }
+/** One thing to point at, by Hooke's own id (marks.ts parseTarget), or a place in the camera frame the model saw
+ * (`target: "frame"` with `region` [x, y, w, h] or `polygon` [[x, y], ...], normalised 0-1). */
+export interface MarkSpec { target: string; style?: 'box' | 'point' | 'underline'; label?: string;
+  region?: [number, number, number, number]; polygon?: [number, number][] }
+/** Point while speaking: kept while the voice speaks and cleared about 1.5 s after (`speech-end`), or after `until` ms. */
+export interface MarksMessage { type: 'marks'; id: string; marks: MarkSpec[]; until?: 'speech-end' | number; frame?: MarkFrameRef }
+export interface MarksClear { type: 'marks-clear'; id?: string }
+/** The call ended (its 60-minute limit, a provider error): answer with a fresh offer on the same socket. */
+export interface Reoffer { type: 'reoffer'; id: string; why?: string }
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer'];
+/** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
+export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
+// Studio -> server.
+export type PartnerCommand =
+  | { type: 'talk'; down: boolean; n: number } // the talk key or button pressed (true) or released (false)
+  | { type: 'talk'; cancel: true; n: number } // Escape (or a tap, or a chord) while held: no answer
+  | { type: 'snapshot'; id: string; jpeg: string; w: number; h: number; at: number; how: 'tab-share' | 'composed' }
+  | { type: 'snapshot'; id: string; error: string }
+  | { type: 'marks-shown'; id: string; resolved: MarkResolution[] }
+  | { type: 'offer'; sdp: string; id: string };
 
 const MAGIC = 'MMF1';
 
