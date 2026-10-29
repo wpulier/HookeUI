@@ -55,7 +55,17 @@ def reading(root):
 
 @contextmanager
 def _visibility_lock(root, mode):
-    fd = os.open(Path(root) / '.bundle-visibility.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    path = Path(root) / '.bundle-visibility.lock'
+    # Shared readers need no write permission. Use the same retained inode as
+    # publishers; only initialize a missing lock in a writable legacy store.
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except FileNotFoundError:
+        fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+    import stat
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise ImportPending('Project publication lock is not a regular file')
     try:
         try:
             fcntl.flock(fd, mode)

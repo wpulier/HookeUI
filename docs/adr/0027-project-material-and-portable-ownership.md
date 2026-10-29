@@ -41,3 +41,19 @@ New research transcripts are retained under `research/transcripts/`; legacy
 `logs/transcripts/` is excluded from performance pruning. Both locations must be
 considered during explicit collection. These are bounded traces, potentially
 incomplete after write failure, not complete provider transcripts.
+
+## Retained-store adapter checkpoint
+
+`project_repository.py` creates a new journal-owned folder and adapts the existing
+SessionStore and ProjectStore, without routing live App creation or migrating any
+existing Project. Runtime ownership reads stream ordinary history independently
+of partial-transfer size limits. Shared publication locks remain authoritative and
+can be acquired from read-only media. New folders initialize those locks and sync
+the copied journal and directory chain before reporting creation success.
+
+Writable scopes require the registry-selected location, the folder writer lease
+and a host runtime root for retention registration. Host preferences and installed
+runtimes remain external. Saved reads require neither a running worker nor runtime
+installation. Isolated close/move/reopen tests preserve conversation events and
+exact document revision hashes; these do not certify complete collection, legacy
+migration, cross-machine reassociation or the live connector.
