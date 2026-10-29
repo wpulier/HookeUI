@@ -59,7 +59,10 @@ PROACTIVE_KEPT_S = 60.0  # a waiting proactive line is dropped (only noted) afte
 SAME_EVENT_S = 120.0  # the same event (kind and reference) is said at most once in this long
 RESPONSE_WAIT_S = 3.0  # a response whose end never comes is cancelled and let go after this (the gate never blocks)
 RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the connection to come back
-PROGRESS_AFTER_S = 2.5  # tools still running this long after the model went quiet: one progress line
+# Tools still running and the voice quiet this long: a short line asking to wait (the standard: no silence over 1.5 s
+# while it works; the line takes ~0.6 s to start). At most PROGRESS_LINES per round, never the same words twice.
+PROGRESS_AFTER_S = 0.8
+PROGRESS_LINES = 2
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
@@ -1074,7 +1077,7 @@ class RealtimeSession(VoiceSession):
         ids = self._round.pop(rid, [])
         epoch = next((self._call_epoch[cid] for cid in ids if cid in self._call_epoch), self._epoch)
         tasks = {cid: self._calls[cid] for cid in ids if cid in self._calls}
-        progress_at = self.clock() + PROGRESS_AFTER_S
+        progress_said: list[float] = []
         pending = set(tasks.values())
         looked = False
         sent: set[str] = set()
@@ -1087,16 +1090,18 @@ class RealtimeSession(VoiceSession):
                         self._log({"kind": "partner-output-dropped", "callId": cid, "why": "its call was replaced"})
                         continue
                     looked |= await self._output(cid, task)
-            if (pending and self.clock() > progress_at and rid not in self._progress_said and not self.speaking()
-                    and not self._asks and self._held is None and n == self.n and epoch == self._epoch):
-                self._progress_said.add(rid)
+            quiet = self.clock() - max(self._last_audio_at, self._last_done_at)
+            if (pending and quiet >= PROGRESS_AFTER_S and len(progress_said) < PROGRESS_LINES and not self.speaking()
+                    and not self._asks and self._held is None and n == self.n and epoch == self._epoch
+                    and (not progress_said or self.clock() - progress_said[-1] > 2.0)):
+                progress_said.append(self.clock())
+                again = " You already asked them to wait once: use different words, still short." if len(progress_said) > 1 else ""
                 self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
                              tool_choice="none", instructions=self.config.system_prompt + "\n\nThe app is still working "
                              "on your last tool call. Say only a short phrase asking the user to wait a few more seconds, "
-                             "at most six words. Do not describe what is running and do not say anything is done.")
+                             "at most six words. Do not describe what is running and do not say anything is done." + again)
         for cid in ids:
             self._calls.pop(cid, None)
-        self._progress_said.discard(rid)
         if self.closed or epoch != self._epoch:
             return
         if not go_on:

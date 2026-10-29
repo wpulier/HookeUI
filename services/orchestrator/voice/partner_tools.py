@@ -170,6 +170,7 @@ class PartnerTools:
             if points and run.ok:
                 # Pointed at by the app as the answer about it is heard: the model need not call mark for it.
                 result["_point"], result["pointed_at"] = points, points
+                result["pointing"] = "Hooke points at this as you speak about it: do not call mark for it."
         result["_log"] = log
         return result
 

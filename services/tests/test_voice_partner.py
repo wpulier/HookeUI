@@ -97,6 +97,7 @@ async def realtime(tools=(), talk="hold", sidebands=None):
 @pytest.fixture(autouse=True)
 def no_tail(monkeypatch):
     monkeypatch.setattr(openai_realtime, "RELEASE_TAIL_S", 0.0)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)  # no wait lines unless a test is about them
 
 
 async def settle():
@@ -1287,4 +1288,39 @@ def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
         await until_async(lambda: t.sb.responses == 2)
         said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
         assert before - 0.05 <= said["eventT"] < before + 0.2 and said["responseCreatedT"] - said["eventT"] > 0.3
+    asyncio.run(go())
+
+
+def test_a_long_tool_gets_at_most_two_short_wait_lines_soon_after_the_voice_went_quiet(monkeypatch):
+    """The bench: 2.7 s of silence after the preamble before the progress line, then 2.5 s more. A wait line goes out
+    once the voice has been quiet PROGRESS_AFTER_S, at most twice a round, never the same words."""
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.2)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "7 cells"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "what data do we have?"})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: t.sb.responses == 2)
+        await done(t.sb, "resp_2")
+        await until_async(lambda: t.sb.responses == 3)
+        await done(t.sb, "resp_3")
+        await asyncio.sleep(2.6)
+        assert t.sb.responses == 3, "two wait lines at most"
+        causes = [e["response"]["metadata"]["cause"] for e in t.sb.sent if e["type"] == "response.create"]
+        assert causes == ["turn", "progress", "progress"]
+        assert "different words" in [e for e in t.sb.sent if e["type"] == "response.create"][-1]["response"]["instructions"]
+        gate.set()
+        await until_async(lambda: t.sb.responses == 4)
     asyncio.run(go())
