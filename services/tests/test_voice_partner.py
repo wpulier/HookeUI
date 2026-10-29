@@ -1586,8 +1586,8 @@ def test_the_announcers_late_line_about_a_researcher_is_never_said_again(monkeyp
 
 def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands_the_rest_over(monkeypatch):
     """PARTNER_ACTS "brain", the default (Will, 29 Oct: the old voice "just worked" because the brain did the work): the
-    voice has no Hooke tools of its own, only pointing, the close look, activity and do_in_hooke, and its instructions
-    say so."""
+    voice has no Hooke tools of its own, only pointing, the close look, activity, do_in_hooke and stop_work (for
+    Hooke's own work in progress), and its instructions say so."""
     from orchestrator import prompts
     from orchestrator.options import Settings
 
@@ -1596,7 +1596,7 @@ def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands
     async def go():
         t = await partner_session(monkeypatch, tools={"find": "outlined it", "zoom": "magnified"}, acts="brain")
         names = sorted(spec.name for spec in t.partner.tools.specs())
-        assert names == ["activity", "do_in_hooke", "look_hard", "mark"]
+        assert names == ["activity", "do_in_hooke", "look_hard", "mark", "stop_work"]
     asyncio.run(go())
     written = prompts.partner_prompt("brain")
     assert "do_in_hooke" in written and "call find" not in written and "think" not in written.split("# Acting")[1]

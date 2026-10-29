@@ -188,6 +188,9 @@ REPORT_FRESH_S = 30.0  # a studio that has not reported for this long is not cou
 REFRESH_S = 0.5  # a request with no report of its own waits at most this for the studio's report now (Screen.refresh)
 REFRESH_ASK_EVERY_S = 0.25
 REFRESH_FRESH_S = 0.15  # a report taken this recently is already what the studio shows now
+# A request whose studio has not reported for REPORT_FRESH_S asks it for a report and waits this long for one before
+# its steps run, so its tools read what it shows now instead of failing as "stale" (live 2026-10-29).
+STALE_REFRESH_S = 2.0
 
 
 @dataclass
@@ -1178,6 +1181,54 @@ class Screen:
                     return False
                 await asyncio.sleep(0.01)
 
+    async def current_report(self, client=None, *, now: bool = False, timeout: float | None = None) -> bool:
+        """One way in (the live partner spec, 4.8 horizontal 1): before any actor's request acts, the report it reads
+        is current, asked for by Hooke itself, never failed as stale by each tool in turn and never the user's to
+        repeat. Every request comes through here (`fresh_report`): a typed Send's steps (`ActionRunner`), a voice
+        hand-off and every voice tool (`now`), a researcher showing its work (`Announcer._open_beside`) and a
+        connected agent's run through the door (`commands.run_tool`).
+        - `now`: what the studio shows at this moment, for a request that carries no report of its own (the voice):
+          asked for unless one came in the last REFRESH_FRESH_S.
+        - otherwise only a report older than REPORT_FRESH_S (a studio that stopped reporting for a while, or whose
+          reports were not taken) is asked for again.
+        `client`: the studio the request came from; None for one no studio sent (the door's runs): the accepted studio
+        whose report counts, else the accepted one that reported last. Waits at most `timeout` (REFRESH_S for one
+        current already, STALE_REFRESH_S for a stale one). Whether a current report is there now; without one the last
+        stands and the request goes on, its changes uncertain until a report shows them (present's STUDIO_UNREPORTED)."""
+        if client is None:
+            client = self._asked_studio()
+            if client is None:
+                return await self._legacy_current(now=now, timeout=timeout)
+        try:
+            observed = self.observation(client)
+        except ObservationError:
+            return False
+        current = self._current_observation(observed)
+        if current and not now:
+            return True
+        wait = timeout if timeout is not None else (REFRESH_S if current else STALE_REFRESH_S)
+        return await self.refresh(client, timeout=wait)
+
+    def _asked_studio(self):
+        """The accepted studio a request no studio sent is answered by: the one whose report counts, else the accepted
+        one that reported last (its report gone stale)."""
+        current = self.current_accepted()
+        if current is not None:
+            return current
+        reported = [(r["at"], c) for c, r in self._reports.items() if c in self._accepted]
+        return max(reported, key=lambda x: x[0])[1] if reported else None
+
+    async def _legacy_current(self, *, now: bool, timeout: float | None) -> bool:
+        """A studio that reports without an accepted workspace (an older studio, a test's fixture): asked by broadcast
+        when its last report no longer counts (or `now`); nothing is waited for when no studio has reported at all."""
+        if not self._reports:
+            return False
+        if self.latest is not None and not now:
+            return True
+        before = max(r["at"] for r in self._reports.values())
+        return await self.until(lambda report: True, before,
+                                timeout=timeout if timeout is not None else (REFRESH_S if now else STALE_REFRESH_S))
+
     async def until(self, check: Callable[[dict], bool], after: float, timeout: float | None = None) -> bool:
         """Whether a report made after `after` (a `reported_at` read before the change) shows `check`
         within `timeout`: for changes made through the app's own state (the magnifier, the result viewer,
@@ -1640,6 +1691,19 @@ async def image_shown(magnifier, url: str, label: str, credit: str = "", object_
     magnifier.show_image(url, label, credit=credit, object_id=object_id, kind_of=kind_of)
     await on_screen(hub, magnifier_arrangement(url, magnifier.displayed_object, [url]), after, "the picture is not shown in the magnifier",
                     "look at the magnifier, or ask again")
+
+
+async def fresh_report(hub, client=None, *, now: bool = False, timeout: float | None = None) -> bool:
+    """The one way every actor's request gets its current report (`Screen.current_report`): a typed Send, a voice
+    hand-off or voice tool (`now`), a researcher's own studio action, a connected agent's run. A hub without a Screen
+    (a test's stand-in) has nothing to ask: False, and the request goes on as before."""
+    screen = getattr(hub, "screen", None)
+    if not isinstance(screen, Screen):
+        return False
+    try:
+        return bool(await screen.current_report(client, now=now, timeout=timeout))
+    except Exception:  # asking for a report never breaks the request: the last report stands
+        return False
 
 
 def screen_of(hub) -> Screen:

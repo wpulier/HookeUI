@@ -555,7 +555,11 @@ class Announcer:
         if delivery is None or delivery.client is None or not isinstance(screen, Screen):
             return "retained in Researchers; original browser unavailable"
         # A reconnect is not authority to redirect old background work. The original
-        # browser/connection must still satisfy its accepted request snapshot.
+        # browser/connection must still satisfy its accepted request snapshot. Its report is asked for first when the
+        # last is older than the freshness window, as every actor's request does (screen.fresh_report; live
+        # 2026-10-29 17:25: showing a researcher's result failed "unavailable or stale" while the studio reported).
+        from .screen import fresh_report
+        await fresh_report(hub, delivery.client)
         try:
             from .brain.toolbox.present import _original_screen
             scope = _original_screen(screen, delivery)

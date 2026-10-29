@@ -24,11 +24,15 @@ class Stop:
     """One stoppable run's holder: `requested` is set only by the user's Stop, just before its task is cancelled.
     `task` is the tool run it waits on now (commands.run_tool sets it as each starts)."""
 
-    __slots__ = ("requested", "task", "late", "outcomes", "listeners", "kept", "lost", "carries_on", "ended_work")
+    __slots__ = ("requested", "task", "late", "outcomes", "listeners", "kept", "lost", "carries_on", "ended_work",
+                 "steps")
 
     def __init__(self) -> None:
         self.requested = False
         self.task = None
+        # The steps a whole request started under this holder (brain/actions.py ActionRunner: its sequence and each
+        # step's run), for a stop of that request (the voice's stop_work on a hand-off): `stop_steps` cancels them.
+        self.steps: set = set()
         # Work it stopped that had not ended when the Stop was answered (operations.Runner._stopped): while any is
         # here the Stop is "stopping", never "stopped". How each ended is kept, and told to `listeners` once all have.
         self.late: set = set()
@@ -56,6 +60,22 @@ class Stop:
         self.requested = True
         if self.task is not None and not self.task.done():
             self.task.cancel()
+
+    def started(self, task) -> None:
+        """A step of the request this holder stops (its steps' sequence, or one step's run), until it ends."""
+        if task is None or task.done():
+            return
+        self.steps.add(task)
+        task.add_done_callback(self.steps.discard)
+
+    def stop_steps(self) -> list:
+        """The user stopped the whole request: every step it started that has not ended is cancelled, and none starts
+        after (its sequence is one of them). The tasks cancelled, for the caller to wait on: stopped only once they end."""
+        self.requested = True
+        cancelled = [task for task in list(self.steps) if not task.done()]
+        for task in cancelled:
+            task.cancel()
+        return cancelled
 
     # --- what the run tells its holder, as it goes ---------------------------------------------------------------
     def did(self, what: str) -> None:

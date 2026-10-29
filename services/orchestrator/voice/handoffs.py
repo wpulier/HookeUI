@@ -12,7 +12,11 @@ in the "in progress" strip above the composer while it runs:
   - **failed** with its reason in one line (the brain's own answer when it gave one, else what did not work);
   - **settling**: the brain answered while one of its steps still runs (a late step); the row stays working and the
     studio settles it from that step's own receipt (its `chat-action`, by occurrence);
-  - **unknown**: it stopped before Hooke said how it went, or the app restarted while it worked.
+  - **unknown**: it stopped before Hooke said how it went, or the app restarted while it worked; one the user stopped
+    (the voice's `stop_work`) carries `stopped` and says so.
+A settling row's end comes from the steps that were still running, once they have (`settled`, from its job's
+`Jobs.run_finished`), so its line in the journal ends too. Each hand-off is also a job (voice/jobs.py `HandoffJob`):
+`changed` tells it every new state.
 A hand-off may carry a step for after the work it starts (`then`: voice/followups.py), shown on its row with that step's
 own state; the step, when it runs, is a hand-off of its own, `after` the work it waited on.
 Truthful states (ADR 0006): the row never says more than the brain's turn did.
@@ -91,6 +95,7 @@ class Handoff:
     settling: bool = False
     then: dict | None = None  # its step for after the work it starts: {words, state, after?, rid?, reason?}
     after: str = ""  # a step done after other work: that work's name ("Researcher 2")
+    stopped: bool = False  # the user stopped it (stop_work): its row says so
 
     def line(self) -> dict:
         out: dict[str, Any] = {"type": "handoff", "id": self.id, "lineId": f"handoff:{self.id}", "state": self.state,
@@ -113,6 +118,8 @@ class Handoff:
             out["then"] = dict(self.then)
         if self.after:
             out["after"] = self.after
+        if self.stopped:
+            out["stopped"] = True
         return out
 
 
@@ -122,8 +129,9 @@ class Handoffs:
 
     def __init__(self, dialogue=None, send: Callable[[dict], Awaitable[None]] | None = None, *,
                  spawn: Callable[[Awaitable], Any] | None = None, log: Callable[[dict], None] | None = None,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time, changed: Callable[[Handoff], Any] | None = None) -> None:
         self.dialogue, self.send, self.spawn, self.log, self.clock = dialogue, send, spawn, log, clock
+        self.changed = changed  # told each new state (its job follows it: voice/jobs.py)
         self.open: dict[str, Handoff] = {}
 
     def _flying(self) -> set | None:
@@ -197,12 +205,37 @@ class Handoffs:
                           "error": f"{type(exc).__name__}: {exc}"[:300]})
         self._end(handoff)
 
-    def lost(self, handoff: Handoff) -> None:
-        """Its work was cancelled before the brain answered: what happened is not known."""
+    def lost(self, handoff: Handoff, *, stopped: bool = False) -> None:
+        """Its work was cancelled before the brain answered: what happened is not known. `stopped`: the user stopped it
+        (stop_work), said so."""
         if handoff.id not in self.open:
             return
-        handoff.state, handoff.reason = "unknown", "It stopped before Hooke said how it went"
+        handoff.state, handoff.stopped = "unknown", stopped
+        handoff.reason = ("Stopped when you asked; anything it had finished stays" if stopped
+                          else "It stopped before Hooke said how it went")
         self._end(handoff)
+
+    def settled(self, handoff: Handoff, state: str, receipts: list, reason: str = "") -> None:
+        """A row the brain answered while steps still ran (`settling`) ends from those steps' own receipts, once each has
+        (its job's: done, failed or uncertain), never from a guess."""
+        if handoff.state != "working" or not handoff.settling:
+            return
+        late = {r.get("actionId"): r for r in receipts if isinstance(r, dict) and r.get("actionId")}
+        handoff.steps = [{k: late[s["actionId"]][k] for k in STEP_KEYS if k in late[s["actionId"]]}
+                         if isinstance(s, dict) and s.get("actionId") in late else s for s in handoff.steps]
+        handoff.settling = False
+        if state == "done":
+            handoff.state = "started" if started_researcher({"actions": handoff.steps}) else "done"
+        elif state == "uncertain":
+            handoff.state = "uncertain"
+        elif state == "cancelled":
+            handoff.state, handoff.stopped = "unknown", True
+            handoff.reason = title(reason or "Stopped when you asked; anything it had finished stays", REASON_CHARS)
+        else:
+            handoff.state = "failed"
+            handoff.reason = title(reason or "a step did not work", REASON_CHARS)
+        handoff.ended = self.clock()
+        self._file(handoff)
 
     def _end(self, handoff: Handoff) -> None:
         handoff.ended = self.clock()
@@ -222,6 +255,9 @@ class Handoffs:
             with contextlib.suppress(Exception):
                 self.log({"kind": "partner-handoff", "id": handoff.id, "state": handoff.state, "long": handoff.long,
                           "settling": handoff.settling, "label": handoff.label, "t": self.clock()})
+        if self.changed is not None:
+            with contextlib.suppress(Exception):
+                self.changed(handoff)
         if self.dialogue is not None:
             with contextlib.suppress(Exception):
                 self.dialogue.show(line, asked=handoff.asked)
