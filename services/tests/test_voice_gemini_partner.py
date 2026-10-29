@@ -880,3 +880,32 @@ def test_the_probe_runs_one_held_turn_with_a_tool_through_the_session_itself(mon
         assert response.scheduling == types.FunctionResponseScheduling.INTERRUPT and response.response["count"] == 7
         assert b"JPEG" in connector.last.pictures()
     asyncio.run(go())
+
+
+def test_a_call_gemini_withdrew_while_it_ran_has_its_outcome_said_as_one_line(monkeypatch):
+    """The journey bench: a progress line asked while a tool ran made Gemini withdraw the call (tool_call_cancellation),
+    and the outline's and the highlight's outcomes were never said. Its call id is gone, so the outcome is one line."""
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "outlined 341 nuclei"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"outline_cells": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.live.emit(call("c1", "outline_cells", {}))
+        await settle()
+        t.live.emit(types.LiveServerMessage(tool_call_cancellation=types.LiveServerToolCallCancellation(ids=["c1"])))
+        t.live.emit(turn_done())
+        await settle()
+        t.session._last_user_at = 0.0
+        gate.set()
+        lines = await until_async(lambda: [x for x in asked(t.live) if "outlined 341 nuclei" in x] or None)
+        assert len(lines) == 1 and "exactly one short spoken sentence" in lines[0]
+        assert not t.live.responses(), "no result for a call id Gemini no longer has"
+        assert any(r["kind"] == "partner-proactive" and r["event"] == "tool-done" for r in t.logged)
+    asyncio.run(go())

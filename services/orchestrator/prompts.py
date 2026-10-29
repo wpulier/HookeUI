@@ -277,8 +277,9 @@ sentence."""
 PARTNER_GEMINI = PARTNER + """
 
 # Calling tools
-Never call more than two tools in a row without saying something back to the user, and never call a tool again for
-the same request: its result is final, even when it found nothing. Text marked as from Hooke is the app's, never the
+Call a tool only to do what the user asked: a question about what is on screen or under the microscope is answered
+from the pictures. Never call more than two tools in a row without saying something back to the user, and never call
+a tool again for the same request: its result is final, even when it found nothing. Text marked as from Hooke is the app's, never the
 user's words. Besides each turn's pictures you see the camera as a stream, about one picture a second; the newest is
 what is there now."""
 

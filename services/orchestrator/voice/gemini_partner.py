@@ -1021,6 +1021,23 @@ class GeminiPartnerSession(VoiceSession):
         if batch:
             self._spawn(self._answer(batch, gen["n"], self._epoch))
 
+    async def _withdrawn_result(self, call_id: str, name: str, result: Any, n: int) -> None:
+        """A call Gemini withdrew while it ran (a line it was asked to say meanwhile can make it): its call id is gone, so
+        what it did is told as one line, as a long tool's outcome is (journey bench 2026-10-29: two outcomes never said);
+        for an older turn, or a mark, only as context."""
+        facts = json.dumps({"tool": name, **payload(result)}, ensure_ascii=False, default=str)[:3000]
+        if n != self.n or name == "mark":
+            with contextlib.suppress(Exception):
+                await self._text(item_text("A tool finished (context only): " + facts))
+            return
+        points = result.get("_point") if isinstance(result, dict) else None
+        mark = str(points[0]) if isinstance(points, list) and points else None
+        happened = getattr(self, "happened", None)  # the partner's: it points at the mark as the line is said
+        if callable(happened):
+            await happened("tool-done", facts, ref=call_id, mark=mark)
+        else:
+            await self.proactive(facts, event="tool-done", ref=call_id)
+
     @staticmethod
     async def _repeat(first: asyncio.Task) -> dict:
         result = await asyncio.shield(first)
@@ -1081,7 +1098,7 @@ class GeminiPartnerSession(VoiceSession):
             self._rounds -= 1
             for call_id, _, _ in batch:
                 self._calls.pop(call_id, None)
-        responses, looks, looked = [], [], False
+        responses, looks, looked, withdrawn = [], [], False, []
         for call_id, name, task in batch:
             try:
                 result = task.result()
@@ -1095,7 +1112,9 @@ class GeminiPartnerSession(VoiceSession):
                 looks.append(look)
                 looked = True
             if call_id in self._withdrawn:
-                self._log({"kind": "partner-output-dropped", "callId": call_id, "why": "Gemini withdrew the call"})
+                self._log({"kind": "partner-output-dropped", "callId": call_id,
+                           "why": "Gemini withdrew the call: its outcome is told as a line"})
+                withdrawn.append((call_id, name, result))
                 continue
             responses.append(types.FunctionResponse(id=call_id, name=name, response=payload(result)))
         if self.closed:
@@ -1119,6 +1138,8 @@ class GeminiPartnerSession(VoiceSession):
                     await self._image(jpeg, label)
         except Exception:
             pass
+        for call_id, name, result in withdrawn:
+            await self._withdrawn_result(call_id, name, result, n)
         if not responses:
             return
         pointing_only = all(name == "mark" for _, name, _ in batch) and n in self._spoke_in_turn
