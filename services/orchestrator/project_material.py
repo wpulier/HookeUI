@@ -22,6 +22,15 @@ def describe(document: dict) -> dict:
     if kind in ('source-file', 'source-directory'):
         material.update(kind='folder' if kind == 'source-directory' else 'file',
                         origin='imported', input=True, section='files', category='import')
+        media = state.get('librarySource')
+        if isinstance(media, dict) and media.get('format') == 1 and media.get('scope') == 'selected-media':
+            asset = media.get('asset')
+            if isinstance(asset, dict) and asset.get('kind') in ('still', 'recording'):
+                material['kind'] = 'image' if asset['kind'] == 'still' else 'recording'
+                # A generated picture used as an input keeps its producing origin.
+                material['origin'] = ('generated' if asset.get('from') in ('snapshot', 'clearer')
+                                      else 'imported' if asset.get('from') in ('added', 'example', 'recording')
+                                      else 'unknown')
     elif kind == 'research-effort':
         material.update(kind='assignment', origin='authored', input=True, section='study', category='study-result')
     elif kind == 'project-material-membership':

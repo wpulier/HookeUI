@@ -1,5 +1,11 @@
 # Checks
 
+`test_project_media.py` copies synthetic media through actual immutable intake,
+moves its owning Project, deletes the original, and reads the exact retained bytes.
+It checks changed/replaced originals, cancellation, writer exclusion, origin/digest
+refusal, Record-part refusal and shared inventory meaning. It does not qualify a
+decoder, full Library history, Record collection or ordinary media playback.
+
 Folder-copy completion tests inject final sync/removal failures and reopen the
 destination independently. Incomplete markers survive and original data remains;
 successful publication performs no post-completion storage verification that could
