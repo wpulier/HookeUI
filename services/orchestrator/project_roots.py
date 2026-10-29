@@ -21,6 +21,8 @@ from .file_locks import fcntl
 
 LIMIT = 1 << 20
 PARTS = ('inputs', 'artifacts', 'history', 'workspace', 'exports')
+COPY_INTENT = '.project-copy-in-progress'
+SNAPSHOT = 'snapshot.json'
 
 
 class ProjectLocationError(ValueError):
@@ -78,6 +80,8 @@ class ProjectRoot:
         if path.is_symlink() or not path.is_dir():
             raise ProjectLocationError('Choose the Project folder itself')
         path = path.resolve(strict=True)
+        if (path / COPY_INTENT).exists() or (path / COPY_INTENT).is_symlink():
+            raise ProjectLocationError('This Project copy is incomplete; keep the original and retry collection to a new folder')
         value = _read(path / 'project.json')
         if (type(value) is not dict or set(value) != {'format', 'origin', 'session', 'name', 'storage'}
                 or value['format'] != 1 or type(value['format']) is not int or value['storage'] != 'hooke-project-v1'
@@ -135,6 +139,8 @@ def writer(root: ProjectRoot):
     qualification; this is not a distributed-lock or remote collaboration claim.
     Never unlink the lock inode: replacing it would let two hosts both hold locks.
     """
+    if (root.path / SNAPSHOT).exists() or (root.path / SNAPSHOT).is_symlink():
+        raise ProjectLocationError('This is a retained snapshot. Open read-only or explicitly create a working copy.')
     actual = ProjectRoot.open(root.path)
     if actual != root:
         raise ProjectLocationError('The Project location changed; reopen before writing')
