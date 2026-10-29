@@ -57,3 +57,11 @@ test('an unrelated reply preserves the existing evidence disclosure and node ide
   state.questions.push({...answered,id:'q_second',question:'second?',answer:null});await c.refresh();
   expect(c.root.querySelector('details')).toBe(details);expect(details.getAttribute('open') !== null).toBe(true);expect(details.querySelector('button')).toBe(link);
 });
+
+test('recipient selection alone does not enable an empty question; successful save clears only its own draft',async()=>{
+  const c=fixture(vi.fn(async(_url,init)=>json(init?.method==='POST'?{ok:true}:{ok:true,basis,questions:[],recipients:[recipient]})) as unknown as typeof fetch);
+  await c.refresh();c.select.value=recipient.actor;fire(c.select,'change',{});
+  const send=c.root.querySelectorAll('button').find(b=>b.getAttribute('aria-label')==='Send Study question')!;expect(send.disabled).toBe(true);
+  c.field.value='Explain';fire(c.field,'input',{});expect(c.root.dataset.draft).toBe('true');expect(send.disabled).toBe(false);
+  fire(c.form,'submit',{});await vi.waitFor(()=>expect(c.field.value).toBe(''));expect(c.root.dataset.draft).toBeUndefined();expect(send.disabled).toBe(true);
+});

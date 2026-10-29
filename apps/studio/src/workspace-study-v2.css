@@ -344,7 +344,7 @@ body.studio-shell .session-home[data-project-research='true'] .home-title { marg
 .study-ask-setup[hidden] { display: none; }
 
 /* A retained conversation belongs to its Study, beside its evidence. */
-.study-conversation { min-width:0; padding:12px 16px 16px; border-top:1px solid var(--line); }
+.study-retained-conversation { min-width:0; padding:12px 16px 16px; border-top:1px solid var(--line); }
 .study-conversation-log { max-height:340px; overflow:auto; overscroll-behavior:contain; }
 .study-question { padding:16px 0; border-bottom:1px solid var(--line); }
 .study-question small,.study-answer-limits { color:var(--muted); font-size:12px; }

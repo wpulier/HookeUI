@@ -969,7 +969,7 @@ async function openStudy(id:string):Promise<void>{
     if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
     clearStudyDraftMarkers();
     // Evidence opens in its own workspace Tab; it must never appear behind the Study on Main.
-    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
+    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching||!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
     closeResearchStage();
     const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
     if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');

@@ -93,7 +93,7 @@ const PHASE_CELL: Record<string, LitCellState> = { review: 'needs', unknown: 'ne
 
 export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActions, providers: StudyProvider[] = [], availableInputs: StudyInput[] = []): void {
   root.className = 'study-view study-home'; root.replaceChildren(); delete root.dataset.draft; delete root.dataset.reviewOpen;
-  root.oninput = event => { if(!(event.target as Element)?.closest('.study-conversation')) root.dataset.draft = 'true'; };
+  root.oninput = event => { if(!(event.target as Element)?.closest('.study-retained-conversation')) root.dataset.draft = 'true'; };
   const notice = node('p', 'study-view-notice'); notice.setAttribute('role', 'status');
   let pending = false;
   const perform = async (work: () => void | Promise<unknown>): Promise<void> => {

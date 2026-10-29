@@ -26,7 +26,7 @@ export function studyConversation(initial:Effort, options:{
   let basis:Reference={id:initial.id,session:initial.session,revision:initial.revision,digest:initial.digest};
   let retry:{text:string;recipient:string;body:Record<string,unknown>}|null=null;
   const fetcher=options.fetcher??fetch;
-  const root=node('section','study-conversation');root.setAttribute('aria-label','Study conversation');
+  const root=node('section','study-retained-conversation');root.setAttribute('aria-label','Study conversation');
   const log=node('div','study-conversation-log');log.setAttribute('role','log');log.setAttribute('aria-label','Study questions and answers');
   const status=node('p','study-ask-status','Loading connected contributors…');status.setAttribute('role','status');
   const select=node('select','study-question-recipient');select.setAttribute('aria-label','Ask connected agent');
@@ -36,7 +36,7 @@ export function studyConversation(initial:Effort, options:{
   const refreshButton=node('button','study-quiet','Refresh replies');refreshButton.type='button';
   const controls=node('div','study-conversation-controls');controls.append(status,refreshButton);
   root.append(log,controls,compose.root);
-  function ready(){compose.send.disabled=sending||!loaded||!select.value||!options.current();select.disabled=sending;compose.field.readOnly=sending;}
+  function ready(){compose.send.disabled=!compose.field.value.trim()||sending||!loaded||!select.value||!options.current();select.disabled=sending;compose.field.readOnly=sending;}
   select.addEventListener('change',ready);compose.field.addEventListener('input',()=>{if(compose.field.value)root.dataset.draft='true';else delete root.dataset.draft;ready();});compose.field.addEventListener('focus',ready);
   function render(rows:StudyQuestion[]){
     const next=JSON.stringify(rows);if(next===signature)return;signature=next;
