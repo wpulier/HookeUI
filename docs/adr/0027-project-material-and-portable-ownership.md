@@ -174,3 +174,19 @@ all bytes for explicit reconciliation. Removing that marker is the final accepta
 action; a crash may conservatively restore uncertainty. Background identity lifecycle
 binding and reconciliation UI remain open gates: the staged adapter explicitly
 refuses event-loop use, rather than blocking live frames or silently claiming a save.
+
+### Retained researcher files
+
+The staged research storage adapter routes saved researcher records, previous
+interpretations, output files, notes and bounded transcripts by their captured
+Project. Historical file serving resolves the saved owner rather than the active
+workspace. Ambiguous researcher identities refuse rather than silently choosing
+another Project. An interrupted imported effort is displayed as interrupted and
+never replayed; a read-only host does not rewrite its saved accounting or status.
+
+This is retained-work routing, not provider execution qualification. New provider
+runs, follow-ups and presentation generation in portable Projects explicitly
+refuse until host-local spending, worker lifetime, source acquisitions and full
+collection are qualified. Existing legacy Projects keep their working researcher
+paths. Global descriptions/shared acquisitions, dependency closure and live App
+activation remain open; no complete portable Project claim follows from this slice.

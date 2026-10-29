@@ -454,3 +454,13 @@ Assistant is not listed or runnable from the door, which reaches only the workfl
 door for that Project (`door/projects.py` `require_workflow`; duplicating needs that association too).
 
 Study listings expose `createdAt` from revision 1 and `updatedAt` from the current retained revision. These are saved-document timestamps, not inferred execution start/end times. Legacy missing initiators remain unknown. Reads never add a revision or start work.
+
+With optional Project locations, `research/storage.py` resolves retained researcher
+records and files under their captured Project. Previous metadata is preserved by
+content hash; failed publication leaves a durable pending marker and readers refuse
+uncertain current state. Root replacement/closure and same-ID foreign work refuse.
+Historical interrupted jobs are projected without automatic dispatch or rewriting
+read-only folders. Provider starts/follow-ups/presentations in portable Projects are
+explicitly unavailable pending host billing and lifecycle qualification; ordinary
+legacy Projects retain their existing execution behavior. Shared acquisitions and
+global description caches are not yet collected by this adapter.
