@@ -43,6 +43,8 @@ def _strings(values, name, *, unique=False):
 
 def _finite(values, *, counts=False):
     values = values.data if sparse.issparse(values) else np.asarray(values)
+    if values.dtype.kind not in 'biuf':
+        raise Refused('Counts and response effects require real numeric values')
     if not np.isfinite(values).all():
         raise Refused('Matrix values must be finite')
     if counts and (np.any(values < 0) or np.any(values != np.floor(values))):
@@ -193,6 +195,20 @@ def fit(inputs, params, output, check):
               'penaltyScale': 'per-target-observed-weight',
               'effectContext': 'context-independent', 'unseenTargetPrior': 'zero-effect',
               'missingGenePrior': 'zero-effect', 'scale': 'log2-normalized-count-ratio'}
+    # Legacy preparation remains fit-capable, but cannot certify normalized-effect transfer.
+    with zipfile.ZipFile(inputs['effects']) as archive:
+        has_metadata = 'metadata.npy' in archive.namelist()
+    if has_metadata:
+        declared = _npz(inputs['effects'], ('metadata',))['metadata']
+        metadata = json.loads(declared.item())
+        if 'normalization' in metadata:
+            if __package__:
+                from .aggregate_profiles import _effects, _digest
+            else:
+                from aggregate_profiles import _effects, _digest
+            _, preparation = _effects(inputs['effects'])
+            result['normalization'] = preparation['normalization']
+            result['trainingEffectsSha256'] = _digest(inputs['effects'], check)
     path = output / 'model.npz'
     np.savez_compressed(path, format=np.array('response-model-v1'), effects=coefficients,
                         genes=genes, targets=np.array(unique_targets), metadata=np.array(json.dumps(result, sort_keys=True)))
@@ -400,7 +416,16 @@ def merge_effects(inputs, params, output, check):
     return operation(inputs, params, output, check)
 
 
+def evaluate_effects(inputs, params, output, check):
+    if __package__:
+        from .effect_evaluation import evaluate as operation
+    else:
+        from effect_evaluation import evaluate as operation
+    return operation(inputs, params, output, check)
+
+
 OPERATIONS = {'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
-              'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects}
+              'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,
+              'response-effect-evaluate': evaluate_effects}

@@ -57,6 +57,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-inspect` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-prepare` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-combine` | - |
+| [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-effect-evaluate` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-effects-merge` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-fit` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-predict` | - |

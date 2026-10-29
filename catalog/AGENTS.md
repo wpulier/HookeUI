@@ -440,6 +440,11 @@ Aggregate profiles use the separate `aggregate-profile-prepare` retained-JSON pr
 the raw-count reader is not relaxed for fractional means. `response-effects-merge`
 joins compatible prepared context/target rows and refuses duplicates or unspecified
 normalization. Both use the same catalog runtime, file admission and workflow attempts.
+`response-effect-evaluate` compares fitted aggregate effects against every declared
+reference row from disjoint biological contexts, with an explicit zero-effect baseline.
+Fitting retains validated normalization meaning and the training-effects file hash;
+older models must be refitted for this diagnostic. It is not an official competition
+score or a sealed-holdout claim. No synthetic cells are manufactured for evaluation.
 
 Environment-only dependencies declare `kind = "runtime"`, their own CPU Python and
 a hashed lockfile with nonempty import checks. They declare no runnable adapter,
