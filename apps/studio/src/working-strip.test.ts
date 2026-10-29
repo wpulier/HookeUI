@@ -312,3 +312,24 @@ test('while the side columns move, the strip waits (no measuring, no folding per
   playSideMotion([{ node: root as unknown as HTMLElement, props: { marginRight: [-360, 0] }, closing: false }], () => true);
   expect(measured).toHaveBeenCalledTimes(1);
 });
+
+test('the voice\'s presence leads the strip, wears its state mark instead of a lit cell, and has no ×', () => {
+  const { s, pills, shown } = strip();
+  s.set('researchers', [pill('research:r1', { since: NOW - 90_000 })]);
+  s.set('voice', [pill('voice:presence', { name: 'Hooke', counting: false, words: 'thinking', voice: 'thinking', lead: true, fixed: true,
+    since: NOW, urgency: 1 })]);
+  s.flush();
+  expect(shown()).toEqual(['voice:presence', 'research:r1']);
+  const node = pills.children.find((c) => c.dataset.id === 'voice:presence')!;
+  expect(node.classList.contains('strip-pill-voice')).toBe(true);
+  expect(node.dataset.voice).toBe('thinking');
+  const mark = node.querySelector('.voice-state-mark')!;
+  expect(mark.dataset.state).toBe('thinking');
+  expect(node.querySelector('.strip-pill-x')!.hidden).toBe(true);
+  expect(node.textContent).toContain('Hookethinking');
+  s.set('voice', [pill('voice:presence', { name: 'Hooke', counting: false, words: 'working · 2', voice: 'working', lead: true, fixed: true, since: NOW })]);
+  s.flush();
+  expect(pills.children.find((c) => c.dataset.id === 'voice:presence')!.querySelector('.voice-state-mark')).toBe(mark); // in place
+  expect(mark.dataset.state).toBe('working');
+  expect(orderPills([pill('a', { urgency: 0 }), pill('v', { lead: true, urgency: 2 })]).map((p) => p.id)).toEqual(['v', 'a']);
+});
