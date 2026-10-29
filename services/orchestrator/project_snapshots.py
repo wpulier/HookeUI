@@ -85,6 +85,7 @@ class Snapshots:
             ProjectStore._sync_directory(folder / 'clean')
         ProjectStore._sync_directory(folder)
         ProjectStore._sync_directory(folder.parent)
+        self.folder(session, date, write=True)
         # Last fallible action: failure leaves the durable marker. A crash may
         # conservatively restore it, but cannot expose a failed publication.
         pending.unlink()
@@ -107,6 +108,9 @@ class Snapshots:
             allowed = {f'{name}.png', f'clean/{name}.png'}
             if not isinstance(files, dict) or f'{name}.png' not in files or not set(files) <= allowed:
                 raise ProjectLocationError('Snapshot has no retained picture identities')
+        self.folder(session, date)
+        if (folder / f'{name}.pending').exists() or (folder / f'{name}.pending').is_symlink():
+            return None
         return facts
 
     def picture(self, session, date, name, *, clean=False, max_bytes=None):

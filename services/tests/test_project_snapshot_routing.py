@@ -189,3 +189,47 @@ def test_no_fallible_storage_work_follows_snapshot_acceptance(project,tmp_path,m
         patch.setattr(ProjectStore,'_sync_directory',sync)
         store.save(day.sid,DATE,NAME,{'session':day.sid},b'picture')
     assert Snapshots(store.storage.legacy,day).picture(day.sid,DATE,NAME)==b'picture'
+
+
+def test_reader_racing_failed_publication_never_accepts_output(project,tmp_path,monkeypatch):
+    from pathlib import Path
+    day,_,_,_=project
+    writer=Snapshots(tmp_path/'host/snapshots',day)
+    reader=Snapshots(writer.storage.legacy,day)
+    folder=writer.folder(day.sid,DATE,write=True)
+    record=folder/f'{NAME}.json'
+    exists=Path.exists
+    invoked=False
+    def interleave(path):
+        nonlocal invoked
+        if path==record and not invoked:
+            invoked=True
+            write=ProjectStore._write
+            def fail(target,body,**options):
+                result=write(target,body,**options)
+                if target==record:raise OSError('interrupted after metadata')
+                return result
+            with monkeypatch.context() as inner:
+                inner.setattr(ProjectStore,'_write',fail)
+                with pytest.raises(OSError):
+                    writer.save(day.sid,DATE,NAME,{'session':day.sid},b'picture')
+        return exists(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(Path,'exists',interleave)
+        assert reader.read(day.sid,DATE,NAME) is None
+    assert invoked and (folder/f'{NAME}.pending').exists()
+
+
+def test_host_closing_during_final_sync_prevents_acceptance(project,tmp_path,monkeypatch):
+    day,locations,_,_=project
+    store=Snapshots(tmp_path/'host/snapshots',day)
+    folder=store.folder(day.sid,DATE,write=True)
+    sync=ProjectStore._sync_directory
+    def close_after_sync(path):
+        sync(path)
+        if path==folder.parent and (folder/f'{NAME}.json').exists():locations.close()
+    with monkeypatch.context() as patch:
+        patch.setattr(ProjectStore,'_sync_directory',close_after_sync)
+        with pytest.raises(ProjectLocationError,match='closed'):
+            store.save(day.sid,DATE,NAME,{'session':day.sid},b'picture')
+    assert (folder/f'{NAME}.pending').exists()
