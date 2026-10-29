@@ -291,7 +291,7 @@ body[data-assistant-local='true'] .study-right-panel .chat-log-wrap{flex:0 0 aut
 
 /* A retained Project overview uses saved Study evidence, never inferred execution progress. */
 .session-home[data-project-research='true'] > :not(.home-title):not(.project-research-home) { display: none; }
-body.studio-shell .stage > .session-home[data-project-research='true'] { width: min(760px, calc(100% - 32px - var(--rail-room, 0px))); padding: 24px 28px 16px; border-radius: 16px; }
+body.studio-shell .stage > .session-home[data-project-research='true'] { max-width: none; width: min(760px, calc(100% - 32px - var(--rail-room, 0px))); padding: 24px 28px 16px; border-radius: 16px; }
 body.studio-shell .session-home[data-project-research='true'] .home-title { margin: 0 0 22px; font-size: 12px; font-weight: 500; }
 .project-research-home { display: grid; gap: 20px; text-align: left; }
 .project-research-home[hidden] { display: none; }
