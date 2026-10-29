@@ -15,8 +15,8 @@ other files.
   each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
   lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
   camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
-  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands the
-  brain only what no tool covers (`do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
+  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands hard questions, many steps and comparisons to `think`'s
+  frontier backend (option THINK; it replaced `do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
   taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
   change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
   pause. Both write the same journal lines and conversation turns; neither replaces the other

@@ -583,8 +583,8 @@ this voice has no hops to fall between.
   find, outline_cells, select, zoom, clear, start_researcher, research_status, researcher_note, cancel_researcher,
   show_me, resources, models_in_use, capabilities, workflow, new_project, retrieve_page (web search), run_capability
   (once a capability is on; the session's tools follow the registry at each key-down) and reference_photo, plus
-  `mark`, `look_hard` (the frame, and the window if asked, to `Settings.vision`) and `do_in_hooke` (the user's words to
-  `Brain.turn`, a rare fallback). Each call is one voice request (Ticket "turn", channel voice, its admission and
+  `mark`, `look_hard` (the frame, and the window if asked, to `Settings.vision`) and `think` (below; it replaced
+  `do_in_hooke`, which is kept but no longer offered). Each call is one voice request (Ticket "turn", channel voice, its admission and
   request id, the accepted studio's pin, `voice_owner` this session so researchers report back to it) run through the
   brain's `ActionRunner`; the user's words of that turn (their transcription, waited for at most 1.5 s) are its
   `question`. Each call's row goes into the chat (`chat-action`). start_researcher, new_project and cancel_researcher
@@ -698,4 +698,27 @@ the standard's 0.8 s is below what this model gives here.
 own path adds about 0.2 s), 10-35 s when the machine is loaded by other work. micro-sam (light microscopy), measured on
 the same frame: 0.65 s, 308 outlines against Cellpose's 343, 298 of Cellpose's matched one to one at IoU >= 0.5 (mean
 IoU 0.78): an option for the user to choose; the default is unchanged.
+
+### `think`: the frontier mind behind the voice (option THINK)
+
+The voice in front answers at once and sees; a hard question, a request with several steps, a comparison of models
+or a close look goes to `think(request, why)` (`voice/think.py`, `partner_tools.think`). On τ-Voice a fast voice
+with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
+- **Started at once:** the tool returns `{"started": true, "task": ...}` in well under 200 ms, and the voice says one
+  short acknowledgement. Spoken before it called think: nothing more is asked for. Silent: one "On it." (`ack`, at most
+  60 tokens), never a second (HeyClicky's duplicate acknowledgement).
+- **The backend** (Claude Opus 5.5 by default over httpx, effort low; GPT-6.1 Sol through the Responses API) gets the
+  user's words, the turn's two pictures as at key-down, the Project brief, the recent conversation and the per-turn
+  notes, and runs its own tool loop (at most 8 rounds) through `PartnerTools.run`: a voice request each, attributed
+  to the Assistant, act then look. A change on screen comes back with the studio's report and a fresh window picture.
+  It ends with `report(say, points, checked, done)`: "done" counts only when it also says every change was checked.
+  Its tools are the voice's plus the brain's longer ones (`compare_models`, counts, tables, graphs, research reads).
+- **The result** waits for quiet (no key held, nothing said), is written out of band in the voice's own words
+  (`response.create` with `conversation: "none"`, text only, `metadata.task`; the backend's own words when that
+  does not come back in 4 s), is added to the conversation, and is said once through the gate, with marks on the ids
+  it names drawn as the words start. A key press while it waits holds it; it is never said twice.
+- **A refusal** (Anthropic's safeguards may refuse life-science requests) is said as a refusal, the other model
+  offered by name; another model never answers in its place. A missing key is said, with where to set it.
+- Records: `partner-think` (task, model, rounds, tools with confirmed, checked, refused, ms, tokens) and
+  `partner-think-said`.
 
