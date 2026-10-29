@@ -200,17 +200,15 @@ def test_lines_still_waiting_at_exit_are_written(tmp_path):
 
     path = tmp_path / "exit.jsonl"
     code = (
-        "import asyncio, sys, time\n"
+        "import asyncio, sys\n"
         "from orchestrator.looplag import LINES, Lines\n"
-        "real = Lines._write\n"
-        "def slow(self, batch):\n"
-        "    time.sleep(0.01)\n"
-        "    real(self, batch)\n"
-        "Lines._write = slow\n"
+        # Hold dispatch, not a guessed sleep: only the real registered atexit
+        # handler can drain these queued lines. In-flight flushing is tested separately.
+        "Lines._start = lambda self: None\n"
         "async def go():\n"
         "    for i in range(500):\n"
         "        LINES.append(sys.argv[1], str(i))\n"
-        "    assert LINES.pending() > 0, 'all written already'\n"
+        "    assert LINES.pending() == 500 and LINES.written == 0\n"
         "asyncio.run(go())\n"
     )
     done = subprocess.run([sys.executable, "-c", code, str(path)], capture_output=True, text=True, timeout=60,
