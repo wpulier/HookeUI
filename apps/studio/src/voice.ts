@@ -467,6 +467,12 @@ export class VoiceClient {
     return true;
   }
 
+  /** The speaker's context (made in the press that started Talk, so it may play), for the sign it heard you
+   * (heard.ts HeardTone); null while Talk is off. */
+  cueContext(): AudioContext | null {
+    return this.speaker;
+  }
+
   /** The talk key or button pressed: the microphone opens, the voice falls silent (barge-in), the turn starts. */
   talkDown(n: number): void {
     this.muteOutput();

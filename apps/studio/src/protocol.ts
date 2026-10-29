@@ -1406,6 +1406,7 @@ export interface Settings {
   voicelink?: string;
   talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
   talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
+  heard_cue?: string; // the sign it heard you: "tone" (ring and a soft tone) | "ring" (options.py HEARD_CUE)
   think?: string; // the frontier mind behind the one-brain voice: "claude-opus-5-5" | "gpt-6.1-sol" (options.py THINK)
   look_hard?: string; // the live partner's close look: "gemini-4-argon" | "claude-opus-5-5" (options.py LOOK_HARD)
   watch?: string; // what the watcher says unasked: "quiet" | "chatty" | "off" (options.py WATCH; view_watch.py)
@@ -1458,8 +1459,11 @@ export interface DriveIntent { kind: 'open' | 'close' | 'focus' | 'highlight' | 
 export interface DriveMessage { type: 'drive'; id: string; version: number; intent: DriveIntent; frame?: MarkFrameRef }
 export type DriveOutcome = 'verified' | 'failed' | 'uncertain' | 'running';
 export interface DriveEnd { type: 'drive-end'; id: string; outcome?: DriveOutcome }
-export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd;
-export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end'];
+/** A sign it heard you (the live-partner spec, decision 1): sent as released turn `n` begins (voice/partner.py
+ * Partner.heard); the hold ring settles and, with HEARD_CUE "tone", a soft tone plays (heard.ts). Never a word. */
+export interface HeardMessage { type: 'heard'; n: number }
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd | HeardMessage;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end', 'heard'];
 /** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
 export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
 // Studio -> server.
