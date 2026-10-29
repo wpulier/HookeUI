@@ -133,3 +133,11 @@ def test_same_capture_cannot_override_changed_saved_image_metadata(comparison, f
     populations['e2'].view['sourceImage'][field] = value
     with pytest.raises(DataTableRefused):
         asyncio.run(service.from_comparison('main', 1))
+
+
+def test_legacy_snapshot_cannot_adopt_a_new_common_input(comparison):
+    _, service, populations = comparison
+    old = {'capture': 10, 'arms': [{'id': key, 'implementation': p.implementation} for key, p in populations.items()]}
+    for population in populations.values(): population.capture_id = 11
+    with pytest.raises(DataTableRefused, match='older comparison'):
+        service._comparison_sources(old, service.capture())

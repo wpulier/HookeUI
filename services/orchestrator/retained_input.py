@@ -10,9 +10,24 @@ def comparison_input_key(capture, view: dict) -> str | None:
     image = view.get('sourceImage')
     if image is not None:
         if (not isinstance(image, dict)
-                or any(not isinstance(image.get(k), str) or not image[k] for k in ('asset', 'session', 'dtype', 'axes', 'units'))
+                or any(not isinstance(image.get(k), str) or not image[k] for k in ('session', 'dtype', 'axes', 'units'))
                 or any(not isinstance(image.get(k), str) or not re.fullmatch(r'[0-9a-f]{64}', image[k]) for k in ('sha256', 'pixelSha256'))
                 or any(type(image.get(k)) is not int or image[k] < 1 for k in ('width', 'height', 'channels'))):
+            return None
+        if 'nativeSource' in image or 'resource' in image:
+            reference, native = image.get('resource'), image.get('nativeSource')
+            if (not isinstance(reference, dict) or not isinstance(native, dict)
+                    or reference.get('kind') != 'array' or reference.get('session') != image['session']
+                    or type(reference.get('revision')) is not int or reference['revision'] < 1
+                    or any(not isinstance(reference.get(k), str) or not reference[k] for k in ('id', 'component'))
+                    or not reference['component'].startswith('array.')
+                    or any(native.get(k) != v for k, v in reference.items())
+                    or not isinstance(native.get('revisionDigest'), str)
+                    or not re.fullmatch(r'[0-9a-f]{64}', native['revisionDigest'])
+                    or not isinstance(native.get('resource'), dict)
+                    or not isinstance(image.get('scientific'), dict)):
+                return None
+        elif not isinstance(image.get('asset'), str) or not image['asset']:
             return None
         identity = {'image': image}
     else:

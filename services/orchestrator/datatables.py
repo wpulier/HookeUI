@@ -768,6 +768,9 @@ class DataTables:
         owner.check(self.app)
         evidence = getattr(self.app.hub, 'evidence', None)
         expected_input = comparison.get('inputKey')
+        if not expected_input:
+            raise DataTableRefused('this older comparison has no retained input identity for an update',
+                                   next='keep this snapshot and create a new comparison from its original results')
         for arm in comparison['arms']:
             population = evidence.get(arm['id']) if evidence is not None else None
             if (population is None or population.session != owner.session
@@ -778,8 +781,6 @@ class DataTables:
             if actual_input is None or (expected_input is not None and actual_input != expected_input):
                 raise DataTableRefused('these comparison lanes use different or unknown retained inputs',
                                        next='compare methods on the same retained input')
-            if expected_input is None:
-                expected_input = actual_input
 
     async def from_comparison(self, tab, layout_revision, *, owner=None, title='Comparison measurements'):
         """Pool an exact saved A/B/C Tab through the ordinary retained measurements reader."""
