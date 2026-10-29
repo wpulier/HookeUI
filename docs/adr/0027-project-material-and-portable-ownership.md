@@ -75,3 +75,22 @@ same-handle reassociation and independent-copy creation remain unfinished.
 The live App is not enabled on this seam until all scientific/legacy result stores
 are routed. The isolated tests exercise real journals, writer exclusion, move and
 resume; they do not qualify complete Project collection or live UI portability.
+
+## Scientific routing checkpoint
+
+`ProjectStores` binds scientific storage to the captured Project before a service
+uses paths or admits work. Imports, corrections, output publication and workflow
+receipts use that binding; the shared workflow library stays host-owned and each
+run retains its frozen definition. Unbound filesystem access refuses instead of
+falling back to the global store. Legacy stores keep their existing layout.
+
+A bound writer requires the same registered origin/location and host lease.
+Another host may read saved results without registering installed runtimes; it
+cannot publish while the writer holds the lease. Closed or relocated bindings
+refuse late writes. Scientific exports resolve each dependency's owner separately
+and still constitute partial scientific bundles, not complete Project exports.
+
+This slice remains opt-in below App wiring. It does not migrate existing results,
+route historical Library/capture stores, or qualify full collection. Real isolated
+bytes and synthetic native edits verify captured ownership, old revisions, workflow
+review, move/reopen and writer exclusion; live UI portability remains a later gate.

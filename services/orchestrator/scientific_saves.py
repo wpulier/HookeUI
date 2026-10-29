@@ -82,6 +82,7 @@ def admission(workspace=None):
 
 class LayerSave:
     def __init__(self, store, saved, identity, frame, layer_id, *, producer=None, input=None):
+        store = store.for_session(saved.session, write=True)
         from .scientific_provenance import frozen
         self.producer = frozen(producer)
         if type(identity) is not str or CELL.fullmatch(identity) is None:

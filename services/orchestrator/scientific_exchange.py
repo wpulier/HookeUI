@@ -94,7 +94,8 @@ def export(store, project, session, revision=None, *, destination, check=lambda:
     if sessions is not None:
         from .day.ownership import snapshot
         try:
-            owners = {owner: snapshot(sessions, owner) for owner in sorted({v[0] for v in needed.values()})}
+            owners = {owner: snapshot(sessions.root_for(owner) if hasattr(sessions, 'root_for') else sessions, owner)
+                      for owner in sorted({v[0] for v in needed.values()})}
         except (ValueError, OSError) as error:
             raise BundleRefused(str(error)) from error
         if any(value is None for value in owners.values()):
@@ -114,13 +115,14 @@ def export(store, project, session, revision=None, *, destination, check=lambda:
             bundle.writestr(name, body)
         projects = {}
         for identity, (owner, wanted) in sorted(needed.items()):
-            folder = store._folder(identity)
-            digests = store._head(folder, owner)[:wanted]
+            owned = store.for_session(owner)
+            folder = owned._folder(identity)
+            digests = owned._head(folder, owner)[:wanted]
             projects[identity] = {'session': owner, 'revisions': digests}
             held = set()
             for number, digest in enumerate(digests, 1):
                 check()
-                body = store._read(folder / 'revisions' / f'{digest}.json', MAX_RECORD)
+                body = owned._read(folder / 'revisions' / f'{digest}.json', MAX_RECORD)
                 if hashlib.sha256(body).hexdigest() != digest:
                     raise BundleRefused('A saved revision changed on disk; nothing usable was exported')
                 put(f'projects/{identity}/revisions/{digest}.json', body)
@@ -130,9 +132,9 @@ def export(store, project, session, revision=None, *, destination, check=lambda:
                         continue
                     held.add(json.dumps(ref, sort_keys=True))
                     if component.startswith('array.'):
-                        _put_array(store, identity, ref, put, check)
+                        _put_array(owned, identity, ref, put, check)
                     elif component.startswith('file.'):
-                        _put_file(store, identity, owner, ref, put, check)
+                        _put_file(owned, identity, owner, ref, put, check)
         manifest = {'format': FORMAT, 'target': {'id': target.id, 'session': target.session,
                     'revision': target.revision, 'digest': target.digest}, 'projects': projects}
         if owners is not None:

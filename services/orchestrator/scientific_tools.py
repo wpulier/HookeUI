@@ -179,6 +179,7 @@ def bind(store, project, session, revision, key, generation, *, environ=os.envir
 
 def fork(store, source, key, generation, token, *, recipe=None, environ=os.environ, check=lambda: None):
     """One deterministic private working scene for a comparison or recipe step."""
+    store = store.for_session(source.session, write=True)
     from .scientific_copies import PreparedArray
     from .scientific_projects import Conflict, DIGEST
     from env_worker.scientific_tool_document import document as parameters

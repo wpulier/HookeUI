@@ -154,6 +154,7 @@ def export(store, project, session, revision, request, options, *, stopping=lamb
 
 
 def _export(store, project, session, revision, request, options, *, bound, environ):
+    store = store.for_session(session, write=True)
     def stopping():
         bound.check()
         return False
