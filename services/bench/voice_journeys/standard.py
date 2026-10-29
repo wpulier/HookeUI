@@ -547,9 +547,12 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         for c in acting:
             if c.name == "start_researcher" and c.ok is not False and (c.rid or c.rid_at):
                 started.setdefault(c.rid or f"{c.start}", c.rid_at or c.start)
-    row["researcherNumbers"] = sorted({n for n in [(listed.get(rid) or {}).get("number") for rid in started]
-                                       + [c.number for c in acting if c.name == "start_researcher" and c.rid in started]
-                                       if isinstance(n, int)})
+    # Their numbers in the order they were started (the orchestrator's created time), as the app numbered them.
+    numbered = {rid: (listed.get(rid) or {}).get("number") for rid in started}
+    numbered.update({c.rid: c.number for c in acting if c.name == "start_researcher" and c.rid in started
+                     and isinstance(c.number, int) and not isinstance(numbered.get(c.rid), int)})
+    row["researcherNumbers"] = [numbered[rid] for rid in sorted(started, key=lambda rid: started[rid])
+                                if isinstance(numbered.get(rid), int)]
     row["researchers"] = len(started)
     row["researcherIds"] = sorted(started)
     expected_researchers = expect.get("researchers", 0)
@@ -841,8 +844,10 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     rows = []
     unprompted = unprompted_spans(inter)
     # The researcher a status step must name: the one the plan's researcher step started (its number, from the
-    # orchestrator's list, else the board, else what its start_researcher card said).
+    # orchestrator's list, else the board, else what its start_researcher card said), the one the user named, or the
+    # i-th a named step started, in the order it started them ({"from": step id, "index": i}): the app numbers them.
     started_numbers: list[int] = []
+    by_step: dict[str, list[int]] = {}
     board = {}
     for e in bench["events"]:
         if e.get("e") == "researchers":
@@ -856,11 +861,17 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
         expect = expects.get(step["id"], {})
         # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
         status = expect.get("status")
-        bench["_expectedResearcher"] = status if isinstance(status, int) and not isinstance(status, bool) else \
-            started_numbers[-1] if status and started_numbers else None
+        if isinstance(status, dict):
+            made = by_step.get(str(status.get("from")), [])
+            index = status.get("index", 0)
+            bench["_expectedResearcher"] = made[index] if isinstance(index, int) and -len(made) <= index < len(made) else None
+        else:
+            bench["_expectedResearcher"] = status if isinstance(status, int) and not isinstance(status, bool) else \
+                started_numbers[-1] if status and started_numbers else None
         row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), unprompted)
         if expect.get("researchers"):
-            numbers = sorted({board[rid] for rid in row["researcherIds"] if rid in board} | set(row["researcherNumbers"]))
+            numbers = row["researcherNumbers"] or sorted(board[rid] for rid in row["researcherIds"] if rid in board)
+            by_step[step["id"]] = numbers
             started_numbers += numbers[-1:]
         rows.append(row)
     for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks"):

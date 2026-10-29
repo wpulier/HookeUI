@@ -712,3 +712,21 @@ def test_think_on_a_quick_step_is_the_wrong_tool():
     assert {r["id"]: r for r in run["steps"]}["table"]["toolRight"] is False
     assert result(lines, "Right tool on the first try") == "FAIL"
     assert summary["think"]["unexpected"] == ["table"] and "where not expected: 1 (table)" in lines["think share"]["value"]
+
+
+
+def test_a_status_step_can_name_the_first_researcher_a_step_started():
+    """think-broad-1: "make two researchers, one compares the sizes, the other looks for dividing cells" was numbered 1
+    and 2 by the app, not 2 and 3 as the plan assumed. "The size one" is the first that step started, by its number."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if r.get("name") != "start_researcher"]
+    bench["events"].append({**api_rows({"rid": "r668081", "number": 1, "created": T0 + 23.6},
+                                       {"rid": "r668082", "number": 2, "created": T0 + 23.9}), "t": ms(26)})
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][2]["expect"]["researchers"] = 2
+    plan["steps"][3]["expect"]["status"] = {"from": "researcher", "index": 0}
+    conv[6] = line("L7", 32.0, "Researcher 1 is comparing the sizes.")
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["researcher"]["researcherNumbers"] == [1, 2]
+    assert rows["status"]["statusExpected"] == 1 and rows["status"]["statusRight"] is True

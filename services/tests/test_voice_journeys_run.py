@@ -159,6 +159,10 @@ def test_compare_switches_the_default_only_when_the_one_brain_meets_every_line(t
     assert "default to the one brain with hold to talk: no**" in compare.compare([live_result, good_result])
 
 
+def expects_of(plan: dict, step_id: str) -> dict:
+    return next((s.get("expect") or {} for s in plan["steps"] if s["id"] == step_id), {})
+
+
 KNOWN = {"look_hard", "mark", "do_in_hooke", "think", "show_measurements", "run_capability", "web_search"}
 
 
@@ -173,7 +177,10 @@ def test_shipped_plans_name_real_tools_and_known_fields(name):
     for step in [*plan.get("setup", []), *plan["steps"]]:
         expect = step.get("expect") or {}
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
-        assert expect.get("status") in (None, "latest") or (isinstance(expect["status"], int) and expect["status"] > 0), step["id"]
+        status = expect.get("status")
+        assert status in (None, "latest") or (isinstance(status, int) and status > 0) or (
+            isinstance(status, dict) and status.get("from") in {s["id"] for s in plan["steps"]}
+            and (expects_of(plan, status["from"]).get("researchers") or 0) > status.get("index", 0)), step["id"]
         assert set(expect.get("tools") or []) <= tools, (step["id"], set(expect["tools"]) - tools)
         assert step["kind"] in ("act", "view", "ask", "status", "idle", "restart", "typed", "plural", "close", "photo",
                                 "side", "stage"), step["id"]
@@ -272,7 +279,8 @@ def test_the_broad_journey_covers_what_a_partner_is_asked():
     assert sum(1 for e in expects.values() if e.get("fails")) == 1
     assert expects["thanks"]["tools"] == [] and not expects["thanks"].get("toolRequired")  # small talk: no tool
     assert expects["two-researchers"]["researchers"] == 2 and run.researchers(plan) == 3
-    assert [e["status"] for e in expects.values() if e.get("status")] == [2, 2]  # the researcher the user named
+    # The researcher the user named ("researcher 2"), and "the size one": the first the two-researchers step started.
+    assert [e["status"] for e in expects.values() if e.get("status")] == [2, {"from": "two-researchers", "index": 0}]
     assert any("compare_models" in e.get("tools", []) and e.get("multi") for e in expects.values())
     assert {"reference_photo", "retrieve_page", "run_capability", "models_in_use", "set_default", "new_project"} <= \
         {t for e in expects.values() for t in e.get("tools", [])}

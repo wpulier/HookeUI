@@ -113,8 +113,9 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
   - `visible`: the change the studio must report;
   - `researchers`: how many researchers this request starts (0 when absent);
   - `marks`: the target prefixes a mark may use;
-  - `status`: the answer must name the researcher this run started last (`"latest"`), or the one the user named (a
-    number: "what's researcher 2 doing?");
+  - `status`: the answer must name the researcher this run started last (`"latest"`), the one the user named (a
+    number: "what's researcher 2 doing?"), or the i-th one a named step started, by the number the app gave it
+    (`{"from": "two-researchers", "index": 0}`: "the size one");
   - `multi`: several steps, held to 8 s;
   - `fails`: the request cannot succeed, so the failure is its outcome;
   - `judge`: what a good answer does, for the judge.
