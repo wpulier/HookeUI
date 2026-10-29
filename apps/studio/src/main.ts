@@ -7,6 +7,7 @@ import { bridgeAddress } from './bridge-address';
 import { artifactPresentation, openStudyCapture, openStudyComparison, openStudyMasks, openStudyTable, openStudyText } from './workspace-study-content';
 import { studyArtifacts } from './workspace-study-artifacts';
 import { openTableWindow } from './agent-table';
+import { openWebWindow } from './web-window';
 import { openStudyScientific } from './scientific-document';
 import { SetupNote } from './setup-note';
 import { SetupProgress } from './setup-progress';
@@ -1468,6 +1469,13 @@ function handleMessage(message: ServerMessage): void {
       const result = openTableWindow(message, { current: () => reporter.matchesStructuralPin(message.workspacePin) });
       connection.send({ type: 'table-window-result', id: message.id, session: message.session, workspacePin: message.workspacePin, result });
       reporter.askNow(); // done is the report showing it there (table_window.py)
+      if (document.hidden) reportWorkspace(performance.now());
+      break;
+    }
+    case 'web-window': { // a web page or video from the web, in a sandboxed window on this Tab (web-window.ts; web_window.py)
+      const result = openWebWindow(message, { current: () => reporter.matchesStructuralPin(message.workspacePin) });
+      connection.send({ type: 'web-window-result', id: message.id, session: message.session, workspacePin: message.workspacePin, result });
+      reporter.askNow(); // done is the report showing it there, its frame loaded (web_window.py)
       if (document.hidden) reportWorkspace(performance.now());
       break;
     }

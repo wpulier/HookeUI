@@ -160,3 +160,66 @@ def holding(wire: dict | None, kind: str) -> list[dict]:
     from .workspace_observation import tabs_holding
 
     return tabs_holding(wire or {}, kind)
+
+
+# --- present's placement: one word for anything shown ------------------------------------------------------------------
+async def place(services, ctx, registry, args: dict) -> str:
+    """`present` with a placement (the one vocabulary): what it names put where it was asked, through the same tools
+    that put each kind there, each done only when the studio's report shows it.
+
+    - A population (eN) or motion item (mN): overlay draws it on the live specimen (present show); new-tab, beside,
+      only, replace and window put its outlines on their capture with its table (show_measurements' placements).
+    - A window on screen (w-…, document:…): beside arranges its Tab; only keeps it alone there; window brings it to the
+      front; close closes it.
+    """
+    import re
+
+    from .brain.registry import ToolFailed
+    from .brain.toolbox.present import act
+
+    placement = str(args.get("placement") or "")
+    if placement not in PLACEMENTS:
+        raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
+    what = args.get("what") if isinstance(args.get("what"), str) else ""
+    what = what.strip()
+    tab = " ".join(str(args.get("tab") or "").split())[:80] or None
+    if re.fullmatch(r"[em]\d+", what):
+        if placement == "overlay":
+            return await act(services, {"do": "show", "what": what}, ctx=ctx)
+        if placement == "close":
+            return await act(services, {"do": "hide", "what": what}, ctx=ctx)
+        tool = registry.tools.get("show_measurements")
+        if tool is None:
+            raise ToolFailed("its table cannot be opened here", next="present show draws its outlines on the specimen")
+        return await tool.handler(ctx, {"of": what, "placement": placement, **({"tab": tab} if tab else {})})
+    if not what:
+        raise ToolFailed("name what to place: its id from the screen or Data", next="look at what is on screen")
+    if placement == "overlay":
+        raise ToolFailed("only outlines and layers are drawn on the specimen; this is a window",
+                         next="put it beside the live view instead (placement beside)")
+    if placement == "close":
+        return await act(services, {"do": "close", "what": what}, ctx=ctx)
+    if placement == "window":
+        return await act(services, {"do": "front", "what": what}, ctx=ctx)
+    if placement in ("beside", "only", "new-tab", "replace"):
+        broker = getattr(services, "workspace_tabs", None)
+        if broker is None:
+            raise ToolFailed("this studio has no Tabs to place it in", next="open the Project's workspace")
+        from .screen import screen_of
+
+        observed = screen_of(services.hub).observation(ctx.client) if getattr(ctx, "client", None) else None
+        wire = observed.wire() if observed is not None else None
+        front_tab = strip(wire).get("tab")
+        if not front_tab:
+            raise ToolFailed("the studio has not said which Tab is in front", next="look at the screen")
+        if placement == "only":
+            reply = await broker(ctx, {"action": "only", "tab": front_tab, "keep": [what]})
+            home = front_tab == "main"
+            rest = "the live view floats small in its corner" if home else "the live view is hidden there"
+            return f"{what} is now the only window in the Tab in front; {rest} ({reply.get('shown')})"
+        if placement == "beside":
+            reply = await broker(ctx, {"action": "arrange", "tab": front_tab})
+            return f"{what} is side by side with what is open in the Tab in front, the live view included ({reply.get('shown')})"
+        raise ToolFailed(f"{placement} is not installed for an open window yet",
+                         next="use beside, only, window or close for an open window")
+    raise ToolFailed(f"{placement} is not installed for this", next="say one of: " + ", ".join(PLACEMENTS))

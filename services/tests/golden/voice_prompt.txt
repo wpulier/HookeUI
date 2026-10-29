@@ -93,6 +93,7 @@ Display: how the app draws things
 - present layers, document windows and the magnifier
 - look at the user's screen when what the studio reports is unclear; never the specimen
 - list the Tabs inside this Project (a Tab arranges this Project’s windows; a new Project is new_project), what each holds and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, arrange, keep only one thing, or close a named Tab
+- find a video on the web (YouTube or Vimeo) about something and open it, or open a web page or video by its link (YouTube, Vimeo, Wikipedia; other sites are said with their link): "find a YouTube video about stomata and open it"
 Conversation: name the specimen, conversations, recall earlier, let the user lead, explain simply or technically (hints first), suggest what next
 - the user says what the specimen is ("it's a lucerne stem", "this is a Musca leg"): use their name for it from now on
 - start a new conversation when the user asks for one ("new topic", "let's start fresh", "new thread"); the current one is kept and can be resumed

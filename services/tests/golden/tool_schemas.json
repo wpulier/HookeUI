@@ -1880,9 +1880,23 @@
   "name": "retrieve_page",
   "params": {
    "properties": {
+    "placement": {
+     "description": "with show: where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only"
+     ],
+     "type": "string"
+    },
     "query": {
      "description": "topic or page to find when no URL is known",
      "type": "string"
+    },
+    "show": {
+     "description": "also open the page it read in a window (Wikipedia, YouTube and Vimeo open inside the app)",
+     "type": "boolean"
     },
     "url": {
      "description": "public page URL if known",
@@ -2016,7 +2030,7 @@
   }
  },
  {
-  "description": "Present layers, document windows and the magnifier. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
+  "description": "Present layers, document windows and the magnifier. do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, window, replace, close, only), done once the screen shows it. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "present",
@@ -2070,7 +2084,8 @@
       "close",
       "move",
       "resize",
-      "front"
+      "front",
+      "place"
      ],
      "type": "string"
     },
@@ -2097,6 +2112,19 @@
      "description": "legacy magnifier move/resize: asked for over the view or its object",
      "type": "boolean"
     },
+    "placement": {
+     "description": "do=place only: where it goes: new-tab: a Tab of its own (no specimen); beside: side by side in this Tab with what is there, the live view included; overlay: drawn on the live specimen (outlines and layers only); window: a floating window, in front; replace: in place of the window in front, which closes; close: closed (its Data is kept); only: the only thing open in its Tab (the rest closed, the specimen hidden; Main's floats small). Outlines (eN): overlay draws them on the live view; new-tab gives them a Tab with their capture and table",
+     "enum": [
+      "new-tab",
+      "beside",
+      "overlay",
+      "window",
+      "replace",
+      "close",
+      "only"
+     ],
+     "type": "string"
+    },
     "rect": {
      "description": "document or legacy magnifier move/resize: [x,y,width,height] workspace CSS pixels, width at least 160; native windows use their own layout fields",
      "items": {
@@ -2117,6 +2145,11 @@
     "revision": {
      "description": "population open/show only: 0 for retained original, or its current revision; no recomputation",
      "type": "integer"
+    },
+    "tab": {
+     "description": "with placement: the Tab, by title or id (default: in front)",
+     "maxLength": 80,
+     "type": "string"
     },
     "top": {
      "description": "emphasise: how many",
@@ -2272,6 +2305,49 @@
    "required": [
     "action"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Find a video on the web (YouTube or Vimeo) about something and open it, or open a web page or video by its link (YouTube, Vimeo, Wikipedia; other sites are said with their link): \"find a YouTube video about stomata and open it\". The video found is checked (its real title, judged against what was asked) and kept in Data. It opens in its own sandboxed window with its source and link shown; placement: window (the default, in front), beside, new-tab, only or replace. Done once the screen shows it.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "show_web",
+  "params": {
+   "properties": {
+    "placement": {
+     "description": "where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only",
+      "replace"
+     ],
+     "type": "string"
+    },
+    "tab": {
+     "description": "a Tab by title or id (made when none has it)",
+     "maxLength": 80,
+     "type": "string"
+    },
+    "title": {
+     "description": "with url: a short title for the window",
+     "maxLength": 200,
+     "type": "string"
+    },
+    "url": {
+     "description": "a YouTube, Vimeo or Wikipedia link",
+     "maxLength": 2048,
+     "type": "string"
+    },
+    "video": {
+     "description": "what the video should be about",
+     "maxLength": 600,
+     "type": "string"
+    }
+   },
+   "required": [],
    "type": "object"
   }
  },

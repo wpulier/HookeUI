@@ -235,7 +235,7 @@ def _match_client(value, client: ClientRef, *, closed=False):
         _refuse("CLIENT_MISMATCH", "workspace, client, page or connection differs")
 
 
-SOURCE_KINDS = frozenset(("live", "saved-image", "video", "lesson", "written", "composite"))
+SOURCE_KINDS = frozenset(("live", "saved-image", "video", "lesson", "written", "composite", "web-page"))
 # Recovered P5 values are authoritative provenance too. Preserve their spelling;
 # "capture" does not by itself establish clean/raw pixels or permit relabeling.
 MEDIA_KINDS = frozenset(("raw", "derived", "annotated", "external-reference", "capture", "labelled", "reference",

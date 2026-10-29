@@ -88,7 +88,7 @@ RESULT_TITLES = {
     "track_motion": "Motion", "measure": "Measurement", "count": "Count", "contrast": "Comparison",
     "compare": "Side by side", "enhance": "Clearer picture", "what_happened": "What happened",
     "where_is": "Where it is", "focus_check": "Focus check", "dissect": "Parts", "watch": "Watch",
-    "reference_photo": "Reference photo",
+    "reference_photo": "Reference photo", "show_web": "From the web",
 }
 
 # A researcher's deliverable in plain words (an entry's title uses only the app's words).
@@ -701,7 +701,9 @@ class Results:
                 self._discard_later(prepared)
             return None
         info = None
-        web = (run.values or {}).get("web") if (run.values or {}).get("media") == "reference" else None
+        media = (run.values or {}).get("media")
+        # A reference photo, a web page or a video from the web was made on no frame of this slide (show_web).
+        web = (run.values or {}).get("web") if media in ("reference", "web-page", "video") else None
         if hub is not None and web is None:  # a reference photo from the web was made on no frame of this slide
             info = (getattr(hub, "infos", {}) or {}).get(ctx.frame_id) if ctx.frame_id is not None else None
             info = info or getattr(hub, "latest_info", None)
@@ -761,12 +763,13 @@ class Results:
                              made_with=_made_with(hub, run.executions),
                              session=self._session_of_asked(getattr(ctx, "asked", None)),
                              actor=getattr(run, "actor", None),
-                             **({"web": web} if isinstance(web, dict) else {}))
+                             **({"web": web} if isinstance(web, dict) and media == "reference" else {}))
         # Its address in the index: (session, id), whatever date folder its pictures are in.
         address = session_of(entry, entry["day"])
         run.resource = {"id": entry["id"], "day": address, "title": entry["title"],
                         "version": None, "picture": 0 if entry.get("pictures") else None,
-                        "kind": "Reference photo" if web else "Saved result"}
+                        "kind": ({"web-page": "Web page", "video": "Video"}.get(media, "Reference photo") if web
+                                 else "Saved result")}
         key = id(run)
         self._consumed[key] = (weakref.ref(run, lambda _: self._consumed.pop(key, None)), entry)
         from .brain.registry import record_made, record_output

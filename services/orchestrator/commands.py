@@ -1573,6 +1573,14 @@ async def table_window_result(app, client, msg):
     return {'ok': table_windows(app.hub).reply(client, msg)}
 
 
+@command('web-window-result')
+async def web_window_result(app, client, msg):
+    """The studio's answer to `web-window` (web_window.py): the web window it opened on that Tab, or why not."""
+    from .web_window import web_windows
+
+    return {'ok': web_windows(app.hub).reply(client, msg)}
+
+
 @command('workspace-tabs-result')
 async def workspace_tabs_result(app, client, msg):
     try:

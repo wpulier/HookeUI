@@ -36,7 +36,7 @@ from .records import Records
 PARTNER_TOOLS = ("present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select", "zoom", "clear",
                  "start_researcher", "research_status", "researcher_note", "cancel_researcher", "show_me", "resources",
                  "models_in_use", "capabilities", "workflow", "new_project", "switch_session", "retrieve_page",
-                 "run_capability", "reference_photo", "use", "set_default")
+                 "run_capability", "reference_photo", "use", "set_default", "show_web")
 # What `think`'s backend may call besides the voice's own (voice/think.py): the brain's longer tools, comparisons of
 # models among them. Never think itself, mark or look_hard (the voice points; the backend has the pictures).
 # Every capability the Actions panel can run is reachable here too (tests/test_partner_reach.py): the panel's own tools
@@ -82,7 +82,7 @@ DISTINCT = {"distinct_from": {"type": "string", "description": (
 # Tools that change what is on screen: the model gets a fresh look after them (act, then look).
 SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select",
                              "zoom", "clear", "new_project", "switch_session", "reference_photo", "show_me",
-                             "run_capability"})
+                             "run_capability", "show_web"})
 
 
 def changes_screen(name: str, args: dict | None = None) -> bool:
@@ -102,7 +102,7 @@ STILL_HANDED_OFF = ("still running in Hooke; its row in the chat shows it workin
 # Slow tools the voice starts and goes on from, as it does think: "started" at once (one short acknowledgement), a
 # progress line while they run, their result said once when it lands, with a mark on what they showed (think-broad-2:
 # a reference photo took ~20 s, a web lookup timed out at 12 s; both were narrated as waits and landed in later steps).
-BACKGROUND = frozenset({"reference_photo", "retrieve_page"})
+BACKGROUND = frozenset({"reference_photo", "retrieve_page", "show_web"})
 STARTED_TOOLS = frozenset({"think"}) | BACKGROUND  # answered "started": their result is said on its own (openai_realtime)
 THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long tool's real outcome (a comparison)
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)

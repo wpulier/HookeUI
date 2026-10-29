@@ -93,7 +93,7 @@ PRODUCT_KINDS = frozenset({"population", "tracks", "research", "recording", "boo
 # A result entry is a product only when its producer made a picture to keep that is not one of the user's sources (a
 # reference photo); counts, measurements, comparisons and where-is answers are answers. A clearer picture (enhance)
 # and a snapshot's own "result" entry are sources (library.py), not products.
-PRODUCT_RESULTS = frozenset({"reference_photo"})
+PRODUCT_RESULTS = frozenset({"reference_photo", "show_web"})  # a reference photo, a video or page from the web
 
 
 # What a researcher makes: its report (`research`) and the rest of its work, read from its research session (S4).
@@ -166,6 +166,7 @@ TOOLS = {
     "focus_check": "result",
     "show_in_magnifier": "none: shows a picture that exists",
     "reference_photo": "result",  # a reference photo from the web, kept with its source and licence (media.REFERENCE)
+    "show_web": "result",  # a video or web page from the web, kept with its source and link, opened in a window
     "close_magnifier": "none: closes the magnifier",
     "enhance": "result",
     "snapshot": "snapshot, result",  # its file, and with native windows the result a window opens by its id
