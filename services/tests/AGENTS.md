@@ -1,5 +1,12 @@
 # Checks
 
+`test_project_record_collection.py` retains a synthetic shared Record folder through
+real immutable intake and reads it after deleting the synthetic original and moving
+the Project. It checks unchanged warnings/cross-Project records, mutable source hard
+links, missing parts, changed files/folders, cancellation, disk admission and event-loop
+refusal. This qualifies storage only: no owner inclusion UI, media decoder, actual
+recording, complete Project dependency closure or live App activation is implied.
+
 `test_project_media.py` copies synthetic media through actual immutable intake,
 moves its owning Project, deletes the original, and reads the exact retained bytes.
 It checks changed/replaced originals, cancellation, writer exclusion, origin/digest

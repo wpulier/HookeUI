@@ -221,3 +221,19 @@ publication-time Library guard prevent mixed metadata/byte captures. Truncated,
 conflicting or oversized history refuses rather than claiming complete collection.
 This extends selected-media retention; shared Record capture collection, playback
 identity mapping and full Project migration remain separate acceptance gates.
+
+### Whole Record folder inclusion
+
+The internal Record collector reviews the complete selected folder, including its
+cross-Project contents, hashes and required space. An admitted collection binds the
+exact review digest; that digest is not authorization. The caller must separately
+establish the owner's inclusion decision. Files enter the existing immutable
+source-directory store, never mutable hard links to an original recording.
+
+The review preserves capture warnings and explicitly reports external references
+as uncollected. It verifies declared camera parts and retains every folder file;
+it does not certify capture quality, decode media, or recursively collect paths
+mentioned in conversations. Unfinished checks, missing parts, links, changed files,
+oversized metadata and cancelled copies refuse. No public collection action or
+live App activation is added by this storage slice. Complete Project dependency
+closure, inclusion UI and mixed-domain reopen acceptance remain required.
