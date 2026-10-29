@@ -11,7 +11,7 @@ frame only). Watches the user asked for ("tell me when they stop moving") are wa
 - **On the settled view:** nothing is judged while the slide moves. Each kind of event is a measured change, never a
   name or a verdict; the voice model is given the facts and decides how to say them:
   - **slide-moved:** the view settled (`sight.SETTLE_S` still) on a new place, more than `sight.MOVED_FRACTION` of the
-    eyepiece's radius from the place it last settled on (Sight's own "the view changed"), or after continuity was lost
+    eyepiece's radius from where it last rested (`REST_S`; Sight's "the view changed"), or after continuity was lost
     (a new motion epoch: too fast to follow, or another picture), confirmed once the tracker had `CUT_SETTLE_S` to
     rejoin a place seen before (a rejoin to the same place is no move);
   - **focus-drifted:** on a settled field with texture, the sharpness (the Laplacian's variance over the contrast
@@ -62,6 +62,10 @@ DELIVERY = {
 GAP_S = {"slide-moved": 10.0, "focus-drifted": 60.0, "population-changed": 20.0, "cell-divided": 5.0}
 
 CUT_SETTLE_S = 1.2  # after continuity was lost: still this long, so a rejoin of the same place (motion.py) comes first
+# Still this long after a nudge, the place it rests at is the field's: a later nudge is measured from there, not added
+# to the ones before (the June 14 leaf recording: an 80 px adjustment after a move, 108 s at rest, then a 46 px nudge
+# said "the slide moved"). Shorter stops in one repositioning still add up.
+REST_S = 3.0
 FOCUS_WINDOW_S = 1.0  # sharpness is the median over this long (the scope's breathing: 6% median, 29% at most, a second)
 DRIFT_SHARE = 0.6  # under this share of the field's sharpest...
 DRIFT_HOLD_S = 3.0  # ...for this long, with nobody turning the knob: focus drifted
@@ -246,6 +250,8 @@ class ViewWatch:
         radius = radius_of(info)
         moved = None if cut else math.hypot(info.dx - anchor.dx, info.dy - anchor.dy)
         if moved is not None and moved < MOVED_FRACTION * radius:
+            if t - self._steady_since >= REST_S and (info.dx, info.dy) != (anchor.dx, anchor.dy):
+                self._field = _Field(info.epoch, info.dx, info.dy, anchor.at)  # it rests here: the same field
             return  # still, or a nudge: the same field
         since = self._steady_since
         facts: dict = {"stillForS": round(t - self._steady_since, 1), "frame": info.id}

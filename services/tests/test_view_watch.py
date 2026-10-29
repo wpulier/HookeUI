@@ -99,6 +99,23 @@ def test_a_nudge_is_the_same_field_and_small_nudges_that_add_up_are_a_move():
     assert kinds(told) == ["slide-moved"]
 
 
+def test_a_nudge_after_a_long_rest_is_measured_from_where_it_rested():
+    """The June 14 leaf recording (real footage, bench/watch_bench.py --video): a move said, then an 80 px adjustment,
+    108 s at rest, and a 46 px nudge: "the slide moved" was said for the nudge (the adjustment and the nudge added up).
+    After REST_S still, the place it rests at is the field's."""
+    watch, told, _ = watcher("chatty")
+    feed = Feed(watch)
+    feed.still(2)
+    feed.pan(-300, 0)
+    feed.still(0.8)
+    assert kinds(told) == ["slide-moved"]
+    feed.pan(-70, 0, 0.7)  # the same repositioning, finished after the first stop
+    feed.still(W.REST_S + 5)
+    feed.pan(-45, 0, 1.5)  # a nudge, much later: with the adjustment, more than a third of the radius
+    feed.still(3)
+    assert kinds(told) == ["slide-moved"]
+
+
 def test_continuity_lost_is_a_move_once_settled_and_a_rejoin_of_the_same_place_is_not():
     watch, told, _ = watcher("chatty")
     feed = Feed(watch)
