@@ -647,3 +647,4 @@ writer ownership, corrupt archives and workspace completion recovery. It shares 
 population evidence resolver; full microscopy collection is a separate gate.
 
 `test_project_bookmark_routing.py` exercises real isolated Project journals with synthetic camera images: relocation, inactive-Project reads, delayed capture across a switch, second-host refusal, changed media and interrupted publication. These are persistence tests, not live-camera or complete collection qualification.
+The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
