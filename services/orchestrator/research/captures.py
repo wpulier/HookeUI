@@ -42,12 +42,12 @@ def resolve(manager, index, target: dict) -> ResourceRef:
     document = index.document(source['id'], source['day'])
     if document is None:
         refuse('the original captured source is unavailable')
-    from research_worker.captures import basis_digest
+    from research_worker.captures import basis_digest, without_comparison_hint
     if source.get('basisDigest') and source.get('basisVersion',1) != 1:
         refuse('the captured source basis version is not supported')
     expected = source.get('basisDigest', source['contentRevision'])
     digest = basis_digest(document) if source.get('basisDigest') else hashlib.sha256(json.dumps(
-        document,ensure_ascii=False,sort_keys=True,separators=(',', ':'),allow_nan=False).encode()).hexdigest()
+        without_comparison_hint(document),ensure_ascii=False,sort_keys=True,separators=(',', ':'),allow_nan=False).encode()).hexdigest()
     if digest != expected:
         refuse('the captured source changed after these findings were saved')
     return ResourceRef.from_wire({key:source.get(key) for key in ('day','id','version')} | {'picture':picture})

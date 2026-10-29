@@ -475,6 +475,8 @@ def test_capture_open_rejects_changed_resource_and_reads_exact_old_finding(tmp_p
     manager._finish(session,'done',{'title':'Newer study','summary':'Newer finding','report':{'methods':'Read originals','observations':'Newer','measurements':'No new values','limitations':'One field'}})
     target = {'day':session.day,'rid':session.rid,'findingVersion':old['version'],'findingDigest':old['digest'],'sequence':0,'picture':0}
     index = SimpleNamespace(document=lambda eid,day:copy.deepcopy(document))
+    # An upgrade adds a derived comparison hint, not a new scientific revision.
+    document['entry']['source']['comparisonInput'] = 'retained-input/1:derived'
     address = resolve(manager,index,target)
     assert (address.day,address.id,address.version,address.picture) == ('2026-10-07','m4',None,0)
     # Actual restart retains the original finding's source; neither version advances.
@@ -487,6 +489,20 @@ def test_capture_open_rejects_changed_resource_and_reads_exact_old_finding(tmp_p
         resolve(restarted,index,{**target,'findingDigest':'wrong'})
     with pytest.raises(ResearchRefused,match='frame'):
         resolve(restarted,index,{**target,'picture':2})
+
+
+def test_capture_basis_ignores_derived_comparison_hint_but_not_source_changes():
+    from copy import deepcopy
+    from research_worker.captures import basis_digest
+    original = {'entry': {'day':'2026-10-07','id':'e1','kind':'population',
+        'source':{'frame':42,'sourceImage':{'sha256':'original'}},'pictures':['original.jpg']},
+        'detail':{'members':[{'id':'c1'}]}}
+    current = deepcopy(original)
+    current['entry']['source']['comparisonInput'] = 'retained-input/1:derived'
+    assert basis_digest(current) == basis_digest(original)
+    assert 'comparisonInput' in current['entry']['source']
+    current['entry']['source']['sourceImage']['sha256'] = 'changed'
+    assert basis_digest(current) != basis_digest(original)
 
 
 @pytest.mark.parametrize('kind',['population','tracks'])

@@ -1549,7 +1549,7 @@ class Index:
             float(view.get('at') or record.get('madeAt') or 0),state='saved',thread=record.get('thread'),
             version=record.get('revision',0) if population else None,
             source={'frame':record.get('capture'),'seq':view.get('seq'),'boot':view.get('boot') or None,
-                    'comparisonInput': comparison_input_key(record.get('capture'), view),
+                    **({'comparisonInput': comparison_input_key(record.get('capture'), view)} if population else {}),
                     **({'sourceImage': view['sourceImage']} if view.get('sourceImage') else {})},
             media='raw' if view.get('sourceImage') else None,
             pictures=[f'/api/resources/{eid}/picture?day={day}'],values=values,
