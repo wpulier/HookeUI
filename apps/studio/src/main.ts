@@ -73,7 +73,7 @@ import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './
 import { TalkHold, talkKey, talkKeyWords, type TalkKey } from './talk';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
-import type { PartnerMessage } from './protocol';
+import { partnerHandler, windowSnapshot, type WindowCapture } from './partner';
 import { opensWorkForUser, ShowingBar } from './showing';
 import { StudioShell, navigateStudio, workspaceConnectionNotice } from './studio-shell';
 import './studio-shell.css';
@@ -1743,9 +1743,10 @@ function beginTurn(): void {
   const n = ++talkTurn;
   marks.clear(); // barge-in: what it pointed at goes with what it was saying
   voice.talkDown(n);
+  voiceStatus.textContent = holdWords();
   renderTalk();
   // What the window looks like as the user starts to speak, sent with the turn (amendment 1).
-  void sendSnapshot(`talk-${n}`, 1280);
+  voice.send(windowSnapshot(`talk-${n}`, 1280, windowCapture));
 }
 
 function endTurn(cancel: boolean): void {
@@ -1753,23 +1754,16 @@ function endTurn(cancel: boolean): void {
   if (turnOpen) {
     turnOpen = false;
     if (cancel) voice.talkCancel(talkTurn); else voice.talkUp(talkTurn);
+    voiceStatus.textContent = cancel ? holdWords() : 'Sent · waiting for a response';
   }
   renderTalk();
 }
 
 /** The window now for the voice: a granted tab share's frame, else the window composed (screen.ts). */
-async function sendSnapshot(id: string, maxSide: number): Promise<void> {
-  const side = Math.max(256, Math.min(1280, Number.isFinite(maxSide) ? maxSide : 1280));
-  try {
-    const at = Date.now();
-    const shared = workspaceSession?.shareSnapshot(side) ?? null;
-    const picture = shared ?? composeWindow(document.body, { maxSide: side });
-    if (!picture.jpeg) throw new Error('nothing to draw');
-    voice.send({ type: 'snapshot', id, jpeg: picture.jpeg, w: picture.w, h: picture.h, at, how: shared ? 'tab-share' : 'composed' });
-  } catch (error) {
-    voice.send({ type: 'snapshot', id, error: `The window could not be captured: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) });
-  }
-}
+const windowCapture: WindowCapture = {
+  share: (side) => workspaceSession?.shareSnapshot(side) ?? null,
+  compose: (side) => composeWindow(document.body, { maxSide: side }),
+};
 
 const marksPainter = new SvgMarksPainter(document);
 const canvasRect = (box: [number, number, number, number]): [number, number, number, number] => {
@@ -1830,12 +1824,8 @@ function panelPlace(name: string): Place {
   return r && r.right - r.left > 2 && r.bottom - r.top > 2 ? { rect: [r.left, r.top, r.right - r.left, r.bottom - r.top] } : { why: 'hidden' };
 }
 
-/** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear. */
-voice.onPartner = (message: PartnerMessage) => {
-  if (message.type === 'snapshot-request') void sendSnapshot(String(message.id), Number(message.maxSide ?? 1280));
-  else if (message.type === 'marks') voice.send({ type: 'marks-shown', id: String(message.id), resolved: marks.show(message) });
-  else if (message.type === 'marks-clear') marks.clear(message.id);
-};
+/** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear (partner.ts). */
+voice.onPartner = partnerHandler({ send: (command) => voice.send(command), capture: windowCapture, marks });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is

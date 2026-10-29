@@ -428,8 +428,9 @@ export class VoiceClient {
     if (!this.outputMuted) this.outputMutedAt = performance.now();
     this.outputMuted = true;
     if (this.remote) this.remote.muted = true;
-    this.flush();
-    if (this.outputSpeaking) { this.outputSpeaking = false; this.phase(this.muted ? 'muted' : 'listening'); }
+    const speaking = this.outputSpeaking;
+    this.flush(); // relay audio still queued (and it stops counting as speech)
+    if (speaking) this.phase(this.muted ? 'muted' : 'listening');
     this.onOutput?.(true);
   }
 

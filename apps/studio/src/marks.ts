@@ -226,6 +226,7 @@ export class Marks {
   private setId: string | null = null;
   private speaking = false;
   private heard = false; // the voice has spoken since this set came
+  private untilSpeech = false; // this set goes with the speech (until "speech-end"), not after its own time
   private timers: unknown[] = [];
   private tailTimer: unknown = null;
   private looping = false;
@@ -265,7 +266,8 @@ export class Marks {
     });
     const until = message.until;
     const id = this.setId;
-    if (typeof until === 'number' && Number.isFinite(until) && until > 0) this.after(Math.min(until, LONGEST_MS), () => this.clear(id));
+    this.untilSpeech = !(typeof until === 'number' && Number.isFinite(until) && until > 0);
+    if (!this.untilSpeech) this.after(Math.min(until as number, LONGEST_MS), () => this.clear(id));
     else {
       this.after(UNSPOKEN_MS, () => { if (!this.heard) this.clear(id); });
       this.after(LONGEST_MS, () => this.clear(id));
@@ -287,7 +289,7 @@ export class Marks {
     this.speaking = speaking;
     if (this.tailTimer !== null) { this.clearTimer(this.tailTimer); this.tailTimer = null; }
     if (speaking) { this.heard = true; return; }
-    if (!this.setId || !this.heard) return;
+    if (!this.setId || !this.heard || !this.untilSpeech) return;
     const id = this.setId;
     this.tailTimer = this.setTimer(() => { this.tailTimer = null; this.clear(id); }, SPEECH_TAIL_MS);
   }

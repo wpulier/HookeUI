@@ -204,3 +204,188 @@ test('continuous silent relay packets cannot hide a stalled response', async () 
     expect(events.mock.calls.some(([event]) => event.data?.phase === 'speaking')).toBe(false);
   } finally { voice.stop(); vi.useRealTimers(); }
 });
+
+// --- The one-brain voice (PARTNER_VOICE): WebRTC, hold to talk, barge-in, its own messages, a renewed call. ---
+function partnerHarness() {
+  const audio = audioHarness();
+  // The reply's audio, as the output monitor hears it from the remote track (loud: it is speaking).
+  const output = { loud: false };
+  const context = (globalThis as unknown as { AudioContext: { prototype: Record<string, unknown> } }).AudioContext.prototype;
+  context.createAnalyser = () => ({ fftSize: 256, connect: vi.fn(),
+    getFloatTimeDomainData: (samples: Float32Array) => samples.fill(output.loud ? 0.5 : 0) });
+  context.createMediaStreamSource = () => ({ connect: vi.fn(), disconnect: vi.fn() });
+  const peers: Peer[] = [];
+  const elements: Element[] = [];
+  class Peer {
+    connectionState = 'new';
+    iceGatheringState = 'complete';
+    localDescription: { type: string; sdp: string } | null = null;
+    onconnectionstatechange: (() => void) | null = null;
+    ontrack: ((event: { track: object }) => void) | null = null;
+    remote: unknown = null;
+    addTrack = vi.fn();
+    createDataChannel = vi.fn();
+    close = vi.fn();
+    readonly n = peers.length + 1;
+    constructor() { peers.push(this); }
+    async createOffer() { return { type: 'offer', sdp: `offer-${this.n}` }; }
+    async setLocalDescription(offer: { type: string; sdp: string }) { this.localDescription = offer; }
+    async setRemoteDescription(answer: unknown) { this.remote = answer; this.ontrack?.({ track: {} }); }
+    addEventListener() {}
+    removeEventListener() {}
+    connect(state = 'connected') { this.connectionState = state; this.onconnectionstatechange?.(); }
+  }
+  class Element { muted = false; autoplay = false; srcObject: unknown = null; play = vi.fn(async () => {}); constructor() { elements.push(this); } }
+  vi.stubGlobal('RTCPeerConnection', Peer);
+  vi.stubGlobal('Audio', Element);
+  vi.stubGlobal('MediaStream', class { tracks: unknown[]; constructor(tracks: unknown[]) { this.tracks = tracks; } });
+  return { ...audio, peers, elements, output };
+}
+
+async function liveHold(events = vi.fn()) {
+  const h = partnerHarness();
+  const voice = new VoiceClient(events, vi.fn(), vi.fn());
+  await voice.start({ model: 'gpt-realtime-2.1' });
+  const socket = h.sockets[0];
+  socket.onopen?.();
+  const say = (message: object) => socket.onmessage!({ data: JSON.stringify(message) });
+  say({ type: 'voice', kind: 'model', data: { model: 'gpt-realtime-2.1', label: 'One brain', talk: 'hold' } });
+  say({ type: 'voice', kind: 'ready' });
+  say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-1' } });
+  await Promise.resolve();
+  h.peers[0].connect();
+  h.captures[0].port.onmessage!({ data: { pcm: new ArrayBuffer(1920), level: 0 } });
+  const sent = () => socket.send.mock.calls.map(([value]) => typeof value === 'string' ? JSON.parse(value) : value);
+  return { ...h, voice, socket, say, sent };
+}
+
+test('the one-brain voice goes over WebRTC whatever the saved link, and its offer carries no grant', async () => {
+  const h = partnerHarness();
+  const voice = new VoiceClient(vi.fn(), vi.fn(), vi.fn());
+  voice.link = 'relay';
+  await voice.start({ model: 'gpt-realtime-2.1' });
+  h.sockets[0].onopen?.();
+  expect(h.peers).toHaveLength(1);
+  expect(h.sockets[0].send.mock.calls.map(([v]) => JSON.parse(v))).toEqual([{ type: 'offer', sdp: 'offer-1' }]);
+  voice.stop();
+});
+
+test('held turns: the microphone is on only while held and a moment after, so the last word reaches the model', async () => {
+  vi.useFakeTimers();
+  try {
+    const t = await liveHold();
+    expect(t.voice.state).toBe('live');
+    expect(t.voice.talkMode).toBe('hold');
+    expect(t.track.enabled).toBe(false); // between turns OpenAI hears nothing
+    t.voice.talkDown(1);
+    expect(t.track.enabled).toBe(true);
+    expect(t.sent().at(-1)).toEqual({ type: 'talk', down: true, n: 1 });
+    t.voice.talkUp(1);
+    expect(t.sent().at(-1)).toEqual({ type: 'talk', down: false, n: 1 });
+    expect(t.track.enabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(299);
+    expect(t.track.enabled).toBe(true);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(t.track.enabled).toBe(false);
+    t.voice.talkDown(2);
+    t.voice.talkCancel(2);
+    expect(t.sent().at(-1)).toEqual({ type: 'talk', cancel: true, n: 2 });
+    expect(t.track.enabled).toBe(false); // dropped: closed at once
+    t.voice.stop();
+  } finally { vi.useRealTimers(); }
+});
+
+test('barge-in: pressing while it speaks silences its audio element at once, heard again for the next reply', async () => {
+  vi.useFakeTimers();
+  try {
+    const output = vi.fn(), events = vi.fn();
+    const t = await liveHold(events);
+    t.voice.onOutput = output;
+    const element = t.elements[0];
+    expect(element.muted).toBe(false);
+    t.output.loud = true; // it is speaking
+    await vi.advanceTimersByTimeAsync(200);
+    const phases = () => events.mock.calls.filter(([e]) => e.kind === 'status').map(([e]) => e.data.phase);
+    expect(phases().at(-1)).toBe('speaking');
+    const pressedAt = performance.now();
+    t.voice.talkDown(1);
+    expect(element.muted).toBe(true); // in the same task as the key: silent well within 150 ms
+    expect(performance.now() - pressedAt).toBeLessThan(150);
+    expect(output).toHaveBeenLastCalledWith(true);
+    expect(phases().at(-1)).toBe('listening'); // the track still carries the cancelled reply; it is not heard as speech
+    await vi.advanceTimersByTimeAsync(1200);
+    expect(phases().at(-1)).toBe('listening');
+    expect(element.muted).toBe(true); // still the user's turn
+    t.output.loud = false;
+    t.voice.talkUp(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(element.muted).toBe(false);
+    expect(output).toHaveBeenLastCalledWith(false);
+    // A tap: silent at least BARGE_MIN_MS, so the cancelled reply's last audio is never heard.
+    t.voice.talkDown(2);
+    t.voice.talkCancel(2);
+    await vi.advanceTimersByTimeAsync(399);
+    expect(element.muted).toBe(true);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(element.muted).toBe(false);
+    t.voice.stop();
+  } finally { vi.useRealTimers(); }
+});
+
+test('the partner\'s own messages go to the studio, not into the conversation', async () => {
+  const events = vi.fn();
+  const t = await liveHold(events);
+  const partner = vi.fn();
+  t.voice.onPartner = partner;
+  events.mockClear();
+  t.say({ type: 'snapshot-request', id: 'look-1', maxSide: 1024 });
+  t.say({ type: 'marks', id: 'm1', marks: [{ target: 'outline:o12' }], until: 'speech-end' });
+  t.say({ type: 'marks-clear' });
+  expect(partner.mock.calls.map(([m]) => m.type)).toEqual(['snapshot-request', 'marks', 'marks-clear']);
+  expect(events).not.toHaveBeenCalled();
+  expect(t.voice.send({ type: 'marks-shown', id: 'm1', resolved: [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] }] })).toBe(true);
+  expect(t.sent().at(-1)).toEqual({ type: 'marks-shown', id: 'm1', resolved: [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] }] });
+  t.voice.stop();
+});
+
+test('a renewed call: a fresh offer on the same socket and microphone; the old connection closes once answered', async () => {
+  const state = vi.fn();
+  const h = partnerHarness();
+  const voice = new VoiceClient(vi.fn(), state, vi.fn());
+  await voice.start({ model: 'gpt-realtime-2.1' });
+  const socket = h.sockets[0];
+  socket.onopen?.();
+  const say = (message: object) => socket.onmessage!({ data: JSON.stringify(message) });
+  say({ type: 'voice', kind: 'ready' });
+  say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-1' } });
+  await Promise.resolve();
+  h.peers[0].connect();
+  h.captures[0].port.onmessage!({ data: { pcm: new ArrayBuffer(1920), level: 0 } });
+  expect(voice.state).toBe('live');
+  say({ type: 'reoffer', id: 're-1', why: 'limit' });
+  await vi.waitFor(() => expect(h.peers).toHaveLength(2));
+  await vi.waitFor(() => expect(socket.send.mock.calls.map(([v]) => JSON.parse(v)).at(-1)).toEqual({ type: 'offer', sdp: 'offer-2', id: 're-1' }));
+  h.peers[0].connect('failed'); // the old call ends on its way out: not a failure of the conversation
+  expect(voice.state).toBe('live');
+  expect(h.peers[0].close).not.toHaveBeenCalled();
+  say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-2' } });
+  await vi.waitFor(() => expect(h.peers[0].close).toHaveBeenCalled());
+  expect(h.peers[1].remote).toEqual({ type: 'answer', sdp: 'answer-2' });
+  expect(h.peers[0].remote).toEqual({ type: 'answer', sdp: 'answer-1' });
+  expect(h.elements).toHaveLength(1); // the same audio element
+  expect(h.peers[1].addTrack).toHaveBeenCalledWith(h.track, expect.anything());
+  h.peers[1].connect();
+  expect(voice.state).toBe('live');
+  expect(state).not.toHaveBeenCalledWith('error', expect.anything());
+  voice.stop();
+});
+
+test('GPT-Live holds no turns: its microphone stays on and its Talk stays a toggle', async () => {
+  const h = partnerHarness();
+  const voice = new VoiceClient(vi.fn(), vi.fn(), vi.fn());
+  await voice.start();
+  h.sockets[0].onmessage!({ data: JSON.stringify({ type: 'voice', kind: 'model', data: { model: 'gpt-live-1', label: 'GPT-Live' } }) });
+  expect(voice.talkMode).toBe(null);
+  expect(h.track.enabled).toBe(true);
+  voice.stop();
+});
