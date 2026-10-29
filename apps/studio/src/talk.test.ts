@@ -1,6 +1,6 @@
 // Hold to talk (talk.ts): the talk key held anywhere in the window, or Talk held; Escape, a tap or a chord drops it.
 import { expect, test, vi } from 'vitest';
-import { pressesTalkKey, TalkHold, TAP_MS, type TalkKey } from './talk';
+import { ARM_MS, pressesTalkKey, TalkHold, TalkTurns, TAP_MS, type TalkKey } from './talk';
 
 type Listener = { type: string; fn: (event: unknown) => void; capture: boolean };
 /** A window that records how it is listened to and delivers events as the browser would, capture listeners first. */
@@ -158,4 +158,87 @@ test('TALK and the talk key are Behaviour settings, read from the server\'s role
   expect(pickerGroups('models', roles).map(g => g.key)).not.toContain('talk');
   expect([talkKey('right-option'), talkKey(undefined), talkKey('fn')]).toEqual(['right-option', 'control-option', 'control-option']);
   expect(talkKeyWords('control-option')).toBe('Control+Option');
+});
+
+// Review 2026-10-29: Control+Option is VoiceOver's modifier. A VoiceOver command (VO + a key) must never open the
+// microphone or a paid call: Talk connects only after the talk key has been held alone ARM_MS, and a chord or Escape
+// after that drops the connection the hold started.
+function turnsSetup(state = 'off') {
+  const calls: string[] = [];
+  let timers: { at: number; fn: () => void; live: boolean }[] = [];
+  let now = 0;
+  const voice = { state, talkMode: undefined as 'hold' | 'open' | null | undefined,
+    talkDown: (n: number) => calls.push(`down:${n}`), talkUp: (n: number) => calls.push(`up:${n}`),
+    talkCancel: (n: number) => calls.push(`cancel:${n}`), stop: () => { calls.push('stop'); voice.state = 'off'; } };
+  const turns = new TalkTurns({ voice, start: () => { calls.push('start'); voice.state = 'connecting'; }, began: (n) => calls.push(`began:${n}`), changed: () => {} });
+  const hold = new TalkHold({ enabled: () => true, key: () => 'control-option', now: () => now,
+    setTimer: (fn, ms) => { const t = { at: now + ms, fn, live: true }; timers.push(t); return t; },
+    clearTimer: (t) => { (t as { live: boolean }).live = false; },
+    press: () => turns.press(), heldAlone: (via) => turns.heldAlone(via), release: () => turns.release(), cancel: (why) => turns.cancel(why) });
+  const win = fakeWindow();
+  hold.attach(win);
+  const advance = (ms: number) => {
+    const end = now + ms;
+    for (;;) {
+      const next = timers.filter(t => t.live && t.at <= end).sort((a, b) => a.at - b.at)[0];
+      if (!next) break;
+      now = next.at; next.live = false; next.fn();
+    }
+    now = end; timers = timers.filter(t => t.live);
+  };
+  return { calls, voice, turns, hold, win, advance };
+}
+
+test('a VoiceOver command (Control+Option and a key) never connects Talk', () => {
+  const t = turnsSetup();
+  t.win.fire('keydown', key('Alt', { ctrlKey: true, altKey: true }));
+  t.advance(120);
+  t.win.fire('keydown', key('ArrowRight', { code: 'ArrowRight', ctrlKey: true, altKey: true }));
+  t.advance(1000);
+  t.win.fire('keyup', key('Alt', { ctrlKey: true }));
+  expect(t.calls).toEqual([]);
+  // Held a moment and let go: no call either.
+  t.win.fire('keydown', key('Alt', { ctrlKey: true, altKey: true }));
+  t.advance(200);
+  t.win.fire('keyup', key('Alt', { ctrlKey: true }));
+  t.advance(1000);
+  expect(t.calls).toEqual([]);
+});
+
+test('held alone ARM_MS, the talk key connects; a chord after that drops the connection it started', () => {
+  const t = turnsSetup();
+  t.win.fire('keydown', key('Alt', { ctrlKey: true, altKey: true }));
+  t.advance(ARM_MS - 1);
+  expect(t.calls).toEqual([]);
+  t.advance(2);
+  expect(t.calls).toEqual(['start']);
+  t.win.fire('keydown', key('KeyH', { code: 'KeyH', ctrlKey: true, altKey: true })); // VO-H after a pause
+  expect(t.calls).toEqual(['start', 'stop']);
+});
+
+test('a Talk the user connected is never dropped by a chord; a held key becomes the turn once live', () => {
+  const t = turnsSetup('connecting'); // the user clicked Talk
+  t.win.fire('keydown', key('Alt', { ctrlKey: true, altKey: true }));
+  t.advance(ARM_MS + 10);
+  t.win.fire('keydown', key('KeyH', { code: 'KeyH', ctrlKey: true, altKey: true }));
+  expect(t.calls).toEqual([]);
+  t.win.fire('keydown', key('Alt', { ctrlKey: true, altKey: true }));
+  t.advance(ARM_MS + 10);
+  t.voice.state = 'live'; t.voice.talkMode = 'hold';
+  t.turns.stateChanged('live', !!t.hold.held);
+  expect(t.calls).toEqual(['down:1', 'began:1']);
+  t.win.fire('keyup', key('Alt', { ctrlKey: true }));
+  expect(t.calls).toEqual(['down:1', 'began:1', 'up:1']);
+});
+
+test('the Talk button connects at once (an explicit press), and its tap does not drop that connection', () => {
+  const t = turnsSetup();
+  const button = fakeWindow() as ReturnType<typeof fakeWindow> & { setPointerCapture: (id: number) => void };
+  button.setPointerCapture = vi.fn();
+  t.hold.attachButton(button as unknown as HTMLElement);
+  button.fire('pointerdown', { button: 0, pointerId: 1 });
+  expect(t.calls).toEqual(['start']);
+  t.advance(100);
+  button.fire('pointerup', { button: 0, pointerId: 1 });
+  expect(t.calls).toEqual(['start']);
 });

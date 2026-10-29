@@ -21,7 +21,7 @@ document.documentElement.dataset.buildDigest = __MICROMIND_BUILD__.sourceDigest 
 import { itemSpace } from './spaces';
 import type { WorkspaceViewport } from './workspace-runtime';
 import { livePlacementObject } from './window-placement';
-import { composeScreen, composeWindow, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
+import { captureWindow, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
 import './style.css';
 import { assertNever, Connection, type CapabilitiesWire, type AssetMeta, type SessionCleared, type SessionState, type DatasetState, type DayState, type ArenaState, type ClientCommand, type Health, type Reveal, type Scores, type ServerMessage, type Settings, type TopProgram, type ToolRun, type Trial } from './protocol';
 import { BoxDrag, frameBox } from './boxdrag';
@@ -70,7 +70,7 @@ import { listVolumes } from './volumespanel';
 import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
 import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
-import { TalkHold, talkKey, talkKeyWords, type TalkKey } from './talk';
+import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
 import { partnerHandler, windowSnapshot, type WindowCapture } from './partner';
@@ -1459,7 +1459,11 @@ function handleMessage(message: ServerMessage): void {
     }
     case 'screen-look': // look_at_screen: a picture of the workspace as composed now
       // Canonical acquisition never falls back to a DOM/media approximation.
-      if (message.schema !== 'workspace-capture-v1') connection.send({ type: 'screen-image', id: message.id, jpeg: composeScreen() });
+      if (message.schema !== 'workspace-capture-v1') {
+        // Composed in short tasks (captureWindow), so the live view keeps its frames while it is taken.
+        const id = message.id;
+        void captureWindow(document.body).then((shot) => shot.jpeg, () => '').then((jpeg) => connection.send({ type: 'screen-image', id, jpeg }));
+      }
       break;
     case 'sources': // the open session's sources changed (ADR 0022): the side bar's Assets draws them
       // Something was put on stage, here or in another studio: a new session's home has had its answer.
@@ -1717,52 +1721,35 @@ function holdToTalk(): boolean {
   }
   return voiceSetting === PARTNER_VOICE && talkSetting !== 'open';
 }
-let talkTurn = 0;
-let turnOpen = false; // a turn is being said now (talk down sent, not yet released)
-let holdPending = false; // held while Talk connects: the turn starts if it is still held once live
+// Held turns (talk.ts TalkTurns): with Talk off, the key connects only once held alone, so a VoiceOver command never
+// opens the microphone or a paid call; the button connects at once.
+const turns = new TalkTurns({
+  voice,
+  start: startTalk,
+  began: (n) => {
+    marks.clear(); // barge-in: what it pointed at goes with what it was saying
+    voiceStatus.textContent = holdWords();
+    // What the window looks like as the user starts to speak, sent with the turn (amendment 1). The pictures are
+    // taken in this task; the rest is composed without holding up the live view (screen.ts captureWindow).
+    void windowSnapshot(`talk-${n}`, 1280, windowCapture).then((shot) => voice.tellVoice(shot));
+  },
+  changed: () => renderTalk(),
+});
 const talkHold = new TalkHold({
   enabled: holdToTalk,
   key: () => talkKeySetting,
-  press: () => {
-    if (voice.state === 'live') beginTurn();
-    else {
-      holdPending = true;
-      if (voice.state === 'off' || voice.state === 'error') startTalk();
-      renderTalk();
-    }
-  },
-  release: () => endTurn(false),
-  cancel: () => endTurn(true),
+  press: () => turns.press(),
+  heldAlone: (via) => turns.heldAlone(via),
+  release: () => { const said = turns.open; turns.release(); if (said) voiceStatus.textContent = 'Sent · waiting for a response'; },
+  cancel: (why) => { const said = turns.open; turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
 });
 talkHold.attach(window, document);
 talkHold.attachButton(talkButton);
 
-function beginTurn(): void {
-  holdPending = false;
-  turnOpen = true;
-  const n = ++talkTurn;
-  marks.clear(); // barge-in: what it pointed at goes with what it was saying
-  voice.talkDown(n);
-  voiceStatus.textContent = holdWords();
-  renderTalk();
-  // What the window looks like as the user starts to speak, sent with the turn (amendment 1).
-  voice.tellVoice(windowSnapshot(`talk-${n}`, 1280, windowCapture));
-}
-
-function endTurn(cancel: boolean): void {
-  holdPending = false;
-  if (turnOpen) {
-    turnOpen = false;
-    if (cancel) voice.talkCancel(talkTurn); else voice.talkUp(talkTurn);
-    voiceStatus.textContent = cancel ? holdWords() : 'Sent · waiting for a response';
-  }
-  renderTalk();
-}
-
 /** The window now for the voice: a granted tab share's frame, else the window composed (screen.ts). */
 const windowCapture: WindowCapture = {
-  share: (side) => workspaceSession?.shareSnapshot(side) ?? null,
-  compose: (side) => composeWindow(document.body, { maxSide: side }),
+  share: async (side) => workspaceSession ? workspaceSession.shareSnapshot(side) : null,
+  compose: (side) => captureWindow(document.body, { maxSide: side }),
 };
 
 const marksPainter = new SvgMarksPainter(document);
@@ -1832,7 +1819,7 @@ voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; el
 // connecting): the composer's row keeps the Assistant's model named in full beside it (hooke-words, 2026-10-25).
 // Held turns say what holding does instead: Hold to talk, Listening while held.
 function talkLabelText(state: VoiceState): string {
-  if (holdToTalk() && state !== 'off' && state !== 'error') return turnOpen ? 'Listening' : state === 'connecting' ? 'Connecting' : 'Hold to talk';
+  if (holdToTalk() && state !== 'off' && state !== 'error') return turns.open ? 'Listening' : state === 'connecting' ? 'Connecting' : 'Hold to talk';
   if (state === 'live') return 'End Talk';
   if (state === 'connecting') return 'Cancel';
   return 'Talk';
@@ -1852,11 +1839,11 @@ function renderTalk(): void {
   }
   voiceEnd.hidden = !hold || (state !== 'live' && state !== 'connecting');
   voiceMute.hidden = state !== 'live' || hold; // held turns: the microphone is on only while held
-  const holding = !!talkHold.held && (turnOpen || holdPending);
+  const holding = !!talkHold.held && (turns.open || turns.pending);
   if (holding) talkButton.dataset.holding = ''; else delete talkButton.dataset.holding;
   holdRing.hidden = !holding;
-  holdRing.dataset.state = turnOpen ? 'listening' : 'connecting';
-  holdRing.lastElementChild!.textContent = turnOpen ? 'Listening' : 'Connecting… keep holding';
+  holdRing.dataset.state = turns.open ? 'listening' : 'connecting';
+  holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
 }
 
 function renderVoiceState(state: VoiceState, detail?: string): void {
@@ -1865,8 +1852,7 @@ function renderVoiceState(state: VoiceState, detail?: string): void {
   voiceControls.hidden = state === 'off';
   voiceStatus.textContent = state === 'connecting' ? detail ?? 'Connecting microphone and voice provider…'
     : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
-  if (state === 'live' && holdPending && talkHold.held && voice.talkMode === 'hold') beginTurn();
-  if (state !== 'live') { holdPending = holdPending && state === 'connecting'; turnOpen = false; }
+  turns.stateChanged(state, !!talkHold.held);
   if (state === 'off' || state === 'error') marks.clear();
   renderTalk();
   if (state === 'error' && detail) chat.system(detail);
@@ -1879,7 +1865,7 @@ function renderVoiceState(state: VoiceState, detail?: string): void {
 
 /** The status while turns are held: what to do now. */
 function holdWords(): string {
-  return turnOpen ? 'Listening · let go to send, Escape to drop it' : `Hold ${talkKeyWords(talkKeySetting)} or Talk, and speak`;
+  return turns.open ? 'Listening · let go to send, Escape to drop it' : `Hold ${talkKeyWords(talkKeySetting)} or Talk, and speak`;
 }
 
 function handleVoice(event: VoiceEvent): void {
@@ -1888,7 +1874,7 @@ function handleVoice(event: VoiceEvent): void {
       const phase = String(event.data?.phase ?? '');
       const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting audio…'};
       const hold = holdToTalk();
-      voiceStatus.textContent = hold && (phase === 'listening' || turnOpen) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
+      voiceStatus.textContent = hold && (phase === 'listening' || turns.open) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
         (voice.muted && phase !== 'muted' ? ' · microphone muted' : '');
       if (phase === 'listening') showStateHint('voice', hold ? `Hold ${talkKeyWords(talkKeySetting)}, or hold Talk, and ask about the view or your work.` : 'Listening. Ask about the view or your work.');
       marks.phase(phase); // marks stay while it speaks and go a moment after

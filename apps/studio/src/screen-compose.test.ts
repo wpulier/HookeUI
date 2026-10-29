@@ -2,7 +2,7 @@
 // its title, its pictures inside it in paint order, the Tab names and the table rows in view as text; nothing hidden,
 // nothing of the voice's own marks, and the text stops at its time budget.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { frameTitle, SCREEN_FRAMES, screenLayout } from './screen';
+import { captureWindow, frameTitle, SCREEN_FRAMES, screenLayout, SLICE_MS } from './screen';
 
 interface Fake { tag: string; rect: [number, number, number, number]; z?: number; bg?: string; hidden?: boolean; text?: string;
   title?: Fake; screenTitle?: string; label?: string; classes?: string[]; holder?: Fake; rows?: Fake[]; cells?: Fake[]; marks?: boolean;
@@ -75,4 +75,44 @@ test('a frame is titled by its own title bar, else its name', () => {
   const titled = el({ tag: 'section', rect: [0, 0, 10, 10], screenTitle: 'Result viewer', title: { tag: 'h2', rect: [0, 0, 1, 1], text: '  Researcher 3 —\n findings ' } });
   expect(frameTitle(titled)).toBe('Result viewer: Researcher 3 — findings');
   expect(frameTitle(el({ tag: 'section', rect: [0, 0, 10, 10], label: 'Open project artifacts' }))).toBe('Open project artifacts');
+});
+
+// Review 2026-10-29: composing the window ran in one task at each key-down (70-100 ms), so the live view dropped
+// frames. captureWindow takes the pictures in the key-down task, then lays out text, draws and encodes in separate tasks,
+// none over SLICE_MS of its own work.
+test('the window is captured without holding up the live view: pictures first, then short tasks, never one long one', async () => {
+  let clock = 0;
+  const tasks: number[] = []; // our own work per task, as the probe sees it
+  let taskStart = 0;
+  const yieldTask = async () => { tasks.push(clock - taskStart); await Promise.resolve(); taskStart = clock; };
+  // Every element read costs 1 ms here (a slow page): 48 table cells and their rows would be one ~60 ms task at once.
+  const tick = <T>(value: T) => { clock += 1; return value; };
+  vi.stubGlobal('getComputedStyle', (node: object) => tick(styles.get(node)));
+  const cells = Array.from({ length: 48 }, (_, i): Fake => ({ tag: 'td', rect: [600 + (i % 6) * 60, 130 + Math.floor(i / 6) * 24, 60, 24], text: String(i) }));
+  const rows = Array.from({ length: 8 }, (_, r): Fake => ({ tag: 'tr', rect: [600, 130 + r * 24, 360, 24], cells: cells.slice(r * 6, r * 6 + 6) }));
+  const grid: Fake = { tag: 'table', rect: [600, 130, 360, 200], rows };
+  const live: Fake = { tag: 'canvas', rect: [0, 0, 1440, 900] };
+  const grabbedAt: number[] = [];
+  const drawn: string[] = [];
+  const shot = await captureWindow(root({ table: [grid], 'canvas, img, video': [live] }) as unknown as HTMLElement, {
+    view: [1440, 900], now: () => clock, yieldTask,
+    env: {
+      grab: async () => { grabbedAt.push(tasks.length); return tick({ width: 1440, height: 900, close() {} } as unknown as ImageBitmap); },
+      canvas: (w, h) => ({ width: w, height: h, context: {
+        scale() {}, fillRect() {}, strokeRect() {}, drawImage: () => tick(drawn.push('picture')), measureText: (t: string) => ({ width: t.length * 6 }),
+        fillText: (t: string) => tick(drawn.push(t)), set fillStyle(_v: string) {}, set strokeStyle(_v: string) {}, set lineWidth(_v: number) {},
+        set font(_v: string) {}, set textBaseline(_v: string) {}, set globalAlpha(_v: number) {} } as unknown as CanvasRenderingContext2D }),
+      encode: async () => tick(new Blob(['jpeg'])),
+      base64: async () => 'SlBFRw==',
+      background: () => '#111',
+    },
+  });
+  tasks.push(clock - taskStart);
+  expect(shot).toMatchObject({ jpeg: 'SlBFRw==', w: 1280, h: 800 });
+  expect(grabbedAt).toEqual([0]); // the pictures are taken in the key-down task itself
+  expect(drawn).toContain('picture');
+  expect(drawn).toContain('47');
+  expect(Math.max(...tasks)).toBeLessThanOrEqual(SLICE_MS + 2);
+  expect(shot.longestTaskMs).toBeLessThanOrEqual(SLICE_MS + 2);
+  expect(tasks.length).toBeGreaterThan(8);
 });
