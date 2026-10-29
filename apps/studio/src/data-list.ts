@@ -108,6 +108,7 @@ export class DataList {
   private otherOpen = false;
   private readonly options: DataListOptions;
   private last: DataListState | null = null;
+  private historyOpen = false;
 
   constructor(options: DataListOptions) {
     this.options = options;
@@ -121,15 +122,15 @@ export class DataList {
     for (const [role, name] of ROLE_SECTIONS) {
       const rows = state.rows.filter((row) => row.role === role);
       if (!rows.length) continue;
-      if (role !== 'other') { parts.push(this.heading(name, rows.length, role), ...rows.map((row) => this.row(row, state))); continue; }
+      if (role !== 'other' && role !== 'history') { parts.push(this.heading(name, rows.length, role), ...rows.map((row) => this.row(row, state))); continue; }
       // Other (bookmarks, calibrations, taught labels): folded last, open while a search finds something in it.
-      const open = this.otherOpen || !!state.query.trim();
+      const open = (role === 'history' ? this.historyOpen : this.otherOpen) || !!state.query.trim();
       const fold = button('mm-dsection data-fold');
-      fold.dataset.role = 'other'; fold.setAttribute('aria-expanded', String(open));
+      fold.dataset.role = role; fold.setAttribute('aria-expanded', String(open));
       fold.append(name, ' ', el('span', 'mm-num', String(rows.length)), tabMark(open ? 'down' : 'right', 'data-fold-mark'));
       if (!open && rows.some((row) => rowIsNew(row, state.seen))) { const dot = el('span', 'mm-new-dot data-fold-new'); dot.title = 'New since you last looked'; fold.append(dot); }
-      fold.title = open ? 'Fold Other' : 'Bookmarks, calibrations and taught labels';
-      fold.addEventListener('click', () => { this.otherOpen = !open; if (this.last) this.render(this.last); });
+      fold.title = open ? `Fold ${name}` : role === 'history' ? 'Inspect workflow runs and their records' : 'Inspect remaining saved files and records';
+      fold.addEventListener('click', () => { if (role === 'history') this.historyOpen = !open; else this.otherOpen = !open; if (this.last) this.render(this.last); });
       parts.push(fold, ...(open ? rows.map((row) => this.row(row, state)) : []));
     }
     if (state.loading) parts.push(el('p', 'mm-drawer-note data-loading', 'Loading what this Project made…'));

@@ -1,3 +1,4 @@
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -1459,8 +1460,12 @@ function importScientificSource(): void {
 /** Inputs (the drawer): the live camera and this Project's pictures and recordings as rows of the shared anatomy
  * (workspace-feel step 4), each opening its preview; ⋯ holds Open in Tab and its Results. The ways to bring an input in
  * are the drawer header's ⋯ (`inputsMore`), as Data's header has them. */
+let inputQuery = '', inputQueryOwner = '';
+let refreshInputRows: (() => void) | null = null;
 function renderInputs(): void {
   const owner=workspaceViews.tabOwner();
+  if (inputQueryOwner !== owner.session) { inputQuery = ''; inputQueryOwner = owner.session; }
+  const mediaRows: {node: HTMLElement; text: string}[] = [];
   const list=el('div','study-specimens');
   // The live camera: green only while it is truly live (refreshLiveCameraStatus); its words say which camera.
   const liveLead=el('span','mm-row-icon');liveLead.append(el('span','study-live-mark'));
@@ -1475,11 +1480,40 @@ function renderInputs(): void {
     const {wrap,row}=dataRow(thumb,asset.title,`${kind} · ${where}`,`${asset.title}\nPreview; Open in Tab gives it a Tab of its own`,()=>showPreview(asset,owner),
       ()=>[{label:'Open in Tab',title:'Open it in a Tab of its own',act:()=>void openSource(asset,owner)},{label:'Results',title:'What was made from it, in Data',act:()=>{sourceFilter=asset.id;showSection('results');}}],`More for ${asset.title}`);
     wrap.classList.add('study-input');row.classList.toggle('active',asset.id===snapshot.onStage);if(asset.id===snapshot.onStage)row.setAttribute('aria-current','true');
-    list.append(wrap);
+    list.append(wrap); mediaRows.push({node: wrap, text: `${asset.title} ${kind}`.toLocaleLowerCase()});
   }
-  drawerBody.append(list);
-  if (!snapshot.sources.length) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No pictures or videos in this Project yet. Scientific files and saved results are in Data. Use the Inputs menu to import material, or try the guided microscopy example.'));
+  const material = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+  const controls = el('div', 'project-input-controls');
+  const search = el('input', 'mm-control'); search.type = 'search'; search.placeholder = 'Search Project material';
+  search.setAttribute('aria-label', 'Search Project material'); search.value = inputQuery;
+  const materialList = el('div', 'project-input-material');
+  const drawMaterial = () => {
+    if (!inputOwnerCurrent(owner)) return;
+    materialList.replaceChildren();
+    const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
+    if (empty) empty.hidden = !!inputQuery || !!snapshot.sources.length || !!projectInputs(resourceSession === snapshot.session ? entries : []).length;
+    const needle = inputQuery.trim().toLocaleLowerCase();
+    let matchingMedia = 0;
+    for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
+    const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+    for (const entry of selected) {
+      const actions = entryActions(entry);
+      const open = () => { if (!inputOwnerCurrent(owner)) return;
+        if (entry.material?.kind === 'assignment') void openStudy(entry.id);
+        else actions.open(); };
+      const {wrap} = dataRow(el('span', 'mm-row-icon', entry.material?.kind === 'assignment' ? '◇' : '▤'),
+        entry.title, materialFacts(entry), 'Preview retained material', open,
+        () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
+      materialList.append(wrap);
+    }
+    if (inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
+  };
+  refreshInputRows = drawMaterial;
+  search.addEventListener('input', () => { inputQuery = search.value; drawMaterial(); });
+  controls.append(button('Add material', () => { if (inputOwnerCurrent(owner)) importScientificSource(); }, 'study-primary'), search);
+  drawerBody.append(controls, materialList, list); drawMaterial();
+  if (!snapshot.sources.length && !material.length && !inputQuery) {
+    const empty=el('div','mm-drawer-empty project-input-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
     empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
     empty.append(example);drawerBody.append(empty);
@@ -1492,7 +1526,7 @@ function refreshLiveCameraStatus(): void {
   // Green only while the camera is truly live (the Tab row's specimen control says so), never for "live" with no picture.
   const card = liveCameraStatus.closest<HTMLElement>('.study-live-card');
   if (card) card.dataset.camera = String(document.getElementById('source')?.dataset.state === 'live');
-  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen · pictures and videos only' : status;
+  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen' : status;
   if (liveCameraStatus.textContent !== text) liveCameraStatus.textContent = text;
 }
 function showPreview(asset: AssetMeta,owner=workspaceViews.tabOwner()): void {
@@ -1580,6 +1614,7 @@ async function refreshResults(): Promise<void> {
     resultsFailed = false;
     madeMemo.clear();
     if (dataOpen) renderResults();
+    if (drawerOpen && section === 'inputs') refreshInputRows?.();
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
   } catch (error) { if (dataOpen && generation === refreshGeneration) { resultsFailed = true; dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults())); } }
@@ -1648,7 +1683,7 @@ function dataRowView(row:DataRow):DataRowView{
 /** One kept thing's open (in the reader), ⋯, tooltip and drag. */
 function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:string;drag:(wrap:HTMLElement)=>void}{
     // A row opens on the right of the Tab you are on, in the reader (ticket 66): nothing moves you to another Tab.
-    const open=()=>openInReader(entry as ReaderEntry);
+    const open=()=>{ if (entry.material?.kind === 'assignment') void openStudy(entry.id); else openInReader(entry as ReaderEntry); };
     const places=workspaceViews.places(entry.id,entry.version??0),source=sourceOf(entry),owner=workspaceViews.tabOwner();
     // Its maker by display name (the model's one name, a researcher's name), never a raw key.
     const maker=madeByWords(entry,entry.kind==='research'?bridge.researchers().find(item=>item.rid===entry.id)?.name??null:null,
@@ -1792,14 +1827,12 @@ function inputEntry(asset: AssetMeta): ReaderEntry {
   return { id: asset.id, kind: 'asset', title: asset.title, summary: '', state: '', actions: [], day: snapshot.session, asset,
     ...(typeof asset.capturedAt === 'number' ? { at: asset.capturedAt } : {}) } as ReaderEntry;
 }
-/** A Data item by its identity: this Project's index entry (that revision, else its newest), or one of its inputs. */
+/** A Data item by its identity: this Project's exact index or pinned input revision, or one of its inputs. */
 function readerEntryOf(ref: { id: string; day: string; version: number | null }): ReaderEntry | null {
-  const day = (entry: StudyResource) => entry.day ?? snapshot.session;
-  const found = entries.find((entry) => entry.id === ref.id && day(entry) === ref.day && (entry.version ?? null) === ref.version)
-    ?? entries.find((entry) => entry.id === ref.id && day(entry) === ref.day);
+  const found = projectEntry(entries, ref, snapshot.session);
   if (found) return found as ReaderEntry;
   const asset = ref.day === snapshot.session ? snapshot.sources.find((item) => item.id === ref.id) : undefined;
-  return asset ? inputEntry(asset) : null;
+  return asset ? inputEntry(asset) : retainedProjectEntry(ref, snapshot.session) as ReaderEntry | null;
 }
 /** A Data row (or a link inside the reader) opens on the right of the Tab you are on. Below 1200 px it takes the Data
  * drawer's place (‹ Data brings the list back). The Assistant steps aside (× brings it back if it was showing); a page

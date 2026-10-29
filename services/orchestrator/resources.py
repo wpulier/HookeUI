@@ -214,6 +214,7 @@ class Entry:
     shown: str = ""
     maker: dict | None = None  # who made it (maker_of), set as the index is collected; None when the record cannot tell
     run: str | None = None  # the execution that made it, when it came from one run: entries sharing it are one Data row
+    material: dict | None = None  # shared inventory projection; never an accepted-record edit
     forms: list[dict] | None = None  # a write-up's forms, newest first (a report's findings versions and presentation)
 
     @property
@@ -235,6 +236,9 @@ class Entry:
     @property
     def role(self) -> str | None:
         """Which of Data's sections it is in (produces.ROLES; ticket 66, S1)."""
+        if self.kind == "project" and isinstance(self.values, dict):
+            from .project_material import describe
+            return (self.material or describe(self.values))['section']
         return role_of(self.kind, self.media)
 
     def wire(self, listed: bool = True) -> dict:
@@ -242,10 +246,13 @@ class Entry:
         shows, a write-up's forms and a source's values. Without them, the reading a researcher pages through and whose
         digest it records (Index.document): unchanged by those fields, so a read before them still counts."""
         out = self._basis()
+        if listed and self.kind == "project" and isinstance(self.values, dict):
+            from .project_material import describe
+            out['material'] = copy.deepcopy(self.material or describe(self.values))
         if not listed:
             return out
         return {**out, "title": self.shown or self.title, "role": self.role,
-                "maker": copy.deepcopy(self.maker), "run": self.run,
+                "maker": copy.deepcopy(self.maker), "run": (out.get("material", {}).get("run") or (self.id if out.get("material", {}).get("kind") == "workflow" else self.run)),
                 **({"forms": copy.deepcopy(self.forms)} if self.forms is not None else {}),
                 **({"values": copy.deepcopy(self.values)} if self.kind == "source" else {})}
 
@@ -1375,6 +1382,8 @@ class Index:
                 out.extend(provider(day, discover_tables=True) if name == 'results' and discover_tables else provider(day))
             except Exception as exc:  # one store that cannot be read never hides the others
                 unreadable.append(f"{name} ({exc})" if isinstance(exc, Unread) else f"{name} ({type(exc).__name__})")
+        from .project_material import attach_usage
+        unreadable.extend(attach_usage(out, self.projects))
         who = None
         for entry in out:
             made = entry.made_by if isinstance(entry.made_by, dict) else {}

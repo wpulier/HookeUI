@@ -228,3 +228,5 @@ Display and exports must carry the warning; the method column is not an inferred
 Imported source documents expose the intake publisher’s retained `sourceImport` actor
 and operation as Data’s `madeBy`. Older documents without recorded provenance stay
 unattributed; the active connection never becomes the inferred author.
+
+Project material metadata comes from `project_material.describe`: declared document kinds and accepted output summary formats, never titles. Both resource wires and project.state carry that same projection. Metadata listing does not claim to have verified all payload bytes or qualified a reader. Unknown imports remain Files; matrix result formats distinguish retained response models from analysis output. Workflow attempts carry the original run ID for grouping.

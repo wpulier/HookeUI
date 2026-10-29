@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Retained Project material",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "origin",
+    "input",
+    "section",
+    "category",
+    "record",
+    "dependencies"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string"
+    },
+    "origin": {
+      "enum": [
+        "imported",
+        "generated",
+        "authored",
+        "unknown"
+      ]
+    },
+    "input": {
+      "type": "boolean"
+    },
+    "section": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "record": {
+      "type": "boolean"
+    },
+    "run": {
+      "type": "string"
+    },
+    "format": {
+      "type": "string"
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "shape": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "uses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "study",
+          "revision",
+          "digest",
+          "title",
+          "available"
+        ],
+        "properties": {
+          "study": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "material": {
+            "$ref": "project-material.schema.json"
+          }
+        }
+      }
+    }
+  }
+}

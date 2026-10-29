@@ -50,3 +50,7 @@ body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-rig
 body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel .notebook[hidden]{display:none!important}
 body[data-workspace-study='true']:not([data-study-layout='baseline']) :is(#chat-hide,#chat-show,#session-rail-phone){display:none!important}
 @media(max-width:640px){.study-identity{display:none}.study-layout-label{margin-right:auto}.study-right-panel .study-panel-header{min-height:50px}}
+
+.project-input-controls { display: grid; gap: 12px; padding: 8px 0 16px; }
+.project-input-controls input { width: 100%; box-sizing: border-box; min-width: 0; }
+.project-input-material { display: grid; gap: 4px; margin-bottom: 16px; }

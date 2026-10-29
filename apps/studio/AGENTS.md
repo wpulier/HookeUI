@@ -4,8 +4,7 @@ not running-status or scientific acceptance. Existing Data and Inputs remain the
 to inspect material or choose a camera. Opening starts nothing. Project switches clear
 old summaries immediately; late reads and stale buttons cannot act on another Project.
 The Assistant retains its same connected-agent entry and current-Project setup prompt.
-The Inputs drawer's empty message describes its picture/video list only; it directs
-scientific-file and saved-result users to Data without claiming their Project is empty.
+Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
 
 The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
