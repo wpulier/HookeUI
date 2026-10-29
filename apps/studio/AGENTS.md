@@ -1718,6 +1718,21 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   each. While the answer is written the cards sit under the slot; then under the answer ("Sure." then the cards). No
   card for a manual start, another conversation or session, or a quick lookup. "Show it" goes through
   `openStudyResearch` too. A new answer and a card rise in once (`[data-arrived]`, 200 ms; reduced motion none).
+  **Work in flight while you keep talking** (`handoffs.ts`, `handoffs.css`; Will, 29 Oct: two things ran and nothing
+  said so). Each request the voice hands to Hooke's brain (`do_in_hooke`; a server `handoff` line, filed with its
+  conversation under one `lineId`, so a later state replaces it and a replay shows its last) is one row under the voice
+  line that started it (the voice's next words start below it): its lit cell, its title (the voice's few plain words,
+  else the request's), then "Hooke is working · 0:07", "Still working" past the voice's 12 s, and it settles into
+  "Done · <the brain's answer>", "Started · <it>" when it started a researcher (whose card sits under it), "Couldn't
+  confirm · <what was asked>, it may not have happened" when its step's own receipt says the change was never seen on
+  screen (never "Didn't work", kept for a real failure and its reason), "Didn't work · <why>", or "Not known" when no
+  result was recorded. A step the brain left running settles the row from that step's own late receipt. A tap opens
+  what was asked, the steps in Activity's words and Open in Activity. A later step the user asked for ("then put it in
+  Stoma Reference") is a line on the row ("Then, after Researcher 2: …", then its outcome); done, it is a row of its own
+  ("After Researcher 2"). The slim strip right over the composer (`FlightStrip`) shows only while something runs: "2
+  working · Reference photo of a stoma · A new Tab", with this Project's researchers at work and a waiting later step
+  after its researcher ("then: …", quieter, not counted); each entry scrolls to its row or card and marks it. States
+  are the server's (ADR 0006). `chat.fixture.html?state=handoffs|handoffs-landed` shows them.
   **Scrolling that respects reading** (`chat-scroll.ts` `ChatFollow`): your own send follows (`sent()` from `ask`, and
   your words arriving); while following, the end stays in view as lines are drawn and, through the injected
   ResizeObserver, as they grow. A reader who scrolled up stays put: the log has `overflow-anchor: none` and keeps the

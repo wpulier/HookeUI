@@ -73,6 +73,19 @@ other files.
   `update_job` and `cancel_job` reach one through `researcher_note` and `cancel_researcher` (Hands, their records).
   Each think job files one Activity line, and `project_state.jobs` numbers researchers and think jobs together by
   when each started, in the brief and the `resources` answer, so "the second one" resolves the same way everywhere.
+- **Hand-offs as the chat shows them** (`voice/handoffs.py`; the studio's `handoffs.ts`). With PARTNER_ACTS "brain", each
+  `do_in_hooke` files a `handoff` line at once (working, titled by the voice's required `label`), `long` past
+  TOOL_WAIT_S, then its state from the brain's own turn, before the act-then-look: done (an answer, no failed step),
+  started (it started a researcher), uncertain (a step's receipt says its change was sent but not observed on screen:
+  `handoffs.unconfirmed`, never "failed"), failed with its reason, or settling while a late step runs. `Dialogue.flying`
+  holds those still running, so a replay shows one an app restart cut off as unknown. The voice is told the row shows a
+  long one (`STILL_HANDED_OFF`) and, in PARTNER_ACTING_BRAIN, to say one short line for a new request only and each
+  outcome once. **A later step** (`then`, `voice/followups.py`): the voice cannot act when work lands (its unasked
+  lines have no tools), so Hooke keeps the step with the researcher the hand-off started (a hub-level `research.on_done`
+  listener, Talk on or not), hands it to the brain as a hand-off of its own when that researcher lands, and says the
+  researcher's result and the step's outcome once, together (`Partner._research_done` defers to it); a researcher that
+  did not finish leaves it undone, and that is said. With no researcher started it runs right after the first part;
+  otherwise the voice is told nothing keeps it (`not_kept`), so it is never promised. Kept in memory only.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

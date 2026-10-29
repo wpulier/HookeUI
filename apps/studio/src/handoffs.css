@@ -1,0 +1,125 @@
+/* Work in flight while you keep talking (handoffs.ts): the voice's hand-offs to Hooke's brain, one row each under the
+   voice line that started it, and the slim strip over the composer listing what runs now. The chat's own vocabulary:
+   the lit cell (gold breathing while it works, green once done, a red outline when it did not work), a hairline card on
+   the page tone like a researcher's card but lighter (no chevron to a Tab: it opens in place), 13/18 titles, 12/16
+   quiet lines. Motion is calm and small: the row rises in once, a soft gold trace runs along its foot while it works,
+   and the cell settles once when it lands; reduced motion keeps only the states. */
+
+body[data-workspace-study='true'] .chat-log-wrap > .log > li.chat-handoff {
+  /* flex: none: with overflow hidden for its trace, a long log would otherwise squeeze it to nothing. */
+  position: relative; flex: none; display: flex; flex-direction: column; margin-top: -4px; overflow: hidden;
+  border-radius: var(--mm-r-card); background: transparent; box-shadow: inset 0 0 0 1px var(--mm-line);
+  transition: background var(--mm-fast) var(--mm-ease), box-shadow var(--mm-fast) var(--mm-ease);
+}
+body[data-workspace-study='true'] .chat-log-wrap > .log > li.chat-handoff:hover,
+body[data-workspace-study='true'] .chat-log-wrap > .log > li.chat-handoff[data-open] { background: var(--mm-page); box-shadow: inset 0 0 0 1px var(--mm-line-strong); }
+
+body[data-workspace-study='true'] .chat-handoff-head {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) 14px; column-gap: 10px; align-items: start; width: 100%;
+  box-sizing: border-box; margin: 0; padding: 8px 10px 8px 12px; border: 0; border-radius: inherit; background: none;
+  color: var(--mm-text); font: inherit; text-align: left; cursor: pointer;
+}
+body[data-workspace-study='true'] .chat-handoff-head:focus-visible { outline: none; box-shadow: var(--mm-focus-ring-inset, inset 0 0 0 2px var(--mm-accent)); }
+body[data-workspace-study='true'] .chat-handoff-head > .lit-cell { justify-self: center; margin-top: 2px; }
+body[data-workspace-study='true'] .chat-handoff-words { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+body[data-workspace-study='true'] .chat-handoff-title {
+  font: 500 13px/18px var(--mm-sans); color: var(--mm-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Its state in a word, then what it found or why: two lines at most, whole once opened. */
+body[data-workspace-study='true'] .chat-handoff-sub {
+  font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+body[data-workspace-study='true'] .chat-handoff[data-open] .chat-handoff-sub { display: block; -webkit-line-clamp: unset; }
+body[data-workspace-study='true'] .chat-handoff-status { font-weight: 500; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .chat-handoff-detail::before { content: ' · '; color: var(--mm-text-3); font-weight: 400; }
+body[data-workspace-study='true'] .chat-handoff-detail[hidden] { display: none; }
+body[data-workspace-study='true'] .chat-handoff[data-state='done'] .chat-handoff-status { color: var(--mm-ready); }
+body[data-workspace-study='true'] .chat-handoff[data-state='failed'] .chat-handoff-status { color: var(--mm-attention); }
+body[data-workspace-study='true'] .chat-handoff:is([data-state='done'], [data-state='started'], [data-state='failed']) .chat-handoff-detail { color: var(--mm-text-2); }
+/* Its later step (or the work it came after): one quiet line, the lead in the row's second voice. */
+body[data-workspace-study='true'] .chat-handoff-then {
+  font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); margin-top: 4px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+body[data-workspace-study='true'] .chat-handoff-then[hidden] { display: none; }
+body[data-workspace-study='true'] .chat-handoff[data-open] .chat-handoff-then { display: block; -webkit-line-clamp: unset; }
+body[data-workspace-study='true'] .chat-handoff-then-lead { font-weight: 500; color: var(--mm-text-2); }
+body[data-workspace-study='true'] .chat-handoff-then-words:not(:empty)::before { content: ' '; }
+body[data-workspace-study='true'] .chat-handoff-then[data-state='done'] .chat-handoff-then-lead { color: var(--mm-ready); }
+body[data-workspace-study='true'] .chat-handoff-then[data-state='failed'] .chat-handoff-then-lead { color: var(--mm-attention); }
+body[data-workspace-study='true'] .chat-handoff-chev {
+  width: 14px; height: 14px; margin-top: 2px; fill: none; stroke: var(--mm-text-3); stroke-width: 1.6; stroke-linecap: round;
+  stroke-linejoin: round; transition: transform var(--mm-fast) var(--mm-ease);
+}
+body[data-workspace-study='true'] .chat-handoff[data-open] .chat-handoff-chev { transform: rotate(180deg); }
+
+/* While it works: a soft gold trace along its foot, slow, inside the card. */
+body[data-workspace-study='true'] .chat-handoff[data-state='working']::after {
+  content: ''; position: absolute; left: 0; bottom: 0; width: 32%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--mm-alive), transparent); opacity: 0.8;
+  transform: translateX(-100%); animation: mm-handoff-trace 2.6s var(--mm-ease) infinite;
+}
+@keyframes mm-handoff-trace { to { transform: translateX(320%); } }
+
+/* Opened: what was asked, the whole answer when there is more of it, the steps in Activity's words, and Activity. */
+body[data-workspace-study='true'] .chat-handoff-body { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 10px 36px; }
+body[data-workspace-study='true'] .chat-handoff-body[hidden] { display: none; }
+body[data-workspace-study='true'] .chat-handoff-body > [hidden] { display: none; }
+body[data-workspace-study='true'] .chat-handoff-asked { margin: 0; font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); overflow-wrap: anywhere; }
+body[data-workspace-study='true'] .chat-handoff-answer { font: 400 13px/20px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .chat-handoff-answer > :is(p, ul, ol) { margin: 0 0 6px; }
+body[data-workspace-study='true'] .chat-handoff-answer > :last-child { margin-bottom: 0; }
+body[data-workspace-study='true'] .chat-handoff-steps { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; }
+body[data-workspace-study='true'] .chat-handoff-steps > li {
+  display: grid; grid-template-columns: 6px auto minmax(0, 1fr); column-gap: 8px; align-items: center; margin: 0; padding: 0;
+  font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3);
+}
+body[data-workspace-study='true'] .chat-handoff-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--mm-text-3); }
+body[data-workspace-study='true'] .chat-handoff-steps > li[data-state='done'] .chat-handoff-dot { background: var(--mm-ready); }
+body[data-workspace-study='true'] .chat-handoff-steps > li[data-state='failed'] .chat-handoff-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--mm-attention); }
+body[data-workspace-study='true'] .chat-handoff-steps > li[data-state='running'] .chat-handoff-dot { background: var(--mm-alive); }
+body[data-workspace-study='true'] .chat-handoff-step { font-weight: 500; color: var(--mm-text-2); white-space: nowrap; }
+body[data-workspace-study='true'] .chat-handoff-step-what { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-workspace-study='true'] .chat-handoff-activity {
+  align-self: flex-start; margin: 0; padding: 0; border: 0; background: none; color: var(--mm-accent); font: 500 12px/16px var(--mm-sans); cursor: pointer;
+}
+body[data-workspace-study='true'] .chat-handoff-activity:hover { text-decoration: underline; text-underline-offset: 2px; }
+body[data-workspace-study='true'] .chat-handoff-activity[hidden] { display: none; }
+
+/* A row or researcher card its strip entry was chosen for: marked for a moment where it is. */
+body[data-workspace-study='true'] .chat-log-wrap :is(li.chat-handoff, .chat-rcard)[data-flash] { animation: mm-handoff-flash 1.4s var(--mm-ease) both; }
+@keyframes mm-handoff-flash {
+  0%, 35% { background: var(--mm-accent-soft); box-shadow: inset 0 0 0 1px var(--mm-accent); }
+  100% { background: transparent; }
+}
+
+/* The strip over the composer, only while something runs: "2 working · Reference photo of a stoma · A new Tab". */
+body[data-workspace-study='true'] .chat-flight {
+  flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; height: 30px; box-sizing: border-box;
+  margin: 0 16px 8px; padding: 0 6px 0 12px; border-radius: var(--mm-r-card); background: var(--mm-page);
+  box-shadow: inset 0 0 0 1px var(--mm-line); font: 400 12px/16px var(--mm-sans); color: var(--mm-text-2);
+}
+body[data-workspace-study='true'] .chat-flight[hidden] { display: none; }
+body[data-workspace-study='true'] .chat-flight[data-arrived] { animation: mm-chat-rise var(--mm-base) var(--mm-ease) both; }
+body[data-workspace-study='true'] .chat-flight-count { flex: none; font-weight: 500; color: var(--mm-text); white-space: nowrap; }
+body[data-workspace-study='true'] .chat-flight-list { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; }
+body[data-workspace-study='true'] .chat-flight-item {
+  /* A short entry keeps its words whole; a long one gives way first. */
+  flex: 0 1 auto; min-width: 3em; margin: 0; padding: 3px 5px; border: 0; border-radius: var(--mm-r-control); background: none;
+  color: var(--mm-text-2); font: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  transition: background var(--mm-fast) var(--mm-ease), color var(--mm-fast) var(--mm-ease);
+}
+body[data-workspace-study='true'] .chat-flight-item::before { content: '·'; margin-right: 6px; color: var(--mm-text-3); font-style: normal; }
+body[data-workspace-study='true'] .chat-flight-item:hover { background: var(--mm-hover); color: var(--mm-text); }
+body[data-workspace-study='true'] .chat-flight-item[data-short] { flex-shrink: 0; }
+/* A step waiting on the work before it: quieter, right after that work. */
+body[data-workspace-study='true'] .chat-flight-item[data-waiting] { color: var(--mm-text-3); font-style: italic; }
+body[data-workspace-study='true'] .chat-flight-item:focus-visible { outline: none; box-shadow: var(--mm-focus-ring-inset, inset 0 0 0 2px var(--mm-accent)); }
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-workspace-study='true'] .chat-handoff[data-state='working']::after { animation: none; display: none; }
+  body[data-workspace-study='true'] .chat-log-wrap :is(li.chat-handoff, .chat-rcard)[data-flash] { animation: none; box-shadow: inset 0 0 0 1px var(--mm-accent); }
+  body[data-workspace-study='true'] .chat-handoff-chev { transition: none; }
+  body[data-workspace-study='true'] .chat-flight[data-arrived] { animation: none; }
+}

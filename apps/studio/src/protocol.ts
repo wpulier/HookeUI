@@ -326,6 +326,44 @@ export interface ChatLine {
   labels?: string[];
 }
 
+/** The voice handed a request to Hooke's brain (`do_in_hooke`; services/orchestrator/voice/handoffs.py): one row in the
+ * chat under the voice line that started it (handoffs.ts), filed with its conversation under `lineId`, so a later state
+ * replaces the earlier one. Working until the brain's turn returns (`long` once past the voice's wait: still working),
+ * then done from its answer with no step that failed, or failed with its reason; `settling`: answered while a step still
+ * runs, settled from that step's own receipt (a `chat-action` by occurrence); started: what it did was start a
+ * researcher (its work goes on, on its card); uncertain: a change sent that Hooke could not confirm on screen (it may not
+ * have happened, never "did not work"); unknown: no result was recorded. */
+export interface HandoffLine {
+  type: 'handoff';
+  id: string;
+  lineId?: string;
+  state: 'working' | 'done' | 'started' | 'uncertain' | 'failed' | 'unknown';
+  /** Its title: the voice's few plain words for it ("Reference photo of a stoma"), else the request's own. */
+  label: string;
+  /** The request as handed over, in the user's words. */
+  request?: string;
+  /** When it was handed over and when it ended (epoch seconds, the server's clock). */
+  startedAt: number;
+  endedAt?: number;
+  long?: boolean;
+  settling?: boolean;
+  /** The brain's answer, and why it did not work. */
+  answer?: string;
+  reason?: string;
+  /** The steps the brain took (its ToolRuns: their words, models and time, and identity for a late receipt). */
+  steps?: ToolRun[];
+  /** The brain's turn: its Activity entry. */
+  turnId?: number;
+  /** A step the user asked for after the work this starts (services/orchestrator/voice/followups.py): kept with the
+   * researcher it started (`rid`, `after`: its name) and done by Hooke when that one lands, or right after this. */
+  then?: { words: string; state: 'planned' | 'waiting' | 'running' | 'done' | 'failed' | 'dropped'; after?: string; rid?: string; reason?: string };
+  /** This hand-off is such a step: done after that work finished ("Researcher 2"). */
+  after?: string;
+  at?: number;
+  thread?: string | null;
+  day?: string | null;
+}
+
 /** A tool of an earlier answer finished: that answer's action line updates in place. */
 export type ChatAction = {
   type: 'chat-action'; turnId: number; thread?: string | null; day?: string | null; answer?: string;
@@ -779,6 +817,7 @@ export type ServerMessage =
   | ThreadReplay
   | ChatAction
   | ChatAnswerStatus
+  | HandoffLine // a request the voice handed to Hooke's brain, as it goes (handoffs.ts)
   | AppNotice
   | ActivityEvent // a line of Activity (activity.ts): a request's record, a click, a studio action, a setting, a load
   | { type: 'hint'; text: string; tone?: 'error' | '' } // a passing status line under the view, not a chat post

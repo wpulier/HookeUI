@@ -603,9 +603,23 @@ class Partner:
         status = str(getattr(session, "status", "") or "")
         event = "researcher-done" if status in ("done", "partial") else "researcher-failed"
         rid = str(getattr(session, "rid", "") or "")
+        from .followups import followups_of
+
+        if followups_of(self.hub).has(rid):
+            # A step the user asked for after it is being done now (followups.py): its result is said with that step's
+            # outcome, once; the announcer's own line about it meanwhile is context.
+            self._finished[rid] = ("context", self.clock())
+            return
         self._finished[rid] = (event, self.clock())
+        self._spawn(self.happened(event, self.research_text(session), ref=rid, mark=f"researcher:{rid}"))
+
+    def research_text(self, session) -> str:
+        """A researcher's end as the facts the voice says it from: who, its status, its finding and summary in their own
+        words (from the web: inside the untrusted wrapper, ADR 0002)."""
         from ..untrusted import block
 
+        rid = str(getattr(session, "rid", "") or "")
+        status = str(getattr(session, "status", "") or "")
         result = getattr(session, "result", None) or {}
         facts = {"researcher": getattr(session, "name", rid), "id": rid, "status": status}
         text = json.dumps(facts, ensure_ascii=False)
@@ -618,7 +632,7 @@ class Partner:
             # unavailable (HTTP 404)"), which the one-liner leaves out: the voice says the reason, not only the miss.
             text += "\nIts summary, with what did not work and why:\n" + block(result["summary"], tag="researchers",
                                                                                  source="web", limit=700)
-        self._spawn(self.happened(event, text, ref=rid, mark=f"researcher:{rid}"))
+        return text
 
     # --- reconnecting ------------------------------------------------------------------------------
     async def reconnect(self, why: str) -> None:

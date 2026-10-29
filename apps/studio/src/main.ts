@@ -76,6 +76,8 @@ import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk
 import { CursorPainter, PartnerCursor, Takeover } from './drive';
 import { HeardRing, HeardTone, heardCue, heardHandler, type HeardCue } from './heard';
 import './drive.css';
+import { FlightStrip } from './handoffs';
+import './handoffs.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
 import './mic-card.css';
@@ -208,6 +210,15 @@ const slideMap = new SlideMapPanel((command) => connection.send(command), () => 
 const mapButton = element<HTMLButtonElement>('map');
 mapButton.addEventListener('click', () => slideMap.toggle());
 slideMap.onToggle = (open) => mapButton.setAttribute('aria-pressed', String(open));
+// What is in flight, over the composer (handoffs.ts): the voice's hand-offs to Hooke's brain (the chat's rows) and the
+// researchers at work in this Project, each entry jumping to its row or card (else its Tab); gone when nothing runs.
+const flightStrip = new FlightStrip();
+function flightResearchers(): void {
+  flightStrip.set('researchers', [...research.sessions.values()]
+    .filter((s) => s.purpose === 'research' && isWorking(s) && (!sitting || (s.sitting || s.day) === sitting))
+    .map((s) => ({ key: `researcher:${s.rid}`, name: s.name, since: s.started ?? s.created, doing: researcherCardView(s).sub,
+      go: () => { if (!chat.revealResearcher(s.rid)) openStudyResearch(s.rid); } })));
+}
 // The shelf (the Working strip's researchers: working, or new work not opened yet) and the side bar's Researchers
 // (every researcher of this session). Its count is its cards (researchersCount), never the quick lookups.
 function openStudyResearch(rid: string): void {
@@ -220,6 +231,7 @@ const shelf = new Shelf((rid) => openStudyResearch(rid), (rid) => connection.sen
 shell.strip.openList = (where) => { if(where==='activity'){showActivity(true);return;} if(document.body.dataset.workspaceStudy==='true')window.dispatchEvent(new CustomEvent('workspace-study-section',{detail:'research'}));else sideBar.open('researchers', true); };
 function renderResearchers(): void {
   shelf.update(research.sessions.values(), viewer.state, sitting);
+  flightResearchers();
   // The side bar's Researchers: the cards, compact, drawn while that section shows (and when it is opened).
   if (sideBar.showing('researchers') || document.body.dataset.workspaceStudy==='true') sideResearchers.update(research.sessions.values(), viewer.state, sitting);
   countResearchers();
@@ -1054,6 +1066,7 @@ const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   describe: (ids) => notes.describeObjects(ids),
   hint: (text) => chat.system(text),
   steps: (steps) => { assistantSteps = steps; stepPills.update(steps); },
+  flight: (entries) => flightStrip.set('handoffs', entries),
   voiceLive: () => voice.state === 'live' || voice.state === 'connecting',
   unread: () => {
     if (document.body.dataset.chat === 'hidden') chatUnread.hidden = false;
@@ -1200,6 +1213,7 @@ function handleMessage(message: ServerMessage): void {
     case 'thread': // the active conversation as it was shown: replaces the log
     case 'chat':
     case 'chat-action':
+    case 'handoff': // a request the voice handed to Hooke's brain, as it goes (handoffs.ts)
     case 'app-notice':
     case 'activity': // a line of Activity: a request's record, a click, a studio action, a setting, a model, a researcher
     case 'execution':
@@ -1754,6 +1768,7 @@ void micPermission((navigator as unknown as { permissions?: Parameters<typeof mi
   if (state === 'granted' && micCard.state === 'blocked') { micCard.hide(); renderTalk(); }
 }).then((state) => { micState = state; });
 askForm.before(micCard.root);
+askForm.before(flightStrip.root); // right over the composer
 
 // --- The one-brain voice (PARTNER_VOICE): hold to talk, its window snapshots and its marks (talk.ts, marks.ts). ---
 let voiceSetting = '';

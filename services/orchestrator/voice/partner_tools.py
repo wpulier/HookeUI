@@ -25,6 +25,8 @@ from typing import Any
 
 from .base import ToolSpec
 from . import knowing
+from .followups import Followup, facts as followup_facts, followups_of
+from .handoffs import Handoffs, started_researcher, title
 from .hands import Hands, Intent, intent_of
 from .records import Records
 
@@ -61,6 +63,14 @@ DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Proj
                "one, tell one something, how they are doing, cancel one), Projects. Hooke's brain sees the view, knows "
                "what the user clicked and what \"that\" is, does it with its own tools, checks it on screen and returns "
                "its answer and what it did; say the outcome from that answer, a failure with its reason.")
+# The hand-off's title on Hooke's screen: its row in the chat and its entry in the "in progress" strip (handoffs.py).
+HANDOFF_LABEL = ("a short title for this request on Hooke's screen, 2 to 6 plain words the user would use, never a tool "
+                 "name (\"Reference photo of a stoma\", \"A new Tab\", \"Stop the highlight\")")
+# A step the user asked for after the work a request starts (voice/followups.py): Hooke keeps it and does it then.
+HANDOFF_THEN = ("only when the user asked for a step to be done after the work this request starts has finished (\"make "
+                "a small graphic, then put it in the Stoma Reference tab\"): that later step, in their words (\"put "
+                "the picture in the Stoma Reference tab\"). Hooke keeps it with that work and does it when the work "
+                "lands; its result says whether it was kept. Leave it out otherwise.")
 TURN_CHOICE_S = 20.0  # a voice `use` holds its choice for the later steps of its turn this long
 APPROVED = {"approved": {"type": "string", "description": (
     "Only after Hands asked permission for this (its result had result \"permission\") and the user said yes: that "
@@ -85,6 +95,10 @@ def changes_screen(name: str, args: dict | None = None) -> bool:
 # researcher; live 2026-10-28: two researchers from one request).
 ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "switch_session", "cancel_researcher"})
 TOOL_WAIT_S = 12.0  # a tool still running after this is answered "still working"; its outcome follows as one line
+# What the voice is told of a hand-off still running past TOOL_WAIT_S: the chat shows it (its row, the strip), so the wait
+# is never narrated.
+STILL_HANDED_OFF = ("still running in Hooke; its row in the chat shows it working, and its outcome is told to you when it "
+                    "lands. Do not say it is done, and do not say again that it is under way.")
 # Slow tools the voice starts and goes on from, as it does think: "started" at once (one short acknowledgement), a
 # progress line while they run, their result said once when it lands, with a mark on what they showed (think-broad-2:
 # a reference photo took ~20 s, a web lookup timed out at 12 s; both were narrated as waits and landed in later steps).
@@ -168,6 +182,10 @@ class PartnerTools:
         self._chosen: dict[int, tuple[dict, dict]] = {}  # turn -> a voice `use`'s choices, for its turn's later steps
         self._steps: dict[str, int] = {}  # think task -> its calls so far (a call's step when the backend names none)
         self.backend = None  # think's backend factory (option -> backend); tests pass a fake
+        # do_in_hooke's hand-offs as the chat shows them (voice/handoffs.py): one row each, working until the brain
+        # answers, then its outcome; the studio lists those in flight above the composer.
+        self.handoffs = Handoffs(dialogue, self._send_studio, spawn=lambda coro: self.partner.spawn(coro),
+                                 log=lambda record: self.partner.log(record))
 
     def running_facts(self) -> str:
         """What is still running, for a progress line that says something: the tool, how long so far, its own words
@@ -214,8 +232,10 @@ class PartnerTools:
             specs.append(ToolSpec("do_in_hooke", DO_IN_HOOKE, {"type": "object", "properties": {
                 "request": {"type": "string", "description": (
                     "the user's request in their own words, whole, as they said it (\"use a segmentation model on the "
-                    "center thing\"); not split, rephrased into steps or into tool names")}},
-                "required": ["request"]}, self.do_in_hooke))
+                    "center thing\"); not split, rephrased into steps or into tool names")},
+                "label": {"type": "string", "maxLength": 60, "description": HANDOFF_LABEL},
+                "then": {"type": "string", "description": HANDOFF_THEN}},
+                "required": ["request", "label"]}, self.do_in_hooke))
             return specs
         specs.append(ToolSpec("think", "Hand a hard question, a request with several steps, a comparison of models or a "
                               "close look to Hooke's frontier mind, which sees this turn's pictures, uses Hooke's tools, "
@@ -830,13 +850,16 @@ class PartnerTools:
                 "the mark.")
         return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {}), "note": note}
 
-    async def _bounded(self, name: str, work, call_id: str | None) -> dict:
-        """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working", and what
-        it found is said as one line when it lands (a long tool done)."""
+    async def _bounded(self, name: str, work, call_id: str | None, *, still=None, note: str | None = None) -> dict:
+        """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working" (`still`
+        is told so), and what it found is said as one line when it lands (a long tool done)."""
         task = asyncio.ensure_future(work)
         done, _ = await asyncio.wait({task}, timeout=TOOL_WAIT_S)
         if task in done:
             return task.result()
+        if still is not None:
+            with contextlib.suppress(Exception):
+                still()
 
         def landed(t: asyncio.Task) -> None:
             if t.cancelled():
@@ -850,7 +873,7 @@ class PartnerTools:
                                                         ref=call_id or name))
         task.add_done_callback(landed)
         return {"ok": None, "still_working": True,
-                "note": "still running; its outcome is told to you when it lands. Do not say it is done."}
+                "note": note or "still running; its outcome is told to you when it lands. Do not say it is done."}
 
     async def look_hard(self, args: dict) -> dict:
         return await self._bounded("look_hard", self._look_hard(args), args.get("_call_id"))
@@ -884,28 +907,54 @@ class PartnerTools:
         return {"ok": True, "answer": str(answer or result.raw_text or "")[:1500], "model": result.model}
 
     async def do_in_hooke(self, args: dict) -> dict:
-        return await self._bounded("do_in_hooke", self._do_in_hooke(args), args.get("_call_id"))
+        """A hand-off to Hooke's brain, shown as it goes (handoffs.py): its row appears working at once, and settles into
+        the brain's outcome when its turn returns, however long that takes; the voice is answered within TOOL_WAIT_S."""
+        text = str(args.get("request") or "").strip()
+        if not text:
+            return {"ok": False, "error": "no request"}
+        asked = None
+        with contextlib.suppress(Exception):
+            asked = self.brain.conversation.here()
+        flight = self.handoffs.start(text, str(args.get("label") or ""), asked, then=str(args.get("then") or ""))
+        task = asyncio.ensure_future(self._do_in_hooke(args, flight=flight, asked_in=asked))
 
-    async def _do_in_hooke(self, args: dict) -> dict:
+        def ended(t: asyncio.Task) -> None:  # whatever ended it, its row says how (answered within: already said)
+            if t.cancelled():
+                self.handoffs.lost(flight)
+            elif t.exception() is not None:
+                self.handoffs.broke(flight, t.exception())
+        task.add_done_callback(ended)
+        return await self._bounded("do_in_hooke", task, args.get("_call_id"), still=lambda: self.handoffs.still(flight),
+                                   note=STILL_HANDED_OFF)
+
+    async def _do_in_hooke(self, args: dict, *, flight=None, asked_in=None, said: str | None = None,
+                           look: bool = True) -> dict:
         """A many-step request handed to the brain whole, in the user's words; what it really did comes back (its
-        failures said as failures), with a fresh look when it changed the screen."""
+        failures said as failures), with a fresh look when it changed the screen. `flight`: its row in the chat, settled
+        as soon as the brain answers (the fresh look is the voice's, after); `asked_in`: the conversation it was asked
+        in, taken as it was handed off. `said`: a step Hooke does on its own later (followups.py), in the user's words:
+        no turn of the voice's to read them from, and no fresh look for the voice."""
         text = str(args.get("request") or "").strip()
         if not text:
             return {"ok": False, "error": "no request"}
         from ..ticket import issue
 
         brain, hub = self.brain, self.hub
-        n = self.partner.turn()
-        # The user's words as they said them (the turn's transcript), so the conversation keeps one copy of them
-        # (Conversation.add_once), and what they were pointing at when they pressed talk ("that": board.WhenAsked).
-        words = await self.partner.words(n, 0)  # never waited for: the voice's request goes alone if they are not in
+        if said is None:
+            n = self.partner.turn()
+            # The user's words as they said them (the turn's transcript), so the conversation keeps one copy of them
+            # (Conversation.add_once), and what they were pointing at when they pressed talk ("that": board.WhenAsked).
+            words = await self.partner.words(n, 0)  # never waited for: the voice's request goes alone if they are not in
+        else:
+            n, words = None, said
         kwargs: dict[str, Any] = {"voice_owner": self.partner.session, "said": words or text}
         with contextlib.suppress(Exception):
-            asked_at = self.partner.when_asked(n)
+            asked_at = self.partner.when_asked(n) if n is not None else None
             if asked_at is not None:
                 kwargs["when_asked"] = asked_at
         if self.client is not None:
-            request = issue(hub, "turn", asked=brain.conversation.here(), channel="voice")
+            request = issue(hub, "turn", asked=asked_in if asked_in is not None else brain.conversation.here(),
+                            channel="voice")
             try:
                 pin = hub.screen.pin(self.client, request_id=request.admission.request_id, timing="server-handoff-arrival")
                 kwargs.update(client=self.client, request_snapshot=pin, request_ticket=request, asked=request.asked)
@@ -913,8 +962,13 @@ class PartnerTools:
                 request.seal()
         before = self._reported_at()
         # Hooke's brain is asked in the user's own words; the voice's reading of them goes with it as context.
-        asked = text if not words or words.strip().lower() == text.lower() else (
+        asked = text if said is not None or not words or words.strip().lower() == text.lower() else (
             f"{words.strip()}\n(The voice partner, who sees the same view, took this to mean: {text})")
+        later = (flight.then or {}).get("words") if flight is not None else ""
+        if later:  # the later step is Hooke's to keep (followups.py): the brain does the first part only
+            asked += (f"\n(The user also asked for a later step, for after the work this starts has finished: "
+                      f"\"{later}\". Hooke keeps that step with that work and does it when the work lands: do only the "
+                      "first part now, and neither do the later step nor promise it yourself.)")
         result = await brain.turn(asked, "voice", **kwargs)
         actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
                    for a in (result.get("actions") or [])][:8]
@@ -927,11 +981,120 @@ class PartnerTools:
             out["failed"] = failed
         if result.get("error"):
             out["ok"], out["error"] = False, str(result["error"])[:300]
+        if flight is not None:  # its row settles from the brain's own answer, now
+            self.handoffs.answered(flight, result, out)
+        if later:
+            out["then"] = self._keep_then(flight, result, out, words or text)
         changed = [a["tool"] for a in actions if a["ok"] and a["tool"] in SCREEN_CHANGING]
-        if changed:  # act, then look: whether it shows is read from the screen, not from the brain's own answer
+        if changed and look:  # act, then look: whether it shows is read from the screen, not from the brain's own answer
             look, facts = await self.look_after(changed[-1], before)
             out["_look"], out["_log"] = look, facts
         return out
+
+    # --- a step for after the work a hand-off started (voice/followups.py) -------------------------------------
+    def _research(self):
+        return getattr(getattr(self.brain, "services", None), "research", None)
+
+    def _keep_then(self, flight, result: dict, out: dict, request: str) -> dict:
+        """The later step kept with the researcher the hand-off started, or done now when it started none and is done;
+        otherwise kept by nothing, and the voice is told not to promise it."""
+        words = str((flight.then or {}).get("words") or "")
+        rid = started_researcher(result)
+        if rid:
+            research = self._research()
+            found = research.get(rid) if research is not None and hasattr(research, "get") else None
+            name = str(getattr(found, "name", "") or "the researcher")
+            kept = followups_of(self.hub, research).keep(Followup(words, request, rid, name, self, flight,
+                                                                  asked=flight.asked))
+            self.then_changed(kept)
+            return {"kept_with": name, "note": (f"Hooke does this when {name} finishes, and its outcome is told to you "
+                                                f"with {name}'s result. You may say so, once.")}
+        if out.get("ok") is True and flight.state != "uncertain":
+            now = Followup(words, request, "", flight.label, self, flight, asked=flight.asked, state="running")
+            self.then_changed(now)
+            self.partner.spawn(self._then_now(now))
+            return {"running_now": True, "note": "Hooke is doing it now that the first part is done; its outcome is "
+                                                 "told to you when it lands. Do not say it is done."}
+        why = ("the first part could not be confirmed on screen" if flight.state == "uncertain" else
+               "the first part did not work" if out.get("ok") is False else
+               "the first part is still running and nothing waits on it to finish")
+        flight.then = {**(flight.then or {}), "state": "dropped", "reason": f"Not done: {why}"}
+        self.handoffs.refile(flight)
+        return {"not_kept": why, "note": "Nothing will do this later step: do not promise it. Say once that it was not "
+                                         "done, and why; offer to do it when the user asks."}
+
+    def then_changed(self, followup) -> None:
+        """The hand-off that kept a step shows the step's state on its row."""
+        parent = followup.parent
+        if parent is None:
+            return
+        parent.then = {"words": followup.words, "state": followup.state,
+                       **({"after": followup.after} if followup.rid else {}),
+                       **({"rid": followup.rid} if followup.rid else {}),
+                       **({"reason": followup.reason} if followup.reason else {})}
+        self.handoffs.refile(parent)
+
+    async def follow_up(self, followup, session=None) -> dict:
+        """The kept step, handed to Hooke's brain now that its work has landed: a hand-off of its own, in the user's
+        words, with its row in the chat after that work's."""
+        after = followup.after if followup.rid else "the first part"
+        status = str(getattr(session, "status", "") or "")
+        text = (f"{followup.words}\n(This is the step the user asked for after {after} finished, when they said: "
+                f"\"{followup.request}\". {after} has finished now"
+                + (f" ({status}); its work is in Hooke, in its Tab" if followup.rid else "")
+                + ". Do this step now.)")
+        flight = self.handoffs.start(followup.words, title(followup.words[:1].upper() + followup.words[1:], 60),
+                                     followup.asked, after=after if followup.rid else "")
+        task = asyncio.ensure_future(self._do_in_hooke({"request": text}, flight=flight, asked_in=followup.asked,
+                                                       said=followup.words, look=False))
+
+        def ended(t: asyncio.Task) -> None:
+            if t.cancelled():
+                self.handoffs.lost(flight)
+            elif t.exception() is not None:
+                self.handoffs.broke(flight, t.exception())
+        task.add_done_callback(ended)
+        out = await task
+        followup.state = "done" if out.get("ok") is True else ("running" if out.get("ok") is None else "failed")
+        followup.reason = flight.reason
+        self.then_changed(followup)
+        return out
+
+    async def _then_now(self, followup) -> None:
+        """A step for after a hand-off that started no researcher: done as soon as that hand-off is, said once."""
+        try:
+            out = await self.follow_up(followup)
+            found = {"asked": followup.words, "status": "done" if out.get("ok") else
+                     ("still working" if out.get("ok") is None else "did not work"),
+                     **({"answer": out["answer"]} if out.get("answer") else {}),
+                     **({"failed": out["failed"]} if out.get("failed") else {})}
+        except Exception as exc:  # said as not done; the error is in the log
+            self.partner.log({"kind": "partner-followup-failed", "error": f"{type(exc).__name__}: {exc}"[:300]})
+            followup.state, followup.reason = "failed", "something went wrong in Hooke while it worked"
+            self.then_changed(followup)
+            found = {"asked": followup.words, "status": "did not work", "why": followup.reason}
+        await self.partner.happened("tool-done", json.dumps({"tool": "the step the user asked for next", **found},
+                                                            ensure_ascii=False), ref=f"then:{id(followup)}")
+
+    async def say_landed(self, session, outcomes: list[dict]) -> None:
+        """A researcher's result with the outcome of the step that waited on it, said together and once: by this Talk
+        session, else the one now on, else owed on the brain's bus for the next."""
+        from .events import bus_of
+
+        rid = str(getattr(session, "rid", "") or "")
+        status = str(getattr(session, "status", "") or "")
+        event = "researcher-done" if status in ("done", "partial") else "researcher-failed"
+        text = self.partner.research_text(session) + followup_facts(outcomes)
+        mark = f"researcher:{rid}"
+        live = self.partner.session
+        if live is not None and not live.closed:
+            await self.partner.happened(event, text, ref=rid, mark=mark)
+            return
+        voice = getattr(self.brain, "voice", None)
+        if voice is not None and not getattr(voice, "closed", True) and hasattr(voice, "proactive"):
+            await voice.proactive(text, event=event, ref=rid, mark=mark)
+            return
+        bus_of(self.brain).publish(event, text, ref=rid, mark=mark)
 
     # --- think: the frontier mind behind the voice, as jobs (voice/think.py, voice/jobs.py) ----------------------
     async def think(self, args: dict) -> dict:
