@@ -4,24 +4,24 @@ import type {WorkspaceView} from './workspace-views-model';
 import {openStudyDataTable} from './datatable-presentation';
 import './workspace-compare.css';
 
-export interface CompareSelection {resource:StudyResourceReference;title:string;implementation:string;capture:number}
+export interface CompareSelection {resource:StudyResourceReference;title:string;implementation:string;inputKey:string}
 export interface CompareState {session:string;tab:string;revision:number;view:WorkspaceView}
 export interface WorkspaceCompareDeps {
  owner():DataTableOwner;current(owner:DataTableOwner):boolean;state():CompareState|null;
  create(selections:CompareSelection[],owner:DataTableOwner):Promise<void>;
  setSync(sync:boolean,owner:DataTableOwner):Promise<void>;
 }
-interface Candidate {id:string;day:string;kind:string;version:number;title:string;state?:string;madeBy?:{implementation?:string};source?:{frame?:number;seq?:number;boot?:string}}
+interface Candidate {id:string;day:string;kind:string;version:number;title:string;state?:string;madeBy?:{implementation?:string};source?:{comparisonInput?:string|null;frame?:number;seq?:number;boot?:string}}
 let dependencies:WorkspaceCompareDeps|null=null,dispose:()=>void=()=>{};
 const button=(title:string,action:()=>void)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.onclick=action;return b;};
 const words=(error:unknown)=>error instanceof Error?error.message:String(error);
 export function comparisonCandidates(entries:Candidate[],saved:StudyRetainedView):CompareSelection[]{
  const origin=entries.find(e=>e.id===saved.resource.id&&e.day===saved.resource.day&&e.version===saved.resource.version);
- if(!origin||origin.kind!=='population'||origin.state==='unavailable'||!origin.madeBy?.implementation||!origin.source?.frame)throw new Error('This retained population revision is unavailable. Reopen it from Data.');
- const capture=origin.source.frame;
+ if(!origin||origin.kind!=='population'||origin.state==='unavailable'||!origin.madeBy?.implementation||!origin.source?.comparisonInput)throw new Error('This retained population revision is unavailable. Reopen it from Data.');
+ const inputKey=origin.source.comparisonInput;
  return entries.filter(e=>e.kind==='population'&&e.day===origin.day&&e.state!=='unavailable'&&Number.isSafeInteger(e.version)&&e.version>=0&&
-  e.source?.frame===capture&&e.source?.boot===origin.source?.boot&&e.source?.seq===origin.source?.seq&&typeof e.madeBy?.implementation==='string'&&!!e.madeBy.implementation)
-  .map(e=>({resource:{day:e.day,id:e.id,version:e.version,picture:null},title:e.title,implementation:e.madeBy!.implementation!,capture}));
+  e.source?.comparisonInput===inputKey&&typeof e.madeBy?.implementation==='string'&&!!e.madeBy.implementation)
+  .map(e=>({resource:{day:e.day,id:e.id,version:e.version,picture:null},title:e.title,implementation:e.madeBy!.implementation!,inputKey}));
 }
 /** Ordinary retained-result selection; no algorithm runs and no current/live frame is substituted. */
 export async function chooseComparison(saved:StudyRetainedView):Promise<void>{
