@@ -476,16 +476,15 @@ class Partner:
         return {"event": event, "ref": rid, "mark": mark, "before": before}
 
     def _research_done(self, session) -> None:
-        """A researcher finished or failed. One asked for by voice is said by the app's own announcer, through the
-        narrator (tagged here so it points at the card); any other is said here, once."""
+        """A researcher finished or failed: said here at once, once, pointing at its card (the announcer's own line,
+        which comes seconds later after it has opened the work beside the view, is the same event: told to the voice
+        as context, never said again; the bench: 7.4 s from finished to spoken when the announcer's line was waited for)."""
         if getattr(session, "purpose", "research") != "research":
             return
         status = str(getattr(session, "status", "") or "")
         event = "researcher-done" if status in ("done", "partial") else "researcher-failed"
         rid = str(getattr(session, "rid", "") or "")
         self._research_seen = (rid, event, self.clock())
-        if (getattr(session, "origin", None) or {}).get("channel") == "voice":
-            return
         from ..untrusted import block
 
         result = getattr(session, "result", None) or {}
@@ -495,7 +494,6 @@ class Partner:
             # The researcher's own words come from the web: information, inside the untrusted wrapper (ADR 0002).
             text += "\nIts finding, in its own words:\n" + block(result["one_liner"], tag="researchers", source="web",
                                                                 limit=600)
-        self._research_seen = None
         self._spawn(self.happened(event, text, ref=rid, mark=f"researcher:{rid}"))
 
     # --- reconnecting ------------------------------------------------------------------------------

@@ -263,6 +263,7 @@ class RealtimeSession(VoiceSession):
         self.notes: list[str] = []  # each turn's short text note of what was seen
         self._waiting: list[Waiting] = []
         self._said_events: dict[tuple, float] = {}
+        self._said_texts: dict[tuple, str] = {}
         self._progress_said: set[str] = set()
         self._epoch = 0  # which call this is: each new call is the next
         self._connected = asyncio.Event()  # a sideband is open
@@ -800,7 +801,14 @@ class RealtimeSession(VoiceSession):
         if now - self._said_events.get(key, -1e9) < SAME_EVENT_S:
             self._log({"kind": "partner-proactive", "event": event, "ref": ref, "eventT": self.wall(),
                        "userBusy": self.user_busy(), "skipped": "duplicate"})
+            if self._said_texts.get(key) != text and self._sb is not None:
+                # The same event, told again with more facts (the announcer's line after the partner's own): known to
+                # the voice, never said twice.
+                self._said_texts[key] = text
+                with contextlib.suppress(Exception):
+                    await self.add(text_item("system", "More about what was just said (context only):\n" + text))
             return
+        self._said_texts[key] = text
         self._said_events[key] = now
         self._waiting.append(Waiting(text, event, ref, now, before, mark, self.wall()))
         self._deliver()

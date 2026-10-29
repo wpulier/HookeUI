@@ -593,22 +593,27 @@ def test_a_line_nobody_asked_for_waits_for_quiet_and_is_said_once(monkeypatch):
     asyncio.run(go())
 
 
-def test_a_researcher_the_announcer_speaks_is_tagged_with_its_card_not_said_twice(monkeypatch):
+def test_a_researcher_is_said_when_it_finishes_and_the_announcers_line_is_only_context(monkeypatch):
+    """The bench: 7.4 s from a researcher finishing to the voice saying it, waiting for the announcer's line (it opens
+    the work beside the view first). Now it is said at once, pointing at its card, and the announcer's line about the
+    same researcher is told as context, not said twice."""
     async def go():
         t = await partner_session(monkeypatch)
+        t.session._last_user_at = 0.0
         researcher = SimpleNamespace(purpose="research", status="done", rid="R3", name="Researcher 3",
                                      origin={"channel": "voice"}, result={"one_liner": "two size groups"})
         t.partner._research_done(researcher)
-        await settle()
-        assert t.sb.responses == 0, "a researcher asked for by voice is said by the announcer's line"
-        t.session._last_user_at = 0.0
-        await t.session.inject('Requested notification: {"event": "completed", "facts": {"researchId": "R3"}}',
-                               respond=True)
         await until_async(lambda: t.sb.responses == 1)
         said = next(r for r in t.logged if r["kind"] == "partner-proactive")
         assert said["event"] == "researcher-done" and said["ref"] == "R3" and said["markTarget"] == "researcher:R3"
-        # One asked for by chat is said here, once.
         await done(t.sb, "resp_1")
+        await t.session.inject('Requested notification: {"event": "completed", "facts": {"researchId": "R3", '
+                               '"presentation": "shown beside the view"}}', respond=True)
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 1, "said once"
+        assert any("shown beside the view" in c["text"] for i in t.sb.items() if i.get("role") == "system"
+                   for c in i["content"]), "its facts still reach the voice"
+        # One asked for by chat is said too, once.
         typed = SimpleNamespace(purpose="research", status="failed", rid="R4", name="Researcher 4", origin={"channel": "chat"},
                                 result=None)
         t.partner._research_done(typed)
