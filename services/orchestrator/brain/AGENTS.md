@@ -90,6 +90,13 @@ other files.
   researcher's result and the step's outcome once, together (`Partner._research_done` defers to it); a researcher that
   did not finish leaves it undone, and that is said. With no researcher started it runs right after the first part;
   otherwise the voice is told nothing keeps it (`not_kept`), so it is never promised. Kept in memory only.
+- **The voice's state on screen** (`voice/presence.py`; W3): the one brain's session says its own phase
+  (`RealtimeSession.phase`: listening, heard, thinking from the released turn to its first words and while a tool of its
+  own runs, speaking, quiet) and `VoicePresence` adds Hooke's work in flight (this session's open hand-offs, the hub's
+  think jobs, a hand-off kept as a job under its row's key), sending the studio `{type:"voice-state", state, n, working,
+  seq, at, turn}` at each change: into a state at once, out of an active one after SETTLE_S, read again every TICK_S.
+  A hand-off's wait is Hooke working, never the voice thinking. Each change is logged (`partner-state`) for the journeys'
+  Alive line; tests/test_voice_presence.py.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

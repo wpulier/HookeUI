@@ -3,14 +3,17 @@ question, recorded experiment/input/report counts and Open Study. Counts are his
 not running-status or scientific acceptance. Existing Data and Inputs remain the ways
 to inspect material or choose a camera. Opening starts nothing. Project switches clear
 old summaries immediately; late reads and stale buttons cannot act on another Project.
-The Assistant retains its same connected-agent entry and current-Project setup prompt.
+The Assistant retains its same connected-agent entry and current-Project setup prompt, now in its header's ⋯ ("Connect your own agent…").
 Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
 Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
 at the captured Project/document revision. Markup is literal text; previewing neither
 runs a reader nor qualifies scientific interpretation. Failed pages preserve the
 previous text and retry the same range. The original-byte download remains available.
 
-The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
+The Assistant offers a compact connected-agent entry inside each Project, including the local-only example: the
+header's ⋯ item "Connect your own agent…" opens it as a small popover (`AgentConnections.openEntry`; it was a card always
+in the chat column, moved out on Will's ask, W3), and a small green dot before that ⋯ shows while an agent is connected,
+naming it in its tooltip (`mountDot`).
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
 Settings owns connection and Project grants. Copy setup prompt uses the channel's returned playbook,
 adds the current Project locator at click time and sends nothing. Clipboard failure shows selectable text;
@@ -1060,6 +1063,22 @@ everything above. It talks over WebRTC only, whatever the saved Voice link. Its 
   ends with a plain message and a Talk again button (`.voice-session-retry`).
 - **The voice's speaking** goes to the server as it changes: `{type:"voice-phase",phase:"speaking"|"listening",at}`,
   the studio's own measure of the output (its sideband may not hear the output buffer).
+- **Alive and available** (`voice-presence.ts`, `voice-mark.ts`, `voice-presence.css`; W3, the live-partner spec 4.8
+  horizontal 2; Will, 29 Oct: "it just paused. No indication anywhere the LIVE model was thinking or working"). The
+  voice's state is the server's `voice-state` (`services/orchestrator/voice/presence.py`: listening, heard, thinking,
+  speaking, working with its hand-offs and jobs, idle, off), as chat's `thinking` is; only the user's own key held is
+  shown here first. Hooke's work in flight is counted from one list, the strip over the composer (`FlightStrip`: the
+  hand-off rows, this Project's researchers at work, and the server's own list deduplicated by key, `flightEntries`), so
+  "Working · 2" is what that strip and the Working strip list. It shows beside Talk (the state mark and the status line:
+  "Thinking", "Speaking · 1 working", "Hooke is working · 2", else how to talk), in the Assistant header by its title (a
+  chip: "Thinking", "Working · 2", "Live"), and, while Talk is on and the Assistant is closed, as the presence pill first
+  in the Working strip ("Hooke · thinking"; no ×; a click opens the Assistant). The mark is the accent dot with the heard
+  cue's halo (listening, heard, a ring leaving it while thinking, breathing while speaking), the gold lit cell while Hooke
+  works, a still dot while live. Talk's level dot turns gold while Hooke works. A voice that sends no state (GPT-Live) is
+  shown from its own events (processing, speaking, a tool call to its result), never a timer: the 20 s `data-working`
+  timer is gone. `document.body` carries `data-voice-state` and `data-voice-working` (what is shown, for the journeys'
+  Alive line). A voice session's Activity line (`voice/diagnostics.py`) stays in Activity and is never a loading pill
+  (`isVoiceSession`). `voice-presence.fixture.html?state=thinking|speaking|working|closed|connect` shows them (fixture only).
 - **Talk never holds the user back** (`session-view.ts` `switchBlock`; Will, 2026-10-29: HeyClicky never blocks the
   user). With either voice on, the user may switch Projects and change the input, and so may the voice.
   - What still holds a switch back: no connection, a document that must be saved first, a recording.
@@ -1742,7 +1761,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   ("After Researcher 2"). The slim strip right over the composer (`FlightStrip`) shows only while something runs: "2
   working · Reference photo of a stoma · A new Tab", with this Project's researchers at work and a waiting later step
   after its researcher ("then: …", quieter, not counted); each entry scrolls to its row or card and marks it. States
-  are the server's (ADR 0006). `chat.fixture.html?state=handoffs|handoffs-landed` shows them.
+  are the server's (ADR 0006). `chat.fixture.html?state=handoffs|handoffs-landed` shows them. The Working strip under the
+  Stage has a pill for each hand-off and think job in flight too (`flightPills`, from the same list; researchers keep the
+  shelf's), and a voice hand-off's `thinking` (channel "voice") is its row's, never the typed slot's.
   **Scrolling that respects reading** (`chat-scroll.ts` `ChatFollow`): your own send follows (`sent()` from `ask`, and
   your words arriving); while following, the end stays in view as lines are drawn and, through the injected
   ResizeObserver, as they grow. A reader who scrolled up stays put: the log has `overflow-anchor: none` and keeps the

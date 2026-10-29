@@ -695,6 +695,12 @@ id and the brain guesses the words (`brain/speech.py`), this voice has no hops t
   it again. The same session object goes on (researchers' delivery and the narrator still reach it).
 - **Speaking:** the sideband's `output_audio_buffer.started` / `stopped` / `cleared` (checked over a real WebRTC call,
   below), and the studio's own `{type:"voice-phase", phase:"speaking"|"listening"}`, set whether the voice is audible.
+- **Its state, shown** (`voice/presence.py`, the studio's `voice-presence.ts`; W3 "alive and available"): server to
+  studio `{type:"voice-state", state, n, working:[{key,label,since}], seq, at, turn}` at each change: listening (key
+  held), heard (released and taken), thinking (from the release to its first words, and while a tool of its own runs or
+  a round's next response is asked), speaking, working (only Hooke's own work in flight: its hand-offs and jobs, keyed
+  as the studio's in-progress strip keys them), idle, off. A wait never shows blank: every moment between release and
+  words, or while anything Hooke does is in flight, has a state.
 - **Usage:** each `response.done`'s usage (text, audio and image tokens in; text and audio out) is recorded at list
   price (`budget.PRICES["gpt-realtime-2.1"]`; cached input at the full price, so it can only over-count); its
   open time writes no charge, and its minutes ahead under a monthly cap are held at an estimated $0.30 a minute.
