@@ -386,3 +386,8 @@ body[data-workspace-study='true'] .study-retained-conversation .study-ask-status
   body[data-workspace-study='true'] .study-retained-conversation .study-discussion-title > span { display:none; }
   body[data-workspace-study='true'] .study-retained-conversation .study-recipient-label { display:none; }
 }
+/* The narrow Study grid places the shared conversation footer explicitly, just like rcomp. */
+@container rpage (max-width: 859px) {
+  body[data-workspace-study='true'] .study-retained-conversation { grid-area:3 / 1; max-height:48dvh; }
+  body[data-workspace-study='true'] .rpage[data-one='art'] .study-retained-conversation { display:none; }
+}
