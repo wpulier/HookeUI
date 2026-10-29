@@ -119,3 +119,16 @@ its host writer lease and unchanged location. A moved Project can read historica
 numeric results without the evaluator that produced them. Legacy storage remains
 compatible. This adapter does not enable new-folder creation in the live App or
 claim that shared recordings and all other research dependencies are collected.
+
+## Microscopy evidence routing checkpoint
+
+With location routing enabled, each population save retains an immutable folder,
+origin-qualified relative reference and manifest digest in the existing journal.
+Earlier saves survive corrections, links and relocation. Readers require the same
+origin and accepted manifest; publication requires the host writer lease and
+unchanged destination. Legacy absolute evidence is not silently converted.
+
+This adapter does not collect original Library assets, tracks or shared Record
+captures. It remains below live App activation and does not certify complete
+microscopy Project portability. Isolated synthetic-image tests qualify retention
+and failure behavior; actual mixed-domain collection remains a separate gate.

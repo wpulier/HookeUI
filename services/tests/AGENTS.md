@@ -634,3 +634,9 @@ annotation/precision/resource refusals. `test_count_effect_conversion.py` uses a
 pseudocount inversion, normalization subsets, explicit negative projection and legacy interpretation. The optional
 prepared-runtime retention probe runs the actual confined concatenation operation with synthetic count inputs;
 none establishes full-shape packaging, generator distribution quality or competition performance.
+
+`test_project_evidence_routing.py` uses real journals and synthetic image/mask bytes.
+It checks immutable population saves through correction/link, relocation, inactive
+Project reading, origin/digest refusal, closed/replaced storage, second-host writer
+exclusion and failed directory syncing. It does not qualify a real segmentation
+model, Library collection or complete live Project portability.

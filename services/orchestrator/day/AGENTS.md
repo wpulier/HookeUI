@@ -310,3 +310,11 @@ healthy Projects can still be found and read. It is excluded from last-used resu
 Global legacy result-ID allocation refuses while any registered journal is unavailable,
 because treating its IDs as zero could reuse IDs in shared day storage. A failed
 post-lock ownership check releases the lease without caching trusted ownership.
+
+Opt-in portable microscopy populations keep every accepted save in an immutable
+folder under their owning Project. Their journal path is origin-qualified and
+relative, with the accepted manifest digest; reopening resolves that same origin
+through the host location registry. Corrections and same-revision links create new
+saved folders, preserving earlier accepted bytes. Legacy absolute references keep
+their prior layout; a portable Project cannot silently adopt them. Background writes
+require the captured owner and its writer lease, never the active workspace.
