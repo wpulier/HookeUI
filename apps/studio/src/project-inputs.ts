@@ -15,7 +15,7 @@ export function projectInputs(entries: readonly DataEntry[], query = ''): DataEn
     }
   }
   return [...selected.values()].filter(entry => !needle ||
-    [entry.title, entry.summary, entry.material?.kind, entry.material?.format].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle));
+    [entry.title, entry.summary, entry.material?.kind, entry.material?.format, entry.material?.organization?.role].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle));
 }
 
 export function materialKind(kind: ProjectMaterial['kind']): string {
@@ -27,7 +27,7 @@ export function materialFacts(entry: DataEntry): string {
   if (!material) return '';
   const size = material.bytes === undefined ? '' : material.bytes < 1024 ? `${material.bytes} B` :
     material.bytes < 1024 ** 2 ? `${(material.bytes / 1024).toFixed(1)} KB` : `${(material.bytes / 1024 ** 2).toFixed(1)} MB`;
-  return [materialKind(material.kind),
+  return [material.organization?.role, materialKind(material.kind),
     material.format, material.shape?.join(' × '), size, `Revision ${entry.version ?? 1}`].filter(Boolean).join(' · ');
 }
 

@@ -70,9 +70,9 @@ def guard(previous, document):
     if type(state) is not dict:
         return
     before = {} if previous is None else previous.document['state']
-    reserved = ('scientific-workflow-run', 'scientific-workflow-attempt', 'scientific-workflow-late-result', 'workflow-invocation')
+    reserved = ('scientific-workflow-run', 'scientific-workflow-attempt', 'scientific-workflow-late-result', 'workflow-invocation', 'project-material-membership')
     if document.get('kind') in reserved or previous is not None and previous.document.get('kind') in reserved:
-        raise InvalidProject('Workflow execution records are written only by the workflow service')
+        raise InvalidProject('Workflow and material membership records are written only by their owning services')
     for key in (*KEYS, 'methodEvidence', 'methodSummary', 'methodAdmission', 'populationSource', 'sourceReader', 'sourceImport', 'researchEffort', 'researchFindings', 'matrixOperation', 'workflowRun', 'workflowAttempt', 'workflowLate', 'workflowOutput', 'workflowInvocation'):
         if state.get(key) != before.get(key):
             raise InvalidProject('Producing provenance is written only when Hooke accepts the work; '

@@ -2421,6 +2421,10 @@ class Index:
                 if isinstance(producer, dict) and producer.get('kind') == 'agent-import'
                 and isinstance(producer.get('actor'), str) and isinstance(producer.get('operation'), str)
                 else {})
+        if document['kind'] == 'project-material-membership':
+            membership = document['state'].get('materialMembership', {})
+            if isinstance(membership, dict) and isinstance(membership.get('by'), str):
+                made = {'actor': membership['by']}
         return Entry(item.id, "project", document['title'], item.session, item.at,
                      version=item.revision, state="saved", untrusted=True, made_by=made,
                      summary=f"{document['kind']} project · revision {item.revision}",

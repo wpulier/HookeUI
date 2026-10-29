@@ -230,3 +230,12 @@ and operation as Data’s `madeBy`. Older documents without recorded provenance 
 unattributed; the active connection never becomes the inferred author.
 
 Project material metadata comes from `project_material.describe`: declared document kinds and accepted output summary formats, never titles. Both resource wires and project.state carry that same projection. Metadata listing does not claim to have verified all payload bytes or qualified a reader. Unknown imports remain Files; matrix result formats distinguish retained response models from analysis output. Workflow attempts carry the original run ID for grouping.
+
+Material organization is an accepted exact-reference membership record, published by
+`project_material_edit.organize` from Studio or the declared `material.organize`
+agent action. It records the role/group, input selection, organizing actor and exact
+basis. The input’s scientific head does not change, including for a historical Study pin.
+Scientific kind, producing provenance, original bytes and historical revisions
+remain unchanged. Runtime/resource checks and revision conflicts stay with ProjectStore.
+Study-pinned dependencies remain Inputs even when a later revision is not selected.
+Group names are human/agent-supplied context, never inferred scientific classifications.
