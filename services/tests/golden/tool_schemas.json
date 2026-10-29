@@ -1582,7 +1582,7 @@
      "type": "boolean"
     },
     "by": {
-     "description": "\"look\" (default), \"cells\", or \"concept\" (SAM 3.1 matches the words; on these slides an example works better)",
+     "description": "\"look\" (default: the app's eyes find the thing meant and its segmenter outlines it, as a click does; what \"segment that\" or \"use a segmentation model on it\" means for one thing), \"cells\", or \"concept\" (SAM 3.1 finds every match of a kind named by its name; on these slides words often find nothing and an example works better)",
      "enum": [
       "look",
       "cells",

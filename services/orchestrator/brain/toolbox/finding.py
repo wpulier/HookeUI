@@ -93,5 +93,8 @@ def add_finding_tools(registry: Registry, services) -> None:
                               "keep": {"type": "boolean", "description": "keep earlier highlights too"},
                               "keep_container": {"type": "boolean", "description": "default true; false replaces only the app-drawn inside outline after a successful find, preserving user outlines"},
                               "by": {"type": "string", "enum": list(BY),
-                                     "description": '"look" (default), "cells", or "concept" (SAM 3.1 matches the words; on these slides an example works better)'}}, ["what"]),
+                                     "description": '"look" (default: the app\'s eyes find the thing meant and its segmenter outlines it, as a click does; '
+                                                    'what "segment that" or "use a segmentation model on it" means for one thing), "cells", '
+                                                    'or "concept" (SAM 3.1 finds every match of a kind named by its name; on these slides '
+                                                    'words often find nothing and an example works better)'}}, ["what"]),
                       find, inline_ms=3500, family="finding", outline_refs=("like",)))
