@@ -1,0 +1,73 @@
+{
+ "id": "will-alive",
+ "about": "Alive and available (W3; the live partner spec 4.8, horizontal 2), from Will's try-out of 29 Oct (\"it just paused. No indication anywhere the LIVE model was thinking or working\"; \"if the assistant tab is closed, somewhere it should be apparent the assistant is still live\"), on the real June 14 leaf epidermis recording: ask for something slow, ask something else while it runs, close the Assistant and ask for every cell, then reopen it and ask how the slow one went. The Alive line reads what the studio showed of the voice over time: a state in every wait over 2 s, a row for every hand-off, and the presence pill while the Assistant is closed. Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "slow",
+   "kind": "act",
+   "say": "Find a YouTube video about stomata.",
+   "wait": 8,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "retrieve_page"
+    ],
+    "toolRequired": false,
+    "judge": "says in a few words that it is looking for a video about stomata and that it is under way; never says it found or opened one before it has"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "meanwhile",
+   "kind": "view",
+   "say": "What's the thing in the middle?",
+   "expect": {
+    "tools": [
+     "look_hard",
+     "find",
+     "inspect_camera"
+    ],
+    "toolRequired": false,
+    "marks": [
+     "frame",
+     "outline:"
+    ],
+    "judge": "while the video search still runs, names the oval in the middle as most likely a stoma (guard cells around a pore) and points at it; the search's row still shows it working, and the answer does not say the search is done"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "closed",
+   "kind": "act",
+   "assistant": "close",
+   "say": "Outline every cell.",
+   "expect": {
+    "tools": [
+     "outline_cells"
+    ],
+    "visible": "the cells outlined as a layer",
+    "outcome": true,
+    "judge": "with the Assistant closed, outlines the cells in view and says how many, once; the presence pill in the Working strip shows the voice listening, thinking or working meanwhile"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "reopen",
+   "kind": "status",
+   "assistant": "open",
+   "say": "Is the video search done?",
+   "expect": {
+    "tools": [],
+    "toolRequired": false,
+    "judge": "says plainly whether the video search finished and what it found (or that it is still working, or did not work, and why), as its row in the chat says it; never claims a video was found or opened that was not"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

@@ -50,6 +50,11 @@ def tool(n, name, start, end, *, report=None, screen=False, ok=True, **more):
             "reportT": T0 + report if report is not None else None, **more}
 
 
+def shown(t, state, n=0, pill=False, assistant=True):
+    """What the studio showed of the voice at t (harness.js voice-shown)."""
+    return {"t": ms(t), "e": "voice-shown", "state": state, "n": n, "pill": pill, "assistant": assistant}
+
+
 def line(lid, at, text):
     return {"type": "chat", "role": "assistant", "voice": True, "lineId": lid, "at": T0 + at, "text": text}
 
@@ -82,6 +87,15 @@ def good():
                {"t": ms(70.85), "e": "mark", "on": True, "id": "m2", "target": "researcher:2"},
                {"t": ms(73.0), "e": "mark", "on": False, "id": "m2", "target": "researcher:2"},
                {"t": ms(80.0), "e": "fault", "fault": "close-provider"}]
+    # The voice's state as the studio showed it: listening while held, thinking from the release to the first words,
+    # speaking, then live (idle) once quiet.
+    events.append(shown(-1, "idle"))
+    for down, up, first, quiet in [(0, 1.6, 2.0, 4.5), (10, 12.1, 12.5, 15.0), (20, 23.1, 23.5, 26.0), (30, 31.6, 32.0, 34.0),
+                                   (40, 41.6, 42.0, None), (44.0, 45.6, 46.0, 47.0), (55, 57.1, 57.5, 63.0)]:
+        events += [shown(down, "listening"), shown(up, "thinking"), shown(first, "speaking")]
+        if quiet is not None:
+            events.append(shown(quiet, "idle"))
+    events += [shown(70.8, "speaking"), shown(72.0, "idle")]
     bench = {"plan": "synthetic", "voice": "gpt-realtime-2.1", "talk": "hold", "steps": steps, "events": events}
     conv = [line("L1", 2.0, "Outlining the nuclei now."), line("L2", 2.95, "Done: 42 nuclei outlined."),
             line("L3", 12.5, "Opening the table in a new tab."), line("L4", 13.6, "The table is in the Measurements tab."),
@@ -1028,3 +1042,143 @@ def test_a_think_result_cut_off_and_brought_back_is_said_once():
     row = {r["id"]: r for r in run["steps"]}["multi"]
     assert row["outcomesSaid"] == 1, row
     assert not [f for f in row["failures"] if "outcome said" in f]
+
+
+# --- alive and available (W3): the voice's state as the studio showed it -------------------------------------------
+
+ALIVE = "Alive: a state shown in every wait"
+
+
+def handed(hid, working, ended, *, row=True):
+    """A hand-off the server filed (partner-handoff records, working then done) and, unless `row` is False, its row in
+    the chat as the page saw it (harness handoff-row)."""
+    inter = [{"kind": "partner-handoff", "id": hid, "state": "working", "long": False, "settling": False,
+              "label": "Video about stomata", "t": T0 + working},
+             {"kind": "partner-handoff", "id": hid, "state": "done", "long": True, "settling": False,
+              "label": "Video about stomata", "t": T0 + ended}]
+    events = [{"t": ms(working + 0.05), "e": "handoff-row", "id": hid, "state": "working"},
+              {"t": ms(ended + 0.05), "e": "handoff-row", "id": hid, "state": "done"}] if row else []
+    return inter, events
+
+
+def alive_line(bench, conv, inter, verdicts):
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    return run["alive"], summary["alive"], lines[ALIVE]
+
+
+def test_alive_passes_when_every_wait_shows_a_state():
+    _, pooled, line_ = alive_line(*good())
+    assert line_["result"] == "pass" and pooled["measured"] and pooled["gaps"] == 0, line_
+    assert line_["value"].startswith("gaps covered 0 of 0; rows 0 of 0; presence 0 of 0")
+    assert ALIVE not in standard.TIMING_LINES and ALIVE not in standard.ONE_BRAIN_ONLY  # a gate, for both voices
+
+
+def test_a_hand_off_waiting_three_seconds_with_nothing_shown_fails_and_working_covers_it():
+    """Hooke's brain works on a hand-off from 5 s to 8 s while nothing plays: the studio said "live" (idle) the whole
+    time, a silent gap; with "working · 1" shown it is covered."""
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["gaps"] == 1, line_
+    assert alive_run["uncovered"] == [{"atS": 5.0, "s": 3.0, "shown": ["idle"]}]
+    assert "uncovered at 5.0 s (3.0 s, shown idle)" in line_["value"]
+    bench["events"] += [shown(5.0, "working", n=1), shown(8.0, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and alive_run["gaps"] == 1 and not alive_run["uncovered"], line_
+
+
+def test_a_wait_from_release_to_first_words_needs_thinking_shown():
+    """The status step's answer comes 3.4 s after the release: thinking shown until it covers the wait; the studio
+    going back to idle before the words leaves a silent gap."""
+    bench, conv, inter, verdicts = good()
+    for e in bench["events"]:
+        if e.get("e") == "audio" and e["t"] == ms(32.0):
+            e["t"] = ms(35.0)
+        elif e.get("e") == "audio" and e["t"] == ms(34.0):
+            e["t"] = ms(37.0)
+        elif e.get("e") == "voice-shown" and e["t"] in (ms(32.0), ms(34.0)):
+            e["t"] += 3000
+    alive_run, _, line_ = alive_line(copy.deepcopy(bench), conv, inter, verdicts)
+    assert alive_run["gaps"] == 1 and not alive_run["uncovered"] and line_["result"] == "pass", line_
+    bench["events"].append(shown(32.5, "idle"))
+    alive_run, _, line_ = alive_line(bench, conv, inter, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["uncovered"][0]["shown"] == ["idle", "thinking"], line_
+
+
+def test_a_short_idle_gap_is_not_a_silent_wait():
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 6.5)  # 1.5 s: under the 2 s the finish line names
+    bench["events"] += rows
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and alive_run["gaps"] == 0 and alive_run["handoffs"] == 1, line_
+
+
+def test_a_hand_off_without_its_row_fails():
+    bench, conv, inter, verdicts = good()
+    more, _ = handed("h7", 5.0, 8.0, row=False)
+    bench["events"] += [shown(5.0, "working", n=1), shown(8.0, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["missingRows"] == ["h7"] and "no row for h7" in line_["value"], line_
+
+
+def test_the_presence_pill_must_show_while_the_assistant_is_closed():
+    """Talk on and the Assistant closed from 5 s to 9 s: the pill within a second, kept until it reopens."""
+    bench, conv, inter, verdicts = good()
+    closed = [shown(5.0, "idle", assistant=False), shown(9.0, "idle")]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + closed}, conv, inter, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["closed"] == 1 and alive_run["presenceMissed"] == [{"atS": 5.0, "s": 4.0}]
+    assert "presence 0 of 1" in line_["value"] and "no pill at 5.0 s" in line_["value"]
+    with_pill = closed[:1] + [shown(5.3, "idle", pill=True, assistant=False)] + closed[1:]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + with_pill}, conv, inter, verdicts)
+    assert line_["result"] == "pass" and alive_run["closed"] == 1 and not alive_run["presenceMissed"], line_
+    late = closed[:1] + [shown(6.4, "idle", pill=True, assistant=False)] + closed[1:]
+    assert alive_line({**bench, "events": bench["events"] + late}, conv, inter, verdicts)[2]["result"] == "FAIL"
+    gone = with_pill[:2] + [shown(7.0, "thinking", pill=False, assistant=False)] + closed[1:]  # the pill went while closed
+    assert alive_line({**bench, "events": bench["events"] + gone}, conv, inter, verdicts)[2]["result"] == "FAIL"
+    off = [shown(5.0, "off", assistant=False), shown(9.0, "off")]  # Talk off: no presence to show
+    assert alive_line({**bench, "events": bench["events"] + off}, conv, inter, verdicts)[0]["closed"] == 0
+
+
+def test_a_run_without_the_shown_state_is_not_measured():
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "voice-shown"]
+    alive_run, pooled, line_ = alive_line(bench, conv, inter, verdicts)
+    assert not alive_run["measured"] and not pooled["measured"]
+    assert line_["result"] == "not measured: the studio's shown voice state was not recorded"
+    assert not meets(list(board(bench, conv, inter, verdicts)[2].values()))
+
+
+def test_the_voice_state_messages_stand_in_when_the_page_recorded_none():
+    """An older harness with no voice-shown events: the server's voice-state messages the page received are read
+    instead, then the server's own partner-state log (an acoustic run with no page)."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "voice-shown"]
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows
+
+    def msg(t, state, n=0):
+        return {"t": ms(t), "e": "ws-in", "m": {"type": "voice-state", "state": state, "n": n}}
+
+    sent = [msg(-1, "idle"), msg(5.0, "working", 1), msg(8.0, "idle")]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + sent}, conv, inter + more, verdicts)
+    assert alive_run["source"] == "voice-state messages" and line_["result"] == "pass", line_
+    assert "(from the voice-state messages)" in line_["value"]
+    idle = [msg(-1, "idle")]
+    assert alive_line({**bench, "events": bench["events"] + idle}, conv, inter + more, verdicts)[2]["result"] == "FAIL"
+    logged = [{"kind": "partner-state", "state": "idle", "n": 0, "t": T0 - 1},
+              {"kind": "partner-state", "state": "working", "n": 1, "t": T0 + 5.0},
+              {"kind": "partner-state", "state": "idle", "n": 0, "t": T0 + 8.0}]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more + logged, verdicts)
+    assert alive_run["source"] == "server log" and line_["result"] == "pass", line_
+
+
+def test_the_alive_plan_closes_and_reopens_the_assistant_while_work_runs():
+    from bench.voice_journeys import stack
+
+    plan = stack.load_plan("will-alive")
+    steps = {s["id"]: s for s in plan["steps"]}
+    assert list(steps) == ["slow", "meanwhile", "closed", "reopen"]
+    assert steps["slow"]["wait"] <= 10  # the next words come while the search still runs
+    assert steps["closed"]["assistant"] == "close" and steps["reopen"]["assistant"] == "open"
+    assert all(s["footage"] == "real/2026-06-14-leaf-epidermis-23s.mp4" for s in plan["steps"])
