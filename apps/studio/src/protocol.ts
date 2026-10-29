@@ -1457,7 +1457,8 @@ export type PartnerCommand =
   | { type: 'snapshot'; id: string; jpeg: string; w: number; h: number; at: number; how: 'tab-share' | 'composed' }
   | { type: 'snapshot'; id: string; error: string }
   | { type: 'marks-shown'; id: string; resolved: MarkResolution[] }
-  | { type: 'offer'; sdp: string; id: string };
+  | { type: 'offer'; sdp: string; id: string } // a server's reoffer id, or the studio's own rc-<n> after a dropped connection
+  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number }; // the voice's measured output, as it changes
 
 const MAGIC = 'MMF1';
 

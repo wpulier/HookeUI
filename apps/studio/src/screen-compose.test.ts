@@ -2,7 +2,8 @@
 // its title, its pictures inside it in paint order, the Tab names and the table rows in view as text; nothing hidden,
 // nothing of the voice's own marks, and the text stops at its time budget.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { captureWindow, frameTitle, SCREEN_FRAMES, screenLayout, SLICE_MS } from './screen';
+import { captureWindow, frameTitle, paintInSteps, SCREEN_FRAMES, screenLayout, SLICE_MS } from './screen';
+import type { PaintPlan } from './window-paint';
 
 interface Fake { tag: string; rect: [number, number, number, number]; z?: number; bg?: string; hidden?: boolean; text?: string;
   title?: Fake; screenTitle?: string; label?: string; classes?: string[]; holder?: Fake; rows?: Fake[]; cells?: Fake[]; marks?: boolean;
@@ -94,17 +95,20 @@ test('the window is captured without holding up the live view: pictures first, t
   const live: Fake = { tag: 'canvas', rect: [0, 0, 1440, 900] };
   const grabbedAt: number[] = [];
   const drawn: string[] = [];
+  const painted: PaintPlan[] = [];
   const shot = await captureWindow(root({ table: [grid], 'canvas, img, video': [live] }) as unknown as HTMLElement, {
     view: [1440, 900], now: () => clock, yieldTask,
     env: {
       grab: async () => { grabbedAt.push(tasks.length); return tick({ width: 1440, height: 900, close() {} } as unknown as ImageBitmap); },
-      canvas: (w, h) => ({ width: w, height: h, context: {
-        scale() {}, fillRect() {}, strokeRect() {}, drawImage: () => tick(drawn.push('picture')), measureText: (t: string) => ({ width: t.length * 6 }),
-        fillText: (t: string) => tick(drawn.push(t)), set fillStyle(_v: string) {}, set strokeStyle(_v: string) {}, set lineWidth(_v: number) {},
-        set font(_v: string) {}, set textBaseline(_v: string) {}, set globalAlpha(_v: number) {} } as unknown as CanvasRenderingContext2D }),
-      encode: async () => tick(new Blob(['jpeg'])),
-      base64: async () => 'SlBFRw==',
       background: () => '#111',
+      // A browser whose workers have no canvas: painted here in steps (the worker paints the same plan off-thread).
+      paint: (plan, quality, pause, now) => { painted.push(plan); return paintInSteps(plan, quality, pause, now, {
+        surface: (w, h) => ({ width: w, height: h, context: {
+          scale() {}, fillRect() {}, strokeRect() {}, drawImage: () => tick(drawn.push('picture')), measureText: (t: string) => ({ width: t.length * 6 }),
+          fillText: (t: string) => tick(drawn.push(t)), set fillStyle(_v: string) {}, set strokeStyle(_v: string) {}, set lineWidth(_v: number) {},
+          set font(_v: string) {}, set textBaseline(_v: string) {}, set globalAlpha(_v: number) {} } as unknown as CanvasRenderingContext2D }),
+        encode: async () => tick(new Blob(['jpeg'])),
+        base64: async () => 'SlBFRw==' }); },
     },
   });
   tasks.push(clock - taskStart);
@@ -112,7 +116,11 @@ test('the window is captured without holding up the live view: pictures first, t
   expect(grabbedAt).toEqual([0]); // the pictures are taken in the key-down task itself
   expect(drawn).toContain('picture');
   expect(drawn).toContain('47');
-  expect(Math.max(...tasks)).toBeLessThanOrEqual(SLICE_MS + 2);
+  // What the painter (the worker, or here) is given: plain data and the pictures taken at the key press.
+  expect(painted[0].pictures.map(p => [!!p.bitmap, p.frame])).toEqual([[true, null]]);
+  expect(painted[0].scale).toBeCloseTo(1280 / 1440);
+  expect(() => structuredClone({ ...painted[0], pictures: [] })).not.toThrow();
+  expect(Math.max(...tasks), JSON.stringify(tasks)).toBeLessThanOrEqual(SLICE_MS + 2);
   expect(shot.longestTaskMs).toBeLessThanOrEqual(SLICE_MS + 2);
   expect(tasks.length).toBeGreaterThan(8);
 });

@@ -17,6 +17,13 @@ export const PARTNER_VOICE = 'gpt-realtime-2.1';
 export const MIC_TAIL_MS = 300;
 /** A barge-in keeps the voice silent at least this long, so the cancelled reply's last audio is never heard. */
 export const BARGE_MIN_MS = 400;
+/** A connection disconnected this long (not failed) is offered again: a short blip often comes back by itself. */
+export const BLIP_MS = 3_000;
+/** A new call is offered again this often while none answers and connects. */
+export const RECOVER_RETRY_MS = 3_500;
+/** After this long without a connection, Talk ends and says so. */
+export const RECOVER_MS = 10_000;
+export const RECOVER_FAILED = 'Voice lost its connection and could not get it back. Your conversation is kept. Press Talk again to reconnect.';
 
 export interface VoiceEvent {
   type: 'voice';
@@ -124,6 +131,13 @@ export class VoiceClient {
   private micOpen = false;
   private micTimer: ReturnType<typeof setTimeout> | null = null;
   private nextPeer: RTCPeerConnection | null = null;
+  /** The id of the offer the pending connection (nextPeer) waits on: the server's reoffer id, or our own rc-<n>. */
+  private nextOfferId: string | null = null;
+  /** Getting the call back after the connection dropped (a Wi-Fi drop): offered again until it connects or gives up. */
+  private recovery: { deadline: ReturnType<typeof setTimeout>; retry: ReturnType<typeof setTimeout> | null } | null = null;
+  private recoverN = 0;
+  private offerToken = 0; // the newest offer being made: an older one finishing late is dropped
+  private saidSpeaking: boolean | null = null;
   private readonly onEvent: (event: VoiceEvent) => void;
   private readonly onState: (state: VoiceState, detail?: string) => void;
   private readonly onLevel: (level: number) => void;
@@ -265,12 +279,16 @@ export class VoiceClient {
             return;
           }
           if (message.kind === 'answer' && (this.nextPeer || this.peer)) {
+            // An answer naming an offer we no longer wait on (a slow one, already offered again) is not applied.
+            const id = message.data?.id;
+            if (id !== undefined && id !== null && String(id) !== this.nextOfferId) return;
             // A renewed call's answer goes to its new connection, which then takes over from the old one.
             const peer = (this.nextPeer ?? this.peer)!, renewing = peer === this.nextPeer;
             void peer.setRemoteDescription({ type: 'answer', sdp: String(message.data?.sdp ?? '') }).then(() => {
               if (renewing && attempt === this.connectionAttempt && this.nextPeer === peer) this.takeOver(peer);
             }).catch(() => {
-              if (attempt === this.connectionAttempt) this.fail('Voice audio negotiation failed. Start Talk again to reconnect.');
+              // While getting the call back, the next offer or the deadline decides; otherwise it is said now.
+              if (attempt === this.connectionAttempt && !this.recovery) this.fail('Voice audio negotiation failed. Start Talk again to reconnect.');
             });
             return;
           }
@@ -327,10 +345,22 @@ export class VoiceClient {
       if (this.disconnectTimer !== null) clearTimeout(this.disconnectTimer);
       this.disconnectTimer = null;
       if (this.mediaConnected) {
+        this.recovered();
         if (this.state === 'live') this.phase(this.muted ? 'muted' : 'listening'); // back after a reconnect
         this.maybeReady(); return;
       }
-      if (this.nextPeer) return; // being renewed: the new connection takes over
+      if (this.nextPeer && !this.recovery) return; // being renewed by the server: the new connection takes over
+      if (this.state === 'live') {
+        // A live call that lost its connection (a Wi-Fi drop) is offered again rather than ended.
+        if (peer.connectionState === 'failed') this.recover(attempt);
+        else if (peer.connectionState === 'disconnected') {
+          this.phase('reconnecting');
+          this.disconnectTimer = setTimeout(() => {
+            if (attempt === this.connectionAttempt && !this.mediaConnected) this.recover(attempt);
+          }, BLIP_MS);
+        }
+        return;
+      }
       if (peer.connectionState === 'failed') this.fail('Voice audio disconnected. Your conversation is kept. Start Talk again to reconnect.');
       else if (peer.connectionState === 'disconnected') {
         this.phase('reconnecting');
@@ -362,23 +392,71 @@ export class VoiceClient {
   /** The server renews the call (its 60-minute limit, a provider error): a fresh offer on the same socket, the same
    * microphone and audio element; the old connection closes once the new answer is applied (takeOver). */
   private async reoffer(id: string, attempt: number): Promise<void> {
-    if (!this.peer || !this.mic || this.nextPeer) return;
+    if (!this.peer || !this.mic) return;
+    if (this.nextPeer && !this.recovery) return; // already answering one
     if (this.disconnectTimer !== null) { clearTimeout(this.disconnectTimer); this.disconnectTimer = null; }
     try {
-      const made = await this.offerPeer(attempt);
-      if (!made || attempt !== this.connectionAttempt) return;
-      this.nextPeer = made.peer;
-      this.tellVoice({ type: 'offer', sdp: made.sdp, id: String(id) });
+      if (!await this.offerCall(String(id), attempt)) return;
     } catch {
-      if (attempt === this.connectionAttempt) this.fail('Voice could not renew its audio connection. Start Talk again to reconnect.');
+      if (attempt === this.connectionAttempt && !this.recovery) this.fail('Voice could not renew its audio connection. Start Talk again to reconnect.');
     }
+  }
+
+  /** A new connection offered on the socket under `id`, replacing any offer still waiting; false when overtaken. */
+  private async offerCall(id: string, attempt: number): Promise<boolean> {
+    const token = ++this.offerToken;
+    this.dropPending();
+    const made = await this.offerPeer(attempt);
+    if (!made) return false;
+    if (attempt !== this.connectionAttempt || token !== this.offerToken) { made.peer.close(); return false; }
+    this.nextPeer = made.peer; this.nextOfferId = id;
+    this.tellVoice({ type: 'offer', sdp: made.sdp, id });
+    return true;
+  }
+
+  private dropPending(): void {
+    const pending = this.nextPeer;
+    this.nextPeer = null; this.nextOfferId = null;
+    if (pending) { pending.onconnectionstatechange = null; pending.ontrack = null; pending.close(); }
+  }
+
+  /** The connection dropped while live: say so quietly and offer a new call (rc-<n>) on the same socket, microphone and
+   * audio element, again every RECOVER_RETRY_MS until one connects; after RECOVER_MS Talk ends and says so. */
+  private recover(attempt: number): void {
+    if (attempt !== this.connectionAttempt) return;
+    if (!this.recovery) {
+      this.phase('reconnecting');
+      const deadline = setTimeout(() => {
+        if (attempt === this.connectionAttempt && this.recovery) this.fail(RECOVER_FAILED);
+      }, RECOVER_MS);
+      this.recovery = { deadline, retry: null };
+    }
+    this.offerAgain(attempt);
+  }
+
+  private offerAgain(attempt: number): void {
+    const recovery = this.recovery;
+    if (!recovery) return;
+    if (recovery.retry !== null) clearTimeout(recovery.retry);
+    recovery.retry = setTimeout(() => { if (attempt === this.connectionAttempt && this.recovery === recovery) this.offerAgain(attempt); }, RECOVER_RETRY_MS);
+    void this.offerCall(`rc-${++this.recoverN}`, attempt).catch(() => {}); // the next try or the deadline
+  }
+
+  /** Connected again: the call is back. */
+  private recovered(): void {
+    const recovery = this.recovery;
+    if (!recovery) return;
+    clearTimeout(recovery.deadline);
+    if (recovery.retry !== null) clearTimeout(recovery.retry);
+    this.recovery = null;
   }
 
   private takeOver(peer: RTCPeerConnection): void {
     const old = this.peer;
-    this.peer = peer; this.nextPeer = null;
+    this.peer = peer; this.nextPeer = null; this.nextOfferId = null;
     if (old && old !== peer) { old.onconnectionstatechange = null; old.ontrack = null; old.close(); }
     this.mediaConnected = peer.connectionState === 'connected';
+    if (this.mediaConnected) this.recovered();
     if (this.mediaConnected && this.state === 'live') this.phase(this.muted ? 'muted' : 'listening');
   }
 
@@ -461,6 +539,9 @@ export class VoiceClient {
 
   private phase(phase: string): void {
     this.onEvent({type: 'voice', kind: 'status', data: {phase}});
+    // The server may take the studio's measured speaking as the truth (its sideband may not hear the output buffer).
+    const speaking = phase === 'speaking';
+    if (speaking !== this.saidSpeaking && this.tellVoice({ type: 'voice-phase', phase: speaking ? 'speaking' : 'listening', at: Date.now() })) this.saidSpeaking = speaking;
   }
 
   private report(stage: string): void {
@@ -592,7 +673,9 @@ export class VoiceClient {
     this.peer?.close();
     this.peer = null;
     this.nextPeer?.close();
-    this.nextPeer = null;
+    this.nextPeer = null; this.nextOfferId = null;
+    this.recovered();
+    this.saidSpeaking = null;
     if (this.micTimer !== null) clearTimeout(this.micTimer);
     this.micTimer = null; this.micOpen = false;
     if (this.unmuteTimer !== null) clearTimeout(this.unmuteTimer);

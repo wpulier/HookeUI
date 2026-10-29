@@ -14,6 +14,7 @@ import { sameStudyResource, studyResourceReference } from './workspace-study-res
 import { itemSpace } from './spaces';
 import { scientificPaint, type ScientificPaintObservation } from './scientific-presentation';
 import type { Space } from './spaces';
+import { base64Of, paintSize, paintSteps, type PaintPlan, type PaintText } from './window-paint';
 
 export type Rect4 = [number, number, number, number]; // x, y, width, height (workspace px)
 
@@ -1150,7 +1151,7 @@ export const SLICE_MS = 6;
 
 type Box = { left: number; top: number; width: number; height: number };
 interface ScreenNode { el: Element; rect: Box }
-type ScreenText = { text: string; rect: Box; kind: 'title' | 'tab' | 'cell' | 'header' | 'heading' | 'row'; selected?: boolean };
+type ScreenText = PaintText;
 /** What captureWindow draws, gathered from the page (screenLayout): frames in paint order, pictures with the frame
  * they are in, and text lines at their places. Plain data, so it is tested without a browser. */
 export interface ScreenLayout {
@@ -1258,15 +1259,14 @@ export function screenLayout(root: ParentNode, view: [number, number], budgetMs 
 
 export type WindowPicture = { jpeg: string; w: number; h: number };
 type Surface = { width: number; height: number; context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null };
-/** What a capture draws and encodes with: the browser's own (browserCapture), or a test's. */
+/** What a capture copies pictures and paints with: the browser's own (browserCapture), or a test's. */
 export interface CaptureEnv {
   /** The picture as it is now; null when it cannot be read back (another origin's, not loaded). Called in the task
    * the capture starts in, so the picture is the one on screen then. */
   grab(el: Element): Promise<ImageBitmap | null>;
-  canvas(width: number, height: number): Surface;
-  encode(surface: Surface, quality: number): Promise<Blob>;
-  base64(blob: Blob): Promise<string>;
   background(): string;
+  /** Paint and encode the plan (the bitmaps are the painter's to close): a worker's, else here in short steps. */
+  paint(plan: PaintPlan, quality: number, pause: () => Promise<void>, now: () => number): Promise<WindowPicture>;
 }
 
 const sameOrigin = (src: string) => {
@@ -1274,16 +1274,29 @@ const sameOrigin = (src: string) => {
   catch { return false; }
 };
 
-/** The browser's: pictures copied with createImageBitmap, drawn on an OffscreenCanvas, encoded by convertToBlob (or a
- * canvas's toBlob), all off the task that asked. */
-export const browserCapture: CaptureEnv = {
-  grab: async (el) => {
-    if (el instanceof HTMLImageElement && (!el.complete || !el.naturalWidth || !sameOrigin(el.currentSrc || el.src))) return null;
-    if (el instanceof HTMLVideoElement && el.readyState < 2) return null;
-    if (el instanceof HTMLCanvasElement && (!el.width || !el.height)) return null;
-    try { return await createImageBitmap(el as ImageBitmapSource); } catch { return null; }
-  },
-  canvas: (width, height) => {
+/** Paint and encode on this thread, a step at a time (no step over SLICE_MS), then encode in a task of its own: for a
+ * browser whose workers have no canvas. */
+export async function paintInSteps(plan: PaintPlan, quality: number, pause: () => Promise<void>, now: () => number, io: {
+  surface(width: number, height: number): Surface; encode(surface: Surface, quality: number): Promise<Blob>; base64(blob: Blob): Promise<string> }): Promise<WindowPicture> {
+  const [w, h] = paintSize(plan);
+  const surface = io.surface(w, h);
+  try {
+    if (!surface.context) return { jpeg: '', w: 0, h: 0 };
+    let sliceAt = now();
+    for (const step of paintSteps(surface.context, plan)) {
+      void step;
+      if (now() - sliceAt >= SLICE_MS) { await pause(); sliceAt = now(); }
+    }
+    await pause();
+    const jpeg = await io.base64(await io.encode(surface, quality));
+    return { jpeg, w: surface.width, h: surface.height };
+  } finally {
+    for (const p of plan.pictures) p.bitmap?.close();
+  }
+}
+
+const browserIO = {
+  surface: (width: number, height: number): Surface => {
     if (typeof OffscreenCanvas === 'function') {
       const canvas = new OffscreenCanvas(width, height);
       return Object.assign(canvas, { context: canvas.getContext('2d') });
@@ -1291,16 +1304,65 @@ export const browserCapture: CaptureEnv = {
     const canvas = Object.assign(document.createElement('canvas'), { width, height });
     return Object.assign(canvas, { context: canvas.getContext('2d') });
   },
-  encode: (surface, quality) => 'convertToBlob' in surface
+  encode: (surface: Surface, quality: number): Promise<Blob> => 'convertToBlob' in surface
     ? (surface as unknown as OffscreenCanvas).convertToBlob({ type: 'image/jpeg', quality })
     : new Promise((resolve, reject) => (surface as unknown as HTMLCanvasElement).toBlob((blob) => blob ? resolve(blob) : reject(new Error('encode failed')), 'image/jpeg', quality)),
-  base64: (blob) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).split(',', 2)[1] ?? '');
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.readAsDataURL(blob);
-  }),
+  base64: base64Of,
+};
+
+/** The capture worker (capture-worker.ts), made on first use; null once it has shown it cannot paint here. */
+type Painter = { worker: Worker; jobs: Map<number, { resolve: (picture: WindowPicture) => void; reject: (error: Error) => void }>; next: number };
+let painter: Painter | null = null;
+let painterBroken = typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function';
+function paintWorker() {
+  if (painterBroken) return null;
+  if (painter) return painter;
+  try {
+    const worker = new Worker(new URL('./capture-worker.ts', import.meta.url), { type: 'module' });
+    const made: Painter = { worker, jobs: new Map(), next: 0 };
+    worker.onmessage = (event: MessageEvent<{ id: number; jpeg?: string; w?: number; h?: number; error?: string }>) => {
+      const job = made.jobs.get(event.data.id);
+      made.jobs.delete(event.data.id);
+      if (!job) return;
+      if (event.data.error !== undefined) {
+        painterBroken = true; painter = null; worker.terminate(); // its canvas cannot paint here: paint on this thread from now on
+        job.reject(new Error(event.data.error));
+      } else job.resolve({ jpeg: event.data.jpeg ?? '', w: event.data.w ?? 0, h: event.data.h ?? 0 });
+    };
+    worker.onerror = () => {
+      painterBroken = true; painter = null; worker.terminate();
+      for (const job of made.jobs.values()) job.reject(new Error('the capture worker stopped'));
+      made.jobs.clear();
+    };
+    painter = made;
+    return made;
+  } catch {
+    painterBroken = true;
+    return null;
+  }
+}
+
+/** The browser's: pictures copied with createImageBitmap in the asking task, painted and encoded in the capture worker
+ * (the bitmaps moved to it, not copied), else on this thread in short steps. */
+export const browserCapture: CaptureEnv = {
+  grab: async (el) => {
+    if (el instanceof HTMLImageElement && (!el.complete || !el.naturalWidth || !sameOrigin(el.currentSrc || el.src))) return null;
+    if (el instanceof HTMLVideoElement && el.readyState < 2) return null;
+    if (el instanceof HTMLCanvasElement && (!el.width || !el.height)) return null;
+    try { return await createImageBitmap(el as ImageBitmapSource); } catch { return null; }
+  },
   background: () => getComputedStyle(document.body).backgroundColor || '#111',
+  paint: (plan, quality, pause, now) => {
+    const worker = paintWorker();
+    if (!worker) return paintInSteps(plan, quality, pause, now, browserIO);
+    return new Promise<WindowPicture>((resolve, reject) => {
+      const id = ++worker.next;
+      const timer = setTimeout(() => { if (worker.jobs.delete(id)) reject(new Error('the capture took too long')); }, 3_000);
+      worker.jobs.set(id, { resolve: (p) => { clearTimeout(timer); resolve(p); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+      const bitmaps = plan.pictures.map(p => p.bitmap).filter((b): b is ImageBitmap => !!b);
+      worker.worker.postMessage({ id, plan, quality }, bitmaps);
+    });
+  },
 };
 
 /** The next task (a message to ourselves): the browser may paint a frame before it. */
@@ -1312,14 +1374,13 @@ export function nextTask(): Promise<void> {
   });
 }
 
-/** A picture (a shared tab's frame) at most `maxSide` px, JPEG, base64: drawn and encoded off the asking task. */
+/** A picture (a shared tab's frame) at most `maxSide` px, JPEG, base64: painted and encoded off the asking task. */
 export async function encodePicture(source: ImageBitmap, maxSide: number, quality: number, env: CaptureEnv = browserCapture): Promise<WindowPicture | null> {
-  const k = Math.min(1, maxSide / Math.max(source.width, source.height, 1));
-  const surface = env.canvas(Math.max(1, Math.round(source.width * k)), Math.max(1, Math.round(source.height * k)));
-  if (!surface.context) return null;
-  surface.context.drawImage(source, 0, 0, surface.width, surface.height);
-  const jpeg = await env.base64(await env.encode(surface, quality));
-  return jpeg ? { jpeg, w: surface.width, h: surface.height } : null;
+  const box = { left: 0, top: 0, width: source.width, height: source.height };
+  const plan: PaintPlan = { view: [source.width, source.height], scale: Math.min(1, maxSide / Math.max(source.width, source.height, 1)),
+    background: '#000', pictures: [{ bitmap: source, rect: box, frame: null, opacity: 1 }], frames: [], text: [] };
+  const picture = await env.paint(plan, quality, nextTask, () => performance.now());
+  return picture.jpeg ? picture : null;
 }
 
 /** A picture of the window as it is now, for a model to read, without holding up the live view (review 2026-10-29):
@@ -1342,7 +1403,7 @@ export async function captureWindow(root: HTMLElement = document.body, options: 
   const pictures = layoutPictures(root, view, frames);
   const grabs = pictures.map((p) => env.grab(p.el).catch(() => null));
   const background = env.background();
-  let bitmaps: (ImageBitmap | null)[] = [];
+  let painted = false;
   try {
     await pause();
     // The text, a slice at a time, stopping after SCREEN_TEXT_MS of reading in all.
@@ -1356,56 +1417,16 @@ export async function captureWindow(root: HTMLElement = document.body, options: 
       await pause();
       sliceStart = now();
     }
-    bitmaps = await wait(Promise.all(grabs));
-    const k = Math.min(1, maxSide / Math.max(view[0], view[1], 1));
-    const surface = env.canvas(Math.max(1, Math.round(view[0] * k)), Math.max(1, Math.round(view[1] * k)));
-    const ctx = surface.context;
-    if (!ctx) return { jpeg: '', w: 0, h: 0, longestTaskMs: longest, totalMs: now() - started };
-    ctx.scale(k, k);
-    ctx.fillStyle = background;
-    ctx.fillRect(0, 0, view[0], view[1]);
-    const draw = (i: number) => {
-      const p = pictures[i], bitmap = bitmaps[i];
-      if (bitmap) {
-        ctx.globalAlpha = p.opacity;
-        ctx.drawImage(bitmap, p.rect.left, p.rect.top, p.rect.width, p.rect.height);
-        ctx.globalAlpha = 1;
-      } else {
-        // a picture that cannot be read back (another origin's, not loaded): its place is drawn instead
-        ctx.strokeStyle = '#888';
-        ctx.strokeRect(p.rect.left, p.rect.top, p.rect.width, p.rect.height);
-      }
-    };
-    // Pictures in no window (the live view) first, then each window over them with its own pictures.
-    pictures.forEach((p, i) => { if (p.frame === null) draw(i); });
-    await pause();
-    for (const [index, f] of frames.entries()) {
-      const bg = f.background;
-      if (bg && bg !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(bg)) { ctx.fillStyle = bg; ctx.fillRect(f.rect.left, f.rect.top, f.rect.width, f.rect.height); }
-      pictures.forEach((p, i) => { if (p.frame === index) draw(i); });
-      ctx.strokeStyle = '#cfd6e6';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(f.rect.left + 0.5, f.rect.top + 0.5, f.rect.width - 1, f.rect.height - 1);
-      if (now() - sliceAt >= SLICE_MS) await pause();
-    }
-    await pause();
-    ctx.textBaseline = 'middle';
-    for (const t of text) {
-      const size = t.kind === 'title' || t.kind === 'heading' ? 13 : 12;
-      ctx.font = `${t.kind === 'title' || t.kind === 'header' || t.kind === 'heading' ? 600 : 400} ${size}px system-ui, sans-serif`;
-      const y = t.kind === 'title' ? t.rect.top + 11 : t.rect.top + Math.min(t.rect.height, 24) / 2;
-      const width = Math.min(ctx.measureText(t.text).width, Math.max(8, t.rect.width - 8));
-      ctx.fillStyle = t.selected ? 'rgba(47, 111, 214, 0.95)' : 'rgba(16, 18, 24, 0.82)';
-      ctx.fillRect(t.rect.left + 2, y - size / 2 - 2, width + 8, size + 4);
-      ctx.fillStyle = t.kind === 'title' ? '#ffffff' : '#e7ecf7';
-      ctx.fillText(t.text, t.rect.left + 6, y, Math.max(8, t.rect.width - 8));
-      if (now() - sliceAt >= SLICE_MS) await pause();
-    }
-    const blob = await wait(env.encode(surface, quality));
-    const jpeg = await wait(env.base64(blob));
+    await pause(); // the last of the reading, and the painting, are tasks of their own
+    const bitmaps = await wait(Promise.all(grabs));
+    const plan: PaintPlan = { view, scale: Math.min(1, maxSide / Math.max(view[0], view[1], 1)), background,
+      pictures: pictures.map((p, i) => ({ bitmap: bitmaps[i], rect: p.rect, frame: p.frame, opacity: p.opacity })),
+      frames: frames.map(f => ({ rect: f.rect, background: f.background })), text };
+    painted = true; // the painter closes the bitmaps from here
+    const picture = await wait(env.paint(plan, quality, pause, now));
     longest = Math.max(longest, now() - sliceAt);
-    return { jpeg, w: surface.width, h: surface.height, longestTaskMs: Math.round(longest * 10) / 10, totalMs: Math.round(now() - started) };
+    return { ...picture, longestTaskMs: Math.round(longest * 10) / 10, totalMs: Math.round(now() - started) };
   } finally {
-    for (const bitmap of bitmaps.length ? bitmaps : await Promise.all(grabs)) bitmap?.close();
+    if (!painted) for (const bitmap of await Promise.all(grabs)) bitmap?.close();
   }
 }

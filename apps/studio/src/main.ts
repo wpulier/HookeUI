@@ -975,7 +975,10 @@ voiceControls.append(voiceStatus, voiceMute, voiceActivity);
 talkButton.closest('form')!.prepend(voiceControls);
 const voiceEnd = Object.assign(document.createElement('button'), {type: 'button', className: 'voice-session-end', textContent: 'End Talk', hidden: true});
 voiceEnd.onclick = () => voice.stop();
-voiceControls.append(voiceEnd);
+// After the voice gave up on a lost connection (or any failure): one press to talk again.
+const voiceRetry = Object.assign(document.createElement('button'), {type: 'button', className: 'voice-session-retry', textContent: 'Talk again', hidden: true});
+voiceRetry.onclick = () => startTalk();
+voiceControls.append(voiceEnd, voiceRetry);
 // Hold to talk's listening ring (marks.css): shown only while the key or Talk is held, wherever the Assistant is.
 const holdRing = Object.assign(document.createElement('div'), {className: 'talk-hold-ring', hidden: true});
 holdRing.setAttribute('role', 'status');
@@ -1838,6 +1841,7 @@ function renderTalk(): void {
     talkButton.title = state === 'live' || state === 'connecting' ? 'End Talk (delegated work continues)' : 'Talk about the view (uses the microphone)';
   }
   voiceEnd.hidden = !hold || (state !== 'live' && state !== 'connecting');
+  voiceRetry.hidden = state !== 'error';
   voiceMute.hidden = state !== 'live' || hold; // held turns: the microphone is on only while held
   const holding = !!talkHold.held && (turns.open || turns.pending);
   if (holding) talkButton.dataset.holding = ''; else delete talkButton.dataset.holding;
@@ -1872,7 +1876,7 @@ function handleVoice(event: VoiceEvent): void {
   switch (event.kind) {
     case 'status': {
       const phase = String(event.data?.phase ?? '');
-      const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting audio…'};
+      const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting…'};
       const hold = holdToTalk();
       voiceStatus.textContent = hold && (phase === 'listening' || turns.open) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
         (voice.muted && phase !== 'muted' ? ' · microphone muted' : '');
