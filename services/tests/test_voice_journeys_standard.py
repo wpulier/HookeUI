@@ -643,3 +643,59 @@ def test_an_idle_wait_or_a_restart_is_nobody_talking():
              {"id": "held", "say": "Outline them.", "down": 60.0, "up": 61.5, "start": 60.2, "end": 61.3}]
     spans = holds(steps)
     assert [round(a, 1) for a, _ in spans] == [10.0, 60.0]  # the idle wait and the restart are not the user talking
+
+
+# --- the watcher (orchestrator/view_watch.py) ------------------------------------------------------------------------
+WATCH_PLAN = {**PLAN, "steps": PLAN["steps"] + [{"id": "watch-pan", "expect": {"watch": ["slide-moved"]}},
+                                                {"id": "watch-steady", "expect": {"watch": []}}]}
+
+
+def watched(spoken_at=1.4, false_alarms=0, raised=True):
+    """good() with two idle watch steps after it: the slide moved (one event said) and ten steady minutes."""
+    bench, conv, inter, verdicts = good()
+    bench["steps"] += [{"id": "watch-pan", "kind": "idle", "say": "", "start": ms(100), "end": ms(125), "idle": True},
+                       {"id": "watch-steady", "kind": "idle", "say": "", "start": ms(130), "end": ms(730), "idle": True}]
+    if raised:
+        inter += [{"kind": "watch-event", "t": T0 + 110, "event": "slide-moved", "id": "v1", "eventT": T0 + 110.0,
+                   "sinceT": T0 + 109.4, "delivery": "idle", "to": "voice", "pointAt": ["frame"]},
+                  {"kind": "partner-proactive", "t": T0 + 110.1, "event": "slide-moved", "ref": "v1",
+                   "eventT": T0 + 110.05, "userBusy": False, "responseCreatedT": T0 + 110.1, "markTarget": "frame"}]
+        bench["events"] += audio(110 + spoken_at, 112.8)
+    for k in range(false_alarms):
+        inter.append({"kind": "watch-event", "t": T0 + 200 + k, "event": "focus-drifted", "id": f"f{k}",
+                      "eventT": T0 + 200.0 + 30 * k, "delivery": "context", "to": "voice"})
+    return bench, conv, inter, verdicts
+
+
+def test_the_watch_lines_pass_when_the_event_is_said_within_two_seconds_and_nothing_else_is_raised():
+    run, summary, lines = board(*watched(), plan=WATCH_PLAN)
+    assert result(lines, "Watch: an event said when idle") == "pass"
+    assert result(lines, "Watch: false alarms per hour") == "pass"
+    assert summary["watch"]["spokenMax"] == pytest.approx(1.4) and summary["watch"]["steadyMinutes"] == 10.0
+    assert summary["watch"]["falsePerHour"] == 0.0
+
+
+def test_a_watch_event_said_late_unsaid_or_missed_fails():
+    assert result(board(*watched(spoken_at=2.6), plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    bench, conv, inter, verdicts = watched()
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    assert result(board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    _, summary, lines = board(*watched(raised=False), plan=WATCH_PLAN)
+    assert summary["watch"]["missed"] == ["watch-pan: slide-moved"]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"
+
+
+def test_events_on_a_steady_stretch_are_false_alarms_per_hour():
+    _, summary, lines = board(*watched(false_alarms=2), plan=WATCH_PLAN)
+    assert summary["watch"]["falseAlarms"] == 2 and summary["watch"]["falsePerHour"] == pytest.approx(12.0)
+    assert result(lines, "Watch: false alarms per hour") == "FAIL"
+
+
+def test_a_plan_without_watch_steps_has_no_watch_lines_and_gpt_live_is_not_measured_on_saying_them():
+    lines = board(*good())[2]
+    assert not [name for name in lines if name.startswith("Watch:")]
+    bench, conv, inter, verdicts = watched()
+    bench["voice"] = "gpt-live-1"
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN, voice="gpt-live-1")[2]
+    assert result(lines, "Watch: an event said when idle") == "not applicable to this voice"
+    assert result(lines, "Watch: false alarms per hour") == "pass"  # the watcher is the app's, whichever voice

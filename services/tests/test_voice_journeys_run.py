@@ -164,16 +164,19 @@ KNOWN = {"look_hard", "mark", "do_in_hooke", "show_measurements", "run_capabilit
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in stack.PLANS.glob("*.json")))
 def test_shipped_plans_name_real_tools_and_known_fields(name):
+    from orchestrator import view_watch
+
     golden = json.loads((Path(__file__).parent / "golden" / "tool_schemas.json").read_text())
     tools = KNOWN | set(__import__("re").findall(r'"name": "([a-z_]+)"', json.dumps(golden)))
     plan = stack.load_plan(name)
     assert plan["id"] == name and plan["voices"]["user"]
     fields = {"tools", "toolRequired", "visible", "researchers", "marks", "status", "multi", "fails", "outcome",
-              "judge", "silent"}
+              "judge", "silent", "watch"}
     for step in [*plan.get("setup", []), *plan["steps"]]:
         expect = step.get("expect") or {}
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
         assert set(expect.get("tools") or []) <= tools, (step["id"], set(expect["tools"]) - tools)
+        assert set(expect.get("watch") or []) <= set(view_watch.KINDS), step["id"]  # the watcher's kinds of event
         assert step["kind"] in ("act", "view", "ask", "status", "idle", "restart", "typed", "plural", "close", "photo",
                                 "side", "stage"), step["id"]
         if step["kind"] not in ("idle", "restart", "stage"):
@@ -257,3 +260,21 @@ def test_the_judge_numbers_the_lines_the_scorer_reads():
     judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
     assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
     assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]
+
+
+def test_the_watch_plan_moves_the_slide_once_measures_a_steady_stretch_and_brings_its_own_settings():
+    """part-2.5-watch: the clip the stack makes (stack.panning_clip's name), the slide-moved step, a steady step of
+    minutes, and the plan's settings under the arm's own (--settings, --voice, --talk on top)."""
+    import argparse
+
+    plan = stack.load_plan("part-2.5-watch")
+    assert plan["camera"]["pan"] and plan["settings"] == {"watch": "chatty"}
+    pan = next(s for s in plan["steps"] if (s.get("expect") or {}).get("watch"))
+    assert pan["footage"] == Path(plan["camera"]["still"]).stem + "-pan.mp4"
+    assert pan["settle"] + pan["wait"] > stack.PAN_HOLD_S + stack.PAN_S  # the move happens inside the step
+    steady = next(s for s in plan["steps"] if (s.get("expect") or {}).get("watch") == [])
+    assert steady["wait"] >= 300 and steady["footage"] == plan["camera"]["footage"]
+    args = argparse.Namespace(settings='{"reflex": "lean"}', voice="gpt-realtime-2.1", talk="hold")
+    assert json.loads(stack.settings_for(args, plan)) == {"watch": "chatty", "reflex": "lean", "voice": "gpt-realtime-2.1",
+                                                          "talk": "hold"}
+    assert stack.settings_for(argparse.Namespace(settings="", voice="", talk="")) == ""

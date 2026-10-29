@@ -49,6 +49,11 @@ STANDARD = {
     "fpsKept": 0.9,  # live view frame rate at least this share of the baseline before Talk
     "delayAddedMaxS": 0.05,  # live view delay p90 no more than this above the baseline
     "plainShare": 0.9,  # answers of one or two sentences (the bench's reading of "one or two plain sentences")
+    # The watcher (orchestrator/view_watch.py): an event it says, from the moment it was established to the first audio,
+    # when nobody is talking; and its events on a steady stretch where nothing happens, per hour. The rate is
+    # provisional until Will accepts one (the live partner's brief, item 4).
+    "watchSpokenMax": 2.0,
+    "watchFalsePerHour": 1.0,
 }
 
 # What was meant for the model and must never be spoken (live 2026-10-28 and the app's own note wording).
@@ -702,6 +707,51 @@ def proactive(inter: list[dict], segments, busy, researchers: dict | None = None
     return out
 
 
+def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[str, dict]) -> dict:
+    """The watcher's events (its "watch-event" records): each one told to the voice to be said (rule idle or interrupt),
+    from its eventT to the first audio of its line (partner-proactive with its id as the reference), and whether that
+    was over the user; and the plan's watch steps (`expect.watch`): a list of kinds that must be raised within the step,
+    or [] for a steady stretch where every event is a false alarm. Steps are their own start to end (an idle step's
+    footage is switched before it starts, so the cut that brings it is not counted in it). An event raised in a watch
+    step that expects some (nobody talks there) must be said; elsewhere one may wait out a user who keeps talking."""
+    events = [r for r in inter if r.get("kind") == "watch-event" and isinstance(r.get("eventT"), (int, float))]
+    lines = {str(r.get("ref")): r for r in inter if r.get("kind") == "partner-proactive" and r.get("responseCreatedT")}
+    spans = [(s["id"], s["start"], s["end"] if isinstance(s.get("end"), (int, float)) else s["start"]) for s in steps
+             if (expects.get(s["id"]) or {}).get("watch") and isinstance(s.get("start"), (int, float))]
+    said = []
+    for e in events:
+        if e.get("delivery") not in ("idle", "interrupt") or e.get("to") != "voice":
+            continue
+        line = lines.get(str(e.get("id")))
+        created = line.get("responseCreatedT") if line else None
+        spoke = first_on_after(segments, created, created + 15) if isinstance(created, (int, float)) else None
+        if spoke is None and isinstance(created, (int, float)):
+            spoke = next((x.get("firstAudioT") for x in inter if x.get("kind") == "partner-response"
+                          and x.get("cause") == "proactive" and isinstance(x.get("firstAudioT"), (int, float))
+                          and x["firstAudioT"] >= created), None)
+        said.append({"event": e.get("event"), "id": e.get("id"), "delivery": e.get("delivery"),
+                     "spokenS": round(spoke - e["eventT"], 3) if spoke is not None else None,
+                     "overUser": spoke is not None and any(a <= spoke < b for a, b in busy),
+                     "skipped": (line or {}).get("skipped"),
+                     # raised in a watch step where it was expected (nobody talking there): it must be said
+                     "inStep": next((sid for sid, a, b in spans if a <= e["eventT"] < b), None)})
+    planned, missed, steady_s, false = 0, [], 0.0, []
+    for step in steps:
+        want = (expects.get(step["id"]) or {}).get("watch")
+        if want is None or not isinstance(step.get("start"), (int, float)):
+            continue
+        planned += 1
+        end = step.get("end") if isinstance(step.get("end"), (int, float)) else step["start"]
+        inside = [e for e in events if step["start"] <= e["eventT"] < end]
+        if want == []:
+            steady_s += end - step["start"]
+            false += [{"event": e.get("event"), "id": e.get("id"), "step": step["id"]} for e in inside]
+        else:
+            missed += [f"{step['id']}: {kind}" for kind in want if not any(e.get("event") == kind for e in inside)]
+    return {"said": said, "planned": planned, "missed": missed, "steadyS": round(steady_s, 1), "falseAlarms": false,
+            "raised": len(events)}
+
+
 def reconnects(inter: list[dict], bench: dict) -> list[dict]:
     faults = [e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
     out = []
@@ -793,6 +843,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
             "proactive": proactive(inter, segments, busy, api_researchers(bench)), "reconnects": reconnects(inter, bench),
+            "watch": watch(inter, segments, busy, steps, expects),
             "liveView": live_view(bench, [{**e, "t": seconds(e.get("t"))} for e in baseline or []]),
             "error": bench.get("error"), "audioFrom": heard_from}
 
@@ -803,6 +854,10 @@ def summarise(runs: list[dict]) -> dict:
     marks_ = [m for run in runs for m in run["marks"]]
     events = [p for run in runs for p in run["proactive"]]
     recon = [r for run in runs for r in run["reconnects"]]
+    watched = [run.get("watch") or {} for run in runs]
+    watch_said = [w for run in watched for w in run.get("said", [])]
+    steady_s = sum(run.get("steadyS", 0.0) for run in watched)
+    false_alarms = sum(len(run.get("falseAlarms", [])) for run in watched)
     first = [r["firstAudioS"] for r in steps if r.get("firstAudioS") is not None]
     single = [r["outcomeS"] for r in steps if r.get("outcomeS") is not None and not r["multi"]]
     multi = [r["outcomeS"] for r in steps if r.get("outcomeS") is not None and r["multi"]]
@@ -860,6 +915,15 @@ def summarise(runs: list[dict]) -> dict:
                    "repeated": sum(1 for p in events if p["lines"] > 1),
                    "pointed": sum(1 for p in events if p["pointed"])},
         "reconnect": {"max": max((r["s"] for r in recon if r["s"] is not None), default=None), "n": len(recon)},
+        "watch": {"planned": sum(run.get("planned", 0) for run in watched),
+                  "n": len([w for w in watch_said if w["spokenS"] is not None]),
+                  "spokenMax": max((w["spokenS"] for w in watch_said if w["spokenS"] is not None), default=None),
+                  "spokenP50": median([w["spokenS"] for w in watch_said if w["spokenS"] is not None]),
+                  "unsaid": sum(1 for w in watch_said if w["spokenS"] is None and w.get("inStep")),
+                  "overUser": sum(1 for w in watch_said if w["overUser"]),
+                  "missed": [m for run in watched for m in run.get("missed", [])],
+                  "steadyMinutes": round(steady_s / 60, 1), "falseAlarms": false_alarms,
+                  "falsePerHour": round(false_alarms / (steady_s / 3600), 2) if steady_s else None},
         "plain": {"share": round(sum(1 for s in spoken if s <= 2) / len(spoken), 3) if spoken else None, "n": len(spoken)},
         "unasked": sum(r["unaskedChanges"] for r in steps),
         "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay,
@@ -878,6 +942,8 @@ NOT_APPLICABLE = "not applicable to this voice"
 # by speaking over it).
 ONE_BRAIN_ONLY = {"do_in_hooke share", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
+# ...and of the lines only a plan with watch steps has (the watcher's false alarms are the app's, for every voice).
+ONE_BRAIN_WATCH = {"Watch: an event said when idle"}
 VOICES_WITHOUT = {"gpt-live-1"}
 
 
@@ -951,6 +1017,19 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Knowing", "Never over the user, one line, pointing",
                    f"over {ev['overUser']}, repeated {ev['repeated']}, pointed {ev['pointed']} of {ev['n']}", "0, 0, all",
                    None if not ev["n"] else not ev["overUser"] and not ev["repeated"] and ev["pointed"] == ev["n"]))
+    w = s.get("watch") or {}
+    if w.get("planned"):  # only a plan with watch steps measures the watcher (part-2.5-watch, part-2.5-broad)
+        L.append(_line("Knowing", "Watch: an event said when idle",
+                       f"p50 {_fmt(w['spokenP50'])}, max {_fmt(w['spokenMax'])} (n {w['n']}); unsaid {w['unsaid']}, "
+                       f"over the user {w['overUser']}, missed {len(w['missed'])} {w['missed'][:3]}",
+                       f"≤ {S['watchSpokenMax']} s from the event, never over the user, none missed",
+                       False if w["overUser"] or w["missed"] or w["unsaid"] else
+                       None if w["spokenMax"] is None else w["spokenMax"] <= S["watchSpokenMax"]))
+        L.append(_line("Knowing", "Watch: false alarms per hour",
+                       f"{_fmt(w['falsePerHour'], '/h')} ({w['falseAlarms']} in {w['steadyMinutes']} min with nothing "
+                       "happening)", f"≤ {S['watchFalsePerHour']}/h (provisional, until Will accepts a rate)",
+                       None if w["falsePerHour"] is None else w["falsePerHour"] <= S["watchFalsePerHour"],
+                       "no steady stretch in the plan"))
     rc = s["reconnect"]
     L.append(_line("Conversation", "Reconnect", f"max {_fmt(rc['max'])} (n {rc['n']})", f"≤ {S['reconnectMax']} s",
                    None if rc["max"] is None else rc["max"] <= S["reconnectMax"]))
@@ -975,7 +1054,7 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Elegance", "Nothing on screen not asked for", str(s["unasked"]), "0", s["unasked"] == 0 if s["steps"] else None))
     if voice in VOICES_WITHOUT:
         for line in L:
-            if line["line"] in ONE_BRAIN_ONLY:
+            if line["line"] in ONE_BRAIN_ONLY or line["line"] in ONE_BRAIN_WATCH:
                 line["result"] = NOT_APPLICABLE
     return L
 
