@@ -1009,6 +1009,61 @@ buffers separately from continuous silence. Researcher cards link to their ownin
 Project's Activity and explicitly say No recent update after 30 seconds without a
 reported step; that is an observation, not a claim that work stopped.
 
+### Hold to talk and marks (the one-brain voice, Part 2.5)
+
+The one-brain voice (`gpt-realtime-2.1`, `voice.ts` `PARTNER_VOICE`) hears, sees and acts in one model; GPT-Live keeps
+everything above. It talks over WebRTC only, whatever the saved Voice link. Its own messages share `/ws/voice`
+(`protocol.ts` `PartnerMessage` and `PartnerCommand`; the server is `services/orchestrator/voice/`).
+
+- **Hold to talk** (`talk.ts` `TalkHold`): when the session says `talk: "hold"` (before connecting: the Voice is the one
+  brain and TALK is not `open`), each turn is held. The talk key is a Behaviour setting (`talk_key`): Control+Option
+  (the default; it is VoiceOver's modifier, so with VoiceOver on choose Right Option) or Right Option held alone.
+  Keys are read on the window in the capture phase, so the hold works while a text field has focus. Auto-repeat is
+  ignored. Escape while held drops the turn and closes nothing else. Another key pressed during the hold (a VoiceOver
+  command, Option+e) is a chord and cancels it. A tap shorter than 250 ms cancels too, which stops the voice without
+  asking anything. Losing the window counts as a release. Holding Talk (pointer down to up) does the same as the key.
+  In hold mode a click on Talk only connects, End Talk (`.voice-session-end`) ends the conversation, Mute is hidden,
+  and a hold while Talk is off connects it, starting the turn if the key is still held once Talk is live. While a
+  turn is held, Talk has `data-holding` and a listening ring (`.talk-hold-ring`, `marks.css`) shows at the bottom of
+  the window, its halo following the microphone level.
+- **A turn**: pressing sends `{type:"talk",down:true,n}` and then, in the same task, the window as it is
+  (`{type:"snapshot",id:"talk-<n>"}`, `partner.ts` `windowSnapshot`). Releasing sends `down:false`; Escape, a tap or a
+  chord sends `cancel:true`. The microphone track is on only while a turn is held, and for 300 ms after a release
+  (`MIC_TAIL_MS`) so the last word still reaches the model before the server commits.
+- **Barge-in**: every press mutes the voice's audio element at once, in the same task as the key, and clears the
+  marks; the server cancels the reply. The audio comes back at the later of the release and 400 ms after the press
+  (`BARGE_MIN_MS`). Talk has `data-output="muted"` meanwhile. Muted output never counts as Speaking.
+- **The window snapshot** is a granted tab share's newest frame (`WorkspaceSession.shareSnapshot`), else
+  `composeWindow` (`screen.ts`), at most 1280 px. A composed window fills each window and panel with its background,
+  in paint order (z-index, then page order), and draws its pictures inside it. It writes each frame's title (its
+  title bar, else its heading, with its `data-screen-title`), the Tab names, the table rows in view cell by cell
+  (60 rows, 12 cells at most) and headings, as text at their places. Text stops after 70 ms. `snapshot-request` (act,
+  then look) is answered the same way, in the task it arrives in. A capture that fails says so (`error`) instead of
+  leaving the server to wait.
+- **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
+  the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
+  `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`
+  (`View.objectCanvasBox`, only while `objectInView`), `member:<population>:<member>` (`View.memberCanvasBox`, the
+  shown population's verified members), `window:<presentationId>`, `document:<placementId>`, `tab:<id or exact
+  title>` (two Tabs of that title are ambiguous), `researcher:<number or rid>` (the Researchers board row, else its
+  card, else its chat card; numbers within this Project), and `panel:<name>` (`SCREEN_PANELS`, `live`,
+  `workspace-tabs`). The last is `frame` with a normalised `region` or `polygon` of the eyepiece crop the model saw:
+  the message's `frame: {id, crop}`, else `fovCrop` of the frame now. It is mapped through the same
+  source-to-canvas transform as the outlines and moves with the slide from that frame (`View.frameOffset`,
+  `sourcePointsOnCanvas`). It is not placed after a re-find, or once it leaves the eyepiece.
+  Every target is found again each animation frame, so a mark follows its outline or window, and one that goes out
+  of view is not drawn until it is back. A mark is a dashed, slightly rough rounded box (or the polygon), an arrow
+  coming in from the side with room, or an underline, in `--mm-accent` over a dark casing. It draws in over 320 ms
+  and fades over 220 ms; with reduced motion it simply appears and goes. Its roughness is fixed per mark, so it
+  never wobbles. Each mark is a `<g class="voice-mark">` with `data-mark-id`, `data-target`, `data-style` and
+  `data-rect` (its target's rect now, for the bench). A new set replaces the last. Marks stay while the voice speaks
+  and go 1.5 s after it stops (`until: "speech-end"`), or after `until` ms. A set the voice never speaks over goes
+  after 8 s, and nothing stays past 60 s. `marks-clear`, a press, and the end of Talk clear them too.
+  `marks.fixture.html` shows every style over plain elements (fixture only).
+- **A renewed call** (`{type:"reoffer",id}`, the 60-minute limit or a provider error): a new peer connection on the
+  same microphone track and audio element sends `{type:"offer",sdp,id}`. The old connection is ignored from then and
+  closed once the new answer is applied, so the conversation and Talk's state carry on.
+
 When the selected camera has no picture, the live canvas retires its previous frame.
 Retained result windows remain visible and unchanged. The empty-camera visibility
 rule covers the canvas inside the specimen window, not only the legacy direct child.

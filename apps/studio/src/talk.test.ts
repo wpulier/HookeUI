@@ -148,3 +148,14 @@ test('holding the Talk button does the same, and Escape while holding it cancels
   button.fire('pointerdown', { button: 2, pointerId: 6 });
   expect(calls.at(-1)).toBe('cancel');
 });
+
+test('TALK and the talk key are Behaviour settings, read from the server\'s roles like every other way of working', async () => {
+  const { pickerGroups } = await import('./models');
+  const { talkKey, talkKeyWords } = await import('./talk');
+  const role = (id: string, kind: 'model' | 'method' | 'policy', title: string) => ({ id, kind, title, purpose: title, current: null, options: [], powers: [], agentCanChange: [] });
+  const roles = [role('voice', 'model', 'Voice'), role('talk', 'method', 'Talking'), role('talk_key', 'policy', 'Talk key')];
+  expect(pickerGroups('behaviour', roles).map(g => g.key)).toEqual(['talk', 'talk_key']);
+  expect(pickerGroups('models', roles).map(g => g.key)).not.toContain('talk');
+  expect([talkKey('right-option'), talkKey(undefined), talkKey('fn')]).toEqual(['right-option', 'control-option', 'control-option']);
+  expect(talkKeyWords('control-option')).toBe('Control+Option');
+});
