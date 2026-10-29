@@ -311,8 +311,9 @@ def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[C
         if r.get("kind") != "partner-tool":
             continue
         t = r.get("startT") if isinstance(r.get("startT"), (int, float)) else r.get("t")
-        mine = (r.get("n") == step_n) if step_n is not None and r.get("n") is not None else \
-            isinstance(t, (int, float)) and start <= t < end
+        # In the step's window, and of its turn when both say one (the studio's numbers start again after a reload).
+        mine = isinstance(t, (int, float)) and start <= t < end and \
+            (step_n is None or r.get("n") is None or r.get("n") == step_n)
         if not mine:
             continue
         confirmed = r.get("reportT") if r.get("confirmed") is True and isinstance(r.get("reportT"), (int, float)) else None

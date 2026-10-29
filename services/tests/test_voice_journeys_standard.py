@@ -470,3 +470,10 @@ def test_server_audio_spans_end_at_partner_audio():
              {"kind": "partner-audio", "responseId": "r1", "audioEndT": 14.0, "how": "stopped"},
              {"kind": "partner-response", "responseId": "r2", "firstAudioT": 20.0, "audioEndT": None}]
     assert standard.server_segments(inter) == [(10.0, 14.0), (20.0, 20.0)]
+
+
+def test_a_turn_number_used_again_after_a_reload_stays_in_its_own_step():
+    bench, conv, inter, verdicts = good()
+    inter.append(tool(1, "tabs", 90.0, 90.1))  # turn 1 again, after the restart: never the outline step's call
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["outline"]["tools"] == ["outline_cells"]
