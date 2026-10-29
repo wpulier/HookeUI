@@ -7,7 +7,7 @@ function nativeGrant(): NativeGrant | undefined {
 
 /** Owner controls only. Outside agents cannot change Project membership through the door. */
 export async function mountProjectAccess(host: HTMLElement, connection: { id: string; label: string }, request: typeof fetch): Promise<void> {
-  const panel = document.createElement('fieldset');
+  const panel = document.createElement('fieldset'); panel.className = 'agent-project-access';
   const legend = document.createElement('legend'); legend.textContent = `Project access for ${connection.label}`;
   const status = document.createElement('p'); status.setAttribute('role', 'status'); status.textContent = 'Reading Project access…';
   panel.append(legend, status); host.append(panel);
@@ -64,6 +64,12 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
       } catch (error) { status.textContent = error instanceof Error ? error.message : 'Project access was not saved.'; }
       finally { choose.disabled = role.disabled = save.disabled = false; }
     };
-    panel.append(choose, role, explain, save); update();
+    const fields = document.createElement('div'); fields.className = 'agent-access-fields';
+    const projectLabel = document.createElement('label'); projectLabel.textContent = 'Project'; projectLabel.append(choose);
+    const roleLabel = document.createElement('label'); roleLabel.textContent = 'Permission'; roleLabel.append(role);
+    fields.append(projectLabel, roleLabel);
+    const help = document.createElement('details'); const helpTitle = document.createElement('summary');
+    helpTitle.textContent = 'What these permissions allow'; help.append(helpTitle, explain);
+    panel.append(fields, help, save); update();
   } catch (error) { status.textContent = error instanceof Error ? error.message : 'Project access could not be read.'; }
 }
