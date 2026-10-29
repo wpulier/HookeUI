@@ -10423,6 +10423,34 @@
      ],
      "tier": "terms",
      "why": ""
+    },
+    {
+     "available": true,
+     "id": "gemini-3.8-live",
+     "label": "One brain on Gemini (hears \u00b7 sees \u00b7 acts)",
+     "licence": "Google Gemini API: Gemini API terms of service",
+     "models": [
+      "Google Gemini API"
+     ],
+     "note": "Gemini 3.8 Live: sees each turn and the camera as video, acts with the app's tools, points; audio through the app; not yet measured against GPT Realtime 2.1",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "cloud",
+     "said": "One brain on Gemini (hears \u00b7 sees \u00b7 acts) in the cloud",
+     "sources": [
+      {
+       "licence": "Gemini API terms of service",
+       "title": "Google Gemini API (vision, Sight, fast pass, research, pictures)",
+       "url": "https://ai.google.dev/gemini-api/terms"
+      }
+     ],
+     "tier": "terms",
+     "why": ""
     }
    ],
    "powers": [

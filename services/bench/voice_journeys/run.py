@@ -6,6 +6,8 @@ each scored against the acceptance standard (standard.py), written as result.jso
       --plan part-2.5 --reps 3 --out /tmp/p25-rt --budget <path to budget.py>
   cd services && .venv/bin/python -m bench.voice_journeys.run --voice gpt-live-1 --plan part-2.5 --reps 3 \\
       --out /tmp/p25-live --budget <path to budget.py>
+  cd services && .venv/bin/python -m bench.voice_journeys.run --voice gemini-3.8-live --talk hold \\
+      --plan part-2.5 --reps 1 --out /tmp/p25-gemini --budget <path to budget.py>
   cd services && .venv/bin/python -m bench.voice_journeys.run --score-only --out /tmp/p25-rt   # nothing started or spent
   cd services && .venv/bin/python -m bench.voice_journeys.compare /tmp/p25-live /tmp/p25-rt
 
@@ -31,12 +33,15 @@ from .standard import markdown, meets, read_jsonl, realtime_cost, score_run, sco
 HERE = Path(__file__).resolve().parent
 SERVICES = HERE.parents[1]
 REPO = SERVICES.parent
-VOICES = ("gpt-live-1", "gpt-realtime-2.1")
+VOICES = ("gpt-live-1", "gpt-realtime-2.1", "gemini-3.8-live")
+ONE_BRAINS = ("gpt-realtime-2.1", "gemini-3.8-live")  # hold to talk by default; GPT-Live listens with an open mic
 TALK = ("hold", "open")
 OWNER = "p25-rt-bench"
 # Worst cases, in dollars (PARTNER-CONTRACT.md's prices; GPT-Live's minutes plus the brain's calls): per spoken step,
 # per researcher the plan starts (bounded by the stack's research cap), per setup (once a stack), per judged step.
-STEP_USD = {"gpt-realtime-2.1": 0.55, "gpt-live-1": 0.15}
+# Gemini 3.8 Live: a turn re-reads its whole context (at most 64K tokens, mostly text and video at $0.75-1 per million)
+# plus its audio; the smoke test's held turn with a tool cost $0.0064.
+STEP_USD = {"gpt-realtime-2.1": 0.55, "gpt-live-1": 0.15, "gemini-3.8-live": 0.10}
 RESEARCHER_USD = 1.50
 SETUP_USD = 2.50
 PLAYWRIGHT = Path.home() / ".npm/_npx/31e32ef8478fbf80/node_modules/playwright/index.mjs"
@@ -59,9 +64,9 @@ def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -
     return round(per_run * reps + (SETUP_USD if setup and plan.get("setup") else 0), 2)
 
 
-def reserve(budget: str, usd: float, purpose: str) -> str:
+def reserve(budget: str, usd: float, purpose: str, owner: str = OWNER) -> str:
     """The reservation id, or SystemExit(3) when the budget refuses it (nothing is started)."""
-    done = subprocess.run([sys.executable, budget, "reserve", "pr", f"{usd:.2f}", OWNER, purpose],
+    done = subprocess.run([sys.executable, budget, "reserve", "pr", f"{usd:.2f}", owner, purpose],
                           capture_output=True, text=True)
     if done.returncode != 0:
         print(f"refused by the budget: {done.stderr.strip() or done.stdout.strip()}", file=sys.stderr)
@@ -170,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keys", default=str(stacks.KEYS), help="the keys file the stack (and the judge) read")
     parser.add_argument("--budget", default=os.environ.get("HOOKE_BENCH_BUDGET", ""), help="budget.py, for reserve/settle")
     parser.add_argument("--worst-usd", type=float, help="reserve this instead of the computed worst case")
+    parser.add_argument("--owner", default=OWNER, help="who the budget's reservation is for")
     parser.add_argument("--no-judge", action="store_true", help="timings and counts only: false done not measured")
     parser.add_argument("--acoustic", action="store_true",
                         help="play the words through this Mac's speakers into its microphone (a visible browser)")
@@ -190,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result["meets"] else 1
     if not args.voice:
         parser.error("--voice is required (unless --score-only)")
-    talk = args.talk or ("hold" if args.voice == "gpt-realtime-2.1" else "open")
+    talk = args.talk or ("hold" if args.voice in ONE_BRAINS else "open")
     if args.voice == "gpt-live-1" and talk == "hold":
         parser.error("GPT-Live has no hold to talk: it listens with an open microphone (--talk open)")
     if not args.budget:
@@ -198,7 +204,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_needed = bool(plan.get("setup")) and not (out / "setup" / "bench.json").exists()
     worst = args.worst_usd if args.worst_usd is not None else \
         worst_case(plan, args.reps, args.voice, judge=not args.no_judge, setup=setup_needed)
-    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}")
+    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}", args.owner)
     checkout = Path(args.checkout).resolve()
     about = {"voice": args.voice, "talk": talk, "checkout": str(checkout), "commit": commit(checkout),
              "acoustic": args.acoustic, "reservation": reservation, "worstUsd": worst, "started": time.time(),
@@ -209,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     about_file.write_text(json.dumps(about, indent=1))
     up = argparse.Namespace(checkout=str(checkout), out=str(out), plan=args.plan, port=args.port,
                             bridge_port=args.bridge_port, keys=args.keys, build=False, settings="", voice=args.voice,
-                            talk=talk if args.voice == "gpt-realtime-2.1" else "", faults=not args.no_faults,
+                            talk=talk if args.voice in ONE_BRAINS else "", faults=not args.no_faults,
                             research_cap=RESEARCHER_USD * (researchers(plan) * args.reps + int(setup_needed)))
     cost = None
     try:

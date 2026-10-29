@@ -1,0 +1,12 @@
+id = "gemini-3-8-live"
+name = "Gemini 3.8 Live"
+runs = "cloud"
+version = "gemini-3.8-live"
+licence = ["gemini-api"]
+kind = "cloud-model"
+what = "The one-brain voice on Gemini: hears, sees camera and window, acts, points"
+runner = "cloud"
+service = "gemini"
+source = { url = "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live" }
+needs_to_run = ["key:GEMINI_API_KEY"]
+credit = { authors = "Google DeepMind", link = "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live" }

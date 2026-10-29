@@ -154,13 +154,19 @@ VOICE = {
         Option("gpt-realtime-2.1", "One brain (hears · sees · acts)",
                "GPT Realtime 2.1: sees each turn, acts with the app's tools, points; not yet measured against GPT-Live",
                model="gpt-realtime-2-1"),
+        # The same one brain on Gemini 3.8 Live (voice/gemini_partner.py): the camera also as a 1 fps stream, Google's
+        # asynchronous tools, about a tenth of the price; its audio goes through the app (Gemini Live has no WebRTC).
+        # An option for the journey bench beside GPT Realtime 2.1, never the default until it is measured better.
+        Option("gemini-3.8-live", "One brain on Gemini (hears · sees · acts)",
+               "Gemini 3.8 Live: sees each turn and the camera as video, acts with the app's tools, points; audio through "
+               "the app; not yet measured against GPT Realtime 2.1", model="gemini-3-8-live"),
     ]
 }
 
-# How the one-brain voice knows a turn (voice/openai_realtime.py). Hold: the talk key or the Talk button is held while
-# the user speaks, and released to answer (turn detection off; nothing it says is cut by a cough). Open: it listens all
-# the time and its own semantic turn detection decides, and the user can talk over it (needs headphones: otherwise it
-# hears itself). GPT-Live ignores it.
+# How the one-brain voices know a turn (voice/openai_realtime.py, voice/gemini_partner.py). Hold: the talk key or the
+# Talk button is held while the user speaks, and released to answer (turn detection off; nothing it says is cut by a
+# cough). Open: it listens all the time and its own turn detection decides, and the user can talk over it (needs
+# headphones: otherwise it hears itself). GPT-Live ignores it.
 TALK = {
     o.id: o
     for o in [

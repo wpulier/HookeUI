@@ -32,6 +32,9 @@ PRICES = {
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
     # out, and audio and pictures in and audio out, per million tokens.
     "gpt-realtime-2.1": {"in": 4.00, "out": 24.00, "audio_in": 32.00, "audio_out": 64.00, "image_in": 5.00},
+    # The Gemini one-brain voice (orchestrator/voice/gemini_partner.py; Google's pricing page, read 2026-10-29: Gemini
+    # 3.8 Live, standard paid tier): text, audio and image/video in, text and audio out, per million tokens.
+    "gemini-3.8-live": {"in": 0.75, "out": 4.50, "audio_in": 3.00, "audio_out": 12.00, "image_in": 1.00},
 }
 
 

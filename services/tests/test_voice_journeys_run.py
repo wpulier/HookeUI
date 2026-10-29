@@ -257,3 +257,29 @@ def test_the_judge_numbers_the_lines_the_scorer_reads():
     judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
     assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
     assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]
+
+
+def test_gemini_live_runs_the_same_journey_held_with_its_own_owner(tmp_path, monkeypatch):
+    """The second voice (Gemini 3.8 Live, the one brain through the app's relay) is a --voice choice: held by default,
+    its stack started with that talk mode, its reservation under the owner given."""
+    script, log = budget(tmp_path, limit=100.0)
+    seen = []
+    monkeypatch.setattr(run.stacks, "up", lambda a: seen.append((a.voice, a.talk)) or {"ok": False})
+    monkeypatch.setattr(run.stacks, "down", lambda a: None)
+    with pytest.raises(SystemExit):
+        run.main(["--voice", "gemini-3.8-live", "--plan", "smoke", "--out", str(tmp_path / "out"), "--budget", script,
+                  "--owner", "p25-gemini"])
+    assert seen == [("gemini-3.8-live", "hold")]
+    reserved = calls(log)[0]
+    assert reserved[3] == "p25-gemini" and "gemini-3.8-live/hold" in reserved[4]
+    plan = stack.load_plan("smoke")
+    assert run.worst_case(plan, 1, "gemini-3.8-live", judge=False, setup=False) < run.worst_case(
+        plan, 1, "gpt-realtime-2.1", judge=False, setup=False)
+
+
+def test_a_response_that_priced_itself_is_taken_as_it_says():
+    from bench.voice_journeys import standard
+
+    inter = [{"kind": "partner-response", "usage": {"inText": 1000, "outAudio": 100}, "usd": 0.002},
+             {"kind": "partner-response", "usage": {"inText": 1000}}]
+    assert standard.realtime_cost(inter) == pytest.approx(0.002 + 1000 * 4e-6)

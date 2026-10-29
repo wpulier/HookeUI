@@ -172,6 +172,7 @@ DEFAULTS = {
     "gpu_worker.zeroshot:MODEL": ("zeroshot", "medsiglip-subject"),
     "gpu_worker.worker:DEFAULT_MODEL": ("outline", "edgetam"),
     "orchestrator.voice.openai_realtime:MODEL": ("voice", "gpt-realtime-2.1"),
+    "orchestrator.voice.gemini_partner:MODEL": ("voice", "gemini-3.8-live"),
 }
 MODEL_PREFIXES = ("gemini-", "gpt-", "claude-", "veo-", "fal-ai/", "imagen-")
 

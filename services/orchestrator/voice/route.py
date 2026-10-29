@@ -5,9 +5,13 @@ handed to the same brain you type to (orchestrator/brain/loop.py), so voice has 
 tools chat has. What you say and what it says go into the shared conversation, so switching
 between talking and typing just works.
 
-The one-brain voice (`?model=gpt-realtime-2.1`, voice/openai_realtime.py and voice/partner.py) hears, sees and acts
-itself: WebRTC only, and the socket also carries the partner contract's messages (talk, snapshot, marks-shown, a new
-offer for a reconnect; snapshot-request, marks, marks-clear and reoffer back), handled by `Partner.command`.
+The one-brain voices (`?model=gpt-realtime-2.1`, voice/openai_realtime.py; `?model=gemini-3.8-live`,
+voice/gemini_partner.py; both bound by voice/partner.py) hear, see and act themselves, and the socket also carries the
+partner contract's messages (talk, snapshot, marks-shown, a new offer for a reconnect; snapshot-request, marks,
+marks-clear and reoffer back), handled by `Partner.command`. GPT Realtime talks over WebRTC only; Gemini Live has no
+WebRTC, so its audio is relayed through this socket both ways, as GPT-Live's relay is (echo: the studio's echo cancelling
+does not cover audio it plays itself, so with an open mic use headphones; hold to talk sends the microphone only while
+held).
 
 Protocol on WS /ws/voice[?model=gpt-live-1][&rate=24000][&link=webrtc]
   link=webrtc (option VOICELINK): the browser first sends {"type": "offer", "sdp": "..."} and gets
@@ -39,12 +43,13 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from ..options import VOICE
 from .. import execution
-from ..prompts import LIVE_VOICE_DELEGATE, PARTNER
+from ..prompts import LIVE_VOICE_DELEGATE, PARTNER, PARTNER_GEMINI
 from .diagnostics import VoiceDiagnostics
 from .base import ToolSpec, VoiceConfig, VoiceEvent
 from ..brain import context
 from ..brain.speech import SpokenRequests
 from .openai_live import OpenAILiveSession
+from .gemini_partner import MODEL as GEMINI_ONE_BRAIN, GeminiPartnerSession
 from .openai_realtime import MODEL as ONE_BRAIN, RealtimeSession
 from .partner import Partner
 
@@ -116,6 +121,12 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 "message": "The one-brain voice talks over WebRTC only. Reload the studio, then press Talk again."}})
             await websocket.close()
             return
+        if model == GEMINI_ONE_BRAIN and link != "relay":
+            await websocket.send_json({"type": "voice", "kind": "error", "data": {
+                "message": "Gemini Live talks through the app, not WebRTC. Reload the studio, then press Talk again."}})
+            await websocket.close()
+            return
+        one_brain = model in (ONE_BRAIN, GEMINI_ONE_BRAIN)
         # Each Talk press is a fresh GPT-Live session that remembers nothing: it starts knowing the
         # conversation so far, the researchers' work and what is on screen (`session.input`, as
         # the Live guide says, rather than a context update after it has started).
@@ -133,7 +144,7 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             moment = brain.moment(request_snapshot=pin) if client is not None else brain.moment()
             initial_view_key = context.view_key(moment)
             initial_question_view = getattr(brain.sight, "question_view", None)
-        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain)
+        instructions = voice_prompt(brain) if not one_brain else partner_prompt(brain, model)
         try:  # under a monthly cap the session is admitted first (its first minutes at their most), never after it opens
             usage_meter = api_usage.VoiceUsage(model)
         except (api_usage.CapReached, api_usage.ProviderRefused) as exc:
@@ -141,14 +152,20 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             await websocket.close()
             return
         partner = None
-        if model == ONE_BRAIN:
+        if one_brain:
             # One mind that hears, sees and acts (voice/partner.py): its own tools, what it sees each turn and the
             # Project brief; its lines go into the same conversation, and nothing is handed to the brain's hands.
             partner = Partner(hub, brain, dialogue, client=client, send=websocket.send_json, log=brain.agent.log)
-            # MICROMIND_REALTIME_MODEL: a measured alternative of the same family (gpt-realtime-2.1-mini) for the journey
-            # bench only; the option stays the one chosen.
-            session = RealtimeSession(VoiceConfig(model=os.environ.get("MICROMIND_REALTIME_MODEL") or model,
-                                                  system_prompt=instructions), talk=getattr(hub.settings, "talk", "hold"))
+            talk = getattr(hub.settings, "talk", "hold")
+            if model == GEMINI_ONE_BRAIN:
+                session = GeminiPartnerSession(VoiceConfig(model=model, system_prompt=instructions, input_rate=rate),
+                                               talk=talk)
+                session.video = lambda: partner.camera(768)  # the eyepiece as a 1 fps stream while Talk is open
+            else:
+                # MICROMIND_REALTIME_MODEL: a measured alternative of the same family (gpt-realtime-2.1-mini) for the
+                # journey bench only; the option stays the one chosen.
+                session = RealtimeSession(VoiceConfig(model=os.environ.get("MICROMIND_REALTIME_MODEL") or model,
+                                                      system_prompt=instructions), talk=talk)
             partner.bind(session)
             session.config.tools = partner.tools.specs()
             with contextlib.suppress(Exception):
@@ -198,7 +215,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                     with contextlib.suppress(Exception):
                         with execution.span("live-session", selected=model, selection="explicit" if websocket.query_params.get("model") else "settings",
                                             adapter=f"{type(session).__module__.split('orchestrator.')[-1]}.{type(session).__name__}",
-                                            provider="openai", model=session.config.model,
+                                            provider="google" if model == GEMINI_ONE_BRAIN else "openai",
+                                            model=session.config.model,
                                             scope=link, sessionId=getattr(session, "session_id", None), identity="session-start sent; hosted revision unconfirmed"):
                             pass
             said_model = {"model": model, "label": VOICE[model].label}
@@ -257,8 +275,9 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                     diagnostics.record(event.kind)
                 if event.kind == "usage":
                     tokens = (event.data or {}).get("tokens")
-                    if isinstance(tokens, dict):  # the one-brain voice is billed by the tokens each response used
-                        await asyncio.to_thread(api_usage.record, model, (event.data or {}).get("usd"), provider="OpenAI",
+                    if isinstance(tokens, dict):  # the one-brain voices are billed by the tokens each response used
+                        await asyncio.to_thread(api_usage.record, model, (event.data or {}).get("usd"),
+                                                provider="Google" if model == GEMINI_ONE_BRAIN else "OpenAI",
                                                 area="Voice", units=sum(tokens.values()),
                                                 basis="Reported tokens · list price, cached input at the full price")
                     await asyncio.to_thread(usage_meter.update, (event.data or {}).get("seconds"))
@@ -617,10 +636,11 @@ def brain_tool(spoken_requests: SpokenRequests) -> ToolSpec:
                     parameters={"type": "object"}, handler=ask_brain)
 
 
-def partner_prompt(brain) -> str:
-    """The one-brain voice's instructions (prompts.PARTNER). What it can do is its tools' declarations, sent with the
-    session, and the capabilities tool when asked: not repeated here (context earns its place)."""
-    return PARTNER
+def partner_prompt(brain, model: str = ONE_BRAIN) -> str:
+    """The one-brain voice's instructions (prompts.PARTNER; on Gemini, PARTNER_GEMINI: its tool-call cap). What it can
+    do is its tools' declarations, sent with the session, and the capabilities tool when asked: not repeated here
+    (context earns its place)."""
+    return PARTNER_GEMINI if model == GEMINI_ONE_BRAIN else PARTNER
 
 
 def voice_prompt(brain) -> str:

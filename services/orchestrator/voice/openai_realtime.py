@@ -468,6 +468,17 @@ class RealtimeSession(VoiceSession):
             await asyncio.wait_for(self._connected.wait(), seconds)
         return self._connected.is_set() and self._sb is not None and not self.closed
 
+    def connected(self) -> bool:
+        """The sideband is open now (voice/partner_session.py)."""
+        return self._sb is not None and not self.closed
+
+    async def drop_connection(self) -> None:
+        """The bench's fault: the call hung up and its sideband closed under the session."""
+        with contextlib.suppress(Exception):
+            await self._hangup(self.call_id)
+        with contextlib.suppress(Exception):
+            await self._sb.close()
+
     # --- sending -----------------------------------------------------------------------------------
     async def _send(self, event: dict) -> None:
         if self._sb is None:

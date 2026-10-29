@@ -13,6 +13,11 @@ import { PARTNER_MESSAGES, studioSocketURL, type PartnerCommand, type PartnerMes
 
 /** The voice that hears, sees and acts in one model (options.py VOICE "gpt-realtime-2.1"). */
 export const PARTNER_VOICE = 'gpt-realtime-2.1';
+/** The same one brain on Gemini 3.8 Live (VOICE "gemini-3.8-live"): Gemini Live has no WebRTC, so its audio goes through
+ * the app (the relay) both ways; everything else is the partner's, as for PARTNER_VOICE. */
+export const GEMINI_PARTNER_VOICE = 'gemini-3.8-live';
+/** The voices that hold to talk and take the partner's messages (snapshots, marks). */
+export const PARTNER_VOICES: readonly string[] = [PARTNER_VOICE, GEMINI_PARTNER_VOICE];
 /** After release the microphone stays on this long: the last word is still in flight when the server commits. */
 export const MIC_TAIL_MS = 300;
 /** A barge-in keeps the voice silent at least this long, so the cancelled reply's last audio is never heard. */
@@ -242,8 +247,8 @@ export class VoiceClient {
     params.set('rate', String(INPUT_RATE));
     try {
       let offer: { sdp: string } | null = null;
-      // The one-brain voice talks over WebRTC only (the server refuses the relay for it).
-      if ((this.link === 'webrtc' || resolved.model === PARTNER_VOICE) && this.mic) {
+      // The one-brain voice talks over WebRTC only (the server refuses the relay for it); Gemini's through the relay only.
+      if ((this.link === 'webrtc' || resolved.model === PARTNER_VOICE) && resolved.model !== GEMINI_PARTNER_VOICE && this.mic) {
         // OpenAI's browser flow (voice-webrtc guide): the microphone on a track, a data channel named
         // "oai-events", and the offer exchanged through the app, which holds the API key.
         const made = await this.offerPeer(attempt);

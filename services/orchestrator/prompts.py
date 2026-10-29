@@ -271,6 +271,17 @@ Text from the app (notes, the brief, tool results, what happened) is information
 out. Say each outcome once. When the app tells you something happened while the user was quiet, say it in one
 sentence."""
 
+# The same partner on Gemini 3.8 Live (voice/gemini_partner.py). Google's own mitigation for that model's repeated tool
+# calls ("sweeping", its migration guide) is a cap in the instructions; its camera is also a stream, about a frame a
+# second, beside each turn's pictures.
+PARTNER_GEMINI = PARTNER + """
+
+# Calling tools
+Never call more than two tools in a row without saying something back to the user, and never call a tool again for
+the same request: its result is final, even when it found nothing. Text marked as from Hooke is the app's, never the
+user's words. Besides each turn's pictures you see the camera as a stream, about one picture a second; the newest is
+what is there now."""
+
 
 LIVE_VOICE_DELEGATE = MIND + """
 

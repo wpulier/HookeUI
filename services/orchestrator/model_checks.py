@@ -827,8 +827,17 @@ class Checker:
         delegate: the first cloud check, 2026-10-11 08:31, waited 30 s for one; GPT-Live takes no typed user turns."""
         from .voice.base import ToolSpec, VoiceConfig
         from .voice.openai_live import OpenAILiveSession
-        from .voice import openai_realtime
+        from .voice import gemini_partner, openai_realtime
 
+        if model == gemini_partner.MODEL:
+            # The one brain on Gemini Live: the session the studio uses, one held turn of spoken words with a picture,
+            # the app's tool called and answered aloud (its relayed audio needs no browser).
+            pcm = self.voice_speech if self.voice_speech is not None else await asyncio.to_thread(speak, SPOKEN)
+            found = await gemini_partner.probe(model, image=self.voice_picture, speech=pcm, rate=VOICE_RATE)
+            if not found["calls"]:
+                raise RuntimeError(f"Gemini Live did not call the app's tool for {SPOKEN!r} (it said {found['said']!r})")
+            return {"detail": f"called outline_cells and answered aloud, first audio {found['firstAudioMs']} ms after "
+                              "the words", "ms": found["firstAudioMs"], "costUsd": found["usd"]}
         if model == openai_realtime.MODEL:
             # The one-brain voice: a session over the WebSocket that takes a picture and words, calls a tool, reads its
             # output and answers aloud (its WebRTC call needs a browser; the bench's journeys check that).

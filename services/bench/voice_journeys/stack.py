@@ -229,7 +229,7 @@ def up_arguments(u: argparse.ArgumentParser) -> None:
     u.add_argument("--keys", default=str(KEYS if KEYS.exists() else Path.home() / "Desktop" / "micromind.txt"))
     u.add_argument("--build", action="store_true", help="rebuild the studio even if dist exists")
     u.add_argument("--settings", default="", help='settings for this arm, JSON: {"reflex": "lean"}')
-    u.add_argument("--voice", default="", help="the voice option: gpt-live-1 or gpt-realtime-2.1")
+    u.add_argument("--voice", default="", help="the voice option: gpt-live-1, gpt-realtime-2.1 or gemini-3.8-live")
     u.add_argument("--talk", default="", help="the talk mode for the one brain: hold or open")
     u.add_argument("--faults", action="store_true", help="accept the bench's injected faults (second stack only)")
     u.add_argument("--research-cap", type=float, help="the day's research cap on this stack, in dollars")

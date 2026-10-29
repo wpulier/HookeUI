@@ -1016,13 +1016,17 @@ REALTIME_PRICE = {"inText": 4.0, "inAudio": 32.0, "inImage": 5.0, "outText": 24.
 
 
 def realtime_cost(inter: list[dict]) -> float | None:
-    """The one brain's provider-reported usage (partner-response records) priced; None when there is none."""
+    """The one brain's provider-reported usage (partner-response records) priced; None when there is none. A record that
+    priced itself (`usd`: Gemini Live's, at its own list price) is taken as it says."""
     total, seen = 0.0, False
     for r in inter:
         usage = r.get("usage") if r.get("kind") == "partner-response" else None
         if not isinstance(usage, dict):
             continue
         seen = True
+        if isinstance(r.get("usd"), (int, float)):
+            total += float(r["usd"])
+            continue
         for key, price in REALTIME_PRICE.items():
             total += float(usage.get(key) or 0) * price / 1e6
     return round(total, 4) if seen else None

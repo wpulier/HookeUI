@@ -69,7 +69,7 @@ import { configureStarterModels, noteCapabilities } from './starter-models';
 import { listVolumes } from './volumespanel';
 import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
-import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
+import { GEMINI_PARTNER_VOICE, PARTNER_VOICE, PARTNER_VOICES, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
 import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
@@ -1291,11 +1291,13 @@ function handleMessage(message: ServerMessage): void {
       break;
     case 'settings':
       view.outlineStyle = message.settings.style ?? 'classic';
-      // The one-brain voice talks over WebRTC only; its TALK and talk key decide how Talk is held (talk.ts).
+      // The one-brain voice talks over WebRTC only, its Gemini option through the app only; their TALK and talk key
+      // decide how Talk is held (talk.ts).
       voiceSetting = message.settings.voice ?? '';
       talkSetting = message.settings.talk === 'open' ? 'open' : 'hold';
       talkKeySetting = talkKey(message.settings.talk_key);
-      voice.link = message.settings.voicelink === 'webrtc' || voiceSetting === PARTNER_VOICE ? 'webrtc' : 'relay';
+      voice.link = voiceSetting === GEMINI_PARTNER_VOICE ? 'relay'
+        : message.settings.voicelink === 'webrtc' || voiceSetting === PARTNER_VOICE ? 'webrtc' : 'relay';
       renderTalk();
       view.outlineColor = OUTLINE_COLORS[message.settings.outlineColor ?? 'pink'] ?? OUTLINE_COLORS.pink;
       outlineColourName = message.settings.outlineColor ?? 'pink';
@@ -1722,7 +1724,7 @@ function holdToTalk(): boolean {
     if (voice.talkMode !== undefined) return voice.talkMode === 'hold'; // GPT-Live announces none: a toggle
     if (voice.state === 'live') return false;
   }
-  return voiceSetting === PARTNER_VOICE && talkSetting !== 'open';
+  return PARTNER_VOICES.includes(voiceSetting) && talkSetting !== 'open';
 }
 // Held turns (talk.ts TalkTurns): with Talk off, the key connects only once held alone, so a VoiceOver command never
 // opens the microphone or a paid call; the button connects at once.

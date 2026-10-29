@@ -1,7 +1,8 @@
 """The one-brain voice's side of the app: what it sees each turn, the Project brief, the studio link, the shared
 conversation, lines nobody asked for and reconnecting (PARTNER-CONTRACT; docs/architecture/seeing-and-acting.md).
 
-`Partner` binds one `RealtimeSession` (voice/openai_realtime.py) to the app for one Talk session:
+`Partner` binds one one-brain session (voice/partner_session.py: `RealtimeSession` in voice/openai_realtime.py, or
+`GeminiPartnerSession` in voice/gemini_partner.py) to the app for one Talk session:
   - **seeing, at key-down:** the camera's eyepiece crop (`scene_tools.view_frame`, grabbed off the loop the moment the
     key goes down), the studio's window picture (it sends `{type:"snapshot", id:"talk-<n>"}` unsolicited right after
     `{type:"talk", down:true, n}`) and the screen now as text (the accepted studio's report: `context._voice_windows`).
@@ -16,7 +17,7 @@ conversation, lines nobody asked for and reconnecting (PARTNER-CONTRACT; docs/ar
     a capability turned on (`happened`, called by the app), a reconnect: one sentence when nobody is talking, pointing
     at the card;
   - **reconnecting:** a call that ended asks the studio for a new offer (`reoffer`); a sideband that dropped is
-    reattached; either way the same session object goes on, seeded again.
+    reattached; a relayed session (no WebRTC call) resumes by itself; either way the same session object goes on.
 """
 from __future__ import annotations
 
@@ -30,7 +31,8 @@ import os
 import time
 from typing import Any, Awaitable, Callable
 
-from .openai_realtime import Perception, RealtimeSession
+from .openai_realtime import Perception
+from .partner_session import PartnerSession
 from .partner_tools import PartnerTools
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
@@ -51,7 +53,7 @@ class Partner:
         self.send = send  # to the studio over /ws/voice
         self.log = log or (lambda record: None)
         self.clock = clock
-        self.session: RealtimeSession | None = None
+        self.session: PartnerSession | None = None
         self.tools = PartnerTools(brain, hub, self, client=client, dialogue=dialogue)
         # The journal's lines, as the GPT-Live path writes them; its hands are never used (the model acts itself).
         self.lines = SpokenRequests(brain, dialogue, client=client) if client is not None else SpokenRequests(brain, dialogue)
@@ -79,7 +81,7 @@ class Partner:
         self._dropped_because = ""
 
     # --- binding -----------------------------------------------------------------------------------
-    def bind(self, session: RealtimeSession) -> None:
+    def bind(self, session: PartnerSession) -> None:
         self.session = session
         session.turn_items = self.turn_items
         session.on_speech_started = self.capture
@@ -536,6 +538,10 @@ class Partner:
             self.reconnecting, self.fault = None, None
             return
         try:
+            if getattr(session, "link", "webrtc") != "webrtc":
+                # Relayed through the app (Gemini Live): no call to renew from the browser; the session resumes itself.
+                await session.reconnect(None, why=why)
+                return
             if why == "close" and self.clock() - self._reattached_at > REATTACH_AGAIN_S:
                 try:
                     await session.reconnect(None, why=why)
@@ -565,7 +571,7 @@ class Partner:
             await asyncio.sleep(0.3)
             session = self.session
             notes = getattr(self.brain, "voice_notes", None)
-            if session is None or session.closed or not isinstance(notes, list) or not notes or session._sb is None:
+            if session is None or session.closed or not isinstance(notes, list) or not notes or not session.connected():
                 continue
             taken = list(notes)
             del notes[:len(taken)]
@@ -579,8 +585,6 @@ class Partner:
         if fault == "close-provider" and session is not None:
             self.fault = "bench"
             with contextlib.suppress(Exception):
-                await session._hangup(session.call_id)
-            with contextlib.suppress(Exception):
-                await session._sb.close()
+                await session.drop_connection()
         elif fault == "fail-next-tool":
             self.tools.fail_next = "the bench made this tool fail (a stated test fault)"

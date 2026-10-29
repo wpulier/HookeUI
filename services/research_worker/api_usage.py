@@ -53,7 +53,9 @@ VOICE_BOUND_MIN = 2  # a voice session holds its next minutes ahead, renewed at 
 VOICE_USD_PER_MIN = 0.05
 # Voices billed by the tokens each response reports (voice/route.py records them): their open time writes no charge of
 # its own, and their minutes ahead are held at this estimate (audio both ways, the pictures and the context re-read).
-TOKEN_BILLED_USD_PER_MIN = {"gpt-realtime-2.1": 0.30}
+# Gemini 3.8 Live: audio $0.005 in and $0.018 out a minute, video $0.002, plus each turn re-reading its context (at most
+# COMPRESS_AT tokens, voice/gemini_partner.py).
+TOKEN_BILLED_USD_PER_MIN = {"gpt-realtime-2.1": 0.30, "gemini-3.8-live": 0.10}
 _settling: contextvars.ContextVar = contextvars.ContextVar("api-usage-settling", default=None)
 
 
