@@ -1454,7 +1454,8 @@ function renderInputs(): void {
   }
   drawerBody.append(list);
   if (!snapshot.sources.length) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No inputs in this Project yet. Import a picture or video, or try the guided example: a real microscope image, measured in pixels.'));
+    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No pictures or videos in this Project yet. Scientific files and saved results are in Data. Use the Inputs menu to import material, or try the guided microscopy example.'));
+    empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
     empty.append(example);drawerBody.append(empty);
   }
