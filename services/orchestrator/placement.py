@@ -135,21 +135,22 @@ def _overlap(a, b) -> float:
 
 
 def beside_shown(wire: dict | None, tab: str, thing: list[str]) -> tuple[bool, str]:
-    """Whether the report shows `thing` on Tab `tab` side by side with what is there: its window shown, and neither it
-    nor any other window there (the live view included, when it floats) covering a quarter of another."""
-    shown = windows_on(wire, tab)
+    """Whether the report shows `thing` on Tab `tab` side by side with what is there: its window shown, and no window
+    the Tab's Arrange tiles there (documents and native windows, and the live view when it floats) covering a quarter
+    of it, or it of them. A panel Arrange does not tile (the magnifier over the live view) does not count."""
+    shown = [w for w in windows_on(wire, tab) if str(w.get("id") or "").startswith(("document:", "w-"))]
     wanted = set(thing)
     mine = [w for w in shown if identities(w) & wanted]
     if not mine:
         return False, "it is not shown there"
-    rects = [w.get("rect") for w in shown]
+    others = [w.get("rect") for w in shown if not identities(w) & wanted]
     specimen = (tab_of(wire, tab) or {}).get("specimen") or {}
     if specimen.get("state") == "float" and specimen.get("rect"):
-        rects.append(specimen["rect"])
+        others.append(specimen["rect"])
     elif specimen.get("state") == "fill":
         return False, "the live view fills the Tab behind it"
-    for i, a in enumerate(rects):
-        for b in rects[i + 1:]:
+    for a in [w.get("rect") for w in mine]:
+        for b in others:
             if _overlap(a, b) > 0.25:
                 return False, "its windows still overlap"
     return True, ""
@@ -177,12 +178,24 @@ async def place(services, ctx, registry, args: dict) -> str:
     from .brain.registry import ToolFailed
     from .brain.toolbox.present import act
 
-    placement = str(args.get("placement") or "")
-    if placement not in PLACEMENTS:
-        raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
     what = args.get("what") if isinstance(args.get("what"), str) else ""
     what = what.strip()
+    placement = str(args.get("placement") or "")
     tab = " ".join(str(args.get("tab") or "").split())[:80] or None
+    if not placement and re.fullmatch(r"e\d+", what):
+        # A run's outlines with no place asked: drawn on the live specimen, with their table beside (DEFAULTS).
+        drawn = await act(services, {"do": "show", "what": what}, ctx=ctx)
+        tool = registry.tools.get("show_measurements")
+        if tool is None:
+            return drawn
+        try:
+            table = await tool.handler(ctx, {"of": what, "placement": "beside", **({"tab": tab} if tab else {})})
+        except ToolFailed as exc:
+            return f"{drawn}; its table was not placed beside: {exc}"
+        return f"{drawn}; and {table}"
+    placement = placement or "window"
+    if placement not in PLACEMENTS:
+        raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
     if re.fullmatch(r"[em]\d+", what):
         if placement == "overlay":
             return await act(services, {"do": "show", "what": what}, ctx=ctx)

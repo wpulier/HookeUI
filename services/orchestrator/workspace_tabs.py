@@ -125,6 +125,8 @@ class WorkspaceTabs:
                 if observed is not None:
                     reply = {**reply, 'front': front(observed.wire())}
                 reply = await self._kinds(reply, owner.session, args.get('kind'))
+            if action == 'only':
+                await self._close_panels(screen, ctx, args)
             if action in ('arrange', 'only') and verify:
                 placed = await self._placed(screen, ctx, args, current)
                 reply = {**reply, 'shown': placed}
@@ -172,6 +174,29 @@ class WorkspaceTabs:
             reply = {**reply, 'tabs': matches, 'kind': kind,
                      'holding': [t.get('title') for t in matches] if matches else f"no Tab holds a {kind}"}
         return reply
+
+    async def _close_panels(self, screen, ctx, args: dict) -> None:
+        """Only, for what is not one of the Tab's own windows: the magnifier and the Data reader open on the Tab in
+        front are closed too (each its own close, as `present` closes it), so "close everything else" leaves nothing
+        else. The Tab's windows were closed by the studio through their own ×."""
+        from .brain.toolbox.present import act
+        from .placement import identities, strip, windows_on
+
+        observed = screen.observation(ctx.client)
+        wire = observed.wire() if observed is not None else None
+        tab = strip(wire).get('tab')
+        named = next((t for t in strip(wire).get('tabs') or () if args['tab'] in (t.get('id'), t.get('title'))), None)
+        if not tab or (named is not None and named.get('id') != tab):
+            return
+        keep = set(args.get('keep') or ())
+        services = getattr(getattr(self.app, 'brain', None), 'services', None)
+        for item in windows_on(wire, tab):
+            iid = str(item.get('id') or '')
+            if (iid == 'magnifier' or iid.startswith('document:reader-')) and not identities(item) & keep and services:
+                try:
+                    await act(services, {'do': 'close', 'what': iid}, ctx=ctx)
+                except ToolFailed:
+                    pass  # said by the report check that follows: what is still open there
 
     async def _placed(self, screen, ctx, args: dict, current) -> dict:
         """Done only once the studio's report shows the Tab as asked: arranged with its windows side by side (beside)

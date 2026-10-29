@@ -90,6 +90,13 @@ other files.
   researcher's result and the step's outcome once, together (`Partner._research_done` defers to it); a researcher that
   did not finish leaves it undone, and that is said. With no researcher started it runs right after the first part;
   otherwise the voice is told nothing keeps it (`not_kept`), so it is never promised. Kept in memory only.
+- **Where things go and where they are** (docs/architecture/on-screen.md "The workspace model", "Placing things"):
+  the brain's screen words say what each Tab holds by kind and what is drawn on the specimen (`context.holds_words`,
+  `overlay_words`, `other_tabs_words`), so "which Tab has the measurements?" is read from kinds (`tabs list
+  kind=table`). Every tool that places something takes the one vocabulary (`placement.py`: new-tab, beside, overlay,
+  window, replace, close, only; the words in each tool's description), and its receipt says where the screen shows it
+  ('Tab "Cell results" in front holds the cells' outlines on their capture, with its table beside them'), never an
+  internal word. A video or web page from the web is `show_web` (a checked search, a sandboxed window).
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

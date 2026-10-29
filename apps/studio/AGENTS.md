@@ -382,6 +382,17 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   Open in Measurements opens (`agent-table.ts`, a `table-window` message, on the Tab it names, fitted), done once the
   screen report shows it (docs/architecture/on-screen.md "One surface per thing"); a studio without the workspace keeps
   this page.
+- **What each Tab holds** (`workspace-model.ts`; on-screen.md "The workspace model"): every item on a Tab by kind
+  (table, outlines, tracks, image, reference, document, graph, video, web-page, magnifier, note), from its saved
+  presentation or its window's source (`data-source-kind`/`data-source-media` on a native window, `data-web-window` on
+  a web window). The Assistant's `tabs list` and the screen report's Tab strip (`holds`) read it; `tabs arrange` and
+  `tabs only` are the Tab's own Arrange and its windows' own × (`WorkspaceViews.only`: the specimen hidden, Main's
+  floated small).
+- **A web page or video** (`web-window.ts`; on-screen.md "Web pages and videos"): the Assistant's `show_web` opens it
+  as a document window on the Tab named (a `web-window` message), its frame sandboxed (`WEB_SANDBOX`: no top
+  navigation, popups or forms) and only for `WEB_HOSTS` (YouTube's privacy-enhanced embed, Vimeo's player, Wikipedia
+  and Commons), with "Video from youtube.com · Open on the web ↗" under it; closing it stops it. Reported as a document
+  surface (representation `web-page` or `video`), done once the report shows its frame loaded.
 - **The empty stage** (`session-home.ts`) is one box under the session's name, "What will you look at?": side by side,
   Open a picture or video (dropped anywhere on the stage, or chosen: it joins your assets and this session) and the live
   camera (its state, Use live camera for a new session, Connect a camera and Reconnect when it has no picture); under

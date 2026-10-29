@@ -90,7 +90,68 @@ other files.
   - **A new Tab** ("+", ⌘T, `tabs create`, a window sent to a new Tab) opens with its specimen floating small in the
     Stage's lower-left corner (`floatingSpecimen`, also where Float puts it). Main, an input's Tab and a run's result
     Tab (it draws there) keep it filling; a comparison hides it.
-  - `project.state` does not carry it yet: its schema (`contract/agent/project-state.schema.json`) is another change's.
+  - `project.state` does not carry it yet: its schema (`contract/agent/project-state.schema.json`) is another change's
+    (the addition both need is under "The workspace model").
+- **The workspace model: what each Tab holds, by kind** (live partner spec 4.8, horizontal 2;
+  `apps/studio/src/workspace-model.ts`). Every thing on a Tab has one kind: table, outlines, tracks, image, reference,
+  document, graph, video, web-page, magnifier or note (`ITEM_KINDS`; `workspace_observation.ITEM_KINDS`). A Tab holds
+  its saved items (masks: outlines on their capture; table; capture; datatable; analysis; graph; a document), the
+  windows open on it that its arrangement does not save (a live magnifier, a reference photo, a web page or video, by
+  their source: `data-source-kind` and `data-source-media` on a native window, `data-web-window` on a web window), its
+  notes and its specimen.
+  - **`tabs list`** returns each work Tab's items as {placement, kind, title, presentation, resource, window, source}
+    with `resourceKind` from the index, `holds` (its items counted by kind), its `input` and `specimen`; a researcher's
+    or Study's Tab with what it `shows` (its conversation and the work it made, by kind). `kind=table` lists only the
+    Tabs holding a table, so "which Tab has the measurements? Open that" is answered from kinds, never from a title.
+  - **The screen report's Tab strip** carries each open Tab's `kind` and `holds` (compact: the counts; the items are in
+    `tabs list`), read leniently: a kind or count out of bounds is dropped, never the report (the finalisation plan's
+    rule 4). `front()` adds the Tab in front's `holds`, the layers drawn on its specimen (`overlays`: each cell-outline
+    and motion layer shown, with its members) and its `magnifiers`; the voice's Tab line says them ("Tab "Main" of
+    this Project, the specimen fills it, behind its windows, holding a table; drawn on the specimen: cell outlines
+    (142)") with a line for the other Tabs ("Other Tabs: "Cell results" (a table and cell outlines)"), and so do
+    `Workspace front`, the chat's display inventory and Hands' facts.
+  - `project.state` does not carry it yet: its schema is Codex's (`contract/agent/project-state.schema.json`); the
+    addition it needs is each Tab's `kind`, `specimen` and `items` ({placement, kind, title, resource}).
+- **Placing things: one vocabulary** (`orchestrator/placement.py`). Every tool that puts something on screen takes the
+  same words, each done only when the studio's report shows it, with what the report shows when not:
+  - `new-tab`: a Tab of its own, a canvas with no specimen. A population's results (`show_measurements` or `present
+    do=place`): its outlines on their capture and its table beside them, like Will's "Cell outlines" Tab ("Cell
+    results"; the report shows both on that Tab, in front, side by side).
+  - `beside`: side by side in this Tab with what is there, the live view included: the Tab's own Arrange (`tabs
+    arrange`; the report shows no window, the floating specimen included, over a quarter of another). A new Tab has no
+    live view, so "beside the live view" names Main. `instead` moves it there from the Tab it is in (`tabs move`, the
+    person's own "Move this view instead").
+  - `overlay`: drawn on the live specimen, outlines and layers only (`present` show); a table or a window is refused
+    with what to do instead.
+  - `window`: a floating window, in front (nothing over it in the report).
+  - `replace`: in place of the window in front, which closes first.
+  - `close`: closed; its Data is kept.
+  - `only`: the only thing open in its Tab (`tabs only` with `keep`): every other window closed through its own ×, as
+    a person's click closes it, and the specimen hidden, or on Main floated small in its corner (Main always keeps
+    it); the kept window fitted to the room left. Done once the report shows only it there and the specimen so.
+  - **Defaults by kind** (`placement.DEFAULTS`): a run's outlines as an overlay with their table beside (the table's
+    default is `beside`), a reference image beside, a document in a Tab of its own, a video or web page as a window.
+  - Hands checks `tabs only`/`arrange` and `present do=place` from the same report facts (`placement.only_shown`,
+    `beside_shown`) and says where: "Done: only that is open in the Main Tab; the live view floats small."
+- **Web pages and videos** (`show_web`, `orchestrator/web_window.py`, `apps/studio/src/web-window.ts`). A video found on
+  the web, or a link, opens in a sandboxed window of its own: its frame's scripts run in its own origin, never the
+  app's (`allow-scripts allow-same-origin allow-presentation`; no top navigation, popups, forms or downloads), and the
+  window always says where it is from with an "Open on the web" link. Only an allowed host's framed address is ever
+  sent or framed (`web_hosts.py`, the studio's `WEB_HOSTS`): YouTube as its privacy-enhanced embed
+  (`www.youtube-nocookie.com/embed/<id>`, from any YouTube link), Vimeo's player, Wikipedia and Wikimedia Commons
+  pages; `presentations.SourceRef` refuses any other web source, and any other site is said with its link.
+  - **The video search** is the grounded web retrieval (`research_worker.retrieval.lookup(videos=True)`, Gemini 3.8
+    Flash with Google Search), checked before anything is shown (`video_search.py`): each candidate a video page on an
+    allowed host, its real title and channel from the video site's own oEmbed answer (a video the site does not know
+    is dropped), a model judging which one's title and description are what was asked (`retrieval.judge_videos`), and
+    the code taking only one of the candidates it checked; none matching is said so. Live check, 29 Oct: "stomata on a
+    leaf..." found "Stomata & Guard Cells - GCSE Biology" (Launchpad Learning) in 16 s.
+  - The video or page is kept in Data as the Project's own entry (`show_web`'s result, its source the web), so it is
+    in the Tab model, the reader and "resources". It is done once the report shows its window on that Tab
+    (`document:<placement>`, representation `web-page` or `video`), its frame loaded (a frame's inner pixels are never
+    certified from its load event) and nothing over it. Closing it stops it playing. Its window is not saved in the
+    Tab's arrangement yet (that needs a layout field), so it closes with the Project.
+  - `retrieve_page` with `show` opens the page it read the same way, or says its link.
 - **A failure on the report path says what did not happen** (`screen.REPORT_NEXT`): not confirmed on screen yet, saved
   work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
   open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen
