@@ -87,8 +87,11 @@ def capture(library, identity):
         if not any(row.get('id') == asset.id and row.get('key') == asset.key for row in rows):
             raise ProjectLocationError('Library history does not establish this source identity')
         edits, looked, shared_looked = {}, {}, {}
+        trashed = False
         for row in rows:
             if row.get('id') == asset.id:
+                if type(row.get('trash')) is bool:
+                    trashed = row['trash']
                 for key, value in row.get('set', {}).items():
                     if value in (None, ''):
                         edits.pop(key, None)
@@ -98,7 +101,7 @@ def capture(library, identity):
                     looked = row['looked']
             elif isinstance(row.get('looked-specimen'), dict):
                 shared_looked = row['looked-specimen']
-        if edits != asset.user or (looked or shared_looked) != asset.looked:
+        if trashed or edits != asset.user or (looked or shared_looked) != asset.looked:
             raise ProjectLocationError('Library metadata differs from its retained history; recover the failed edit before collection')
         # Identity is scoped to these retained records: unrelated Library edits
         # must not change a completed intake's request/content identity.

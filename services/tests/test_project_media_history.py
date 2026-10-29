@@ -105,17 +105,19 @@ def test_metadata_acceptance_holds_the_same_library_lock(tmp_path):
     finally: locations.close()
 
 
-@pytest.mark.parametrize('change',['calibration','classification'])
+@pytest.mark.parametrize('change',['calibration','classification','restore'])
 def test_failed_library_append_cannot_produce_a_mixed_history(tmp_path,monkeypatch,change):
     locations,day,sid,stores,asset=setup(tmp_path)
     try:
         library,identity=source_library(tmp_path,asset)
+        if change=='restore': library.trash(identity)
         def fail(line): raise OSError('simulated journal write failure')
         with monkeypatch.context() as patch:
             patch.setattr(library,'_append',fail)
             with pytest.raises(OSError):
                 if change=='calibration': library.set_meta(identity,{'umPerPx':0.9})
-                else: library.looked(identity,'Plant tissue','new label',True,'test-model')
+                elif change=='classification': library.looked(identity,'Plant tissue','new label',True,'test-model')
+                else: library.restore(identity)
         library.assets(fresh=True)
         with pytest.raises(ProjectLocationError,match='retained history'):
             ProjectMedia(stores).retain_library(sid,library,identity,request='failed-edit-001',
