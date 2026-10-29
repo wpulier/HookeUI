@@ -3249,16 +3249,48 @@ async def screen(app, client, msg) -> dict:
     from .screen import screen_of
     from .workspace_observation import ObservationError
 
+    screen = screen_of(app.hub)
     try:
-        screen_of(app.hub).report(msg, client=client)
+        screen.report(msg, client=client)
         transport = getattr(app, "workspace_transport", None)
         if transport is not None:
             transport.save(client)
     except ObservationError as exc:
         correlation = getattr(exc, "screen_report", None)
+        _report_refused(app, client, exc.code, str(exc))
         return {"ok": False, "code": exc.code, "error": str(exc),
                 **({"screenReport": correlation} if correlation is not None else {})}
+    partial = screen.partial(client) if callable(getattr(screen, "partial", None)) else None
+    if partial:
+        # Taken without the windows whose source has no grant here: the rest of the screen still counts. Said in the
+        # log only (the studio shows no notice for it: it is Hooke's own bookkeeping, not something the user did).
+        _report_refused(app, client, "SOURCE_UNRESOLVED", "; ".join(row["reason"] for row in partial["unresolved"]),
+                        partial=partial)
+        return {"ok": True, "partial": partial}
     return {"ok": True}
+
+
+_REFUSAL_LOG_S = 5.0  # one log line per client and reason this often: a studio reports every few seconds
+
+
+def _report_refused(app, client, code: str, reason: str, *, partial: dict | None = None) -> None:
+    """A studio report refused or taken in part, in the interaction log (`screen-refused`, `screen-partial`): which
+    source or entry and why, so a screen that stops confirming is explained by the log (2026-10-29: it was not)."""
+    seen = getattr(app, "_report_refusals", None)
+    if seen is None:
+        seen = app._report_refusals = {}
+    key = (id(client), code, reason)
+    now = time.monotonic()
+    if now - seen.get(key, -_REFUSAL_LOG_S) < _REFUSAL_LOG_S:
+        return
+    seen[key] = now
+    if len(seen) > 64:
+        for old in sorted(seen, key=seen.get)[:-32]:
+            seen.pop(old, None)
+    record = {"kind": "screen-partial" if partial else "screen-refused", "code": code, "reason": reason[:300]}
+    if partial:
+        record.update(seq=partial.get("seq"), unresolved=partial.get("unresolved"))
+    _log_quietly(app, record)
 
 
 @command("present")

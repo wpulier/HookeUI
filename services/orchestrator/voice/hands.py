@@ -889,7 +889,14 @@ class Hands:
             status = receipt.get("status") if isinstance(receipt, dict) else None
             shows = expected(intent, facts, result)
             outlined = self._outlined(result) if intent.kind == "outline" else 0
-            if status in ("failed", "timed_out"):
+            unreported = (status == "unobserved" and isinstance(receipt, dict)
+                          and (receipt.get("failure") or {}).get("code") == "STUDIO_UNREPORTED")
+            if unreported:
+                # Sent, and no report came since: the screen facts are that same unreported studio's, so they can say
+                # neither done nor failed (2026-10-29: closes the studio applied were said not done).
+                result["result"] = "uncertain"
+                result["error"] = "I sent it but couldn't confirm it on screen"
+            elif status in ("failed", "timed_out"):
                 result["result"] = "failed"
                 why = (receipt.get("failure") or receipt.get("error") or {}) if isinstance(receipt, dict) else {}
                 result["error"] = ("the studio did not show it: " + str(why.get("reason") or status)

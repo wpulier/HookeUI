@@ -1017,11 +1017,18 @@ class App:
         profile = self.hub.screen._profile(socket)
         ctx = self.workspace_context(socket, request_id=profile.ref.connection_epoch, owner="server:metadata")
         lease = None
+        store = self.services.prepared_sources
         try:
-            lease = self.services.prepared_sources.resolve(SourceRef.from_wire(supplied), context=ctx)
+            lease = store.resolve(SourceRef.from_wire(supplied), context=ctx)
             return lease.source
-        except PresentationError:
-            raise ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection") from None
+        except PresentationError as error:
+            refused = ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection")
+            # Ended, not wrong: nothing is prepared under this key for this connection any more (its window was
+            # closed and its pin released, or it was never granted here). Screen leaves that window out of the
+            # report. Facts differing from a source still prepared, and a live window still claiming to draw from a
+            # producer that stopped (the studio says it failed, then `_workspace_failed_source` takes it), stay refused.
+            refused.ended = error.code == "source_not_prepared" and not store.prepared_key(supplied.get("key"), ctx)
+            raise refused from None
         finally:
             if lease is not None and lease.release is not None:
                 lease.release()  # only this synchronous metadata borrow; window owns its pin

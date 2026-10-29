@@ -239,13 +239,18 @@ def test_preclose_source_report_refusal_preserves_original_report_correlation(tm
             while not socket.control.empty():
                 replies.append(json.loads(socket.control.get_nowait()))
             refusal = next(reply for reply in replies if reply.get('type') == 'result' and reply.get('for') == 'screen')
-            assert refusal['ok'] is False and refusal['code'] == 'SOURCE_UNRESOLVED'
-            assert refusal['requestId'] is None
-            assert web.state.hub.screen.observation(socket) is before  # refused pixels/media are never admitted
+            # The window's grant ended at its close: the late report is taken without it (2026-10-29: refusing the
+            # whole report froze the screen while the studio kept reporting), and nothing of it is admitted.
+            assert refusal['ok'] is True and refusal['requestId'] is None
+            partial = refusal['partial']
+            assert {k: partial[k] for k in ('client', 'appRunId', 'seq')} == {
+                'client': origin['client'], 'appRunId': RUN, 'seq': old['seq']}
+            assert [row['sourceKey'] for row in partial['unresolved']] == [lease.source.key]
+            assert partial['unresolved'][0]['items'] == [opened.id]
+            taken = web.state.hub.screen.observation(socket).wire()
+            assert taken['seq'] == old['seq'] and taken['complete'] is False  # refused pixels/media are never admitted
+            assert all(i['id'] != opened.id for i in taken['items']) and not taken['sources']
             assert await send(web, socket, report(origin, 3, [(closed, lease)])) == {'ok': True}
-            assert refusal.get('screenReport') == {
-                'client': origin['client'], 'appRunId': RUN, 'seq': old['seq'], 'sourceKey': lease.source.key,
-            }, 'MISSING_FEATURE: original refused report/source correlation must survive its WS result'
         finally:
             await web.state.app.stop()
     asyncio.run(go())

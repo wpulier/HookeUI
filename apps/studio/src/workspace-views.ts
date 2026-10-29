@@ -3,7 +3,7 @@ import {scientificViewPreferences,type ScientificViewPreferences} from './scient
 import {sameStudyResource} from './workspace-study-restoration';
 import {studyArtifacts} from './workspace-study-artifacts';
 import {legacyResearcher} from './legacy-output-tab';
-import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,setTabKind,bumpForSchema5,pruneLanes,renewPlacements,mainLayout,tileRects,undoArrange,readerItem,readerView,layoutForServer,specimenState,floatingSpecimen,type LayoutSchema,type WorkspaceLayout,type WorkspaceView,type WorkspaceTabInput,type Rect,type ReaderTabItem,type SpecimenState} from './workspace-views-model';
+import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,setTabKind,bumpForSchema5,pruneLanes,renewPlacements,mainLayout,tileRects,undoArrange,readerItem,readerView,layoutForServer,specimenState,floatingSpecimen,type LayoutSchema,type WorkspaceLayout,type WorkspaceView,type WorkspaceTabInput,type Rect,type ReaderTabItem,type SpecimenState,rebasedLayout} from './workspace-views-model';
 import {NoteState,RecoveryStore,noteStatusLine,type Note,type Recovery} from './workspace-note-state';
 import type {StudyRetainedView,StudyRecovery,StudyOpenOptions} from './workspace-study-restoration';
 import {fitTabRow,measureTabRow,type TabRowParts} from './tab-row-fit';
@@ -58,6 +58,21 @@ export const ENTRY_DRAG='application/x-hooke-entry';
 interface TabOwner {session:string;generation:number}
 interface DraggedEntry {day?:string;id:string;version?:number|null}
 /** A drop resolves only the captured card revision in its original Project opening. */
+/** The name an item is saved under: its own title, else the title its window shows ("Reference photo"), else "Saved
+ * work", at most 512 characters. A window the Assistant opened without a title (live 2026-10-29: a reference photo)
+ * saved an empty name, and the server refused the whole arrangement ("a tab needs a bounded name and identity"). */
+export function savedTitle(title:unknown,root?:Pick<HTMLElement,'querySelector'>|null):string {
+ const own=typeof title==='string'?title.trim():'';
+ const shown=own?'':(root?.querySelector('.workspace-window-title,.study-window-title,header [class*=title]')?.textContent??'').trim();
+ return (own||shown||'Saved work').slice(0,512);
+}
+/** An internal check of the Project's arrangement that did not pass (a revision met twice, a bounded name): for
+ * Activity, never a notice over the work. main.ts files it with the app's other diagnostics. */
+export const LAYOUT_DIAGNOSTIC='workspace-layout-diagnostic';
+export function layoutDiagnostic(error:unknown):void {
+ const text=error instanceof Error?error.message:String(error??'');
+ if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent(LAYOUT_DIAGNOSTIC,{detail:`The Tab layout was not saved: ${text}`}));
+}
 export function draggedEntry<T extends DraggedEntry>(data:string,owner:TabOwner,entries:T[]):T|null {
  if(data.length>16384)return null;
  try {
@@ -106,6 +121,18 @@ export class WorkspaceViews {
  private serverSchema:LayoutSchema=LAYOUT_SCHEMA;private sessionReaders=new Map<string,WorkspaceView[]>();
  private schemaNow():LayoutSchema{return this.serverSchema??LAYOUT_SCHEMA;}
  private wire(layout:WorkspaceLayout){return layoutForServer(layout,this.schemaNow());}
+ private rebases=0;
+ /** This window's arrangement on top of the newer one saved since its base: the Tabs, items and notes added there
+  * (and not here) are kept, everything this window shows stays as it is, and the next save uses the newer revision.
+  * False when the reply carries nothing to rebase on. */
+ private rebase(current:any):boolean{
+  if(!current||typeof current.revision!=='number'||!current.layout||!LAYOUT_SCHEMAS.includes(current.layout.schema))return false;
+  const server=current.layout as {views:WorkspaceView[]},known=(()=>{try{return JSON.parse(this.lastSaved) as {views?:WorkspaceView[]};}catch{return {views:[]};}})();
+  const next=rebasedLayout(this.layout,server,known);
+  this.layout=next;this.revision=current.revision;this.lastSaved=JSON.stringify(this.wire({...server,active:next.active} as WorkspaceLayout));
+  this.dirty=true;this.conflict=false;this.cache();clearTimeout(this.timer);this.timer=window.setTimeout(()=>void this.flush(),0);
+  return true;
+ }
 private revision=0;private generation=0;private revealSequence=0;
  private queuedReveal?:{id:string;tab?:string;version?:number|null;session:string;generation:number;sequence:number};
  private completionRestores=new Set<string>();
@@ -315,7 +342,7 @@ private revision=0;private generation=0;private revealSequence=0;
      JSON.parse(other.dataset.studyRetained).resource,JSON.parse(root.dataset.studyRetained!).resource)))continue;
    const placementId=root.dataset.placementId??=uuid();
    if(root.dataset.noteId){v.notes.push({id:root.dataset.noteId,placementId,rect:this.rect(root)});continue;}
-   if(root.dataset.studyRetained){const {coordinates:_,...item}=JSON.parse(root.dataset.studyRetained) as StudyRetainedView;const r=this.rect(root);const actual=native.find(n=>n.placementId===placementId);v.items.push({...item,...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),placementId,position:r.slice(0,2),size:r.slice(2)});}
+   if(root.dataset.studyRetained){const {coordinates:_,...item}=JSON.parse(root.dataset.studyRetained) as StudyRetainedView;const r=this.rect(root);const actual=native.find(n=>n.placementId===placementId);v.items.push({...item,title:savedTitle(item.title,root),...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),placementId,position:r.slice(0,2),size:r.slice(2)});}
   }
   // A user edit during a Result restore cannot erase its not-yet-mounted placement.
   for(const item of pending)if(!v.items.some(n=>n.placementId===item.placementId))v.items.push(item);
@@ -347,7 +374,17 @@ private revision=0;private generation=0;private revealSequence=0;
   const session=this.session,g=this.generation,draft=this.layoutDraft;this.say('Saving…');this.retry.hidden=true;this.retry.textContent='Retry save';this.retry.onclick=()=>void this.flush();
   this.saving=(async()=>{try{
    const reply=await this.opts.request('workspace-layout',{session,schema:this.schemaNow(),base:this.revision,layout:JSON.parse(serialized)});if(g!==this.generation)return;
-   if(!reply.ok){this.conflict=reply.code==='conflict'||reply.code==='unsupported-schema';this.say(reply.code==='unsupported-schema'?'Reload required':'Not saved');this.retry.hidden=this.conflict;this.recover.hidden=false;this.opts.notice(reply.error);return;}
+   if(!reply.ok){
+    // A newer revision saved elsewhere (another window of this Project, a result the app placed) is the app's to
+    // resolve: this Tab arrangement is rebased on it and saved again, at most twice in a row, never a toast
+    // (2026-10-29: "This project layout changed before this save…" over the Talk bar).
+    if(reply.code==='conflict'&&this.rebases<2&&this.rebase(reply.current)){this.rebases++;this.say('Saving…');return;}
+    this.conflict=reply.code==='conflict'||reply.code==='unsupported-schema';this.say(reply.code==='unsupported-schema'?'Reload required':'Not saved');this.retry.hidden=this.conflict;this.recover.hidden=false;
+    // An internal check of the arrangement (a bounded name, a revision) is said on the layout line, with Retry, and
+    // in Activity; it is never a notice over the work (ADR 0006, no error cards).
+    if(reply.code==='validation'||reply.code==='conflict')layoutDiagnostic(reply.error);else this.opts.notice(reply.error);
+    return;}
+   this.rebases=0;
    if(reply.completionAdditions?.length){
     // Apply only the server-proven additions, never replace edits made during this request.
     const next=structuredClone(this.layout),added:StudyRetainedView[]=[];
@@ -562,6 +599,13 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  /** A Tab is opening or the Project is changing: arrangement gestures wait, rather than act on half a Tab. */
  private busy(){return this.changing||this.navigating||this.openingInput;}
+ /** Waits, at most `ms`, for the workspace's own work in progress (a Tab opening, a save, a dialog) to end. */
+ private async settle(check:()=>void,ms=4000){
+  const until=Date.now()+ms;
+  while((this.busy()||this.navigating||this.changing||this.saving||document.querySelector('dialog:modal'))&&Date.now()<until){
+   await new Promise(resolve=>setTimeout(resolve,50));check();
+  }
+ }
  /** Main (the Project's first Tab) is home: always open, never removed, and its specimen always shown. */
  private isHome(id:string){return id===(this.layout.views.find(v=>v.id==='main')??this.layout.views[0])?.id;}
  private applySpecimen(){const v=this.active();if(v&&this.isHome(v.id)&&!v.specimen.visible){v.specimen.visible=true;v.specimen.rect=null;this.changed();}
@@ -1073,7 +1117,9 @@ private revision=0;private generation=0;private revealSequence=0;
    ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>({id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),omittedItems:Math.max(0,v.items.length-(args.tab?64:8)),items:v.items.slice(0,args.tab?64:8).map(i=>({placement:i.placementId,resource:i.resource,title:i.title}))})),
    ...research.filter(t=>args.action!=='list'||!args.tab||t.id===args.tab).map(t=>({...t,omittedItems:0,items:[]}))]};};
   try{
-   check();if(this.busy()||this.navigating||this.changing||document.querySelector('dialog:modal'))throw new Error('Finish the current workspace action first.');
+   // A Tab still opening, a save under way or a dialog up is waited for (bounded), then the action goes on: it is the
+   // app's own state, never the user's to repeat (2026-10-29, "Finish its current action and ask again").
+   check();await this.settle(check);if(this.busy()||this.navigating||this.changing||document.querySelector('dialog:modal'))throw new Error('Finish the current workspace action first.');
    if(args.action==='list')return report();
    if(typeof args.tab==='string'&&/^(research|study|draft):/.test(args.tab)){
     // A researcher's or Study's Tab: it can be put in front or closed (closing stops nothing; it stays in Researchers).
@@ -1082,8 +1128,10 @@ private revision=0;private generation=0;private revealSequence=0;
     if(args.action==='close'){if(!this.opts.research.close(args.tab))throw new Error('The researcher Tab could not close.');check();return report();}
     throw new Error('A researcher’s Tab can only be shown or closed; its work is in Researchers.');
    }
-   this.capture();await this.flush();check();if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
-   if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace changed while saving. Finish its current action and ask again.');
+   this.capture();await this.flush();check();
+   if(this.dirty&&!this.conflict){await this.settle(check);await this.flush();check();} // a save rebased on a newer revision goes again
+   if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
+   await this.settle(check);if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace is still busy with another action.');
    const target=this.layout.views.find(v=>v.id===args.tab);
    if(args.action!=='create'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
    if(args.action==='create'){

@@ -151,8 +151,10 @@ def test_composite_projection_refuses_changed_digest_or_order_without_losing_val
     asyncio.run(go())
 
 
-async def refused_projected_report(app, studio, monkeypatch, wire, mutate=None, receiver=None):
-    """Change only report input; the actual registered source authority decides."""
+async def refused_projected_report(app, studio, monkeypatch, wire, mutate=None, receiver=None, ended=False):
+    """Change only report input; the actual registered source authority decides. `ended`: nothing is prepared under
+    the key here any more (released, another origin), so the report is taken without that window (2026-10-29: a
+    whole report refused for one ended window froze the screen), and nothing of it is represented or granted."""
     receiver = studio if receiver is None else receiver
     ctx = app.workspace_context(receiver, request_id=wire['requestId'], owner='synthetic-source-refusal')
     accepted = ClientRef(ctx.workspace_id, ctx.client_id, ctx.client_epoch, ctx.connection_epoch)
@@ -176,6 +178,16 @@ async def refused_projected_report(app, studio, monkeypatch, wire, mutate=None, 
 
     monkeypatch.setitem(COMMANDS, 'screen', receive)
     await studio.observe_command(wire)
+    if ended:
+        reply = captured['reply']
+        assert reply['ok'] is True, reply
+        assert [row['sourceKey'] for row in reply['partial']['unresolved']] == [captured['projected']['key']], reply
+        accepted_now = app.hub.screen.observation(receiver).wire()
+        assert accepted_now['complete'] is False
+        assert all(s['key'] != captured['projected']['key'] for s in accepted_now['sources'])
+        assert all(i.get('sourceKey') != captured['projected']['key'] for i in accepted_now['items'])
+        assert all(t.get('sourceKey') != captured['projected']['key'] for t in accepted_now['targets'])
+        return captured['projected']
     assert captured['reply']['ok'] is False
     assert captured['reply']['code'] == 'SOURCE_UNRESOLVED', captured['reply']
     assert app.hub.screen.observation(receiver) is previous, 'refusal cannot advance accepted sequence/time'
@@ -261,7 +273,7 @@ def test_projected_source_grants_refuse_wrong_origin_release_and_ambiguity(tmp_p
                         store.get(lease.token, ctx)
                     assert revoked.value.code == 'delivery_revoked'
                     with monkeypatch.context() as negative_patch:
-                        await refused_projected_report(app, studio, negative_patch, wire)
+                        await refused_projected_report(app, studio, negative_patch, wire, ended=True)
                     with pytest.raises(PresentationError) as refused:
                         store.resolve(projected, context=ctx)
                     assert refused.value.code == 'source_not_prepared'
@@ -281,7 +293,7 @@ def test_projected_source_grants_refuse_wrong_origin_release_and_ambiguity(tmp_p
                     peer_ctx = app.workspace_context(peer, request_id=ctx.request_id, owner='synthetic-peer-preparation')
                     if failure == 'wrong-origin':
                         with monkeypatch.context() as negative_patch:
-                            await refused_projected_report(app, studio, negative_patch, wire, receiver=peer)
+                            await refused_projected_report(app, studio, negative_patch, wire, receiver=peer, ended=True)
                         with pytest.raises(PresentationError) as refused:
                             store.resolve(projected, context=peer_ctx)
                         assert refused.value.code == 'source_not_prepared'
@@ -310,7 +322,8 @@ def test_projected_source_grants_refuse_wrong_origin_release_and_ambiguity(tmp_p
                         assert store.get(lease.token, ctx) == raw
                     finally:
                         valid.release()
-                assert app.hub.screen.observation(studio) is baseline
+                if failure != 'released':  # released: its report was taken without the ended window (above)
+                    assert app.hub.screen.observation(studio) is baseline
             finally:
                 if survivor is not None:
                     survivor.release()

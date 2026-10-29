@@ -8,6 +8,7 @@ screen if one covers it, else a new one from its box, one per thing per request.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import re
 from typing import Awaitable, Callable
@@ -19,6 +20,9 @@ from .admission import MAX_CALLS
 
 SEEN_ID = re.compile(r"s\d+")
 CLEARING = ("clear", "close_magnifier", "close_result")  # steps that take things off the screen
+# A request whose studio has not reported for REPORT_FRESH_S asks it for a report and waits this long for one before
+# its steps run, so its tools read what it shows now instead of failing as "stale" (live 2026-10-29).
+STALE_REFRESH_S = 2.0
 SETUP = ("use",)  # steps that choose how the request's own work is done (contract 7): before its outlines too
 
 
@@ -99,12 +103,30 @@ class ActionRunner:
         sight = self.sight()
         return sight.view if sight is not None else None
 
+    async def _current_report(self, ctx: ToolContext) -> None:
+        """The requesting studio's report is current before its steps run: one older than REPORT_FRESH_S (a studio
+        that stopped reporting for a while, or whose reports were not taken) is asked for again, never failed as
+        stale by each tool in turn."""
+        screen, client = getattr(self.hub, "screen", None), getattr(ctx, "client", None)
+        if client is None or screen is None or not callable(getattr(screen, "refresh", None)):
+            return
+        try:
+            observed = screen.observation(client)
+            if observed is not None and screen._current_observation(observed):
+                return
+        except Exception:
+            return
+        with contextlib.suppress(Exception):
+            await screen.refresh(client, timeout=STALE_REFRESH_S)
+
     async def run(self, actions: list[tuple[str, dict]], ctx: ToolContext, numbers: list[int] | None = None) -> list[ToolRun]:
         """Run one answer's steps in order. `numbers`: the number the model gave each step, when the
         answer's steps are run in more than one call (the brain runs a look's clearing steps before
         its outlines and the rest after them); without it these steps are a new answer, numbered 1..."""
         if ctx.board is None:
             ctx.board = self.board
+        if actions:
+            await self._current_report(ctx)
         # In the order the model gave them (its judgment; a clear it lists after a highlight
         # runs after it).
         runs = [ToolRun(name, dict(args) if isinstance(args, dict) else {}) for name, args in actions]
