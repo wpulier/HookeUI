@@ -28,6 +28,7 @@ import { BoxDrag, frameBox } from './boxdrag';
 import { ChatLog } from './chatlog';
 import { endsVoiceTurn, type LocalNoticeOptions } from './chatmodel';
 import { AskRequests, askError } from './ask-feedback';
+import { assistantBlockReason } from './assistant-readiness';
 import { ExecutionRecordingControl } from './executionlog';
 import { ExecutionHistory } from './executionhistory';
 import { AssetsView } from './assets';
@@ -925,8 +926,12 @@ askStatus.textContent = 'Connecting to the studio…'; askForm.before(askStatus)
 let workspaceReady = false;
 const askRequests = new AskRequests();
 const askScope = () => ({ day: day?.id ?? null, thread: day?.active ?? null });
+function askBlocked(): string | null {
+  return assistantBlockReason(actionsPanel.capabilities(), workspaceReady, askRequests.pending(askScope()));
+}
 function updateAskAvailability(): void {
-  composer.send.disabled = !workspaceReady || askRequests.pending(askScope());
+  composer.send.disabled = Boolean(askBlocked());
+  for (const form of document.querySelectorAll('.study-ask-composer')) form.dispatchEvent(new Event('assistant-readiness'));
 }
 updateAskAvailability();
 const verdict = element<HTMLElement>('verdict');
@@ -1283,7 +1288,7 @@ function handleMessage(message: ServerMessage): void {
       renderSetup(message);
       for (const p of pickers) p.render(message); // both menus draw this list too: one source, nothing to keep in step
       renderComposerModel(message);
-      actionsPanel.setCapabilities(message); // the Actions panel's rows and whether each can run here
+      actionsPanel.setCapabilities(message); updateAskAvailability(); // the Actions panel's rows and whether each can run here
       { const names = new Map((message.models ?? []).map((row) => [row.id, row.name] as [string, string]));
         if (JSON.stringify([...names]) !== JSON.stringify([...catalogNames])) { catalogNames = names; research.render(); } }
       downloadPills.update(message.setup?.downloads ?? [], message.models ?? []); // Ready only when its model is
@@ -1943,6 +1948,8 @@ function openRunPage(capability: string): void {
 function ask(text: string, capabilityTrial?: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
+  const blocked = askBlocked();
+  if (blocked) { askStatus.hidden = false; askStatus.textContent = blocked; return false; }
   // The frame on screen when you asked is the one the answer is about.
   try {
     if (!workspaceSession) throw new Error('Workspace connection is unavailable');
@@ -3790,6 +3797,8 @@ export function workspaceStudyBridge() {
     // The Assistant's composer (composer.ts): the workspace fills its chip line and its + menu, and places the chat's
     // "New messages" pill above it.
     composer,
+    askBlocked,
+    askAssistant: ask,
     setComposerAttach: (items: () => MenuItem[]) => { composerAttach = items; },
     newMessages: chat.newMessages,
     // The Working strip (working-strip.ts), and what a hand-started run's pill needs: its model's name and its run page.

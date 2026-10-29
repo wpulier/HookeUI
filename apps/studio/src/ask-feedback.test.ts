@@ -30,9 +30,9 @@ test('disconnect preserves current draft without implying the server cancelled w
   expect(requests.retire(second, '')).toBe('');
 });
 
-test('the server’s keyless reason is said in words a person can act on',async()=>{
+test('a missing planner reply does not invent a missing key',async()=>{
  const {askError}=await import('./ask-feedback');
- expect(askError(new Error('the workspace notes planner did not answer; ask again'))).toBe('The Assistant needs its Google Gemini key before it can answer. Add it in Models, then ask again.');
+ expect(askError(new Error('the workspace notes planner did not answer; ask again'))).toBe('The Assistant did not return an answer. Your question is kept; check its model status or try again.');
  expect(askError(new Error('something else went wrong'))).toBe('something else went wrong');
 });
 

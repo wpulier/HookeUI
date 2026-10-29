@@ -30,14 +30,16 @@ test('the Stage bar’s Assistant opens a layer of its own; Escape or a second p
   expect([layer.open, focused]).toEqual([false, null]);
 });
 
-test('the workspace uses the layer on researcher, Study and reader Tabs: the Assistant button toggles it, a Study’s box opens it, leaving resets it', () => {
+test('the Stage Assistant remains available while Study questions use their retained inline conversation', () => {
   const study = readFileSync(new URL('./workspace-study.ts', import.meta.url), 'utf8');
   // Where a page holds the Stage (a researcher's or a Study's, or a reader Tab's one Data item), the Assistant is a layer.
   expect(study).toContain("const assistantAside = () => document.body.dataset.researchOpen === 'true' || document.body.dataset.readerTab === 'true';");
   expect(study).toMatch(/if \(assistantAside\(\)\) \{ assistantLayer\.toggle\(\); return; \}/);
   expect(study).toContain("new AssistantLayer({ panel: rightPanel, button: agentButton, field: () => find('question'),");
-  // A Study's composer opens the layer and sends its words through the Assistant's composer.
-  expect(study).toContain('ask:(text:string)=>{assistantLayer.set(true);');
+  // The Study owns its conversation; it does not route questions through the side Assistant.
+  // Behavioral send/retry/answer checks live in study-conversation.test.ts and study-view.test.ts.
+  expect(study).toContain('const conversation=studyConversation(study,{');
+  expect(study).toContain('conversation:conversation.root,');
   expect(study).toContain('assistantLayer.reset();applyLayout();');
   expect(study).toContain('document.body.dataset.assistantOver = String(aside && assistantLayer.open);');
   // The Stage bar's Stop shows from researchStageBar (research-tab.ts), so it goes once Stop is asked.
