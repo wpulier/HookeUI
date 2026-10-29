@@ -1444,6 +1444,7 @@ def test_a_long_tool_gets_one_progress_line_after_a_real_silence_and_never_a_sec
     most, once the voice has said nothing for PROGRESS_AFTER_S, worded to say what is under way, and long enough never to
     be cut off; then the outcome."""
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.4)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_LEADIN_S", 0.4)  # its turn said a lead-in
     gate = [None]
 
     async def go():
@@ -1473,6 +1474,7 @@ def test_a_progress_line_not_yet_heard_is_let_go_when_the_result_lands(monkeypat
     """"If a result is due, say the result instead": a line asked for whose audio has not started when the tool's output
     lands is cancelled before it is heard, and the outcome is said."""
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_LEADIN_S", 0.3)  # its turn said a lead-in
     gate = [None]
 
     async def go():
@@ -1492,6 +1494,7 @@ def test_a_progress_line_not_yet_heard_is_let_go_when_the_result_lands(monkeypat
 
 def test_a_progress_line_already_playing_is_heard_to_its_end(monkeypatch):
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_LEADIN_S", 0.3)  # its turn said a lead-in
     gate = [None]
 
     async def go():
@@ -1513,6 +1516,7 @@ def test_after_its_progress_line_a_still_running_output_is_not_said_again(monkey
     """One action, one progress line: its output past TOOL_WAIT_S ("still working") asks for no reply of its own after
     the line said it is under way; the outcome comes once, when it lands."""
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.2)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_LEADIN_S", 0.2)  # its turn said a lead-in
     monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.8)
     gate = [None]
 
@@ -1621,4 +1625,65 @@ def test_do_in_hooke_asks_the_brain_in_the_users_own_words_with_what_they_pointe
         assert "segment the oval in the middle" in asked["text"], "the voice's reading goes with it as context"
         assert asked["said"] == "I need you to use a segmentation model on the center thing"
         assert out["ok"] is True and out["answer"] == "Outlined the stoma in the middle."
+    asyncio.run(go())
+
+
+def test_after_its_lead_in_a_still_running_output_is_not_said(monkeypatch):
+    """Will's try-out, 29 Oct: "Outlining all cells will take a moment", then "It's still running the cell
+    segmentation", then the outcome. The voice's own lead-in said it is under way (its first-audio mark had been let go
+    before the round was finished, so the lead-in was never seen): an output past TOOL_WAIT_S that only says it is still
+    running asks for no reply of its own, and no progress line comes while the row shows the work."""
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.5)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.2)  # a round with no lead-in would get a line by now
+    gate = [None]
+
+    async def go():
+        gate[0] = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        await resources_round(t)
+        await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()), seconds=10)
+        await until_async(lambda: any(r["kind"] == "partner-round-quiet" and "lead-in" in r["why"] for r in t.logged))
+        await asyncio.sleep(0.4)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn"], "no second line"
+        gate[0].set()
+    asyncio.run(go())
+
+
+def test_a_hand_off_says_one_outcome_when_the_work_it_started_has_landed(monkeypatch):
+    """will-workspace, 29 Oct: "Back on the Main tab, outline every cell." The brain answered in 9 s ("Cell segmentation
+    is still running") while Cellpose ran on; its late outcome was then said on its own, and the brain's later answer
+    about it was said again. The hand-off waits for the steps it answered "still working", takes their receipts (the
+    announcer gives them to it, not to the narrator), and its result is the whole outcome, said once."""
+    from orchestrator.announcer import Announcer
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        tools = t.partner.tools
+        delegation = "handoff:h1"
+        tools._handed[delegation] = {}
+        ran = SimpleNamespace(tool="outline_cells", ok=True, summary="146 cells outlined", answer="",
+                              occurrence=SimpleNamespace(action_id="a2", request_id="r1"),
+                              wire=lambda: {"tool": "outline_cells", "ok": True, "summary": "146 cells outlined",
+                                            "actionId": "a2"})
+        offered = []
+        announcer = Announcer(SimpleNamespace(show=lambda *a, **k: None), None, SimpleNamespace(offer=offered.append),
+                              None, None, None, voice=lambda: t.session, note_to_voice=None, log=lambda r: None)
+        ctx = SimpleNamespace(channel="voice", voice_owner=t.session, delegation_id=delegation, turn_id=1, asked=None)
+        result = {"answer": "I switched to Main. Cell segmentation is still running.",
+                  "actions": [{"tool": "tabs", "ok": True, "summary": "Main selected", "actionId": "a1"},
+                              {"tool": "outline_cells", "ok": None, "summary": "still working", "actionId": "a2"}]}
+        request = SimpleNamespace(tasks=set())
+        settling = asyncio.ensure_future(tools._handoff_landed(result, tools._handed[delegation], request))
+        await asyncio.sleep(0.3)
+        assert not settling.done(), "the hand-off waits for the step it answered still working"
+        await announcer.late_tool(ctx, ran)
+        settled = await asyncio.wait_for(settling, 2)
+        assert not offered, "the late step is the hand-off's to say, not a line of its own"
+        assert [a["ok"] for a in settled["actions"]] == [True, True]
+        assert settled["actions"][1]["summary"] == "146 cells outlined"
+        assert settled["answer"] == "" and "still running" in settled["answered_while_working"]
+        # Not a hand-off's (no one waits for it): said as a late result, as before.
+        del tools._handed[delegation]
+        await announcer.late_tool(ctx, ran)
+        assert offered, "a late step no hand-off waits for is said"
     asyncio.run(go())

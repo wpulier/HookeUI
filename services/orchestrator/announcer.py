@@ -100,6 +100,11 @@ class Announcer:
         self.dialogue.show({"type": "chat-action", "turnId": ctx.turn_id,
                             "standalone": True, **run.wire()}, asked=ctx.asked)
         voice = ctx.voice_owner if ctx.channel == "voice" else None
+        # A step of a voice hand-off (do_in_hooke) is the hand-off's to say: its outcome is said once, whole, when the
+        # work it started has all landed (voice/partner_tools.py `handed_late`), never step by step.
+        taken = getattr(voice, "handed_late", None) if voice is not None else None
+        if callable(taken) and taken(ctx, run) is True:
+            return
         if voice is not None and not voice.closed:
             occurrence = run.occurrence
             self.narrator.offer(Line(

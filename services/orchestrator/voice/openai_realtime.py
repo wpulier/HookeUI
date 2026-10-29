@@ -76,7 +76,8 @@ RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the 
 # one already playing is heard to its end. Its outputs then going on as "still running" are not said again.
 PROGRESS_AFTER_S = 5.0
 # After the voice's own lead-in ("Outlining that now.") the wait is already said: a line comes only if it runs long.
-PROGRESS_AFTER_LEADIN_S = 12.0
+# Its row shows the work meanwhile (Will's rule of 2026-10-11: one acknowledgement, its row, one outcome).
+PROGRESS_AFTER_LEADIN_S = 20.0
 PROGRESS_LINES = 1
 # A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
 # length is set by its instructions; this only stops a runaway.
@@ -283,6 +284,7 @@ class RealtimeSession(VoiceSession):
         self.heard: Callable[[int], None] = lambda n: None  # a real turn released: the studio's heard cue (partner)
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
+        self.handed_late: Callable[..., bool] = lambda ctx, run: False  # a hand-off keeps its late steps (partner_tools)
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
         self._seen_calls: set[str] = set()
@@ -1559,7 +1561,11 @@ class RealtimeSession(VoiceSession):
             ack = bool(names & self.started_tools) and quiet_round and not spoke
             pointing = names == {"mark"} and spoke
             go_on = (not (quiet_round and spoke) or pointing) and not ack
-            self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack, pointing=pointing))
+            # Whether the voice said words before its tools (its lead-in, "Outlining that now."): from the response's
+            # own words (its transcript, its audio), since its first-audio mark is popped above and over WebRTC its
+            # audio may not have started yet (Will's try-out, 29 Oct: the lead-in was never seen, so "still running" was said after it).
+            led_in = spoke or first is not None or bool(facts.get("outAudio"))
+            self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack, pointing=pointing, led_in=led_in))
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:
@@ -1607,7 +1613,7 @@ class RealtimeSession(VoiceSession):
         return result
 
     async def _finish_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False,
-                            pointing: bool = False) -> None:
+                            pointing: bool = False, led_in: bool = False) -> None:
         """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
         dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has
         been replaced (a new call never had these call ids: nothing is posted to it). `pointing`: marks made beside the
@@ -1638,7 +1644,7 @@ class RealtimeSession(VoiceSession):
             # would feel broken is filled.
             now = self.clock()
             quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
-            wait = PROGRESS_AFTER_LEADIN_S if rid in self._first_audio else PROGRESS_AFTER_S
+            wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
             if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= wait
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
@@ -1655,7 +1661,7 @@ class RealtimeSession(VoiceSession):
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:
             return
-        if (progress or rid in self._first_audio) and still_running and go_on and not ack:
+        if (progress or led_in) and still_running and go_on and not ack:
             # A progress line, or the voice's own words before the tool in the reply that called it ("Outlining that
             # now."), said it is under way; outputs that only say so again are not said a second time (the outcome
             # comes as one line when it lands). Will's try-out, 29 Oct: three "still working" lines for one request.

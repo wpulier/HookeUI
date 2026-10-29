@@ -105,6 +105,13 @@ STILL_HANDED_OFF = ("still running in Hooke; its row in the chat shows it workin
 BACKGROUND = frozenset({"reference_photo", "retrieve_page"})
 STARTED_TOOLS = frozenset({"think"}) | BACKGROUND  # answered "started": their result is said on its own (openai_realtime)
 THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long tool's real outcome (a comparison)
+# A hand-off is done when the work its request started is done, not when the brain first answers: Cellpose, a web
+# search and the studio's confirmation of a closed window all run on after the brain's answer, which then says "still
+# working". The hand-off waits for them this long, so its outcome is said once, whole, when it lands (Will's rule of
+# 2026-10-11: one acknowledgement, its row, one outcome; will-workspace of 29 Oct: "still running", then each late
+# step's outcome, some twice). Past this, the steps still running are said as running.
+HANDOFF_LATE_S = 300.0
+LATE_RECEIPT_S = 2.0  # a late step's receipt follows its work by a moment (Actions._late_when_done)
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
 MARKS_WAIT_S = 1.0  # the studio's marks-shown, at most
@@ -186,6 +193,49 @@ class PartnerTools:
         # answers, then its outcome; the studio lists those in flight above the composer.
         self.handoffs = Handoffs(dialogue, self._send_studio, spawn=lambda coro: self.partner.spawn(coro),
                                  log=lambda record: self.partner.log(record))
+        # A hand-off's late steps by its delegation id ("handoff:<id>"): their receipts, kept for its one outcome.
+        self._handed: dict[str, dict[str, Any]] = {}
+
+    def handed_late(self, ctx, run) -> bool:
+        """A step of a hand-off's request that finished after the brain answered (announcer.late_tool): kept for the
+        hand-off's one outcome, not said on its own. False when no hand-off waits for it: it is said as a late result.
+        A late model answer about a step (the brain's answer round once its work is done) replaces that step's raw
+        receipt, by its action id."""
+        got = self._handed.get(str(getattr(ctx, "delegation_id", None) or ""))
+        if got is None:
+            return False
+        action = getattr(getattr(run, "occurrence", None), "action_id", None) or f"{run.tool}:{id(run)}"
+        got[action] = run
+        return True
+
+    async def _handoff_landed(self, result: dict, got: dict[str, Any], request) -> dict:
+        """The brain's answer with the work it left running finished: each step it answered "still working" or "waiting
+        its turn" waited for (at most HANDOFF_LATE_S) and replaced by its own receipt, and the answer replaced by the
+        brain's later answer about them when it made one. Its outcome is then the whole of what happened."""
+        actions = [a for a in (result.get("actions") or []) if isinstance(a, dict)]
+        late = [a.get("actionId") for a in actions if a.get("ok") is None and a.get("actionId")]
+        if not late:
+            return result
+        deadline = time.monotonic() + HANDOFF_LATE_S
+        while any(i not in got for i in late) and time.monotonic() < deadline:
+            await asyncio.sleep(0.1)
+        # The request's own work after its steps (the brain's answer round about them), briefly.
+        work = [t for t in list(getattr(request, "tasks", ()) or ()) if not t.done()]
+        if work:
+            await asyncio.wait(work, timeout=max(0.1, min(LATE_RECEIPT_S * 10, deadline - time.monotonic())))
+        await asyncio.sleep(0)  # a receipt filed as that work ended
+        final = [got[a["actionId"]].wire() if a.get("actionId") in got else a for a in actions]
+        # A later model answer may be about any of its steps (the brain answers its queries once the work is done).
+        answers = [str(getattr(run, "answer", "") or "") for run in list(got.values())]
+        settled = {**result, "actions": final}
+        later = next((a for a in reversed(answers) if a.strip()), "")
+        if later:
+            settled["answer"] = later
+        else:
+            # The brain's first answer was written while this work ran ("still searching..."): it is not the outcome.
+            settled["answer"] = ""
+            settled["answered_while_working"] = str(result.get("answer") or "")[:600]
+        return settled
 
     def running_facts(self) -> str:
         """What is still running, for a progress line that says something: the tool, how long so far, its own words
@@ -969,6 +1019,10 @@ class PartnerTools:
                 request.seal()
                 request = None
         before = self._reported_at()
+        # Its late steps come back here (handed_late), so its outcome is said once, when all of it has landed.
+        delegation = f"handoff:{flight.id}" if flight is not None and request is not None else None
+        if delegation is not None:
+            self._handed[delegation] = {}
         # Hooke's brain is asked in the user's own words; the voice's reading of them goes with it as context.
         asked = text if said is not None or not words or words.strip().lower() == text.lower() else (
             f"{words.strip()}\n(The voice partner, who sees the same view, took this to mean: {text})")
@@ -978,8 +1032,12 @@ class PartnerTools:
                       f"\"{later}\". Hooke keeps that step with that work and does it when the work lands: do only the "
                       "first part now, and neither do the later step nor promise it yourself.)")
         try:
-            result = await brain.turn(asked, "voice", **kwargs)
+            result = await brain.turn(asked, "voice", delegation_id=delegation, **kwargs)
+            if delegation is not None:
+                result = await self._handoff_landed(result, self._handed[delegation], request)
         finally:
+            if delegation is not None:
+                self._handed.pop(delegation, None)
             if request is not None:
                 request.seal()  # as a typed Send's: what it started finishes, then its holds are let go
         actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
@@ -993,6 +1051,11 @@ class PartnerTools:
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
                                "answer": answer, "actions": actions}
+        if result.get("answered_while_working"):
+            # Its work finished after the brain's first answer, which the chat shows; the outcome is in its steps.
+            out["note"] = ("Hooke's work on this has now finished. Say what happened once, in one or two short "
+                           "sentences, from its actions (each tool's summary is what it did, or why it did not); "
+                           "never that it is still running.")
         if failed:
             out["failed"] = failed
         if uncertain:

@@ -86,6 +86,7 @@
    "expect": {
     "tools": [
      "capabilities",
+     "models",
      "models_in_use"
     ],
     "toolRequired": false,

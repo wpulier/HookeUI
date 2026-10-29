@@ -290,13 +290,14 @@ def test_wrong_first_tool_fails():
     assert result(lines, "Right tool on the first try") == "FAIL"
 
 
-def test_do_in_hooke_over_five_percent_fails():
+def test_do_in_hooke_share_is_reported_never_a_gate():
+    """Handing the work to Hooke's brain is the design (PARTNER_ACTS "brain"): its share is reported, never a FAIL."""
     bench, conv, inter, verdicts = good()
     inter.append(tool(5, "do_in_hooke", 41.8, 43.0))
     plan = copy.deepcopy(PLAN)
     plan["steps"][4]["expect"] = {"tools": ["do_in_hooke"], "toolRequired": False}
     _, summary, lines = board(bench, conv, inter, verdicts, plan)
-    assert summary["doInHooke"]["calls"] == 1 and result(lines, "do_in_hooke share") == "FAIL"
+    assert summary["doInHooke"]["calls"] == 1 and result(lines, "do_in_hooke share") == "reported"
 
 
 def test_false_done_is_a_verified_receipt_the_app_does_not_back():
@@ -734,7 +735,7 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert "Done: 42 nuclei" not in " ".join(rows["after"]["lines"])
     # think is the intended route for multi-step work: never on the fallback's 5% cap, reported by kind of step.
     assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
-    assert result(lines, "do_in_hooke share") == "pass"
+    assert result(lines, "do_in_hooke share") == "reported"
     assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
     assert lines["think share"].get("gate") is False  # think's share is reported, never a gate
 
@@ -1028,3 +1029,23 @@ def test_a_think_result_cut_off_and_brought_back_is_said_once():
     row = {r["id"]: r for r in run["steps"]}["multi"]
     assert row["outcomesSaid"] == 1, row
     assert not [f for f in row["failures"] if "outcome said" in f]
+
+
+def test_a_hand_offs_row_gives_the_brains_steps_and_when_the_studio_confirmed_them():
+    """will-workspace, 29 Oct: the brain outlined the stoma and the studio confirmed it, but the bench read only the
+    voice's own calls and chat-action cards, so the step was "first tool do_in_hooke" and "not confirmed on screen". A
+    hand-off row's steps are the brain's tools, confirmed when the row settled; a step sent but not seen is not."""
+    from bench.voice_journeys.standard import card_calls
+
+    conv = [{"type": "handoff", "at": 10.0, "state": "working", "steps": None, "startedAt": 5.0},
+            {"type": "handoff", "at": 12.0, "state": "done", "startedAt": 5.0, "steps": [
+                {"tool": "find", "ok": True, "actionId": "a1"},
+                {"tool": "present", "ok": True, "actionId": "a2",
+                 "outcome": {"status": "unobserved", "failure": {"code": "STUDIO_UNREPORTED"}}},
+                {"tool": "outline_cells", "ok": None, "actionId": "a3"}]},
+            {"type": "chat-action", "at": 20.0, "tool": "outline_cells", "ok": True, "actionId": "a3"}]
+    calls = {c.name: c for c in card_calls(conv, 0, 30)}
+    assert [c.name for c in card_calls(conv, 0, 30)][0] == "find", "the brain's first step is the first tool"
+    assert calls["find"].confirmed_at == 12.0
+    assert calls["present"].confirmed_at is None, "sent but not seen on screen is not confirmed"
+    assert calls["outline_cells"].ok is True and calls["outline_cells"].confirmed_at == 20.0, "a late step by its card"

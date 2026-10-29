@@ -278,11 +278,15 @@
   // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all),
   // and no tool the voice called is still running (Talk's working dot): a voice that waits quietly on a long tool is
   // not done (the smoke run of 29 Oct ended a step 4 s into Cellpose, and the stack's teardown stopped its worker).
+  // A hand-off's row saying "Hooke is working" is work under way too, as the user sees it: they wait for its outcome
+  // before the next words (will-workspace, 29 Oct: Cellpose's outcome landed in the next step), for at most HANDOFF_MS.
+  const HANDOFF_MS = 120000;
   async function quiet(quietMs, maxMs, minMs) {
     const t0 = Date.now();
-    const working = () => document.getElementById('talk')?.dataset.working !== undefined;
+    const handing = () => !!document.querySelector('[data-role="handoff"][data-state="working"]');
+    const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing();
     const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
-    while (Date.now() - t0 < maxMs && busy()) await sleep(200);
+    while (Date.now() - t0 < (handing() ? Math.max(maxMs, HANDOFF_MS) : maxMs) && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.
   // Until the answer has been under way for `afterMs` from its first audio after `since` (the request's release; a

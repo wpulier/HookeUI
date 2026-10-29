@@ -76,7 +76,10 @@ LEAK_PHRASES = ("nothing was outlined", "nothing's outlined", "nothing is outlin
                 # Hooke's internal checks, never the user's to hear (the live partner spec, 4.8 horizontal 3; Will's
                 # try-out, 29 Oct: "the workspace report was out of date ... ask again in a moment").
                 "workspace report", "workspace view was out of date", "report was out of date", "report was stale",
-                "ask again in a moment", "saved revision", "the observation", "source grant", "bounded name")
+                "ask again in a moment", "saved revision", "the observation", "source grant", "bounded name",
+                # The voice and Hooke are one to the user ("I"), never a hand-off narrated (will-workspace, 29 Oct: "I'll
+                # have Hooke find a reference image", "I'll ask Hooke to close all windows").
+                "ask hooke", "have hooke", "hooke's brain", "hand it off", "handed it off", "handing it off")
 LEAK_PATTERNS = (
     re.compile(r"[{\[]\s*\""),  # JSON
     re.compile(r"\"\s*:\s*[\"{\[\d]"),
@@ -431,12 +434,36 @@ def with_thinks(calls: list[Call], tasks: dict[str, dict]) -> list[Call]:
     return calls
 
 
+def _unseen(step: dict) -> bool:
+    """A step's receipt saying its change was sent but not seen on screen (voice/handoffs.py `unconfirmed`)."""
+    outcome = step.get("outcome") if isinstance(step.get("outcome"), dict) else {}
+    failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
+    return (outcome.get("status") in ("unobserved", "timed_out", "pending")
+            or failure.get("code") in ("STUDIO_UNREPORTED", "STUDIO_IN_BACKGROUND", "REPORT_STALE"))
+
+
 def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
     """Tool cards (chat-action lines) in [start, end): one per action, at its first showing; ok and the time it first
     showed ok (a late ✓ is shown again with the same action id)."""
     calls: dict[str, Call] = {}
     for r in conv:
         at = r.get("at")
+        if (r.get("type") == "handoff" and isinstance(at, (int, float)) and start <= at < end
+                and isinstance(r.get("steps"), list)):
+            # A voice hand-off's row (PARTNER_ACTS "brain"): the brain's steps, as the chat shows them, each settled
+            # when the row was (a step done there was confirmed by the studio before the brain answered); a late
+            # step's own card (chat-action, same action id) settles it again below.
+            began = r.get("startedAt") if isinstance(r.get("startedAt"), (int, float)) else at
+            for i, step in enumerate(s for s in r["steps"] if isinstance(s, dict)):
+                key = step.get("actionId") or f"{step.get('tool')}@{began}:{i}"
+                call = calls.get(key)
+                if call is None:
+                    call = calls[key] = Call(str(step.get("tool")), began + i * 1e-3, step.get("ok"), None, False)
+                call.ok = step.get("ok") if step.get("ok") is not None else call.ok
+                if step.get("ok") is True and call.confirmed_at is None and not _unseen(step):
+                    call.confirmed_at = at
+                call.end = at
+            continue
         if r.get("type") != "chat-action" or not isinstance(at, (int, float)) or not start <= at < end:
             continue
         key = r.get("actionId") or f"{r.get('tool')}@{at}"
@@ -1301,8 +1328,11 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Acting", "Right tool on the first try", f"{t['right']} of {t['n']}", "all",
                    None if not t["n"] else t["right"] == t["n"]))
     d = s["doInHooke"]
-    L.append(_line("Acting", "do_in_hooke share", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
-                   f"< {S['doInHookeShare']:.0%}", None if not d["of"] else d["share"] < S["doInHookeShare"]))
+    # Reported, never a gate: the voice handing the work to Hooke's brain is the design (PARTNER_ACTS "brain", Will
+    # 29 Oct); this line rewarded the voice running the tools itself, which scored 0.86 against the hand-off's 1.57.
+    L.append({"area": "Acting", "line": "do_in_hooke share", "gate": False, "threshold": "reported, not a gate",
+              "value": f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
+              "result": "reported" if d["of"] else "not measured"})
     th = s.get("think") or {}
     kinds = ", ".join(f"{kind} {k[0]} of {k[1]}" for kind, k in (th.get("byKind") or {}).items())
     unexpected = th.get("unexpected") or []
