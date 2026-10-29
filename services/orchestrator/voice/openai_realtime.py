@@ -268,6 +268,7 @@ class RealtimeSession(VoiceSession):
         self._connected = asyncio.Event()  # a sideband is open
         self._reconnecting = False
         self.reconnects = 0
+        self._said_reconnect_at = -1e9
         self._late: set = set()
 
     # --- the session's config ------------------------------------------------------------------
@@ -448,7 +449,8 @@ class RealtimeSession(VoiceSession):
         took = self.clock() - started
         self._log({"kind": "partner-reconnect", "reason": why, "closedT": self.wall() - took, "readyT": self.wall(),
                    "ms": round(took * 1000), "midSpeech": mid_speech, "newCall": bool(offer_sdp)})
-        if mid_speech:
+        if mid_speech and self.clock() - self._said_reconnect_at > 60:  # one quiet line, not one per drop
+            self._said_reconnect_at = self.clock()
             await self.proactive("The connection was renewed while you were speaking; say only: Reconnected, go on.",
                                  event="reconnect", ref=str(self.reconnects))
         return took

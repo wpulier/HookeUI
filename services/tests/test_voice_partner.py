@@ -1343,3 +1343,20 @@ def test_a_project_is_opened_with_switch_session_and_the_voice_names_itself_amon
         result = await models.handler({})
         assert "gpt-realtime-2.1" in result["this_voice"] and "voice" in result["this_voice"]
     asyncio.run(go())
+
+
+def test_a_connection_that_keeps_dropping_ends_talk_and_says_so(monkeypatch):
+    """The mini model's bench: the sideband dropped every few seconds and the partner made 14 calls in a minute, each
+    with "Reconnected, go on". More than STORM_RECONNECTS in STORM_S: Talk ends, with a plain message."""
+    monkeypatch.setattr(partner_module, "REATTACH_AGAIN_S", 0.0)
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        for _ in range(partner_module.STORM_RECONNECTS):
+            await t.partner.reconnect("close")
+            assert not t.session.closed
+        await t.partner.reconnect("close")
+        assert t.session.closed
+        assert any(r["kind"] == "partner-reconnect-failed" and r["reason"] == "storm" for r in t.logged)
+        assert any(m.get("kind") == "error" and "kept dropping" in m["data"]["message"] for m in t.studio)
+    asyncio.run(go())

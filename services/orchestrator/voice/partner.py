@@ -38,7 +38,8 @@ OFFER_WAIT_S = 5.0  # a reconnect waits this long for the browser's new offer
 SCREEN_CHARS = 1000  # the screen now as text, at most
 NOTICE_TAG_S = 10.0  # a researcher's finish is matched to the narrator's line about it within this long
 BRIEF_CHARS = 3000
-REATTACH_AGAIN_S = 10.0  # a reattached sideband dropping again within this: the call is gone, so a new one
+REATTACH_AGAIN_S = 10.0
+STORM_S, STORM_RECONNECTS = 60.0, 3  # more than this many reconnects in this long: Talk ends, and says so  # a reattached sideband dropping again within this: the call is gone, so a new one
 
 
 class Partner:
@@ -74,6 +75,8 @@ class Partner:
         self._notes_task: asyncio.Task | None = None
         self._released: set[int] = set()  # turns whose key was released (or cancelled): their perception is fixed
         self._reattached_at = -1e9  # a sideband reattached that drops again this soon means its call has ended
+        self._reconnects: list[float] = []  # when each recent reconnect began (a storm stops Talk)
+        self._dropped_because = ""
 
     # --- binding -----------------------------------------------------------------------------------
     def bind(self, session: RealtimeSession) -> None:
@@ -443,6 +446,7 @@ class Partner:
                 self.lines.reply_line.close()
         elif event.kind == "go_away" and self.reconnecting is None:
             reason = str((event.data or {}).get("reason") or "close")
+            self._dropped_because = str((event.data or {}).get("message") or "")[:300]
             self.reconnecting = self._spawn(self.reconnect(self.fault or reason))
 
     # --- lines nobody asked for --------------------------------------------------------------------
@@ -518,6 +522,21 @@ class Partner:
 
     async def _reconnect(self, why: str) -> None:
         session = self.session
+        now = self.clock()
+        self._reconnects = [t for t in self._reconnects if now - t < STORM_S] + [now]
+        if len(self._reconnects) > STORM_RECONNECTS:
+            # A connection that keeps dropping is not reconnected for ever (a model that refuses the session drops it
+            # every few seconds: the bench of gpt-realtime-2.1-mini made 14 calls in a minute): ended, and said.
+            self.log({"kind": "partner-reconnect-failed", "reason": "storm", "count": len(self._reconnects),
+                      "error": self._dropped_because})
+            if self.send is not None:
+                with contextlib.suppress(Exception):
+                    await self.send({"type": "voice", "kind": "error", "data": {"message": (
+                        "The voice connection kept dropping, so Talk stopped. Press Talk to start again.")}})
+            with contextlib.suppress(Exception):
+                await session.close()
+            self.reconnecting, self.fault = None, None
+            return
         try:
             if why == "close" and self.clock() - self._reattached_at > REATTACH_AGAIN_S:
                 try:
