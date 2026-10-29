@@ -775,3 +775,25 @@ def test_a_hand_off_does_not_back_a_claim_by_its_ok():
     conv[7] = line("L8", 42.0, "The reference image is still there.")
     verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "still there"}], "answered": True}
     assert {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]["falseDone"] == 1
+
+
+def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step_that_asked():
+    """claude/p25-think: reference_photo returns at once ({"started": true}) with its task; partner-background says when
+    the photo landed; its result, said during the next step, is the asking step's outcome."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if not (r.get("kind") == "partner-tool" and r.get("n") == 2)]  # the table step, as a photo
+    inter += [{**tool(2, "reference_photo", 12.4, 12.5), "callId": "c-photo", "task": "t-photo"},
+              {"kind": "partner-background", "task": "t-photo", "name": "reference_photo", "n": 2, "ok": True,
+               "points": ["window:w-1"], "doneT": T0 + 21.0},
+              {"kind": "partner-think-said", "task": "t-photo", "n": 3, "responseCreatedT": T0 + 21.2},
+              {"kind": "partner-response", "responseId": "ph", "cause": "think", "firstAudioT": T0 + 21.5,
+               "audioEndT": T0 + 22.5, "transcript": "Here's a dividing nucleus for comparison."}]
+    conv = [c for c in conv if c["lineId"] not in ("L4",)]
+    conv.append(line("LP", 21.5, "Here's a dividing nucleus for comparison."))
+    bench["events"] += audio(21.5, 22.5)
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][1]["expect"] = {"tools": ["reference_photo"], "visible": "a reference picture", "outcome": True}
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["table"]["visibleS"] == pytest.approx(21.0 - 12.1) and rows["table"]["outcomesSaid"] == 1
+    assert "Here's a dividing nucleus" not in " ".join(rows["researcher"]["lines"])

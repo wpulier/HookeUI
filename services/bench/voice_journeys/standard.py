@@ -354,31 +354,45 @@ def thinks(inter: list[dict]) -> dict[str, dict]:
     spoken = sorted((r["firstAudioT"], response_end(r, ends) or r["firstAudioT"] + 10) for r in inter
                     if r.get("kind") == "partner-response" and r.get("cause") == "think"
                     and isinstance(r.get("firstAudioT"), (int, float)))
+    # Calls that run in the background the same way (reference_photo, retrieve_page): the call's record names its task,
+    # partner-background says how it ended.
+    call_of = {r["task"]: r["callId"] for r in inter if r.get("kind") == "partner-tool" and r.get("task") and r.get("callId")}
     out = {}
     for r in inter:
-        if r.get("kind") != "partner-think" or not r.get("callId"):
+        if r.get("kind") not in ("partner-think", "partner-background"):
+            continue
+        call_id = r.get("callId") or call_of.get(r.get("task"))
+        if not call_id:
             continue
         at = said.get(r.get("task"))
         span = next(((a, b) for a, b in spoken if at is not None and a >= at - NEAR_S), None)
-        out[r["callId"]] = {"task": r.get("task"), "n": r.get("n"), "ok": r.get("ok"), "doneT": r.get("doneT"),
-                            "tools": [t for t in r.get("tools") or [] if isinstance(t, dict)], "error": r.get("error"),
-                            "refused": r.get("refused"), "saidT": at, "span": span}
+        out[call_id] = {"task": r.get("task"), "n": r.get("n"), "ok": r.get("ok"), "doneT": r.get("doneT"),
+                        "tools": [t for t in r.get("tools") or [] if isinstance(t, dict)], "error": r.get("error"),
+                        "refused": r.get("refused"), "saidT": at, "span": span,
+                        "background": r.get("kind") == "partner-background", "confirmed": r.get("confirmed")}
     return out
+
+
+BACKGROUND_SCREEN = {"reference_photo"}  # background calls whose result is put on screen
 
 
 def with_thinks(calls: list[Call], tasks: dict[str, dict]) -> list[Call]:
     """A think call carries its task's end: done when the frontier mind finished, confirmed on screen then when one of
     its own tool calls was."""
     for c in calls:
-        task = tasks.get(c.call_id or "") if c.name == "think" else None
+        task = tasks.get(c.call_id or "")
         if task is None:
             continue
-        c.inner = task["tools"]
         done = task["doneT"] if isinstance(task["doneT"], (int, float)) else None
         c.end, c.ok = done or c.end, task["ok"] if task["ok"] is not None else c.ok
+        c.error = str(task.get("error") or c.error or "")
+        if task["background"]:  # a picture shown, a page read: done (and on screen, for a picture) when it lands
+            c.screen_change = c.screen_change or c.name in BACKGROUND_SCREEN
+            c.confirmed_at = done if c.screen_change and c.ok is True and task.get("confirmed") is not False else None
+            continue
+        c.inner = task["tools"]
         c.screen_change = any(t.get("confirmed") is not None for t in c.inner)
         c.confirmed_at = done if any(t.get("confirmed") is True for t in c.inner) else None
-        c.error = str(task.get("error") or c.error or "")
     return calls
 
 
@@ -477,7 +491,7 @@ def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[fl
     calls = partner_calls(inter, n, start, end)
     source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
     calls = with_thinks(calls, tasks or {}) if calls else card_calls(conv, start, end)
-    mine = {c.call_id for c in calls if c.name == "think"}
+    mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
     own = [t["span"] for cid, t in (tasks or {}).items() if cid in mine and t["span"]]
     others = [t["span"] for cid, t in (tasks or {}).items() if cid not in mine and t["span"]]
     return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)
