@@ -51,6 +51,9 @@ MOST_IN_TOKENS = 200_000  # what a call may take in, at most, when its caller sa
 MOST_OUT_TOKENS = 16_000
 VOICE_BOUND_MIN = 2  # a voice session holds its next minutes ahead, renewed at each usage update, ended before they don't fit
 VOICE_USD_PER_MIN = 0.05
+# Voices billed by the tokens each response reports (voice/route.py records them): their open time writes no charge of
+# its own, and their minutes ahead are held at this estimate (audio both ways, the pictures and the context re-read).
+TOKEN_BILLED_USD_PER_MIN = {"gpt-realtime-2.1": 0.30}
 _settling: contextvars.ContextVar = contextvars.ContextVar("api-usage-settling", default=None)
 
 
@@ -572,7 +575,7 @@ class VoiceUsage:
         nxt, begins = self._next_month()
         if begins - self.wall() > VOICE_BOUND_MIN * 60:
             return True
-        return self.ledger.renew(self._hold_of(nxt), VOICE_BOUND_MIN * VOICE_USD_PER_MIN, self.model, 'OpenAI', 'Voice', nxt)
+        return self.ledger.renew(self._hold_of(nxt), VOICE_BOUND_MIN * self.per_min, self.model, 'OpenAI', 'Voice', nxt)
 
     def used(self) -> float:
         """Its seconds so far: what the provider reported, or the time it has been open, whichever is more."""
@@ -595,7 +598,7 @@ class VoiceUsage:
     def _hold_ahead(self) -> bool:
         if self.ledger is None:
             return True
-        return self.ledger.renew(self.hold, VOICE_BOUND_MIN * VOICE_USD_PER_MIN, self.model, 'OpenAI', 'Voice', self.month)
+        return self.ledger.renew(self.hold, VOICE_BOUND_MIN * self.per_min, self.model, 'OpenAI', 'Voice', self.month)
 
     def renew(self) -> bool:
         """Its next minutes held again and its spend counted so far, in one transaction against the cap now; False when
@@ -622,8 +625,16 @@ class VoiceUsage:
                 self._roll()
                 self._record(self.used(), 'Provider-reported seconds')
 
+    @property
+    def per_min(self) -> float:
+        """Its minutes ahead are held at this rate: GPT-Live's per-minute price, or a token-billed voice's estimate."""
+        return TOKEN_BILLED_USD_PER_MIN.get(self.model, VOICE_USD_PER_MIN)
+
     def _record(self, seconds: float, basis: str) -> None:
         here = max(0.0, seconds - self.month_from)  # this month's seconds only
+        if self.model in TOKEN_BILLED_USD_PER_MIN:  # its charges are its responses' tokens, recorded as they come
+            self.seen_used, self.seen_wall = max(self.seen_used, seconds), self.wall()
+            return
         if self.ledger is not None:  # its own ledger's row, as record() would write the app's
             try:
                 self.ledger.record(self.model, here * VOICE_USD_PER_MIN / 60 if self.model == 'gpt-live-1' else None,

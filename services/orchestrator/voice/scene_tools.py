@@ -123,6 +123,13 @@ class Locator:
 
 def view_jpeg(hub, max_side: int = 768) -> bytes | None:
     """Eyepiece crop of the latest fresh frame, for the voice model's video input."""
+    seen = view_frame(hub, max_side)
+    return seen[0] if seen is not None else None
+
+
+def view_frame(hub, max_side: int = 768) -> tuple[bytes, int, list[int]] | None:
+    """`view_jpeg` with the frame it was cut from: (jpeg, frame id, crop [x, y, w, h] in source pixels), so a mark the
+    model places in that picture's coordinates is mapped back onto the live view exactly (the one-brain voice)."""
     from ..capture import CaptureGone, Refused, decoding
 
     info = hub.latest_info
@@ -133,10 +140,11 @@ def view_jpeg(hub, max_side: int = 768) -> bytes | None:
             image = held.bgr()
             if image is None:
                 return None
-            jpeg, _ = encode_crop(image, fov_crop(info.fov, info.width, info.height), max_side=max_side, jpeg_quality=80)
+            crop = fov_crop(info.fov, info.width, info.height)
+            jpeg, _ = encode_crop(image, crop, max_side=max_side, jpeg_quality=80)
     except (CaptureGone, Refused):
         return None
-    return jpeg
+    return jpeg, info.id, [crop.x, crop.y, crop.width, crop.height]
 
 
 async def feed_frames(hub, session: VoiceSession, fps: float = 1.0) -> None:

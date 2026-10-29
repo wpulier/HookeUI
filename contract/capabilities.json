@@ -2307,6 +2307,9 @@
       "roles": [
         "voice",
         "voicelink",
+        "talk",
+        "talk_key",
+        "fixed:voice-words",
         "fast",
         "speculate",
         "reflex",
@@ -4362,8 +4365,8 @@
       "id": "voice",
       "kind": "model",
       "title": "Talking",
-      "purpose": "Hears you and speaks, handing requests to the brain",
-      "hint": "it hands what you ask to the same mind you type to"
+      "purpose": "Hears you and speaks; acts itself or hands requests to the brain",
+      "hint": "GPT-Live hands what you ask to the same mind you type to; the one brain sees and acts"
     },
     {
       "id": "research",
@@ -4544,6 +4547,32 @@
       "title": "Voice link",
       "purpose": "How the voice reaches OpenAI",
       "hint": "through the app, or directly (WebRTC)"
+    },
+    {
+      "id": "talk",
+      "kind": "method",
+      "title": "Turn taking",
+      "purpose": "How the one-brain voice knows you spoke",
+      "hint": "hold a key or the Talk button, or an open mic (headphones)"
+    },
+    {
+      "id": "talk_key",
+      "kind": "policy",
+      "title": "Talk key",
+      "purpose": "The key you hold to talk",
+      "hint": "Control+Option, or Right Option with VoiceOver on"
+    },
+    {
+      "id": "fixed:voice-words",
+      "kind": "model",
+      "title": "Your spoken words",
+      "label": "GPT-4o mini Transcribe",
+      "purpose": "Writes down what you say to the one-brain voice",
+      "source": "orchestrator.voice.openai_realtime:TRANSCRIBE_MODEL",
+      "model": "gpt-4o-mini-transcribe",
+      "uses": [
+        "openai-api"
+      ]
     },
     {
       "id": "lesson_check",

@@ -403,6 +403,8 @@
   "sight": "gemini-3.8-flash",
   "speculate": "needs-look",
   "style": "classic",
+  "talk": "hold",
+  "talk_key": "control-option",
   "taught": "on",
   "track": "objects",
   "userLeads": true,
