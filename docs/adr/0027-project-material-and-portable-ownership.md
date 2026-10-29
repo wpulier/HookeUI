@@ -119,3 +119,58 @@ its host writer lease and unchanged location. A moved Project can read historica
 numeric results without the evaluator that produced them. Legacy storage remains
 compatible. This adapter does not enable new-folder creation in the live App or
 claim that shared recordings and all other research dependencies are collected.
+
+## Microscopy evidence routing checkpoint
+
+With location routing enabled, each population save retains an immutable folder,
+origin-qualified relative reference and manifest digest in the existing journal.
+Earlier saves survive corrections, links and relocation. Readers require the same
+origin and accepted manifest; publication requires the host writer lease and
+unchanged destination. Legacy absolute evidence is not silently converted.
+
+This adapter does not collect original Library assets, tracks or shared Record
+captures. It remains below live App activation and does not certify complete
+microscopy Project portability. Isolated synthetic-image tests qualify retention
+and failure behavior; actual mixed-domain collection remains a separate gate.
+
+## Motion evidence routing checkpoint
+
+Tracks now share the staged immutable evidence publication and resolution path.
+Every accepted save pins its original Project, relative location and manifest hash;
+reads do not recompute motion. This closes the tracks adapter gap but not Library,
+Record, researcher, snapshot/bookmark or full dependency-collection coverage.
+Live App activation remains off. Synthetic points/images through real journals and
+workspace recovery establish storage behavior, not a real microscopy experiment.
+
+### Staged bookmark adapter
+
+Bookmarks join the opt-in Project-owned artifact stores. Each accepted bookmark keeps its original owner, date, identity, note and picture digest; it can be read after relocation without a camera. Background decoding cannot retarget a later Project selection. Library assets, recordings and remaining research dependencies still block live activation and complete collection.
+
+### Staged snapshot adapter
+
+Snapshots now publish annotated and clean source images under their captured Project,
+with hashes and an incomplete marker removed only after publication. Index reads
+resolve that original owner after relocation without a camera or installed runtime.
+Legacy snapshots keep their existing format and location. Library identity mapping,
+shared captures and remaining dependencies still block live activation and complete
+collection; this adapter alone is not the full portability journey.
+
+If final directory syncing and restoration of the pending marker both fail, all
+readers in that host hide the uncertain snapshot. That fallback is process-local;
+recovery across host loss in this double-failure case is not qualified. It remains
+an explicit gate before live activation or complete-portability claims.
+
+### Staged volume and registration storage
+
+Volume copies, inspections, job outputs and previous metadata states route through the captured owner. Existing registration state and output-acceptance semantics remain authoritative. Equal local job IDs are scoped by Project for cancellation and publication visibility. Host installations remain external dependencies. This adapter alone does not qualify collection, imported execution recovery or live portable activation.
+
+### Staged identity history
+
+Identity links and observations use their captured Project’s append-only event file. Original IDs and merge history replay unchanged after relocation; failed writes are not applied to in-memory accepted state. File/root replacement refuses. A crash-torn tail is preserved and isolated from later complete events. This does not route cross-Project taught/seen memory or enable complete collection.
+
+Portable identity publication keeps a durable pending marker before append. Failed
+publication leaves the journal uncertain: retries and fresh replay refuse, retaining
+all bytes for explicit reconciliation. Removing that marker is the final acceptance
+action; a crash may conservatively restore uncertainty. Background identity lifecycle
+binding and reconciliation UI remain open gates: the staged adapter explicitly
+refuses event-loop use, rather than blocking live frames or silently claiming a save.

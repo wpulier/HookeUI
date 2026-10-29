@@ -1299,6 +1299,8 @@ class Index:
         self.results = results or Results(None)
         self.research = research
         self.snapshots = Path(snapshots) if snapshots is not None else None
+        from .project_snapshots import Snapshots
+        self.snapshot_store = Snapshots(self.snapshots, day) if self.snapshots is not None else None
         self.seen = seen
         self.taught = taught
         self.scale = scale
@@ -1605,19 +1607,24 @@ class Index:
         store = evidence_of(self.hub) if eid.startswith('e') else tracks_of(self.hub)
         if store.root is None:
             return None
-        root = store.root.resolve()
+        root = store.root_for(day)
         filed = self._journal(day)['evidence' if eid.startswith('e') else 'tracks'].get(eid)
         if filed is None and self.day is None:  # no session store (a test, a bench): a day was a session
             filed = {'path': str(root / day / eid)}
         if filed is None or not filed.get('path'):
             return None
         try:
-            folder = Path(filed['path']).resolve()
-            date = folder.parent.name
-            if not sids.is_sid(date) or sids.parse(date)[1] != 1 or folder != root / date / eid:
+            from .project_evidence import resolve
+            folder = resolve(store, day, filed)
+            portable = str(filed['path']).startswith('project:')
+            date = folder.parent.parent.name if portable else folder.parent.name
+            expected = root / date / eid
+            if not sids.is_sid(date) or sids.parse(date)[1] != 1 or (folder.parent if portable else folder) != expected:
                 return None
+            from .project_evidence import _directories
+            _directories(root, folder)
             path = folder / 'manifest.json'
-            if path.resolve() != path:
+            if path.is_symlink():
                 return None
             raw = read_picture_bytes(path, 4*1024*1024)
             record = json.loads(raw) if raw else None
@@ -1940,7 +1947,7 @@ class Index:
         record,folder = retained
         name = 'capture.jpg' if eid.startswith('e') else 'tracks.jpg'
         path = folder/name
-        if path.resolve() != path:
+        if path.is_symlink():
             return None
         raw = read_picture_bytes(path,max_bytes)
         return (raw,'image/jpeg') if raw and hashlib.sha256(raw).hexdigest() == record['files'][name] else None
@@ -1996,7 +2003,7 @@ class Index:
             return (data, "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg") if data else None
         if re.fullmatch(r"b\d+", eid) and self.bookmarks is not None:
             mark = next((m for m in self.bookmarks.session_marks(day, self.dates(day)) if m.get("id") == eid), None)
-            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes) if mark is not None else None
+            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes, session=day) if mark is not None else None
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"[vj]\d+", eid) and self.registrations is not None:
             data = self.registrations.picture(eid, day, max_bytes=max_bytes)
@@ -2014,8 +2021,8 @@ class Index:
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"snapshot-\d{6}-(?:[0-9a-f]{12}-)?f\d+", eid) and self.snapshots is not None and sids.is_sid(day):
             entry = next((e for e in self._snapshots(day) if e.id == eid), None)
-            path = self.snapshots / entry.date / f"{eid}.png" if entry is not None else None
-            return (read_picture_bytes(path, max_bytes), "image/png") if path is not None and path.is_file() else None
+            data = self.snapshot_store.picture(day, entry.date, eid, max_bytes=max_bytes) if entry is not None else None
+            return (data, "image/png") if data is not None else None
         if self.research is not None:
             session = self.research.get(eid)
             if session is not None and _sitting(session) != day:  # another session's researcher with this id
@@ -2536,7 +2543,7 @@ class Index:
             return []
         out = []
         for date in self.dates(day):
-            folder = self.snapshots / date
+            folder = self.snapshot_store.folder(day, date)
             if folder.is_dir():
                 out += self._snapshots_in(folder, date, day)
         return out
@@ -2545,7 +2552,7 @@ class Index:
         out = []
         for path in sorted(folder.glob("snapshot-*.json")):
             try:
-                facts = json.loads(path.read_text())
+                facts = self.snapshot_store.read(day, date, path.stem)
             except (OSError, ValueError):
                 continue
             if not isinstance(facts, dict) or session_of(facts, date) != day:

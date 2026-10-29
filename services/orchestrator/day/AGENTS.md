@@ -310,3 +310,32 @@ healthy Projects can still be found and read. It is excluded from last-used resu
 Global legacy result-ID allocation refuses while any registered journal is unavailable,
 because treating its IDs as zero could reuse IDs in shared day storage. A failed
 post-lock ownership check releases the lease without caching trusted ownership.
+
+Opt-in portable microscopy populations keep every accepted save in an immutable
+folder under their owning Project. Their journal path is origin-qualified and
+relative, with the accepted manifest digest; reopening resolves that same origin
+through the host location registry. Corrections and same-revision links create new
+saved folders, preserving earlier accepted bytes. Legacy absolute references keep
+their prior layout; a portable Project cannot silently adopt them. Background writes
+require the captured owner and its writer lease, never the active workspace.
+
+Motion-track saves use the same opt-in immutable evidence folders and origin-qualified
+journal references as populations. Their points, captured image, rendered tracks,
+provenance and each prior save move with the Project. Workspace recovery and inactive
+Project reads share that resolver; missing/corrupt archives cannot be resaved as fresh
+accepted measurements. Legacy tracks keep their current layout.
+
+Opt-in portable bookmarks resolve the captured Project before decoding and again before publication. Records and their pictures are retained under artifacts/bookmarks; reads and Record capture use that same owner after a UI switch. Pictures carry their retained digest. Legacy bookmark paths remain unchanged.
+
+Staged portable snapshots retain annotated and clean images under their captured Project. The index resolves the same owner after relocation. Publication retains a pending marker until durable completion; incomplete captures are never accepted results. Library/source reassociation remains unqualified and live portable activation stays off.
+
+Staged portable volume storage retains metadata snapshots before replacements. These are history, not independently accepted findings. Restart reconciliation only changes jobs in writable owner Projects; another host’s lease leaves its running records untouched. Complete collection and live App activation remain unqualified.
+
+With portable locations enabled, Identity’s original append-only events resolve under their Project. Reads need no runtime; second hosts cannot append while the writer lease is held. Links, observations and merged IDs retain their existing replay meaning. Legacy identity files keep their layout; this does not activate portable Projects or collect global learned examples.
+
+Portable identity publication keeps a durable pending marker before append. Failed
+publication leaves the journal uncertain: retries and fresh replay refuse, retaining
+all bytes for explicit reconciliation. Removing that marker is the final acceptance
+action; a crash may conservatively restore uncertainty. Background identity lifecycle
+binding and reconciliation UI remain open gates: the staged adapter explicitly
+refuses event-loop use, rather than blocking live frames or silently claiming a save.

@@ -448,20 +448,22 @@ let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
   openResearcher: id => openResearcher(id),
+  retry: () => { void refreshResults(); },
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
 let studiesAvailable=false;
 let studiesNote='';
+let studiesLoadedSession='';
 let studyReadGeneration = 0;
 async function refreshStudies():Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
   const current = () => snapshot.session === session && generation === studyReadGeneration;
   if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
-  studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
+  studiesLoadedSession=session;studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
   const activity=await readProjectActivity(knownStudies);
   if(!current())return;
@@ -511,7 +513,7 @@ researcherBrowser.append(board.root);
 function renderBoard():void{
   const material=resourceSession===snapshot.session?projectInputs(entries):[];
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
-    {count:material.length,error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
+    {count:material.length,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -1606,6 +1608,7 @@ async function refreshResults(): Promise<void> {
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
+  renderBoard();
   try {
     // The 10 s poll and the server's events send back the revision Data last read (ticket 66, S7): an unchanged index
     // answers in a few bytes, and nothing is redrawn.
@@ -2304,7 +2307,12 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
-  if (next.session !== previous.session) { studyReadGeneration++; knownStudies = []; studiesNote = ''; studiesAvailable = false; }
+  if (next.session !== previous.session) {
+    // Retire the inventory owner with its contents before any view renders. An A→B→A switch
+    // can otherwise mistake A's emptied cache for a completed read while B is still pending.
+    entries = []; resourceSession = ''; resourceRevision = ''; resultsFailedSession = '';
+    studyReadGeneration++; studiesLoadedSession = ''; knownStudies = []; studiesNote = ''; studiesAvailable = false;
+  }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();
@@ -2328,7 +2336,7 @@ bridge.subscribe(next => {
     }
   }
   const key = JSON.stringify([next.session, next.title, next.sources, next.projects, next.projectsRoot]);
-  if (next.session !== previous.session) { entries = []; resourceRevision = ''; madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
+  if (next.session !== previous.session) { madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
   // Data's Pictures and recordings are the Project's inputs, and "On this Tab" marks the one on the Stage: drawn again
   // when either changes.
   const dataKey = JSON.stringify([next.sources.map(asset => [asset.id, asset.title, asset.thumb ?? '', asset.seconds]), next.onStage]);

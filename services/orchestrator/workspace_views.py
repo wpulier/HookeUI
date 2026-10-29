@@ -661,7 +661,10 @@ def reconcile(day):
         if kind == 'result' and e.get('state', 'done') not in ('done', 'saved'): continue
         info = e
         if kind in ('evidence-saved', 'tracks-saved'):
-            try: info = json.loads((Path(e['path']) / 'manifest.json').read_text())
+            try:
+                from .project_evidence import resolve_entry
+                folder = resolve_entry(day, day.sid, e)
+                info = json.loads((folder / 'manifest.json').read_text())
             except (OSError, ValueError, KeyError): continue
         executions = info.get('executions') or [info.get('execution') or (info.get('madeBy') or {}).get('execution')]
         outputs.append((e, kind, info, executions))

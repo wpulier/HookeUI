@@ -635,4 +635,22 @@ pseudocount inversion, normalization subsets, explicit negative projection and l
 prepared-runtime retention probe runs the actual confined concatenation operation with synthetic count inputs;
 none establishes full-shape packaging, generator distribution quality or competition performance.
 
+`test_project_evidence_routing.py` uses real journals and synthetic image/mask bytes.
+It checks immutable population saves through correction/link, relocation, inactive
+Project reading, origin/digest refusal, closed/replaced storage, second-host writer
+exclusion and failed directory syncing. It does not qualify a real segmentation
+model, Library collection or complete live Project portability.
+
+`test_project_tracks_routing.py` checks real track publication/reopen using synthetic
+points and images, including relocation, prior saves, inactive-Project previews,
+writer ownership, corrupt archives and workspace completion recovery. It shares the
+population evidence resolver; full microscopy collection is a separate gate.
+
+`test_project_bookmark_routing.py` exercises real isolated Project journals with synthetic camera images: relocation, inactive-Project reads, delayed capture across a switch, second-host refusal, changed media and interrupted publication. These are persistence tests, not live-camera or complete collection qualification.
+
+`test_project_snapshot_routing.py` uses synthetic camera bytes through the real tool, journal and index. It checks owner capture, clean/annotated retention, relocation, second-host reads, interrupted publication and changed folders/bytes. It does not qualify Library collection or a live microscopy experiment.
+
+`test_project_volume_routing.py` uses isolated real journals and job execution with a synthetic registration adapter. It covers relocation, copied-source independence, metadata history, owner changes, writer refusal and restart without replay. It is not brain-registration accuracy or ordinary UI qualification.
 The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
+
+`test_project_identity_routing.py` uses synthetic observations with real Project journals and identity replay. It covers move/reopen, merged-ID retention, independent writer refusal, replaced storage and interrupted tails. It is storage evidence, not biological identity accuracy or live portability acceptance.

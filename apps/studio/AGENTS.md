@@ -1975,3 +1975,5 @@ not infer a file's scientific meaning or treat plain text as a qualified reader.
 A reader Tab retains one exact item. Opening a different Data/Input item or an
 internal source link from it goes to that item's retained Tab (reusing it when
 already open), rather than replacing the visible file under the previous title.
+
+Main waits for the current Project inventory and Studies before showing empty-project onboarding. A failed initial read offers Retry and Data rather than claiming there is no research. Refreshing a populated Project preserves its saved overview. Data’s rail badge remains the count of unread grouped rows, not all retained records.

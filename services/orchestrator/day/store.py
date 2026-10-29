@@ -523,11 +523,13 @@ class SessionStore:
             self.outcomes.setdefault(e["rid"], {})[e["step"]] = {"outcome": e["outcome"], "by": e.get("by") or "", "at": at}
         elif kind == "evidence-saved":
             self.evidence[e["id"]] = {"path": e["path"], "at": at, "thread": e.get("thread"), "revision": e.get("revision", 0),
-                                      "members": e.get("members") or []}
+                                      "members": e.get("members") or [],
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
         elif kind == "evidence-made":
             self.evidence_ids[e["id"]] = e.get("lastMember") or ""
         elif kind == "tracks-saved":
-            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread")}
+            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread"),
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
             self.tracks_ids.add(e["id"])
         elif kind == "tracks-made":
             self.tracks_ids.add(e["id"])
@@ -829,13 +831,15 @@ class SessionStore:
             return self
 
     def record_evidence(self, eid: str, path: str, thread: str | None, revision: int, members: list[str], *,
-                        day: str | None = None, session: str | None = None) -> None:
+                        day: str | None = None, session: str | None = None,
+                        manifestSha256: str | None = None) -> None:
         """A population saved (evidence.py): filed in its session's journal with the date folder it is in (`day`),
         so a restart reads it back (ADR 0001)."""
         # `thread` as given: None is filed under the session (asked in no conversation of it), never a new t1.
         with self._filing(session) as store:
             store._record({"type": "evidence-saved", "id": eid, "path": path, "thread": thread, "day": day or self.date,
-                           "revision": revision, "members": members}, strict=True)
+                           "revision": revision, "members": members,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})}, strict=True)
 
     def record_annotation(self, source: dict, text: str, title: str = "", *, annotation_id: str = "", creation_id: str = "",
                           asked: Asked | None = None) -> dict:
@@ -925,10 +929,11 @@ class SessionStore:
             store._record({"type": "tracks-made", "id": tid, "day": day or self.date})
 
     def record_tracks(self, tid: str, path: str, thread: str | None, *, day: str | None = None,
-                      session: str | None = None) -> None:
+                      session: str | None = None, manifestSha256: str | None = None) -> None:
         """Motion tracks saved (motiontracks.py): filed in their session's journal, so a restart reads them back."""
         with self._filing(session) as store:  # thread None: under the session
-            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date},
+            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})},
                           strict=True)
 
     def link_research(self, rid: str, thread: str | None = None, *, session: str | None = None,
