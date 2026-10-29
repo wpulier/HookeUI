@@ -730,3 +730,48 @@ def test_a_status_step_can_name_the_first_researcher_a_step_started():
     rows = {r["id"]: r for r in run["steps"]}
     assert rows["researcher"]["researcherNumbers"] == [1, 2]
     assert rows["status"]["statusExpected"] == 1 and rows["status"]["statusRight"] is True
+
+
+def test_a_claim_after_a_tool_that_changes_nothing_on_screen_needs_its_success_not_a_report():
+    """think-broad-2: "Researcher 2 got the message" after researcher_note, "Done." after set_default: no screen
+    change, so no studio report can come; the claim stands on the call having succeeded (and fails if it did not)."""
+    bench, conv, inter, verdicts = good()
+    inter.append(tool(5, "researcher_note", 41.7, 41.9))
+    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 0
+    inter[-1]["ok"] = False
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 1
+
+
+def test_a_note_or_a_setting_claim_is_backed_by_the_apps_own_state():
+    """The coordinator: confirm such calls by their result and the state the app reports (/api/research's notes, the
+    settings the studios are sent), not by a studio report that can't come."""
+    bench, conv, inter, verdicts = good()
+    inter.append(tool(5, "researcher_note", 41.7, 41.9))
+    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
+    rows = lambda notes: {"rows": [{"source": "api", "rid": "r2", "number": 2, "created": T0 + 23.9, "notes": notes}]}
+    bench["events"] += [{"t": ms(41.0), "e": "researchers", **rows(0)}, {"t": ms(41.95), "e": "researchers", **rows(1)}]
+    row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
+    assert row()["falseDone"] == 0
+    bench["events"][-1].update(rows(0))  # ok said, but no note reached the researcher
+    assert row()["falseDone"] == 1
+    inter[-1]["name"] = "set_default"
+    bench["events"] += [{"t": ms(-5), "e": "settings", "first": True, "changed": ["brain"]},
+                        {"t": ms(41.9), "e": "settings", "first": False, "changed": ["brain"]}]
+    assert row()["falseDone"] == 0
+    bench["events"].pop()  # the setting never changed
+    assert row()["falseDone"] == 1
+
+
+def test_a_hand_off_does_not_back_a_claim_by_its_ok():
+    """think-broad-2: after a think that changed nothing confirmed, "the reference image is still there" is a claim
+    about the screen; the hand-off's own ok says nothing about it."""
+    bench, conv, inter, verdicts = good()
+    inter.append({**tool(5, "think", 41.7, 41.9), "callId": "c5"})
+    conv[7] = line("L8", 42.0, "The reference image is still there.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "still there"}], "answered": True}
+    assert {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]["falseDone"] == 1

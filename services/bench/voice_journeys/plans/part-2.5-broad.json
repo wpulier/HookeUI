@@ -82,7 +82,7 @@
                 "judge": "gives a typical HeLa nucleus size with where it comes from, and relates it to the nuclei here if it can"}},
     {"id": "explain-long", "kind": "ask", "say": "Tell me everything about how these nuclei were measured.",
      "expect": {"tools": ["resources", "read_result", "read_analysis", "outcomes", "recall"], "toolRequired": false}},
-    {"id": "just-average", "kind": "ask", "say": "Okay, stop. Just the average size.", "interrupt": {"afterMs": 2500},
+    {"id": "just-average", "kind": "ask", "say": "Okay, stop. Just the average size.", "interrupt": {"afterMs": 4500},
      "expect": {"tools": ["query_population", "resources", "outcomes", "read_result"], "toolRequired": false,
                 "judge": "stops the long answer at once and gives the average size in one sentence"}},
     {"id": "growth-curves", "kind": "act", "say": "Open my growth curves from yesterday.",

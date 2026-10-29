@@ -143,7 +143,7 @@ PROMPT = """You are scoring a live voice research partner for a microscope app a
 given) is the specimen the camera showed.
 
 {earlier}The user said: "{say}"
-What a good answer does here: {expect}
+What a good answer does here: {expect}{interrupted}
 What the voice said afterwards, in order (seconds after the user finished):
 {lines}
 What the app did (seconds after the user finished; "confirmed" = the studio reported the change on screen):
@@ -181,12 +181,15 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     out, unprompted, tasks = [], unprompted_spans(inter), thinks(inter)
-    for step, (start, end) in zip(steps, windows(steps)):
+    for i, (step, (start, end)) in enumerate(zip(steps, windows(steps))):
         if step.get("kind") in ("idle", "restart"):
             continue
         release = released(step)
+        # The next request interrupted this answer on purpose (the plan's barge-in): judge what was said before it.
+        cut = steps[i + 1] if i + 1 < len(steps) and steps[i + 1].get("interrupt") else None
         _, calls, _, lines = step_view(bench, conv, inter, (start, end), unprompted, tasks)
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
+                    "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "
                                 f"{'ok' if c.ok else 'failed' if c.ok is False else 'running'}"
@@ -199,7 +202,7 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
 
 
 async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict, picture: bytes | None,
-                   model=None, name: str = DEFAULT_JUDGE) -> dict:
+                   model=None, name: str = DEFAULT_JUDGE, only: set | None = None) -> dict:
     """{step id: verdict} for every scored step (claims_on_screen as 0-based line indices, as standard.py reads), and
     "_judge": the judge's name."""
     if model is None:
@@ -214,7 +217,14 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
         earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}\n'
                           for say, said in history[-2:])
         history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"]))
-        prompt = PROMPT.format(earlier=earlier, say=re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]),
+        if only is not None and step["id"] not in only:
+            continue
+        interrupted = ("" if step["interruptedS"] is None else
+                       f"\nThe user interrupted this answer on purpose about {step['interruptedS']} s in, with their next "
+                       "request (a test of stopping at once). Judge only what was said before that: being cut off is not "
+                       "a failure to answer, a good start counts as answered, and whether it stopped at once and gave "
+                       "what was asked next is judged on that next request.")
+        prompt = PROMPT.format(earlier=earlier, interrupted=interrupted, say=re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]),
                                expect=expect.get("judge") or (f"shows {expect['visible']}" if expect.get("visible") else
                                                               "answers what was asked"),
                                lines="\n".join(step["lines"]) or "(nothing)",
@@ -235,10 +245,10 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
 
 
 def judge_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, checkout: Path, *, name: str = DEFAULT_JUDGE,
-              model=None) -> dict:
+              model=None, only: set | None = None) -> dict:
     still = (plan.get("camera") or {}).get("still")
     picture = (checkout / still).read_bytes() if still and (checkout / still).exists() else None
-    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name))
+    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name, only=only))
 
 
 def judged_by(verdicts: dict | None) -> str | None:

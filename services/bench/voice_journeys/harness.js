@@ -72,7 +72,20 @@
 
   // The voice's lines as they grow on /ws (a line's journal record keeps only when it started): when each word came.
   const lineText = new Map();
+  // The app's settings as the studios are sent them: a change of setting (set_default, use) is the app's own record of it.
+  let settingsSeen = null;
+  function settings(data) {
+    let message; try { message = JSON.parse(data); } catch { return; }
+    const now = message && typeof message.settings === 'object' && message.settings ? message.settings : null;
+    if (!now) return;
+    const changed = Object.fromEntries(Object.entries(now).filter(([k, v]) => !settingsSeen || JSON.stringify(settingsSeen[k]) !== JSON.stringify(v)));
+    if (settingsSeen && !Object.keys(changed).length) return;
+    ev({ e: 'settings', first: !settingsSeen, changed: Object.keys(changed) });
+    settingsSeen = now;
+  }
+
   function chat(data) {
+    if (data.length < 200000 && data.includes('"settings"')) settings(data);
     if (data.length > 20000 || !data.includes('"lineId"')) return;
     let line; try { line = JSON.parse(data); } catch { return; }
     if (line.type !== 'chat' || line.role !== 'assistant' || !line.voice || !line.lineId) return;
@@ -234,7 +247,7 @@
       const listing = await (await fetch('/api/research', { cache: 'no-store' })).json();
       apiRows = (listing.sessions || []).filter((s) => s.purpose === 'research' || s.n).map((s) => ({
         rid: s.rid, day: s.day, number: s.n || null, status: s.status, group: ACTIVE.has(s.status) ? 'working' : 'done',
-        sitting: s.sitting, created: s.created, started: s.started, finished: s.finished, source: 'api' }));
+        sitting: s.sitting, created: s.created, started: s.started, finished: s.finished, notes: s.notes, source: 'api' }));
       apiAnswered = true;
     } catch { apiAnswered = false; }
     const rows = researchers(), key = JSON.stringify(rows);
@@ -267,11 +280,15 @@
     while (Date.now() - t0 < maxMs && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.
-  async function speaking(afterMs, maxMs) {
+  // Until the answer has been under way for `afterMs` from its first audio after `since` (the request's release; a
+  // preamble counts as its start) and is audible now: an interruption comes into the answer itself, not its first
+  // word (think-broad-2: 2 s in cut the answer before it began). At most `maxMs`.
+  async function speaking(afterMs, maxMs, since = 0) {
     const t0 = Date.now();
     while (Date.now() - t0 < maxMs) {
-      const on = [...state.events].reverse().find((e) => e.e === 'audio');
-      if (on && on.on && Date.now() - on.t >= afterMs) return true;
+      const first = state.events.find((e) => e.e === 'audio' && e.on && e.t >= since);
+      const last = [...state.events].reverse().find((e) => e.e === 'audio');
+      if (first && last && last.on && Date.now() - first.t >= afterMs) return true;
       await sleep(20);
     }
     return false;
@@ -485,7 +502,7 @@
           state.steps.push(record);
           if (step.kind === 'restart') continue;
           if (next && next.interrupt) { // the next words come in the middle of this answer
-            await speaking(next.interrupt.afterMs ?? 2000, 20000);
+            await speaking(next.interrupt.afterMs ?? 4500, 30000, record.up ?? record.end);
             continue;
           }
           await quiet(quietMs, (step.wait ?? maxMs / 1000) * 1000, minMs);
