@@ -1022,24 +1022,39 @@ everything above. It talks over WebRTC only, whatever the saved Voice link. Its 
   ignored. Escape while held drops the turn and closes nothing else. Another key pressed during the hold (a VoiceOver
   command, Option+e) is a chord and cancels it. A tap shorter than 250 ms cancels too, which stops the voice without
   asking anything. Losing the window counts as a release. Holding Talk (pointer down to up) does the same as the key.
-  In hold mode a click on Talk only connects, End Talk (`.voice-session-end`) ends the conversation, Mute is hidden,
-  and a hold while Talk is off connects it, starting the turn if the key is still held once Talk is live. While a
+  In hold mode a click on Talk only connects, End Talk (`.voice-session-end`) ends the conversation, and Mute is hidden.
+  With Talk off, the key connects it only once held alone for 300 ms (`ARM_MS`; `TalkTurns`), so a VoiceOver command
+  never opens the microphone or a paid call, and a chord or Escape after that drops the connection the key started.
+  The Talk button, an explicit press, connects at once. The turn starts if the key is still held once Talk is live. While a
   turn is held, Talk has `data-holding` and a listening ring (`.talk-hold-ring`, `marks.css`) shows at the bottom of
   the window, its halo following the microphone level.
-- **A turn**: pressing sends `{type:"talk",down:true,n}` and then, in the same task, the window as it is
-  (`{type:"snapshot",id:"talk-<n>"}`, `partner.ts` `windowSnapshot`). Releasing sends `down:false`; Escape, a tap or a
+- **A turn**: pressing sends `{type:"talk",down:true,n}` and the window as it is at that press
+  (`{type:"snapshot",id:"talk-<n>"}`, `partner.ts` `windowSnapshot`; its pictures are copied in the press's task). Releasing sends `down:false`; Escape, a tap or a
   chord sends `cancel:true`. The microphone track is on only while a turn is held, and for 300 ms after a release
   (`MIC_TAIL_MS`) so the last word still reaches the model before the server commits.
 - **Barge-in**: every press mutes the voice's audio element at once, in the same task as the key, and clears the
   marks; the server cancels the reply. The audio comes back at the later of the release and 400 ms after the press
   (`BARGE_MIN_MS`). Talk has `data-output="muted"` meanwhile. Muted output never counts as Speaking.
 - **The window snapshot** is a granted tab share's newest frame (`WorkspaceSession.shareSnapshot`), else
-  `composeWindow` (`screen.ts`), at most 1280 px. A composed window fills each window and panel with its background,
+  `captureWindow` (`screen.ts`), at most 1280 px. It never holds up the live view. The pictures are copied with
+  `createImageBitmap` in the asking task, the text is read in later tasks of at most `SLICE_MS` (6 ms) each, and the
+  paint and JPEG encode run in `capture-worker.ts` (`window-paint.ts`, the bitmaps moved, not copied). A browser whose
+  workers have no canvas paints here in the same short steps (`paintInSteps`). Measured in Chromium with
+  `capture.fixture.html` (a full-window canvas redrawn every frame, a 200-row table): the worst single task is 3 ms
+  over 10 captures including the first, and frame gaps match idle. Encoding on the main thread had cost 4-7 ms
+  warm and 12-32 ms on a page's first capture. A composed window fills each window and panel with its background,
   in paint order (z-index, then page order), and draws its pictures inside it. It writes each frame's title (its
   title bar, else its heading, with its `data-screen-title`), the Tab names, the table rows in view cell by cell
-  (60 rows, 12 cells at most) and headings, as text at their places. Text stops after 70 ms. `snapshot-request` (act,
-  then look) is answered the same way, in the task it arrives in. A capture that fails says so (`error`) instead of
-  leaving the server to wait.
+  (60 rows, 12 cells at most) and headings, as text at their places. Text reading stops after 70 ms of it.
+  `snapshot-request` (act, then look) is answered the same way, as soon as it is encoded. A capture that fails says so
+  (`error`) instead of leaving the server to wait. Images from another origin are drawn as their outline.
+- **A dropped connection** (a Wi-Fi drop: the peer `failed`, or `disconnected` for 3 s) is offered again, not ended:
+  status "Reconnecting…", a new peer on the same microphone track and audio element sends
+  `{type:"offer",sdp,id:"rc-<n>"}`, again every 3.5 s while none answers and connects. The answer is applied only when
+  its `data.id` names the offer waiting (a late answer to an older one never lands on the newer). After 10 s Talk
+  ends with a plain message and a Talk again button (`.voice-session-retry`).
+- **The voice's speaking** goes to the server as it changes: `{type:"voice-phase",phase:"speaking"|"listening",at}`,
+  the studio's own measure of the output (its sideband may not hear the output buffer).
 - **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
   the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
   `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`

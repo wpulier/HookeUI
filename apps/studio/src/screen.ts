@@ -14,6 +14,7 @@ import { sameStudyResource, studyResourceReference } from './workspace-study-res
 import { itemSpace } from './spaces';
 import { scientificPaint, type ScientificPaintObservation } from './scientific-presentation';
 import type { Space } from './spaces';
+import { base64Of, paintSize, paintSteps, type PaintPlan, type PaintText } from './window-paint';
 
 export type Rect4 = [number, number, number, number]; // x, y, width, height (workspace px)
 
@@ -791,24 +792,15 @@ export class WorkspaceSession {
     this.sharingState(code);
   }
   stopWorkspaceSharing(): void { this.releaseTab('share-required'); }
-  /** The granted tab share's newest frame, at most `maxSide` px (the one-brain voice's window snapshot); null without a
-   * live share, so the caller composes the window instead (composeWindow). */
-  shareSnapshot(maxSide = 1280, quality = 0.8): { jpeg: string; w: number; h: number } | null {
+  /** The granted tab share's newest frame, at most `maxSide` px (the one-brain voice's window snapshot): copied in the
+   * asking task, drawn and encoded off it; null without a live share, so the caller captures the window instead. */
+  async shareSnapshot(maxSide = 1280, quality = 0.8): Promise<{ jpeg: string; w: number; h: number } | null> {
     const tab = this.tab;
     if (!tab || this.disposed || !this.pair || tab.track.readyState !== 'live' || !tab.track.enabled || tab.track.muted
-      || tab.video.srcObject !== tab.stream || tab.video.readyState < 2) return null;
-    const width = tab.video.videoWidth, height = tab.video.videoHeight;
-    if (!width || !height) return null;
-    const k = Math.min(1, maxSide / Math.max(width, height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(width * k)); canvas.height = Math.max(1, Math.round(height * k));
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-    context.drawImage(tab.video, 0, 0, canvas.width, canvas.height);
-    const jpeg = canvas.toDataURL('image/jpeg', quality).split(',', 2)[1] ?? '';
-    const size = { w: canvas.width, h: canvas.height };
-    canvas.width = 0; canvas.height = 0;
-    return jpeg ? { jpeg, ...size } : null;
+      || tab.video.srcObject !== tab.stream || tab.video.readyState < 2 || !tab.video.videoWidth || !tab.video.videoHeight) return null;
+    const bitmap = await createImageBitmap(tab.video).catch(() => null);
+    if (!bitmap) return null;
+    try { return await encodePicture(bitmap, maxSide, quality); } catch { return null; } finally { bitmap.close(); }
   }
   /** Must be called directly by the user's share click, before transient activation ends. */
   async shareWorkspaceTab(): Promise<void> {
@@ -1150,24 +1142,22 @@ export class WorkspaceSession {
   dispose(): void { if (this.disposed) return; this.disposed = true; this.retire(); }
 }
 
-/** A picture of the workspace as composed now (look_at_screen): composeWindow's JPEG, base64. */
-export function composeScreen(root: HTMLElement = document.body, quality = 0.7): string {
-  return composeWindow(root, { quality }).jpeg;
-}
-
-/** The windows and panels composeWindow draws: each is a frame of its own, filled with its background, with its
+/** The windows and panels captureWindow draws: each is a frame of its own, filled with its background, with its
  * pictures inside it and its title on its bar. */
 export const SCREEN_FRAMES = '[data-screen-title], section.workspace-window, #study-artifacts > [data-placement-id], #workspace-tabs-strip, #session-rail';
-const SCREEN_TEXT_MS = 70; // text (titles, Tab names, table rows) stops being drawn past this, so a snapshot stays under ~100 ms
+const SCREEN_TEXT_MS = 70; // text (titles, Tab names, table rows) stops being read past this much work
+/** captureWindow's own work in any one task stays about this short (ms), so the live view keeps every frame. */
+export const SLICE_MS = 6;
 
 type Box = { left: number; top: number; width: number; height: number };
 interface ScreenNode { el: Element; rect: Box }
-/** What composeWindow draws, gathered from the page (screenLayout): frames in paint order, pictures with the frame
+type ScreenText = PaintText;
+/** What captureWindow draws, gathered from the page (screenLayout): frames in paint order, pictures with the frame
  * they are in, and text lines at their places. Plain data, so it is tested without a browser. */
 export interface ScreenLayout {
   frames: (ScreenNode & { title: string; background: string; z: number })[];
   pictures: (ScreenNode & { frame: number | null; opacity: number })[];
-  text: { text: string; rect: Box; kind: 'title' | 'tab' | 'cell' | 'header' | 'heading' | 'row'; selected?: boolean }[];
+  text: ScreenText[];
 }
 
 const shown = (el: Element, view: [number, number]): Box | null => {
@@ -1188,9 +1178,8 @@ export function frameTitle(el: Element): string {
   return title && name && title !== name ? `${name}: ${title}` : title || words(name, 80);
 }
 
-/** The page as composeWindow draws it, in the viewport `view` (CSS px). */
-export function screenLayout(root: ParentNode, view: [number, number], budgetMs = SCREEN_TEXT_MS, now: () => number = () => performance.now()): ScreenLayout {
-  const started = now();
+/** The windows and panels shown, in paint order: by z-index, then page order (a later sibling covers an earlier one). */
+function layoutFrames(root: ParentNode, view: [number, number]): ScreenLayout['frames'] {
   const frames: ScreenLayout['frames'] = [];
   for (const el of Array.from(root.querySelectorAll(SCREEN_FRAMES))) {
     const rect = shown(el, view);
@@ -1198,9 +1187,11 @@ export function screenLayout(root: ParentNode, view: [number, number], budgetMs 
     const style = getComputedStyle(el);
     frames.push({ el, rect, title: frameTitle(el), background: style.backgroundColor, z: Number(style.zIndex) || 0 });
   }
-  // Paint order: by z-index, then page order (a later sibling covers an earlier one).
-  const order = frames.map((f, i) => ({ f, i })).sort((a, b) => a.f.z - b.f.z || a.i - b.i).map(x => x.f);
-  frames.splice(0, frames.length, ...order);
+  return frames.map((f, i) => ({ f, i })).sort((a, b) => a.f.z - b.f.z || a.i - b.i).map(x => x.f);
+}
+
+/** The pictures shown (canvas, img, video) with the frame each is in; never the voice's own marks. */
+function layoutPictures(root: ParentNode, view: [number, number], frames: ScreenLayout['frames']): ScreenLayout['pictures'] {
   const pictures: ScreenLayout['pictures'] = [];
   for (const el of Array.from(root.querySelectorAll('canvas, img, video'))) {
     if ((el as HTMLElement).closest?.('#voice-marks')) continue;
@@ -1210,92 +1201,232 @@ export function screenLayout(root: ParentNode, view: [number, number], budgetMs 
     const at = holder ? frames.findIndex(f => f.el === holder) : -1;
     pictures.push({ el, rect, frame: at < 0 ? null : at, opacity: Number(getComputedStyle(el).opacity || 1) });
   }
-  const text: ScreenLayout['text'] = [];
-  const over = () => now() - started > budgetMs;
-  for (const f of frames) if (f.title) text.push({ text: f.title, rect: { left: f.rect.left, top: f.rect.top, width: f.rect.width, height: 20 }, kind: 'title' });
+  return pictures;
+}
+
+/** The text that says what is shown, one element read at a time (null when it had nothing), so a reader can stop or
+ * pause between any two: the frames' titles, the Tab names (the one in front selected), the table rows in view cell
+ * by cell (60 rows, 12 cells at most) and headings. */
+function* layoutText(root: ParentNode, view: [number, number], frames: ScreenLayout['frames']): Generator<ScreenText | null, void> {
+  for (const f of frames) if (f.title) yield { text: f.title, rect: { left: f.rect.left, top: f.rect.top, width: f.rect.width, height: 20 }, kind: 'title' };
   for (const tab of Array.from(root.querySelectorAll('.workspace-tab-label'))) {
-    if (over()) break;
     const rect = shown(tab, view);
-    // The Tab in front is drawn as selected, so "which Tab" is in the picture too.
-    if (rect) text.push({ text: words(tab.textContent, 40), rect, kind: 'tab', selected: !!tab.closest('[aria-selected="true"]') });
+    yield rect ? { text: words(tab.textContent, 40), rect, kind: 'tab', selected: !!tab.closest('[aria-selected="true"]') } : null;
   }
-  // Tables (the Measurements table, a researcher's tables): the header and the rows in view, cell by cell.
   let rows = 0;
   for (const table of Array.from(root.querySelectorAll('table'))) {
-    if (over() || rows >= 60) break;
-    if (!shown(table, view)) continue;
+    if (rows >= 60) break;
+    if (!shown(table, view)) { yield null; continue; }
     for (const row of Array.from((table as HTMLTableElement).rows ?? [])) {
-      if (over() || rows >= 60) break;
+      if (rows >= 60) break;
       const rect = shown(row, view);
-      if (!rect) continue;
+      if (!rect) { yield null; continue; }
       rows++;
       for (const cell of Array.from(row.cells ?? []).slice(0, 12)) {
-        const box = shown(cell, view);
-        const value = words(cell.textContent, 40);
-        if (box && value) text.push({ text: value, rect: box, kind: cell.tagName === 'TH' ? 'header' : 'cell' });
+        const box = shown(cell, view), value = words(cell.textContent, 40);
+        yield box && value ? { text: value, rect: box, kind: cell.tagName === 'TH' ? 'header' : 'cell' } : null;
       }
     }
   }
+  let headings = 0;
   for (const heading of Array.from(root.querySelectorAll('h1, h2, h3, .mm-row-title'))) {
-    if (over() || text.length > 400) break;
+    if (headings++ > 200) break;
     if (heading.closest('table')) continue;
-    const rect = shown(heading, view);
-    const value = words(heading.textContent, 80);
-    if (rect && value && !text.some(t => t.text === value && Math.abs(t.rect.top - rect.top) < 24)) text.push({ text: value, rect, kind: heading.classList.contains('mm-row-title') ? 'row' : 'heading' });
+    const rect = shown(heading, view), value = words(heading.textContent, 80);
+    yield rect && value ? { text: value, rect, kind: heading.classList.contains('mm-row-title') ? 'row' : 'heading' } : null;
+  }
+}
+
+/** Kept unless it says again what is already written there (a heading that is also a frame's title). */
+function addText(text: ScreenText[], item: ScreenText): void {
+  if (text.length >= 400) return;
+  if ((item.kind === 'heading' || item.kind === 'row') && text.some(t => t.text === item.text && Math.abs(t.rect.top - item.rect.top) < 24)) return;
+  text.push(item);
+}
+
+/** The page as captureWindow draws it, in the viewport `view` (CSS px), at once (tests and tools). */
+export function screenLayout(root: ParentNode, view: [number, number], budgetMs = SCREEN_TEXT_MS, now: () => number = () => performance.now()): ScreenLayout {
+  const started = now();
+  const frames = layoutFrames(root, view);
+  const pictures = layoutPictures(root, view, frames);
+  const text: ScreenText[] = [];
+  for (const item of layoutText(root, view, frames)) {
+    if (item) addText(text, item);
+    if (now() - started > budgetMs) break;
   }
   return { frames, pictures, text };
 }
 
-/** A picture of the window as composed now, for a model to read: the live view and every picture at its place, each
- * window and panel filled, outlined and titled, and the text that says what they are (Tab names, table rows in view,
- * headings) written where it is. At most `maxSide` px; JPEG, base64. */
-export function composeWindow(root: HTMLElement = document.body, { quality = 0.7, maxSide = 1280 } = {}): { jpeg: string; w: number; h: number } {
-  const view: [number, number] = [innerWidth, innerHeight];
-  const k = Math.min(1, maxSide / Math.max(view[0], view[1], 1));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(view[0] * k));
-  canvas.height = Math.max(1, Math.round(view[1] * k));
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return { jpeg: '', w: 0, h: 0 };
-  ctx.scale(k, k);
-  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#111';
-  ctx.fillRect(0, 0, view[0], view[1]);
-  const layout = screenLayout(root, view);
-  const draw = (p: ScreenLayout['pictures'][number]) => {
-    try {
-      ctx.globalAlpha = p.opacity;
-      ctx.drawImage(p.el as CanvasImageSource, p.rect.left, p.rect.top, p.rect.width, p.rect.height);
-    } catch {
-      // a picture from elsewhere that cannot be read back: its place is drawn instead
-      ctx.globalAlpha = 1;
-      ctx.strokeStyle = '#888';
-      ctx.strokeRect(p.rect.left, p.rect.top, p.rect.width, p.rect.height);
+export type WindowPicture = { jpeg: string; w: number; h: number };
+type Surface = { width: number; height: number; context: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null };
+/** What a capture copies pictures and paints with: the browser's own (browserCapture), or a test's. */
+export interface CaptureEnv {
+  /** The picture as it is now; null when it cannot be read back (another origin's, not loaded). Called in the task
+   * the capture starts in, so the picture is the one on screen then. */
+  grab(el: Element): Promise<ImageBitmap | null>;
+  background(): string;
+  /** Paint and encode the plan (the bitmaps are the painter's to close): a worker's, else here in short steps. */
+  paint(plan: PaintPlan, quality: number, pause: () => Promise<void>, now: () => number): Promise<WindowPicture>;
+}
+
+const sameOrigin = (src: string) => {
+  try { const url = new URL(src, location.href); return url.protocol === 'blob:' || url.protocol === 'data:' || url.origin === location.origin; }
+  catch { return false; }
+};
+
+/** Paint and encode on this thread, a step at a time (no step over SLICE_MS), then encode in a task of its own: for a
+ * browser whose workers have no canvas. */
+export async function paintInSteps(plan: PaintPlan, quality: number, pause: () => Promise<void>, now: () => number, io: {
+  surface(width: number, height: number): Surface; encode(surface: Surface, quality: number): Promise<Blob>; base64(blob: Blob): Promise<string> }): Promise<WindowPicture> {
+  const [w, h] = paintSize(plan);
+  const surface = io.surface(w, h);
+  try {
+    if (!surface.context) return { jpeg: '', w: 0, h: 0 };
+    let sliceAt = now();
+    for (const step of paintSteps(surface.context, plan)) {
+      void step;
+      if (now() - sliceAt >= SLICE_MS) { await pause(); sliceAt = now(); }
     }
-    ctx.globalAlpha = 1;
-  };
-  // Pictures in no window (the live view) first, then each window over them with its own pictures.
-  layout.pictures.filter(p => p.frame === null).forEach(draw);
-  layout.frames.forEach((f, i) => {
-    const bg = f.background;
-    if (bg && bg !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(bg)) { ctx.fillStyle = bg; ctx.fillRect(f.rect.left, f.rect.top, f.rect.width, f.rect.height); }
-    layout.pictures.filter(p => p.frame === i).forEach(draw);
-    ctx.strokeStyle = '#cfd6e6';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(f.rect.left + 0.5, f.rect.top + 0.5, f.rect.width - 1, f.rect.height - 1);
-  });
-  ctx.textBaseline = 'middle';
-  for (const t of layout.text) {
-    const size = t.kind === 'title' || t.kind === 'heading' ? 13 : 12;
-    ctx.font = `${t.kind === 'title' || t.kind === 'header' || t.kind === 'heading' ? 600 : 400} ${size}px system-ui, sans-serif`;
-    const y = t.kind === 'title' ? t.rect.top + 11 : t.rect.top + Math.min(t.rect.height, 24) / 2;
-    const width = Math.min(ctx.measureText(t.text).width, Math.max(8, t.rect.width - 8));
-    ctx.fillStyle = t.selected ? 'rgba(47, 111, 214, 0.95)' : 'rgba(16, 18, 24, 0.82)';
-    ctx.fillRect(t.rect.left + 2, y - size / 2 - 2, width + 8, size + 4);
-    ctx.fillStyle = t.kind === 'title' ? '#ffffff' : '#e7ecf7';
-    ctx.fillText(t.text, t.rect.left + 6, y, Math.max(8, t.rect.width - 8));
+    await pause();
+    const jpeg = await io.base64(await io.encode(surface, quality));
+    return { jpeg, w: surface.width, h: surface.height };
+  } finally {
+    for (const p of plan.pictures) p.bitmap?.close();
   }
-  const jpeg = canvas.toDataURL('image/jpeg', quality).split(',', 2)[1] ?? '';
-  const size = { w: canvas.width, h: canvas.height };
-  canvas.width = 0; canvas.height = 0;
-  return { jpeg, ...size };
+}
+
+const browserIO = {
+  surface: (width: number, height: number): Surface => {
+    if (typeof OffscreenCanvas === 'function') {
+      const canvas = new OffscreenCanvas(width, height);
+      return Object.assign(canvas, { context: canvas.getContext('2d') });
+    }
+    const canvas = Object.assign(document.createElement('canvas'), { width, height });
+    return Object.assign(canvas, { context: canvas.getContext('2d') });
+  },
+  encode: (surface: Surface, quality: number): Promise<Blob> => 'convertToBlob' in surface
+    ? (surface as unknown as OffscreenCanvas).convertToBlob({ type: 'image/jpeg', quality })
+    : new Promise((resolve, reject) => (surface as unknown as HTMLCanvasElement).toBlob((blob) => blob ? resolve(blob) : reject(new Error('encode failed')), 'image/jpeg', quality)),
+  base64: base64Of,
+};
+
+/** The capture worker (capture-worker.ts), made on first use; null once it has shown it cannot paint here. */
+type Painter = { worker: Worker; jobs: Map<number, { resolve: (picture: WindowPicture) => void; reject: (error: Error) => void }>; next: number };
+let painter: Painter | null = null;
+let painterBroken = typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function';
+function paintWorker() {
+  if (painterBroken) return null;
+  if (painter) return painter;
+  try {
+    const worker = new Worker(new URL('./capture-worker.ts', import.meta.url), { type: 'module' });
+    const made: Painter = { worker, jobs: new Map(), next: 0 };
+    worker.onmessage = (event: MessageEvent<{ id: number; jpeg?: string; w?: number; h?: number; error?: string }>) => {
+      const job = made.jobs.get(event.data.id);
+      made.jobs.delete(event.data.id);
+      if (!job) return;
+      if (event.data.error !== undefined) {
+        painterBroken = true; painter = null; worker.terminate(); // its canvas cannot paint here: paint on this thread from now on
+        job.reject(new Error(event.data.error));
+      } else job.resolve({ jpeg: event.data.jpeg ?? '', w: event.data.w ?? 0, h: event.data.h ?? 0 });
+    };
+    worker.onerror = () => {
+      painterBroken = true; painter = null; worker.terminate();
+      for (const job of made.jobs.values()) job.reject(new Error('the capture worker stopped'));
+      made.jobs.clear();
+    };
+    painter = made;
+    return made;
+  } catch {
+    painterBroken = true;
+    return null;
+  }
+}
+
+/** The browser's: pictures copied with createImageBitmap in the asking task, painted and encoded in the capture worker
+ * (the bitmaps moved to it, not copied), else on this thread in short steps. */
+export const browserCapture: CaptureEnv = {
+  grab: async (el) => {
+    if (el instanceof HTMLImageElement && (!el.complete || !el.naturalWidth || !sameOrigin(el.currentSrc || el.src))) return null;
+    if (el instanceof HTMLVideoElement && el.readyState < 2) return null;
+    if (el instanceof HTMLCanvasElement && (!el.width || !el.height)) return null;
+    try { return await createImageBitmap(el as ImageBitmapSource); } catch { return null; }
+  },
+  background: () => getComputedStyle(document.body).backgroundColor || '#111',
+  paint: (plan, quality, pause, now) => {
+    const worker = paintWorker();
+    if (!worker) return paintInSteps(plan, quality, pause, now, browserIO);
+    return new Promise<WindowPicture>((resolve, reject) => {
+      const id = ++worker.next;
+      const timer = setTimeout(() => { if (worker.jobs.delete(id)) reject(new Error('the capture took too long')); }, 3_000);
+      worker.jobs.set(id, { resolve: (p) => { clearTimeout(timer); resolve(p); }, reject: (e) => { clearTimeout(timer); reject(e); } });
+      const bitmaps = plan.pictures.map(p => p.bitmap).filter((b): b is ImageBitmap => !!b);
+      worker.worker.postMessage({ id, plan, quality }, bitmaps);
+    });
+  },
+};
+
+/** The next task (a message to ourselves): the browser may paint a frame before it. */
+export function nextTask(): Promise<void> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => { channel.port1.close(); resolve(); };
+    channel.port2.postMessage(null);
+  });
+}
+
+/** A picture (a shared tab's frame) at most `maxSide` px, JPEG, base64: painted and encoded off the asking task. */
+export async function encodePicture(source: ImageBitmap, maxSide: number, quality: number, env: CaptureEnv = browserCapture): Promise<WindowPicture | null> {
+  const box = { left: 0, top: 0, width: source.width, height: source.height };
+  const plan: PaintPlan = { view: [source.width, source.height], scale: Math.min(1, maxSide / Math.max(source.width, source.height, 1)),
+    background: '#000', pictures: [{ bitmap: source, rect: box, frame: null, opacity: 1 }], frames: [], text: [] };
+  const picture = await env.paint(plan, quality, nextTask, () => performance.now());
+  return picture.jpeg ? picture : null;
+}
+
+/** A picture of the window as it is now, for a model to read, without holding up the live view (review 2026-10-29):
+ * the pictures are copied in the task that asks (so they are the ones on screen at the key press), then the text is
+ * read, the picture drawn and encoded in later tasks, none with more than about SLICE_MS of this work. The live view
+ * and every picture are at their places, each window and panel filled, outlined and titled, and the text that says
+ * what they are (Tab names, table rows in view, headings) written where it is. At most `maxSide` px; JPEG, base64.
+ * `longestTaskMs` is the longest single task of its own work (the frame-timing probe's number). */
+export async function captureWindow(root: HTMLElement = document.body, options: { quality?: number; maxSide?: number; view?: [number, number];
+  now?: () => number; yieldTask?: () => Promise<void>; env?: CaptureEnv } = {}): Promise<WindowPicture & { longestTaskMs: number; totalMs: number }> {
+  const { quality = 0.7, maxSide = 1280, env = browserCapture, yieldTask = nextTask } = options;
+  const now = options.now ?? (() => performance.now());
+  const view = options.view ?? [innerWidth, innerHeight];
+  const started = now();
+  let sliceAt = started, longest = 0;
+  const pause = async () => { longest = Math.max(longest, now() - sliceAt); await yieldTask(); sliceAt = now(); };
+  const wait = async <T>(work: Promise<T>): Promise<T> => { longest = Math.max(longest, now() - sliceAt); const value = await work; sliceAt = now(); return value; };
+  // In the asking task: where the windows are, and their pictures as they are now.
+  const frames = layoutFrames(root, view);
+  const pictures = layoutPictures(root, view, frames);
+  const grabs = pictures.map((p) => env.grab(p.el).catch(() => null));
+  const background = env.background();
+  let painted = false;
+  try {
+    await pause();
+    // The text, a slice at a time, stopping after SCREEN_TEXT_MS of reading in all.
+    const text: ScreenText[] = [];
+    let read = 0, sliceStart = now();
+    for (const item of layoutText(root, view, frames)) {
+      if (item) addText(text, item);
+      if (now() - sliceStart < SLICE_MS) continue;
+      read += now() - sliceStart;
+      if (read > SCREEN_TEXT_MS) break;
+      await pause();
+      sliceStart = now();
+    }
+    await pause(); // the last of the reading, and the painting, are tasks of their own
+    const bitmaps = await wait(Promise.all(grabs));
+    const plan: PaintPlan = { view, scale: Math.min(1, maxSide / Math.max(view[0], view[1], 1)), background,
+      pictures: pictures.map((p, i) => ({ bitmap: bitmaps[i], rect: p.rect, frame: p.frame, opacity: p.opacity })),
+      frames: frames.map(f => ({ rect: f.rect, background: f.background })), text };
+    painted = true; // the painter closes the bitmaps from here
+    const picture = await wait(env.paint(plan, quality, pause, now));
+    longest = Math.max(longest, now() - sliceAt);
+    return { ...picture, longestTaskMs: Math.round(longest * 10) / 10, totalMs: Math.round(now() - started) };
+  } finally {
+    if (!painted) for (const bitmap of await Promise.all(grabs)) bitmap?.close();
+  }
 }

@@ -389,3 +389,101 @@ test('GPT-Live holds no turns: its microphone stays on and its Talk stays a togg
   expect(h.track.enabled).toBe(true);
   voice.stop();
 });
+
+// Review 2026-10-29: a Wi-Fi drop failed the peer and ended Talk. Now the studio offers a new call itself on the same
+// socket, microphone and audio element ({type:"offer", id:"rc-<n>"}, retried every 3.5 s, the answer's id echoed), quietly
+// "Reconnecting…", and gives up only after 10 s with a plain message.
+test('a dropped connection is offered again, not ended: the answer to its own offer takes over', async () => {
+  vi.useFakeTimers();
+  try {
+    const events = vi.fn();
+    const t = await liveHold(events);
+    expect(t.voice.state).toBe('live');
+    t.peers[0].connect('failed'); // Wi-Fi gone
+    expect(t.voice.state).toBe('live');
+    const phases = () => events.mock.calls.filter(([e]) => e.kind === 'status').map(([e]) => e.data.phase);
+    expect(phases().at(-1)).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.peers).toHaveLength(2);
+    expect(t.sent().at(-1)).toEqual({ type: 'offer', sdp: 'offer-2', id: 'rc-1' });
+    expect(t.peers[1].addTrack).toHaveBeenCalledWith(t.track, expect.anything()); // the same microphone
+    t.say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-2', id: 'rc-1' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.peers[0].close).toHaveBeenCalled();
+    t.peers[1].connect();
+    expect(phases().at(-1)).toBe('listening');
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(t.voice.state).toBe('live'); // nothing left to give up on
+    expect(t.elements).toHaveLength(1); // the same audio element
+    t.voice.stop();
+  } finally { vi.useRealTimers(); }
+});
+
+test('it offers again every 3.5 s; a late answer to an older offer is never applied to the newer one', async () => {
+  vi.useFakeTimers();
+  try {
+    const t = await liveHold();
+    t.peers[0].connect('disconnected');
+    await vi.advanceTimersByTimeAsync(2_900);
+    expect(t.peers).toHaveLength(1); // a short blip may come back by itself
+    await vi.advanceTimersByTimeAsync(200);
+    expect(t.sent().at(-1)).toMatchObject({ type: 'offer', id: 'rc-1' });
+    await vi.advanceTimersByTimeAsync(3_500);
+    expect(t.sent().at(-1)).toMatchObject({ type: 'offer', id: 'rc-2' });
+    expect(t.peers[1].close).toHaveBeenCalled(); // the unanswered offer is dropped
+    t.say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-late', id: 'rc-1' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.peers[2].remote).toBe(null);
+    expect(t.voice.state).toBe('live');
+    t.say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-3', id: 'rc-2' } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(t.peers[2].remote).toEqual({ type: 'answer', sdp: 'answer-3' });
+    t.peers[2].connect();
+    expect(t.voice.state).toBe('live');
+    t.voice.stop();
+  } finally { vi.useRealTimers(); }
+});
+
+test('after 10 s without a connection it gives up with a plain message', async () => {
+  vi.useFakeTimers();
+  try {
+    const state = vi.fn();
+    const h = partnerHarness();
+    const voice = new VoiceClient(vi.fn(), state, vi.fn());
+    await voice.start({ model: 'gpt-realtime-2.1' });
+    const socket = h.sockets[0];
+    socket.onopen?.();
+    const say = (message: object) => socket.onmessage!({ data: JSON.stringify(message) });
+    say({ type: 'voice', kind: 'ready' });
+    say({ type: 'voice', kind: 'answer', data: { sdp: 'answer-1' } });
+    await vi.advanceTimersByTimeAsync(0);
+    h.peers[0].connect();
+    h.captures[0].port.onmessage!({ data: { pcm: new ArrayBuffer(1920), level: 0 } });
+    expect(voice.state).toBe('live');
+    h.peers[0].connect('failed');
+    await vi.advanceTimersByTimeAsync(9_900);
+    expect(voice.state).toBe('live');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(voice.state).toBe('error');
+    expect(state).toHaveBeenLastCalledWith('error', expect.stringMatching(/lost its connection.*Talk again/));
+  } finally { vi.useRealTimers(); }
+});
+
+test('the voice\'s speaking phase goes to the server as it changes ({type:"voice-phase"})', async () => {
+  vi.useFakeTimers();
+  try {
+    const t = await liveHold();
+    const phases = () => t.sent().filter((m) => m?.type === 'voice-phase').map((m) => m.phase);
+    t.output.loud = true;
+    await vi.advanceTimersByTimeAsync(300);
+    t.output.loud = false;
+    await vi.advanceTimersByTimeAsync(600);
+    expect(phases().slice(-2)).toEqual(['speaking', 'listening']);
+    const last = t.sent().filter((m) => m?.type === 'voice-phase').at(-1);
+    expect(typeof last.at).toBe('number');
+    const count = phases().length;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(phases().length).toBe(count); // only on a change
+    t.voice.stop();
+  } finally { vi.useRealTimers(); }
+});
