@@ -119,3 +119,19 @@ def test_the_scripts_ask_where_the_saves_are_instead_of_assuming_services():
         code = "\n".join(line for line in (repo / script).read_text().splitlines() if not line.lstrip().startswith("#"))
         for place in ("services/logs", "services/research", "services/sessions", "$ROOT/recordings/"):
             assert place not in code, (script, place)
+
+
+def test_pruning_keeps_new_and_legacy_research_traces(tmp_path):
+    paths = Paths.under(tmp_path)
+    traces = [paths.research / 'transcripts' / '2026-01-01' / 'r1.jsonl',
+              paths.logs / 'transcripts' / '2026-01-01' / 'r2.jsonl']
+    for path in traces:
+        path.parent.mkdir(parents=True)
+        path.write_text('{"round":1,"reply":"retained evidence"}\n')
+    crop = paths.logs / 'crops' / '2026-01-01' / 'image.jpg'
+    crop.parent.mkdir(parents=True)
+    crop.write_bytes(b'disposable')
+    removed = saves.prune(paths, days=14, apply=True, today=date(2026, 10, 29), out=lambda _: None)
+    assert removed == [crop.parent]
+    assert not crop.exists()
+    assert all('retained evidence' in path.read_text() for path in traces)

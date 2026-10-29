@@ -29,9 +29,9 @@ from .paths import KINDS, LIFETIMES, MARKER, REPO, SERVICES, Paths, assets_root,
 
 CHECK_CONTENT_BYTES = 50 * 1024 * 1024  # files smaller than this are compared by content too
 KEPT_LOGS = ("votes.jsonl", "corrections.jsonl")  # judgments people made, in the old logs folder
-# By day: crops/<YYYY-MM-DD>, screens/<YYYY-MM-DD>, transcripts/<YYYY-MM-DD> (researchers' model transcripts),
-# saved/<YYYYMMDD-HHMMSS>.
-DATED_LOGS = ("crops", "screens", "transcripts", "saved", "tool-failures")
+# Research transcripts, including the legacy logs/transcripts location, are retained
+# evidence (ADR 0027). Only disposable performance telemetry belongs in this list.
+DATED_LOGS = ("crops", "screens", "saved", "tool-failures")
 
 
 def old_layout() -> Paths:
@@ -60,7 +60,7 @@ def pairs(old: Paths, new: Paths) -> list[tuple[Path, Path, str]]:
             if p.is_file() and p not in mapped_logs:
                 relative = p.relative_to(old.logs)
                 kept = len(relative.parts) == 1 and p.name in KEPT_LOGS
-                out.append((p, (new.votes_log.parent if kept else new.logs) / relative, "kept" if kept else "log"))
+                out.append((p, (new.votes_log.parent if kept else new.logs) / relative, "kept" if kept else "asset" if relative.parts[0] == "transcripts" else "log"))
     return out
 
 

@@ -106,7 +106,7 @@ def test_a_round_past_the_cap_keeps_its_long_strings_cut_and_marked():
     assert back == {"round": 4, "cut": back["cut"]} and "only its head is kept" in back["cut"]
 
 
-def test_the_app_names_each_runs_transcript_in_the_performance_logs(tmp_path):
+def test_the_app_names_each_runs_transcript_in_retained_research(tmp_path):
     from orchestrator.research import ResearchManager
     from orchestrator.saves import DATED_LOGS
     from tests.test_research import FakeHub
@@ -129,8 +129,8 @@ def test_the_app_names_each_runs_transcript_in_the_performance_logs(tmp_path):
     manager._ensure_worker, manager._watchdog = ensure, watchdog
     asyncio.run(manager._launch(session))
     assert spawned["transcript"] is None  # tests and a manager made alone keep none
-    manager.transcripts = tmp_path / "logs" / "transcripts"
+    manager.transcripts = tmp_path / "research" / "transcripts"
     session.status = "running"
     asyncio.run(manager._launch(session))
-    assert spawned["transcript"] == str(tmp_path / "logs" / "transcripts" / session.day / f"{session.rid}.jsonl")
-    assert "transcripts" in DATED_LOGS  # pruned with the other dated performance logs (make logs-prune)
+    assert spawned["transcript"] == str(tmp_path / "research" / "transcripts" / session.day / f"{session.rid}.jsonl")
+    assert "transcripts" not in DATED_LOGS  # legacy traces remain protected too

@@ -803,7 +803,7 @@ class ResearchManager:
         # The interaction log (agent.log; the app sets it): lesson checks, stalls and claims checks
         # are logged with the options used, for comparing them.
         self.log: Callable[[dict], None] = lambda record: None
-        # Where each run's model transcript goes (a performance log, logs/transcripts/; the app sets it): one file per
+        # Where each run's retained model transcript goes (research/transcripts/; the app sets it): one file per
         # researcher and day, a line per round (research_worker/researcher.py `transcribe`). Unset (tests): none kept.
         self.transcripts: Path | None = None
         # Its hands (hands.py): the app's own operations a researcher asks for, for its reading, never on screen.
