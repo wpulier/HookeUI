@@ -627,4 +627,10 @@ ids (`hk_…`, at most 32 characters) and `response.metadata` (`cause`, `n`) cam
 not said; and a proactive `response.create` with `instructions`, `tool_choice: "none"` and `metadata` spoke one
 sentence from a system item of facts ("Researcher 3 finished and reported finding two size groups."), its first audio
 **692 ms** after asking. Both runs cost $0.04 at list price. A third run (a session.update only) took all 78 registry
-tools of the golden fixture as the partner reshapes them, with mark, look_hard and do_in_hooke: 81 of 81 accepted.
+tools of the golden fixture as the partner reshapes them, with mark, look_hard and do_in_hooke: 81 of 81 accepted. A
+fourth made the WebRTC call itself as `RealtimeSession` does, from a headless Chrome's SDP offer: the call was created
+in **1511 ms** (the body is the SDP answer, the `Location` header ends in the `rtc_…` id), the sideband attached by
+`call_id` in **263 ms**, and a `session.update` over it was answered `session.updated` with the 19 partner tools the
+fixture has (the sideband's first event; no `session.created` comes on it). So a reconnect that needs a new call is
+about 1.8 s plus the browser's new offer: at the edge of the 2 s target. Not measured without the studio: audio over
+WebRTC, `output_audio_buffer.*` on the sideband, and whether `RELEASE_TAIL_S` keeps the last word.
