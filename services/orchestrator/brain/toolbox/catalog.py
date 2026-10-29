@@ -160,8 +160,18 @@ def add_catalog_tools(registry: Registry, services) -> None:
         news = ((w.get("setup") or {}).get("news") or {}).get("new") or []
         text = catalog_view.work_words(found, asked, catalog_view.work_kinds(rows), rows=rows, news=news,
                                        ways=catalog_view.ways_to_add(asked))
-        more = offer([r for r in found if catalog_view.standing(r) == "setup"])
-        return text + (f"\n{more}" if more else "")
+        # Its next download or install is offered as a named model's is (get_model takes it by name or "all"), said in
+        # one line: the steps are above, and the round that answers reads only the first part of this text.
+        setup = [r for r in found if catalog_view.standing(r) == "setup"
+                 and (r.get("download") or {}).get("state") not in ("queued", "downloading", "checking")]
+        offered = [propose(r) for r in setup
+                   if (r.get("next") or {}).get("kind") in ("download", "install") and (r.get("next") or {}).get("model")]
+        if offered:
+            text += ("\nA download or install above that is its next step starts on the user's yes: get_model with its "
+                     "name (or 'all') and asked_with quoting them.")
+        if any((r.get("next") or {}).get("kind") == "key" for r in setup):
+            text += "\n" + KEYS_ARE_THEIRS
+        return text
 
     async def models(ctx: ToolContext, args: dict) -> str:
         from ... import catalog_view
@@ -176,7 +186,9 @@ def add_catalog_tools(registry: Registry, services) -> None:
             more = offer(found)
             return catalog_news.words_for_agent(fresh) + (f"\nTo turn one on:\n{more}" if more else "")
         does = args.get("does") or []
-        does = [str(d).strip().lower() for d in ([does] if isinstance(does, str) else does) if str(d).strip()]
+        # A list, or one string of them ("cells,outline": a json-actions answer is not held to the schema; live run).
+        does = [d for item in ([does] if isinstance(does, str) else does)
+                for d in re.split(r"[\s,;/]+|\band\b", str(item).strip().lower()) if d]
         if does:  # what Hooke has and could add for kinds of work, the model's own reading of the request
             kinds = catalog_view.work_kinds(rows)
             unknown = [d for d in does if d not in kinds]
@@ -191,8 +203,9 @@ def add_catalog_tools(registry: Registry, services) -> None:
 
             offered = offer_capability(ctx, card)
             asked = catalog_view.job_operations(w.get("roles") or [], card["id"])
-            return words({"cards": [card]}) + (f"\n{offered}" if offered else "") + "\n" + KEYS_ARE_THEIRS + (
-                "\n" + work(w, asked) if asked else "")
+            listing = work(w, asked) if asked else ""  # every entry for the job's work, not only its options here
+            return words({"cards": [card]}) + (f"\n{offered}" if offered else "") + (f"\n{listing}" if listing else "") + (
+                "" if KEYS_ARE_THEIRS in listing else "\n" + KEYS_ARE_THEIRS)
         if about and about.lower() not in ("everything", "all", "setup", "what do i need", "status"):
             key = catalog_view.key_matching(keys, about)
             found = catalog_view.matching(rows, about)

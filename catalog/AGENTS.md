@@ -244,6 +244,15 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
 - **The agent relays it** (`brain/toolbox/catalog.py`; `catalog/README.md` "Asking the agent"):
   - **`models` (query):** the page in words: what your choices need, a model, a job or a key ("what does my Google
     key turn on?"). A download it can take next is offered with an id (`p1`, kept 180 s).
+  - **What Hooke has and could add for some work** (`models` `does`; live 2026-10-29, "what segmentation models do we
+    have, and what others could we add?" was asked of the Outlining job alone and the rest guessed): the model names the
+    kinds of work the request means (the catalog's operations, each with its title and what it gives, in the tool's
+    parameters); each row's `does` is read from its manifest (`catalog_view.operations_of`), New for you's too. The answer
+    (`catalog_view.work_words`) is every entry that does them, installed or not, by where it stands (working here, here
+    but not run yet, not set up with every step, can't run here), then what is new, how one not in the catalog is added
+    (the reviewed templates' links, a Cellpose file, Have an AI build it) and the other kinds; a job named is answered
+    the same way, and `capabilities` by operation says the entries not set up. It is compact, most needed first: the
+    round that answers from a query reads about 1,900 characters of its text (`brain/claims.py` `answer_facts`).
   - **`get_model` (effect):** starts exactly that download on the user's own yes (`confirms`, `asked_with` checked by
     `research/policy.quoted`), through the page's queue. Asking for one by name ("please download DINOv3") is that
     yes: their words must name it, and only a download its card offers (live 2026-10-12 it was asked back).
