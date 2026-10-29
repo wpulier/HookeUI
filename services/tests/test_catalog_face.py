@@ -2,8 +2,12 @@
 whether it is ready and gives the one action that changes that; its abilities are every capability it really powers, read
 from the registered options that run it, each with the exact (job, option) its Try binds, never a phrase that would run
 another default. Isolated: keys given as a mapping, no model downloaded."""
+import asyncio
+
+import pytest
+
 from gpu_worker import manifests as catalog
-from orchestrator import capabilities, options
+from orchestrator import capabilities, catalog_view, observed, options
 from tests.test_catalog_view import nothing_downloaded, rows  # noqa: F401 - an isolated profile
 
 
@@ -135,3 +139,147 @@ def test_agent_overview_uses_the_same_proof_words_as_the_card():
     assert row['face']['says'] in text
     assert row['face']['says'] in catalog_view.row_words(row)
     assert 'Next step: Check it here' in catalog_view.row_words(row)
+
+
+# --- real use is evidence (observed.py "use"; Will, 2026-10-29) ---------------------------------------------------------
+# Claude Opus 5.5 answered him all session while its card said "Not checked", grey, like a model that wasn't there, and
+# so did Bright objects, a built-in method. A model that ran here is working here; one with its key and no run is ready,
+# not checked yet; a failure is said only from a recorded failure, with its reason.
+CLAUDE = {"ANTHROPIC_API_KEY": True}
+
+
+@pytest.fixture
+def recording(nothing_downloaded, monkeypatch):
+    """The running app's record of real use, in a home of its own (server.py opens it in the app only)."""
+    monkeypatch.setattr(observed, "_use_store", observed.Store(nothing_downloaded / "home" / observed.USES))
+    monkeypatch.setattr(observed, "_use_changed", None)
+    return nothing_downloaded
+
+
+def test_a_model_that_ran_here_is_working_here_with_when(recording):
+    observed.used("claude-opus-5-5", True)
+    row = rows(CLAUDE)["claude-opus-5-5"]
+    assert row["status"] == "ready" and row["group"] == "ready"
+    face = row["face"]
+    assert face["state"] == "on" and face["by"] == "use" and face["says"].startswith("Working here · last ran ")
+    assert face["action"] is None and face["also"][0] == {"kind": "check", "says": "Check it here", "model": "claude-opus-5-5"}
+    assert any(f["kind"] == "use" and f["ok"] is True for f in row["facts"])
+    assert "Working here" in catalog_view.row_words(row)
+
+
+def test_a_built_in_method_that_ran_here_is_working_here(recording):
+    from orchestrator import operations
+
+    record = operations.Execution("cells", "basic-bright-objects", "raw", "user-chosen", None, "explicit",
+                                  attempts=[operations.Attempt("basic-bright-objects", True, ms=12.0, why="chosen")])
+    operations._used(record)
+    face = rows({})["basic-bright-objects"]["face"]
+    assert face["state"] == "on" and face["by"] == "use", face
+
+
+def test_a_model_with_its_key_and_no_run_is_ready_and_not_checked_yet(recording):
+    row = rows(CLAUDE)["claude-opus-5-5"]
+    assert row["status"] == "ready"
+    assert row["face"]["state"] == "unchecked" and row["face"]["says"] == "Ready to run; not checked on this Mac yet"
+    assert row["face"]["action"]["says"] == "Check it here"
+    assert not any(f["kind"] == "use" for f in row["facts"]), "nothing ran: nothing is said to have"
+
+
+def test_a_recorded_failure_is_a_failure_with_its_reason_and_the_next_success_clears_it(recording):
+    observed.used("claude-opus-5-5", True)
+    observed.used("claude-opus-5-5", False, "Anthropic 400: Your credit balance is too low")
+    row = rows(CLAUDE)["claude-opus-5-5"]
+    assert row["status"] == "broken" and row["face"]["state"] == "broken"
+    assert "Its last use here failed" in row["face"]["says"] and "credit balance is too low" in row["face"]["says"]
+    assert any(f["kind"] == "use" and f["ok"] is False and "credit balance" in f["says"] for f in row["facts"])
+    observed.used("claude-opus-5-5", True)
+    assert rows(CLAUDE)["claude-opus-5-5"]["face"]["by"] == "use"
+
+
+def test_the_newer_of_a_check_and_a_real_use_says_how_it_is(recording):
+    from orchestrator import readiness
+
+    observed.used("claude-opus-5-5", False, "connection failed")
+    use = observed.last_use("claude-opus-5-5")
+    later = {"state": "works", "at": "2999-01-01T00:00:00+00:00"}
+    earlier = {"state": "works", "at": "2000-01-01T00:00:00+00:00"}
+    assert readiness.newest_use("claude-opus-5-5", later) is None, "a check that passed after it is newer"
+    assert readiness.newest_use("claude-opus-5-5", earlier) == use
+    assert readiness.newest_use("claude-opus-5-5", {**later, "earlierBuild": "x"}) == use, "an earlier build's check proves nothing now"
+
+
+def test_only_what_reached_the_model_is_use(recording):
+    from orchestrator import operations
+
+    def run(*attempts, origin="user-chosen", trial=None):
+        operations._used(operations.Execution("cells", "micro-sam-lm", "raw", origin, None, "explicit",
+                                              attempts=list(attempts), trial=trial))
+
+    run(operations.Attempt("micro-sam-lm", False, error="", not_run="cancelled"),
+        operations.Attempt("micro-sam-lm", False, error="worker busy", not_run="busy"))
+    run(operations.Attempt("micro-sam-lm", True), origin="check")
+    assert observed.last_use("micro-sam-lm") is None, "cancelled, busy and the app's own check are not use"
+    run(operations.Attempt("micro-sam-lm", False, error="RuntimeError: MPS out of memory"))
+    assert observed.last_use("micro-sam-lm")["state"] == "no"
+    assert "MPS out of memory" in observed.last_use("micro-sam-lm")["says"]
+    with observed.not_use():
+        observed.used("micro-sam-lm", True)
+    assert observed.last_use("micro-sam-lm")["state"] == "no", "a model check's calls are its own record"
+
+
+def test_nothing_is_recorded_outside_the_running_app(nothing_downloaded, monkeypatch):
+    monkeypatch.setattr(observed, "_use_store", None)
+    assert observed.used("claude-opus-5-5", True) is False
+    assert observed.last_use("claude-opus-5-5") is None
+    assert not (nothing_downloaded / "catalog" / observed.USES).exists()
+
+
+def test_real_use_survives_a_restart_in_its_own_home(recording, monkeypatch):
+    observed.used("claude-opus-5-5", True)
+    monkeypatch.setattr(observed, "_use_store", observed.Store(recording / "home" / observed.USES))  # a fresh process
+    assert observed.last_use("claude-opus-5-5")["state"] == "yes"
+
+
+def test_a_cloud_call_is_use_of_its_entry_and_the_apps_own_cut_off_is_not(recording, monkeypatch):
+    from research_worker import api_usage
+
+    monkeypatch.setattr(api_usage, "_outcome", observed.call_used)
+    monkeypatch.setattr(api_usage, "_active", None)
+    monkeypatch.setattr(api_usage, "_provider_allowed", None)
+
+    async def call(error: BaseException | None) -> None:
+        async with api_usage.attempt("claude-opus-5-5", provider="Anthropic"):
+            if error is not None:
+                raise error
+
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(call(asyncio.CancelledError()))
+    assert observed.last_use("claude-opus-5-5") is None, "cut off by the app (a newer request): says nothing of the model"
+    asyncio.run(call(None))
+    assert observed.last_use("claude-opus-5-5")["state"] == "yes"
+
+    class Refused(Exception):
+        status_code = 401
+
+    with pytest.raises(Refused):
+        asyncio.run(call(Refused("invalid x-api-key")))
+    last = observed.last_use("claude-opus-5-5")
+    assert last["state"] == "no" and last["says"].startswith("key, permission or billing refused") and "invalid x-api-key" in last["says"]
+    assert observed.call_entry("veo-3.1-fast-generate-preview") == "veo-3.1-fast" and observed.call_entry("google_search") == ""
+
+
+def test_the_studios_are_told_once_when_models_turn_never_on_every_call(nothing_downloaded, monkeypatch):
+    told = []
+    monkeypatch.setattr(observed, "TELL_EVERY_S", 0.01)
+    observed.record_use(nothing_downloaded / "home" / observed.USES, changed=lambda: told.append(1))
+    try:
+        async def calls() -> None:
+            observed.used("claude-opus-5-5", True)  # turned working
+            observed.used("claude-opus-5-5", True)  # the same a moment later: not even written
+            observed.used("micro-sam-lm", False, "RuntimeError: MPS out of memory")  # another turned failed
+            await asyncio.sleep(0.05)
+
+        asyncio.run(calls())
+        assert told == [1], "one Models page for both turns"
+    finally:
+        observed.record_use(None)

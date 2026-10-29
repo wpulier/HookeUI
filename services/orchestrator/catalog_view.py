@@ -9,7 +9,8 @@ worked out (each role's choice and options, their checks) and the facts readines
   - its files: downloaded (revision, size, the folder), in an older cache, or not downloaded yet (how much, into where);
   - its code: installed, or how to install it;
   - this copy: allowed in this edition, or why not;
-  - the app's last check of it (model_checks.py), when there is one.
+  - the app's last check of it (model_checks.py), when there is one;
+  - its last real use here (observed.py "use"): worked, or failed with why, when there is one.
 - **usedFor**: each role it serves, with whether it is the current choice there (a fixed role's model in use counts).
 - **group**: "needs-you" (the current choice of a role you choose uses it and it can't run: what "All set" is about, the
   review's correction 1: your selections only), "ready", "available" (it can be turned on with a step: a key, a
@@ -337,9 +338,12 @@ def own_proof(role_id: str, option_id: str, environ: Mapping[str, str] = os.envi
 def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
          environ: Mapping[str, str] = os.environ) -> dict:
     """The card's face (Will's consolidation): its state, the line that says why, and the one action that changes it.
-    Obtained, runnable and proved are kept apart (Codex's review of 14054603): "on" only with a current passed check of
-    this build; ready to run with none is "unchecked", its action Check it here; data runs nothing, so it is "obtained"
-    with no check. Not ready: its next step."""
+    Obtained, runnable and proved are kept apart (Codex's review of 14054603): "on" only with evidence that it ran here,
+    a current passed check of this build or a real use that worked (`by: "use"`: "Working here · last ran 14:02",
+    observed.py "use", Will 2026-10-29: the model answering him all session said "Not checked"), the newer of the two
+    counting (readiness.newest_use; a newer failed use is Broken, readiness.failed_in_use); ready to run with neither is
+    "unchecked" (said as ready, not checked yet), its action Check it here; data runs nothing, so it is "obtained" with no
+    check. Not ready: its next step."""
     from . import own_trials, env_runner
     installed = env_runner.in_use(m, environ) if m.runner == "python-env" else None
     if r.status == "ready" and own_trials.pending(installed.m if installed else m, environ):
@@ -373,6 +377,13 @@ def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
             return {'state': 'unchecked', 'says': 'Ready to run; its functional proof is not recorded here',
                     'action': recovery, 'also': change}
         proved = bool(check) and check.get("state") == "works" and not check.get("earlierBuild")
+        use = readiness.newest_use(m.key, check)
+        if use is not None and use.get("state") == "yes":
+            from .model_checks import at_words
+
+            return {"state": "on", "by": "use", "says": f"Working here · last ran {at_words(use.get('at', ''))}",
+                    "action": None, "also": [{"kind": "check", "says": "Check again" if proved else "Check it here",
+                                              "model": m.key}] + change}
         if not proved:
             said = (f"Last check: {check.get('state')}" + (" (an earlier build)" if check.get("earlierBuild") else "")
                     if check else "Ready to run; not checked on this Mac yet")
@@ -702,6 +713,13 @@ def facts(m: catalog.Manifest, key_facts: Mapping[str, dict], have, checks: list
                              f"Its last check failed: {check.get('why') or 'it failed'}" if check.get("state") == "broken"
                              else f"Last check: {check.get('why') or check.get('state')}")
                             + (" (an earlier build)" if check.get("earlierBuild") else "")})
+    use = observed.last_use(m.key)
+    if use:  # its real use here (observed.py "use"), a fact of its own beside the app's check
+        from .model_checks import at_words
+
+        ok = use["state"] == "yes"
+        out.append({"kind": "use", "ok": ok, "says": f"Worked when last used here at {at_words(use.get('at', ''))}" if ok
+                    else f"Its last use here failed at {at_words(use.get('at', ''))}: {use.get('says') or 'it failed'}"})
     return out
 
 
@@ -728,6 +746,9 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
             r = readiness.model(key, keys, environ)
             broken_check = next((c for c in checks if c.get("state") == "broken" and not c.get("earlierBuild")), None)
             r = readiness.broken(r, broken_check)
+            functional = entry_check(m, environ)
+            if proof_step(m) is None and m.kind not in ("runtime", "data"):  # what the app's own check covers (face)
+                r = readiness.failed_in_use(r, readiness.newest_use(key, next(iter(checks), None) or functional))
             in_use = any(u["current"] for u in used)
             chosen = any(u["current"] and not u["fixed"] for u in used)  # a selection of yours, not a fixed model
             if r.status == "ready":
@@ -775,7 +796,7 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
                             'says': blocked['why'], 'action': None} if blocked else face(m, r, used, environ))
             if row['group'] == 'ready' and row['face']['state'] not in ('on', 'obtained'):
                 row['group'] = 'available'
-            row['functionalCheck'] = entry_check(m, environ)
+            row['functionalCheck'] = functional
             row['proofStep'] = proof_step(m)
             if not used and row['proofStep'] is not None:
                 from . import capability_shelf

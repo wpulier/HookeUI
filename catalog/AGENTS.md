@@ -56,6 +56,16 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
   requirement kind has a source (`observed.SOURCES`), and no ✗ on a card is without evidence (both tested).
   The local-only Example project asks no one (`api_usage.require_provider`), so a licence not yet asked says so there
   (`observed.NOT_ASKED_STEP`: open another project to finish setting it up), never "asked in a moment" (F-L8-4).
+  **Real use** is kept the same way (kind "use", `observed.used`), in the app's own home beside its checks
+  (`uses.json`, opened by server.py's lifespan only, so tests and the sim keep their own): each
+  run of an entry `operations.Runner` records (`operations._used`, by `IMPL_MODEL`), each cloud call through
+  `api_usage.attempt` (its `outcome` hook, by the entry's API version) and each voice session that opened, as its latest
+  outcome with when; the app's own cut-offs, runs that never reached the model, blind trials before their vote and the
+  app's own check (`observed.not_use`) are not use. The card (`catalog_view.face`) is on with `by: "use"`, "Working here
+  · last ran 14:02", when the newest evidence is a run that worked (`readiness.newest_use`: the later of it and a passed
+  check counts), Broken with its words when it is one that failed (`readiness.failed_in_use`), and otherwise as before:
+  ready to run with neither is "unchecked", said Ready · not checked yet (Will, 2026-10-29: Claude Opus 5.5 answered him
+  all session while its card said "Not checked", grey). Its Check it here stays, in `also`.
 - **One readiness for contributed choices:** a contributed or AI-made capability becomes a choice only once its own
   functional proof passed (`kinds.py`). The app has no check of its own for it (`model_checks.find` is None), so that
   proof is its role option's check, and checking it again reruns the proof (`catalog_view.own_proof`): the Models

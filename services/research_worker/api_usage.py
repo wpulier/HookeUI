@@ -115,10 +115,33 @@ class CapReached(RuntimeError):
     """The monthly cloud cap the user set is reached: said, never a silent failure."""
 
 
-def configure(ledger: UsageLedger | None, *, provider_allowed=None) -> None:
-    global _active, _provider_allowed
+def configure(ledger: UsageLedger | None, *, provider_allowed=None, outcome=None) -> None:
+    """`outcome(model, ok, why)`: told how each call through `attempt` ended, as the running app's record of each model's
+    real use (orchestrator/observed.call_used); never in a process that does not set it (the research worker's)."""
+    global _active, _provider_allowed, _outcome
     _active = ledger
     _provider_allowed = provider_allowed
+    _outcome = outcome
+
+
+_outcome = None
+# How a call ended that says nothing about the model: the app's own doing (its deadline or a newer request cancelled it;
+# the cap kept it from being sent). Every other failure is the model's or its provider's, said with its reason.
+NOT_THE_MODELS = ("cut-off", "capped")
+
+
+def _told(model: str, ok: bool, outcome: str = "", exc: BaseException | None = None) -> None:
+    hook = _outcome
+    if hook is None or (not ok and outcome in NOT_THE_MODELS):
+        return
+    why = ""
+    if not ok:
+        words = " ".join(str(exc or "").split())
+        why = (words or type(exc).__name__) if outcome == "failed" else OUTCOMES[outcome] + (f" ({words[:120]})" if words else "")
+    try:
+        hook(model, ok, why)
+    except Exception:  # noqa: BLE001 - keeping the record never breaks the call
+        pass
 
 
 def provider_for(model: str) -> str:
@@ -463,9 +486,11 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
             record(model, 0.0, provider=provider, area=area, basis=f'Refused before it ran: {OUTCOMES[outcome]}; nothing billed')
         else:
             record(model, provider=provider, area=area, basis=f'Interrupted or failed: {OUTCOMES[outcome]}; usage unavailable')
+            _told(model, False, outcome, exc)
         raise
     _seen(provider, area, "ok")
     note_latency(model, (time.monotonic() - began) * 1000)
+    _told(model, True)
 
 
 def search_queries(result) -> list[str]:

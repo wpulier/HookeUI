@@ -15,7 +15,14 @@ Hugging Face", because the manifest declares the licence and nothing asked. Ever
    - every RECHECK_S otherwise;
    - on "Check again" (command `observe-again`), and when the agent is asked about it.
 3. **Proven by running it:** a real attempt is an observation too (a download refused or done: `record`), as are the
-   app's model checks (model_checks.py).
+   app's model checks (model_checks.py), and so is **real use** (kind "use", `used`): every run of a catalog entry the
+   app makes for someone (operations.Runner's attempts; a cloud call through research_worker/api_usage.attempt; a voice
+   session that opened), kept as its latest outcome with when, beside the app's own checks in its home (`uses.json`:
+   only the running app keeps it, so a test's or the sim's home has its own). A model that ran and returned is working
+   here; one that ran and failed says its error. What the app itself cut short (its deadline, a newer request, the
+   monthly cap), a run that never reached the model, a blind trial and the app's own check are not use (Will,
+   2026-10-29: Claude Opus 5.5 answered him all session while its card said "Not checked", grey, like a model that
+   wasn't there).
 
 **Unknown is said as unknown** ("not checked yet", "couldn't reach Hugging Face"), never as a refusal.
 
@@ -29,10 +36,13 @@ answer with its time until it is asked again. No key's value is ever kept, logge
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import json
 import os
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -121,6 +131,98 @@ def latest(kind: str, target: str, environ: Mapping[str, str] = os.environ) -> d
 def record(kind: str, target: str, state: str, says: str, how: str, environ: Mapping[str, str] = os.environ) -> bool:
     """A real attempt observed it (a download refused or done)."""
     return store(environ).put(kind, target, {"state": state, "says": says, "how": how})
+
+
+# --- real use: what the app's own runs of each model observed -----------------------------------------------------------
+USE_EVERY_S = 60.0  # the same state in steady use is written at most this often (its "last ran" is right to the minute)
+USES = "uses.json"  # beside the app's own checks (paths.checks): a test's or the sim's home keeps its own
+# Only the running app records use (server.py's lifespan opens this store in its home): tests, benches and
+# `make capability-check` never do, and what reads it outside the app finds none.
+_use_store: Store | None = None
+TELL_EVERY_S = 5.0  # the studios are sent the Models page again at most this often while models turn (one wire build)
+_use_changed: Callable[[], None] | None = None  # told when a model's use turned working or failed
+_use_pending = False
+_not_use: contextvars.ContextVar[bool] = contextvars.ContextVar("observed-not-use", default=False)
+
+
+def record_use(path: Path | None, changed: Callable[[], None] | None = None) -> None:
+    """Keep real use in `path` (the running app: <its home's checks folder>/uses.json), telling `changed` when a model's
+    state turns; None stops."""
+    global _use_store, _use_changed, _use_pending
+    _use_store, _use_changed = (Store(path) if path is not None else None), (changed if path is not None else None)
+    _use_pending = False
+
+
+@contextlib.contextmanager
+def not_use():
+    """What runs inside is not real use: the app's own model checks, whose record is their own (model_checks.py)."""
+    token = _not_use.set(True)
+    try:
+        yield
+    finally:
+        _not_use.reset(token)
+
+
+def used(key: str, ok: bool, why: str = "") -> bool:
+    """A real use of catalog entry `key` here: it ran and returned (`ok`), or it ran and failed (`why`: its own error's
+    words). Kept as kind "use" with when; the latest counts. True when it was written down."""
+    s = _use_store
+    if s is None or _not_use.get() or not key:
+        return False
+    last = s.get("use", key)
+    state, says = ("yes", "Ran here") if ok else ("no", " ".join(str(why or "it failed").split())[:200])
+    if last and last.get("state") == state and time.time() - float(last.get("t") or 0) < USE_EVERY_S:
+        return False  # the same outcome a moment ago (a failure's first words kept): nothing new to keep
+    s.put("use", key, {"state": state, "says": says, "how": "a run of the app's own here",
+                       "at": datetime.now().astimezone().isoformat(timespec="seconds")})
+    if not last or last.get("state") != state:
+        _tell()
+    return True
+
+
+def _tell() -> None:
+    """Tell the app a model's use turned (working, or failed), at most once every TELL_EVERY_S, later on its loop: never
+    in the run itself, so a provider whose calls flap costs one Models page every few seconds at most."""
+    global _use_pending
+    changed = _use_changed
+    if changed is None or _use_pending:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return  # not on the app's loop: the next page built says it
+
+    def fire() -> None:
+        global _use_pending
+        _use_pending = False
+        with contextlib.suppress(Exception):  # telling the studio never breaks the app
+            changed()
+
+    _use_pending = True
+    loop.call_later(TELL_EVERY_S, fire)
+
+
+def call_entry(model: str) -> str:
+    """The catalog entry a cloud call names (api_usage.attempt's model: an entry's API version, as
+    "claude-opus-5-5" or "veo-3.1-fast-generate-preview", or its id), or "" when it names none (a search)."""
+    for m in catalog.manifests().values():
+        if m.runs == "cloud" and model in (m.version, m.key):
+            return m.key
+    return ""
+
+
+def call_used(model: str, ok: bool, why: str = "") -> None:
+    """A cloud call's outcome as real use of its entry (api_usage.attempt's outcome hook, set by server.py)."""
+    key = call_entry(model)
+    if key:
+        used(key, ok, why)
+
+
+def last_use(key: str) -> dict | None:
+    """The latest real use of a catalog entry here ({state: yes|no, says, at, t}), or None: what readiness and the cards
+    read (memory only)."""
+    found = _use_store.get("use", key) if _use_store is not None else None
+    return found if found and found.get("state") in ("yes", "no") else None
 
 
 # --- the probes: one per kind of requirement ---------------------------------------------------------------------------

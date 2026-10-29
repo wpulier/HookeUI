@@ -172,7 +172,7 @@ def test_answers_survive_a_restart(home):
 
 
 # --- the guarantees: nothing is a blocker because it is written down ---------------------------------------------------
-LOCAL_FACTS = {"files", "code", "weights", "on", "check", "runs", "edition", "entry"}
+LOCAL_FACTS = {"files", "code", "weights", "on", "check", "use", "runs", "edition", "entry"}  # use: a run here
 
 
 def test_every_kind_of_requirement_has_a_source_of_truth():

@@ -1,7 +1,7 @@
 // A Models card's look and its one verb (model-status.ts `cardLook`; workspace-feel step 8): one card shape, one verb per
 // state, and its section the one run-spec.ts gives Tools By model, so their counts agree.
 import { describe, expect, it } from 'vitest';
-import { cardFactsWords, cardKindWords, cardLook, type CardContext } from './model-status';
+import { cardFactsWords, cardKindWords, cardLook, faceState, type CardContext } from './model-status';
 import { modelSection, sectionCell } from './run-spec';
 import type { CapabilitiesWire, ModelRow, ToolSetup } from './protocol';
 
@@ -31,17 +31,32 @@ describe('one verb per state', () => {
     expect([look.section, look.cell, look.cellWord, look.facts]).toEqual(['ready', 'ready', 'Ready', 'On this Mac · free']);
   });
 
+  it('a model that ran here says Working here on its card, with when it last ran, and offers Use it here', () => {
+    // Will, 2026-10-29: Claude Opus 5.5 answered him all session while its card said Not checked, grey.
+    const claude = row({ id: 'claude-opus-5-5', name: 'Claude Opus 5.5', runs: 'cloud', where: 'in the cloud', kind: 'cloud-model', group: 'ready',
+      face: { state: 'on', by: 'use', says: 'Working here · last ran 14:02', action: null, also: [{ kind: 'check', says: 'Check it here', model: 'claude-opus-5-5' }] } });
+    const look = cardLook(claude, wire(), workspace(1));
+    expect([look.section, look.cell, look.cellWord, look.facts, look.verb]).toEqual(['ready', 'ready', 'Working here', 'Working here · last ran 14:02', { kind: 'use' }]);
+    expect(faceState(claude, undefined)).toMatchObject({ state: 'on', colour: 'green', word: 'Working here' });
+    // A failure is said only from a recorded one (catalog_view: readiness.failed_in_use), with its reason.
+    const failed = row({ status: 'broken', group: 'unavailable', face: { state: 'broken', says: 'Its last use here failed (14:05): connection failed',
+      action: { kind: 'check', says: 'Its last use here failed (14:05): connection failed' }, also: [] } });
+    expect(cardLook(failed, wire(), workspace(1))).toMatchObject({ cell: 'attention', cellWord: 'Needs attention', facts: 'Its last use here failed (14:05): connection failed' });
+  });
+
   it('outside the workspace there is no run page: a ready card keeps its setup step', () => {
     expect(cardLook(row({ setups: plan([{ kind: 'check', says: 'Run its check', by: 'app' }]) }), wire(), { inWorkspace: false, served: null, shelf: true }).verb)
       .toEqual({ kind: 'sheet', label: 'Check it here' });
   });
 
-  it('not checked is its own section; its verb Check it here opens its check sheet, in the workspace too', () => {
+  it('ready, not checked yet is its own section, said as Ready; its verb Check it here opens its check sheet, in the workspace too', () => {
     const r = row({ face: { state: 'unchecked', says: 'Not checked on this Mac', action: { kind: 'check', says: 'Check it here' }, also: [] },
       setups: plan([{ kind: 'check', says: 'Run its functional check', by: 'app' }]) });
     const look = cardLook(r, wire(), workspace());
-    // Trying it on a task does not record Hooke's own check, so the card runs the check (Run the check), never Details.
-    expect([look.section, look.cell, look.cellWord, look.verb]).toEqual(['unchecked', 'idle', 'Not checked', { kind: 'sheet', label: 'Check it here' }]);
+    // It can run: a green outline and Ready, never the grey of a model that isn't there (Will, 2026-10-29); its check
+    // (Run the check) stays the card's verb, never Details.
+    expect([look.section, look.cell, look.cellWord, look.verb]).toEqual(['unchecked', 'partial', 'Ready · not checked yet', { kind: 'sheet', label: 'Check it here' }]);
+    expect(faceState(r, undefined)).toMatchObject({ colour: 'green', word: 'Ready · not checked yet' });
     // Serving no task here, or outside the workspace, its check is its sheet.
     expect(cardLook(r, wire(), workspace(0)).verb).toEqual({ kind: 'sheet', label: 'Check it here' });
     expect(cardLook(r, wire(), { inWorkspace: false, served: null, shelf: true }).verb).toEqual({ kind: 'sheet', label: 'Check it here' });

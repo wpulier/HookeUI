@@ -4,11 +4,11 @@ import { tabMark } from './tab-marks';
 interface Surface { page: string; hash: string; node: HTMLElement | null }
 const titles: Record<string, string> = { workflows: 'Workflows', models: 'Models', capabilities: 'Capabilities', assets: 'Library', sessions: 'All projects',
   footage: 'Test footage', datasets: 'Datasets', measurements: 'Measurements', research: 'Research', researchers: 'Researchers', settings: 'Settings', help: 'Help', shortcuts: 'Keyboard shortcuts', detail: 'Details' };
-/** Models' side: All models, then the sections run-spec.ts names (the ones Tools By model counts: Needs you, Ready, Not
- * checked, Can be set up, Not on this Mac; a section with nothing in it is not listed), then Keys and Storage. Add model or
+/** Models' side: All models, then the sections run-spec.ts names (the ones Tools By model counts: Needs you, Ready, Ready,
+ * not checked yet, Can be set up, Not on this Mac; a section with nothing in it is not listed), then Keys and Storage. Add model or
  * tool is the header's button; its older Advanced contribution controls show here only while open (the add sheet's link). */
 const SECTION_CATEGORIES = new Set(['needs', 'ready', 'unchecked', 'setup', 'away']);
-export const SURFACE_CATEGORIES: [string, string][] = [['all', 'All models'], ['needs', 'Needs you'], ['ready', 'Ready'], ['unchecked', 'Not checked'],
+export const SURFACE_CATEGORIES: [string, string][] = [['all', 'All models'], ['needs', 'Needs you'], ['ready', 'Ready'], ['unchecked', 'Ready, not checked yet'],
   ['setup', 'Can be set up'], ['away', 'Not on this Mac'], ['keys', 'Keys'], ['storage', 'Storage'], ['own', 'Advanced contribution']]; // where it runs is the chip row
 /** Whether a Models card belongs to a category: by its section (data-section, run-spec.ts `modelSection`, so these counts
  * are Tools By model's), or where it runs (data-runs). Never by its words, so rewording a card cannot empty a category. */

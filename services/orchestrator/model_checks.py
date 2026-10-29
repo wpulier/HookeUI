@@ -460,7 +460,14 @@ class Checker:
         self.voice_prompt: str | None = None  # the app's voice prompt (the bench gives route.voice_prompt(app.brain))
 
     async def run(self, chosen: list[Entry]) -> list[dict]:
-        """Each entry's state, its probe run once for every entry that shares it; in the list's order."""
+        """Each entry's state, its probe run once for every entry that shares it; in the list's order. Its calls are
+        the check's own record, never real use of the model (observed.py "use")."""
+        from . import observed
+
+        with observed.not_use():
+            return await self._run(chosen)
+
+    async def _run(self, chosen: list[Entry]) -> list[dict]:
         groups: dict[tuple, list[Entry]] = {}
         for entry in chosen:
             groups.setdefault(entry.probe, []).append(entry)

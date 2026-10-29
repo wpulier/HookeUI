@@ -278,7 +278,8 @@ export class DownloadPills {
     const live = downloads.filter((d) => !this.hidden.has(d.model) && (going(d) || ((d.state === 'failed' || d.state === 'done') && this.started.has(d.model))));
     const entry = (d: DownloadFact) => models.find((m) => m.id === d.model);
     const ready = (d: DownloadFact) => entry(d)?.status === 'ready';
-    // Ready as Models says it: only once Hooke has checked it here, else "Downloaded · not checked" (ticket 67).
+    // Ready as Models says it: once Hooke has checked it here or it ran here, else "Downloaded · not checked yet" with
+    // the green outline of what can run (ticket 67; Will, 2026-10-29: grey read as not there).
     const said = (d: DownloadFact) => ready(d) ? runnableWords(entry(d)) : '';
     const signature = JSON.stringify(live.map((d) => [d.model, d.state, d.got, d.total, said(d)]));
     if (signature === this.signature) return;
@@ -292,7 +293,7 @@ export class DownloadPills {
         : fraction !== null ? `${Math.round(100 * fraction)}%` : 'Downloading';
       const dismiss = () => { this.hidden.add(d.model); this.signature = ''; this.update(this.last); };
       return {
-        id: `download:${d.model}`, name: short, cell: failed ? 'attention' : checked ? 'ready' : done ? 'idle' : 'setup', urgency: failed ? 0 : done ? 2 : 1, since,
+        id: `download:${d.model}`, name: short, cell: failed ? 'attention' : checked ? 'ready' : usable ? 'partial' : done ? 'idle' : 'setup', urgency: failed ? 0 : done ? 2 : 1, since,
         words, fraction: failed || done ? null : fraction, ...(failed || done ? {} : { after: since + QUICK_MS }),
         title: `${d.name} · ${usable ? 'its files are in; it is ready' : done ? 'its files are in; its run page names the next step' : d.says || words}\nOpen where it is being set up`,
         hide: done ? `Hide ${short} from the strip` : `Hide ${short} from the strip. It keeps downloading.`,

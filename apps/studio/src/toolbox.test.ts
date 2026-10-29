@@ -50,11 +50,11 @@ test('readinessSaid says each status in one sentence, needs setup never as not a
 });
 
 
-// Ticket 67, fix 4: a status in words says Not checked where Models does.
-test('a ready status in words is Ready only once Hooke has checked the model here', () => {
+// Ticket 67, fix 4: a status in words says not checked yet where Models does.
+test('a ready status in words is Ready only once Hooke has checked the model here or it ran here', () => {
   const ready = { status: 'ready' as const, word: 'Ready', next: null };
   const row = (state: string) => ({ group: 'ready', status: 'ready', runs: 'this-mac', size: 10, face: { state, says: '', action: null, also: [] } }) as unknown as ModelRow;
-  expect(readinessSaid(ready, '', row('unchecked'))).toBe('Downloaded · not checked');
+  expect(readinessSaid(ready, '', row('unchecked'))).toBe('Downloaded · not checked yet');
   expect(readinessSaid(ready, '', row('on'))).toBe('Ready');
   expect(readinessSaid(ready)).toBe('Ready');
 });
