@@ -7,7 +7,7 @@ import time
 
 import httpx
 
-from orchestrator.voice import openai_realtime, think as thinking
+from orchestrator.voice import events, openai_realtime, think as thinking
 from tests.test_voice_partner import done, partner_session, press, release, settle  # noqa: F401  (fixtures too)
 from tests.test_voice_partner import no_tail  # noqa: F401  (autouse: no release tail, no progress lines)
 from tests.waiting import until_async
@@ -184,6 +184,7 @@ def test_while_think_works_a_quiet_voice_says_what_is_under_way_a_few_times_and_
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 0.2)
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_EVERY_S", 0.3)
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_LINES", 2)
+    monkeypatch.setattr(events, "PROGRESS_SPACING_S", 0.3)  # the bus spaces one job's progress lines
     gate = asyncio.Event()
 
     async def go():
