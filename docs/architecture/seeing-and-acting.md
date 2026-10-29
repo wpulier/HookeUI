@@ -567,6 +567,15 @@ this voice has no hops to fall between.
   picture item deleted, this turn's text note (kept) and picture item (camera then window) added, then after
   `RELEASE_TAIL_S` (0.15 s, the WebRTC audio still in flight) `input_audio_buffer.commit` and `response.create` at once:
   nothing is fetched after release. A tap shorter than 0.25 s and Escape (`cancel`) ask for nothing.
+- **One response at a time** (the review of 2026-10-29): every `response.create` (a turn, a typed line, a tool round,
+  a look, a progress line, a line nobody asked for, a reconnect's line) is queued at one gate
+  (`RealtimeSession._gate`), sent only when the response in progress has ended, and checked again just before it is
+  sent, with nothing awaited between that check and claiming the slot: dropped when the user has pressed talk or
+  started a newer turn since, or the call it was asked on was replaced. The user's own turns go first and are never
+  dropped for waiting; a response whose end never comes is cancelled and let go after 3 s. Provider `error` events are
+  logged (`partner-provider-error`, or `partner-provider-note` for a best-effort step's refusal), never a session error:
+  the studio ends Talk on one, and every error the API sends here is about one request of ours (a refused create is
+  asked again once the running response ends).
 - **The Project brief** (`project_state.brief`, at most 3000 characters, no times in it) is one system item, deleted and
   made again only when its text changed. The realtime API's items take `system`, `user` and `assistant` roles, not the
   contract's "developer": the app's context is `system`.
@@ -579,8 +588,12 @@ this voice has no hops to fall between.
   request id, the accepted studio's pin, `voice_owner` this session so researchers report back to it) run through the
   brain's `ActionRunner`; the user's words of that turn (their transcription, waited for at most 1.5 s) are its
   `question`. Each call's row goes into the chat (`chat-action`). start_researcher, new_project and cancel_researcher
-  run once per turn: the same call again returns the first result (live 2026-10-28: two researchers from one request).
-  A call still running after 12 s is answered `still_working`; its outcome is one line when it lands.
+  run once per turn: the turn's slot is taken before anything awaits, so a second call in the same turn, in parallel or
+  later and whatever its words, gets the first's result (live 2026-10-28: two researchers from one request).
+  `parallel_tool_calls` is on; tools that change the screen run one after another, each with its own look after it.
+  Only a completed call whose arguments parse runs (a cancelled response's cut-off call is dropped and logged). A call
+  still running after 12 s (look_hard and do_in_hooke too) is answered `still_working`; its outcome is one line when it
+  lands. do_in_hooke reports what the brain really did (its failed steps as `failed`) and looks after a screen change.
 - **Act, then look:** after a call that changes the screen, the studio is asked for a report newer than the change
   (`Screen.until`, 2 s), then for a window picture (`snapshot-request`, 1.5 s); both go into the conversation after the
   call's output, and only then is the model asked to go on (`cause: "look"`), so it says done only when the picture
@@ -589,16 +602,27 @@ this voice has no hops to fall between.
   through the announcer's narrator line, tagged with its card), a long tool done, a capability turned on
   (`App.turned_on` → `brain.voice.happened`), a reconnect while it spoke. Each is a system item and one
   `response.create` with `tool_choice: none` and "one short sentence", only when no key is held, nothing is being
-  said and nobody spoke for 1.5 s; once per event (kind and reference) in two minutes; a mark on the researcher's card
-  is drawn as it is said. Waiting more than a minute, it stays in the conversation unsaid.
+  said and nobody spoke for 1.5 s; once per event in two minutes, by its kind and reference or, without one, its whole
+  text's digest (never a prefix: the narrator's lines share a long preamble); a mark on the researcher's card is drawn
+  as it is said, and a narrator line is the researcher's only when its own facts carry its `researchId`. A researcher's
+  own words (its one-liner) are inside the untrusted wrapper. Waiting more than a minute, it stays in the conversation
+  unsaid.
 - **One conversation:** the user's words (`conversation.item.input_audio_transcription.completed`) and the voice's
   (`response.output_audio_transcript.delta`, one line per response) are filed with `SpokenRequests`' caption lines, as
-  GPT-Live's are; they never reach its hands. A new call is seeded with the last 8 exchanges, the brief and the
-  per-turn notes.
-- **Reconnect:** a sideband that drops is reattached to the same call; a call that ended (or a reattached sideband
+  GPT-Live's are; they never reach its hands. Typed chat while talking (the brain's voice notes, which GPT-Live reads
+  with its view notes) is added as context as it happens, so you can type, talk, then type. A new call is seeded with
+  the last 8 exchanges, the brief and the per-turn notes.
+- **Reconnect:** a sideband that drops is reattached to the same call, and nothing is seeded again (the call's
+  conversation still holds the brief and the pictures, by their ids); a call that ended (or a reattached sideband
   dropping again within 10 s) asks the studio for a new offer (`reoffer` → `offer` with the same id), makes a new
-  call and sends its answer; at 55 minutes, when nobody has spoken for 5 s, it renews itself the same way. The same
-  session object goes on (researchers' delivery and the narrator still reach it).
+  call and sends its answer (`data: {sdp, id}`); at 55 minutes, when nobody has spoken for 5 s, it renews itself the
+  same way. When the studio's own peer connection fails it sends an offer of its own (`id: "rc-<n>"`, every 3.5 s
+  for 10 s): a new call for it, answered with that id, only the newest. A new call is made first and the old one
+  closed in the background; outputs of the old call's tool calls are dropped (it never had those ids); a release while
+  reconnecting waits for it, or, when its audio went to a call since replaced, is answered with one line asking to say
+  it again. The same session object goes on (researchers' delivery and the narrator still reach it).
+- **Speaking:** the sideband's `output_audio_buffer.started` / `stopped` / `cleared` (checked over a real WebRTC call,
+  below), and the studio's own `{type:"voice-phase", phase:"speaking"|"listening"}`, set whether the voice is audible.
 - **Usage:** each `response.done`'s usage (text, audio and image tokens in; text and audio out) is recorded at list
   price (`budget.PRICES["gpt-realtime-2.1"]`; cached input at the full price, so it can only over-count); its
   open time writes no charge, and its minutes ahead under a monthly cap are held at an estimated $0.30 a minute.
@@ -632,5 +656,10 @@ fourth made the WebRTC call itself as `RealtimeSession` does, from a headless Ch
 in **1511 ms** (the body is the SDP answer, the `Location` header ends in the `rtc_…` id), the sideband attached by
 `call_id` in **263 ms**, and a `session.update` over it was answered `session.updated` with the 19 partner tools the
 fixture has (the sideband's first event; no `session.created` comes on it). So a reconnect that needs a new call is
-about 1.8 s plus the browser's new offer: at the edge of the 2 s target. Not measured without the studio: audio over
-WebRTC, `output_audio_buffer.*` on the sideband, and whether `RELEASE_TAIL_S` keeps the last word.
+about 1.8 s plus the browser's new offer: at the edge of the 2 s target. A fifth run (the review's item 10) connected a
+headless Chrome peer to a real call and asked for one spoken line: **`output_audio_buffer.started` and `.stopped` do
+reach the sideband**, with no `response.output_audio.delta` on it. From `response.create`: `response.created` 88 ms,
+the first transcript 308 ms, `output_audio_buffer.started` **448 ms**, `response.output_audio.done` and
+`response.done` 1466 ms, `output_audio_buffer.stopped` 6300 ms (the browser received 44,647 bytes of audio): the answer
+plays for seconds after `response.done`, which is why only the buffer's events (and the studio's voice-phase) say when
+it is audible. Not measured without the studio: whether `RELEASE_TAIL_S` keeps the last word.
