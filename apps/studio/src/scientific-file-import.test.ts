@@ -230,8 +230,8 @@ test('a drop fills the matching choice without uploading; folders are refused wi
   importer.accept({ files: [one], uri: '', folder: false });
   expect(root.querySelector('select')!.value).toBe('file'); expect(root.textContent).toContain('native.npy · 1 bytes');
   importer.accept({ files: planes, uri: '', folder: false });
-  expect(root.querySelector('select')!.value).toBe('stack'); expect(root.textContent).toContain('stacked in this order: p1.tif, p2.tif');
-  expect(root.textContent).toContain('Dropped as a stack');
+  expect(root.querySelector('select')!.value).toBe('files'); expect(root.textContent).toContain('2 separate files');
+  expect(root.textContent).not.toContain('Dropped as a stack');
   importer.accept({ files: [], uri: '# a comment\r\nhttps://data.example.org/cells.npy\r\n', folder: false });
   expect(root.querySelector('select')!.value).toBe('url'); expect(button('Save source to Project').disabled).toBe(false);
   importer.accept({ files: [one], uri: '', folder: true });

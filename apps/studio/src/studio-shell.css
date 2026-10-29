@@ -2259,6 +2259,9 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .scientific-file-import [role=status] { padding: 12px 14px; border-radius: 9px; background: var(--mm-bg); }
 .scientific-import-actions, .scientific-reader-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .scientific-import-actions button { min-height: 40px; padding: 10px 16px; }
+.scientific-import-results { display: grid; gap: 8px; margin: 0; padding-left: 24px; max-height: 220px; overflow: auto; }
+.scientific-import-results:empty { display: none; }
+.scientific-import-results button { min-height: 36px; padding: 8px 12px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .scientific-file-import [hidden] { display: none !important; }
 .scientific-source-readers { margin: 18px 0; padding: 16px; border: 1px solid var(--mm-line-strong); border-radius: 10px; }
 .scientific-source-readers h3, .scientific-source-readers h4 { margin: 0 0 10px; }
