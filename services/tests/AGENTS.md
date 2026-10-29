@@ -634,3 +634,5 @@ annotation/precision/resource refusals. `test_count_effect_conversion.py` uses a
 pseudocount inversion, normalization subsets, explicit negative projection and legacy interpretation. The optional
 prepared-runtime retention probe runs the actual confined concatenation operation with synthetic count inputs;
 none establishes full-shape packaging, generator distribution quality or competition performance.
+
+The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
