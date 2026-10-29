@@ -10,7 +10,17 @@ other files.
   research, narration, view), and chat and voice both have it (the voice prompt lists the
   registry's tools). `toolbox.build(Services)` is the one way the tool list is made (the app,
   tests and benches; a tool is there only when what it acts on exists; ADR 0003); a tool fails
-  with `ToolFailed` (an `orchestrator/tools.ToolError` is one). GPT-Live is the only voice model.
+  with `ToolFailed` (an `orchestrator/tools.ToolError` is one).
+- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
+  each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
+  lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
+  camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
+  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands the
+  brain only what no tool covers (`do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
+  taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
+  change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
+  pause. Both write the same journal lines and conversation turns; neither replaces the other
+  (docs/architecture/seeing-and-acting.md "The one-brain loop").
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

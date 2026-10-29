@@ -28,7 +28,8 @@ What the session does, for the route and studio to treat it like the other voice
   - the 60-minute limit or a lost connection: `reconnect` makes a new call (the browser's new offer) or reattaches the
     sideband, seeded with the recent conversation, the brief and the per-turn notes, as the same session object.
 
-Event names and shapes as they worked against the real API on 2026-10-29 are in docs/bench/realtime-partner.md.
+Event names and shapes as they worked against the real API on 2026-10-29, and the latencies measured, are in
+docs/architecture/seeing-and-acting.md ("The one-brain loop").
 """
 from __future__ import annotations
 
@@ -60,6 +61,9 @@ PROGRESS_AFTER_S = 2.5  # tools still running this long after the model went qui
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
+# Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
+# this soon after it still stops the voice (the studio mutes its audio element at once too).
+AUDIBLE_AFTER_DONE_S = 20.0
 
 
 def item_id(prefix: str = "hk") -> str:
@@ -194,6 +198,7 @@ class RealtimeSession(VoiceSession):
         self._speaking = False
         self._last_audio_at = 0.0
         self._last_user_at = 0.0
+        self._last_done_at = 0.0
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
         self._seen_calls: set[str] = set()
@@ -426,10 +431,14 @@ class RealtimeSession(VoiceSession):
     def speaking(self) -> bool:
         return self._speaking or self._response is not None or self._requested is not None
 
+    def _maybe_audible(self) -> bool:
+        """A response ended moments ago and its audio's end was not reported: the browser may still be playing it."""
+        return (self._last_done_at > self._last_audio_at and self.clock() - self._last_done_at < AUDIBLE_AFTER_DONE_S)
+
     async def talk_down(self, n: int | None = None) -> None:
         """The talk key went down: the voice stops if it is talking (barge-in), and listening starts afresh."""
         self.n = n if isinstance(n, int) else self.n + 1
-        barge = self.speaking()
+        barge = self.speaking() or self._maybe_audible()
         self._held, self._held_at = self.n, self.clock()
         self._log({"kind": "partner-talk", "n": self.n, "down": True, "barge": barge})
         if barge:
@@ -632,7 +641,9 @@ class RealtimeSession(VoiceSession):
             self._response, self._requested = rid, None
             self._causes[rid] = {"cause": meta.get("cause") or "unknown", "n": int(meta.get("n") or self.n),
                                  "createdT": self.wall()}
-        elif kind in ("output_audio_buffer.started", "response.output_audio.delta"):
+        elif kind == "output_audio_buffer.started" or (kind == "response.output_audio.delta" and self.link != "webrtc"):
+            # Over WebRTC the browser plays the audio: only the output buffer's events say when it is audible (a
+            # response's audio is generated faster than it plays, so its own `done` comes while it still speaks).
             rid = ev.get("response_id") or self._response or ""
             if rid and rid not in self._first_audio:
                 self._first_audio[rid] = self.wall()
@@ -642,11 +653,15 @@ class RealtimeSession(VoiceSession):
             self._last_audio_at = now
             if kind == "response.output_audio.delta":
                 self._emit(VoiceEvent("audio", audio=base64.b64decode(ev.get("delta") or ""), rate=RATE))
-        elif kind in ("output_audio_buffer.stopped", "output_audio_buffer.cleared", "response.output_audio.done"):
+        elif kind in ("output_audio_buffer.stopped", "output_audio_buffer.cleared") or (
+                kind == "response.output_audio.done" and self.link != "webrtc"):
             if self._speaking:
                 self._speaking = False
                 self._last_audio_at = now
                 self._emit(VoiceEvent("turn_complete", data={"reason": "quiet"}))
+            if kind.startswith("output_audio_buffer."):  # when the browser stopped playing it (its response was logged)
+                self._log({"kind": "partner-audio", "responseId": ev.get("response_id"), "audioEndT": self.wall(),
+                           "how": kind.rsplit(".", 1)[-1]})
         elif kind in ("response.output_audio_transcript.delta", "response.output_text.delta"):
             rid = ev.get("response_id") or self._response or ""
             self._transcripts[rid] = self._transcripts.get(rid, "") + (ev.get("delta") or "")
@@ -707,6 +722,7 @@ class RealtimeSession(VoiceSession):
 
     async def _response_done(self, response: dict) -> None:
         rid = response.get("id") or self._response or ""
+        self._last_done_at = self.clock()
         if rid == self._response:
             self._response = None
         if self._requested is not None and not self._causes.get(rid):
@@ -723,7 +739,8 @@ class RealtimeSession(VoiceSession):
                                              "responseId": rid, "cause": cause["cause"]}))
         self._emit(VoiceEvent("generation_complete", data={"responseId": rid, "status": status}))
         self._log({"kind": "partner-response", "responseId": rid, "n": cause["n"], "cause": cause["cause"],
-                   "firstAudioT": self._first_audio.pop(rid, None), "audioEndT": self.wall(),
+                   "firstAudioT": self._first_audio.pop(rid, None),
+                   "audioEndT": self.wall() if self.link != "webrtc" else None,  # WebRTC: partner-audio says it
                    "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts})
         calls = [item for item in response.get("output") or [] if item.get("type") == "function_call"]
         for item in calls:
@@ -832,7 +849,7 @@ async def probe(model: str = MODEL, *, image: bytes | None = None, api_key: str 
     """One session over the WebSocket alone: the config with a tool and no turn detection, a user item with a picture and
     words, the tool's call answered with function_call_output, then a spoken answer. Returns what happened: the event
     types in order, the call, the answer's transcript, the usage and the times from each response.create to its first
-    audio delta (docs/bench/realtime-partner.md)."""
+    audio delta (docs/architecture/seeing-and-acting.md, "The one-brain loop")."""
     if open_sideband is None:
         from openai import AsyncOpenAI
 

@@ -131,3 +131,21 @@ other files.
   - It goes to that one vision call only.
   - It is kept only as a performance-log picture (`logs/screens/<day>/`, pruned with the other dated logs).
   - It never goes to Sight, naming or any specimen model.
+
+## Marks, and act then look (the one-brain voice)
+
+- **Marks point by Hooke's own ids** (`mark`, `voice/partner_tools.py`; drawn by the studio's overlay). The server
+  sends `{type:"marks", id:"mk-<n>", marks:[{target, style, label?, region?, polygon?}], until:"speech-end", frame?}`
+  over `/ws/voice`; targets are `outline:<id>`, `member:<population>:<member>`, `window:<presentationId>`,
+  `document:<placementId>`, `tab:<id or exact title>`, `researcher:<number or id>`, `panel:<name>`, or `frame` with a
+  region or polygon in 0-1 of the camera picture the model saw (the message then carries `frame:{id, crop}`, that
+  picture's frame and its crop in source pixels, so the studio maps it as it maps outlines and it follows the slide).
+  The studio resolves each target every animation frame, keeps the marks while the voice speaks, clears them about
+  1.5 s after, and answers `{type:"marks-shown", id, resolved:[{target, ok, rect?, why?}]}`. **What it answered is what
+  the tool says** (shown, and not shown with why); no answer within 1 s is "not shown", never claimed. `marks-clear` goes
+  out at a barge-in.
+- **Act, then look:** a tool that changes the screen (`partner_tools.SCREEN_CHANGING`) is followed by a report newer than
+  the change (`Screen.until`) and a window picture (`snapshot-request` → `snapshot`), and the model reads both before it
+  is asked to go on: "done" is said from the picture, not from the tool's own success. The record of the call says
+  whether a report came (`confirmed`, `reportT`).
+

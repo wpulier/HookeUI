@@ -520,6 +520,30 @@ def test_pressing_talk_while_it_speaks_cancels_and_clears_its_audio(monkeypatch)
     asyncio.run(go())
 
 
+def test_over_webrtc_only_the_output_buffer_says_when_it_is_audible(monkeypatch):
+    """Smoke test 2026-10-29: response.output_audio.done arrives while the browser still plays the answer. A key press
+    then still stops it (cancel is not needed, clear is)."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_1"})
+        t.sb.emit({"type": "response.output_audio.done", "response_id": "resp_1"})
+        await done(t.sb, "resp_1")
+        assert t.session._speaking is True, "generated is not played"
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_1"})
+        await settle()
+        assert t.session._speaking is False and t.session.idle_since() >= 0
+        # No buffer events at all (a sideband that does not get them): a press soon after an answer still clears it.
+        await press(t, 2, snapshot=None)
+        await release(t, 2)
+        await done(t.sb, "resp_2")
+        before = len(t.sb.sent)
+        await press(t, 3, snapshot=None)
+        assert "output_audio_buffer.clear" in t.sb.types()[before:]
+    asyncio.run(go())
+
+
 def test_a_line_nobody_asked_for_waits_for_quiet_and_is_said_once(monkeypatch):
     """Amendment 4: an event is one sentence, only when nobody is talking (no key held, no speech for 1.5 s), at most
     once; it points at the researcher's card. Chat log: the voice talked over the user."""

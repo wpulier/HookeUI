@@ -79,6 +79,7 @@ class Partner:
         session.on_speech_started = self.capture
         session.history = self.history
         session.tag_notice = self.tag_notice
+        session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
         session.on(self.on_event)
         self.lines.voice = session
         self._tools_named = tuple(self.tools.names())
