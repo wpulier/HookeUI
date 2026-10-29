@@ -140,20 +140,52 @@ def test_conflicting_resave_preserves_accepted_visibility(project,tmp_path):
     assert len(Index(hub,day=day,snapshots=store.storage.legacy)._snapshots(day.sid))==1
 
 
-def test_failed_completion_and_pending_recovery_hide_across_instances(project,tmp_path,monkeypatch):
-    day,_,_,hub=project;store=Snapshots(tmp_path/'host/snapshots',day)
-    folder=store.folder(day.sid,DATE,write=True)
+@pytest.mark.parametrize('failure', ['directory-sync', 'parent-sync', 'acceptance'])
+def test_failed_completion_stays_unaccepted_after_host_reopen(project,tmp_path,monkeypatch,failure):
+    from pathlib import Path
+    day,locations,_,hub=project;owner=day.sid
+    store=Snapshots(tmp_path/'host/snapshots',day)
+    folder=store.folder(owner,DATE,write=True)
     original_sync=ProjectStore._sync_directory
-    original_write=ProjectStore._write
+    original_unlink=Path.unlink
     def sync(path):
-        if path==folder and not (folder/f'{NAME}.pending').exists():raise OSError('disk lost')
+        completed=(folder/f'{NAME}.json').exists()
+        if completed and ((failure=='directory-sync' and path==folder) or
+                          (failure=='parent-sync' and path==folder.parent)):
+            raise OSError('disk lost after writing snapshot')
         return original_sync(path)
-    def write(path,data,**options):
-        if data==b'Snapshot completion uncertain.\n':raise OSError('cannot restore marker')
-        return original_write(path,data,**options)
+    def unlink(path,*args,**kwargs):
+        if failure=='acceptance' and path==folder/f'{NAME}.pending':
+            raise OSError('cannot accept snapshot')
+        return original_unlink(path,*args,**kwargs)
     with monkeypatch.context() as patch:
         patch.setattr(ProjectStore,'_sync_directory',sync)
-        patch.setattr(ProjectStore,'_write',write)
-        with pytest.raises(OSError):store.save(day.sid,DATE,NAME,{'session':day.sid},b'picture')
-    assert Snapshots(store.storage.legacy,day).read(day.sid,DATE,NAME) is None
-    assert Index(hub,day=day,snapshots=store.storage.legacy)._snapshots(day.sid)==[]
+        patch.setattr(Path,'unlink',unlink)
+        with pytest.raises(OSError):store.save(owner,DATE,NAME,{'session':owner},b'picture')
+    assert (folder/f'{NAME}.png').read_bytes()==b'picture'
+    assert (folder/f'{NAME}.pending').exists()
+    locations.close()
+    fresh=ProjectLocations(locations.legacy,locations.registry,locations.parent)
+    try:
+        reopened=SessionStore(fresh.legacy,session=owner,locations=fresh)
+        reader=Snapshots(store.storage.legacy,reopened)
+        assert reader.read(owner,DATE,NAME) is None
+        assert Index(hub,day=reopened,snapshots=store.storage.legacy)._snapshots(owner)==[]
+        with pytest.raises(ProjectLocationError,match='already exists'):
+            reader.save(owner,DATE,NAME,{'session':owner},b'retry')
+        assert (folder/f'{NAME}.png').read_bytes()==b'picture'
+    finally:fresh.close()
+
+
+def test_no_fallible_storage_work_follows_snapshot_acceptance(project,tmp_path,monkeypatch):
+    day,_,_,_=project;store=Snapshots(tmp_path/'host/snapshots',day)
+    folder=store.folder(day.sid,DATE,write=True)
+    original_sync=ProjectStore._sync_directory
+    def sync(path):
+        if (folder/f'{NAME}.json').exists() and not (folder/f'{NAME}.pending').exists():
+            raise OSError('storage unavailable after acceptance')
+        return original_sync(path)
+    with monkeypatch.context() as patch:
+        patch.setattr(ProjectStore,'_sync_directory',sync)
+        store.save(day.sid,DATE,NAME,{'session':day.sid},b'picture')
+    assert Snapshots(store.storage.legacy,day).picture(day.sid,DATE,NAME)==b'picture'
