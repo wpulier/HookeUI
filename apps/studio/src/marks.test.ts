@@ -127,6 +127,8 @@ test('a frame region is normalised in the eyepiece crop the model saw, then plac
   expect(polygon).toEqual({ rect: [50, 0, 400, 400], shape: [[50, 0], [450, 0], [250, 400]] });
   expect(rect(resolveTarget({ target: 'frame', region: [0.2, 0.2, 0, 0.1] }, h, anchor))).toBe('bad-target');
   expect(rect(resolveTarget({ target: 'frame', polygon: [[0, 0], [1, 1]] }, h, anchor))).toBe('bad-target');
+  expect(rect(resolveTarget({ target: 'frame', region: [0.9, 0.9, 0.2, 0.2] }, h, anchor))).toEqual([410, 360, 40, 40]); // kept inside
+  expect(rect(resolveTarget({ target: 'frame', region: [3, 3, 0.2, 0.2] }, h, anchor))).toBe('bad-target');
   expect(rect(resolveTarget({ target: 'frame', region: [0.2, 0.2, 0.1, 0.1] }, h, null))).toBe('out-of-view'); // no picture
   const gone = hooks([], { frame: () => ({ why: 'out-of-view' }) });
   expect(rect(resolveTarget({ target: 'frame', region: [0.2, 0.2, 0.1, 0.1] }, gone, anchor))).toBe('out-of-view');

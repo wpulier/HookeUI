@@ -180,17 +180,21 @@ export function resolveTarget(spec: MarkSpec, hooks: MarkHooks, anchor: FrameAnc
   }
 }
 
-const unit = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= -0.05 && v <= 1.05;
+// A model's coordinates a little outside the picture are its edge; far outside, a mistake.
+const unit = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= -0.5 && v <= 1.5;
+const edge = (v: number) => Math.min(1, Math.max(0, v));
 
-/** A frame mark's corners (region) or points (polygon), normalised; null when malformed. */
+/** A frame mark's corners (region) or points (polygon), normalised and kept inside the picture; null when malformed. */
 export function frameShape(spec: MarkSpec): Point[] | null {
   if (Array.isArray(spec.polygon)) {
-    const points = spec.polygon.filter(p => Array.isArray(p) && unit(p[0]) && unit(p[1])).map(p => [p[0], p[1]] as Point);
+    const points = spec.polygon.filter(p => Array.isArray(p) && unit(p[0]) && unit(p[1])).map(p => [edge(p[0]), edge(p[1])] as Point);
     return points.length >= 3 && points.length === spec.polygon.length && points.length <= 200 ? points : null;
   }
   const r = spec.region;
-  if (!Array.isArray(r) || r.length !== 4 || !r.every(unit) || r[2] <= 0 || r[3] <= 0) return null;
-  return [[r[0], r[1]], [r[0] + r[2], r[1]], [r[0] + r[2], r[1] + r[3]], [r[0], r[1] + r[3]]];
+  if (!Array.isArray(r) || r.length !== 4 || !r.every(unit)) return null;
+  const x0 = edge(r[0]), y0 = edge(r[1]), x1 = edge(r[0] + r[2]), y1 = edge(r[1] + r[3]);
+  if (x1 - x0 <= 0 || y1 - y0 <= 0) return null;
+  return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
 }
 
 /** A mark drawn now: its target's place, with when it was first drawn and (while it fades out) when it was let go. */
