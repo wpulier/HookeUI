@@ -1,0 +1,12 @@
+id = "gemini-4-argon"
+name = "Gemini 4 Argon"
+runs = "cloud"
+version = "gemini-4-argon"
+licence = ["gemini-api"]
+kind = "cloud-model"
+what = "Looks at the view closely, answers and names"
+runner = "cloud"
+service = "gemini"
+source = { url = "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon" }
+needs_to_run = ["key:GEMINI_API_KEY"]
+credit = { authors = "Google DeepMind", link = "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon" }

@@ -311,6 +311,88 @@ class OpenAIVision(_Client):
         return VisionResult(data, latency, self.model, raw_text=text, usage=usage)
 
 
+class AnthropicVision(_Client):
+    """Claude over the Messages API (the app calls Anthropic with httpx, as research_worker/presentation.py does).
+    Opus 5.5 always thinks; `effort` is how much (low is its fastest). `fast`: Opus fast mode (beta, Claude API only,
+    twice the price, its own rate limit). Server-side fallbacks are on, so a refusal is retried on another Claude
+    model in the same call; one still refused is said as that, never read as an empty answer."""
+
+    BETAS = "server-side-fallback-2026-07-01"
+    FAST_BETA = "fast-mode-2026-02-01"
+
+    def __init__(self, model: str, effort: str | None = "low", fast: bool = False) -> None:
+        self.model = model
+        self.effort = effort
+        self.fast = fast
+        self._key = os.environ["ANTHROPIC_API_KEY"]
+        self._make_client()
+
+    def _new_client(self):
+        import httpx
+
+        betas = self.BETAS + ("," + self.FAST_BETA if self.fast else "")
+        return httpx.AsyncClient(base_url="https://api.anthropic.com", timeout=60.0, headers={
+            "x-api-key": self._key, "anthropic-version": "2023-06-01", "anthropic-beta": betas})
+
+    @execution.traced("vision")
+    async def ask(self, images: list[bytes], prompt: str, max_output_tokens: int = 1500) -> VisionResult:
+        execution.note(selected=self.model, adapter="orchestrator.vision.AnthropicVision", provider="anthropic",
+                       model=self.model, identity="request-model; hosted revision unconfirmed",
+                       optionId=self.model + ("-fast" if self.fast else ""))
+        _diagnostic_entry(prompt, max_output_tokens)
+        content = [{"type": "image", "source": {"type": "base64", "media_type": image_mime(img),
+                                                "data": base64.b64encode(img).decode()}} for img in images]
+        content.append({"type": "text", "text": prompt + "\n\nReply with the JSON object only."})
+        # Thinking shares max_tokens with the answer, so the cap leaves room for it beyond the answer's own.
+        body: dict = {"model": self.model, "max_tokens": max_output_tokens + 2000, "fallbacks": "default",
+                      "messages": [{"role": "user", "content": content}]}
+        if self.effort:
+            body["output_config"] = {"effort": self.effort}
+        if self.fast:
+            body["speed"] = "fast"
+        t0 = time.perf_counter()
+        try:
+            client = await self._ready()
+            t0 = time.perf_counter()  # the model's time, never the client's first making
+            async with api_usage.attempt(self.model, provider="Anthropic", area="Live",
+                                         in_tokens=api_usage.tokens_in(prompt, len(images)),
+                                         out_tokens=body["max_tokens"]):
+                response = await client.post("/v1/messages", json=body)
+                if response.is_error:  # say Anthropic's own reason ("credit balance is too low"), not a bare status
+                    try:
+                        reason = response.json()["error"]["message"]
+                    except Exception:
+                        reason = response.text[:200]
+                    raise RuntimeError(f"Anthropic {response.status_code}: {reason}")
+                reply = response.json()
+                usage = reply.get("usage") or {}
+                price = api_usage.PRICES.get(self.model)
+                tokens = (usage.get("input_tokens"), usage.get("output_tokens"))
+                usd = ((tokens[0] * price["in"] + tokens[1] * price["out"]) / 1e6 * (2 if self.fast else 1)
+                       if isinstance(price, dict) and all(isinstance(n, int) for n in tokens) else None)
+                api_usage.record(self.model, usd, provider="Anthropic", area="Live",
+                                 basis=("Reported tokens · list price before discounts" + (" · fast mode" if self.fast else ""))
+                                 if usd is not None else "Usage or price unavailable")
+        except Exception as exc:  # surfaced in results, never fatal for a benchmark run
+            execution.finish("failed", errorType=type(exc).__name__)
+            return VisionResult(None, (time.perf_counter() - t0) * 1000, self.model, error=f"{type(exc).__name__}: {exc}"[:400])
+        latency = (time.perf_counter() - t0) * 1000
+        if reply.get("model"):
+            execution.note(reportedModel=reply["model"], identity="provider-reported")
+        if reply.get("stop_reason") == "refusal":
+            category = (reply.get("stop_details") or {}).get("category")
+            execution.finish("refused", category=category)
+            return VisionResult(None, latency, self.model, error=f"refused by the model's safeguards ({category or 'no category'})")
+        text = "".join(part.get("text", "") for part in reply.get("content", []) if part.get("type") == "text")
+        data = _parse_json(text)
+        _diagnostic_note(inputTokens=tokens[0], outputTokens=tokens[1], finishReason=reply.get("stop_reason"),
+                         parseOk=isinstance(data, dict), **_plan_diagnostics(data))
+        if data is None:
+            execution.finish("unreadable")
+        return VisionResult(data, latency, self.model, raw_text=text,
+                            usage={"input": tokens[0], "output": tokens[1]})
+
+
 def make_vision(spec: str, temperature: float | None = 0.2):
     """'gemini:gemini-3.8-flash' or 'openai:gpt-6-luna', optionally '@level' at the end
     for thinking level / reasoning effort, e.g. 'gemini:gemini-3.8-flash@low' or
@@ -330,4 +412,7 @@ def make_vision(spec: str, temperature: float | None = 0.2):
         # GPT-6 models accept none/low/medium/high/xhigh/max (not "minimal").
         return OpenAIVision(model, reasoning_effort=None if level == "default" else (level or "none"),
                             service_tier=resolution or None)
+    if provider == "anthropic":
+        # Effort low unless named; '+fast' after it for Opus fast mode ('anthropic:claude-opus-5-5@low+fast').
+        return AnthropicVision(model, effort=None if level == "default" else (level or "low"), fast=resolution == "fast")
     raise ValueError(f"unknown vision provider: {spec}")
