@@ -510,13 +510,16 @@ def copy_record(record: dict) -> dict:
             if k not in ('type', 'at', 'snapshot', 'change', 'thread', 'day')}
 
 
-def publish_snapshot(root: Path, record: dict, snapshot: dict, session: str) -> dict:
+def publish_snapshot(root: Path, record: dict, snapshot: dict, session: str, *, check=lambda: None) -> dict:
     """Bounded immutable publication shared by tables, analyses and graphs; caller runs off-loop."""
     data = snapshot_bytes(snapshot)
     if len(data) > MAX_SNAPSHOT_BYTES:
         raise DataTableRefused('the table exceeds the supported byte budget', next='choose fewer sources or columns')
     relative = f"{session}/{record['id']}/v{record['version']}.json"
     path = root / relative
+    check()
+    if path.resolve() != path.absolute():
+        raise DataTableRefused('the saved table path was replaced; restore its original folder')
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp = tempfile.mkstemp(prefix='.save-', dir=path.parent)
     published = False
@@ -525,6 +528,9 @@ def publish_snapshot(root: Path, record: dict, snapshot: dict, session: str) -> 
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
+        check()
+        if path.resolve() != path.absolute():
+            raise DataTableRefused('the saved table path changed before publication')
         try:
             os.link(temp, path)  # publish exclusively: never replace an accepted revision
             published = True
@@ -552,6 +558,8 @@ class DataTables:
     def __init__(self, app, root: Path) -> None:
         self.app = app
         self.root = Path(root)
+        from .project_artifact_folder import ArtifactFolder
+        self._storage = ArtifactFolder(self.root, 'tables')
         self._locks: dict[tuple, asyncio.Lock] = {}
         self._timers: dict[tuple, asyncio.TimerHandle] = {}
         self._updating: dict[tuple, asyncio.Task] = {}
@@ -565,6 +573,9 @@ class DataTables:
         if session is not None and session != day.sid:
             raise DataTableRefused('This table belongs to another Project', next='reopen its Project', status=409)
         return TableOwner(day, day.sid, getattr(day, 'generation', 0), getattr(day, 'active_id', None))
+
+    def root_for(self, session: str, *, write=False):
+        return self._storage.root_for(self.day, session, write=write)
 
     # reading the journal
     @property
@@ -624,8 +635,14 @@ class DataTables:
                          updating=key in self._timers or (task is not None and not task.done()))
 
     # reading a version's rows
-    def path_of(self, record: dict) -> Path:
-        return self.root / record["snapshot"]["path"]
+    def path_of(self, record: dict, session=None, *, write=False) -> Path:
+        from .table_reading import snapshot_path
+        session = session or record.get('session') or self.day.sid
+        relative = snapshot_path(record, session, 'dataset-table')
+        path = self.root_for(session, write=write) / relative
+        if path.resolve() != path.absolute():
+            raise DataTableRefused('the saved table path was replaced; restore its original folder')
+        return path
 
     def read(self, tid: str, version: int | None = None, *, owner: TableOwner | None = None) -> dict:
         """A version's rows, read back only when its snapshot still has its SHA-256 (off the loop: callers use
@@ -634,7 +651,7 @@ class DataTables:
         owner.check(self.app)
         record = self.version(tid, version)
         try:
-            with self.path_of(record).open('rb') as stream:
+            with self.path_of(record, owner.session).open('rb') as stream:
                 data = stream.read(MAX_SNAPSHOT_BYTES + 1)
             if len(data) > MAX_SNAPSHOT_BYTES:
                 raise DataTableRefused('the saved table exceeds the supported byte budget', next='restore a supported table')
@@ -691,7 +708,11 @@ class DataTables:
 
     def _write(self, record: dict, snapshot: dict, session: str) -> dict:
         """The snapshot file, written whole before anything names it (off the loop)."""
-        return {**publish_snapshot(self.root, record, snapshot, session),
+        root = self.root_for(session, write=True)
+        def check():
+            if self.root_for(session, write=True) != root:
+                raise DataTableRefused('the table destination changed before publication')
+        return {**publish_snapshot(root, record, snapshot, session, check=check),
                 'rows': snapshot['counts']['rows'], 'excluded': snapshot['counts']['excluded']}
 
     async def _save(self, record: dict, base_columns: list[dict], base_rows: list[dict], lineage: dict, change: str, owner: TableOwner) -> dict:
@@ -711,7 +732,10 @@ class DataTables:
             except Exception:
                 pass
             else:
-                (self.root / pending['path']).unlink(missing_ok=True)
+                try:
+                    self.path_of({**record, 'snapshot': pending}, owner.session, write=True).unlink(missing_ok=True)
+                except (OSError, ValueError):
+                    pass  # Preserve unaccepted bytes if the original location has gone away.
             raise
         record["change"] = "; ".join([change, *notes])[:600]
         try:
@@ -719,8 +743,8 @@ class DataTables:
             return owner.store.record_datatable({**record, 'session': owner.session, 'thread': owner.thread})
         except (OSError, ValueError) as exc:
             try:
-                self.path_of(record).unlink()
-            except OSError:
+                self.path_of(record, owner.session, write=True).unlink()
+            except (OSError, ValueError):
                 pass
             if isinstance(exc, DataTableRefused):
                 raise

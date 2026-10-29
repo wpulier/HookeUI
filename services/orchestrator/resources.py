@@ -1831,7 +1831,7 @@ class Index:
                        if record['version'] == entry.version), None)
         if record is None:
             raise DataTableRefused('the selected saved numeric revision is unavailable')
-        return read_accepted(service.root, record, day, entry.kind)
+        return read_accepted(service.root_for(day), record, day, entry.kind)
 
     def _outline_facts(self, eid: str, day: str | None) -> str:
         """An outline on the board, read one step behind it (known.py: "how do you know?"). A

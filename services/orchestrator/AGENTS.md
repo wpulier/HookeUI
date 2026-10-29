@@ -1,5 +1,14 @@
 # The orchestrator
 
+Dataset-table and analysis/graph snapshots use the captured Project's artifact
+folder when `day.locations` is enabled. Legacy paths remain unchanged. Shared
+`ArtifactFolder` routing pins the origin/location and folder inode, acquires the
+host's writer lease before publication, and refuses closed/replaced storage.
+Numeric index reads resolve the recorded owner without switching the workspace.
+Every accepted table/derivative revision keeps its original relative path and hash.
+This is an opt-in storage adapter, not complete Project collection or live App
+activation; missing evaluators do not prevent reading retained numeric results.
+
 Scientific tool selection distinguishes the active local tool from an explicit current-update
 trial. The latter records the exact prepared generation and captured saved input without
 moving selection. Candidate workflow acceptance lives in the existing maintenance decisions

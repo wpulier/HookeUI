@@ -109,3 +109,13 @@ This is the byte-copy stage only. Its manifest explicitly says external dependen
 closure is not verified. It is not exposed as Collect Project or complete export;
 legacy assets, shared captures and external dependencies still require their
 collector and inclusion review. No accepted research is rewritten or replayed.
+
+## Numeric snapshot routing checkpoint
+
+Dataset tables and derived analyses/graphs retain their existing versioned snapshot
+format under the owning Project's artifacts folder when location routing is enabled.
+Reads resolve the captured Project and verify accepted hashes; publication requires
+its host writer lease and unchanged location. A moved Project can read historical
+numeric results without the evaluator that produced them. Legacy storage remains
+compatible. This adapter does not enable new-folder creation in the live App or
+claim that shared recordings and all other research dependencies are collected.
