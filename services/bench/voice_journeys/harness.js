@@ -499,6 +499,7 @@
           }
           const record = { id: step.id, kind: step.kind, say: step.say };
           if (step.interrupt) record.interrupt = true;
+          const startedBefore = step.waitFor ? new Set(researchers().map((r) => r.rid)) : null;
           if (mode === 'hold') {
             record.down = await hold(true);
             await sleep(150);
@@ -533,7 +534,13 @@
             await speaking(next.interrupt.afterMs ?? 4500, 30000, record.up ?? record.end);
             continue;
           }
-          await quiet(quietMs, (step.wait ?? maxMs / 1000) * 1000, minMs);
+          if (step.waitFor) { // a spoken request whose work lands later (a researcher): its window spans that work,
+            // so what is said and done when it lands (a kept later step, will-research) is judged with the request
+            const from = record.up ?? record.end, limit = (step.wait ?? 600) * 1000;
+            while (Date.now() - from < limit && !satisfied(step.waitFor, startedBefore)) await sleep(1000);
+            await quiet(quietMs * 2, 120000, 20000); // the kept step's hand-off runs, then its outcome is said
+          }
+          await quiet(quietMs, step.waitFor ? 30000 : (step.wait ?? maxMs / 1000) * 1000, minMs);
           if (step.ensure) await ensure(step);
           await stageSpecimen(plan, base, step.id);
         }

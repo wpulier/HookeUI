@@ -960,8 +960,10 @@ class PartnerTools:
         self._thinking(job, True)
 
         def ended(t: asyncio.Task) -> None:
+            if t.cancelled() and stop.requested:
+                return  # a stop: its row, job and working signal end once all its work has (_stopped)
             if t.cancelled():
-                self.handoffs.lost(flight, stopped=bool(stop.requested))
+                self.handoffs.lost(flight)
             elif t.exception() is not None:
                 self.handoffs.broke(flight, t.exception())
             self._thinking(job, False)
@@ -990,22 +992,36 @@ class PartnerTools:
     async def _stopped_later(self, job, tasks: list) -> None:
         """A stop that had not ended when stop_work answered "being stopped": once its work has, it is said, once."""
         await asyncio.wait(tasks)
-        self._stopped(job)
+        finished = self._stopped(job)
         if job.told:
             return
         job.told = True
-        await self.said_when_landed(job.ref(), "stop_work", {"job": job.id, "state": "cancelled", "done": False,
-                                                             "asked": job.request, "stopped": True},
-                                    "", [], kind="job-cancelled")
+        facts = ({"job": job.id, "state": job.state, "done": job.state == "done", "asked": job.request,
+                  "stopped": False, "note": "it had already finished before it could be stopped"} if finished else
+                 {"job": job.id, "state": "cancelled", "done": False, "asked": job.request, "stopped": True})
+        await self.said_when_landed(job.ref(), "stop_work", facts, "", [],
+                                    kind="job-result" if finished else "job-cancelled")
 
-    def _stopped(self, job) -> None:
-        """Its work has ended after a stop: the job is cancelled, and a row the brain had answered while steps still ran
-        says it was stopped (those steps end with no finish to report)."""
+    def _stopped(self, job) -> bool:
+        """All its work has ended after a stop: the job is cancelled and its row says it was stopped, unless the brain had
+        answered with nothing still running before the stop reached it (True: it had finished, its own end stands)."""
+        from .jobs import FROM_HANDOFF
+
         if job.state == "cancelled":
-            return
+            return False
+        flight = job.handoff
+        if flight.id not in self.handoffs.open and flight.state != "working":
+            self.thinking.set(job, FROM_HANDOFF.get(flight.state, "failed"))  # it ended on its own: that stands
+            self._thinking(job, False)
+            return True
         job.reason = "Stopped when you asked; anything it had finished stays"
         self.thinking.set(job, "cancelled")
-        self.handoffs.settled(job.handoff, "cancelled", [], job.reason)
+        if flight.id in self.handoffs.open:
+            self.handoffs.lost(flight, stopped=True)
+        else:  # the brain had answered while its steps still ran: those end with no finish to report
+            self.handoffs.settled(flight, "cancelled", [], job.reason)
+        self._thinking(job, False)
+        return False
 
     async def stop_work(self, args: dict) -> dict:
         """Stops Hooke's own work in progress: a hand-off by its id or number (project_state.jobs), else the newest one
@@ -1061,7 +1077,10 @@ class PartnerTools:
             return {"ok": None, "result": "running", "job": job.id,
                     "said": "Stopping it; it has not stopped yet, and you hear when it has."}
         job.told = True  # said here: its own end is not said again
-        self._stopped(job)
+        if self._stopped(job):
+            return {"ok": False, "result": "failed", "job": job.id, "stopped": False,
+                    "said": f"It had already finished before it could be stopped ({job.state}).",
+                    "note": "Say once that it had finished, and its outcome if you have not said it."}
         return {"ok": True, "result": "verified", "job": job.id, "stopped": True,
                 "said": "Stopped.", "note": "It has stopped. Say so once, briefly; anything it had already finished "
                                             "stays as it is."}

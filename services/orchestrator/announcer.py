@@ -582,7 +582,12 @@ class Announcer:
         if view.index != index or (view.finding_revision and
                 view.finding_revision.get('version') != expected['resource']['version'] and not view.output_id):
             return 'retained in Researchers; the selected version was preserved'
-        change = screen.send("viewer", "entry", "open", {"open": True, "shows": session.rid}, "brain", **scope)
+        from .workspace_observation import ObservationError
+        try:
+            change = screen.send("viewer", "entry", "open", {"open": True, "shows": session.rid}, "brain", **scope)
+        except ObservationError as exc:  # the studio's report has no viewer to change: its work stays retained
+            self.log({"kind": "research-not-shown", "rid": session.rid, "error": str(exc)})
+            return "retained in Researchers; the viewer was not on screen to show it"
         def rendered(report):
             item = next((item for item in report.get('items', []) if item.get('id') == 'viewer'), {})
             return (open_state('viewer', True, session.rid)(report) and item.get('work') == expected

@@ -246,6 +246,8 @@ class Jobs(dict):
         job = self.get(getattr(handoff, "id", None))
         if not isinstance(job, HandoffJob) or job.state in ENDED:
             return job if isinstance(job, HandoffJob) else None
+        if job.state == "cancelling":  # being stopped: its stop ends it, once all its work has (stop_work)
+            return job
         if handoff.state == "working":
             running = [s for s in handoff.steps or [] if isinstance(s, dict) and s.get("ok") is None]
             if handoff.settling and running:
@@ -262,10 +264,6 @@ class Jobs(dict):
                     self._end_late(job)
                     return job
                 self.file(job)
-            return job
-        if job.state == "cancelling" or (job.stop is not None and getattr(job.stop, "requested", False)):
-            job.reason = job.reason or "Stopped when you asked; anything it had finished stays"
-            self.set(job, "cancelled")
             return job
         job.verified = handoff.state in ("done", "started")
         job.reason = getattr(handoff, "reason", "") or ""
