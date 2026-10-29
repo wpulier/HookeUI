@@ -765,3 +765,17 @@ def test_a_plan_without_watch_steps_has_no_watch_lines_and_gpt_live_is_not_measu
     lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN, voice="gpt-live-1")[2]
     assert result(lines, "Watch: an event said when idle") == "not applicable to this voice"
     assert result(lines, "Watch: false alarms per hour") == "pass"  # the watcher is the app's, whichever voice
+
+
+def test_with_watch_quiet_a_slide_move_told_silently_is_no_said_line_but_a_missed_one_still_fails():
+    """part-2.5-broad runs with the default WATCH quiet: the slide's move is told silently (the judge asks what changed);
+    the said line appears only when something was to be said, or an expected event was never raised."""
+    bench, conv, inter, verdicts = watched()
+    for r in inter:
+        if r.get("kind") == "watch-event":
+            r["delivery"] = "context"
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2]
+    assert "Watch: an event said when idle" not in lines and result(lines, "Watch: false alarms per hour") == "pass"
+    lines = board(*watched(raised=False), plan=WATCH_PLAN)[2]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"

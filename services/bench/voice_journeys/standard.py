@@ -807,6 +807,7 @@ def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[st
                      # raised in a watch step where it was expected (nobody talking there): it must be said
                      "inStep": next((sid for sid, a, b in spans if a <= e["eventT"] < b), None)})
     planned, missed, steady_s, false = 0, [], 0.0, []
+    steady_planned = sum(1 for e in expects.values() if (e or {}).get("watch") == [])
     for step in steps:
         want = (expects.get(step["id"]) or {}).get("watch")
         if want is None or not isinstance(step.get("start"), (int, float)):
@@ -820,7 +821,7 @@ def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[st
         else:
             missed += [f"{step['id']}: {kind}" for kind in want if not any(e.get("event") == kind for e in inside)]
     return {"said": said, "planned": planned, "missed": missed, "steadyS": round(steady_s, 1), "falseAlarms": false,
-            "raised": len(events)}
+            "raised": len(events), "steadyPlanned": steady_planned}
 
 
 def reconnects(inter: list[dict], bench: dict) -> list[dict]:
@@ -1006,6 +1007,7 @@ def summarise(runs: list[dict]) -> dict:
                    "pointed": sum(1 for p in events if p["pointed"])},
         "reconnect": {"max": max((r["s"] for r in recon if r["s"] is not None), default=None), "n": len(recon)},
         "watch": {"planned": sum(run.get("planned", 0) for run in watched),
+                  "toSay": len(watch_said), "steadyPlanned": sum(run.get("steadyPlanned", 0) for run in watched),
                   "n": len([w for w in watch_said if w["spokenS"] is not None]),
                   "spokenMax": max((w["spokenS"] for w in watch_said if w["spokenS"] is not None), default=None),
                   "spokenP50": median([w["spokenS"] for w in watch_said if w["spokenS"] is not None]),
@@ -1121,18 +1123,22 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
                    f"over {ev['overUser']}, repeated {ev['repeated']}, pointed {ev['pointed']} of {ev['n']}", "0, 0, all",
                    None if not ev["n"] else not ev["overUser"] and not ev["repeated"] and ev["pointed"] == ev["n"]))
     w = s.get("watch") or {}
-    if w.get("planned"):  # only a plan with watch steps measures the watcher (part-2.5-watch, part-2.5-broad)
+    # Only a plan with watch steps measures the watcher (part-2.5-watch, part-2.5-broad): its events said when WATCH
+    # gives them a spoken rule (chatty: part-2.5-watch; the default quiet only tells a slide's move silently, which the
+    # judge checks by asking what changed), and its false alarms on a steady stretch.
+    if w.get("planned") and (w["toSay"] or w["missed"]):
         L.append(_line("Knowing", "Watch: an event said when idle",
                        f"p50 {_fmt(w['spokenP50'])}, max {_fmt(w['spokenMax'])} (n {w['n']}); unsaid {w['unsaid']}, "
                        f"over the user {w['overUser']}, missed {len(w['missed'])} {w['missed'][:3]}",
                        f"≤ {S['watchSpokenMax']} s from the event, never over the user, none missed",
                        False if w["overUser"] or w["missed"] or w["unsaid"] else
                        None if w["spokenMax"] is None else w["spokenMax"] <= S["watchSpokenMax"]))
+    if w.get("steadyPlanned"):
         L.append(_line("Knowing", "Watch: false alarms per hour",
                        f"{_fmt(w['falsePerHour'], '/h')} ({w['falseAlarms']} in {w['steadyMinutes']} min with nothing "
                        "happening)", f"≤ {S['watchFalsePerHour']}/h (provisional, until Will accepts a rate)",
                        None if w["falsePerHour"] is None else w["falsePerHour"] <= S["watchFalsePerHour"],
-                       "no steady stretch in the plan"))
+                       "its steady stretch did not run"))
     rc = s["reconnect"]
     L.append(_line("Conversation", "Reconnect", f"max {_fmt(rc['max'])} (n {rc['n']})", f"≤ {S['reconnectMax']} s",
                    None if rc["max"] is None else rc["max"] <= S["reconnectMax"]))
