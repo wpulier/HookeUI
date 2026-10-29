@@ -292,6 +292,19 @@ def lines_from_responses(inter: list[dict], start: float, end: float) -> list[di
     return sorted(out, key=lambda l: l["first"])
 
 
+def api_researchers(bench: dict) -> dict[str, dict]:
+    """The researchers the orchestrator listed during the run (/api/research, harness "researchers" events from the
+    API): rid -> its latest row (number, created, finished, status). Empty for runs from before the player read it."""
+    out: dict[str, dict] = {}
+    for e in bench["events"]:
+        if e.get("e") != "researchers":
+            continue
+        for row in e.get("rows") or []:
+            if row.get("source") == "api" and row.get("rid"):
+                out[row["rid"]] = {**out.get(row["rid"], {}), **row}
+    return out
+
+
 @dataclass
 class Call:
     name: str
@@ -303,6 +316,7 @@ class Call:
     rid_at: float | None = None
     error: str = ""
     end: float | None = None
+    number: int | None = None  # the researcher's number ("Researcher 2"), when the call says it
 
 
 def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[Call]:
@@ -339,8 +353,13 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
         if r.get("ok") is True and call.confirmed_at is None:
             call.confirmed_at = at
         if call.name == "start_researcher" and r.get("ok") is True and call.rid_at is None:
+            # Its researcher: the card's research-run output names it, its summary says its number.
+            outputs = [o.get("resource") for o in r.get("outputs") or [] if isinstance(o, dict) and isinstance(o.get("resource"), dict)]
             resource = r.get("resource") if isinstance(r.get("resource"), dict) else {}
-            call.rid, call.rid_at = r.get("rid") or resource.get("id") or key, at
+            rid = r.get("rid") or next((o.get("researcherId") for o in outputs if o.get("researcherId")), None) or resource.get("id")
+            call.rid, call.rid_at = rid or key, at
+            named = re.search(r"\bResearcher (\d+)\b", str(r.get("summary") or ""))
+            call.number = int(named.group(1)) if named else None
         call.end = at
     return sorted(calls.values(), key=lambda c: c.start)
 
@@ -370,6 +389,31 @@ def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, un
     journal's, else the one brain's responses, without what it said on its own (events, reconnects)."""
     lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
     return [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+
+
+def restart_checks(checks: list[dict], conv: list[dict], step: dict) -> list[dict]:
+    """A restart keeps where it was: the Project the journal filed lines in just before the restart is the one it files
+    them in after it. That is the project check for any run (the page's own check says the same for runs since it
+    compares with the Project open before the restart). Checks the first player wrote (2026-10-29) asked for a fixed
+    Project and read researchers from a board the bench's studio does not draw: its project check is the journal's,
+    and its researcher check, which could see none, is not measured."""
+    at = step["start"]
+    filed = [(r["at"], r.get("day")) for r in conv if isinstance(r.get("at"), (int, float)) and r.get("day")]
+    before = max((x for x in filed if x[0] < at - 1), default=(None, None))[1]
+    after = min((x for x in filed if x[0] > at + 1), default=(None, None))[1]
+    out = []
+    for check in checks:
+        name, detail = str(check.get("name", "")), str(check.get("detail", ""))
+        legacy = "before the restart" not in detail and "Researcher " not in detail
+        if name.startswith("project:") and legacy and before and after:
+            check.update(ok=before == after, detail=f"the journal's Project before the restart {before}, after it {after}")
+        elif name.startswith("researcher:") and legacy and detail.startswith("rows: ;"):
+            check.update(ok=None, detail="not measured: the first player read researchers from a board not drawn here")
+        out.append(check)
+    if not any(str(c.get("name", "")).startswith("project:") for c in out) and before and after:
+        out.append({"name": "project (journal)", "ok": before == after,
+                    "detail": f"the journal's Project before the restart {before}, after it {after}"})
+    return out
 
 
 def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dict, conv: list[dict],
@@ -423,11 +467,21 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     row["doInHooke"] = sum(1 for c in calls if c.name == FALLBACK)
     row["acting"] = len(acting)
 
-    # Researchers: started in this step, and how soon.
+    # Researchers: started in this step, and how soon. The orchestrator's own list says which researchers were made in
+    # the step (its `created`), whoever started them; without it, the start_researcher calls that succeeded.
     started = {}
-    for c in acting:
-        if c.name == "start_researcher" and c.ok is not False and (c.rid or c.rid_at):
-            started.setdefault(c.rid or f"{c.start}", c.rid_at or c.start)
+    listed = bench.get("_researchers") or {}
+    if listed:
+        for rid, r in listed.items():
+            if isinstance(r.get("created"), (int, float)) and opened(step) - 0.5 <= r["created"] < end:
+                started[rid] = r["created"]
+    else:
+        for c in acting:
+            if c.name == "start_researcher" and c.ok is not False and (c.rid or c.rid_at):
+                started.setdefault(c.rid or f"{c.start}", c.rid_at or c.start)
+    row["researcherNumbers"] = sorted({n for n in [(listed.get(rid) or {}).get("number") for rid in started]
+                                       + [c.number for c in acting if c.name == "start_researcher" and c.rid in started]
+                                       if isinstance(n, int)})
     row["researchers"] = len(started)
     row["researcherIds"] = sorted(started)
     expected_researchers = expect.get("researchers", 0)
@@ -500,8 +554,9 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         want = bench.get("_expectedResearcher")
         said = sorted({k for l in lines for k in researcher_numbers(l["text"])})
         row["statusNamed"], row["statusExpected"] = said, want
-        row["statusRight"] = want is not None and said == [want]
-        if not row["statusRight"]:
+        # No researcher from the plan's researcher step: that step failed, and there is no right answer to check here.
+        row["statusRight"] = None if want is None else said == [want]
+        if row["statusRight"] is False:
             fail(f"status named researcher {said or 'none'}, expected {want}")
 
     # Nothing on screen that was not asked for.
@@ -530,12 +585,19 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
                                       and any(l["first"] > c.start for l in lines))
 
     # The restart step's checks (the Project, its table, Tab and researcher output are there after reopening).
-    checks = [e for e in bench["events"] if e.get("e") == "check" and e.get("step") == step["id"]]
-    if checks:
-        row["checks"] = {e["name"]: bool(e.get("ok")) for e in checks}
+    checks = [dict(e) for e in bench["events"] if e.get("e") == "check" and e.get("step") == step["id"]]
+    if step.get("restart"):
+        checks = restart_checks(checks, conv, step)
+    if checks:  # ok None: it was not there before the restart (an earlier step's failure, not counted again here)
+        row["checks"] = {e["name"]: e.get("ok") for e in checks}
         for e in checks:
-            if not e.get("ok"):
+            if e.get("ok") is False:
                 fail(f"after restart: {e['name']} missing ({e.get('detail', '')})")
+    recovered = [e for e in bench["events"] if e.get("e") == "recovered" and e.get("step") == step["id"]]
+    if recovered:
+        row["recovered"] = [{"what": e.get("what"), "from": e.get("from"), "ok": e.get("ok")} for e in recovered]
+    if any(e.get("e") == "staged" and e.get("step") == step["id"] for e in bench["events"]):
+        row["staged"] = True  # the bench put the specimen back on the stage after this step
     if not lines and spoken_step and not expect.get("silent"):
         fail("no answer")
     if verdict and verdict.get("answered") is False:
@@ -607,8 +669,10 @@ def holds(steps: list[dict]) -> list[tuple[float, float]]:
     return [(opened(s), released(s) + USER_BUSY_S) for s in steps]
 
 
-def proactive(inter: list[dict], segments, busy) -> list[dict]:
-    """Each event the one brain told unprompted: event to speech, whether it spoke over the user, one line per event."""
+def proactive(inter: list[dict], segments, busy, researchers: dict | None = None) -> list[dict]:
+    """Each event the one brain told unprompted: event to speech, whether it spoke over the user, one line per event.
+    A researcher's event happened when it finished (the orchestrator's list); the record's eventT is when the line
+    was sent, after any wait for quiet."""
     out, seen = [], {}
     for r in inter:
         if r.get("kind") != "partner-proactive":
@@ -616,6 +680,10 @@ def proactive(inter: list[dict], segments, busy) -> list[dict]:
         key = f"{r.get('event')}|{r.get('ref')}"
         seen[key] = seen.get(key, 0) + (1 if r.get("responseCreatedT") else 0)
         event_t = r.get("eventT") if isinstance(r.get("eventT"), (int, float)) else r.get("t")
+        finished = ((researchers or {}).get(str(r.get("ref"))) or {}).get("finished")
+        if str(r.get("event", "")).startswith("researcher") and isinstance(finished, (int, float)) \
+                and isinstance(event_t, (int, float)) and finished <= event_t:
+            event_t = finished
         created = r.get("responseCreatedT")
         spoke = first_on_after(segments, created, created + 15) if isinstance(created, (int, float)) else None
         if spoke is None and isinstance(created, (int, float)):
@@ -647,25 +715,42 @@ def reconnects(inter: list[dict], bench: dict) -> list[dict]:
     return out
 
 
-def live_view(bench: dict) -> dict:
-    """Frames on /ws per second (fps) and their delay, before Talk (the baseline) and while the journey ran."""
+def live_view(bench: dict, baseline: list[dict] | None = None) -> dict:
+    """Frames on /ws per second (fps) and their delay, before Talk (the baseline) and while the journey ran. Only the
+    seconds with a source on the stage count: the empty stage (nothing to view) is no live view, not a slow one. Runs
+    from before the player said so count from their first frame on. Without frames before Talk, the baseline is the
+    setup's (`baseline`)."""
     steps = bench["steps"]
     first = opened(steps[0]) if steps else None
-    before = [e for e in bench["events"] if e.get("e") == "frames" and first is not None and e["t"] < first]
-    during = [e for e in bench["events"] if e.get("e") == "frames" and (first is None or e["t"] >= first)]
+    frames = [e for e in bench["events"] if e.get("e") == "frames"]
+
+    def live(rows):
+        if any("stage" in r for r in rows):
+            return [r for r in rows if r.get("stage") != "empty"]
+        flowing = next((i for i, r in enumerate(rows) if r.get("n")), None)
+        return rows[flowing:] if flowing is not None else []
+
+    # The baseline is the live view while it was on (its seconds with frames); the journey's seconds count as they
+    # came, a freeze with a source on the stage included.
+    before = [r for r in live([e for e in frames if first is not None and e["t"] < first]) if r.get("n")]
+    during = live([e for e in frames if first is None or e["t"] >= first])
+    if not before and baseline:
+        before = [r for r in live(baseline) if r.get("n")]
 
     def stats(rows):
         return {"fps": median([r["fps"] for r in rows if isinstance(r.get("fps"), (int, float))]),
                 "delayP90": pct([r["delayP90"] for r in rows if isinstance(r.get("delayP90"), (int, float))], 90),
                 "samples": len(rows)}
 
-    return {"baseline": stats(before), "during": stats(during)}
+    return {"baseline": stats(before), "during": stats(during), "live": bool(during)}
 
 
 # --- a run -----------------------------------------------------------------------------------------------------------
 
-def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verdicts: dict | None = None) -> dict:
-    """One repetition of a plan: its steps and its run-wide numbers."""
+def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verdicts: dict | None = None,
+              baseline: list[dict] | None = None) -> dict:
+    """One repetition of a plan: its steps and its run-wide numbers. `baseline`: the setup's frames events, the live
+    view's baseline when the run has none before Talk."""
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     expects = {s["id"]: s.get("expect") or {} for s in plan.get("steps") or []}
@@ -682,32 +767,32 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
         heard_from = "transcripts"
     rows = []
     unprompted = unprompted_spans(inter)
-    started_numbers: list[int] = []  # the researchers this run started, by their board number
-    board = {}  # rid -> the number its board row shows ("Researcher 3"); else the number in an "r3" id
+    # The researcher a status step must name: the one the plan's researcher step started (its number, from the
+    # orchestrator's list, else the board, else what its start_researcher card said).
+    started_numbers: list[int] = []
+    board = {}
     for e in bench["events"]:
         if e.get("e") == "researchers":
             for row in e.get("rows") or []:
                 if row.get("rid") and row.get("number") is not None:
                     board[row["rid"]] = row["number"]
+    bench["_researchers"] = api_researchers(bench)
     bench["_fragments"] = fragments(bench)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
-        if expect.get("status") and started_numbers:
-            bench["_expectedResearcher"] = started_numbers[-1]
+        bench["_expectedResearcher"] = started_numbers[-1] if expect.get("status") and started_numbers else None
         row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), unprompted)
-        for rid in row["researcherIds"]:
-            number = board.get(rid)
-            if number is None and re.fullmatch(r"r\d+", str(rid)):
-                number = int(str(rid)[1:])
-            if number is not None:
-                started_numbers.append(number)
+        if expect.get("researchers"):
+            numbers = sorted({board[rid] for rid in row["researcherIds"] if rid in board} | set(row["researcherNumbers"]))
+            started_numbers += numbers[-1:]
         rows.append(row)
-    bench.pop("_expectedResearcher", None)
-    bench.pop("_fragments", None)
+    for key in ("_expectedResearcher", "_fragments", "_researchers"):
+        bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
-            "proactive": proactive(inter, segments, busy), "reconnects": reconnects(inter, bench),
-            "liveView": live_view(bench), "error": bench.get("error"), "audioFrom": heard_from}
+            "proactive": proactive(inter, segments, busy, api_researchers(bench)), "reconnects": reconnects(inter, bench),
+            "liveView": live_view(bench, [{**e, "t": seconds(e.get("t"))} for e in baseline or []]),
+            "error": bench.get("error"), "audioFrom": heard_from}
 
 
 def summarise(runs: list[dict]) -> dict:
@@ -735,6 +820,7 @@ def summarise(runs: list[dict]) -> dict:
     run_fps = median([v["during"]["fps"] for v in views if v["during"]["fps"] is not None])
     base_delay = median([v["baseline"]["delayP90"] for v in views if v["baseline"]["delayP90"] is not None])
     run_delay = median([v["during"]["delayP90"] for v in views if v["during"]["delayP90"] is not None])
+    no_live = sum(1 for v in views if not v.get("live", True))
     return {
         "runs": len(runs), "steps": len(steps),
         "firstAudio": {"p50": median(first), "p95": pct(first, 95), "n": len(first)},
@@ -755,7 +841,8 @@ def summarise(runs: list[dict]) -> dict:
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
                         "startMax": max((r["researcherStartS"] for r in researcher_rows), default=None),
                         "n": len(researcher_rows)},
-        "status": {"right": sum(1 for r in status if r["statusRight"]), "n": len(status)},
+        "status": {"right": sum(1 for r in status if r["statusRight"]), "n": len(status),
+                   "unchecked": sum(1 for r in steps if r.get("statusExpected", 0) is None)},
         "marks": {"n": len(marks_),
                   "latencyMax": max((m["latencyS"] for m in marks_ if m["latencyS"] is not None), default=None),
                   "latencyP95": pct([m["latencyS"] for m in marks_ if m["latencyS"] is not None], 95),
@@ -773,7 +860,8 @@ def summarise(runs: list[dict]) -> dict:
         "reconnect": {"max": max((r["s"] for r in recon if r["s"] is not None), default=None), "n": len(recon)},
         "plain": {"share": round(sum(1 for s in spoken if s <= 2) / len(spoken), 3) if spoken else None, "n": len(spoken)},
         "unasked": sum(r["unaskedChanges"] for r in steps),
-        "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay},
+        "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay,
+                     "runsWithoutLiveView": no_live},
         "stepFailures": sum(1 for r in steps if r["failures"]),
         "runsClean": sum(1 for run in runs if not any(r["failures"] for r in run["steps"]) and not run.get("error")),
         "errors": [run["error"] for run in runs if run.get("error")],
@@ -782,18 +870,28 @@ def summarise(runs: list[dict]) -> dict:
 
 # --- the scoreboard --------------------------------------------------------------------------------------------------
 
-def _line(area, name, value, threshold, ok) -> dict:
+NOT_APPLICABLE = "not applicable to this voice"
+# Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
+# every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
+# by speaking over it).
+ONE_BRAIN_ONLY = {"do_in_hooke share", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+                  "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
+VOICES_WITHOUT = {"gpt-live-1"}
+
+
+def _line(area, name, value, threshold, ok, why: str = "") -> dict:
     """ok: True pass, False fail, None not measured (never counted as a pass)."""
     return {"area": area, "line": name, "value": value, "threshold": threshold,
-            "result": "pass" if ok is True else "FAIL" if ok is False else "not measured"}
+            "result": "pass" if ok is True else "FAIL" if ok is False else "not measured" + (f": {why}" if why else "")}
 
 
 def _fmt(v, unit=" s"):
     return "—" if v is None else f"{v:.2f}{unit}" if isinstance(v, float) else f"{v}{unit}"
 
 
-def scoreboard(s: dict) -> list[dict]:
-    """The standard's lines, each pass, FAIL or not measured, from a summary."""
+def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
+    """The standard's lines, each pass, FAIL or not measured, from a summary; for a voice without the one brain's own
+    features, those lines are not applicable to it (still not a pass)."""
     S = STANDARD
     L = []
     fa = s["firstAudio"]
@@ -834,8 +932,9 @@ def scoreboard(s: dict) -> list[dict]:
     L.append(_line("Acting", "Researcher started", f"max {_fmt(r['startMax'])} (n {r['n']})", f"≤ {S['researcherStartMax']} s",
                    None if not r["n"] else r["startMax"] <= S["researcherStartMax"]))
     st = s["status"]
-    L.append(_line("Acting", "Status names the right researcher", f"{st['right']} of {st['n']}", "all",
-                   None if not st["n"] else st["right"] == st["n"]))
+    L.append(_line("Acting", "Status names the right researcher", f"{st['right']} of {st['n']}"
+                   + (f" ({st['unchecked']} with no researcher from the plan's researcher step)" if st.get("unchecked") else ""),
+                   "all", None if not st["n"] else st["right"] == st["n"]))
     mk = s["marks"]
     L.append(_line("Pointing", "Mark after speech starts", f"p95 {_fmt(mk['latencyP95'])}, max {_fmt(mk['latencyMax'])} (n {mk['n']})",
                    f"≤ {S['markLatencyMax']} s", None if mk["latencyMax"] is None else mk["latencyMax"] <= S["markLatencyMax"]))
@@ -857,10 +956,14 @@ def scoreboard(s: dict) -> list[dict]:
     fps_ok = None if lv["fps"] is None or lv["baselineFps"] is None else lv["fps"] >= S["fpsKept"] * lv["baselineFps"]
     delay_ok = None if lv["delayP90"] is None or lv["baselineDelayP90"] is None else \
         lv["delayP90"] <= lv["baselineDelayP90"] + S["delayAddedMaxS"] * 1000
+    no_live = lv.get("runsWithoutLiveView", 0)
     L.append(_line("Robustness", "Live view frame rate and delay unchanged",
                    f"fps {_fmt(lv['fps'], '')} vs {_fmt(lv['baselineFps'], '')}, delay p90 {_fmt(lv['delayP90'], ' ms')} vs "
-                   f"{_fmt(lv['baselineDelayP90'], ' ms')}", f"fps ≥ {S['fpsKept']:.0%}, delay +≤ {S['delayAddedMaxS'] * 1000:.0f} ms",
-                   None if fps_ok is None or delay_ok is None else fps_ok and delay_ok))
+                   f"{_fmt(lv['baselineDelayP90'], ' ms')}" + (f"; {no_live} run(s) with nothing on the stage" if no_live else ""),
+                   f"fps ≥ {S['fpsKept']:.0%}, delay +≤ {S['delayAddedMaxS'] * 1000:.0f} ms",
+                   False if False in (fps_ok, delay_ok) else None if None in (fps_ok, delay_ok) else True,
+                   "no live view on the stage" if no_live and no_live == s["runs"] else
+                   "no live view before Talk to compare with" if lv["baselineFps"] is None else ""))
     L.append(_line("Robustness", "Runs with zero step failures", f"{s['runsClean']} of {s['runs']} ({s['stepFailures']} failed steps)",
                    "all runs", None if not s["runs"] else s["runsClean"] == s["runs"]))
     L.append(_line("Robustness", 'Never "restart the app"', str(s["restartAdvice"]), "0", s["restartAdvice"] == 0 if s["steps"] else None))
@@ -868,11 +971,16 @@ def scoreboard(s: dict) -> list[dict]:
     L.append(_line("Elegance", "One or two sentences", f"{_fmt(pl['share'], '')} of {pl['n']} lines", f"≥ {S['plainShare']:.0%}",
                    None if pl["share"] is None else pl["share"] >= S["plainShare"]))
     L.append(_line("Elegance", "Nothing on screen not asked for", str(s["unasked"]), "0", s["unasked"] == 0 if s["steps"] else None))
+    if voice in VOICES_WITHOUT:
+        for line in L:
+            if line["line"] in ONE_BRAIN_ONLY:
+                line["result"] = NOT_APPLICABLE
     return L
 
 
 def meets(board: list[dict]) -> bool:
-    """The standard holds only when every line passes: a line not measured is not a pass."""
+    """The standard holds only when every line passes: a line not measured, or not applicable to the voice, is not a
+    pass (a voice without a feature the standard asks for does not meet it)."""
     return all(line["result"] == "pass" for line in board)
 
 
@@ -883,6 +991,11 @@ def markdown(result: dict) -> str:
            f"{result['summary']['runs']} run(s), {result['summary']['steps']} steps. Audio heard {head.get('audioFrom', 'in the page')}; "
            f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room.", "",
            f"**Standard met: {'yes' if meets(result['scoreboard']) else 'no'}**", "",
+           *([f"The bench put the journey back in its Project after {len(result['recovered'])} step(s) that left it "
+              "elsewhere (scored as they were; the steps after them are not scored again for it)."] if result.get("recovered") else []),
+           *([f"The bench put the specimen back on an empty stage {result['staged']} time(s) (a Project reopened, or a step "
+              "left the stage empty)."] if result.get("staged") else []),
+           *([""] if result.get("recovered") or result.get("staged") else []),
            "| Area | Line | Measured | Standard | Result |", "|---|---|---|---|---|"]
     for line in result["scoreboard"]:
         out.append(f"| {line['area']} | {line['line']} | {line['value']} | {line['threshold']} | {line['result']} |")

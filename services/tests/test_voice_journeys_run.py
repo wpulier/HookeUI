@@ -51,7 +51,7 @@ def kept_run(out: Path, verdicts=True) -> None:
 def test_worst_case_counts_spoken_steps_researchers_setup_and_judge():
     plan = stack.load_plan("part-2.5")
     spoken = run.spoken_steps(plan)
-    assert spoken == 9 and run.researchers(plan) == 1  # steps 1-8 and 10; idle and the restart say nothing
+    assert spoken == 10 and run.researchers(plan) == 1  # steps 1-8, 10 and the multi-step; idle and the restart say nothing
     from bench.voice_journeys.judge import COST_PER_STEP_USD
 
     one = spoken * (run.STEP_USD["gpt-realtime-2.1"] + COST_PER_STEP_USD) + run.RESEARCHER_USD
@@ -175,9 +175,11 @@ def test_shipped_plans_name_real_tools_and_known_fields(name):
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
         assert set(expect.get("tools") or []) <= tools, (step["id"], set(expect["tools"]) - tools)
         assert step["kind"] in ("act", "view", "ask", "status", "idle", "restart", "typed", "plural", "close", "photo",
-                                "side"), step["id"]
-        if step["kind"] not in ("idle", "restart"):
+                                "side", "stage"), step["id"]
+        if step["kind"] not in ("idle", "restart", "stage"):
             assert step.get("say"), step["id"]
+        if step.get("ensure"):
+            assert step["ensure"].split(":")[0] == "project" and step["ensure"].split(":", 1)[1], step["id"]
 
 
 def test_part_two_and_a_half_covers_the_journey_and_its_second_pass():
@@ -190,6 +192,13 @@ def test_part_two_and_a_half_covers_the_journey_and_its_second_pass():
         ["back-to-nuclei", "to-scratch", "back-again"]
     assert {s["say"] for s in first["steps"] if s.get("say")}.isdisjoint({s["say"] for s in second["steps"] if s.get("say")})
     assert first["voices"]["user"] != second["voices"]["user"]
+    assert [s["id"] for s in first["steps"] if (s.get("expect") or {}).get("multi")] == ["outline-and-sizes"]
+    for plan in (first, second):  # every new Project in the setup gets the specimen on its stage (else nothing to view)
+        kinds = [s["kind"] for s in plan["setup"]]
+        assert kinds.count("stage") == 2 and all(plan["setup"][i + 1]["kind"] == "stage" for i, s in enumerate(plan["setup"])
+                                                  if "new project" in s.get("say", "").lower())
+        assert plan["camera"]["footage"] == Path(plan["camera"]["still"]).stem + "-noise.mp4"  # stack.noisy_loop's name
+    assert first["steps"][0]["ensure"] == "project:Nuclei"
 
 
 def test_words_are_said_once_and_kept(tmp_path, monkeypatch):

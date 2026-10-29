@@ -62,9 +62,9 @@ def good():
              step("multi", 55, 55.1, 57.0, 57.1)]
     events = []
     for t in range(-10, 0):  # the live view before Talk
-        events.append({"t": ms(t), "e": "frames", "fps": 30, "delayP90": 60})
+        events.append({"t": ms(t), "e": "frames", "fps": 30, "delayP90": 60, "n": 30, "stage": "source"})
     for t in range(0, 90, 5):
-        events.append({"t": ms(t), "e": "frames", "fps": 30, "delayP90": 70})
+        events.append({"t": ms(t), "e": "frames", "fps": 30, "delayP90": 70, "n": 30, "stage": "source"})
     for n, t in enumerate([0, 10, 20, 30, 40, 44.0, 55], start=1):
         events.append(talk(n, t))
     for on, off in [(2.0, 2.9), (2.95, 4.5), (12.5, 13.3), (13.6, 15.0), (23.5, 24.5), (24.6, 26.0), (32.0, 34.0),
@@ -112,10 +112,10 @@ def good():
     return bench, conv, inter, verdicts
 
 
-def board(bench, conv, inter, verdicts=None, plan=PLAN):
-    run = score_run(bench, conv, inter, plan, verdicts)
+def board(bench, conv, inter, verdicts=None, plan=PLAN, voice=None, baseline=None):
+    run = score_run(bench, conv, inter, plan, verdicts, baseline)
     summary = summarise([run])
-    return run, summary, {line["line"]: line for line in scoreboard(summary)}
+    return run, summary, {line["line"]: line for line in scoreboard(summary, voice)}
 
 
 def result(lines, name):
@@ -365,7 +365,7 @@ def test_live_view_slowed_fails():
     bench, conv, inter, verdicts = good()
     for e in bench["events"]:
         if e.get("e") == "frames" and e["t"] >= ms(0):
-            e["fps"], e["delayP90"] = 21, 180
+            e["fps"], e["delayP90"], e["n"] = 21, 180, 21
     assert result(board(bench, conv, inter, verdicts)[2], "Live view frame rate and delay unchanged") == "FAIL"
 
 
@@ -384,9 +384,10 @@ def test_long_answers_fail_elegance():
     assert result(board(bench, conv, inter, verdicts)[2], "One or two sentences") == "FAIL"
 
 
-def test_gpt_live_run_scores_from_cards_and_leaves_partner_lines_unmeasured():
+def test_gpt_live_run_scores_from_cards_and_says_the_one_brains_lines_do_not_apply():
     """GPT-Live: no partner records; its brain's tool cards (chat-action) give the tools and the screen's confirmations
-    (a late ✓ is the same action shown again ok); marks, events and reconnects are not measured, never passed."""
+    (a late ✓ is the same action shown again ok); marks, events, reconnects and do_in_hooke are the one brain's: not
+    applicable to this voice, and never a pass."""
     bench, conv, _, verdicts = good()
     bench["voice"], bench["talk"] = "gpt-live-1", "open"
     for s in bench["steps"]:
@@ -402,12 +403,13 @@ def test_gpt_live_run_scores_from_cards_and_leaves_partner_lines_unmeasured():
              {"type": "chat-action", "tool": "research_status", "actionId": "a4", "ok": True, "at": T0 + 31.9},
              {"type": "chat-action", "tool": "outline_cells", "actionId": "a5", "ok": True, "at": T0 + 58.6},
              {"type": "chat-action", "tool": "measure", "actionId": "a6", "ok": True, "at": T0 + 61.0}]
-    run, summary, lines = board(bench, conv, [], verdicts)
+    run, summary, lines = board(bench, conv, [], verdicts, voice="gpt-live-1")
     rows = {r["id"]: r for r in run["steps"]}
     assert rows["outline"]["visibleS"] == pytest.approx(2.7 - 1.5)  # open mic: from the end of the words
     assert rows["researcher"]["researchers"] == 1 and rows["status"]["statusRight"] is True
-    for name in ("Mark after speech starts", "Event spoken when idle", "Reconnect", "do_in_hooke share"):
-        assert result(lines, name) == "not measured", name
+    for name in standard.ONE_BRAIN_ONLY:
+        assert result(lines, name) == "not applicable to this voice", name
+    assert result(lines, "Barge-in silent") != "not applicable to this voice"  # speaking over its open microphone
     assert summary["doInHooke"]["of"] == 0 and summary["toolFirstTry"]["n"] == 7
     assert not meets(list(lines.values()))
 
@@ -477,3 +479,157 @@ def test_a_turn_number_used_again_after_a_reload_stays_in_its_own_step():
     inter.append(tool(1, "tabs", 90.0, 90.1))  # turn 1 again, after the restart: never the outline step's call
     run, _, _ = board(bench, conv, inter, verdicts)
     assert {r["id"]: r for r in run["steps"]}["outline"]["tools"] == ["outline_cells"]
+
+
+# --- the bench's own defects in the first GPT-Live baseline (live-1, 2026-10-29) ---------------------------------------
+
+def api_rows(*rows):
+    return {"e": "researchers", "rows": [{"source": "api", "group": "done", **r} for r in rows]}
+
+
+def test_researchers_come_from_the_orchestrator_not_the_board():
+    """live-1: the board was not drawn in the bench's studio, so status expected no one. The orchestrator's list says
+    which researcher the researcher step made (by its created time), and its number."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "researchers"]
+    inter = [r for r in inter if r.get("name") != "start_researcher"]  # nothing from the voice's own records either
+    bench["events"].append({**api_rows({"rid": "r5461011", "number": 1, "created": T0 - 300, "finished": T0 - 200},
+                                       {"rid": "r6001", "number": 2, "created": T0 + 23.9, "group": "working"}),
+                            "t": ms(26)})
+    run, _, lines = board(bench, conv, inter, verdicts)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["researcher"]["researchers"] == 1 and rows["researcher"]["researcherStartS"] == pytest.approx(0.8)
+    assert rows["status"]["statusExpected"] == 2 and rows["status"]["statusRight"] is True
+    assert all(r["researchers"] == 0 for r in run["steps"] if r["id"] != "researcher")  # the setup's is no step's
+
+
+def test_two_researchers_listed_in_one_step_fail():
+    bench, conv, inter, verdicts = good()
+    bench["events"].append({**api_rows({"rid": "a", "number": 2, "created": T0 + 23.9},
+                                       {"rid": "b", "number": 3, "created": T0 + 24.5}), "t": ms(26)})
+    assert result(board(bench, conv, inter, verdicts)[2], "One researcher per request") == "FAIL"
+
+
+def test_gpt_live_card_names_its_researcher_without_the_orchestrators_list():
+    """A run from before the player read the orchestrator (live-1): the start_researcher card's research-run output
+    names the researcher and its summary its number."""
+    bench, conv, _, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "researchers"]
+    conv.append({"type": "chat-action", "tool": "start_researcher", "actionId": "a3", "ok": True, "at": T0 + 23.9,
+                 "summary": "Researcher 2 is making a research note at quick effort (in about 75 s)",
+                 "outputs": [{"kind": "resource", "resource": {"kind": "research-run", "researcherId": "r5461011"}}]})
+    run, _, _ = board(bench, conv, [r for r in good()[2] if r.get("kind") != "partner-tool"], verdicts)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["researcher"]["researcherIds"] == ["r5461011"] and rows["status"]["statusExpected"] == 2
+
+
+def test_status_is_not_checked_when_the_researcher_step_started_none():
+    """That step's failure is counted there; the status step has no right answer and is not failed for it."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if r.get("name") != "start_researcher"]
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["researcher"]["failures"] and rows["status"]["statusRight"] is None and not rows["status"]["failures"]
+    assert summary["status"]["unchecked"] == 1
+
+
+def test_live_view_counts_only_seconds_with_something_on_the_stage():
+    """live-1: every new Project opened on the empty stage, so no frames came: no live view, not a 0 fps one."""
+    bench, conv, inter, verdicts = good()
+    for e in bench["events"]:
+        if e.get("e") == "frames" and e["t"] >= ms(40):
+            e.update(fps=0, n=0, delayP90=None, stage="empty")  # the Scratch Project, nothing to view
+    _, summary, lines = board(bench, conv, inter, verdicts)
+    assert summary["liveView"]["fps"] == 30 and result(lines, "Live view frame rate and delay unchanged") == "pass"
+    for e in bench["events"]:
+        if e.get("e") == "frames":
+            e.update(fps=0, n=0, delayP90=None, stage="empty")
+    _, summary, lines = board(bench, conv, inter, verdicts)
+    assert result(lines, "Live view frame rate and delay unchanged") == "not measured: no live view on the stage"
+
+
+def test_a_live_view_that_freezes_with_a_source_on_stage_fails():
+    bench, conv, inter, verdicts = good()
+    for e in bench["events"]:
+        if e.get("e") == "frames" and e["t"] >= ms(0):
+            e.update(fps=0, n=0, delayP90=None)  # stage still "source": the view stopped
+    assert result(board(bench, conv, inter, verdicts)[2], "Live view frame rate and delay unchanged") == "FAIL"
+
+
+def test_the_setups_frames_are_the_baseline_when_none_came_before_talk():
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if not (e.get("e") == "frames" and e["t"] < ms(0))]
+    setup = [{"t": ms(-400 + i), "e": "frames", "fps": 25, "delayP90": 65, "n": 25, "stage": "source"} for i in range(10)]
+    assert result(board(bench, conv, inter, verdicts)[2], "Live view frame rate and delay unchanged") == \
+        "not measured: no live view before Talk to compare with"
+    _, summary, lines = board(bench, conv, inter, verdicts, baseline=setup)
+    assert summary["liveView"]["baselineFps"] == 25 and result(lines, "Live view frame rate and delay unchanged") == "pass"
+
+
+def test_a_restart_checks_only_what_was_there_before_it():
+    """live-1: the journey was left in Scratch by step 1, so the restart's "Nuclei" and Tab checks failed again. A check
+    of something not there before the restart is not applicable (ok None); one that was there and is gone fails."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] += [{"t": ms(41.0), "e": "check", "step": "explain", "name": "tab:Measurements", "ok": None,
+                         "detail": "no Tab Measurements before the restart"},
+                        {"t": ms(41.0), "e": "check", "step": "explain", "name": "project:Nuclei", "ok": True}]
+    run, summary, _ = board(bench, conv, inter, verdicts)
+    row = {r["id"]: r for r in run["steps"]}["explain"]
+    assert row["checks"] == {"tab:Measurements": None, "project:Nuclei": True} and not row["failures"]
+
+
+def test_a_step_the_bench_put_back_is_named_and_scored_as_it_was():
+    bench, conv, inter, verdicts = good()
+    bench["events"].append({"t": ms(9), "e": "recovered", "step": "outline", "what": "project:Nuclei", "from": "Scratch",
+                            "ok": True})
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["outline"]["recovered"] == [{"what": "project:Nuclei", "from": "Scratch", "ok": True}]
+
+
+def test_one_brain_records_as_the_server_writes_them():
+    """voice/openai_realtime.py (a8e3ce2): over WebRTC partner-response has audioEndT null and partner-audio ends it; a
+    proactive line's eventT is when it was sent, so a researcher's event is timed by when it finished (the orchestrator's
+    list); partner-tool carries the tool bridge's facts (screenChange, reportT, confirmed, rid, ridT)."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "audio"]  # heard only through the server's records
+    inter = [r for r in inter if r.get("kind") not in ("partner-response", "partner-proactive")]
+    for i, (on, off) in enumerate([(2.0, 2.9), (2.95, 4.5), (12.5, 13.3), (13.6, 15.0), (23.5, 24.5), (24.6, 26.0),
+                                    (32.0, 34.0), (42.0, 44.1), (46.0, 47.0), (57.5, 58.4), (58.9, 60.2), (61.1, 63.0)]):
+        inter += [{"kind": "partner-response", "responseId": f"resp{i}", "cause": "turn", "firstAudioT": T0 + on,
+                   "audioEndT": None, "transcript": ""},
+                  {"kind": "partner-audio", "responseId": f"resp{i}", "audioEndT": T0 + off, "how": "stopped"}]
+    inter += [{"kind": "partner-response", "responseId": "pro", "cause": "proactive", "firstAudioT": T0 + 70.8,
+               "audioEndT": None, "transcript": "Researcher 2 is done."},
+              {"kind": "partner-audio", "responseId": "pro", "audioEndT": T0 + 72.0, "how": "stopped"},
+              {"kind": "partner-proactive", "event": "researcher-done", "ref": "r2", "eventT": T0 + 70.2,
+               "userBusy": False, "responseCreatedT": T0 + 70.2, "markTarget": "researcher:r2"}]
+    bench["events"].append({**api_rows({"rid": "r2", "number": 2, "created": T0 + 23.9, "finished": T0 + 69.5}),
+                            "t": ms(71)})
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    assert run["audioFrom"] == "server"
+    assert summary["firstAudio"]["n"] == 7 and summary["silence"]["max"] == pytest.approx(0.9)
+    assert run["proactive"][0]["spokenS"] == pytest.approx(70.8 - 69.5)  # from when the researcher finished
+    assert result(lines, "Event spoken when idle") == "pass"
+
+
+def test_a_restart_keeps_the_project_the_journal_was_in():
+    """Any run (the acoustic replay has no page): the journal's Project before the restart is the one after it. The
+    first player's fixed "project:Nuclei" and its board-read researcher check are read that way too."""
+    bench, conv, inter, verdicts = good()
+    bench["steps"].insert(5, {"id": "reopen", "kind": "restart", "say": "", "start": ms(43.0), "end": ms(43.0), "restart": True})
+    for c in conv:
+        c["day"] = "2026-10-29.3"
+    bench["events"] += [{"t": ms(43.5), "e": "check", "step": "reopen", "name": "project:Nuclei", "ok": False,
+                         "detail": "open: Scratch"},
+                        {"t": ms(43.5), "e": "check", "step": "reopen", "name": "researcher:latest", "ok": False,
+                         "detail": "rows: ; expected undefined"}]
+    plan = copy.deepcopy(PLAN)
+    plan["steps"].insert(5, {"id": "reopen", "expect": {"silent": True}})
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["reopen"]
+    assert row["checks"] == {"project:Nuclei": True, "researcher:latest": None} and not row["failures"]
+    for c in conv:
+        if c["at"] > T0 + 43.0:
+            c["day"] = "2026-10-29.4"  # reopened somewhere else
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    assert {r["id"]: r for r in run["steps"]}["reopen"]["checks"]["project:Nuclei"] is False

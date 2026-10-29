@@ -80,18 +80,32 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 
 | Plan | What it is |
 |---|---|
-| `part-2.5` | The journey's steps 1–8 and 10 in Will's words, voice Samantha. Step 8 restarts the orchestrator on the same home and reloads the page, then checks that the Project, its Measurements Tab and the researcher are there. An idle wait before it lets a researcher finish, so its event can be told. Step 9 (a connected agent) is a person's step. |
+| `part-2.5` | The journey's steps 1–8 and 10 in Will's words, voice Samantha, plus one multi-step request ("Outline the nuclei, then put their measurements in a new tab called Sizes."). Step 8 restarts the orchestrator on the same home and reloads the page, then checks that the Project, its Measurements Tab and the researcher are there. An idle wait before it lets a researcher finish, so its event can be told. Step 9 (a connected agent) is a person's step. |
 | `part-2.5-second` | The second pass: another order, other words, voice Karen. It adds one interruption (the key pressed 2.5 s into the voice's answer), one request that cannot succeed (a table that does not exist), one forced reconnect (`fault: close-provider`) and a switch to another Project while the researcher runs, then back. |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
 - **Setup.** It is typed in the chat once per stack before Talk. It makes a Nuclei Project with outlines, measurements
-  and one finished researcher, then a Scratch Project, as the journey's setup asks.
+  and one finished researcher, then a Scratch Project, as the journey's setup asks. Each new Project opens on the empty
+  stage, so a `stage` step puts the specimen on it, as a person does: Use live camera, then the bridge plays the still.
+- **The specimen.** The still is played as a 20 s loop with sensor-like noise (`stack.py` `noisy_loop`). The bridge
+  heals a camera whose frames are byte-identical (a frozen iPhone), and that stopped a plain still's live view about
+  17 s after a Project's Use live camera. On this second stack the live camera does not come back by itself when a
+  Project is reopened ("the live view starts fresh"), so after any step that leaves the stage empty the player puts the
+  specimen back and records it (`staged`; the scoreboard says how many times).
+- **Where the journey is.** `ensure: "project:Nuclei"` on a step: if the voice left the journey elsewhere (step 1's
+  "Open the Nuclei project." not done), the player opens it through the sessions rail's own message and records it
+  (`recovered`). The step is scored as it was; the steps after it are not scored again for it.
+- **The restart** (step 8) checks that what was there before it is there after it: the Project open before the restart
+  (also read from the journal: the Project its lines were filed in just before and just after), each named Tab that
+  existed, and the newest researcher (`/api/research/<rid>`). A Tab or researcher that an earlier step failed to make
+  is "not applicable" there, never a second failure.
 - **Kinds.**
   - `act`, `view`, `ask`, `status`: spoken requests.
   - `idle`: no words. It waits for the newest researcher to finish.
   - `restart`: quit and reopen Hooke.
   - `typed`: a request typed in the chat.
+  - `stage`: the specimen put on the stage (setup).
 - **Expectations.** Each step's `expect` says:
   - `tools`: the acceptable first acting tool (a `mark` doesn't count);
   - `toolRequired`: whether a tool must be used;
@@ -113,8 +127,10 @@ Everything is on one clock (epoch seconds). Three logs are joined:
   - the live view's frames per second and delay (from each `MMF1` header);
   - each mark the studio drew (`svg#voice-marks .voice-mark`, with its rect and its target's rect), and when it
     cleared;
-  - the researchers board;
-  - the restart checks.
+  - the Project's researchers, from the orchestrator (`/api/research`: number, created, finished, status), the
+    researchers board only when that does not answer;
+  - whether the stage had a source each second (the empty stage is no live view, not a slow one);
+  - the restart checks, `recovered` and `staged`.
 - **The stack's conversation log:** each spoken line and each tool card.
 - **The stack's interaction log:** the one brain's records (`partner-talk`, `-turn`, `-response`, `-audio`, `-barge`,
   `-tool`, `-marks`, `-proactive`, `-reconnect`), and GPT-Live's hand-offs.
@@ -131,18 +147,23 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Right tool first | The first acting call in the step is in `expect.tools`. Every step. |
 | `do_in_hooke` share | Over the one brain's own acting calls. Under 5%. GPT-Live has no such tool: not measured. |
 | False "done" | The judge names each claim that something is on screen or done, with its words. It is false when the page showed those words before any studio confirmation (0.3 s race allowed). 0. Without the judge: not measured. |
-| One researcher | Researchers started in the step (`start_researcher` with its id) equal `expect.researchers`; ≤ 2 s from release to its start. |
-| Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one this run started last (the board's number). |
+| One researcher | Researchers the orchestrator lists as created in the step (else the successful `start_researcher` calls) equal `expect.researchers`; ≤ 2 s from release to its creation. |
+| Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
 | Events | `partner-proactive`: the event to its first audio ≤ 2 s; never while the key is held or within 1.5 s of release; one line per event; pointing at its card. |
 | Reconnect | `partner-reconnect` `ms` (the bench fault closes the provider's call): ≤ 2 s. |
-| Live view | Frames per second and delay p90 while the journey runs, against the 10 s before Talk: at least 90% of the frame rate, no more than 50 ms added delay. |
+| Live view | Frames per second and delay p90 while the journey runs, against the 10 s before Talk (else the setup's): at least 90% of the frame rate, no more than 50 ms added delay. Only seconds with a source on the stage count, and a freeze with a source on it fails; a run with nothing on the stage says "not measured: no live view on the stage". |
 | Robustness | Runs with no failed step. A step fails on any of the above, no answer, or a missing restart check. |
 | Elegance | Lines of one or two sentences: at least 90% (the bench's reading of "one or two plain sentences"). No confirmed screen change by a tool outside `expect.tools`. |
 
 **The judge** (`judge.py`, the same model as `score.py`) is shown the specimen picture, the user's words, the lines
 and the tool calls with their confirmations. It judges claims, outcome mentions and whether the request was answered.
 Times, counts and identities are code. `--no-judge` leaves false "done" unmeasured.
+
+**GPT-Live** has no `do_in_hooke`, marks, events told unprompted or reconnect of its own: those lines say "not
+applicable to this voice" for it. Barge-in applies to both voices (GPT-Live's open microphone is interrupted by
+speaking over it; the second pass has the interruption). "Not applicable" is not a pass: a voice without a feature the
+standard asks for does not meet it.
 
 ## Read the scoreboard
 
@@ -162,6 +183,9 @@ audio was injected or played acoustically, and whether the camera was a still im
 - **A line's journal record** keeps only when the line began. Claims and outcomes are timed by when their words arrived
   in the page. Runs without the player (acoustic on the live app) fall back to when the line began.
 - **Proactive events, marks, `do_in_hooke` and reconnect** are the one brain's. GPT-Live's scoreboard shows them as
-  not measured, so GPT-Live can never "meet" the standard. Its numbers are the baseline.
+  not applicable to this voice, so GPT-Live can never "meet" the standard. Its numbers are the baseline.
+- **An event's time.** The one brain's `partner-proactive` record is written when its line is sent, after any wait for
+  quiet. A researcher's event is timed by when the researcher finished, from the orchestrator's list. Other events use
+  the record's own time, which leaves out that wait.
 - **Faults.** Only a second stack started with faults on answers them (`MICROMIND_BENCH_FAULTS=1`, never in a
   packaged build).

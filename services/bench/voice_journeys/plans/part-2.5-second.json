@@ -4,16 +4,18 @@
   "minMs": 6000,
   "quietMs": 4000,
   "voices": {"user": "Karen"},
-  "camera": {"still": "assets/examples/human_mitosis.png"},
+  "camera": {"still": "assets/examples/human_mitosis.png", "footage": "human_mitosis-noise.mp4"},
   "setup": [
     {"id": "setup-project", "kind": "typed", "say": "Start a new project called Nuclei.", "wait": 30},
+    {"id": "setup-stage-nuclei", "kind": "stage"},
     {"id": "setup-outline", "kind": "typed", "say": "Outline the nuclei and measure them.", "wait": 90},
     {"id": "setup-researcher", "kind": "typed", "say": "Start a researcher to summarise the nucleus sizes in two sentences.",
      "waitFor": {"researcher": "done"}, "wait": 600},
-    {"id": "setup-scratch", "kind": "typed", "say": "Start a new project called Scratch.", "wait": 30}
+    {"id": "setup-scratch", "kind": "typed", "say": "Start a new project called Scratch.", "wait": 30},
+    {"id": "setup-stage-scratch", "kind": "stage"}
   ],
   "steps": [
-    {"id": "back-to-nuclei", "kind": "act", "say": "Take me back to the Nuclei project.",
+    {"id": "back-to-nuclei", "kind": "act", "ensure": "project:Nuclei", "say": "Take me back to the Nuclei project.",
      "expect": {"tools": ["switch_session"], "visible": "the Nuclei project open", "outcome": true}},
     {"id": "slide", "kind": "view", "say": "Tell me what's on the slide right now.",
      "expect": {"tools": ["look_hard", "look_at_screen", "inspect_camera", "name_specimen", "resources"], "toolRequired": false,
@@ -36,9 +38,9 @@
                 "outcome": true}},
     {"id": "analyst", "kind": "act", "say": "Spin up an analyst for this.", "fault": "close-provider",
      "expect": {"tools": ["start_researcher"], "researchers": 1, "visible": "one researcher card", "marks": ["researcher:"]}},
-    {"id": "to-scratch", "kind": "act", "say": "Switch to the Scratch project.",
+    {"id": "to-scratch", "kind": "act", "ensure": "project:Scratch", "say": "Switch to the Scratch project.",
      "expect": {"tools": ["switch_session"], "visible": "the Scratch project open", "outcome": true}},
-    {"id": "back-again", "kind": "act", "say": "Okay, back to Nuclei.",
+    {"id": "back-again", "kind": "act", "ensure": "project:Nuclei", "say": "Okay, back to Nuclei.",
      "expect": {"tools": ["switch_session"], "visible": "the Nuclei project open", "outcome": true}},
     {"id": "analyst-status", "kind": "status", "say": "How's the analyst getting on?",
      "expect": {"tools": ["research_status"], "toolRequired": false, "status": "latest", "marks": ["researcher:"]}},

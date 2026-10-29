@@ -124,7 +124,9 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
     run-N/verdicts.json, so a re-score reuses them), and write result.json and scoreboard.md."""
     logs = logs or out / "home" / "logs"
     conv, inter = read_jsonl(logs / "conversation.jsonl"), read_jsonl(logs / "interactions.jsonl")
-    runs = []
+    setup = out / "setup" / "bench.json"  # its frames: the live view's baseline when a run has none before Talk
+    baseline = [e for e in json.loads(setup.read_text()).get("events", []) if e.get("e") == "frames"] if setup.exists() else None
+    runs, recovered, staged = [], [], 0
     for folder in runs_in(out):
         bench = json.loads((folder / "bench.json").read_text())
         kept = folder / "verdicts.json"
@@ -134,15 +136,19 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
 
             verdicts = judge_run(bench, conv, inter, plan, checkout)
             kept.write_text(json.dumps(verdicts, indent=1))
-        runs.append(score_run(bench, conv, inter, plan, verdicts))
+        runs.append(score_run(bench, conv, inter, plan, verdicts, baseline))
+        recovered += [{"run": folder.name, **{k: e.get(k) for k in ("step", "what", "from", "ok")}}
+                      for e in bench.get("events", []) if e.get("e") == "recovered"]
+        staged += sum(1 for e in bench.get("events", []) if e.get("e") == "staged" and e.get("step") != "start")
     summary = summarise(runs)
-    board = scoreboard(summary)
+    board = scoreboard(summary, about.get("voice"))
     sources = {r["audioFrom"] for r in runs}
     heard = {"page": "in the page", "server": "from the one brain's audio records",
              "transcripts": "from the transcripts' first words (no audio timing)"}
     result = {"about": {**about, "plan": plan["id"], "reps": len(runs),
                         "audioFrom": "; ".join(heard.get(s, s) for s in sorted(sources)) or "nowhere: no runs"},
-              "summary": summary, "scoreboard": board, "meets": meets(board), "runs": runs}
+              "summary": summary, "scoreboard": board, "meets": meets(board), "recovered": recovered,
+              "staged": staged, "runs": runs}
     (out / "result.json").write_text(json.dumps(result, indent=1))
     (out / "scoreboard.md").write_text(markdown(result))
     return result
@@ -198,8 +204,8 @@ def main(argv: list[str] | None = None) -> int:
              "acoustic": args.acoustic, "reservation": reservation, "worstUsd": worst, "started": time.time(),
              "evidence": ("recorded audio played through this Mac's speakers into its microphone" if args.acoustic else
                           "recorded audio (macOS voices) injected as the microphone") +
-                         ("; the camera was a still image (" + plan["camera"]["still"] + ")" if (plan.get("camera") or {}).get("still")
-                          else "; the camera was test footage")}
+                         ("; the camera was a still image (" + plan["camera"]["still"] + "), looped with sensor-like noise"
+                          if (plan.get("camera") or {}).get("still") else "; the camera was test footage")}
     about_file.write_text(json.dumps(about, indent=1))
     up = argparse.Namespace(checkout=str(checkout), out=str(out), plan=args.plan, port=args.port,
                             bridge_port=args.bridge_port, keys=args.keys, build=False, settings="", voice=args.voice,
