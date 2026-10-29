@@ -4,8 +4,8 @@ touches the live app: no studio.sh (which stops every MicroscopeMind), no shared
 recorded words and the player beside that checkout's studio build (dist/voice-test/<plan>/), which only a stack
 started here serves.
 
-  cd services && .venv/bin/python -m bench.voice_journeys.stack up --checkout ../.. --out /tmp/vj-main
-  cd services && .venv/bin/python -m bench.voice_journeys.stack up --checkout ../.. --out /tmp/vj-rt \\
+  cd services && .venv/bin/python -m bench.voice_journeys.stack up --checkout .. --out /tmp/vj-main
+  cd services && .venv/bin/python -m bench.voice_journeys.stack up --checkout .. --out /tmp/vj-rt \\
       --plan part-2.5 --voice gpt-realtime-2.1 --talk hold --faults
   cd services && .venv/bin/python -m bench.voice_journeys.stack restart --out /tmp/vj-rt   # "quit and reopen Hooke"
   cd services && .venv/bin/python -m bench.voice_journeys.stack down --out /tmp/vj-main

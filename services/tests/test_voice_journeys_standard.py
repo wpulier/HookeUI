@@ -446,3 +446,19 @@ def test_an_idle_wait_has_no_first_audio_and_needs_no_answer():
     row = {r["id"]: r for r in run["steps"]}["idle"]
     assert row["firstAudioS"] is None and row["failures"] == [] and row["lines"] == []  # the event's line is no step's
     assert result(lines, "Event spoken when idle") == "pass"
+
+
+def test_a_claim_is_timed_by_when_its_words_were_said():
+    """GPT-Live, 2026-10-29 bench: one long line began before the outlines were confirmed and said "The outlines are
+    on" after; the journal keeps only when a line began, the page saw its words arrive."""
+    bench, conv, inter, verdicts = good()
+    conv[1] = line("L2", 2.3, "I'm outlining them now. The outlines are on: 42 nuclei.")
+    bench["events"] += [{"t": ms(2.3), "e": "line", "id": "L2", "text": "I'm outlining them now."},
+                        {"t": ms(2.9), "e": "line", "id": "L2", "text": "I'm outlining them now. The outlines are on: 42 nuclei."}]
+    verdicts["outline"] = {"claims_on_screen": [{"line": 1, "words": "The outlines are on"}], "answered": True}
+    run, _, lines = board(bench, conv, inter, verdicts)
+    row = {r["id"]: r for r in run["steps"]}["outline"]
+    assert row["falseDone"] == 0 and row["spokenS"] == pytest.approx(2.9 - 1.6) and row["outcomesSaid"] == 1
+    bench["events"][-1]["t"] = ms(2.35)  # the same words 0.35 s before the report at 2.7 s
+    run, _, lines = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["outline"]["falseDone"] == 1 and result(lines, 'False "done"') == "FAIL"

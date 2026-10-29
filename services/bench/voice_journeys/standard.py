@@ -241,6 +241,32 @@ def voice_lines(conv: list[dict], start: float, end: float) -> list[dict]:
     return sorted(lines.values(), key=lambda l: l["first"])
 
 
+def fragments(bench: dict) -> dict[str, list[tuple[float, str]]]:
+    """Each voice line's text as it grew in the page (harness "line" events): lineId -> [(time, text so far)]."""
+    out: dict[str, list[tuple[float, str]]] = {}
+    for e in bench["events"]:
+        if e.get("e") == "line" and e.get("id"):
+            out.setdefault(e["id"], []).append((e["t"], str(e.get("text") or "")))
+    return out
+
+
+def grew_after(line: dict, t: float) -> float | None:
+    """When the line first had new words at or after `t` (its start when the page saw no growth)."""
+    if line["first"] >= t:
+        return line["first"]
+    return next((at for at, _ in line.get("growth") or [] if at >= t), None)
+
+
+def said_at(line: dict, words) -> float:
+    """When `words` of the line were said: the first time the page showed them in it; else when the line began."""
+    if isinstance(words, str) and words.strip():
+        want = re.sub(r"\W+", " ", words.lower()).strip()
+        for at, text in line.get("growth") or []:
+            if want and want in re.sub(r"\W+", " ", text.lower()):
+                return at
+    return line["first"]
+
+
 def lines_from_responses(inter: list[dict], start: float, end: float) -> list[dict]:
     """The one brain's said lines from its partner-response records (when the journal has none)."""
     out = []
@@ -333,6 +359,9 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     n = turn_number(bench["events"], start, end)
     lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
     lines = [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+    grown = bench.get("_fragments") or {}
+    for l in lines:
+        l["growth"] = grown.get(l["id"], [])
     calls = partner_calls(inter, n, start, end)
     source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
     calls = calls or card_calls(conv, start, end)
@@ -398,9 +427,11 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         if visible_at is None and not expect.get("fails"):
             fail(f"not confirmed on screen: {expect['visible']}")
 
-    # Outcome visible and spoken: the first line at or after the confirmation.
-    outcome_lines = [l for l in lines if visible_at is not None and l["first"] >= visible_at - NEAR_S]
-    spoken_at = outcome_lines[0]["first"] if outcome_lines else None
+    # Outcome visible and spoken: the first words said at or after the confirmation (a line already under way when the
+    # report came counts from the words it said after it, as the page saw them grow).
+    after = [(grew_after(l, visible_at - NEAR_S), l) for l in lines] if visible_at is not None else []
+    outcome_lines = [l for at, l in after if at is not None]
+    spoken_at = min((at for at, _ in after if at is not None), default=None)
     row["visibleS"] = round(visible_at - release, 3) if visible_at is not None else None
     row["spokenS"] = round(spoken_at - release, 3) if spoken_at is not None else None
     row["outcomeS"] = round(max(visible_at, spoken_at) - release, 3) if visible_at is not None and spoken_at is not None else None
@@ -412,7 +443,7 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     if expect.get("fails") and visible_at is None:
         failed = [c for c in acting if c.ok is False]
         anchor = (failed[0].end or failed[0].start) if failed else release
-        outcome_lines = [l for l in lines if l["first"] >= anchor - NEAR_S]
+        outcome_lines = [l for l in lines if grew_after(l, anchor - NEAR_S) is not None]
         if any(c.confirmed_at is not None and c.screen_change for c in acting):
             fail("a request that cannot succeed changed the screen")
     # Said once: lines after the confirmation (the judge's count when it ran).
@@ -458,14 +489,20 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
                                 and tools is not None and c.name not in (tools or []))
 
     # False done: a line the judge says claims a visible change, with no confirmation by the time it was said.
+    # A claim is {"line": i, "words": "..."} (or just i): it was said when the page first showed its words.
     claims = (verdict or {}).get("claims_on_screen")
     if isinstance(claims, list):
         confirmed = sorted(c.confirmed_at for c in calls if c.confirmed_at is not None)
-        false = [i for i in claims if isinstance(i, int) and 0 <= i < len(lines)
-                 and not any(t <= lines[i]["first"] + NEAR_S for t in confirmed)]
+        false = []
+        for claim in claims:
+            i, words = (claim.get("line"), claim.get("words")) if isinstance(claim, dict) else (claim, None)
+            if isinstance(i, int) and 0 <= i < len(lines):
+                at = said_at(lines[i], words)
+                if not any(t <= at + NEAR_S for t in confirmed):
+                    false.append((words or lines[i]["text"])[:60])
         row["falseDone"] = len(false)
         if false:
-            fail(f"said done without a studio report: {[lines[i]['text'][:60] for i in false]}")
+            fail(f"said done without a studio report: {false}")
     else:
         row["falseDone"] = None
     # Without the judge: a screen change that was never confirmed, and the voice spoke after it (to be read).
@@ -632,6 +669,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             for row in e.get("rows") or []:
                 if row.get("rid") and row.get("number") is not None:
                     board[row["rid"]] = row["number"]
+    bench["_fragments"] = fragments(bench)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
         if expect.get("status") and started_numbers:
@@ -645,6 +683,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
                 started_numbers.append(number)
         rows.append(row)
     bench.pop("_expectedResearcher", None)
+    bench.pop("_fragments", None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
             "proactive": proactive(inter, segments, busy), "reconnects": reconnects(inter, bench),

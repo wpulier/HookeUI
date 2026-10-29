@@ -25,8 +25,9 @@ What the app did (seconds after the user finished; "confirmed" = the studio repo
 {actions}
 
 Judge from these facts only:
-- claims_on_screen: the numbers (1-based) of the lines that say something is now on screen, open, shown, highlighted,
-  started or done (a description of the specimen is not a claim; "opening it now" is a promise, not a claim).
+- claims_on_screen: each claim that something is now on screen, open, shown, highlighted, started or done, as
+  {{"line": its line's number (1-based), "words": the few words of the line that make the claim, exactly as said}}
+  (a description of the specimen is not a claim; "opening it now" is a promise, not a claim).
 - outcome_mentions: how many separate lines state the request's outcome (its result, or its failure). A preamble
   ("pulling that up") is not an outcome; a line that says the same outcome again counts again.
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
@@ -34,7 +35,8 @@ Judge from these facts only:
 - why: one sentence.
 
 Reply with JSON only:
-{{"claims_on_screen": [], "outcome_mentions": 1, "answered": true, "meets_expectation": true, "why": ""}}"""
+{{"claims_on_screen": [{{"line": 2, "words": "the table is open"}}], "outcome_mentions": 1, "answered": true,
+ "meets_expectation": true, "why": ""}}"""
 
 
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
@@ -82,7 +84,12 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
         if data is None:
             out[step["id"]] = {"error": (getattr(result, "error", None) or getattr(result, "raw_text", ""))[:200]}
             continue
-        claims = [i - 1 for i in data.get("claims_on_screen") or [] if isinstance(i, int) and i >= 1]
+        claims = []
+        for claim in data.get("claims_on_screen") or []:  # 1-based from the judge, 0-based for standard.py
+            if isinstance(claim, int) and claim >= 1:
+                claims.append(claim - 1)
+            elif isinstance(claim, dict) and isinstance(claim.get("line"), int) and claim["line"] >= 1:
+                claims.append({"line": claim["line"] - 1, "words": str(claim.get("words") or "")})
         out[step["id"]] = {**data, "claims_on_screen": claims}
     return out
 

@@ -8,6 +8,7 @@
 //   ws-in / ws-out  /ws/voice messages (types, ids, marks; no audio, no pictures)
 //   frames  the live view on /ws each second: frames per second and their delay p50/p90 (MMF1 headers)
 //   mark    each mark the studio drew (svg#voice-marks .voice-mark), its rect and its target's, and when it cleared
+//   line    the voice's lines as they grow on /ws (when each part of a line was said, not only when it began)
 //   researchers  the researchers board's rows when they change; key, fault, check, problem
 // The scorer (standard.py) reads these with the stack's own logs; this file decides nothing.
 (() => {
@@ -63,6 +64,18 @@
     }
   }, 1000);
 
+  // The voice's lines as they grow on /ws (a line's journal record keeps only when it started): when each word came.
+  const lineText = new Map();
+  function chat(data) {
+    if (data.length > 20000 || !data.includes('"lineId"')) return;
+    let line; try { line = JSON.parse(data); } catch { return; }
+    if (line.type !== 'chat' || line.role !== 'assistant' || !line.voice || !line.lineId) return;
+    const text = String(line.text || '');
+    if (lineText.get(line.lineId) === text) return;
+    lineText.set(line.lineId, text);
+    ev({ e: 'line', id: line.lineId, text });
+  }
+
   const NativeWebSocket = window.WebSocket;
   class BenchWebSocket extends NativeWebSocket {
     constructor(url, protocols) {
@@ -75,7 +88,7 @@
         const send = this.send.bind(this);
         this.send = (data) => { if (typeof data === 'string') wsOut(data); return send(data); };
       } else if (path === '/ws') {
-        this.addEventListener('message', (m) => frame(m.data));
+        this.addEventListener('message', (m) => { if (typeof m.data === 'string') chat(m.data); else frame(m.data); });
       }
     }
   }
