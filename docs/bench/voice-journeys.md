@@ -25,9 +25,9 @@ at the worst case.
 ```sh
 # One voice, N repetitions of a plan, in a row on one stack (the plan's setup runs once per stack)
 .venv/bin/python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --talk hold --plan part-2.5 --reps 10 \
-    --out /path/p25-rt --budget /path/budget.py --keys ~/Desktop/_Documents/MicroscopeMind/micromind.txt
+    --out /path/p25-rt --budget /path/budget.py --keys <keys file>
 .venv/bin/python -m bench.voice_journeys.run --voice gpt-live-1 --plan part-2.5 --reps 10 --out /path/p25-live \
-    --budget /path/budget.py --keys ~/Desktop/_Documents/MicroscopeMind/micromind.txt
+    --budget /path/budget.py --keys <keys file>
 # The second pass, on the same stack folder after the first (its setup is already done there)
 .venv/bin/python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --plan part-2.5-second --reps 10 --out /path/p25-rt-2 ...
 # Both voices side by side, and whether the default may switch
