@@ -1144,16 +1144,17 @@ class Screen:
                 self._finish_change(binding, ok)
                 self._prune_changes(binding.profile, binding.client)
 
-    async def refresh(self, client, timeout: float = REFRESH_S) -> bool:
+    async def refresh(self, client, timeout: float = REFRESH_S, *, newer: bool = False) -> bool:
         """Ask the studio on `client` for a report now and wait (at most `timeout`) for one newer than its last taken:
         a request that arrives without one of its own (a voice hand-off, a tool the voice calls) is pinned to what
         the studio shows now, as a typed Send is (its inline report), not to the last periodic report. Whether a
-        newer one came; without one the last report stands, as before."""
+        newer one came; without one the last report stands, as before. `newer`: the last report disagrees with the
+        app about something, so however recent it is, only a later one will do."""
         try:
             before = self.observation(client)
         except ObservationError:
             return False
-        if before is not None and self._observation_clock() - before.received_at < REFRESH_FRESH_S:
+        if not newer and before is not None and self._observation_clock() - before.received_at < REFRESH_FRESH_S:
             return True  # taken a moment ago: that is what it shows now
         seq = before._data["seq"] if before is not None else -1
         ask = json.dumps({"type": "screen-ask"})

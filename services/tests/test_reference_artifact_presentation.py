@@ -606,3 +606,174 @@ def test_native_beside_ignores_anchor_repaint_during_source_prepare(retained_ref
         assert json.loads(child.geometry_intent.relation_json)['reference'] == anchor
         assert runs[0].outcome['status'] == 'confirmed'
     asyncio.run(go())
+
+
+def _on_a_back_tab(studio, monkeypatch, anchor, *, front_title='Reference'):
+    """The studio once the person's next request put a new Tab in front (live 2026-10-29 18:54:35): the anchor stays
+    open on the Main Tab, laid out nowhere (display:none, a 0x0 rect, not visible), and the Tab strip says which Tab is
+    in front. Only the studio's DOM facts change; the Core's window is untouched."""
+    from orchestrator.commands import COMMANDS
+
+    row = studio.items[anchor]
+    row.update(visible=False, rect=[0, 0, 0, 0], contentRect=[0, 0, 0, 0], clipRect=[0, 0, 0, 0],
+               drawRef=None, viewDrawRef=None, visibility='unknown')
+    row['load'] = {**row['load'], 'state': 'loaded', 'drawToken': None}
+    row['view'] = {**row['view'], 'arrangement': {'project': 'project-a', 'tab': 'main', 'placement': 'p-anchor',
+                                                  'focused': False}}
+    screen = COMMANDS['screen']
+
+    async def with_strip(app, client, report):
+        report = {**report, 'items': [*report['items'], {
+            'id': 'workspace-tabs', 'rootId': 'tabs-root', 'workspaceId': WORKSPACE, 'kind': 'panel',
+            'lifetimeGeneration': 'tabs-lifetime', 'sourceGeneration': 1, 'load': {'state': 'unknown'},
+            'revision': report['seq'], 'open': True, 'connected': True, 'visible': True,
+            'view': {'legacy': {'schema': 'studio-surface-v1', 'scope': 'dom-observation', 'workspace': {
+                'project': 'project-a', 'tab': 'reference', 'tabTitle': front_title,
+                'tabs': [{'id': 'main', 'title': 'Main', 'front': False},
+                         {'id': 'reference', 'title': front_title, 'front': True}]}}}}]}
+        return await screen(app, client, report)
+    monkeypatch.setitem(COMMANDS, 'screen', with_strip)
+
+
+def test_a_photo_asked_for_beside_a_window_now_on_a_back_tab_opens_where_the_person_is_and_says_why(
+        retained_reference, monkeypatch):
+    """Live 2026-10-29 18:53:56-18:54:43: "pull up an image from online of a single stoma and put it next to the
+    magnification", then, while the web lookup ran (42 s), "open a new tab called Reference". When the photo came the
+    magnifier was open on the Main Tab, laid out nowhere; the fence lumped that with a changed window ("beside needs both
+    exact current window rectangles and owners"), so the photo was kept as d1 and never shown, and the person was told to
+    make room. Nobody changed the magnifier: the photo opens where the person is, and the receipt says why it is not
+    beside it, from the report."""
+    import threading
+    from research_worker import retrieval
+    from orchestrator.brain.registry import ToolContext
+    app, studio, pixels, _ = retained_reference
+    entered, release = threading.Event(), threading.Event()
+    lookup = retrieval.lookup
+
+    async def gated(*args, **kwargs):
+        entered.set()
+        assert await asyncio.to_thread(release.wait, HANG_S)
+        return await lookup(*args, **kwargs)
+    monkeypatch.setattr(retrieval, 'lookup', gated)
+
+    async def go():
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'pull up an image from online and put it next to the magnification',
+                          asked=app.day.here(), request_snapshot=pin)
+        before = controlled_state(app.services.presentations.get(WORKSPACE, anchor))
+        request = asyncio.create_task(plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx))
+        try:
+            assert await asyncio.to_thread(entered.wait, HANG_S)
+            _on_a_back_tab(studio, monkeypatch, anchor)
+            await studio.send_report()
+            release.set()
+            runs, _ = await request
+        finally:
+            release.set()
+        run = runs[0]
+        succeeded(run)
+        assert run.outcome['status'] == 'confirmed'
+        assert controlled_state(app.services.presentations.get(WORKSPACE, anchor)) == before, 'the anchor is untouched'
+        child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
+        assert child.open and child.geometry_intent.relation_json is None, 'opened plainly, never against a 0x0 rect'
+        assert f'not beside window {anchor}' in run.summary
+        assert '"Main" Tab' in run.summary and '"Reference" Tab is in front' in run.summary
+        assert 'ask again' not in run.summary and 'make room' not in run.summary
+        assert any(o.get('kind') == 'presentation' for o in run.outputs)
+        entry = app.hub.resources.get(run.resource['id'], run.resource['day'])
+        assert_retained(app, entry, pixels)
+    asyncio.run(go())
+
+
+def test_a_report_behind_the_window_a_photo_goes_beside_is_asked_again_never_refused(retained_reference, monkeypatch):
+    """The studio's last report, when the photo came, did not show the anchor (a report taken without it, as one with an
+    ended grant is), while the app's window was unchanged and still open. That is the report being behind, Hooke's to
+    resolve: it asks the studio for a report now, looks again once, and places the photo beside the anchor."""
+    import threading
+    from research_worker import retrieval
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+    entered, release = threading.Event(), threading.Event()
+    lookup = retrieval.lookup
+
+    async def gated(*args, **kwargs):
+        entered.set()
+        assert await asyncio.to_thread(release.wait, HANG_S)
+        return await lookup(*args, **kwargs)
+    monkeypatch.setattr(retrieval, 'lookup', gated)
+
+    async def go():
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'pull up an image from online and put it next to the magnification',
+                          asked=app.day.here(), request_snapshot=pin)
+        asked = sum(m.get('type') == 'screen-ask' for m in studio.messages)
+        request = asyncio.create_task(plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx))
+        try:
+            assert await asyncio.to_thread(entered.wait, HANG_S)
+            row = studio.items.pop(anchor)
+            await studio.send_report()  # the report that is behind: the anchor left out of it
+            studio.items[anchor] = row
+            assert all(i['id'] != anchor for i in app.hub.screen.observation(studio).wire()['items'])
+            release.set()
+            runs, _ = await request
+        finally:
+            release.set()
+        succeeded(runs[0])
+        assert runs[0].outcome['status'] == 'confirmed'
+        assert sum(m.get('type') == 'screen-ask' for m in studio.messages) > asked, 'Hooke asked the studio again'
+        child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
+        assert json.loads(child.geometry_intent.relation_json)['reference'] == anchor, 'placed beside, as asked'
+        assert 'not beside' not in runs[0].summary
+    asyncio.run(go())
+
+
+def test_what_a_window_is_to_a_placement_is_said_by_the_check_that_failed(retained_reference, monkeypatch):
+    """The placement fence names why a window cannot anchor, from the report and the app: laid out in a studio in the
+    background (nothing is painted there) it still anchors, as completion counts it shown; open on a Tab not in front
+    it is "hidden", with where it is; the report behind the app "disagrees" (asked again before it is said); closed in
+    the app it is "gone". The old lump reason ("beside needs both exact current window rectangles and owners") said
+    none of these."""
+    import dataclasses
+    from orchestrator.brain.toolbox.present import _placement_observation
+    from orchestrator.presentations import PresentationError
+    app, studio, _, _ = retained_reference
+
+    def why(report):
+        try:
+            _placement_observation(states, report, (anchor,))
+        except PresentationError as exc:
+            return exc.placement, exc.why
+        return None
+
+    async def go():
+        nonlocal states, anchor
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        states = {anchor: app.services.presentations.get(WORKSPACE, anchor)}
+        await studio.send_report()
+        assert why(app.hub.screen.completion_report(studio)) is None
+        studio.visible = False
+        await studio.send_report()
+        background = app.hub.screen.completion_report(studio)
+        assert next(i for i in background['items'] if i['id'] == anchor)['visible'] is False
+        assert why(background) is None, 'laid out in a studio in the background: still there to be beside'
+        studio.visible = True
+        behind = app.hub.screen.completion_report(studio)
+        behind['items'] = [{**i, 'propertyOwners': {**i['propertyOwners'], 'rect': 'someone-else'}}
+                           if i['id'] == anchor else i for i in behind['items']]
+        assert why(behind) == ('disagrees', "the studio's report has another owner of its rect than the app")
+        _on_a_back_tab(studio, monkeypatch, anchor)
+        await studio.send_report()
+        assert why(app.hub.screen.completion_report(studio)) == (
+            'hidden', 'it is on the "Main" Tab, and the "Reference" Tab is in front')
+        states[anchor] = dataclasses.replace(states[anchor], open=False)
+        assert why(app.hub.screen.completion_report(studio)) == ('gone', 'it was closed')
+
+    states, anchor = {}, None
+    asyncio.run(go())
