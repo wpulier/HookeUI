@@ -68,6 +68,11 @@ PROGRESS_EVERY_S = 2.0  # the second line may be asked for as the first ends (th
 # response.create to the first audio is ~0.9 s): its words follow them without a silence.
 PROGRESS_LEAD_S = 1.0
 PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran on for 5 s of speech
+# think works behind the voice (no tool round pending): a line on what is under way once the voice has been quiet this
+# long, then at most every THINK_PROGRESS_EVERY_S, THINK_PROGRESS_LINES in all (think-broad-1: 20-40 s said nothing).
+THINK_PROGRESS_AFTER_S = 2.0
+THINK_PROGRESS_EVERY_S = 8.0
+THINK_PROGRESS_LINES = 3
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
@@ -887,6 +892,33 @@ class RealtimeSession(VoiceSession):
                      metadata={"task": task},
                      instructions=self.config.system_prompt + "\n\nThe task you handed to think has finished. Say "
                      "this to the user now, once, in your own voice, and nothing else: " + prepared)
+
+    async def tell_progress(self, task: str, working: Callable[[], bool]) -> None:
+        """While think works behind the voice and nobody is talking: a short line on what is under way (what is
+        running, how long so far), after THINK_PROGRESS_AFTER_S of quiet, then at most every THINK_PROGRESS_EVERY_S,
+        THINK_PROGRESS_LINES in all; never over the user, never once its result is due."""
+        said: list[float] = []
+        started = self.clock()
+
+        def current() -> bool:
+            return working() and task not in self._delivered
+
+        while len(said) < THINK_PROGRESS_LINES and not self.closed and current():
+            await asyncio.sleep(0.25)
+            now = self.clock()
+            quiet = min(self.idle_since(), now - started)  # quiet since its acknowledgement, at the least
+            if (self.user_busy() or self.speaking() or self._asks or quiet < THINK_PROGRESS_AFTER_S
+                    or (said and now - said[-1] < THINK_PROGRESS_EVERY_S)):
+                continue
+            said.append(now)
+            facts = self.running_facts() or "the task you handed to think"
+            self._log({"kind": "partner-progress", "n": self.n, "task": task, "facts": facts, "line": len(said)})
+            again = (" You already told them: say what has changed, in different words." if len(said) > 1 else "")
+            self.respond("progress", still=current, tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
+                         metadata={"task": task},
+                         instructions=self.config.system_prompt + "\n\nStill being worked on in Hooke, for what the user "
+                         "asked: " + facts + ". In one short sentence, under 12 words, tell the user what is under way "
+                         "and how long it has taken so far. Do not say anything is done, found or shown." + again)
 
     async def prepare(self, task: str, facts_text: str, say: str) -> str:
         """The words for a think result, written out of band by the voice itself (its conversation untouched); the

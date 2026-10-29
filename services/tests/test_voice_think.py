@@ -177,6 +177,36 @@ def test_think_waits_for_a_long_tools_real_outcome_and_it_is_never_said_on_its_o
     asyncio.run(go())
 
 
+def test_while_think_works_a_quiet_voice_says_what_is_under_way_a_few_times_and_never_after_its_result(monkeypatch):
+    """think-broad-1: think's call returns "started" at once, so no tool round was pending and nothing was said for the
+    20-40 s it worked (the standard: progress spoken). Behind a quiet voice, a short line on what is under way, at
+    most THINK_PROGRESS_LINES, none while the user holds the key, none once the result is due."""
+    monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 0.2)
+    monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_EVERY_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_LINES", 2)
+    gate = asyncio.Event()
+
+    async def go():
+        backend = FakeBackend(report={"say": "Done comparing.", "checked": True, "done": True}, wait=gate)
+        t = await with_backend(monkeypatch, backend)
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "compare three outline models"})
+
+        def progress():
+            return [e for e in creates(t) if e["response"]["metadata"]["cause"] == "progress"]
+        first = await until_async(lambda: progress()[0] if progress() else None)
+        assert first["response"]["tool_choice"] == "none" and "thinking" in first["response"]["instructions"]
+        await done(t.sb, "resp_1")
+        await until_async(lambda: len(progress()) == 2)
+        await done(t.sb, "resp_2")
+        await asyncio.sleep(0.8)
+        assert len(progress()) == 2, "a few lines, not a running commentary"
+        gate.set()
+        await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        assert len(progress()) == 2
+    asyncio.run(go())
+
+
 def test_a_tool_think_gave_up_waiting_for_is_still_said_when_it_lands(monkeypatch):
     """Past think's own wait the outcome is not lost: the backend is told it is still running, and when it lands it is
     said as one line, as any long tool's is."""
@@ -320,6 +350,10 @@ def test_the_claude_backend_runs_its_tool_loop_with_pictures_and_reports():
         assert first["model"] == "claude-opus-5-5" and first["output_config"] == {"effort": "low"}
         assert first["messages"][0]["content"][1]["type"] == "image"
         assert {t["name"] for t in first["tools"]} == {"outline_cells", "report"}
+        # Cached: the tools and the system prompt (the same for every task) up to a marker on the system, and each
+        # round's growing conversation by the automatic marker, so a second round reads its first back.
+        assert first["system"] == [{"type": "text", "text": "system", "cache_control": {"type": "ephemeral"}}]
+        assert first["cache_control"] == {"type": "ephemeral"}
         assert second["messages"][1]["content"][0]["type"] == "thinking", "its thinking goes back whole"
         answer = second["messages"][2]["content"][0]
         assert answer["type"] == "tool_result" and answer["content"][-1]["type"] == "image"

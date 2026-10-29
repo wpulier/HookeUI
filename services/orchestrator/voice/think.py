@@ -32,6 +32,7 @@ MAX_ROUNDS = 8  # tool rounds one task may take before it reports what it has
 THINK_TIMEOUT_S = 90.0  # a task still running after this reports what it has, said as unfinished
 MAX_TOKENS = 4000  # Opus thinks within max_tokens: room for its thinking beside the answer
 TOOL_OUTPUT_CHARS = 6000
+CACHE_READ = {"claude-opus-5-5": 0.05}  # a cache read's share of the input price (0.1 for other models)
 
 REPORT = {
     "name": "report",
@@ -158,13 +159,18 @@ class ClaudeThinker:
         usage = {"in": 0, "out": 0}
         for round_ in range(1, MAX_ROUNDS + 1):
             result.rounds = round_
-            body: dict[str, Any] = {"model": self.model, "max_tokens": MAX_TOKENS, "system": system,
-                                    "messages": messages, "tools": declared}
+            # Cached: tools and system (the same for every task) by the marker on the system, which renders after the
+            # tools; the round's growing conversation by the automatic marker, so the next round reads it back.
+            body: dict[str, Any] = {"model": self.model, "max_tokens": MAX_TOKENS,
+                                    "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                                    "messages": messages, "tools": declared, "cache_control": {"type": "ephemeral"}}
             if self.effort:
                 body["output_config"] = {"effort": self.effort}
             reply = await self._post(body)
             u = reply.get("usage") or {}
-            usage["in"] += int(u.get("input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0)
+            usage["in"] += (int(u.get("input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0)
+                            + int(u.get("cache_creation_input_tokens") or 0))
+            usage["cached"] = usage.get("cached", 0) + int(u.get("cache_read_input_tokens") or 0)
             usage["out"] += int(u.get("output_tokens") or 0)
             result.usage = usage
             if reply.get("stop_reason") == "refusal":
@@ -211,7 +217,10 @@ class ClaudeThinker:
             u = reply.get("usage") or {}
             price = api_usage.PRICES.get(self.model)
             tokens = (u.get("input_tokens"), u.get("output_tokens"))
-            usd = ((tokens[0] * price["in"] + tokens[1] * price["out"]) / 1e6
+            # Cache writes at 1.25x the input price, reads at its CACHE_READ share (Opus 5.5: $0.20 of $4 per MTok).
+            cached = (int(u.get("cache_creation_input_tokens") or 0) * 1.25
+                      + int(u.get("cache_read_input_tokens") or 0) * CACHE_READ.get(self.model, 0.1))
+            usd = (((tokens[0] + cached) * price["in"] + tokens[1] * price["out"]) / 1e6
                    if isinstance(price, dict) and all(isinstance(n, int) for n in tokens) else None)
             api_usage.record(self.model, usd, provider="Anthropic", area="Live",
                              basis="Reported tokens · list price before discounts" if usd is not None

@@ -98,6 +98,7 @@ async def realtime(tools=(), talk="hold", sidebands=None):
 def no_tail(monkeypatch):
     monkeypatch.setattr(openai_realtime, "RELEASE_TAIL_S", 0.0)
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)  # no wait lines unless a test is about them
+    monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 60.0)  # nor think's
 
 
 async def settle():

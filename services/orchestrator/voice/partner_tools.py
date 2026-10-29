@@ -539,7 +539,10 @@ class PartnerTools:
         n = self.partner.turn()
         task = ThinkTask(request, str(args.get("why") or "").strip())
         started = time.time()
-        self.thinking[task.id] = self.partner.spawn(self._think(task, n, args.get("_call_id")))
+        job = self.thinking[task.id] = self.partner.spawn(self._think(task, n, args.get("_call_id")))
+        session = getattr(self.partner, "session", None)
+        if session is not None and hasattr(session, "tell_progress"):  # what is under way, said while it works
+            self.partner.spawn(session.tell_progress(task.id, lambda: not job.done()))
         return {"started": True, "task": task.id, "_log": {"task": task.id, "startedT": started},
                 "note": "Started. Say only a two- or three-word acknowledgement now ('On it.'), nothing about the "
                         "result: it is told to you to say when it lands."}
@@ -552,14 +555,18 @@ class PartnerTools:
         from . import think as thinking
 
         session = self.partner.session
-        task.words = await self.partner.words(n, WORDS_WAIT_S)
+        option = self._think_option()
+        key = object()
+        self.running[key] = (f"thinking about it with {option}", time.monotonic(), None)  # from its start
+        try:
+            task.words = await self.partner.words(n, WORDS_WAIT_S)
+        except BaseException:
+            self.running.pop(key, None)
+            raise
         task.pictures = self.partner.pictures(n)
         task.brief = getattr(session, "brief_text", "") or ""
         task.history = self.partner.history()
         task.notes = list(getattr(session, "notes", []) or [])
-        option = self._think_option()
-        key = object()
-        self.running[key] = (f"thinking about it with {option}", time.monotonic(), None)
         step = {"now": ""}
 
         def progress(tool: str) -> None:
