@@ -822,6 +822,7 @@ def test_the_gemini_prompt_is_the_partners_with_googles_tool_call_cap():
     said = " ".join(PARTNER_GEMINI.split())
     assert PARTNER_GEMINI.startswith(PARTNER)
     assert "Never call more than two tools in a row without saying something back to the user" in said
+    assert "A question is answered in words from what you see and know, with no tool" in said
     assert "Never tell the user to restart, refresh, reload or quit the app" in said
 
 

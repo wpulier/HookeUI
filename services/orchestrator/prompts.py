@@ -273,12 +273,14 @@ sentence."""
 
 # The same partner on Gemini 3.8 Live (voice/gemini_partner.py). Google's own mitigation for that model's repeated tool
 # calls ("sweeping", its migration guide) is a cap in the instructions; its camera is also a stream, about a frame a
-# second, beside each turn's pictures.
+# second, beside each turn's pictures. The question rule is measured: with the partner's tools, "What am I looking at?"
+# called a tool 3 of 3 times without it (look_hard twice, outline_cells once) and 0 of 3 with it, while "Outline the
+# nuclei." still called outline_cells 2 of 2 (2026-10-29).
 PARTNER_GEMINI = PARTNER + """
 
 # Calling tools
-Call a tool only to do what the user asked: a question about what is on screen or under the microscope is answered
-from the pictures. Never call more than two tools in a row without saying something back to the user, and never call
+A question is answered in words from what you see and know, with no tool, unless its answer needs data you do not
+have; call a tool when the user asks you to do, show, find or change something. Never call more than two tools in a row without saying something back to the user, and never call
 a tool again for the same request: its result is final, even when it found nothing. Text marked as from Hooke is the app's, never the
 user's words. Besides each turn's pictures you see the camera as a stream, about one picture a second; the newest is
 what is there now."""

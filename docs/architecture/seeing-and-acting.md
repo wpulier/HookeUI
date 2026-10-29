@@ -745,8 +745,10 @@ chat, lines nobody asked for, the `partner-*` records) is the same code; only th
   word (it often does, whatever the prompt says). Such a line can make Gemini withdraw the running call
   (`tool_call_cancellation`; seen twice in one journey): its call id is then gone, so its outcome is told as a line
   nobody asked for (`tool-done`, pointing at what it made), never dropped. `PARTNER_GEMINI` adds Google's own cap to
-  the prompt (never more than two tools in a row without speaking) and, from the smoke journey, that tools are only
-  for what the user asked (it outlined the nuclei for "What am I looking at?").
+  the prompt (never more than two tools in a row without speaking) and, from the smoke journey (it outlined the
+  nuclei for "What am I looking at?"), that a question is answered in words with no tool unless it needs data: with
+  the partner's tools, the question called a tool 3 of 3 times without that line and 0 of 3 with it, while "Outline
+  the nuclei." still called outline_cells 2 of 2 (a micro-bench of 10 held turns, $0.13).
 - **Lines nobody asked for, typed lines, a reconnect's line:** client content that completes a turn (which Gemini
   answers), only when nobody talks and nothing is said, once per event, as for the OpenAI voice.
 - **Session length:** a GoAway (about a minute before a connection ends) and a change of tools (Gemini takes none
