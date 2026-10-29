@@ -383,6 +383,7 @@
   "look_hard": "gemini-4-argon",
   "menu": "flat",
   "naming": "one",
+  "naming_model": "close-look",
   "orb_every": "1",
   "outcome_lines": "off",
   "outline": "edgetam",

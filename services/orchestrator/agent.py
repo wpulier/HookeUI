@@ -898,6 +898,16 @@ class Agent:
         return data, {"option": option, "model": result.model, "latency_ms": result.latency_ms}
 
     # --- identify --------------------------------------------------------------------
+    def naming_option(self) -> str:
+        """The vision option that names an outline (option NAMING_MODEL): the close look's model (LOOK_HARD) by default,
+        else the quick look's (VISION); the quick look's when the close look's key is missing, so a name still comes."""
+        settings = self.hub.settings
+        if getattr(settings, "naming_model", "close-look") == "close-look":
+            hard = getattr(settings, "look_hard", None)
+            if hard in VISION and key_needed(hard) is None:
+                return hard
+        return settings.vision
+
     @execution.traced("name")
     async def identify(self, object_id: str, quiet: bool = False) -> dict:
         """Name something the user outlined by clicking, or any outline the app drew (option NAMING, Will's decision of
@@ -905,7 +915,7 @@ class Agent:
         model answers (never "Looking..." meanwhile, so a highlight is never slower to read)."""
         obj = self.hub.scene.objects.get(object_id)
         execution.bind(object_id=object_id)
-        execution.note(selected=self.hub.settings.vision, selection="settings")
+        execution.note(selected=self.naming_option(), selection="settings")
         if obj is None:
             raise tools.ToolError("that outline is gone", next="click the thing again")
         from .apply import apply, next_for
@@ -952,7 +962,7 @@ class Agent:
         pts = np.array([p for poly in polygons for p in poly], dtype=float)
         bbox = (float(pts[:, 0].min()), float(pts[:, 1].min()), float(pts[:, 0].max()), float(pts[:, 1].max()))
         view_jpeg, close_jpeg = identify_images(image, polygons, crop, bbox)
-        option = self.hub.settings.vision
+        option = self.naming_option()
         # The user's own examples and the most alike outline named earlier today, as data (taught.py,
         # seen.py; one embedding, waited for together): the model decides the name; code never sets it.
         # MedSigLIP's zero-shot ranking of the subject's candidate names, beside them (zeroshot.py, option

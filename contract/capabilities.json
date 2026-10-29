@@ -568,7 +568,9 @@
         "closeup",
         "quality",
         "zeroshot",
-        "naming"
+        "naming",
+        "naming_model",
+        "look_hard"
       ],
       "pair": "outline-a-thing",
       "evidence": [
@@ -4596,6 +4598,13 @@
       "title": "How it acts",
       "purpose": "Whether Hooke's brain or the voice itself does what you ask by voice",
       "hint": "Hooke's brain does it (the default), or the voice calls Hooke's tools itself"
+    },
+    {
+      "id": "naming_model",
+      "kind": "policy",
+      "title": "Naming model",
+      "purpose": "Which model names what is outlined",
+      "hint": "the close look (most exact) or the quick look (fastest)"
     },
     {
       "id": "heard_cue",

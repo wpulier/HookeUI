@@ -506,6 +506,18 @@ NAMING = {
     ]
 }
 
+# Which model names an outline (Agent.identify): the close look (LOOK_HARD, Gemini 4 Argon) or the quick look
+# (VISION). Will's own click on his June 14 leaf footage, 29 Oct (scratchpad naming test, 7 runs each): Argon named the
+# oval "stoma" 7 of 7, likely, at 4-6 s; Claude Opus 5.5 fast picked stoma too but marked it unsure in 5 of 7, so the
+# broad group ("plant cell") showed. The 29 Oct vision bench: naming on a click, Argon 80% exact, Opus about 60%.
+NAMING_MODEL = {
+    o.id: o
+    for o in [
+        Option("close-look", "The close look names it", "the close-look model (Gemini 4 Argon): stoma 7 of 7 on Will's click, ~5 s"),
+        Option("quick-look", "The quick look names it", "the quick-look model (Claude Opus 5.5 fast): stoma, unsure, 5 of 7, ~1.5 s"),
+    ]
+}
+
 OUTLINE_REPAIR = {
     o.id: o
     for o in [
@@ -844,7 +856,7 @@ WATCH = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "naming_model": NAMING_MODEL, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
@@ -1015,6 +1027,7 @@ class Settings:
     reference_search: str = "web+commons"  # where reference photos are searched for (REFERENCE_SEARCH)
     outline_repair: str = "same"  # what the outline check's redraw draws with (OUTLINE_REPAIR)
     naming: str = "one"  # how every outline the app draws is named (NAMING)
+    naming_model: str = "close-look"  # which model names an outline (NAMING_MODEL)
     seen: str = "on"  # telling naming the outline named earlier today most like this one (SEEN; measured)
     coach: str = "lens"  # the focus meter tells the phone refocusing from the knob (COACH; measured)
     closeup: str = "single"  # close-ups when naming a click (CLOSEUP; measured)
@@ -1098,7 +1111,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "naming_model": self.naming_model, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "watch": self.watch,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
