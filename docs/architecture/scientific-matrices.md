@@ -20,6 +20,7 @@ The capabilities are:
 - `aggregate-profile-prepare`: convert explicitly mapped, cell-weighted mean profiles using a retained scientific protocol.
 - `response-effects-merge`: concatenate compatible prepared effects, refusing duplicate biological-context/target rows.
 - `response-fit`: fit regularized target effects, optionally with a bounded low-rank approximation.
+- `response-effect-evaluate`: compare fitted effects against measured effects from other biological contexts.
 - `response-predict`: fit control-conditioned count moments and emit sparse whole-count predictions.
 - `matrix-evaluate`: a deliberately limited mean-expression diagnostic, explicitly not a competition score.
 - `matrix-evaluate-cell`: use pinned upstream cell-eval2 with a retained protocol and complete declared target panels.
@@ -79,6 +80,18 @@ universe/provenance contract and therefore refuse this new merge; they still wor
 Reprepare explicitly when combining sources. Model blending remains the separate `response-combine` operation.
 
 ## Statistical meaning
+
+Normalized-effect transfer diagnostics require identical ordered gene axes and explicit
+normalization semantics. The fit retains validated aggregate preparation meaning and its
+source-file hash. Legacy fits remain usable in their prior paths but refuse this diagnostic
+until explicitly refitted. Training/evaluation context overlap refuses; context labels are
+the protocol's declarations, not an independently verified biological identity or isolation
+boundary. Every reference context/target pair is scored, including unseen targets using the
+declared zero-effect prior. No silent panel intersection occurs. MSE and MAE are averaged
+equally by gene, target and then context; the zero-effect comparator follows the same weights.
+MSE skill is unavailable when its zero-effect denominator is zero. These are development
+diagnostics, not the official six-metric evaluator, generated-cell quality or sealed testing.
+Model blends lacking preparation provenance refuse rather than inheriting an assumed scale.
 
 Preparation computes log2 ratios of normalized group sums with an explicit pseudocount. The target-only baseline
 weights biological contexts equally, accounting for each context's panel size. Ridge penalty is relative to each
