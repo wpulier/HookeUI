@@ -37,12 +37,16 @@ def document_root(root: ProjectRoot) -> Path:
 
 
 def verify_owner(root: ProjectRoot):
+    from .scientific_import_transaction import ImportPending
     # This reader does not mint an origin or create a host preference/namespace file.
     actual = ProjectRoot.open(root.path)
     if actual != root:
         raise ProjectLocationError('Project location changed; reopen before continuing')
     try:
         owner = retained_owner(session_root(root), root.session)
+    except ImportPending:
+        # Publication is temporary unavailability, not damaged ownership.
+        raise
     except ValueError as error:
         raise ProjectLocationError(f'Project ownership is unreadable: {error}') from error
     if owner is None or owner['origin']['origin'] != root.origin:
