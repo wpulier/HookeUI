@@ -17,7 +17,7 @@ from ..paths import REPO
 FOLDER = REPO / "contract" / "agent"
 NAMES = ("capability", "connection", "generation", "operation", "refusal", "request-key",
          "artifact-reference", "study-reference", "annotated-matrix", "experiment-reference",
-         "operation-execution", "harness-readiness", "evidence-reference", "claim", "claim-change", "workflow-capability", "project-reference")
+         "operation-execution", "harness-readiness", "evidence-reference", "claim", "claim-change", "workflow-capability", "project-reference", "workflow-admission")
 
 _TYPES = {"object": dict, "array": list, "string": str, "boolean": bool, "null": type(None)}
 
