@@ -59,8 +59,12 @@ SAME_EVENT_S = 120.0
 RECONNECT_WAIT_S = 10.0
 RESULT_QUIET_WAIT_S = 3.0  # a tool's result waits at most this long for the voice's current words to end
 ANSWER_WAIT_S = 4.0  # something Gemini was asked to answer counts as being said this long, or until its answer begins
-PROGRESS_AFTER_S = 1.2  # a tool round this long without its results, and the voice quiet: one progress line
-PROGRESS_LINES = 1
+PROGRESS_AFTER_S = 1.2  # a tool round this long without its results, and the voice quiet: a progress line
+# The same, sooner, when it called the tool without saying anything first (the journey bench's smoke: a silent call to
+# Cellpose left 2.5 s before the first words).
+PROGRESS_FIRST_S = 0.6
+PROGRESS_LINES = 2
+PROGRESS_EVERY_S = 2.5  # between the asks for two progress lines
 NOTES_KEPT = 12
 CLOSE_STEP_S = 2.0
 GOAWAY_MARGIN_S = 10.0  # a GoAway's renewal waits for quiet, but never past its time left minus this
@@ -443,10 +447,13 @@ class GeminiPartnerSession(VoiceSession):
     def speaking(self) -> bool:
         """Generating, about to (asked for an answer that has not begun), or audible. A generation waiting on its tool
         calls counts: Gemini ends it only after their results."""
+        return (self._gen is not None and not self._gen.get("suppressed")) or self.answer_pending() or self.audible()
+
+    def answer_pending(self) -> bool:
+        """Gemini was asked for an answer that has not begun (at most ANSWER_WAIT_S: it may stay silent)."""
         if self._awaiting is not None and self.clock() - self._awaiting > ANSWER_WAIT_S:
-            self._awaiting = None  # nothing came of it (Gemini may stay silent)
-        return ((self._gen is not None and not self._gen.get("suppressed")) or self._awaiting is not None
-                or self.audible())
+            self._awaiting = None
+        return self._awaiting is not None
 
     def audible(self) -> bool:
         """Its words are playing in the studio: as the studio says, or as the audio sent there lasts."""
@@ -1050,20 +1057,26 @@ class GeminiPartnerSession(VoiceSession):
         from google.genai import types
 
         self._rounds += 1
-        began, progress = self.clock(), 0
+        began, progress, asked_at = self.clock(), 0, -1e9
         try:
             pending = {task for _, _, task in batch}
             while pending:
                 _, pending = await asyncio.wait(pending, timeout=0.1)
-                if (pending and progress < PROGRESS_LINES and self.clock() - began >= PROGRESS_AFTER_S
-                        and not self.audible() and self._held is None and n == self.n and epoch == self._epoch
+                wait = PROGRESS_AFTER_S if progress or n in self._spoke_in_turn else PROGRESS_FIRST_S
+                if (pending and progress < PROGRESS_LINES and self.clock() - began >= wait
+                        and self.clock() - asked_at >= PROGRESS_EVERY_S and not self.audible()
+                        and not self.answer_pending()
+                        and self._held is None and n == self.n and epoch == self._epoch
                         and self.config.extra.get("progress", True)):
-                    progress += 1
+                    progress, asked_at = progress + 1, self.clock()
                     facts = self.running_facts() or "the tool you called"
                     self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": progress})
+                    again = " You told them once already: say what has changed, in different words." if progress > 1 \
+                        else ""
                     await self._ask("progress", n, "In one short sentence, under 12 words, tell the user what is still "
                                     "being done. Do not say anything is done or shown, and call no tool: it is still "
-                                    "running, and its result comes to you.", "Still running in Hooke: " + facts + ".")
+                                    "running, and its result comes to you." + again,
+                                    "Still running in Hooke: " + facts + ".")
         finally:
             self._rounds -= 1
             for call_id, _, _ in batch:
@@ -1085,6 +1098,10 @@ class GeminiPartnerSession(VoiceSession):
                 self._log({"kind": "partner-output-dropped", "callId": call_id, "why": "Gemini withdrew the call"})
                 continue
             responses.append(types.FunctionResponse(id=call_id, name=name, response=payload(result)))
+        if self.closed:
+            for call_id, name, task in batch:
+                self._log({"kind": "partner-output-dropped", "callId": call_id, "why": "Talk had ended"})
+            return
         if epoch != self._epoch or not self.connected():
             # A connection since renewed may not know these calls: what they did goes in as context instead.
             for call_id, name, task in batch:

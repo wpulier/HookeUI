@@ -43,6 +43,9 @@
   function wsOut(data) {
     let message; try { message = JSON.parse(data); } catch { return; }
     if (KEEP_TYPES.has(message.type)) ev({ e: 'ws-out', m: brief(message) });
+    // A voice relayed through the app (Gemini Live) has no remote track to tap: what the studio says of its own playback
+    // (voice-phase, as its audio starts and ends) is what is heard in the page.
+    if (message.type === 'voice-phase' && !meter) ev({ e: 'audio', on: message.phase === 'speaking', via: 'voice-phase' });
   }
 
   // --- the live view's frames on /ws (hub.py: "MMF1", a 4-byte length, the JSON header, the JPEG) ------------------
