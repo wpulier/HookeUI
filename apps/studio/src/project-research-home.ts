@@ -3,14 +3,16 @@ import {studyName, studyState, type Effort} from './research-efforts';
 const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = '') => {
   const item = document.createElement(tag); item.textContent = text; return item;
 };
+type Actions = {current(): string; openStudy(id: string): void; data(): void; inputs(): void};
 export class ProjectResearchHome {
   readonly root = node('section');
   private session = '';
   private signature = '';
   private opening = 0;
-  constructor(private readonly host: HTMLElement, private readonly actions: {
-    current(): string; openStudy(id: string): void; data(): void; inputs(): void;
-  }) {
+  private readonly host: HTMLElement;
+  private readonly actions: Actions;
+  constructor(host: HTMLElement, actions: Actions) {
+    this.host = host; this.actions = actions;
     this.root.className = 'project-research-home';
     this.root.setAttribute('aria-label', 'Research in this Project');
     this.root.hidden = true; host.append(this.root);
