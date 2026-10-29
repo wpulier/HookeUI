@@ -21,6 +21,9 @@ What is here, and where each line comes from:
   file researchers' starts (`research_changed`; their questions and finishes are the announcer's notices, which the
   studio says in plain words).
 
+Each kept line knows its Project (`project_of`: the session of the conversation it was filed in), beside it rather than
+on its wire, so the live partner reads the open Project's lines only.
+
 Every line is a line of the conversation it happened in (dialogue.py: the day's journal, the conversation log and
 every open studio), so a reload or a restart replays it (ADR 0001); a later line with the same `id` replaces it in
 place (running, then done). Nothing here goes into a model's prompt by itself; the live partner reads recent lines with
@@ -237,6 +240,7 @@ class Activity:
         self.hub, self.dialogue, self.clock = hub, dialogue, clock or (lambda: time.time())
         self.recent: OrderedDict[str, dict] = OrderedDict()
         self.where: dict[str, Any] = {}  # an id's conversation (Asked), so its update is filed where it began
+        self.projects: dict[str, str | None] = {}  # an id's Project (a session id), as it was when the line began
         self.loop: asyncio.AbstractEventLoop | None = None
         self.known: dict = {}  # the settings as last said (settings_published)
         self.changed_in: dict[int, list[tuple[str, Any, Any]]] = {}  # settings a running tool changed, by id(run)
@@ -296,24 +300,38 @@ class Activity:
         self._show(line, asked, rid)
 
     def _show(self, line: dict, asked, rid) -> None:
-        for listener in list(self.listeners):
-            with contextlib.suppress(Exception):
-                listener(line)
         self.recent[line["id"]] = line
         self.recent.move_to_end(line["id"])
         while len(self.recent) > KEPT:
             gone, _ = self.recent.popitem(last=False)
             self.where.pop(gone, None)
+            self.projects.pop(gone, None)
         if line["id"] not in self.where:
             if asked is None and rid is None:  # the conversation open now: its update goes there too
                 with contextlib.suppress(Exception):
                     asked = self.dialogue.here()
             self.where[line["id"]] = (asked, rid)
+            # Its Project: the session of the conversation it was filed in, else the session open now. Kept beside the
+            # line (never on its wire), so the partner reads only the open Project's lines (voice/knowing.py).
+            self.projects[line["id"]] = (getattr(asked, "session", None)
+                                         or getattr(getattr(self.dialogue, "day", None), "sid", None))
+        for listener in list(self.listeners):
+            with contextlib.suppress(Exception):
+                listener(line)
         try:
             day = getattr(self.dialogue, "day", None)
             self.dialogue.show({**line, "day": getattr(day, "sid", None)}, asked=asked, rid=rid)
         except Exception:  # Activity never breaks what it describes
             pass
+
+    def project_of(self, line_id: str) -> str | None:
+        """The Project a kept line belongs to (a session id), or None when it is not known."""
+        return self.projects.get(line_id)
+
+    def researcher_of(self, line_id: str) -> str | None:
+        """The researcher a kept line is about (its id), when it was filed as one's."""
+        where = self.where.get(line_id)
+        return where[1] if where else None
 
     # --- settings -------------------------------------------------------------------------
     def snapshot(self) -> dict:

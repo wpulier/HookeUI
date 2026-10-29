@@ -90,7 +90,7 @@ class Partner:
         session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
         session.heard = self.heard
-        if knowing.UserActions.enabled():  # the user's own actions as silent context (knowing.py)
+        if knowing.UserActions.enabled():  # the user's own actions as silent context, and what "that" can be
             from .. import activity
 
             found = activity.sink(self.hub)
@@ -98,8 +98,13 @@ class Partner:
                 async def tell(text: str) -> None:
                     if self.session is not None and not self.session.closed:
                         await self.session.add(text_item("system", text))
-                self._user_actions = knowing.UserActions(tell)
+                research = getattr(getattr(self.brain, "services", None), "research", None)
+                hands = self.tools.hands
+                self._user_actions = knowing.UserActions(
+                    tell, sink=found, point=hands.point if hands is not None else None,
+                    researcher=getattr(research, "get", None), project=self.tools._project)
                 found.listeners.append(self._user_actions.line)
+                self._activity = found
         session.started_tools = STARTED_TOOLS  # think and the slow tools: an acknowledgement now, the result later
         session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
                                                                  timeout=1.0))
@@ -116,6 +121,10 @@ class Partner:
     def close(self) -> None:
         if self._notes_task is not None:
             self._notes_task.cancel()
+        found, actions = getattr(self, "_activity", None), getattr(self, "_user_actions", None)
+        if found is not None and actions is not None:
+            with contextlib.suppress(ValueError):
+                found.listeners.remove(actions.line)
         if self._research is not None:
             with contextlib.suppress(ValueError):
                 self._research.on_done.remove(self._research_done)

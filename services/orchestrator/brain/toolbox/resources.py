@@ -126,6 +126,29 @@ def add_resource_tools(registry: Registry, services) -> None:
             return text
         if args.get("inspect"):
             raise ToolFailed("inspection requires an exact saved resource ID", next="read resources to resolve it first")
+        section = str(args.get("section") or "").strip().lower()
+        if section:
+            # One part of the Project's view (project_state.py) in full, where the brief has only its first lines.
+            from ... import project_state
+
+            if section not in SECTIONS:
+                raise ToolFailed(f"there is no section {section!r}", next="name one of: " + ", ".join(SECTIONS))
+            sid = index.session()
+            state = await project_state.state_of(hub).read(sid, project_state.OWNER, limit=project_state.PAGE_MAX)
+            if section == "data":
+                pages, cursor = [state], state["data"].get("next")
+                while cursor and len(pages) < DATA_PAGES:
+                    try:
+                        page = await project_state.state_of(hub).read(sid, project_state.OWNER, cursor=cursor,
+                                                                      limit=project_state.PAGE_MAX)
+                    except project_state.Changed:  # the Project changed between pages: what was read is said, with more
+                        break
+                    pages.append(page)
+                    cursor = page["data"].get("next")
+                state["data"]["items"] = [item for page in pages for item in page["data"]["items"]]
+                state["data"]["next"] = cursor
+            require_current(ctx, services.day)
+            return section_text(state, section)
         if not kind and not query:
             # "What data do we have?": the Project's one view (project_state.py), the Assistant reading as its owner:
             # each table, measurement, outline layer, import, researcher's findings and Study result with its exact
@@ -178,9 +201,80 @@ def add_resource_tools(registry: Registry, services) -> None:
                               "order": {"type": "string", "enum": ["oldest", "newest"], "description": "first or latest saved entries"},
                               "thread": {"type": "string", "description": "optional exact conversation ID, such as t1"},
                               "id": {"type": "string", "description": "one entry (e3, d4...), saved member (c17), or outline (o3)"},
+                              "section": {"type": "string", "enum": list(SECTIONS),
+                                          "description": "one part of the Project's view in full (the brief shows only "
+                                                         "its first lines): data, researchers, studies, agents (connected "
+                                                         "agents' work), tabs, stage, models"},
                               "offset": {"type": "integer", "minimum": 0, "description": "continuation offset returned by the previous page; default 0"},
                               "revision": {"type": "string", "description": "exact reading revision from the first page; required for continuation"}}),
                       resources, kind="query", inline_ms=1500, family="memory", retained_input=True))
+
+
+SECTIONS = ("data", "researchers", "studies", "agents", "tabs", "stage", "models")
+DATA_PAGES = 6  # pages of data items one section read gathers (project_state.PAGE_MAX each)
+
+
+def section_text(state: dict, section: str) -> str:
+    """One part of the Project's view in full, in project_state's own words; what is not the app's in its one untrusted
+    wrapper."""
+    from ... import project_state as ps
+    from ...untrusted import inline
+
+    words: list[str] = []
+    lines = [ps._project_line(state["project"], words)]
+    if section == "data":
+        data = state["data"]
+        lines.append(f"Data, newest first ({len(data['items'])} of {data['total']}):" if data["total"]
+                     else "Data: nothing has been made or brought into this Project yet.")
+        lines.extend(ps._item_line(item, words) for item in data["items"])
+        if data.get("next"):
+            lines.append(f"(and {data['total'] - len(data['items'])} older: ask for them by kind or query)")
+    elif section == "researchers":
+        research = state["researchers"]
+        lines.append(f"Researchers, running first ({research['total']} in all):" if research["total"]
+                     else "Researchers: none in this Project.")
+        lines.extend("- " + ps._researcher_line(r, words) for r in research["items"])
+    elif section == "studies":
+        studies = state["studies"]
+        if studies["state"] == "unavailable":
+            lines.append("Studies: " + studies.get("why", "unavailable"))
+        else:
+            lines.append(f"Studies ({studies['total']}):" if studies["total"] else "Studies: none.")
+            for s in studies["items"]:
+                lines.append(f"- {s['ref']['id']} (revision {s['ref']['revision']}, titled below), {s['status']}, "
+                             f"{s['findings']} findings, {s['claims']} claims, {ps._by(s['author'], s['ref']['id'], words)}")
+                words.append(f"{s['ref']['id']}: {s['title']}")
+    elif section == "agents":
+        operations = state["operations"]
+        lines.append(f"Connected agents' work ({operations['total']}):" if operations["total"]
+                     else "Connected agents' work: none.")
+        lines.extend(f"- {o['tool']} {o['state']} ({ps._by({'kind': 'agent', 'name': o['by']}, o['id'], words)})"
+                     for o in operations["items"])
+    elif section == "tabs":
+        lines.append(ps._studio_line(state))
+        lines.extend(f"- {inline(t['title'], 80)} ({t['id']}): {t['windows']} windows" for t in state["tabs"]["items"])
+    elif section == "stage":
+        stage = state["stage"]
+        on = stage["onStage"]
+        lines.append("On stage: " + ("the live camera" if on == "live" else f"a source ({on}, titled below)" if on
+                                     else "not recorded"))
+        if on and on != "live" and stage.get("title"):
+            words.append(f"{on}: the source on stage: {stage['title']}")
+        if stage.get("specimen"):
+            lines.append(f"Specimen: {stage['specimen']} (named by "
+                         f"{'the user' if stage.get('namedBy') == 'user' else 'the app'})")
+            words_seen = stage.get("specimens") or []
+            if len(words_seen) > 1:
+                lines.append("Seen before: " + ", ".join(words_seen[1:]))
+    elif section == "models":
+        models = state["capabilities"]
+        lines.append("Models in use:")
+        lines.extend([f"- {r['title']}: {r['model']}" for r in models.get("roles") or []]
+                     if models.get("state") == "reported" else [f"- {models.get('says') or 'not reported'}"])
+    if state.get("unreadable"):
+        lines.append("Couldn't read: " + "; ".join(state["unreadable"]))
+    out = "\n".join(lines)
+    return out + ("\n" + ps._wrapped(words) if words else "")
 
 
 def add_annotation_tool(registry: Registry, services) -> None:

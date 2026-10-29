@@ -1949,6 +1949,19 @@
      "description": "exact reading revision from the first page; required for continuation",
      "type": "string"
     },
+    "section": {
+     "description": "one part of the Project's view in full (the brief shows only its first lines): data, researchers, studies, agents (connected agents' work), tabs, stage, models",
+     "enum": [
+      "data",
+      "researchers",
+      "studies",
+      "agents",
+      "tabs",
+      "stage",
+      "models"
+     ],
+     "type": "string"
+    },
     "thread": {
      "description": "optional exact conversation ID, such as t1",
      "type": "string"
