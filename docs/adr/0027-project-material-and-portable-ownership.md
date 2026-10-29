@@ -57,3 +57,21 @@ runtimes remain external. Saved reads require neither a running worker nor runti
 installation. Isolated close/move/reopen tests preserve conversation events and
 exact document revision hashes; these do not certify complete collection, legacy
 migration, cross-machine reassociation or the live connector.
+
+## Journal routing checkpoint
+
+The optional host `ProjectLocations` resolver lets the existing SessionStore and
+Catalogue use legacy journals alongside separate Project roots. Background filing
+captures the original owner; changing the workspace does not change its folder.
+Writer leases belong to the host lifetime. A missing registered folder refuses
+instead of recreating an empty legacy Project. Host preferences remain external.
+
+Registry format 2 adds the compatible session handle to each origin/location
+pointer, allowing unavailable folders to reserve their handles. Readable format-1
+locators upgrade on registration; an unavailable old locator requires explicit
+recovery using the matching origin. Colliding legacy origins refuse. Foreign
+same-handle reassociation and independent-copy creation remain unfinished.
+
+The live App is not enabled on this seam until all scientific/legacy result stores
+are routed. The isolated tests exercise real journals, writer exclusion, move and
+resume; they do not qualify complete Project collection or live UI portability.

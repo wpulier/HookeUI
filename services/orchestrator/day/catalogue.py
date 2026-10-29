@@ -170,18 +170,21 @@ class _Read:
     """Where reading a journal got to: its file's identity and the offset of the first byte not yet folded."""
     info: Info
     inode: int = 0
+    device: int = 0
+    path: str = ''
     offset: int = 0
     size: int = 0
     mtime: float = 0.0
 
 
 class Catalogue:
-    def __init__(self, root: Path | str | None = None) -> None:
+    def __init__(self, root: Path | str | None = None, *, locations=None) -> None:
         if root is None:
             from ..paths import Paths
 
             root = Paths.from_env().sessions
         self.root = Path(root)
+        self.locations = locations
         self._reads: dict[str, _Read] = {}
         self._lock = threading.Lock()
 
@@ -192,26 +195,30 @@ class Catalogue:
         try:
             names = [p.name for p in self.root.iterdir() if p.name != ARCHIVE and p.is_dir()]
         except OSError:
-            return []
-        return [n for n in names if sids.is_sid(n) and (self.root / n / sids.JOURNAL).is_file()]
+            names = []
+        legacy = {n for n in names if sids.is_sid(n) and (self.root / n / sids.JOURNAL).is_file()}
+        return sorted(legacy | (set(self.locations.handles()) if self.locations is not None else set()))
 
     def _refresh(self, sid: str) -> Info | None:
         from ..scientific_import_transaction import reading
-        with reading(self.root):
-            return self._read_journal(sid)
+        root = self.locations.root_for(sid) if self.locations is not None else self.root
+        with reading(root):
+            return self._read_journal(sid, root)
 
-    def _read_journal(self, sid):
+    def _read_journal(self, sid, root=None):
         from ..scientific_import_transaction import require_visible
-        require_visible(self.root)
-        path = self.root / sid / sids.JOURNAL
+        root = self.root if root is None else root
+        require_visible(root)
+        path = root / sid / sids.JOURNAL
         try:
             stat = path.stat()
         except OSError:
             self._reads.pop(sid, None)
             return None
         read = self._reads.get(sid)
-        if read is None or read.inode != stat.st_ino or stat.st_size < read.offset:
-            read = self._reads[sid] = _Read(Info(sid), inode=stat.st_ino)  # new, replaced or shrunk: from the start
+        if (read is None or read.inode != stat.st_ino or read.device != stat.st_dev
+                or read.path != str(path) or stat.st_size < read.offset):
+            read = self._reads[sid] = _Read(Info(sid), inode=stat.st_ino, device=stat.st_dev, path=str(path))
         if stat.st_size == read.size and stat.st_mtime == read.mtime:
             return read.info
         try:

@@ -294,3 +294,13 @@ through the same journal/namespace ownership machinery without switching the liv
 store or resume preference. The new store is cached for background filing. Connector
 ownership is recorded separately by its authorized action; a failed registration
 never silently resumes or recreates an interrupted admission.
+
+`SessionStore` and `Catalogue` accept a host `ProjectLocations` resolver. When supplied,
+new journals live in their own Project folder; old journals remain in place. Reads,
+switches and background filing resolve the captured session, never the active UI's
+folder. The resolver retains writer leases until host shutdown, and missing locations
+refuse instead of creating replacement journals. Host preferences stay in the legacy
+host directory. Registry format 2 also retains the compatible session handle so an
+offline folder's handle cannot be allocated again. It carries no research or grants.
+This seam is not enabled in App.build until scientific and legacy artifact routing
+is qualified; it is not a claim of complete portable creation or collection.
