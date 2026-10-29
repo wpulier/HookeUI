@@ -122,6 +122,20 @@ test('Escape and the talk key take control back too; Escape stops the partner an
   expect(u.sent.at(-1)).toMatchObject({ type: 'takeover', why: 'talk' });
 });
 
+test('the talk key is a pause: the server is told, and the cursor stays on the action being done until it ends', () => {
+  const stopped: string[] = [];
+  const sent: unknown[] = [];
+  const takeover = new Takeover({ cursor: { stop: () => { stopped.push('stop'); } }, send: (c) => { sent.push(c); return true; } });
+  takeover.control({ type: 'control', version: 3, owner: 'partner' });
+  expect(takeover.input('talk')).toBe(true);
+  expect(sent).toEqual([{ type: 'takeover', version: 3, why: 'talk', at: expect.any(Number) }]);
+  expect(stopped).toEqual([]); // the action being done finishes; its drive-end fades the cursor
+  expect(takeover.acting).toBe(false);
+  takeover.control({ type: 'control', version: 4, owner: 'partner' });
+  expect(takeover.input('escape')).toBe(true);
+  expect(stopped).toEqual(['stop']);
+});
+
 test('while the user has control nothing is a takeover, and Escape is the page\'s own', () => {
   const t = taking(false);
   t.listeners.pointermove(move(0, 0));

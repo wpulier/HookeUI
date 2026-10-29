@@ -4,10 +4,12 @@
 // feedback for the user, not the mechanism (the intent runs through Hooke's own operations on the server).
 //
 // Takeover: while the partner is acting (the server's `control` says owner "partner"), the user's own pointer moving
-// over the window, Escape or the talk key take control back at once. In the same task as that input the cursor stops and
-// fades and the server is told (`takeover`, with the control version the studio last saw); the server raises the version
-// and drops everything queued. Its acknowledgement says when it knew, for the Drive line (input to stopped and known
-// within 150 ms).
+// over the window or Escape take control back at once. In the same task as that input the cursor stops and fades and the
+// server is told (`takeover`, with the control version the studio last saw); the server raises the version, drops
+// everything queued and stops what it was doing where it can. The talk key is a pause, not a takeover (the spec, 4.2:
+// "interrupt to ask something"): the server is told the same way (`why: "talk"`) and nothing queued runs, but the action
+// being done finishes, so the cursor stays on it until its `drive-end`. Its acknowledgement says when it knew, for the
+// Drive line (input to stopped and known within 150 ms).
 //
 // Motion is a transform on one fixed layer, eased over MOVE_MS: the live view's frames are never waited on.
 import type { ControlMessage, DriveEnd, DriveIntent, DriveMessage, DriveOutcome, MarkSpec, PartnerCommand } from './protocol';
@@ -206,12 +208,13 @@ export class Takeover {
     this.input('mouse', at);
   }
 
-  /** The user's input while the partner acts: the cursor stops, the server is told, now. */
+  /** The user's input while the partner acts: the server is told, now. The mouse and Escape stop the cursor at once;
+   * the talk key pauses (the action being done finishes, and its own end fades the cursor). */
   input(why: 'mouse' | 'escape' | 'talk', inputAt = this.now()): boolean {
     if (!this.acting) return false;
     this.owner = 'user';
     this.start = null;
-    this.options.cursor.stop();
+    if (why !== 'talk') this.options.cursor.stop();
     const stoppedAt = this.now();
     this.options.send({ type: 'takeover', version: this.version, why, at: Date.now() });
     this.last = { why, inputAt, stoppedAt, sentAt: this.now(), knownAt: null };

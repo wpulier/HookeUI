@@ -1752,7 +1752,7 @@ const turns = new TalkTurns({
 const talkHold = new TalkHold({
   enabled: holdToTalk,
   key: () => talkKeySetting,
-  press: () => { takeover.input('talk'); heardRing.clear(); turns.press(); }, // the talk key while the partner acts takes control back first
+  press: () => { takeover.input('talk'); heardRing.clear(); turns.press(); }, // told first: nothing the partner queued runs after you speak
   heldAlone: (via) => turns.heldAlone(via),
   release: () => {
     const said = turns.open;
