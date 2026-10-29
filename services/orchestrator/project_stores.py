@@ -19,11 +19,25 @@ class _BoundStore(ProjectStore):
         self._runtime = runtime_root
         # Reading a saved result must not register runtimes or acquire a writer.
         super().__init__(document_root(project))
+        self._storage_identity = self._identity()
+
+    def _identity(self):
+        folder = document_root(self.project)
+        try:
+            info = folder.stat(follow_symlinks=False)
+        except OSError as error:
+            raise ProjectLocationError('Project artifact storage is missing; recover it before continuing') from error
+        import stat
+        if not stat.S_ISDIR(info.st_mode):
+            raise ProjectLocationError('Project artifact storage is not a directory')
+        return info.st_dev, info.st_ino
 
     @property
     def root(self):
         if self.locations.project(self.project.session) != self.project:
             raise ProjectLocationError('The Project location changed; reopen it before continuing')
+        if self._identity() != self._storage_identity:
+            raise ProjectLocationError('Project artifact storage changed; recover it before continuing')
         return self._root
 
     @root.setter

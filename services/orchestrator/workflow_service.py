@@ -159,7 +159,7 @@ class WorkflowService:
                 await asyncio.to_thread(exact,w.store,ref,b['session'])
             readiness=await asyncio.to_thread(self.steps.validate,graph,b['inputs'],b['session'],bindings)
             if action=='validate':return {'readiness':readiness}
-            existing=await asyncio.to_thread(w.store._folder(run_identity(b['session'],b['request'])).exists)
+            existing=await asyncio.to_thread(lambda: w.store.for_session(b['session'])._folder(run_identity(b['session'],b['request'])).exists())
             if not readiness['available']:raise InvalidProject('; '.join(r['reason'] for r in readiness['steps'] if r['reason']))
             saved=await asyncio.to_thread(w.start,b['workflow'],b['revision'],b['session'],b['inputs'],b['request'],actor=actor,bindings=bindings)
             if not existing:self.launch(saved.id,saved.session)

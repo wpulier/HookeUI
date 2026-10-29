@@ -113,6 +113,25 @@ def test_bound_store_rejects_another_project_and_router_refuses_unowned_paths(tm
         locations.close()
 
 
+@pytest.mark.parametrize('replacement', ['missing', 'symlink', 'directory'])
+def test_bound_artifact_storage_replacement_never_looks_empty_or_accepts_writes(tmp_path, replacement):
+    day, stores, locations = setup(tmp_path)
+    try:
+        sid = day.new('Preserve evidence')
+        saved = stores.create(sid, document())
+        folder = stores.for_session(sid).root
+        original = folder.with_name('original-records')
+        folder.rename(original)
+        if replacement == 'symlink': folder.symlink_to(original, target_is_directory=True)
+        if replacement == 'directory': folder.mkdir()
+        with pytest.raises(ProjectLocationError): stores.scan(sid)
+        with pytest.raises(ProjectLocationError): stores.create(sid, document('Refused'))
+        assert ProjectStore(original).read(saved.id, sid) == saved
+        if replacement == 'missing': assert not folder.exists()
+    finally:
+        locations.close()
+
+
 def test_scientific_export_reads_bound_files_without_selecting_the_project(tmp_path):
     from orchestrator.scientific_exchange import export, reimport
     day, stores, locations = setup(tmp_path)
@@ -158,5 +177,54 @@ def test_native_review_and_publication_keep_original_arrays_after_switch(tmp_pat
         assert np.array_equal(values(stores, changed, changed.document['resources'][0]), expected)
         assert stores.list(other) == []
         owner.close()
+    finally:
+        locations.close()
+
+
+def test_automatic_matrix_workflow_uses_captured_root_and_retries_without_compute(tmp_path, monkeypatch):
+    import io, sys
+    import numpy as np
+    from pathlib import Path
+    from orchestrator import matrix_capability_runs as matrix
+    from orchestrator.workflow_execution import keep_file, ScientificSteps
+    from scientific_compute import catalog as matrix_catalog
+    from scientific_compute.engine import OPERATIONS
+    monkeypatch.setenv('MICROMIND_HEAVY_SLOT', str(tmp_path / 'slot'))
+    monkeypatch.setattr(matrix_catalog, 'runtime', lambda *a, **k: {
+        'prepared':True, 'reason':'', 'backend':'cpu', 'owner':'matrix-cpu-runtime',
+        'evidenceClass':'synthetic-runtime-admission'})
+    monkeypatch.setattr(matrix, 'execution_runtime', lambda _: (Path(sys.executable), Path(sys.prefix)))
+    calls = []
+    def compute(capability, sources, params, work, check, *runtime):
+        output = work / 'outputs'; output.mkdir()
+        resolved = {}
+        for port, source in sources.items():
+            path = work / (port + '.npz'); path.write_bytes(source.read(0, source.size)); resolved[port] = path
+        calls.append(capability)
+        return OPERATIONS[capability](resolved, params, output, check)
+    monkeypatch.setattr(matrix, '_compute', compute)
+    day, stores, locations = setup(tmp_path)
+    try:
+        sid = day.new('Fitted response')
+        data = io.BytesIO()
+        np.savez(data, format=np.array('response-effects-v1'), effects=np.array([[2.,4.],[6.,8.]]),
+                 genes=np.array(['g1','g2']), contexts=np.array(['first','second']), targets=np.array(['target','target']))
+        source = keep_file(stores, sid, 'a'*32, 'effects.npz', data.getvalue())
+        declared = matrix.descriptor('response-fit')
+        w = Workflows(stores)
+        definition = w.create('Fit a baseline', {'format':1,'input':{'kind':'scientific-scene'},'nodes':[
+            {'id':'fit','name':'Fit','kind':'tool','needs':['input'], 'settings':{
+                'capability':'response-fit','generation':declared['generation'],'mode':'automatic',
+                'parameters':{'regularization':1.,'rank':0}}}]}, 'b'*32)
+        run = w.start(definition.id, 1, sid, [identity(source)], 'c'*32, actor='agent:ac_0123456789abcdef01234567')
+        claim = w.claim(run.id, sid)
+        other = day.new('Unrelated Project')
+        result = ScientificSteps(w).execute(claim)
+        assert ScientificSteps(w).execute(claim) == result
+        w.finish(claim, result)
+        saved = stores.read(result['output']['id'], sid)
+        assert saved.document['state']['matrixOperation']['output']['summary']['trainingContexts'] == ['first','second']
+        assert calls == ['response-fit'] and day.sid == other and not stores.list(other)
+        assert w.status(run.id, sid)['status'] == 'completed'
     finally:
         locations.close()
