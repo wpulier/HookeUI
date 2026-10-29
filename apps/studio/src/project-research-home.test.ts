@@ -13,7 +13,7 @@ const study = (session = 'p1'): Effort => ({id:'s1',session,revision:1,digest:'d
 function setup() {
   const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
   const host = new TestElement('section'); let current = 'p1';
-  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn()};
+  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),retry:vi.fn()};
   const home = new ProjectResearchHome(host as unknown as HTMLElement, actions);
   const root = home.root as unknown as TestElement;
   const button = (text: string) => root.querySelectorAll('button').find(item => item.textContent === text) as unknown as HTMLButtonElement;
@@ -125,4 +125,27 @@ test('material freshness does not invalidate independent workflow observations',
  expect(root.textContent).toContain('No experiments running');
  home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[]});
  expect(root.textContent).not.toContain('Material refresh failed');
+});
+
+
+test('initial loading and failed reads never masquerade as an empty Project',()=>{
+ const {home,host,root,actions,button}=setup();
+ home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
+ expect(host.dataset.projectResearch).toBe('true');
+ expect(root.textContent).toContain('Opening your Project');
+ expect(root.textContent).not.toContain('No Study yet');
+ home.update('p1',[],'',{},[],{count:0,groups:[],error:'Material read failed'});
+ expect(root.textContent).toContain('Project history could not be loaded');
+ fire(button('Retry') as unknown as TestElement,'click');expect(actions.retry).toHaveBeenCalledOnce();
+ home.update('p1',[],'',{},[],{count:0,groups:[]});
+ expect(host.dataset.projectResearch).toBe('false');expect(root.hidden).toBe(true);
+});
+test('material arriving before Studies keeps the populated overview through refresh',()=>{
+ const {home,root}=setup();
+ home.update('p1',[],'',{},[],{count:2,groups:[],loading:true});
+ expect(root.textContent).toContain('2 Project inputs');
+ expect(root.textContent).not.toContain('Opening your Project');
+ expect(root.textContent).not.toContain('No Study yet');
+ home.update('p1',[study()],'',{},[],{count:2,groups:[],loading:false});
+ expect(root.textContent).toContain('Response transfer');
 });
