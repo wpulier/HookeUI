@@ -97,3 +97,30 @@ def test_integer_backed_reference_arithmetic_does_not_wrap(tmp_path):
     assert result['overall']['zeroEffectMse']==2**62
     assert result['overall']['zeroEffectMae']==2**30
     assert result['overall']['mseSkill']==0.
+
+
+@pytest.mark.parametrize('source',['model','reference'])
+def test_complex_effects_are_refused_not_silently_projected_to_real(tmp_path,source):
+    fitted=model(tmp_path)
+    reference=prepared(tmp_path,'reference',[[1.,1.],[2.,2.]])
+    path=fitted if source=='model' else reference
+    with np.load(path,allow_pickle=False) as archive:
+        arrays={name:archive[name] for name in archive.files}
+    arrays['effects']=arrays['effects'].astype(np.complex128)+1j
+    np.savez_compressed(path,**arrays)
+    with pytest.raises(engine.Refused,match='real numeric'):
+        evaluate(tmp_path,fitted,reference)
+
+
+def test_contexts_have_equal_weight_despite_different_panel_sizes(tmp_path):
+    fitted=model(tmp_path)
+    reference=prepared(tmp_path,'reference',[[1.,-1.],[2.,0.],[4.,4.]],targets=('x','y','z'))
+    with np.load(reference,allow_pickle=False) as archive:
+        arrays={name:archive[name] for name in archive.files}
+    arrays['contexts']=np.array(['hold-a','hold-a','hold-b'])
+    metadata=json.loads(arrays['metadata'].item()); metadata['contexts']=['hold-a','hold-b']
+    arrays['metadata']=np.array(json.dumps(metadata))
+    np.savez_compressed(reference,**arrays)
+    _,result=evaluate(tmp_path,fitted,reference)
+    assert result['overall']['mse']==8.
+    assert result['overall']['zeroEffectMse']==8.75

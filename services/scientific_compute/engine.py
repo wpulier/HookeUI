@@ -43,6 +43,8 @@ def _strings(values, name, *, unique=False):
 
 def _finite(values, *, counts=False):
     values = values.data if sparse.issparse(values) else np.asarray(values)
+    if values.dtype.kind not in 'biuf':
+        raise Refused('Counts and response effects require real numeric values')
     if not np.isfinite(values).all():
         raise Refused('Matrix values must be finite')
     if counts and (np.any(values < 0) or np.any(values != np.floor(values))):
