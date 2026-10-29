@@ -65,6 +65,17 @@ class _Output(FileIntake):
         return doc
 
 
+def _failure_message(log):
+    # Workflow notes are bounded: put the final exception before traceback context.
+    # Read only the tail even if a failed worker produced a large log.
+    with log.open('rb') as stream:
+        stream.seek(max(0, log.stat().st_size - 4096))
+        tail = stream.read(4096).decode('utf-8', errors='replace').strip()
+    lines = [line.strip() for line in tail.splitlines() if line.strip()]
+    reason = lines[-1][-350:] if lines else 'Worker exited without a diagnostic'
+    return 'Scientific capability failed; no result was published: ' + reason + '\nDiagnostic tail (bounded): ' + tail
+
+
 def _compute(capability, sources, params, work, check, executable, runtime_folder):
     if not sandbox.available():
         raise InvalidProject('The confined scientific process is unavailable on this computer; nothing ran')
@@ -106,8 +117,7 @@ def _compute(capability, sources, params, work, check, executable, runtime_folde
                 time.sleep(.05)
             guard.check()
             if proc.returncode != 0:
-                message = log.read_bytes()[-4096:].decode('utf-8', errors='replace')
-                raise InvalidProject('Scientific capability failed; no result was published: ' + message)
+                raise InvalidProject(_failure_message(log))
         except BaseException:
             if proc.poll() is None:
                 proc.terminate()

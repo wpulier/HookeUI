@@ -1095,3 +1095,6 @@ retaining the original running attempt and a waiting progress note. Stop or serv
 shutdown prevents a waiting step from acquiring compute; no other owner’s lock is
 reclaimed. The admission rechecks disk and the pinned generation after acquiring the slot;
 the scientific worker retains its memory guard.
+
+Scientific matrix worker failure notes put the final exception before their bounded traceback tail, so the
+workflow's compact retained note preserves an actionable cause. Full worker logs are not claimed as retained.
