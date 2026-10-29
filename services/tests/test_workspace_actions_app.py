@@ -614,10 +614,10 @@ def test_a_picture_retained_between_two_opens_is_one_source_for_both_windows(tmp
     results = app.hub.resources.results
     release, write = threading.Event(), results._write
 
-    def held(day, name, data, *, durable=False):
+    def held(day, name, data, *, durable=False, session=None):
         if threading.current_thread() is not threading.main_thread():
             assert release.wait(HANG_S)
-        return write(day, name, data, durable=durable)
+        return write(day, name, data, durable=durable, session=session)
 
     results._write = held  # the background picture write, held until the first window is open
     record = results.add('compare', {}, 'Synthetic retained picture', picture_bytes=[jpeg()])
