@@ -41,6 +41,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
+WHOLE_PICTURE = (0.04, 0.04, 0.92, 0.92)  # a frame target's region for the whole picture: x, y, width, height
 CUE_WAIT_S = 0.5  # the studio's drive-shown, at most; the cue never blocks the action
 RECONCILE_S = 30.0  # after a takeover, a cut-off effect is reconciled in the background for this long
 APPROVAL_S = 120.0  # a permission asked is good for this long
@@ -586,7 +587,11 @@ class Hands:
     async def _cue(self, intent: Intent, frame: dict | None) -> dict | None:
         message = {"type": "drive", "id": intent.id, "version": intent.version,
                    "intent": {"kind": intent.kind, "target": intent.target or "panel:workspace",
-                              "caption": intent.caption}, **({"frame": frame} if frame else {})}
+                              "caption": intent.caption,
+                              # The whole picture (outlining it): the studio rings a frame target only with a region
+                              # (marks.ts frameShape), so it is the picture, a little inside its edges.
+                              **({"region": list(WHOLE_PICTURE)} if intent.target == "frame" else {})},
+                   **({"frame": frame} if frame else {})}
         future = asyncio.get_running_loop().create_future()
         self._shown[intent.id] = future
         sent = time.time()
@@ -847,6 +852,13 @@ class Hands:
             elif shows is False:
                 result["result"] = "failed"
                 result["error"] = "the studio does not show it: " + (result.get("summary") or "not on screen")
+            elif shows is None and intent.kind == "outline" and self._outlined(result):
+                # The report cannot tell (no counted layer in it), but Hooke's own record of what it made can: the
+                # population the run saved, with its members (smoke run, 29 Oct: Cellpose outlined, said "not sure").
+                count = self._outlined(result)
+                result["result"] = "verified"
+                result["said"] = f"Done: {count} outlined."
+                result.setdefault("_hands", {})["checkedBy"] = "record"
             else:
                 result["result"] = "uncertain"
                 result["error"] = ("the studio did not report it (it may be in the background)" if status == "unobserved"
@@ -855,6 +867,18 @@ class Hands:
             result["said"] = said(intent, result, facts, getattr(intent, "before", None))
         result.setdefault("_hands", {})["expected"] = result["result"]
         return result
+
+    def _outlined(self, result: dict) -> int:
+        """How many members the populations this run made have in Hooke's evidence store (0 when none, or no hub)."""
+        if self.hub is None:
+            return 0
+        try:
+            from ..evidence import evidence_of
+
+            store = evidence_of(self.hub)
+            return sum(len(p.live()) for p in (store.get(eid) for eid in _output_ids(result, "population")) if p)
+        except Exception:
+            return 0
 
     def _activity(self, intent: Intent, state: str, text: str | None = None, receipt: str | None = None) -> str | None:
         if self.hub is None:
