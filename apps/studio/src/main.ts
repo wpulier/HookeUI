@@ -71,12 +71,14 @@ import { listVolumes } from './volumespanel';
 import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
 import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
+import { MicCard, micPermission, needsMicCard, type MicPermission } from './mic-card';
 import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
 import { CursorPainter, PartnerCursor, Takeover } from './drive';
 import { HeardRing, HeardTone, heardCue, heardHandler, type HeardCue } from './heard';
 import './drive.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
+import './mic-card.css';
 import { partnerHandler, windowSnapshot, type WindowCapture } from './partner';
 import { opensWorkForUser, ShowingBar } from './showing';
 import { StudioShell, navigateStudio, workspaceConnectionNotice } from './studio-shell';
@@ -1719,8 +1721,39 @@ talkButton.addEventListener('click', (event) => {
 function startTalk(): void {
   if (!workspaceSession || !workspaceReady) { showHint('Reconnect to the studio before starting Talk.'); return; }
   if (scientificAskSelection()) { showHint('Talk uses the Stage. Remove the saved attachment before starting Talk.'); return; }
+  // Not allowed yet: the microphone card first, whose button starts Talk in its own click (mic-card.ts).
+  const card = needsMicCard(micState, micHeardBefore(), macApp);
+  if (card) { micCard.show(card); setChatHidden(false, false); renderTalk(); return; }
+  connectTalk();
+}
+
+/** Talk connects now, in the click or key press that asked for it (its audio is allowed to start in that gesture). */
+function connectTalk(): void {
+  if (!workspaceSession) return;
   void voice.start(workspaceSession.voiceTarget());
 }
+
+// The microphone moment (mic-card.ts; Will's feel check, 29 Oct). The permission is read ahead of any press, so a press
+// decides at once, inside its own gesture; a prompt that is up is the card's "Allow" state, never "Connecting".
+let micState: MicPermission = 'unknown';
+const macApp = !!(window as unknown as { webkit?: { messageHandlers?: unknown } }).webkit?.messageHandlers;
+/** Waiting on a microphone prompt that is really up (a granted microphone opens at once: nothing to wait for). */
+function micWaiting(): boolean {
+  return voice.awaitingMic && (micCard.state !== null || micState !== 'granted');
+}
+function micHeardBefore(): boolean {
+  try { return localStorage.getItem('mic-heard') === '1'; } catch { return false; }
+}
+const micCard = new MicCard({
+  act: () => { micCard.show('asking'); connectTalk(); },
+  words: () => ({ keyWords: talkKeyWords(talkKeySetting), macApp }),
+});
+void micPermission((navigator as unknown as { permissions?: Parameters<typeof micPermission>[0] }).permissions, (state) => {
+  micState = state;
+  // Turned on from the site settings while the card says it is off: the card goes, and the next press starts Talk.
+  if (state === 'granted' && micCard.state === 'blocked') { micCard.hide(); renderTalk(); }
+}).then((state) => { micState = state; });
+askForm.before(micCard.root);
 
 // --- The one-brain voice (PARTNER_VOICE): hold to talk, its window snapshots and its marks (talk.ts, marks.ts). ---
 let voiceSetting = '';
@@ -1758,7 +1791,9 @@ const talkHold = new TalkHold({
     const said = turns.open;
     if (said) heardRing.released(); // the ring stays as sent until the server says it heard the turn (heard.ts)
     turns.release();
-    if (said) voiceStatus.textContent = 'Sent · waiting for a response';
+    // Nothing is said to be sent until the server says it took the turn (`heard`): a turn it drops (too short, or lost
+    // on a reconnect) never shows as waiting for an answer (Will's feel check, 29 Oct).
+    if (said) voiceStatus.textContent = holdWords();
   },
   cancel: (why) => { const said = turns.open; heardRing.clear(); turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
 });
@@ -1848,13 +1883,14 @@ const cursorPainter = new CursorPainter(document);
 const takeover = new Takeover({ cursor: partnerCursor, send: (command) => voice.tellVoice(command) });
 takeover.attach(window);
 voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks,
-  drive: { cursor: partnerCursor, takeover }, heard: (message) => { heardSign(message); } });
+  drive: { cursor: partnerCursor, takeover }, heard: (message) => { if (heardSign(message)) voiceStatus.textContent = 'Heard you · answering'; } });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
 // connecting): the composer's row keeps the Assistant's model named in full beside it (hooke-words, 2026-10-25).
 // Held turns say what holding does instead: Hold to talk, Listening while held.
 function talkLabelText(state: VoiceState): string {
+  if (micWaiting()) return 'Microphone';
   if (holdToTalk() && state !== 'off' && state !== 'error') return turns.open ? 'Listening' : state === 'connecting' ? 'Connecting' : 'Hold to talk';
   if (state === 'live') return 'End Talk';
   if (state === 'connecting') return 'Cancel';
@@ -1882,19 +1918,26 @@ function renderTalk(): void {
   const after = holding ? null : heardRing.state;
   holdRing.hidden = !holding && !after;
   holdRing.dataset.state = after ?? (turns.open ? 'listening' : 'connecting');
-  if (holding) holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
+  if (holding) holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : micCard.state ? 'Turn on the microphone first'
+    : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
 }
 
 function renderVoiceState(state: VoiceState, detail?: string): void {
   talkButton.setAttribute('aria-pressed', String(state === 'live'));
   talkButton.dataset.state = state;
   voiceControls.hidden = state === 'off';
-  voiceStatus.textContent = state === 'connecting' ? detail ?? 'Connecting microphone and voice provider…'
+  // The microphone's own wait is the card's (mic-card.ts): "Connecting" is only the real connect.
+  if (micWaiting()) micCard.show('asking');
+  else if (state === 'live' || (state === 'connecting' && micCard.state === 'asking')) micCard.hide();
+  else if (state === 'error' && voice.micBlocked) micCard.show('blocked');
+  if (state === 'live') { try { localStorage.setItem('mic-heard', '1'); } catch { /* not remembered */ } }
+  voiceStatus.textContent = micWaiting() ? 'Allow the microphone to talk'
+    : state === 'connecting' ? detail ?? 'Connecting to the voice…'
     : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
   turns.stateChanged(state, !!talkHold.held);
   if (state === 'off' || state === 'error') { marks.clear(); heardRing.clear(); }
   renderTalk();
-  if (state === 'error' && detail) chat.system(detail);
+  if (state === 'error' && detail && !voice.micBlocked) chat.system(detail); // a blocked microphone: the card says it
   if (state !== 'live') {
     setVoiceWorking(false);
     chat.voice.stopped();

@@ -1,0 +1,38 @@
+/* The microphone moment (mic-card.ts): one calm card above the composer in the Assistant column, in the starters' card
+   tier (the page tone, a hairline, the card radius), with the one primary button the column uses. */
+.mic-card {
+  position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; align-items: start;
+  margin: 0 16px 12px; padding: 14px 36px 14px 14px; border-radius: var(--mm-r-card, 10px);
+  background: var(--mm-page); box-shadow: inset 0 0 0 1px var(--mm-line-strong), var(--mm-shadow-1);
+  color: var(--mm-text); font: 400 13px/20px var(--mm-sans);
+  animation: mic-card-in var(--mm-reveal, 320ms) var(--mm-ease, ease) both;
+}
+.mic-card[hidden] { display: none; }
+.mic-card-icon {
+  width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--mm-accent, #79adff) 16%, transparent);
+}
+.mic-card-icon svg { width: 15px; height: 15px; fill: none; stroke: var(--mm-accent, #79adff); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.mic-card[data-state='blocked'] .mic-card-icon { background: color-mix(in srgb, var(--mm-iodine, #f2b33d) 16%, transparent); }
+.mic-card[data-state='blocked'] .mic-card-icon svg { stroke: var(--mm-iodine, #f2b33d); }
+.mic-card[data-state='asking'] .mic-card-icon { animation: mic-card-breathe 1.6s var(--mm-ease, ease) infinite; }
+.mic-card-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.mic-card-title { font: 600 13px/18px var(--mm-sans); color: var(--mm-text); }
+.mic-card-line { margin: 0; color: var(--mm-text-2); }
+.mic-card-foot { margin: 2px 0 0; font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); }
+.mic-card-foot[hidden], .mic-card-act[hidden] { display: none; }
+.mic-card-act {
+  margin-top: 8px; height: 30px; padding: 0 14px; border: 0; border-radius: var(--mm-r-button, 8px);
+  background: var(--mm-accent-fill); color: #fff; font: 600 13px/1 var(--mm-sans); cursor: pointer;
+  box-shadow: var(--mm-highlight, none); transition: background var(--mm-fast, 120ms) var(--mm-ease, ease);
+}
+.mic-card-act:hover { background: var(--mm-accent-fill-hover, var(--mm-accent-fill)); }
+.mic-card-act:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 2px; }
+.mic-card-close {
+  position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; padding: 0; border: 0; border-radius: var(--mm-r-control, 6px);
+  background: none; color: var(--mm-text-3); font: 400 16px/1 var(--mm-sans); cursor: pointer;
+}
+.mic-card-close:hover { background: var(--mm-hover); color: var(--mm-text); }
+@keyframes mic-card-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes mic-card-breathe { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mm-accent, #79adff) 14%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .mic-card, .mic-card[data-state='asking'] .mic-card-icon { animation: none; } }

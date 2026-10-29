@@ -964,9 +964,10 @@ class RealtimeSession(VoiceSession):
 
     def _consume(self) -> None:
         """Every WATCH_EVERY_S, and as an event is published. Silent notes are told at once. Then one response at a
-        time: an interrupting event as soon as no key is held and the user's turn is answered (the voice's own
-        unprompted words stopped for it); else, in a pause, what is due, results first, together in one response when
-        they come within COALESCE_S of each other; else one progress line."""
+        time: an interrupting event as soon as no key is held, the user's turn is answered and the line playing now has
+        ended (never cut: a line the voice starts is finished, or yielded to the user); else, in a pause, what is due,
+        results first, together in one response when they come within COALESCE_S of each other; else one progress
+        line."""
         if self.closed or self.bus.owner is not self:
             return
         for event, why in self.bus.prune():
@@ -978,6 +979,8 @@ class RealtimeSession(VoiceSession):
         due = self.bus.due()
         urgent = [e for e in due if e.route == "interrupt"]
         if urgent and self._held is None and self._sb is not None and not self._turn_pending():
+            if self.speaking() or self.audible():
+                return  # the line playing now is finished first, never cut by our own next one (Will, 29 Oct)
             batch = (urgent + [e for e in due if e not in urgent])[:BATCH_MAX]
             self._saying = self._spawn(self._say(batch, urgent=True))
             return
@@ -1034,11 +1037,9 @@ class RealtimeSession(VoiceSession):
                         return
                     event.data["prepared"] = words
             if urgent:
-                if self._held is not None:
-                    self.bus.released(batch)
+                if self._held is not None or self.speaking() or self.audible():
+                    self.bus.released(batch)  # tried again as the line playing now ends
                     return
-                if self.speaking() or self.audible():
-                    await self.stop_speaking()
             elif not self._quiet():
                 self.bus.released(batch)
                 return

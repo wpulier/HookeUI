@@ -121,7 +121,9 @@ def test_results_due_within_120_ms_are_said_together_the_result_first():
     asyncio.run(go())
 
 
-def test_an_interrupting_failure_stops_the_voices_own_words_but_never_the_users_turn(monkeypatch):
+def test_an_interrupting_failure_follows_the_line_playing_and_never_cuts_the_users_turn(monkeypatch):
+    """Will, 29 Oct: a line the voice starts is finished or yielded to the user, never cut by our own next response. An
+    interrupting failure goes as soon as the line playing now ends, without waiting for a pause."""
     monkeypatch.setattr(openai_realtime, "IDLE_S", 5.0)  # an interrupting event never waits for a pause
 
     async def go():
@@ -131,11 +133,13 @@ def test_an_interrupting_failure_stops_the_voices_own_words_but_never_the_users_
         await audio(sb, "resp_1", "started")  # the voice is saying it
         await session.proactive('{"job": "j1", "status": "failed", "next": "turn the lamp on"}', event="job-failed",
                                 ref="j1", urgent=True)
-        await until_async(lambda: "response.cancel" in sb.types())
-        await done(sb, "resp_1", status="cancelled")  # the API ends the response it was told to cancel
+        await done(sb, "resp_1")
+        await asyncio.sleep(0.4)
+        assert "response.cancel" not in sb.types() and sb.responses == 1, "the line playing is not cut"
+        await audio(sb, "resp_1", "stopped")
         await until_async(lambda: sb.responses == 2)
         assert "turn the lamp on" in given(creates(sb)[1])
-        assert session.bus.result_for("a1").state == "interrupted", "the result it stopped stays owed"
+        assert session.bus.result_for("a1").state == "heard", "the line it followed was heard to its end"
         await done(sb, "resp_2")
         # While the user holds the key or their turn is being answered, it waits; then it is said at once.
         await hold(session, 2)
