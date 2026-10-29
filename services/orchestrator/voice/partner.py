@@ -31,7 +31,7 @@ import time
 from typing import Any, Awaitable, Callable
 
 from .openai_realtime import Perception, RealtimeSession
-from .partner_tools import PartnerTools
+from .partner_tools import STARTED_TOOLS, PartnerTools
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
 OFFER_WAIT_S = 5.0  # a reconnect waits this long for the browser's new offer
@@ -88,6 +88,7 @@ class Partner:
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
         session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
+        session.started_tools = STARTED_TOOLS  # think and the slow tools: an acknowledgement now, the result later
         session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
                                                                  timeout=1.0))
         session.on(self.on_event)

@@ -17,7 +17,9 @@ import asyncio
 import contextlib
 import json
 import os
+import re
 import time
+import uuid
 from types import SimpleNamespace
 from typing import Any
 
@@ -49,6 +51,11 @@ SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight"
 # researcher; live 2026-10-28: two researchers from one request).
 ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "switch_session", "cancel_researcher"})
 TOOL_WAIT_S = 12.0  # a tool still running after this is answered "still working"; its outcome follows as one line
+# Slow tools the voice starts and goes on from, as it does think: "started" at once (one short acknowledgement), a
+# progress line while they run, their result said once when it lands, with a mark on what they showed (think-broad-2:
+# a reference photo took ~20 s, a web lookup timed out at 12 s; both were narrated as waits and landed in later steps).
+BACKGROUND = frozenset({"reference_photo", "retrieve_page"})
+STARTED_TOOLS = frozenset({"think"}) | BACKGROUND  # answered "started": their result is said on its own (openai_realtime)
 THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long tool's real outcome (a comparison)
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
@@ -173,6 +180,8 @@ class PartnerTools:
         result carries `_pending` for `outcome`, and the outcome is held from being said on its own."""
         args = {k: v for k, v in (args or {}).items() if not k.startswith("_") and k != "after_steps"}
         n = self.partner.turn() if n is None else n
+        if name in BACKGROUND and not patient:
+            return self.background(name, args, n)
         distinct = str(args.pop("distinct_from", "") or "").strip() if name == "start_researcher" else ""
         if self.fail_next is not None:
             why, self.fail_next = self.fail_next, None
@@ -324,6 +333,47 @@ class PartnerTools:
                 return True
             await asyncio.sleep(0.05)
         return bool(self.project_shown())
+
+    def background(self, name: str, args: dict, n: int) -> dict:
+        """A slow tool started behind the voice (BACKGROUND): answered at once, its result said when it lands."""
+        task = f"{name.split('_')[0][:4]}-{uuid.uuid4().hex[:10]}"
+        job = self.partner.spawn(self._background(name, args, n, task))
+        session = getattr(self.partner, "session", None)
+        if session is not None and hasattr(session, "tell_progress"):
+            self.partner.spawn(session.tell_progress(task, lambda: not job.done(), what=name))
+        return {"started": True, "task": task, "_log": {"task": task, "startedT": time.time()},
+                "note": "Started; it takes a while. Say only a two- or three-word acknowledgement now, nothing about "
+                        "its result (do not say it is found or shown): it is told to you to say when it lands."}
+
+    async def _background(self, name: str, args: dict, n: int, task: str) -> None:
+        result = await self.run(name, args, n=n, patient=True)
+        pending = result.pop("_pending", None)
+        if pending is not None:
+            key = object()
+            self.running[key] = (name, time.monotonic(), pending[0])
+            try:
+                result = await self.outcome(name, result, *pending)
+            finally:
+                self.running.pop(key, None)
+        points = list(result.get("_point") or [])
+        if name == "reference_photo" and result.get("ok"):  # its own window, named in its receipt
+            points += [f"window:{w}" for w in re.findall(r"\bin window (w-[0-9a-f-]+)", str(result.get("summary")))]
+        facts = {"tool": name, "asked": args, **{k: v for k, v in result.items() if not k.startswith("_")},
+                 **({"shown_confirmed": result["_log"].get("confirmed")} if "confirmed" in result.get("_log", {}) else {})}
+        log = getattr(self.partner, "log", lambda record: None)
+        log({"kind": "partner-background", "task": task, "name": name, "n": n, "ok": result.get("ok"),
+             "points": points, "doneT": time.time()})
+        await self.said_when_landed(task, name, facts, "", points)
+
+    async def said_when_landed(self, task: str, what: str, facts: dict, say: str, points: list[str]) -> None:
+        """A result from behind the voice (think, a slow tool), said once: RealtimeSession prepares and says it with its
+        marks; any other partner session (Gemini 3.8 Live) says it as the one proactive line every session says."""
+        session = self.partner.session
+        if hasattr(session, "deliver"):
+            await session.deliver(task, facts=facts, say=say, points=points, what=what)
+        else:
+            text = json.dumps({"tool": what, "task": task, **facts}, ensure_ascii=False, default=str)
+            await self.partner.happened(f"{what}-done", text, ref=task, mark=points[0] if points else None)
 
     def voice_label(self) -> str:
         from ..options import VOICE
@@ -655,9 +705,4 @@ class PartnerTools:
              "ok": result.ok, "checked": result.checked, "refused": result.refused, "error": result.error,
              "rounds": result.rounds, "tools": result.tools, "points": result.points, "ms": result.usage.get("ms"),
              "usage": {k: v for k, v in result.usage.items() if k != "ms"}, "doneT": time.time()})
-        if hasattr(session, "deliver"):  # RealtimeSession: prepared out of band, said once with its marks
-            await session.deliver(task.id, facts=result.facts(), say=result.say, points=result.points)
-        else:  # any other partner session (Gemini 3.8 Live): the one line every session says, once
-            text = json.dumps({"tool": "think", "task": task.id, **result.facts()}, ensure_ascii=False, default=str)
-            await self.partner.happened("think-done", text, ref=task.id,
-                                        mark=result.points[0] if result.points else None)
+        await self.said_when_landed(task.id, "think", result.facts(), result.say, result.points)

@@ -454,3 +454,69 @@ def test_a_claude_refusal_comes_back_as_a_refusal():
                                       lambda n, a: None, lambda s: None, "system")
         assert result.refused == "bio" and result.ok is False
     asyncio.run(go())
+
+
+# --- slow tools behave like think: started at once, progress while they run, said once when they land --------------
+def test_a_slow_reference_photo_is_started_at_once_and_said_once_with_its_window_marked(monkeypatch):
+    """think-broad-2: reference_photo took ~20 s; the voice narrated "still fetching" and the photo's landing was said
+    during the next step, where "close the picture" found nothing to close. Now it is started at once with one short
+    acknowledgement, a progress line while it runs, and its result said once when it lands, its window marked."""
+    monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 0.2)
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+    gate = asyncio.Event()
+
+    async def photo(ctx, args):
+        await gate.wait()
+        return ('shown on screen (open, confirmed by the studio): saved-image reference d1 "Stages of Mitosis" from '
+                'micro.magnet.fsu.edu in window w-76c0ea48-bc9c')
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(), tools={"reference_photo": photo})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "reference_photo", "arguments": json.dumps({"subject": "a dividing nucleus"})})
+        t0 = time.perf_counter()
+        await done(t.sb, "resp_1")
+        output = await until_async(lambda: next((json.loads(i["output"]) for i in t.sb.items()
+                                                 if i["type"] == "function_call_output"), None))
+        assert output["started"] is True and time.perf_counter() - t0 < 1.0
+        ack = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "ack"), None))
+        assert ack["response"]["tool_choice"] == "none"
+        await done(t.sb, "resp_2")
+        progress = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "progress"),
+                                                  None))
+        assert "reference_photo" in progress["response"]["instructions"]
+        await done(t.sb, "resp_3")
+        gate.set()
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        assert "Stages of Mitosis" in prep["response"]["input"][0]["content"][0]["text"]
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_4", "delta": "Here's a dividing nucleus."})
+        await done(t.sb, "resp_4")
+        said = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"), None))
+        assert "Here's a dividing nucleus." in said["response"]["instructions"]
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_5"})
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert marks["marks"] == [{"target": "window:w-76c0ea48-bc9c", "style": "box"}]
+        await done(t.sb, "resp_5")
+        await asyncio.sleep(0.4)
+        assert not [i for i in t.sb.items() if i.get("role") == "system" and "Something happened" in i["content"][0]["text"]]
+        assert len([e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"]) == 1
+    asyncio.run(go())
+
+
+def test_a_web_lookup_that_fails_is_said_once_plainly(monkeypatch):
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+
+    async def lookup(ctx, args):
+        from orchestrator.brain.registry import ToolFailed
+        raise ToolFailed("the web lookup took longer than 45 s and was stopped")
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(), tools={"retrieve_page": lookup})
+        spec = next(s for s in t.session.config.tools if s.name == "retrieve_page")
+        started = await spec.handler({"query": "typical HeLa nucleus size"})
+        assert started["started"] is True
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        assert "took longer than 45 s" in prep["response"]["input"][0]["content"][0]["text"]
+    asyncio.run(go())

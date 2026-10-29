@@ -13,6 +13,9 @@ from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 LIST_MAX = 12
 
 
+RETRIEVE_S = 45.0  # a web lookup and its page, at most (12 s timed out on search-then-fetch; the voice no longer waits)
+
+
 def add_resource_tools(registry: Registry, services) -> None:
     hub = services.hub
     if services.day is not None:
@@ -28,13 +31,16 @@ def add_resource_tools(registry: Registry, services) -> None:
         if not query and not url:
             raise ToolFailed("name the page or topic to retrieve", next=None)  # no next: the concrete limitation is already stated; no automatic substitute action
         try:
-            async with asyncio.timeout(12):
+            async with asyncio.timeout(RETRIEVE_S):
                 matches = [{"page": url, "title": url}] if url else await lookup(query)
                 if not matches:
                     raise ToolFailed("this lookup returned no page", next=None)  # no next: the concrete limitation is already stated; no automatic substitute action
                 match = matches[0]
                 text = await fetch_text(match["page"])
-        except (FetchRefused, TimeoutError) as exc:
+        except TimeoutError as exc:  # said as what happened (think-broad-1: "the page could not be read: " and no why)
+            raise ToolFailed(f"the web lookup took longer than {RETRIEVE_S:.0f} s and was stopped; nothing was read",
+                             next=None) from exc
+        except FetchRefused as exc:
             raise ToolFailed(f"the page could not be read: {exc}", next=None) from exc  # no next: the concrete limitation is already stated; no automatic substitute action
         require_current(ctx, services.day)
         return block(json.dumps({"title": match["title"], "url": match["page"],
