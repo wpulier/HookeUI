@@ -110,10 +110,19 @@ other files.
     waits. If none comes it is **uncertain**: "sent, but not confirmed on screen" (STUDIO_UNREPORTED; Hands'
     receipt `uncertain`, "I sent it but couldn't confirm it on screen"), never done, never "ask again". A step the
     whole action needs (a split's retirement of its original) still fails the action.
-  - **A request whose studio report is older than `REPORT_FRESH_S`** asks for a fresh one before its steps run
-    (`ActionRunner._current_report`), so its tools do not each fail as stale.
-  - **A voice hand-off and every voice tool** ask the bound studio for its report and pin that one (`Screen.refresh`),
-    as a typed Send pins the report it carries; the hand-off seals its Ticket after the turn, as a Send does.
+  - **One way in** (the spec's 4.8 horizontal 1): every actor's request gets its current report from Hooke itself,
+    through one helper, `screen.fresh_report` (`Screen.current_report`), never failed as stale by each tool in turn:
+    - **a typed Send's steps** (`ActionRunner._current_report`): its report, asked for again when older than
+      `REPORT_FRESH_S`;
+    - **a voice hand-off and every voice tool** (`now`): the bound studio's report at this moment, pinned as a typed
+      Send pins the report it carries; the hand-off seals its Ticket after the turn, as a Send does;
+    - **a researcher's own studio action** (`Announcer._open_beside`, showing its result: live 17:25, it failed
+      "unavailable or stale"): its original studio's, when stale; a report with no viewer to change keeps its work
+      retained (in Data), never an error;
+    - **the studio's own Run and a connected agent's run** (`commands.run_tool`; the door's capability runs name no
+      studio, so the one whose report counts): when stale.
+    A report that does not come leaves the last one standing, and a change it never confirms is uncertain (above).
+    Tests: `tests/test_one_way_in.py`.
   - **The Tab arrangement** (studio `workspace-views.ts`): a save that meets a newer revision is rebased on it
     (`rebasedLayout`: what was added there kept, everything shown here kept) and saved again, at most twice; a window
     is always saved with a name (`windowTitle`, `savedTitle`); a refusal of the arrangement is said on its layout line

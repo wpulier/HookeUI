@@ -123,6 +123,9 @@ agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
   while Talk is live, or while a Hooke window shows a Project that isn't empty (nothing opened, made or asked) and
   isn't the example's own. It is checked at the door and again as it starts.
 - **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
+- **One way in:** an agent's run (`commands.run_tool` as the agent) asks the studio whose report counts for a current
+  report when its last is stale, before its tool reads the screen, as every actor's request does
+  (`screen.fresh_report`; docs/architecture/on-screen.md).
 
 ## Still to build (ADR 0026)
 - **Live-stage runs** still require the creator's open Project. The saved-input workflow path below captures retained inputs independently; actual off-screen qualification is separate from source/tests.

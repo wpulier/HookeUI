@@ -735,6 +735,11 @@ async def run_tool(app, name: str, args: dict, *, question: str = '', client=Non
             stop = user_stop.STOP.get()
             if stop is not None and stop.requested:
                 raise asyncio.CancelledError  # the user pressed Stop between the steps of their action: none starts after it
+            if client is not None or door_actor.current():
+                # One way in (screen.fresh_report): the studio's report current before the tool acts, for the studio's
+                # own Run and a connected agent's run (which names no studio: the one whose report counts).
+                from .screen import fresh_report
+                await fresh_report(app.hub, client)
             run = app.brain.registry.start(name, args, ctx)
             if run.task is not None:
                 if stop is not None:

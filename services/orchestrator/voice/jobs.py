@@ -19,24 +19,40 @@ or cancelled. Queued is the state a job is in until its task starts; no cap is p
   (`project_state.jobs`), so "the second one" resolves the same way for the voice, think and a reader of the brief.
 
 The jobs live on the hub (`jobs_of`), not on a Talk session: a new Talk session, the brief and `jobs` see the same list.
+
+**A voice hand-off is a job too** (`HandoffJob`, kind "hooke"; the spec, 4.8 horizontal 1): each `do_in_hooke` is
+Hooke's own work in progress, beside think jobs and researchers, under its hand-off's id (its chat row,
+voice/handoffs.py). Running from the call; then done, failed or uncertain (a change sent but not confirmed on screen,
+never "done") from the brain's own turn, or from the steps that turn left running (`Jobs.watch`: they end through
+`Registry.finished`); cancelled only once its work has stopped (the voice's `stop_work`). It is listed and numbered
+with the others, files one Activity line with its label (running, then its end), and while the brain works on it the
+studio is sent the chat's `thinking` message with its id (partner_tools `_thinking`).
 """
 from __future__ import annotations
 
 import asyncio
 import contextlib
 import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
+from typing import Callable, ClassVar
 
-STATES = ("queued", "running", "cancelling", "done", "failed", "cancelled")
+STATES = ("queued", "running", "cancelling", "done", "failed", "uncertain", "cancelled")
 WORKING = frozenset({"queued", "running", "cancelling"})
-ENDED = frozenset({"done", "failed", "cancelled"})
-KEPT = 40  # think jobs kept per app; the oldest that have ended go first
+ENDED = frozenset({"done", "failed", "uncertain", "cancelled"})
+KEPT = 40  # jobs kept per app; the oldest that have ended go first
+ENDED_KEPT = 128  # receipts of steps that ended while hand-offs ran, kept for a turn that answers after them
 WORDS = {"queued": "queued", "running": "working", "cancelling": "being cancelled", "done": "done",
-         "failed": "did not work", "cancelled": "cancelled"}
+         "failed": "did not work", "uncertain": "sent, but not confirmed on screen", "cancelled": "cancelled"}
+# A hand-off's row state (voice/handoffs.py) as its job's: started (it started a researcher) is its own part done; the
+# researcher is a job of its own. Unknown (it stopped before the brain answered) is not done.
+FROM_HANDOFF = {"working": "running", "done": "done", "started": "done", "uncertain": "uncertain", "failed": "failed",
+                "unknown": "failed"}
 
 
 @dataclass(eq=False)
 class Job:
+    kind: ClassVar[str] = "think"
     task: "object"  # think.ThinkTask
     project: str | None = None  # the Project it was started in (a session id)
     started: float = field(default_factory=time.time)
@@ -96,13 +112,69 @@ class Job:
         return "; ".join(parts) or "it had not reported yet"
 
 
+@dataclass(eq=False)
+class HandoffJob:
+    """A voice hand-off to Hooke's brain (`do_in_hooke`) as a job, kind "hooke": its id, label and words are its
+    hand-off's (handoffs.Handoff), so its chat row, its job, its Activity line and its `thinking` message name it alike."""
+    kind: ClassVar[str] = "hooke"
+    handoff: "object"  # handoffs.Handoff
+    project: str | None = None
+    started: float = field(default_factory=time.time)
+    state: str = "running"  # running from the call (never queued), cancelling, then done, failed, uncertain or cancelled
+    runs: int = 1
+    runner: asyncio.Task | None = None  # its brain turn: stop_work cancels it
+    ticket: "object" = None  # its request (ticket.Ticket): the steps it tracks, its later effects called off on a stop
+    stop: "object" = None  # its user_stop.Stop holder: a cancellation inside it is the user's stop, never a failure
+    doing: str = ""  # the steps the brain's answer left running, by tool
+    pending: set = field(default_factory=set)  # those steps' action ids: it ends once each has (Jobs.watch)
+    late: list = field(default_factory=list)  # their receipts as each ended (ToolRun.wire)
+    asking: str = ""
+    verified: bool | None = None
+    ended: float | None = None
+    reason: str = ""  # why it did not work, or what a stop left
+    told: bool = False  # its stop was said already (stop_work saw it end): not said again when it lands
+    thinking: bool = False  # the chat's `thinking` message is on for it (partner_tools `_thinking`)
+    settled: Callable | None = None  # (state, receipts, reason): its row takes the end its late steps gave it
+
+    @property
+    def id(self) -> str:
+        return self.handoff.id
+
+    @property
+    def request(self) -> str:
+        return self.handoff.request
+
+    @property
+    def label(self) -> str:
+        return self.handoff.label
+
+    def ref(self) -> str:
+        return self.id
+
+    def group(self) -> str:
+        return "running" if self.state in WORKING else "cancelled" if self.state == "cancelled" else "finished"
+
+    def row(self) -> dict:
+        """The job as project_state.jobs lists it beside the researchers and think jobs."""
+        from ..untrusted import inline
+
+        return {"kind": "hooke", "id": self.id, "name": "Hooke's work", "label": inline(self.label, 80),
+                "state": self.state, "group": self.group(), "started": self.started,
+                "about": inline(self.label or self.request, 160), "doing": inline(self.doing, 160), "asking": "",
+                "verified": self.verified}
+
+
 class Jobs(dict):
-    """Every think job of this app by id (one per hub, made once, so a new Talk session knows what is running). Each
-    change of state files the job's Activity line again."""
+    """Every job of this app by id: think jobs and the voice's hand-offs (one per hub, made once, so a new Talk session
+    knows what is running). Each change of state files the job's Activity line again."""
 
     def __init__(self, hub=None) -> None:
         super().__init__()
         self.hub = hub
+        self._watching = None  # the registry whose finished runs end hand-off jobs (watch)
+        # Steps that ended while a hand-off was running, by action id (their receipts): one that ended before its
+        # brain turn answered is not waited for afterwards.
+        self._ended: OrderedDict[str, dict] = OrderedDict()
 
     def add(self, job: Job) -> Job:
         self[job.id] = job
@@ -127,6 +199,9 @@ class Jobs(dict):
         """Its one Activity line: running while it works or waits on the user, then done (verified) or not."""
         if self.hub is None:
             return
+        if isinstance(job, HandoffJob):
+            self._file_handoff(job)
+            return
         from .. import activity
         from ..untrusted import inline
 
@@ -144,6 +219,107 @@ class Jobs(dict):
             activity.activity(self.hub, "command", f"Assistant: thinking it through: {inline(job.request, 120)}: {words}",
                               state=state, id=f"command:job-{job.id}",
                               details={"ids": {"job": job.id, "state": job.state}, "lines": lines})
+
+
+    def _file_handoff(self, job: HandoffJob) -> None:
+        """A hand-off's line, by its label: "Assistant: <label>: working", then done, did not work, not confirmed on
+        screen, or stopped; an uncertain one is never done (as Hands files its own)."""
+        from .. import activity
+        from ..untrusted import inline
+
+        words = {"cancelling": "being stopped", "cancelled": "stopped"}.get(job.state, WORDS[job.state])
+        if job.state == "running" and job.doing:
+            words = f"working, still running {job.doing}"
+        state = "running" if job.state in WORKING else "done" if job.state == "done" else "failed"
+        lines = [f"Asked: {inline(job.request, 280)}"]
+        if job.reason:
+            lines.append(inline(job.reason, 280))
+        with contextlib.suppress(Exception):
+            activity.activity(self.hub, "command", f"Assistant: {inline(job.label or job.request, 120)}: {words}",
+                              state=state, id=f"command:job-{job.id}",
+                              details={"ids": {"job": job.id, "kind": "hooke", "state": job.state}, "lines": lines})
+
+    # --- hand-offs: their state from their row, their end from the steps they left running ---------------------------
+    def handoff_changed(self, handoff) -> HandoffJob | None:
+        """Its row changed (handoffs.Handoffs): the job follows it. A row the brain answered with steps still running
+        (`settling`) keeps the job running until those steps end (`run_finished`); one cut off by a stop is cancelled."""
+        job = self.get(getattr(handoff, "id", None))
+        if not isinstance(job, HandoffJob) or job.state in ENDED:
+            return job if isinstance(job, HandoffJob) else None
+        if job.state == "cancelling":  # being stopped: its stop ends it, once all its work has (stop_work)
+            return job
+        if handoff.state == "working":
+            running = [s for s in handoff.steps or [] if isinstance(s, dict) and s.get("ok") is None]
+            if handoff.settling and running:
+                job.pending = {s["actionId"] for s in running if s.get("actionId")}
+                job.doing = ", ".join(dict.fromkeys(str(s.get("tool") or "a step") for s in running))
+                if not job.pending:  # no identity to wait on: its steps' own rows settle it, the job cannot
+                    self.set(job, "uncertain")
+                    return job
+                for action in list(job.pending):  # ended already, before the brain's answer came back
+                    if action in self._ended:
+                        job.pending.discard(action)
+                        job.late.append(self._ended[action])
+                if not job.pending:
+                    self._end_late(job)
+                    return job
+                self.file(job)
+            return job
+        job.verified = handoff.state in ("done", "started")
+        job.reason = getattr(handoff, "reason", "") or ""
+        self.set(job, FROM_HANDOFF.get(handoff.state, "failed"))
+        return job
+
+    def watch(self, registry) -> None:
+        """Hand-off jobs end when the steps their brain turn left running end (`Registry.finished`): one listener per
+        app's registry."""
+        finished = getattr(registry, "finished", None)
+        if self._watching is registry or not isinstance(finished, list):
+            return
+        finished.append(self.run_finished)
+        self._watching = registry
+
+    def run_finished(self, run, ctx=None) -> None:
+        """A step ended: a hand-off job waiting on it takes its receipt, and ends once the last of them has (done only
+        when every step verified; a change sent but not confirmed is uncertain; a step that failed, failed)."""
+        action = getattr(getattr(run, "occurrence", None), "action_id", None)
+        running = [job for job in self.values() if isinstance(job, HandoffJob) and job.state in WORKING]
+        if not action or not running:
+            return
+        try:
+            receipt = run.wire()
+        except Exception:
+            receipt = {"tool": getattr(run, "tool", ""), "ok": getattr(run, "ok", None), "actionId": action}
+        self._ended[action] = receipt
+        while len(self._ended) > ENDED_KEPT:
+            self._ended.popitem(last=False)
+        for job in running:
+            if action not in job.pending:
+                continue
+            job.pending.discard(action)
+            job.late.append(receipt)
+            if not job.pending:
+                self._end_late(job)
+
+    def _end_late(self, job: HandoffJob) -> None:
+        """The last step a hand-off's answer left running has ended: the job (and its row) end from their receipts."""
+        from .handoffs import unconfirmed
+
+        job.doing = ""
+        receipts = [r for r in job.late if isinstance(r, dict)]
+        if any(r.get("ok") is False and not unconfirmed(r) for r in receipts):
+            state = "failed"
+            job.reason = next((str(r.get("summary")) for r in receipts if r.get("ok") is False and r.get("summary")),
+                              "a step did not work")
+        elif any(unconfirmed(r) for r in receipts):
+            state = "uncertain"
+        else:
+            state = "done"
+        job.verified = state == "done"
+        self.set(job, state)
+        if job.settled is not None:
+            with contextlib.suppress(Exception):
+                job.settled(state, receipts, job.reason)
 
 
 def jobs_of(hub) -> Jobs:

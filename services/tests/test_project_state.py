@@ -502,3 +502,39 @@ def test_think_jobs_are_listed_beside_the_researchers_numbered_together_and_the_
     assert "Researchers (running first" in project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
     said = asyncio.run(built.brain.registry.tools["resources"].handler(ToolContext("chat", 1, None, "what's running?"), {}))
     assert f"#2 think job ({job.id})" in said
+
+
+def test_hookes_own_work_on_a_hand_off_is_a_job_numbered_with_the_others_in_the_brief_and_the_resources_answer(tmp_path):
+    """W1 (the spec, 4.8 horizontal 1): a voice hand-off is Hooke's own work in progress (voice/jobs.py HandoffJob, kind
+    "hooke"), in the one list beside researchers and think jobs, numbered by when each started, so "the second one" and
+    "stop that" mean the same thing everywhere; its label is the voice's words, inside the wrapper; the wire is
+    unchanged (its schema is closed: the addition is a contract change of its own)."""
+    from orchestrator.voice.handoffs import Handoffs
+    from orchestrator.voice.jobs import HandoffJob, Job, jobs_of
+    from orchestrator.voice.think import ThinkTask
+
+    built = app_at(tmp_path).state.app
+    hub, sid = built.hub, built.day.sid
+    researcher(built, 1, "done", finding="Nuclei measured")
+    think = jobs_of(hub).add(Job(ThinkTask("compare three outline models"), project=sid, started=NOW - 100 + 1.5))
+    jobs_of(hub).set(think, "running")
+    flight = Handoffs().start("find a YouTube video about stomata", "A video about stomata")
+    handed = jobs_of(hub).add(HandoffJob(flight, project=sid, started=NOW - 100 + 2.5))
+    late = jobs_of(hub).add(HandoffJob(Handoffs().start("open the table", "The table"), project=sid, started=NOW))
+    jobs_of(hub).set(late, "uncertain")
+    rows = project_state.jobs(hub, sid)
+    assert [(r["n"], r["kind"], r["id"]) for r in rows] == [(1, "researcher", "r1"), (2, "think", think.id),
+                                                            (3, "hooke", handed.id), (4, "hooke", late.id)]
+    state = owner_state(built)
+    schema.check(state, "project-state")
+    assert handed.id not in json.dumps(state), "not on the wire"
+    brief = project_state.brief(state, jobs=rows)
+    assert "Jobs (researchers, think jobs and Hooke's own work, numbered together by when each started" in brief
+    assert f"#3 Hooke's work ({handed.id}): running" in brief
+    assert f"#4 Hooke's work ({late.id}): uncertain (sent, not confirmed on screen)" in brief
+    wrapped = brief[brief.index('untrusted="true">'):]
+    assert "A video about stomata" in wrapped and "A video about stomata" not in brief[:brief.index('untrusted="true">')]
+    said = asyncio.run(built.brain.registry.tools["resources"].handler(ToolContext("chat", 1, None, "what's running?"), {}))
+    assert f"#3 Hooke's work ({handed.id}): running" in said
+    only = project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
+    assert "Jobs (researchers and Hooke's own work, numbered together" in only

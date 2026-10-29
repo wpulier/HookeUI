@@ -1590,8 +1590,8 @@ def test_the_announcers_late_line_about_a_researcher_is_never_said_again(monkeyp
 
 def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands_the_rest_over(monkeypatch):
     """PARTNER_ACTS "brain", the default (Will, 29 Oct: the old voice "just worked" because the brain did the work): the
-    voice has no Hooke tools of its own, only pointing, the close look, activity and do_in_hooke, and its instructions
-    say so."""
+    voice has no Hooke tools of its own, only pointing, the close look, activity, do_in_hooke and stop_work (for
+    Hooke's own work in progress), and its instructions say so."""
     from orchestrator import prompts
     from orchestrator.options import Settings
 
@@ -1600,7 +1600,7 @@ def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands
     async def go():
         t = await partner_session(monkeypatch, tools={"find": "outlined it", "zoom": "magnified"}, acts="brain")
         names = sorted(spec.name for spec in t.partner.tools.specs())
-        assert names == ["activity", "do_in_hooke", "look_hard", "mark"]
+        assert names == ["activity", "do_in_hooke", "look_hard", "mark", "stop_work"]
     asyncio.run(go())
     written = prompts.partner_prompt("brain")
     assert "do_in_hooke" in written and "call find" not in written and "think" not in written.split("# Acting")[1]
@@ -1660,7 +1660,7 @@ def test_a_hand_off_says_one_outcome_when_the_work_it_started_has_landed(monkeyp
         t = await partner_session(monkeypatch, acts="brain")
         tools = t.partner.tools
         delegation = "handoff:h1"
-        tools._handed[delegation] = {}
+        tools._late_of[delegation] = {}
         ran = SimpleNamespace(tool="outline_cells", ok=True, summary="146 cells outlined", answer="",
                               occurrence=SimpleNamespace(action_id="a2", request_id="r1"),
                               wire=lambda: {"tool": "outline_cells", "ok": True, "summary": "146 cells outlined",
@@ -1673,7 +1673,7 @@ def test_a_hand_off_says_one_outcome_when_the_work_it_started_has_landed(monkeyp
                   "actions": [{"tool": "tabs", "ok": True, "summary": "Main selected", "actionId": "a1"},
                               {"tool": "outline_cells", "ok": None, "summary": "still working", "actionId": "a2"}]}
         request = SimpleNamespace(tasks=set())
-        settling = asyncio.ensure_future(tools._handoff_landed(result, tools._handed[delegation], request))
+        settling = asyncio.ensure_future(tools._handoff_landed(result, tools._late_of[delegation], request))
         await asyncio.sleep(0.3)
         assert not settling.done(), "the hand-off waits for the step it answered still working"
         await announcer.late_tool(ctx, ran)
@@ -1683,7 +1683,7 @@ def test_a_hand_off_says_one_outcome_when_the_work_it_started_has_landed(monkeyp
         assert settled["actions"][1]["summary"] == "146 cells outlined"
         assert settled["answer"] == "" and "still running" in settled["answered_while_working"]
         # Not a hand-off's (no one waits for it): said as a late result, as before.
-        del tools._handed[delegation]
+        del tools._late_of[delegation]
         await announcer.late_tool(ctx, ran)
         assert offered, "a late step no hand-off waits for is said"
     asyncio.run(go())

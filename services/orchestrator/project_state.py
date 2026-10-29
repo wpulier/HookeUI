@@ -13,9 +13,10 @@ Readers: the brain's `resources` (its default answer) and `research_status` tool
 (brain/context.py `_roster`), the researchers' session tool (`/for-researchers/api/resources/summary`) and the door's
 `project.state`. Researchers are in one order for all of them (`ordered`): running first, then finished, then stopped.
 
-The live partner's think jobs (voice/jobs.py) are listed beside the researchers, numbered together by when each started
-(`jobs`), in `text` and `brief` (what the brain, the voice and think read). They are not on `project.state`'s wire yet:
-its schema is closed (contract/agent/project-state.schema.json), and adding them there is a contract change of its own.
+The live partner's think jobs and Hooke's own work on the voice's hand-offs (voice/jobs.py, kind "hooke") are listed
+beside the researchers, numbered together by when each started (`jobs`), in `text` and `brief` (what the brain, the voice
+and think read). They are not on `project.state`'s wire yet: its schema is closed
+(contract/agent/project-state.schema.json), and adding them there is a contract change of its own.
 """
 from __future__ import annotations
 
@@ -232,7 +233,8 @@ def _researcher(s, *, owner: bool) -> dict:
 
 
 def jobs(hub, project: str | None) -> list[dict]:
-    """The Project's researchers and the live partner's think jobs as one list, numbered together by when each started
+    """The Project's researchers, the live partner's think jobs and Hooke's own work on the voice's hand-offs (kind
+    "hooke") as one list, numbered together by when each started
     (oldest first, so a number stays as others start and end): "how are they doing?", "the second one" and "cancel
     that" mean the same for both (the part 2.5 spec, 4.4). Read by the voice's jobs tool and said by `text` and
     `brief`. A researcher's about, step and question are its own (or its request's) words, like a think job's request."""
@@ -661,10 +663,12 @@ def _job_lines(state: dict, rows: list[dict], words: list) -> list[str]:
         if r["kind"] == "researcher" and r["id"] in by_id:
             out.append(f"#{r['n']} " + _researcher_line(by_id[r["id"]], words))
             continue
-        name = r["name"] if r["kind"] == "researcher" else "think job"
+        name = r["name"] if r["kind"] == "researcher" else "Hooke's work" if r["kind"] == "hooke" else "think job"
         line = f"#{r['n']} {name} ({r['id']}): {r['state']}" + (", asking the user a question" if r.get("asking") else "")
         if r["kind"] == "think" and r["state"] == "done" and r.get("verified") is False:
             line += ", not all of it checked"
+        if r["kind"] == "hooke" and r["state"] == "uncertain":
+            line += " (sent, not confirmed on screen)"
         about = " · ".join(w for w in (r.get("about"), r.get("doing") and f"now: {r['doing']}",
                                        r.get("asking") and f"asking: {r['asking']}") if w)
         if about:
@@ -674,7 +678,15 @@ def _job_lines(state: dict, rows: list[dict], words: list) -> list[str]:
 
 
 def _with_think(rows) -> bool:
-    return any(r.get("kind") == "think" for r in rows or ())
+    """Whether the jobs hold more than researchers (think jobs, Hooke's own work): then they are listed as jobs."""
+    return any(r.get("kind") in ("think", "hooke") for r in rows or ())
+
+
+def _jobs_kinds(rows) -> str:
+    """What the jobs list holds, in words: "researchers and think jobs", "researchers and Hooke's own work"..."""
+    kinds = ["researchers"] + [words for kind, words in (("think", "think jobs"), ("hooke", "Hooke's own work"))
+                               if any(r.get("kind") == kind for r in rows or ())]
+    return kinds[0] if len(kinds) == 1 else ", ".join(kinds[:-1]) + " and " + kinds[-1]
 
 
 def _studio_line(state: dict, *, age: bool = True) -> str:
@@ -738,7 +750,7 @@ def text(state: dict, index: str | None = None, *, jobs: list[dict] | None = Non
                      "(ask by kind: lesson, video, figure, finding-table, finding-chart, source)")
     research = state["researchers"]
     if _with_think(jobs):
-        lines.append("Jobs (researchers and think jobs, numbered together by when each started), running first, then "
+        lines.append(f"Jobs ({_jobs_kinds(jobs)}, numbered together by when each started), running first, then "
                      "finished, then stopped: " + "; ".join(_job_lines(state, jobs, words)))
     elif research["total"]:
         more = research["total"] - len(research["items"])
@@ -809,10 +821,10 @@ def brief(state: dict, max_chars: int = BRIEF_MAX, *, jobs: list[dict] | None = 
                          more=f"and {{n}} more of these; {data['total'] - len(rows)} older (resources lists them)"
                          if data["total"] > len(rows) else "and {n} more (resources lists them)"))
     research = state["researchers"]
-    if _with_think(jobs):  # the partner's think jobs beside the researchers, numbered together (`jobs`)
+    if _with_think(jobs):  # think jobs and Hooke's own work beside the researchers, numbered together (`jobs`)
         rows = _job_lines(state, jobs, words)
         running = sum(1 for r in jobs if r["group"] == "running")
-        parts.append(section([f"Jobs (researchers and think jobs, numbered together by when each started; running "
+        parts.append(section([f"Jobs ({_jobs_kinds(jobs)}, numbered together by when each started; running "
                               f"first; {running} running):", *rows], BRIEF_SHARES["researchers"]))
     else:
         rows = [_researcher_line(r, words) for r in research["items"]]

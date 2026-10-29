@@ -175,7 +175,7 @@ def expects_of(plan: dict, step_id: str) -> dict:
     return next((s.get("expect") or {} for s in plan["steps"] if s["id"] == step_id), {})
 
 
-KNOWN = {"look_hard", "mark", "do_in_hooke", "think", "show_measurements", "run_capability", "web_search"}
+KNOWN = {"look_hard", "mark", "do_in_hooke", "stop_work", "think", "show_measurements", "run_capability", "web_search"}
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in stack.PLANS.glob("*.json")))

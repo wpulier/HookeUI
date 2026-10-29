@@ -75,8 +75,9 @@ other files.
   acting calls (`jobs.outcome`): done only when every one ended verified (or it made none and answered); the
   backend's `checked` is advisory, and what is not verified goes with the result. Researchers are jobs too:
   `update_job` and `cancel_job` reach one through `researcher_note` and `cancel_researcher` (Hands, their records).
-  Each think job files one Activity line, and `project_state.jobs` numbers researchers and think jobs together by
-  when each started, in the brief and the `resources` answer, so "the second one" resolves the same way everywhere.
+  Each think job files one Activity line, and `project_state.jobs` numbers researchers, think jobs and hand-offs
+  (below) together by when each started, in the brief and the `resources` answer, so "the second one" resolves the
+  same way everywhere.
 - **Hand-offs as the chat shows them** (`voice/handoffs.py`; the studio's `handoffs.ts`). With PARTNER_ACTS "brain", each
   `do_in_hooke` files a `handoff` line at once (working, titled by the voice's required `label`), `long` past
   TOOL_WAIT_S, then its state from the brain's own turn, before the act-then-look: done (an answer, no failed step),
@@ -90,6 +91,24 @@ other files.
   researcher's result and the step's outcome once, together (`Partner._research_done` defers to it); a researcher that
   did not finish leaves it undone, and that is said. With no researcher started it runs right after the first part;
   otherwise the voice is told nothing keeps it (`not_kept`), so it is never promised. Kept in memory only.
+- **A hand-off is a job** (`voice/jobs.py` `HandoffJob`, kind "hooke"; the spec's 4.8 horizontal 1): each
+  `do_in_hooke` (and each kept later step) is Hooke's own work in progress under its row's id, in the hub's jobs beside
+  think jobs and researchers (`project_state.jobs`, "#3 Hooke's work (h3-…): running" in the brief and `resources`).
+  - **States:** running from the call; then done, failed or uncertain (a change sent but not confirmed on screen, never
+    done) from its row (`Jobs.handoff_changed`); a row the brain answered while steps still ran keeps it running until
+    those steps end (`Registry.finished` → `Jobs.run_finished`), and its row ends with them (`Handoffs.settled`).
+  - **Activity:** one line by its label: "Assistant: <label>: working", then done, did not work, "sent, but not
+    confirmed on screen" or stopped.
+  - **The chat's working signal**, as a typed Send's: `{type:"thinking", on:true, id, channel:"voice", job, label}`
+    at the call, `{…, on:false, state}` when the brain's turn on it returns (or once a stop has ended), `id` the row's
+    and the job's; typed ones carry no id.
+  - **Stopped** by the voice's `stop_work(id?)` (brain mode; the newest running hand-off when no id, a number from the
+    brief too): its brain turn and every step it started are cancelled (it runs under its own `user_stop.Stop`; the
+    `ActionRunner` registers its sequence and each step's run there, `Stop.stop_steps`), its ticket's later effects are
+    called off, and "Stopped." is said only once they have ended within `STOP_WAIT_S`; otherwise "being stopped", and
+    the stop is told once when it lands (`job-cancelled`). Work that had finished before the stop reached it says so.
+    A cancelled step is stopped, never a failure. Its row ends `unknown` with `stopped`. Researchers are still stopped
+    through `do_in_hooke` (the brain's `cancel_researcher`). Tests: `tests/test_one_way_in.py`.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.
