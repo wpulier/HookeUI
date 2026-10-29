@@ -1272,14 +1272,19 @@ class PreparedSources:
             return ResolvedSource(lease.source, lease.release)
 
     def prepared_key(self, key, context) -> bool:
-        """Whether any source is prepared under this exact key for this context's origin (metadata only: it grants
-        nothing). A report naming a key with nothing prepared behind it shows a window whose grant has ended."""
+        """Whether a source under this exact key is still granted for display to this context's origin (metadata
+        only: it grants nothing). A report naming a key with nothing granted behind it shows a window whose grant has
+        ended: nothing is prepared under it any more (its pin was released when it closed, or it was never granted
+        here), or it is a live source left with no visibility owner, pinned only by a read-only close borrow (the
+        close's own, held until the studio's report confirms it: live 2026-10-29 18:57, every report in that wait was
+        refused whole)."""
         try:
             origin = _origin(context)
         except PresentationError:
             return False
         with self._lock:
-            return any(pin.origin == origin and pin.source.key == key for pin in self._pins.values())
+            return any(pin.origin == origin and pin.source.key == key and (pin.live is None or pin.visible_holders > 0)
+                       for pin in self._pins.values())
 
     def get(self, token, context):
         origin = _origin(context)

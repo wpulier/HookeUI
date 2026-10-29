@@ -295,6 +295,10 @@ export class WorkspaceWindows {
     this.syncPhone();
     for (const state of applied) {
       const row = this.rows.get(state.id)!;
+      // A window this command closed is not presented: its owner would mount it again (main.ts puts presented
+      // windows in the Project's artifacts container), and a closed window still in the page is reported connected
+      // with live controls, never the closed window the server takes and its close confirms (live 2026-10-29 18:57).
+      if (!state.open) continue;
       this.opts.onPresentation?.(state.id, row.root, () => row.state.title, !this.opts.background?.(batch.requestId) && ['open', 'restore', 'front'].includes(batch.op ?? '') && state.open && !state.view.hidden, batch.requestId);
       if (row.root.classList.contains('study-inline-result')) this.layoutMedia(row);
     }
