@@ -1,5 +1,5 @@
 {
-  "about": "The 2026-10-11 demo's spoken journey, replayed through the real GPT-Live on test footage (docs/bench/voice-journeys.md). One Talk session, about 10 minutes. kind: view (a question the eyes should answer), plural (many of a thing), act, close, photo, side (said to an audience: never a request), typed (asked in the chat after the session).",
+  "about": "The 2026-10-11 demo's spoken journey, replayed through the real GPT-Live on test footage (docs/bench/voice-journeys.md). One Talk session, about 10 minutes. kind: view (a question the eyes should answer), plural (many of a thing), act, close, photo, side (said to an audience: never a request), typed (asked in the chat after the session). The steps with a \"from\" replay failures from the live voice session of 2026-10-28 (Part 2.5): each names what it checks; \"[[slnc N]]\" in \"say\" is a pause of N ms in the recorded words (macOS say), so a request arrives in two pieces; status asks about work in progress; a short \"wait\" starts the next step while the voice is still answering.",
   "voices": {
     "user": "Samantha",
     "side": "Daniel"
@@ -89,6 +89,49 @@
       "id": "dino",
       "kind": "act",
       "say": "Use the dino model to dissect that one."
+    },
+    {
+      "id": "outline-cells",
+      "kind": "act",
+      "say": "Can you outline the cells?",
+      "footage": "real/2026-06-14-leaf-epidermis-3m43s.mp4",
+      "seek": 60,
+      "pause": true,
+      "settle": 8,
+      "wait": 45,
+      "from": "2026-10-28 log lines 14-17: one outline's outcome was said three times; it is said once"
+    },
+    {
+      "id": "surface-data",
+      "kind": "act",
+      "say": "Can you find the data of the cell outlines and surface it?",
+      "from": "2026-10-28 log lines 26-28: \"I've brought up the measurements table\" before any tool ran, and \"nothing's outlined\" after a table request; the answer says what was done, once, with no outline talk"
+    },
+    {
+      "id": "researcher-in-pieces",
+      "kind": "act",
+      "say": "Now can you create a researcher that looks at the data on the table [[slnc 1500]] and creates an animation of it.",
+      "wait": 30,
+      "from": "2026-10-28 log lines 76-83: one request split by a pause made two researchers; it makes one"
+    },
+    {
+      "id": "researcher-status",
+      "kind": "status",
+      "say": "What's the status of our researcher?",
+      "wait": 2,
+      "from": "2026-10-28 log lines 102-104: answered, then went on while the user spoke; the next step starts 2 s in"
+    },
+    {
+      "id": "over-the-voice",
+      "kind": "act",
+      "say": "No, not that one. The researcher, researcher number three.",
+      "from": "2026-10-28 log lines 105-106: \"why are you talking over me?\"; the voice stops and listens"
+    },
+    {
+      "id": "half-finished",
+      "kind": "act",
+      "say": "Can you fit the table on that page more neatly so it feels like a [[slnc 1800]] like it's the data.",
+      "from": "2026-10-28 log lines 69-71: a half-finished request answered before its end; it waits for the rest"
     },
     {
       "id": "memory",
