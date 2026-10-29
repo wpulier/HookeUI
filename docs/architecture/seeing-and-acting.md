@@ -543,11 +543,29 @@ other files.
   look and its specimen, the subject named, the names of the outlines pointed at, selected, magnified or shown in a
   window); the search model reads the words in it (live 2026-10-11: "an iris" after zooming on the user's eye found
   the plant).
-  - **Where it searches** (option REFERENCE_SEARCH): "web+commons" (the default) searches Wikimedia Commons'
-    catalogue beside the web from the start (`reference.catalogue`, its pages outside the web's page budget), and
-    the first photo the pixel check accepts wins; the other search is called off. "web" is the web alone. On 20
-    subjects asked live (`bench/reference_bench.py`, `docs/bench/reference.md`): the web 20/20 found, 18/20 right by
-    a judge of another family, 10.7 s p50; Commons 11/20, all right, 5.0 s; the two raced 20/20, 20/20, 6.2 s.
+  - **The look at each photo** (`retrieval.look_at_photo`): every downloaded picture is looked at against the whole
+    request, read with what the user was looking at and the reference photos already kept in this Project
+    (`magnifier.shown_in_project`, not only those open in a window): the look first says what the pixels show (the
+    subject, how many, the kind of view, the imaging), then whether that is what was asked ("just a single stoma",
+    a surface view to set beside the magnified leaf, "a different one"). It is given the candidate's site, never its
+    address, whose path is often its title. A picture it turns down is never the answer: the next candidate is
+    tried, the recovery search is told what the turned-down ones showed, and when none passes the failure says so,
+    with what they showed. Asked for another one (`n` > 1), a picture whose pixels are an earlier reference's is
+    never returned and costs no look; otherwise the look is told it is the same picture and judges it. What the look
+    saw is the picture's description (`Found.shows`, the result's `description` with `describedBy`) and the
+    receipt's words ("what it shows, from a look at its pixels by Gemini 3.8 Flash: …"); the request is only "asked
+    for", and the caller's own `description`, written before anyone saw the picture, is kept as its `note` (live
+    2026-10-29 17:16: a yes/no check passed a tissue cross-section for "just a single stoma", and the receipt, the
+    caption and the answer all called it "a single stoma").
+  - **Where it searches** (option REFERENCE_SEARCH): "web" (the default since 2026-10-29) is the open web alone.
+    "web+commons" searches Wikimedia Commons' catalogue beside the web from the start (`reference.catalogue`, its
+    pages outside the web's page budget), and the first photo the look accepts wins, so the catalogue (about 0.5 s)
+    wins whenever it has one: Commons first. On 20 subjects asked live (`bench/reference_bench.py`, 2026-10-11): the
+    web 20/20 found, 18/20 right, 10.7 s p50; Commons 11/20, all right, 5.0 s; the two raced (computed from the two
+    run apart) 20/20, 6.2 s; but that judge asked only "a real photograph of <subject>", which passes a cross-section
+    for a single stoma in surface view (its judge now reads the whole request). The founder expects the open web
+    first, and on 2026-10-29 every catalogue search answered HTTP 403 (Wikimedia's robot policy refused the
+    User-Agent, now with a contact in `safe_fetch.USER_AGENT`).
 - The chat is the conversation (typed and spoken), not an activity log: a click names the thing
   on its outline and card (`SceneObject.seen`), a tool that finishes late updates its answer's
   line in place (`chat-action`), a voice hand-off shows on the Talk dot, and researchers the

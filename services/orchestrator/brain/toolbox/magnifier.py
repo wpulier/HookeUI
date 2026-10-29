@@ -55,6 +55,43 @@ def _member_meant(hub, ref, magnifier_open: bool = False, open_obj=None, asked=N
     return (population, member) if member is not None else None
 
 
+def model_said(model: str) -> str:
+    """A model's one name as the user hears it ("Gemini 3.8 Flash"), else its id."""
+    from ...options import VISION
+
+    option = VISION.get(model)
+    return option.label if option is not None else model
+
+
+def shown_in_project(hub, ctx) -> list[dict]:
+    """The reference photos already kept in the Project the request was asked in, oldest first (at most 12): each
+    one's page, title, the digest of its pixels and, when a look at those pixels described it, what it showed. Facts
+    from the app for "a different one than you have been"; the web's words cross only as capped lines."""
+    from ...untrusted import inline
+
+    results = getattr(getattr(hub, "resources", None), "results", None)
+    if results is None:
+        return []
+    asked = getattr(ctx, "asked", None)
+    try:
+        entries = results.entries(getattr(asked, "session", None) or None)
+    except Exception:
+        return []  # an unreadable store leaves the request's own view as the only record of earlier ones
+    out = []
+    for entry in entries:
+        web = entry.get("web") if entry.get("media") == "reference" else None
+        if not isinstance(web, dict) or not web.get("page"):
+            continue
+        source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+        digests = entry.get("digests") or []
+        row = {"page": inline(web["page"], 1000), "title": inline(web.get("title"), 200),
+               "digest": digests[0] if digests else None}
+        if source.get("describedBy") and source.get("description"):  # seen by a look, never a caller's own words
+            row["shows"] = inline(source["description"], 300)
+        out.append(row)
+    return out[-12:]
+
+
 def on_screen_words(services, ctx) -> str:
     """What the user was looking at when they asked, for a web search to read the request in (live 2026-10-11 16:49:
     "a picture of an iris online", right after zooming on the user's eye, found Iris the plant): the running look's
@@ -464,6 +501,17 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                         'picture': resource.get('picture'), 'page': inline(web['page'], 1000)})
             if sources:
                 lookup_args['previous_sources'] = sources[:12]
+        if not services.find_reference:
+            # "A different one than you have been": every reference photo already kept in this Project, not only the
+            # ones open in a window when asked (live 2026-10-29 17:16), with what its own look saw in it.
+            earlier = shown_in_project(hub, ctx)
+            if earlier:
+                open_now = {(p.get('digest'), p.get('page')): p for p in lookup_args.get('previous_sources', [])}
+                for row in earlier:
+                    if (row.get('digest'), row.get('page')) in open_now:  # open in a window too: one row, with its look
+                        open_now[(row.get('digest'), row.get('page'))].update({k: v for k, v in row.items() if k == 'shows'})
+                merged = [p for p in earlier if (p.get('digest'), p.get('page')) not in open_now]
+                lookup_args['previous_sources'] = (lookup_args.get('previous_sources', []) + merged)[-12:]
         if "search_terms" in args:
             try:
                 lookup_args["search_terms"] = reference.normalize_search_terms(args["search_terms"])
@@ -480,21 +528,29 @@ def add_magnifier_tools(registry: Registry, services) -> None:
             raise ToolFailed(f"no reference photo of {subject} returned by this lookup: {exc}",
                              next="try a broader search if useful") from None
         # The web's words (title, author, licence) cross only as a capped line (untrusted.inline).
-        title, credit = inline(found.title, 80) or subject, inline(found.credit, 120)
         host = urlparse(found.page).hostname
         site = reference.SITE if host == 'commons.wikimedia.org' else host or 'the web'
-        description = inline(args.get("description"), 600)
+        title, credit = inline(found.title, 80) or f"Photo from {site}", inline(found.credit, 120)
+        # What the picture shows is what a look at its pixels saw (reference.retrieve), never the request's words nor
+        # the caller's own description written before anyone saw it (live 2026-10-29 17:16: "Microscope reference
+        # photograph showing a single stoma." beneath a tissue cross-section). The caller's text is kept as its note.
+        shows = inline(getattr(found, "shows", ""), 600)
+        looked_by = getattr(found, "looked_by", "")
+        note = inline(args.get("description"), 600)
         attach(values={"media": REFERENCE, "subject": subject, "searched": found.searched, "n": found.n,
                        **({"onScreen": on_screen} if on_screen else {}),
                        **({'referencesAtRequest': prior_references[:12]} if prior_references else {}),
-                       **({"description": description} if description else {}),
+                       **({"description": shows, "describedBy": looked_by or "a look at its pixels"} if shows else {}),
+                       **({"note": note} if note else {}),
                        "seconds": found.seconds, "web": {"site": site, "page": found.page, "title": title,
                                                          "licence": inline(found.licence, 60), "author": inline(found.author, 80),
                                                          "credit": credit}})
+        seen = (f"what it shows, from a look at its pixels{' by ' + model_said(looked_by) if looked_by else ''}: {shows}"
+                if shows else "what it shows was not checked: nothing looked at its pixels")
         if args.get("show") is False:
             attach(picture_bytes=found.jpeg)
-            return (f"retained a reference photo of {subject}: a real photo from {site}, not this slide "
-                    f"({title}; {credit}); the existing magnifier is unchanged")
+            return (f"retained a reference photo: a real photo from {site}, not this slide ({title}; {credit}); "
+                    f"{seen}; asked for: {subject}; the existing magnifier is unchanged")
         if getattr(services, 'presentations', None) is not None and ctx.client:
             from ..registry import CURRENT_RUN
             from .present import _native_present
@@ -517,14 +573,15 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                     raise
                 raise ToolFailed(f"the reference photo is retained as {entry['id']}, but could not be placed beside the original window: {exc}",
                                  next="make room or select the original window, then open the retained photo beside it") from exc
+            shown += f'; {seen}; asked for: {subject}'
             if prior_references:
                 import json
                 shown += '; references already open when requested: ' + json.dumps(prior_references[:12], separators=(',', ':'))
             return shown
         await picture_shown(magnifier, found.jpeg, f"Reference photo: {title} ({site})", kind_of=REFERENCE,
                             credit=credit, **({"beside": True} if args.get("beside") is True else {}))
-        return (f"showing a reference photo of {subject} in the magnifier: a real photo from {site}, not this "
-                f"slide ({title}; {credit})")
+        return (f"showing a reference photo in the magnifier: a real photo from {site}, not this slide "
+                f"({title}; {credit}); {seen}; asked for: {subject}")
 
     registry.add(Tool("reference_photo", "Retrieve a real photo directly into its own window, usually within seconds: a "
                       "reference photo with its source and available attribution, not this slide (\"show me a real "
@@ -536,15 +593,18 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                       "show=false fetches and retains without changing the current "
                       "magnifier or motion view; its source output 0 lets a later step use present do=open "
                       "source={step:N,output:0} for this step N, without predicting an ID. Alternatively use the returned resource's exact day/id, "
-                      "version=null and picture=0 to open an independent window. description is your bounded explanation "
-                      "of the topic, kept with its web credit and displayed beneath the native image. You have not seen the retrieved image yet: do not assert its magnification, visible features or that it satisfies a detail the source has not established. Default/"
+                      "version=null and picture=0 to open an independent window. Every photo found is looked at, its pixels against "
+                      "the whole request (subject, how many, kind of view, imaging, a different one from those already in this Project); "
+                      "one that fails is never returned, and the receipt says what the returned photo shows from that look: describe the "
+                      "photo only in those words, never as what was asked. description is an optional note on the topic, kept as a note, "
+                      "never as what the photo shows. Default/"
                       "show=true opens its independent window, retaining the magnification and other work. In a native workspace, with default "
                       "show=true, beside=true fits the new photo beside the original requesting browser's pointed window "
                       "(or its sole visible window) before its first paint, leaving that anchor fixed; ambiguity or no room is reported. "
                       "For an explicit anchor, use show=false then present(do=open,source={step:N,output:0}, "
                       "relation={kind:beside,reference:{instanceId:the exact observed window ID}}) for initial fitting. "
                       "Arranging an already-open window preserves its current size and may not fit. "
-                      "n: another match (2, 3...) when asked for another one.",
+                      "n: another match (2, 3...) when asked for another or a different one; photos already kept in this Project are then never returned.",
                       schema({"subject": {"type": "string", "description": "the full requested photo, including imaging method or magnification constraints"},
                               "search_terms": {"anyOf": [{"type": "string", "minLength": 1, "maxLength": 600},
                                                {"type": "array", "minItems": 1, "maxItems": 2,
@@ -552,7 +612,7 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                                                "description": "optional web search terms that retain the requested subject and imaging constraints"},
                               "n": {"type": "integer", "description": "which match, 1-based (default 1)"},
                               "show": {"type": "boolean", "description": "default true; false retains the photo for a separate native window and preserves the current view"},
-                              "description": {"type": "string", "maxLength": 600, "description": "your explanation/caption, kept as data with the original web source and licence"},
+                              "description": {"type": "string", "maxLength": 600, "description": "optional note on the topic, kept as a note; the photo's description comes from a look at its pixels"},
                               "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed or sole visible window, before first paint; anchor unchanged. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
                       reference_photo, inline_ms=1500, family="magnifier"))
 

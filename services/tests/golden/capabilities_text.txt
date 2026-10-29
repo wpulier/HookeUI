@@ -82,7 +82,7 @@ Magnifying & comparing (A close-up beside the view; two things side by side):
 - I: Show a researcher's picture: Puts a researcher's picture in the magnifier (say "show me the labelled picture")
 - I: Switch magnifier source: Shows an existing magnifier source while keeping the others available (say "show just the reference photo")
 - I: Enlarge a picture: Enlarges existing image pixels while preserving camera zoom and comparison (say "make just the reference picture bigger")
-- I: A real reference photo: Shows a real reference photo of that kind, with its source (say "show me a real picture of a stoma"); models: Fast web retrieval: Gemini 3.8 Flash (cloud), fixed in the code; Photo search: Web and Commons together, a behaviour setting, uses Google Gemini API, Wikimedia Commons search API
+- I: A real reference photo: Shows a real reference photo of that kind, with its source (say "show me a real picture of a stoma"); models: Fast web retrieval: Gemini 3.8 Flash (cloud), fixed in the code; Photo search: Web search, a behaviour setting, uses Google Gemini API
 - I: Close the magnifier: Closes the magnifier (say "close that")
 - You: Close the magnifier: Its × or Escape closes it (key Escape)
 Counting & measuring (How many, how big, and the scale):

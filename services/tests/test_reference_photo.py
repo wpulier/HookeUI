@@ -106,9 +106,11 @@ def test_model_search_terms_fall_back_in_order_without_replacing_reference_prove
     assert commons.searched == ["leaf pore micrograph", "leaf pore"]
     assert commons.fetched == ["p/one"]
     assert r.values["subject"] == subject and r.values["searched"] == "leaf pore"
-    assert r.values["description"] == description and r.values["n"] == 1
-    assert kept[-1]["source"] == {"frame": None, "seq": None, "boot": None,
-        "description": description, "web": {
+    # The legacy catalogue path looks at no pixels: nothing is said of what the photo shows, and the caller's
+    # words, written before anyone saw it, are its note, never its description.
+    assert r.values["note"] == description and "description" not in r.values and r.values["n"] == 1
+    assert "what it shows was not checked" in r.summary
+    assert kept[-1]["source"] == {"frame": None, "seq": None, "boot": None, "web": {
             "site": "Wikimedia Commons", "page": "https://commons.wikimedia.org/wiki/File:Leaf pore.jpg",
             "title": "Leaf pore", "licence": "CC BY-SA 4.0", "author": "A. Botanist",
             "credit": "A. Botanist, CC BY-SA 4.0, commons.wikimedia.org"}}
@@ -648,3 +650,106 @@ def test_the_search_is_told_what_the_user_was_looking_at(monkeypatch):
     assert "A close-up of a person's face, the right eye in the middle." in told and "human face" in told
     assert "the outline magnified: eye" in told
     assert calls[0][1]["request_context"] == "Pull up a picture of an iris online"
+
+
+SEEN_SURFACE = ("a surface view of one stoma: two kidney-shaped guard cells around an open pore, brightfield light "
+                "microscopy")
+
+
+def test_what_the_photo_shows_is_said_from_the_look_never_from_the_request(monkeypatch):
+    """Live 2026-10-29 17:16: the receipt said "a reference photo of single stoma microscope" and the caller's own
+    caption ("Microscope reference photograph showing a single stoma.") was kept as the picture's description, both
+    written before anyone saw the pixels; the answer then said a cross-section was "a single stoma". The receipt and
+    the description now say what the look at the pixels saw, by the model that looked; the request is only what was
+    asked for, and the caller's caption only its note."""
+    from orchestrator.resources import Results
+
+    hub = FakeHub([0])
+    shown = reference.Found(JPEG, 640, 360, "File:Guard cells surrounding closed stoma", "https://plants.example/s",
+                            "", "", "plants.example", "single stoma microscope", 2, 9.1, SEEN_SURFACE,
+                            "gemini-3.8-flash")
+    monkeypatch.setattr(reference, "find_blocking", lambda subject, n=1, **kwargs: shown)
+    registry, kept = tools(hub, Magnifier(hub)), []
+    registry.retaining.append(lambda r, ctx: kept.append(Results(None).from_run(r, ctx, hub)))
+    r = run(registry, "reference_photo", {"subject": "single stoma microscope", "n": 2, "show": False,
+                                          "description": "Microscope reference photograph showing a single stoma."})
+    assert r.ok, r.summary
+    assert f"what it shows, from a look at its pixels by Gemini 3.8 Flash: {SEEN_SURFACE}" in r.summary
+    assert "asked for: single stoma microscope" in r.summary and "reference photo of single stoma" not in r.summary
+    assert r.values["description"] == SEEN_SURFACE and r.values["describedBy"] == "gemini-3.8-flash"
+    assert r.values["note"] == "Microscope reference photograph showing a single stoma."
+    assert kept[-1]["source"]["description"] == SEEN_SURFACE  # what the studio shows beneath the picture
+
+
+def test_a_different_one_excludes_a_picture_kept_earlier_in_the_project_even_with_no_window_open(monkeypatch, tmp_path):
+    """"A different one than you have been" (live 2026-10-29 17:16) means not a picture already shown in this
+    Project, not only one open in a window when asked. The real tool and retrieval, with the web, the download and
+    the look scripted: the first request keeps the microscopyofnature.com photo; the second, asked for another one
+    with no window open, never gets it back and costs no look on it."""
+    from orchestrator.brain.registry import ToolContext
+    from orchestrator.resources import Results
+    from research_worker import retrieval
+
+    old, new = "https://microscopyofnature.com/stomata", "https://plants.example/one-stoma"
+    pixels = {old: b"three-stomata-pixels", new: b"one-stoma-pixels"}
+    looked, searched = [], []
+
+    async def lookup(query, **kwargs):
+        searched.append(query)
+        return [{"title": "Stomata", "page": old, "image": old + ".jpg"},
+                {"title": "One stoma", "page": new, "image": new + ".jpg"}]
+
+    async def fetch(url):
+        return safe_fetch.FetchedImage(pixels[url.removesuffix(".jpg")], 640, 480, url, url)
+
+    async def look(query, jpeg):
+        looked.append(jpeg)
+        return retrieval.PhotoLook(True, "a surface view of three stomata in a row" if jpeg == pixels[old]
+                                   else SEEN_SURFACE)
+
+    monkeypatch.setattr(retrieval, "lookup", lookup)
+    monkeypatch.setattr(retrieval, "look_at_photo", look)
+    monkeypatch.setattr(safe_fetch, "fetch_image", fetch)
+    monkeypatch.setattr(safe_fetch, "check_url", lambda url: None)
+    hub = FakeHub([0])
+    results = Results(tmp_path)
+    hub.resources = SimpleNamespace(results=results)
+    registry = tools(hub, Magnifier(hub))
+    registry.retaining.append(lambda r, ctx: results.from_run(r, ctx, hub))
+
+    def ask(words, args):
+        async def go():
+            r = registry.start("reference_photo", args, ToolContext("voice", 1, 0, words))
+            await r.task
+            return r
+        return asyncio.run(go())
+
+    first = ask("Can you pull up an image from online of a stoma?", {"subject": "plant leaf stoma", "show": False})
+    assert first.ok and first.values["web"]["page"] == old
+    looked.clear()
+    second = ask("Can you pull up an image side-by-side, a different one than you have been, of a stoma, just a "
+                 "single stoma", {"subject": "single stoma microscope", "n": 2, "show": False})
+    assert second.ok, second.summary
+    assert second.values["web"]["page"] == new and looked == [pixels[new]]  # the earlier picture: no look, not shown
+    assert "a surface view of three stomata in a row" in searched[-1]  # the search and look are told what it showed
+    assert SEEN_SURFACE in second.summary
+
+
+def test_the_default_search_is_the_open_web_and_commons_is_the_option():
+    """Option REFERENCE_SEARCH: the open web is the default (2026-10-29, the evidence in options.py); Commons raced
+    beside it stays an option with its measured note."""
+    from orchestrator.options import REFERENCE_SEARCH, Settings
+
+    assert Settings().reference_search == "web" and list(REFERENCE_SEARCH)[0] == "web"
+    assert set(REFERENCE_SEARCH) == {"web", "web+commons"}
+    assert all("bench" in o.note and "live 2026-10-29" in o.note for o in REFERENCE_SEARCH.values())
+
+
+def test_the_tool_searches_the_web_alone_by_default(monkeypatch):
+    from orchestrator.options import Settings
+
+    hub, calls = FakeHub([0]), []
+    hub.settings = Settings()
+    monkeypatch.setattr(reference, "find_blocking", lambda subject, n=1, **kwargs: calls.append(kwargs) or found())
+    assert run(tools(hub, Magnifier(hub)), "reference_photo", {"subject": "stoma"}).ok
+    assert calls[0]["sources"] == "web"

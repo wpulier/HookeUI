@@ -21,6 +21,9 @@ from tests.waiting import HANG_S
 
 
 DESCRIPTION = 'Two guard cells surround the pore; this is a reference example, not the current slide.'
+# What the scripted look at the pixels says they show (retrieval.look_at_photo): the picture's description, never the
+# caller's DESCRIPTION, which is written before anyone has seen the picture (live 2026-10-29 17:16).
+SHOWS = 'a surface view of one stoma between two guard cells, light microscopy'
 PAGE = 'https://commons.wikimedia.org/wiki/File:Leaf_pore.jpg'
 WEB = {'site': 'Wikimedia Commons', 'page': PAGE, 'title': 'Leaf pore',
        'licence': 'CC BY-SA 4.0', 'author': 'A. Botanist',
@@ -30,8 +33,8 @@ WEB = {'site': 'Wikimedia Commons', 'page': PAGE, 'title': 'Leaf pore',
 @pytest.fixture
 def retained_reference(tmp_path, monkeypatch):
     app, studio = built(tmp_path)
-    # How a photo is kept and shown, on the web's own path: Commons raced beside it (the default) is
-    # test_the_default_race_keeps_one_photo_with_its_own_source, below.
+    # How a photo is kept and shown, on the web's own path (the default since 2026-10-29): Commons raced beside it
+    # is test_the_race_keeps_one_photo_with_its_own_source, below.
     app.hub.settings.reference_search = 'web'
     pixels = jpeg(103)
     external = {'searches': [], 'fetches': [], 'available': True}
@@ -99,7 +102,7 @@ def test_default_reference_still_shows_and_retains_one_original_photo(retained_r
     asyncio.run(go())
 
 
-def test_the_default_race_keeps_one_photo_with_its_own_source(retained_reference):
+def test_the_race_keeps_one_photo_with_its_own_source(retained_reference):
     # Option REFERENCE_SEARCH "web+commons": the web and Commons' catalogue are searched at once, and
     # whichever photo passes the check first is the one kept, once, credited to the page it came from.
     app, studio, pixels, external = retained_reference
@@ -237,7 +240,9 @@ def test_hidden_reference_preserves_existing_magnifier_and_native_window(retaine
         assert app.services.magnifier.pictures == magnifier_bytes
         assert controlled_state(studio.store().get(WORKSPACE, iid)) == before
         assert_retained(app, entry, pixels)
-        assert run.values['description'] == DESCRIPTION
+        assert run.values['description'] == SHOWS and run.values['describedBy'] == 'gemini-3.8-flash'
+        assert run.values['note'] == DESCRIPTION  # the caller's words are its note, not what the picture shows
+        assert SHOWS in run.summary and 'Gemini 3.8 Flash' in run.summary
         assert 'showing' not in run.summary.lower(), 'retention alone is not a display receipt'
         assert len(app.hub.resources.results.entries(entry.day)) == 2
         json.dumps(run.wire(full=True))  # private producing bytes never enter public activity
@@ -250,7 +255,7 @@ def test_exact_hidden_reference_opens_independent_native_windows_with_original_p
     async def go():
         _, _, entry = await fetch_reference(app, show=False, description=DESCRIPTION)
         assert_retained(app, entry, pixels)
-        assert entry.source['web'] == WEB and entry.source['description'] == DESCRIPTION
+        assert entry.source['web'] == WEB and entry.source['description'] == SHOWS
         first, _, _ = await open_window(app, entry)
         second, _, _ = await open_window(app, entry)
         assert first != second
@@ -261,7 +266,8 @@ def test_exact_hidden_reference_opens_independent_native_windows_with_original_p
                 'day': entry.day, 'id': entry.id, 'version': None, 'picture': 0}
             assert source['media'] == 'reference' and source['digest'] == digest(pixels)
             assert source['provenance']['web'] == WEB
-            assert source['provenance']['description'] == DESCRIPTION
+            assert source['provenance']['description'] == SHOWS
+            assert source['provenance']['describedBy'] == 'gemini-3.8-flash'
             assert all(source['provenance'].get(key) is None for key in ('frame', 'seq', 'boot'))
             assert studio.items[iid]['load']['state'] == 'drawn'
         assert studio.items[first]['rootId'] != studio.items[second]['rootId']
@@ -276,10 +282,11 @@ def test_reference_description_is_bounded_without_replacing_web_credit(retained_
     async def go():
         _, _, entry = await fetch_reference(app, show=False, description=DESCRIPTION + ' x' * 800)
         assert_retained(app, entry, pixels)
-        text = entry.source['description']
-        assert text.startswith(DESCRIPTION) and len(text) <= 600
+        assert entry.source['description'] == SHOWS  # what the look saw, never the caller's caption
         assert entry.source['web'] == WEB
-        assert app.hub.resources.results.values(entry.id, entry.day)['description'] == text
+        values = app.hub.resources.results.values(entry.id, entry.day)
+        assert values['description'] == SHOWS
+        assert values['note'].startswith(DESCRIPTION) and len(values['note']) <= 600
     asyncio.run(go())
 
 
@@ -434,9 +441,9 @@ def test_presentation_output_cannot_masquerade_as_produced_source(retained_refer
 @pytest.fixture(autouse=True)
 def scripted_photo_pixel_check(monkeypatch):
     from research_worker import retrieval
-    async def matches_photo(query, jpeg):
-        return True
-    monkeypatch.setattr(retrieval, 'matches_photo', matches_photo)
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(True, SHOWS)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look_at_photo)
 
 
 def test_made_today_research_reopens_retained_report_without_broadcast(retained_reference, monkeypatch):
