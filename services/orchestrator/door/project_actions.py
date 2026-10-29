@@ -161,15 +161,9 @@ async def run(built, record, progress):
                 from urllib.parse import urlencode
                 result['download'] = 'artifacts/' + saved.id + '/bytes?' + urlencode({'session':project, 'revision':saved.revision})
                 if Path(file['name']).suffix.lower() in ('.txt', '.md', '.csv', '.json', '.toml', '.yaml', '.yml', '.py', '.html'):
+                    from ..scientific_text import page
                     source = built.hub.resources.projects.file_source(saved.id, project, saved.revision, file['reference'])
-                    offset = args.get('offset', 0)
-                    if offset > source.size:
-                        raise ValueError('Text offset exceeds the retained source')
-                    length = min(args.get('length', 65536), source.size-offset)
-                    result['content'] = {'text': source.read(offset, length).decode('utf-8', errors='replace'),
-                        'offset': offset, 'bytes': length, 'totalBytes': source.size,
-                        'nextOffset': offset+length if offset+length<source.size else None,
-                        'encoding': 'utf-8; invalid bytes and split characters replaced'}
+                    result['content'] = page(source, args.get('offset', 0), args.get('length', 65536))
                 else:
                     result['contentUnavailable'] = 'Use a ready catalog reader or download the retained bytes; no text was inferred.'
             return result

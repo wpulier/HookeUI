@@ -5,6 +5,7 @@ import { renderedMovieDescription, validMovieFile } from './scientific-movie';
 import { StudioSheet } from './sheet';
 import { sourceReaders } from './scientific-readers';
 import { ScientificFileBatch, type SavedSource } from './scientific-file-batch';
+import { textPreview } from './scientific-text-preview';
 
 type Sample = { capability: string; reader: string; id: string; name: string; sha256: string; size: number; licence: string; readerReason: string; canOpen: boolean; reason: string };
 type Options = { session: string; title: string; open(source: SavedSource): Promise<void | (() => void)>; saved(): void };
@@ -335,13 +336,14 @@ export function showScientificSource(root: HTMLElement, state: unknown, referenc
   const receipt = object(state) ? state.sourceRemote : null;
   if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
     root.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}. Web content is kept as exact bytes and never run.`));
-  if (!movie && !computed) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed to inspect, edit or process this source.'));
+  if (!movie && !computed) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed for scientific inspection or processing. You can preview text without a reader.'));
   const download = node('a', movie ? 'Download rendered movie' : computed ? 'Download result file' : 'Download original file');
   download.href = `/api/scientific-files/${encodeURIComponent(reference.id)}?${new URLSearchParams({ session: reference.day, revision: String(reference.version) })}`;
   download.download = source.name; download.className = 'scientific-source-download';
   const detail = node('details'); detail.append(node('summary', 'Content identity'), node('code', source.sha256));
   if(openReader && !movie)sourceReaders(root,reference,openReader);
   root.append(download, detail);
+  if (!movie) root.append(textPreview(reference, source.sha256, Number(source.size)));
 }
 
 

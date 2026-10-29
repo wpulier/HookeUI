@@ -6,6 +6,12 @@ snapshots, read-only access by a second host, closed/missing/replaced destinatio
 and redirected-folder refusal. Ordinary UI, complete dependency collection and
 live App portability remain separate acceptance gates.
 
+`test_scientific_text.py` checks literal pages, exact ownership, bounds, damaged chunks,
+empty files and unchanged accepted records through real HTTP/storage with synthetic
+payloads. Studio text-preview tests check literal markup, pagination, mismatched
+responses and same-range retries. These do not qualify a scientific reader or an
+ordinary browser; actual retained-document inspection is recorded separately.
+
 `scientific_pick_units_probe.py` runs with a prepared integration's Python and `PYTHONPATH=services`.
 It uses real napari ViewerModel/Labels without Qt, a canvas, GPU or worker: the retained MT6 mixed-unit
 camera/frame-pixel replay must hit and fill the three synthetic stray pixels. Affine/axis-order/orientation,
