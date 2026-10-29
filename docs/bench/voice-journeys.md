@@ -2,7 +2,7 @@
 
 `services/bench/voice_journeys` plays a spoken journey through a real voice on a second stack and scores it. It
 tells, in numbers, whether the live research partner meets the acceptance standard of 29 Oct
-(`PARTNER-CONTRACT.md`, the Part 2.5 plan), for both voices:
+(`live-partner-contract.md`, the Part 2.5 plan), for both voices:
 - `gpt-live-1` (GPT-Live, the default today): open microphone, every request handed to the brain;
 - `gpt-realtime-2.1` (the one brain): hold to talk (or open), sees the window and the frame, calls tools itself.
 

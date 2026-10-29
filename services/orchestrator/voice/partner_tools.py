@@ -1,5 +1,5 @@
 """The one-brain voice's tools: a curated part of the brain's registry, called by the model with its own arguments, plus
-three of its own (`mark`, `look_hard`, `do_in_hooke`). PARTNER-CONTRACT "Tools".
+three of its own (`mark`, `look_hard`, `do_in_hooke`). live-partner-contract.md "Tools".
 
 Each registry tool is offered in the form the realtime API takes (`Registry.responses_tools`, reshaped) and run the way
 the brain runs it: one request of its own (a voice Ticket with its admission and request id), a voice `ToolContext`

@@ -7,7 +7,7 @@ Everything is on one clock, epoch seconds (the player keeps milliseconds; `load_
   view's frames ("frames"), faults injected ("fault"), the researchers board ("researchers") and the checks after a
   restart ("check");
 - the stack's conversation log (conversation.jsonl): what each voice said (chat lines) and each tool card (chat-action);
-- the stack's interaction log (interactions.jsonl): the one brain's partner-* records (PARTNER-CONTRACT.md: talk, turn,
+- the stack's interaction log (interactions.jsonl): the one brain's partner-* records (live-partner-contract.md: talk, turn,
   response, barge, tool, marks, proactive, reconnect), and GPT-Live's voice-handoff records.
 
 Both voices are scored by the same code. What only the one brain has (marks, proactive lines, reconnect, do_in_hooke)
@@ -43,7 +43,7 @@ THINK = "think"
 # any change to what is scored.
 SCORER_VERSION = "2026-10-29.3"
 
-# The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
+# The standard's numbers (live-partner-contract.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
 STANDARD = {
     "heardMax": 0.3,  # a sign it heard you, after release (decision 1)
@@ -1319,7 +1319,7 @@ def markdown(result: dict) -> str:
 
 # --- pricing (the runner settles the budget from these) --------------------------------------------------------------
 
-# Per 1M tokens (PARTNER-CONTRACT.md "Verified facts"): gpt-realtime-2.1.
+# Per 1M tokens (live-partner-contract.md "Verified facts"): gpt-realtime-2.1.
 REALTIME_PRICE = {"inText": 4.0, "inAudio": 32.0, "inImage": 5.0, "outText": 24.0, "outAudio": 64.0}
 
 

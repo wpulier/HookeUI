@@ -547,7 +547,7 @@ other files.
 ## The one-brain loop (option VOICE `gpt-realtime-2.1`)
 
 One model hears the user, sees fresh pixels, calls the app's tools with the user's own words, reads their results and
-speaks, all in one context (PARTNER-CONTRACT of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
+speaks, all in one context (live-partner-contract.md of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
 `voice/partner_tools.py`). It is an option beside GPT-Live, which stays the default until the journey bench shows it
 better on the packaged build. Where GPT-Live hands the brain an id and the brain guesses the words (`brain/speech.py`),
 this voice has no hops to fall between.

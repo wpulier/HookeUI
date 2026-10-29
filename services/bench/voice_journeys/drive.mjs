@@ -3,7 +3,7 @@
 // (JSON path), where to write the player's state (JSON path), the options (JSON: mode, setup, bridge, acoustic,
 // restart: the command that quits and reopens Hooke).
 // harness.js is loaded before the studio's own code, so it sees every socket. The talk key is Playwright's trusted
-// Control+Option (the studio's hold, PARTNER-CONTRACT.md Amendment 10), lent to the page as window.__benchKey. At a
+// Control+Option (the studio's hold, live-partner-contract.md Amendment 10), lent to the page as window.__benchKey. At a
 // restart step the player pauses; this runs the restart command, reloads the page and resumes after it.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';

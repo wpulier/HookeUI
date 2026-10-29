@@ -1,5 +1,5 @@
 """The one-brain voice's side of the app: what it sees each turn, the Project brief, the studio link, the shared
-conversation, lines nobody asked for and reconnecting (PARTNER-CONTRACT; docs/architecture/seeing-and-acting.md).
+conversation, lines nobody asked for and reconnecting (live-partner-contract.md; docs/architecture/seeing-and-acting.md).
 
 `Partner` binds one `RealtimeSession` (voice/openai_realtime.py) to the app for one Talk session:
   - **seeing, at key-down:** the camera's eyepiece crop (`scene_tools.view_frame`, grabbed off the loop the moment the

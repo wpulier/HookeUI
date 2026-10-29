@@ -36,7 +36,7 @@ REPO = SERVICES.parent
 VOICES = ("gpt-live-1", "gpt-realtime-2.1")
 TALK = ("hold", "open")
 OWNER = "p25-rt-bench"
-# Worst cases, in dollars (PARTNER-CONTRACT.md's prices; GPT-Live's minutes plus the brain's calls): per spoken step,
+# Worst cases, in dollars (live-partner-contract.md's prices; GPT-Live's minutes plus the brain's calls): per spoken step,
 # per researcher the plan starts (bounded by the stack's research cap), per setup (once a stack), per judged step.
 STEP_USD = {"gpt-realtime-2.1": 0.55, "gpt-live-1": 0.15}
 RESEARCHER_USD = 1.50
