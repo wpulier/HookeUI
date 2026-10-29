@@ -287,9 +287,12 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
     // The Tab in front's title (main.ts), at most 80 characters as a Tab title is (workspace_observation.py checks the same).
     if(value.workspace.tabTitle!==undefined&&(typeof value.workspace.tabTitle!=='string'||!value.workspace.tabTitle||value.workspace.tabTitle.length>80))throw new Error('Invalid workspace context');
     const tabs=value.workspace.tabs;
-    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>Object.keys(t).sort().join(',')!=='front,id,title'||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80)))throw new Error('Invalid workspace Tabs');
+    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>!['front,id,title','front,id,specimen,title'].includes(Object.keys(t).sort().join(','))||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80)))throw new Error('Invalid workspace Tabs');
+    // A Tab's specimen (screen.ts VerifierSpecimen): its state, and its place only when floating.
+    if(tabs?.some(t=>t.specimen!==undefined&&(!t.specimen||!['fill','float','hidden'].includes(t.specimen.state)||Object.keys(t.specimen).some(k=>k!=='state'&&k!=='rect')
+      ||t.specimen.rect!==undefined&&(t.specimen.state!=='float'||!Array.isArray(t.specimen.rect)||t.specimen.rect.length!==4||!t.specimen.rect.every(Number.isFinite)||t.specimen.rect[2]<0||t.specimen.rect[3]<0))))throw new Error('Invalid workspace specimen');
     tabs?.forEach(t=>boundedIdentity(t.id));
-    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t}))}:{})};}
+    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t,...(t.specimen?{specimen:structuredClone(t.specimen)}:{})}))}:{})};}
   if(value.document){
     const d=value.document;
     if(Object.keys(d).some(k=>!['project','tab','placement','resource','representation','state','focused'].includes(k)))throw new Error('Unknown document observation');
@@ -300,7 +303,10 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
   return result;
 }
 
-export type VerifierTab = { id: string; title: string; front: boolean };
+/** A Tab's specimen (the live view) as the report says it: filling the Tab behind its windows, floating as a window
+ * (its place in workspace px, when laid out), or hidden from the Tab. */
+export type VerifierSpecimen = { state: 'fill' | 'float' | 'hidden'; rect?: Rect4 };
+export type VerifierTab = { id: string; title: string; front: boolean; specimen?: VerifierSpecimen };
 /** What Hands' verifier checks an intent's outcome against (the live-partner spec 4.2), kept within the bounds
  * workspace_observation._legacy accepts: the Project's open Tabs in strip order (24, titles of 80, the one in front
  * kept), the outlines drawn now (60), and the population layer's members (drawn never over count). */
@@ -312,7 +318,7 @@ export function verifierLegacy(facts: { tabs?: readonly VerifierTab[]; drawn?: r
     const kept = facts.tabs.slice(0, 24);
     if (front >= 24) kept[23] = facts.tabs[front];
     const at = front < 0 ? -1 : Math.min(front, 23);
-    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at }));
+    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at, ...(t.specimen ? { specimen: verifierSpecimen(t.specimen) } : {}) }));
   }
   if (facts.drawn) out.drawn = facts.drawn.slice(0, 60).map((d) => ({ id: d.id, kind: d.kind }));
   if (facts.members) {
@@ -320,6 +326,11 @@ export function verifierLegacy(facts: { tabs?: readonly VerifierTab[]; drawn?: r
     out.members = { count, drawn };
   }
   return out;
+}
+/** A specimen fact within the bounds workspace_observation accepts: a place only when floating, whole px. */
+function verifierSpecimen(s: VerifierSpecimen): VerifierSpecimen {
+  const rect = s.state === 'float' && s.rect && s.rect.every(Number.isFinite) && s.rect[2] >= 0 && s.rect[3] >= 0 ? s.rect.map(Math.round) as Rect4 : undefined;
+  return { state: s.state, ...(rect ? { rect } : {}) };
 }
 /** The report's own closed check of a surface observation, for tests. */
 export const observeLegacyForTest = (value: StudioSurfaceLegacy): StudioSurfaceLegacy => observedLegacy(value);

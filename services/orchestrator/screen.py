@@ -92,8 +92,11 @@ TAKES = {
     "sessions": ("open", "close"),  # the sessions list: the session's title's menu (session-menu.ts), its own item
 }
 WHY_NOT = {  # a verb a kind does not take, said with the reason and what to do instead
-    ("live", "hide"): ("the live view is never hidden: it is the microscope", "dim it instead (opacity)"),
-    ("live", "close"): ("the live view is never closed: it is the microscope", "dim it instead (opacity)"),
+    # In a Tab the live view is the specimen, which tabs floats or hides (never on Main): present only dims it.
+    ("live", "hide"): ("the live view is never hidden: it is the microscope",
+                       "dim it instead (opacity); to float or hide it in a Tab, tabs action specimen"),
+    ("live", "close"): ("the live view is never closed: it is the microscope",
+                        "dim it instead (opacity); to float or hide it in a Tab, tabs action specimen"),
     ("viewer", "move"): ("the result viewer sits in the side column and does not move", "close it, or open it again"),
     ("viewer", "resize"): ("the result viewer takes the side column's width", "close it to give the view its room"),
     ("tracks", "fill"): ("tracks are lines, not areas: they can't be filled", "colour them, fade them or keep the fast ones"),

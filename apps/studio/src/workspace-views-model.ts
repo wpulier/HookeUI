@@ -17,6 +17,15 @@ export const SCHEMA5_PRESENTATIONS:readonly ItemPresentation[]=['datatable','ana
 export interface WorkspaceView {input?:WorkspaceTabInput;id:string;title:string;specimen:{visible:boolean;rect:Rect|null};items:StudyRetainedView[];notes:NotePlacement[];kind?:TabKind;provenance?:TabProvenance;compare?:TabCompare}
 export interface WorkspaceLayout {schema:LayoutSchema;coordinates:'stage';active:string;views:WorkspaceView[]}
 export const mainLayout = ():WorkspaceLayout => ({schema:2,coordinates:'stage',active:'main',views:[{id:'main',title:'Main',specimen:{visible:true,rect:null},items:[],notes:[]}]});
+/** How a Tab holds the specimen: filling its Stage behind its windows, floating as a window of its own, or hidden. */
+export type SpecimenState='fill'|'float'|'hidden';
+export const specimenState=(s:WorkspaceView['specimen']):SpecimenState=>!s.visible?'hidden':s.rect?'float':'fill';
+/** The specimen floating small (Will, 2026-10-29; a new Tab's default, and Float's): a modest window in the Stage's
+ * lower-left corner, clear of the reader on the right and of the windows that open from the top. */
+export function floatingSpecimen(stageWidth:number,stageHeight:number):Rect{
+ const width=Math.round(Math.min(320,Math.max(240,stageWidth*.24))),height=Math.round(width*3/4)+36; // its bar is 36 px
+ return [16,Math.max(40,Math.round(stageHeight-height-16)),width,height];
+}
 export function transferItem(layout:WorkspaceLayout,from:string,to:string,item:StudyRetainedView):WorkspaceLayout {
   const result=structuredClone(layout),source=result.views.find(v=>v.id===from),target=result.views.find(v=>v.id===to);
   if(!source||!target||from===to)return result;

@@ -717,10 +717,23 @@ def _voice_workspace(snapshot) -> list[str]:
     from ..workspace_observation import front
 
     shown = {key: value for key, value in front(wire).items()
-             if value is not None and key in ("tab", "window", "studioVisible", "studioFocused")}
+             if value is not None and key in ("tab", "window", "specimen", "studioVisible", "studioFocused")}
     if shown:
         lines.append("Workspace front: " + encode(shown))  # the Tab and window in front, the studio in view (observed)
     return lines
+
+
+def specimen_words(fact: dict | None) -> str:
+    """A Tab's specimen (the live view) as its Tab strip reports it (workspace_observation `specimen`), in a few words
+    after "the specimen", or "" when the report does not say."""
+    state = (fact or {}).get("state")
+    rect = (fact or {}).get("rect")
+    if state == "fill":
+        return "fills it, behind its windows"
+    if state == "float":
+        return "floats in it as a window" + (f" ({round(rect[2])}x{round(rect[3])} px at {round(rect[0])},"
+                                              f"{round(rect[1])})" if rect else "")
+    return "is hidden in it" if state == "hidden" else ""
 
 
 def _voice_windows(snapshot) -> list[str]:
@@ -737,8 +750,11 @@ def _voice_windows(snapshot) -> list[str]:
     # Which Tab of the Project is in front and the window highest on it, as the report shows them (on-screen.md); the
     # studio out of view is said, since nothing on it is then on the user's display.
     shown = front(wire)
+    # The Tab's specimen is part of what it holds (filling it, floating, or hidden), said with the Tab.
+    specimen = specimen_words(shown.get("specimen"))
     if shown["tabTitle"] or shown["studioVisible"] is False:
         lines.append((f'Tab "{inline(shown["tabTitle"], 80)}" of this Project' if shown["tabTitle"] else "This Project")
+                     + (f", the specimen {specimen}" if specimen else "")
                      + (", the studio not in view" if shown["studioVisible"] is False else ""))
     for item in items[:8]:
         source = sources.get(item.get("sourceKey")) or {}
@@ -971,6 +987,12 @@ def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
                      + (f"; closed, not on screen: {[i['id'] for i in closed]}" if closed else "")
                      + ". Current action receipts supersede this starting state; "
                      "earlier conversation claims do not establish what is displayed now.\n")
+        from ..workspace_observation import front
+
+        # The Tab in front holds the specimen too (the live view: filling it, floating, or hidden; its Tab strip says).
+        specimen = specimen_words(front(wire).get("specimen"))
+        if specimen:
+            inventory += f"On the Tab in front, the specimen (the live view) {specimen}.\n"
         inventory += ("Resolve the original versus new reference from these exact window resource IDs, "
                       "source websites and this conversation's action receipts, not a nearby Made today entry. "
                       "When the requested retained source is already visible, keep that window without another action; "

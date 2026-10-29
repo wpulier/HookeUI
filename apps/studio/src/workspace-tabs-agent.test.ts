@@ -4,7 +4,7 @@ import {WorkspaceViews} from './workspace-views';
 afterEach(()=>vi.unstubAllGlobals());
 function fixture(){
  vi.stubGlobal('document',{hidden:false,querySelector:()=>null,body:{dataset:{}}});
- const view={id:'main',title:'Main',items:[] as any[],notes:[]};
+ const view={id:'main',title:'Main',specimen:{visible:true,rect:null},items:[] as any[],notes:[]};
  const current=Object.assign(Object.create(WorkspaceViews.prototype),{session:'p',generation:1,layout:{schema:5,active:'main',views:[view]},openIds:['main'],
   completionRestores:new Set(),loaded:new Set(['main']),capture:vi.fn(),changed:vi.fn(),render:vi.fn(),flush:vi.fn(async()=>{}),roots:()=>[],
   activate:vi.fn(async()=>true),opts:{notice:vi.fn()},dirty:false,conflict:false});

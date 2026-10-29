@@ -1490,7 +1490,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Tab report lists researcher and Study Tabs (`research`), which it can show or close. The Stage bar (`stageSlots`) is
   on every Tab: on a work Tab the specimen's name, its credit quieter and its picture (`specimenLabel`), with Float or
   Fill and Hide (the floating specimen keeps its own bar; the full one has none), or "Specimen hidden" with Show as
-  backdrop; on a researcher's, Study's or draft's page its bar (back to the work Tab, what it works on with its state
+  backdrop (one `setSpecimen` for these, the Assistant's `tabs specimen` too; a new Tab's specimen floats small in the
+  Stage's lower-left corner, `floatingSpecimen`, where Float puts it; `specimenReport` says each Tab's for the screen
+  report, docs/architecture/on-screen.md "A Tab's specimen"); on a researcher's, Study's or draft's page its bar (back
+  to the work Tab, what it works on with its state
   words, Stop while it can be stopped; step 7 below); on the right the camera, Record and the Assistant. The specimen is
   named once: with a picture or recording on the Stage, the camera control says only the camera ("No camera", its
   device, else Camera; `CameraFacts.named`), with its menu and its title naming the specimen. When the bar runs short

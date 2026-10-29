@@ -21,7 +21,7 @@ document.documentElement.dataset.buildDigest = __MICROMIND_BUILD__.sourceDigest 
 import { itemSpace } from './spaces';
 import type { WorkspaceViewport } from './workspace-runtime';
 import { livePlacementObject } from './window-placement';
-import { captureWindow, verifierLegacy, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
+import { captureWindow, verifierLegacy, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem, type VerifierSpecimen } from './screen';
 import './style.css';
 import { assertNever, Connection, type CapabilitiesWire, type AssetMeta, type SessionCleared, type SessionState, type DatasetState, type DayState, type ArenaState, type ClientCommand, type Health, type Reveal, type Scores, type ServerMessage, type Settings, type TopProgram, type ToolRun, type Trial } from './protocol';
 import { BoxDrag, frameBox } from './boxdrag';
@@ -3290,8 +3290,11 @@ function studioSurfaces(): StudioSurfaceCollection {
     // The Tab in front by its title as its button shows it (workspace-views.ts workTab), so "in Tab Measurements" is said.
     const tabTitle=tab?document.getElementById(`work-tab-${tab}`)?.querySelector('.workspace-tab-label')?.textContent?.trim().slice(0,80):undefined;
     // Every open Tab of the Project, in strip order, the one in front marked: focus(tab) and close are checked on these.
+    // Each with its specimen (workspace-views.ts specimenReport): filling the Tab, floating (where), or hidden.
+    const asked:{specimens?:Record<string,VerifierSpecimen>}={};window.dispatchEvent(new CustomEvent('workspace-specimen-report',{detail:asked}));
     const tabs=verifierLegacy({tabs:[...tabStrip.querySelectorAll<HTMLElement>('[data-workspace-view-tab]')].map(button=>({id:button.dataset.workspaceViewTab!,
-      title:(button.querySelector('.workspace-tab-label')?.textContent??button.textContent??'').trim()||button.dataset.workspaceViewTab!,front:button.dataset.workspaceViewTab===tab}))}).tabs;
+      title:(button.querySelector('.workspace-tab-label')?.textContent??button.textContent??'').trim()||button.dataset.workspaceViewTab!,front:button.dataset.workspaceViewTab===tab,
+      ...(asked.specimens?.[button.dataset.workspaceViewTab!]?{specimen:asked.specimens[button.dataset.workspaceViewTab!]}:{})}))}).tabs;
     return {kind:'panel',open,visible:surfaceVisible(tabStrip,open,true,rect),rect,z:null,space:'workspace',
       legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{}),...(tabs?.some(t=>t.front)?{tabs}:{})}}:{})},
       contentKey:tabStrip.dataset.opening??null,controls:[]};

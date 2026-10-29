@@ -42,7 +42,8 @@ other files.
     open in the reader is not a Change the showing owns, and the person closes it with ×.
   - **Colouring:** "colour them by size" colours the cells' layer by a measured column, with a legend.
   - **Emphasising:** "keep the five largest and fade the rest" emphasises a selection.
-  - **A verb a kind does not take fails with the reason and what it takes.** The live view is only dimmed, never hidden.
+  - **A verb a kind does not take fails with the reason and what it takes.** `present` only dims the live view, never
+    hides it; in a Tab it is the specimen, which `tabs` floats or hides (below).
   - **`set_style` stays** the outlines' own colour and style.
 - **One surface per thing: the measurements table** (Part 2.5; `orchestrator/table_window.py`,
   `apps/studio/src/agent-table.ts`). `show_measurements` opens the table in the window a person's Open in Measurements
@@ -73,6 +74,23 @@ other files.
   focused when it reported, each unknown when unreported and never inferred for another Project or Tab. `tabs list`
   returns it as `front`; the voice's window lines start `Tab "<title>" of this Project` (", the studio not in view" when
   observed) and mark the front window ", in front", and its Window detail has a `Workspace front` line.
+- **A Tab's specimen** (the live view; `workspace-views.ts` `specimenReport`, `setSpecimen`; live 2026-10-29: asked
+  for "only the image open in the Stoma Reference tab", the Assistant said the Tab held only the image while the
+  specimen filled it behind). Every Tab holds it: filling the Tab behind its windows, floating as a window, or hidden
+  (Main's floats, never hides).
+  - **Reported** on each open Tab of the Tab strip (`workspace.tabs[].specimen`: `state` fill, float or hidden, and
+    `rect` in workspace px when floating; the Tab in front's as the Stage shows it, another's as its arrangement keeps
+    it). `front()` returns the front Tab's, and it is told wherever the screen is told to a model: the voice's Tab line
+    (`Tab "Main" of this Project, the specimen fills it, behind its windows`), `Workspace front`, the chat's display
+    inventory, Hands' facts and `tabs list` (each Tab's `specimen`).
+  - **Changed** by `tabs` action `specimen` (fill, float or hide) on a named Tab, through the code the Tab's own Float
+    or Fill and Hide run. Done only once the report shows it on that Tab (`workspace_tabs.SPECIMEN_WAIT_S`; otherwise
+    said with what the report shows); Hands checks the same fact. The tool's words say the specimen counts in what a
+    Tab shows, so "only X open" floats or hides it too.
+  - **A new Tab** ("+", ⌘T, `tabs create`, a window sent to a new Tab) opens with its specimen floating small in the
+    Stage's lower-left corner (`floatingSpecimen`, also where Float puts it). Main, an input's Tab and a run's result
+    Tab (it draws there) keep it filling; a comparison hides it.
+  - `project.state` does not carry it yet: its schema (`contract/agent/project-state.schema.json`) is another change's.
 - **A failure on the report path says what did not happen** (`screen.REPORT_NEXT`): not confirmed on screen yet, saved
   work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
   open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen
@@ -254,5 +272,6 @@ reachable by the voice or think, and that each acting one has a receipt contract
   the user's own actions (clicks, commands, a researcher started by hand) reach the voice as silent context with the
   ids they touched, which also feed the pointing history (`voice/knowing.py`, on by default).
 - **The report's additions** (all optional and bounded; `workspace_observation._legacy`): `workspace.tabs` (the
-  Project's open Tabs in strip order, at most 24, exactly one in front), `legacy.drawn` on the outlines item (the
-  outlines drawn on the live view, at most 60, with their kind) and `legacy.members` on a layer (`{count, drawn}`).
+  Project's open Tabs in strip order, at most 24, exactly one in front, each with its specimen), `legacy.drawn` on the
+  outlines item (the outlines drawn on the live view, at most 60, with their kind) and `legacy.members` on a layer
+  (`{count, drawn}`).

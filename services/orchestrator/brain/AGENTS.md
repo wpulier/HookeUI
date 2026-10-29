@@ -501,7 +501,9 @@ Project refuses. A studio without the Project workspace is shown the Measurement
 
 A Project is started by `new_project` ("create a new project called experiment", "start a new session"); `new_session`
 is its earlier name, kept with its words so saved workflows and tool ids run. A Tab is an arrangement inside this
-Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`).
+Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`). Each
+Tab holds the specimen (filling it, floating or hidden), said in the screen facts; `tabs specimen` floats, fills or
+hides it (Main's never hides), done once the report shows it (docs/architecture/on-screen.md "A Tab's specimen").
 
 `make_table`, `edit_table`, `analyze` and `make_graph` use the ordinary DataTables and TableDerivatives services.
 The original Asked Project, generation and conversation own writes; request cancellation is checked at the shared
