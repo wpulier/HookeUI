@@ -43,8 +43,9 @@ REPORT = {
     "parameters": {
         "type": "object",
         "properties": {
-            "say": {"type": "string", "description": "One or two short spoken sentences in plain words: what was done or "
-                                                     "found, or what failed and the next step. No ids, no lists."},
+            "say": {"type": "string", "description": "The outcome first, in one or two short spoken sentences in plain "
+                                                     "words: what was done or found, or what failed and the next step; "
+                                                     "an explanation the user asked for, in full. No ids, no lists."},
             "points": {"type": "array", "items": {"type": "string"}, "maxItems": 4,
                        "description": "Hooke ids to point at while it is said (outline:<id>, population:<id>, "
                                       "window:<id>, tab:<title>, researcher:<number>); only ids a tool gave you."},

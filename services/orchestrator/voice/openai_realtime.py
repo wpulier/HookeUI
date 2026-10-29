@@ -94,12 +94,13 @@ CLOSE_STEP_S = 2.0
 AUDIO_TOKEN_S = 0.05  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
 ACK_TOKENS = 200  # "On it." is a few words; the cap counts its reasoning too, so it is never cut off
 PREP_WAIT_S = 4.0  # think's result prepared out of band at most this long, else the backend's own words
+PREP_TOKENS = 900  # room for an explanation asked for in full, its reasoning included: it lands whole, never cut
 # A result's words follow its receipt (voice/hands.py): "done" is Hooke's verified receipt, never the voice's judgement.
 RECEIPT_RULES = {
-    "verified": "Hooke verified it: you may say it is done.",
-    "failed": "It failed: say it was not done, and why, from its words.",
-    "uncertain": "Hooke could not check all of it: never say it is done; say what is not known, from its words.",
-    "running": "It is still under way: never say it is done or found; say what is under way, from its words.",
+    "verified": "Hooke checked that it happened: say the outcome first, plainly (\"Done, 345 nuclei outlined.\").",
+    "failed": "It did not happen: say so plainly, why in a few words from its own, and the next thing to try.",
+    "uncertain": "Hooke could not check all of it: say what is known and what is not; never say it is done.",
+    "running": "It is still under way: say in a few words what is happening; never say it is done or found.",
 }
 # It talks first (Will's feel check, 29 Oct: HeyClicky "literally talks to you FIRST"): the instruction for its first
 # line as Talk connects. The words are the voice's own, from the pictures and the Project it was just given.
@@ -1057,7 +1058,7 @@ class RealtimeSession(VoiceSession):
             rule = "Say exactly the words you are given, once, as yourself, and nothing else."
         elif len(batch) == 1 and not again:
             rule = ("Now say exactly one short spoken sentence telling the user what just happened, from the facts you "
-                    "are given. No question, no offer, nothing else.")
+                    "are given: the outcome first, in plain words. No question, no offer, nothing else.")
         else:
             rule = ("Now tell the user what you are given, in one or two short spoken sentences, in the order given: "
                     "the results first. No question, no offer, nothing else.")
@@ -1248,13 +1249,17 @@ class RealtimeSession(VoiceSession):
             rule = ("This task was cancelled as the user asked, and has now stopped. Say that in a few words, with what "
                     "it had already done from its steps, and anything it was doing that may or may not have happened.")
         else:
-            rule = ("Write the one or two short sentences you will say to the user about this result: what was done or "
-                    "found, or what failed and the next step to try. Plain words, no ids, nothing it did not check. Say "
+            # One voice with every other line (PARTNER): the outcome first, plain words, and no shorter than an
+            # explanation the user asked for, which lands whole.
+            rule = ("Write what you will say to the user about this result, as yourself: the outcome first (what was "
+                    "done or found, or what failed and the next thing to try), in one or two short spoken sentences; "
+                    "when its own words are an explanation the user asked for, all of it, in plain spoken sentences. "
+                    "Plain words: no ids, and how it was done only if the user asked how; nothing it did not check. Say "
                     "a refusal as a refusal.")
             if receipt in RECEIPT_RULES:
                 rule += " " + RECEIPT_RULES[receipt]
         self.respond("prep", n=self.n, dropped=dropped, conversation="none", output_modalities=["text"],
-                     tool_choice="none", max_output_tokens=300, metadata={"task": task},
+                     tool_choice="none", max_output_tokens=PREP_TOKENS, metadata={"task": task},
                      input=[text_item("system", "Result of a task you handed on (facts, not the user's words):\n"
                                       + facts_text + (f"\nHooke checked it: its receipt is {receipt}." if receipt else "")
                                       + (f"\nIts own words: {say}" if say else ""))],
