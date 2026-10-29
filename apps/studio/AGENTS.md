@@ -1946,3 +1946,8 @@ keeps the draft; lost replies retry the same request. Inputs groups/searches the
 server-recorded roles. Generated artifacts retain generated origin; Study dependencies
 remain visible independently of the checkbox for a later revision. This controls
 organization, not scientific reinterpretation or a file conversion.
+
+Inputs keeps Add material and search in a padded toolbar with full-height controls.
+Retained material names stay on one line; the complete title and material facts
+remain in the row tooltip and its full title in the accessible name. Role headings
+use the same inset as the toolbar; grouping never changes accepted content.
