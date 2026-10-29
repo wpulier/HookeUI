@@ -158,14 +158,27 @@ other files.
 
 ## Hands: the partner's drive (spec step 1, section 4.2)
 
-The one-brain partner acts in Hooke through Hooke's own operations (the registry's tools: `present`, `tabs`,
-`show_measurements`, `highlight`, `select`, `zoom`, `clear`, `outline_cells`, `find`), never through pixels. Hands
-(`voice/hands.py`) wraps each such call, for the voice and for `think`'s backend alike, with what a live partner needs:
-a typed intent with a resolved target, a visible cue, a verified outcome and takeover.
+The one-brain partner acts in Hooke through Hooke's own operations (the registry's tools), never through pixels. Every
+acting tool goes through Hands (`voice/hands.py`), for the voice and for `think`'s backend alike: the screen tools
+(`present`, `tabs`, `show_measurements`, `highlight`, `select`, `zoom`, `clear`, `outline_cells`, `find`), Projects
+(`new_project`, `switch_session`), `add_asset`, `reference_photo`, researchers (start, note, follow-up, revise,
+cancel), capability and workflow runs, settings and choices, and every analysis that saves something. A look (the
+registry's queries: `count`, `measure`, `resources`, `show_me`...) runs directly: its numbers are its answer, never
+"done". `tests/test_partner_reach.py` checks that every tool the Actions panel runs, and the catalog's rows, are
+reachable by the voice or think, and that each acting one has a receipt contract.
 
 - **Typed intents.** Each call is one intent: `open` (window, Tab, table, asset), `close`, `focus` (a Tab),
-  `highlight`, `select`, `zoom`, `outline`, `present`, typed from the tool and its arguments (`hands.INTENTS`). The
-  voice keeps the tool names it already picks right (29 of 30 on the broad journey); the intent is Hands' record.
+  `highlight`, `select`, `zoom`, `outline` (with its model), `find`, `present`, `project`, `research`, `cancel`,
+  `steer`, `run`, `setting`, `choice`, `make`, typed from the tool, its arguments and the registry's own words for it
+  (kind, produces, family, sets: `hands.intent_of`). UI intents (the screen tools, Projects, an asset, a reference
+  photo) take the lease, the cue and the lock below; the others (researchers, runs, settings, analysis) do not, and a
+  takeover never stops them, but they keep the action id, the Project precondition, permission, the Activity line and
+  the receipt.
+- **Hooke's own record** is the check where the screen is not the right one (`voice/records.py`): a researcher's record
+  (`running` while it works, its finish an event later), a cancel only once the record says cancelled, a note or
+  question recorded on that researcher, a capability or workflow run's record, a setting read back changed, the
+  Project changed and shown ("already in" and "nothing opened" are not done), the asset on stage, a reference photo's
+  window when its result lands, and what an analysis saved, resolving in its store with its numbers.
 - **The target by id.** A target the screen now shows (the report's ids and Tab titles) or the conversation pointed at
   (marks and `pointed_at`, newest first) is used as given. A target given as nothing the screen or the pointing
   history knows is filled from them when one candidate of its kind is there, and asked about in one short question
@@ -184,31 +197,41 @@ a typed intent with a resolved target, a visible cue, a verified outcome and tak
     waiting at most `CUE_WAIT_S` (0.5 s); a cue not shown never blocks the action and is logged.
   - `{type:"drive-end", id, outcome:"verified"|"failed"|"uncertain"|"running"}`: the cursor settles and fades, with a
     tick for verified and a cross for failed.
-- **Bound and re-checked.** An intent is bound to the control version and the screen revision (the report's `seq`) it
-  was planned against, and is checked again just before its effect (after the cue, after a permission wait): the
-  version must be the same, and its target still on screen where it needs one. Otherwise nothing runs and the result
-  is "the screen changed; look again".
-- **Takeover.** While the owner is the partner, the studio sends `{type:"takeover", version, why:"mouse"|"escape"|"talk",
-  at}` in the same task as the user's input (real pointer movement over the window of at least 3 px, Escape, the talk
-  key or button; on top of talk-down). The server raises the version, sets the one cancel signal every await of the
-  running intent races against (the cue wait, the effect, the verifier, `think`'s tool calls), drains at most
-  `DRAIN_S` (1 s), drops what was queued, and answers `{type:"control", version, owner:"user", ack:true, at}` (its
-  receive time, ms) so input to "the server knows" is measured. An effect cut off mid-way is **uncertain**, never done
-  or silently dropped; one that finished within the drain is verified as usual. Control comes back to the partner only
-  with a fresh look (the next turn's pictures, or `look_after`).
+- **Bound and re-checked.** An intent is bound to what it was planned against (`hands.Plan`): the voice turn's key-down
+  (or its last look after an action), or think's call at its start, with the takeover epoch, the Project and the
+  screen (the report's `seq` and facts). It is checked again at the moment of dispatch (after the lock, after a
+  permission wait): the same lease and epoch, the same turn, the same Project (or the one the partner itself just
+  opened), and its target still on screen where it needs one. Otherwise nothing runs and the receipt says why.
+- **Talk and takeover, kept apart.** While the owner is the partner, the studio sends `{type:"takeover", version,
+  why:"mouse"|"escape"|"talk", at}` in the same task as the user's input (real pointer movement over the window of at
+  least 3 px, Escape, the talk key or button; on top of talk-down). Either way the server raises the version and the
+  epoch, answers `{type:"control", version, owner:"user", ack:true, at}` (its receive time, ms), and acts on the UI
+  again only with a new lease and a fresh look (the next turn's pictures, or the look after an action nobody took
+  over), for the voice and think alike.
+  - **The talk key is a pause:** nothing queued runs (its receipt: "not done, you spoke", `paused`, so the voice plans
+    again from the new words); the action being done finishes and its receipt is said; the studio's cursor stays on
+    it until its `drive-end`.
+  - **The mouse or Escape is a takeover:** the cancel signal is set, the action being done is stopped through its
+    run's Stop (`user_stop.Stop`: `Registry.start` says it stopped) and is otherwise **uncertain** now and reconciled
+    in the background (its real receipt to Activity, the log and the voice as context). Background work goes on.
 - **Verified by the app.** The result is `verified | failed(reason) | uncertain | running`, decided from the tool's own
-  run (its Activity row reaching done or failed; the report-confirmed tools fail when the studio does not show the
-  change) and the studio's report showing the expected state, compared with what was asked (`hands.expected`): the Tab
-  in front for `focus`, the id gone for `close`, the outline ids drawn (`legacy.drawn`) or the members emphasised for
-  `highlight`, the selection for `select`, the magnifier's outline for `zoom`, the layer and its members
-  (`legacy.members`) for `outline`, the table or document window for `open`. A report that cannot show the state
-  (an older studio) leaves only a report newer than the change: that is `verified` only with the tool's own report
-  check, otherwise `uncertain`. The voice says exactly the result; "done" is never its own judgement.
-- **Permission.** Reversible actions in Hooke need none. An intent that spends (a paid cloud model) or deletes asks once,
+  run (its record; present's own receipt of the studio's report, `ToolRun.outcome`) and the studio's report showing
+  the expected state, compared with what was asked (`hands.expected`), with no shortcut: the Tab in front for `focus`,
+  the Tab there (and in front when new) for `create`, the id gone for `close`, the table on the Tab in front showing
+  the dataset asked for for `show_measurements`, every outline or member asked for drawn or emphasised for
+  `highlight`, the selection for `select`, the magnifier open on the outline for `zoom`, the layer it made with its
+  member count (`legacy.members`) for `outline`, what it found drawn for `find` (said as found, never "done"), the
+  window in the report for `open`. A report that cannot show the state is `uncertain`. The voice says exactly the
+  receipt's `said`; "done" is never its own judgement.
+- **Permission.** Reversible actions in Hooke need none, and starting a researcher at its usual effort asks nothing. An
+  intent that spends (a paid cloud model or capability, a deep researcher run, a video) or deletes asks once,
   by voice, with the cost said (`{"result": "permission", "ask": ..., "approval": id}`); the approval is bound to the
   intent and expires after 2 minutes, and the intent is re-checked after it.
-- **Activity.** Each intent files one Activity line (kind `command`, "Assistant: <caption>"), running, then done or
-  failed with its result, so the user sees the partner's actions beside their own.
+- **Activity.** Each intent files one Activity line (kind `command`, "Assistant: <caption>"), running, then its receipt
+  (`details.ids.receipt`): done, failed, or "not known whether it happened" for an uncertain one, never done; an ask
+  and a permission get lines too. The `activity` tool reads the open Project's lines only (`Activity.project_of`), and
+  the user's own actions (clicks, commands, a researcher started by hand) reach the voice as silent context with the
+  ids they touched, which also feed the pointing history (`voice/knowing.py`, on by default).
 - **The report's additions** (all optional and bounded; `workspace_observation._legacy`): `workspace.tabs` (the
   Project's open Tabs in strip order, at most 24, exactly one in front), `legacy.drawn` on the outlines item (the
   outlines drawn on the live view, at most 60, with their kind) and `legacy.members` on a layer (`{count, drawn}`).
