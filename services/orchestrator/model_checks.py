@@ -119,6 +119,7 @@ FIXED_PROBES = {
     "fixed:lesson-writer:fallback": ("text", "openai"), "fixed:editor": ("text", "openai"),
     "fixed:find-all": ("fal", "sam3.1-all"), "fixed:group-names": ("zeroshot", "medsiglip"),
     "fixed:link": ("link", "trackastra"), "fixed:retrieval": ("text", "gemini"),
+    "fixed:voice-words": ("transcribe", "openai"),
 }
 # The catalog model whose pinned files each local model and implementation needs: looked for as readiness does (the
 # models folder, or an old cache at the pinned revision), so a check never starts a download of gigabytes unless asked
@@ -455,6 +456,7 @@ class Checker:
         self.cost = 0.0
         self.voice_connect = None  # GPT-Live's connection (openai_live `connect`): the SDK's unless a test gives one
         self.voice_speech: bytes | None = None  # the spoken request's PCM (a test's); else `speak(SPOKEN)`
+        self.voice_picture: bytes | None = None  # the one-brain voice's check: a picture it is shown (none: words only)
         self.voice_prompt: str | None = None  # the app's voice prompt (the bench gives route.voice_prompt(app.brain))
 
     async def run(self, chosen: list[Entry]) -> list[dict]:
@@ -795,6 +797,29 @@ class Checker:
             raise RuntimeError("it answered with no video")
         return {"detail": "a 4 s video made", "costUsd": VIDEO_USD}
 
+    async def _transcribe(self, provider: str) -> dict:
+        """The one-brain voice's transcription model writes down a spoken request (macOS `say`, as the voice check)."""
+        import io
+        import wave
+
+        from openai import AsyncOpenAI
+
+        from .voice.openai_realtime import TRANSCRIBE_MODEL
+
+        pcm = self.voice_speech if self.voice_speech is not None else await asyncio.to_thread(speak, SPOKEN)
+        wav = io.BytesIO()
+        with wave.open(wav, "wb") as out:
+            out.setnchannels(1)
+            out.setsampwidth(2)
+            out.setframerate(VOICE_RATE)
+            out.writeframes(pcm)
+        client = AsyncOpenAI(max_retries=0)
+        said = await client.audio.transcriptions.create(model=TRANSCRIBE_MODEL, file=("said.wav", wav.getvalue()))
+        text = str(getattr(said, "text", "") or "")
+        if "stoma" not in text.lower():
+            raise RuntimeError(f"it wrote {text[:80]!r} for {SPOKEN!r}")
+        return {"detail": f"wrote {text[:60]!r}"}
+
     async def _voice(self, model: str) -> dict:
         """GPT-Live hears a spoken request (the words synthesized as bench/gpt_live_spike.py does: macOS `say`, 16 kHz)
         and hands it to the app as a delegation, the app's answer going back, as the studio's voice does (voice/route.py:
@@ -802,7 +827,15 @@ class Checker:
         delegate: the first cloud check, 2026-10-11 08:31, waited 30 s for one; GPT-Live takes no typed user turns."""
         from .voice.base import ToolSpec, VoiceConfig
         from .voice.openai_live import OpenAILiveSession
+        from .voice import openai_realtime
 
+        if model == openai_realtime.MODEL:
+            # The one-brain voice: a session over the WebSocket that takes a picture and words, calls a tool, reads its
+            # output and answers aloud (its WebRTC call needs a browser; the bench's journeys check that).
+            found = await openai_realtime.probe(model, image=self.voice_picture, open_sideband=self.voice_connect)
+            return {"detail": f"called {found['call']['name']} and answered aloud, first audio "
+                              f"{found['firstAudioMs'][-1] if found['firstAudioMs'] else '?'} ms after asking",
+                    "ms": found["firstAudioMs"][-1] if found["firstAudioMs"] else None, "costUsd": found["usd"]}
         pcm = self.voice_speech if self.voice_speech is not None else await asyncio.to_thread(speak, SPOKEN)
         delegated = asyncio.get_running_loop().create_future()
 

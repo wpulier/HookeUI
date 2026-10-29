@@ -543,3 +543,94 @@ other files.
     expected_s=120)` returns a key; `activity.model_loaded(hub, key, seconds=…)` (or `ok=False, why=…`) and
     `activity.model_unloaded(hub, "micro-sam", why="to free memory for …")`; safe from any thread, a no-op on a hub
     without Activity. Anything else that is not a request: `activity.activity(hub, kind, text, state=…, details=…)`.
+
+## The one-brain loop (option VOICE `gpt-realtime-2.1`)
+
+One model hears the user, sees fresh pixels, calls the app's tools with the user's own words, reads their results and
+speaks, all in one context (PARTNER-CONTRACT of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
+`voice/partner_tools.py`). It is an option beside GPT-Live, which stays the default until the journey bench shows it
+better on the packaged build. Where GPT-Live hands the brain an id and the brain guesses the words (`brain/speech.py`),
+this voice has no hops to fall between.
+
+- **Transport:** WebRTC only. The route posts the browser's SDP offer and the session config to `POST
+  /v1/realtime/calls` (the SDK's `client.realtime.calls.with_raw_response.create`: the SDP answer is the body, the call
+  id the last part of the `Location` header), keeps the key, and attaches the sideband
+  (`client.realtime.connect(call_id=…)`), sending and reading raw JSON. Session config: `turn_detection: null` for
+  `TALK hold` (default), `semantic_vad` with `interrupt_response: true` and `create_response: false` for `TALK open`
+  (headphones), `noise_reduction: far_field`, input transcription by GPT-4o mini Transcribe (a fixed role: the chat's
+  line and the tools' checks of what was asked), `reasoning.effort: low`, `truncation.retention_ratio: 0.8`.
+- **A turn (hold to talk):** key down → the camera's eyepiece crop (`scene_tools.view_frame`, with its frame id and
+  crop) is grabbed off the loop, the screen as text (`context._voice_windows` of the accepted studio's report) is read
+  and the brief refreshed, all as the message is read; the studio sends its window picture (`snapshot`, id `talk-<n>`)
+  right behind it. A key down while it speaks is a barge-in: `response.cancel`, `output_audio_buffer.clear`, then
+  `input_audio_buffer.clear` (the studio mutes its audio element at once and clears the marks). Release → last turn's
+  picture item deleted, this turn's text note (kept) and picture item (camera then window) added, then after
+  `RELEASE_TAIL_S` (0.15 s, the WebRTC audio still in flight) `input_audio_buffer.commit` and `response.create` at once:
+  nothing is fetched after release. A tap shorter than 0.25 s and Escape (`cancel`) ask for nothing.
+- **The Project brief** (`project_state.brief`, at most 3000 characters, no times in it) is one system item, deleted and
+  made again only when its text changed. The realtime API's items take `system`, `user` and `assistant` roles, not the
+  contract's "developer": the app's context is `system`.
+- **Tools** (`partner_tools.PARTNER_TOOLS`, those the registry has): present, tabs, show_measurements, highlight,
+  find, outline_cells, select, zoom, clear, start_researcher, research_status, researcher_note, cancel_researcher,
+  show_me, resources, models_in_use, capabilities, workflow, new_project, retrieve_page (web search), run_capability
+  (once a capability is on; the session's tools follow the registry at each key-down) and reference_photo, plus
+  `mark`, `look_hard` (the frame, and the window if asked, to `Settings.vision`) and `do_in_hooke` (the user's words to
+  `Brain.turn`, a rare fallback). Each call is one voice request (Ticket "turn", channel voice, its admission and
+  request id, the accepted studio's pin, `voice_owner` this session so researchers report back to it) run through the
+  brain's `ActionRunner`; the user's words of that turn (their transcription, waited for at most 1.5 s) are its
+  `question`. Each call's row goes into the chat (`chat-action`). start_researcher, new_project and cancel_researcher
+  run once per turn: the same call again returns the first result (live 2026-10-28: two researchers from one request).
+  A call still running after 12 s is answered `still_working`; its outcome is one line when it lands.
+- **Act, then look:** after a call that changes the screen, the studio is asked for a report newer than the change
+  (`Screen.until`, 2 s), then for a window picture (`snapshot-request`, 1.5 s); both go into the conversation after the
+  call's output, and only then is the model asked to go on (`cause: "look"`), so it says done only when the picture
+  shows it.
+- **Lines nobody asked for:** a researcher finished or failed (`ResearchManager.on_done`; one asked for by voice is said
+  through the announcer's narrator line, tagged with its card), a long tool done, a capability turned on
+  (`App.turned_on` → `brain.voice.happened`), a reconnect while it spoke. Each is a system item and one
+  `response.create` with `tool_choice: none` and "one short sentence", only when no key is held, nothing is being
+  said and nobody spoke for 1.5 s; once per event (kind and reference) in two minutes; a mark on the researcher's card
+  is drawn as it is said. Waiting more than a minute, it stays in the conversation unsaid.
+- **One conversation:** the user's words (`conversation.item.input_audio_transcription.completed`) and the voice's
+  (`response.output_audio_transcript.delta`, one line per response) are filed with `SpokenRequests`' caption lines, as
+  GPT-Live's are; they never reach its hands. A new call is seeded with the last 8 exchanges, the brief and the
+  per-turn notes.
+- **Reconnect:** a sideband that drops is reattached to the same call; a call that ended (or a reattached sideband
+  dropping again within 10 s) asks the studio for a new offer (`reoffer` → `offer` with the same id), makes a new
+  call and sends its answer; at 55 minutes, when nobody has spoken for 5 s, it renews itself the same way. The same
+  session object goes on (researchers' delivery and the narrator still reach it).
+- **Usage:** each `response.done`'s usage (text, audio and image tokens in; text and audio out) is recorded at list
+  price (`budget.PRICES["gpt-realtime-2.1"]`; cached input at the full price, so it can only over-count); its
+  open time writes no charge, and its minutes ahead under a monthly cap are held at an estimated $0.30 a minute.
+- **What the bench reads** (`interactions.jsonl`): partner-talk, partner-turn, partner-response (and partner-audio
+  for when the browser stopped playing it), partner-barge, partner-tool, partner-marks, partner-proactive,
+  partner-reconnect. `MICROMIND_BENCH_FAULTS=1` (never in a packaged build) lets the bench close the provider
+  (`{type:"bench", fault:"close-provider"}`) or fail the next tool.
+
+Measured on the real API, 2026-10-29 (one paid smoke run over the WebSocket, no browser; WebRTC adds the browser's
+network leg and was not measured here): a held turn with a picture and synthesized speech, response.create to the first
+audio delta **842 ms**; a response that spoke a preamble then called the tool, **1051 ms**; the answer after the tool's
+`function_call_output`, **758 ms**. The input transcription completed before the first audio. Two responses with a
+768 px picture cost $0.013 each at list price; a picture at `detail: low` was 65 tokens, at `auto` 194. Events, in
+order, for the tool round: `session.created`, `session.updated`, `conversation.item.added`/`.done`,
+`response.created`, `response.output_item.added`, `response.content_part.added`,
+`response.output_audio_transcript.delta`, `response.output_audio.delta`, `response.function_call_arguments.delta`,
+`response.output_audio.done`, `response.output_audio_transcript.done`, `response.output_item.done`,
+`response.function_call_arguments.done`, `response.done` (its `output` holds the `function_call` with `call_id`, `name`
+and `arguments`), `rate_limits.updated`. A held turn adds `input_audio_buffer.cleared`, `conversation.item.deleted`,
+`input_audio_buffer.committed`, `conversation.item.input_audio_transcription.delta`/`.completed`. Client-chosen item
+ids (`hk_…`, at most 32 characters) and `response.metadata` (`cause`, `n`) came back as sent. Over WebRTC,
+`response.output_audio.done` comes while the browser still plays the answer: only `output_audio_buffer.started` /
+`stopped` / `cleared` say when it is audible. A second run confirmed the rest the partner relies on: a mid-session `session.update` of
+`tools` takes effect (its `session.updated` lists them); a refused step's `error` echoes our `event_id`
+(`item_delete_invalid_item_id`, `response_cancel_not_active`), which is how a best-effort step's refusal is logged and
+not said; and a proactive `response.create` with `instructions`, `tool_choice: "none"` and `metadata` spoke one
+sentence from a system item of facts ("Researcher 3 finished and reported finding two size groups."), its first audio
+**692 ms** after asking. Both runs cost $0.04 at list price. A third run (a session.update only) took all 78 registry
+tools of the golden fixture as the partner reshapes them, with mark, look_hard and do_in_hooke: 81 of 81 accepted. A
+fourth made the WebRTC call itself as `RealtimeSession` does, from a headless Chrome's SDP offer: the call was created
+in **1511 ms** (the body is the SDP answer, the `Location` header ends in the `rtc_…` id), the sideband attached by
+`call_id` in **263 ms**, and a `session.update` over it was answered `session.updated` with the 19 partner tools the
+fixture has (the sideband's first event; no `session.created` comes on it). So a reconnect that needs a new call is
+about 1.8 s plus the browser's new offer: at the edge of the 2 s target. Not measured without the studio: audio over
+WebRTC, `output_audio_buffer.*` on the sideband, and whether `RELEASE_TAIL_S` keeps the last word.

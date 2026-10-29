@@ -29,6 +29,9 @@ PRICES = {
     "veo-3.1-fast": 0.10,     # per second at 720p
     "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
     "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations (research_worker/presentation.py)
+    # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
+    # out, and audio and pictures in and audio out, per million tokens.
+    "gpt-realtime-2.1": {"in": 4.00, "out": 24.00, "audio_in": 32.00, "audio_out": 64.00, "image_in": 5.00},
 }
 
 

@@ -5,6 +5,10 @@ handed to the same brain you type to (orchestrator/brain/loop.py), so voice has 
 tools chat has. What you say and what it says go into the shared conversation, so switching
 between talking and typing just works.
 
+The one-brain voice (`?model=gpt-realtime-2.1`, voice/openai_realtime.py and voice/partner.py) hears, sees and acts
+itself: WebRTC only, and the socket also carries the partner contract's messages (talk, snapshot, marks-shown, a new
+offer for a reconnect; snapshot-request, marks, marks-clear and reoffer back), handled by `Partner.command`.
+
 Protocol on WS /ws/voice[?model=gpt-live-1][&rate=24000][&link=webrtc]
   link=webrtc (option VOICELINK): the browser first sends {"type": "offer", "sdp": "..."} and gets
   {"type": "voice", "kind": "answer", "data": {"sdp": "..."}}; audio then goes browser <-> OpenAI
@@ -34,12 +38,14 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from ..options import VOICE
 from .. import execution
-from ..prompts import LIVE_VOICE_DELEGATE
+from ..prompts import LIVE_VOICE_DELEGATE, PARTNER
 from .diagnostics import VoiceDiagnostics
 from .base import ToolSpec, VoiceConfig, VoiceEvent
 from ..brain import context
 from ..brain.speech import SpokenRequests
 from .openai_live import OpenAILiveSession
+from .openai_realtime import MODEL as ONE_BRAIN, RealtimeSession
+from .partner import Partner
 
 AUDIO_MAGIC = b"MMA1"
 VIEW_NOTE_EVERY_S = 3.0  # at most one view note this often (each is a thinking.append, 500 tokens max)
@@ -104,6 +110,11 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             return passive_workspace_pin(hub.screen, client)
         rate = 24000 if websocket.query_params.get("rate") == "24000" else 16000
         link = "webrtc" if websocket.query_params.get("link") == "webrtc" else "relay"
+        if model == ONE_BRAIN and link != "webrtc":
+            await websocket.send_json({"type": "voice", "kind": "error", "data": {
+                "message": "The one-brain voice talks over WebRTC only. Reload the studio, then press Talk again."}})
+            await websocket.close()
+            return
         # Each Talk press is a fresh GPT-Live session that remembers nothing: it starts knowing the
         # conversation so far, the researchers' work and what is on screen (`session.input`, as
         # the Live guide says, rather than a context update after it has started).
@@ -121,25 +132,39 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             moment = brain.moment(request_snapshot=pin) if client is not None else brain.moment()
             initial_view_key = context.view_key(moment)
             initial_question_view = getattr(brain.sight, "question_view", None)
-        instructions = voice_prompt(brain)
+        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain)
         try:  # under a monthly cap the session is admitted first (its first minutes at their most), never after it opens
             usage_meter = api_usage.VoiceUsage(model)
         except (api_usage.CapReached, api_usage.ProviderRefused) as exc:
             await websocket.send_text(json.dumps({"type": "voice", "kind": "error", "data": {"message": str(exc)[:300]}}))
             await websocket.close()
             return
-        session = OpenAILiveSession(VoiceConfig(model=model, system_prompt=instructions, tools=[brain_tool(spoken_requests)],
-                                                input_rate=rate, history=[("developer", recap)] if recap else []), link=link,
-                                    said=getattr(brain, "said", None))  # the brain's: what an earlier Talk said stays said
-        session.noted = brain.agent.log  # every silent note, whole, as a voice-note record
-        spoken_requests.voice = session
-        # Which request a delegation is (its identity only). Not `spoken`: that would let any later words, a cough or a
-        # "thanks" included, turn the narrator's late results into silent context (Announcer._newest).
-        session.requests = spoken_requests
-        # The journal and the talking window render the same line IDs. Raw voice events
-        # provide status only; two sockets must never independently construct chat rows.
-        spoken_requests.user_line.caption = spoken_requests.reply_line.caption = True
-        spoken_requests.user_line.join = ""
+        partner = None
+        if model == ONE_BRAIN:
+            # One mind that hears, sees and acts (voice/partner.py): its own tools, what it sees each turn and the
+            # Project brief; its lines go into the same conversation, and nothing is handed to the brain's hands.
+            partner = Partner(hub, brain, dialogue, client=client, send=websocket.send_json, log=brain.agent.log)
+            session = RealtimeSession(VoiceConfig(model=model, system_prompt=instructions),
+                                      talk=getattr(hub.settings, "talk", "hold"))
+            partner.bind(session)
+            session.config.tools = partner.tools.specs()
+            with contextlib.suppress(Exception):
+                session.seed_brief(*(await partner.brief()))
+            spoken_requests = partner.lines
+            session.noted = brain.agent.log
+        else:
+            session = OpenAILiveSession(VoiceConfig(model=model, system_prompt=instructions, tools=[brain_tool(spoken_requests)],
+                                                    input_rate=rate, history=[("developer", recap)] if recap else []), link=link,
+                                        said=getattr(brain, "said", None))  # the brain's: what an earlier Talk said stays said
+            session.noted = brain.agent.log  # every silent note, whole, as a voice-note record
+            spoken_requests.voice = session
+            # Which request a delegation is (its identity only). Not `spoken`: that would let any later words, a cough or a
+            # "thanks" included, turn the narrator's late results into silent context (Announcer._newest).
+            session.requests = spoken_requests
+            # The journal and the talking window render the same line IDs. Raw voice events
+            # provide status only; two sockets must never independently construct chat rows.
+            spoken_requests.user_line.caption = spoken_requests.reply_line.caption = True
+            spoken_requests.user_line.join = ""
         try:
             if link == "webrtc":
                 offer = json.loads(await asyncio.wait_for(websocket.receive_text(), timeout=15))
@@ -153,6 +178,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             # allowance settled, also when cancelled, once or again (Codex's diagnosis of 89e834b5, point 4; its review of
             # 2026-10-14): the route owns that cleanup to its end.
             await finish_owned(close_then_settle((), session, usage_meter))
+            if partner is not None:
+                partner.close()
             if not isinstance(exc, Exception):
                 raise
             with contextlib.suppress(Exception):
@@ -167,10 +194,14 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 if receipt.id is not None:
                     with contextlib.suppress(Exception):
                         with execution.span("live-session", selected=model, selection="explicit" if websocket.query_params.get("model") else "settings",
-                                            adapter="voice.openai_live.OpenAILiveSession", provider="openai", model=session.config.model,
+                                            adapter=f"{type(session).__module__.split('orchestrator.')[-1]}.{type(session).__name__}",
+                                            provider="openai", model=session.config.model,
                                             scope=link, sessionId=getattr(session, "session_id", None), identity="session-start sent; hosted revision unconfirmed"):
                             pass
-            await websocket.send_text(json.dumps({"type": "voice", "kind": "model", "data": {"model": model, "label": VOICE[model].label}}))
+            said_model = {"model": model, "label": VOICE[model].label}
+            if partner is not None:  # the studio's Talk button holds to talk in this session, or listens (open mic)
+                said_model.update(talk=session.talk, talkKey=getattr(hub.settings, "talk_key", "control-option"))
+            await websocket.send_text(json.dumps({"type": "voice", "kind": "model", "data": said_model}))
             # What this session started knowing: its instructions by their hash (the same text every session until a
             # prompt or the tool list changes) and the recap whole, so a session's answers can be read against them.
             brain.agent.log({"kind": "voice-session", "link": link, "sessionId": getattr(session, "session_id", None),
@@ -185,6 +216,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 if brain.voice is session:
                     brain.voice = None
                 spoken_requests.close()
+                if partner is not None:
+                    partner.close()
             if not isinstance(exc, Exception):
                 raise
             with contextlib.suppress(Exception):
@@ -220,6 +253,11 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 else:
                     diagnostics.record(event.kind)
                 if event.kind == "usage":
+                    tokens = (event.data or {}).get("tokens")
+                    if isinstance(tokens, dict):  # the one-brain voice is billed by the tokens each response used
+                        await asyncio.to_thread(api_usage.record, model, (event.data or {}).get("usd"), provider="OpenAI",
+                                                area="Voice", units=sum(tokens.values()),
+                                                basis="Reported tokens · list price, cached input at the full price")
                     await asyncio.to_thread(usage_meter.update, (event.data or {}).get("seconds"))
                     try:
                         fits = await asyncio.to_thread(usage_meter.renew)
@@ -228,7 +266,7 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                     if not fits:  # the month's cap reached while talking: said, and the session ends
                         await end_for_cap()
                         return
-                if event.kind == "tool_call":
+                if event.kind == "tool_call" and partner is None:
                     spoken_requests.handed_over()
                     timing["delegated"] = True
                     timing["delegations"] += 1
@@ -244,7 +282,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 if event.kind == "input_transcript" and event.data.get("interim"):
                     # Each piece of the user's speech as it arrives; the final transcript is only
                     # emitted when the model starts answering, so it says nothing about the wait.
-                    if not timing["waiting"] and brain.sight is not None and hasattr(brain.sight, "question_coming"):
+                    if (not timing["waiting"] and partner is None and brain.sight is not None
+                            and hasattr(brain.sight, "question_coming")):
                         # The first words of an utterance: the eyes look again now if the view may have changed,
                         # so the notes are fresh by the time the user finishes (ADR 0016's See loop).
                         from ..brain.toolbox.time import motion_share
@@ -281,9 +320,13 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                     timing["turn_logged"] = False
                 if event.kind in ("input_transcript", "output_transcript"):
                     event.data["journaled"] = True
-                if event.kind == "input_transcript" and event.data.get("interim"):
+                if partner is not None:
+                    pass  # its lines are filed by the partner itself (Partner.on_event); nothing goes to the hands
+                elif event.kind == "input_transcript" and event.data.get("interim"):
                     spoken_requests.user_line.add(event.data.get("delta", ""), span=event.data)
-                if event.kind == "input_transcript" and not event.data.get("interim"):
+                if partner is not None:
+                    pass
+                elif event.kind == "input_transcript" and not event.data.get("interim"):
                     # Shown, and joined with what comes close after; its span on the server's clock is
                     # how a delegation is matched to it.
                     spoken_requests.heard(event.text, span=(event.data.get("startMs"), event.data.get("endMs")))
@@ -382,7 +425,9 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             finally:
                 ended.set()
 
-        tasks = [asyncio.create_task(deliver_responses()), asyncio.create_task(keep_seeing()), asyncio.create_task(keep_allowance())]
+        tasks = [asyncio.create_task(deliver_responses()), asyncio.create_task(keep_allowance())]
+        if partner is None:  # GPT-Live sees through view notes; the one-brain voice sees pictures each turn
+            tasks.append(asyncio.create_task(keep_seeing()))
         tasks[0].add_done_callback(lambda _: ended.set())
         try:
             while not ended.is_set():
@@ -407,6 +452,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                     await session.send_audio(message["bytes"])
                 elif message.get("text"):
                     command = json.loads(message["text"])
+                    if partner is not None and await partner.command(command):
+                        continue
                     if command.get("type") == "diagnostic":
                         diagnostics.record(command.get("stage"), client=True)
                     elif command.get("type") == "text":
@@ -440,6 +487,8 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                                  "lagP50Ms": sorted(lags)[len(lags) // 2] if lags else None,
                                  "lagDriftMs": lags[-1] - lags[0] if len(lags) > 1 else None, "lagSamples": len(lags)})
             spoken_requests.close()
+            if partner is not None:
+                partner.close()
             if brain.voice is session:
                 brain.voice = None
             # Its tasks, then the provider closed, then its allowance settled, in that order and bounded, as one task the
@@ -563,6 +612,12 @@ def brain_tool(spoken_requests: SpokenRequests) -> ToolSpec:
 
     return ToolSpec(name="ask_app", description="Hand the request to the app, which sees the view and acts.",
                     parameters={"type": "object"}, handler=ask_brain)
+
+
+def partner_prompt(brain) -> str:
+    """The one-brain voice's instructions (prompts.PARTNER). What it can do is its tools' declarations, sent with the
+    session, and the capabilities tool when asked: not repeated here (context earns its place)."""
+    return PARTNER
 
 
 def voice_prompt(brain) -> str:
