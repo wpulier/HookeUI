@@ -207,6 +207,30 @@ def test_while_think_works_a_quiet_voice_says_what_is_under_way_a_few_times_and_
     asyncio.run(go())
 
 
+def test_think_needs_only_the_partners_session_interface_not_the_openai_one(monkeypatch):
+    """think will sit behind Gemini 3.8 Live too: a session without RealtimeSession's deliver and tell_progress gets the
+    result through the line every partner session says (`proactive`), once."""
+    async def go():
+        backend = FakeBackend(report={"say": "micro-sam matched Cellpose best.", "checked": True, "done": True})
+        t = await with_backend(monkeypatch, backend)
+        said = []
+
+        class OtherSession:  # what partner.happened and the tools use of a session, and nothing more
+            closed, n = False, 1
+            brief_text, notes = "Project Leaf", []
+
+            async def proactive(self, text, *, event, ref=None, before=None, mark=None):
+                said.append((event, ref, text))
+        t.partner.session = OtherSession()
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        started = await spec.handler({"request": "compare three outline models"})
+        await until_async(lambda: said)
+        await asyncio.sleep(0.2)
+        assert len(said) == 1 and said[0][0] == "think-done" and said[0][1] == started["task"]
+        assert "micro-sam matched Cellpose best." in said[0][2]
+    asyncio.run(go())
+
+
 def test_a_tool_think_gave_up_waiting_for_is_still_said_when_it_lands(monkeypatch):
     """Past think's own wait the outcome is not lost: the backend is told it is still running, and when it lands it is
     said as one line, as any long tool's is."""

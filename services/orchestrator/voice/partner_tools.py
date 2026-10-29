@@ -601,4 +601,9 @@ class PartnerTools:
              "ok": result.ok, "checked": result.checked, "refused": result.refused, "error": result.error,
              "rounds": result.rounds, "tools": result.tools, "points": result.points, "ms": result.usage.get("ms"),
              "usage": {k: v for k, v in result.usage.items() if k != "ms"}, "doneT": time.time()})
-        await session.deliver(task.id, facts=result.facts(), say=result.say, points=result.points)
+        if hasattr(session, "deliver"):  # RealtimeSession: prepared out of band, said once with its marks
+            await session.deliver(task.id, facts=result.facts(), say=result.say, points=result.points)
+        else:  # any other partner session (Gemini 3.8 Live): the one line every session says, once
+            text = json.dumps({"tool": "think", "task": task.id, **result.facts()}, ensure_ascii=False, default=str)
+            await self.partner.happened("think-done", text, ref=task.id,
+                                        mark=result.points[0] if result.points else None)
