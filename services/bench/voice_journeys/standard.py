@@ -51,6 +51,7 @@ STANDARD = {
     "markLatencyMax": 0.2,
     "eventSpokenMax": 2.0,
     "reconnectMax": 2.0,
+    "takeoverMax": 0.15,  # Drive: from the studio's input to the server knowing
     "fpsKept": 0.9,  # live view frame rate at least this share of the baseline before Talk
     "delayAddedMaxS": 0.05,  # live view delay p90 no more than this above the baseline
     "plainShare": 0.9,  # answers of one or two sentences (the bench's reading of "one or two plain sentences")
@@ -708,6 +709,13 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         for e in checks:
             if e.get("ok") is False:
                 fail(f"after restart: {e['name']} missing ({e.get('detail', '')})")
+    if expect.get("takeover"):  # the bench took over while the partner acted: scored on stopping, not on finishing
+        mine = [r for r in inter if r.get("kind") == "partner-takeover" and isinstance(r.get("atServer"), (int, float))
+                and start <= r["atServer"] < end]
+        row["takeover"] = [round(r["atServer"] - r["atStudio"], 3) for r in mine if isinstance(r.get("atStudio"), (int, float))]
+        if not mine:
+            skipped = next((e.get("skipped") for e in bench["events"] if e.get("e") == "takeover" and e.get("step") == step["id"]), None)
+            fail(f"no takeover reached the server{f' ({skipped})' if skipped else ''}")
     recovered = [e for e in bench["events"] if e.get("e") == "recovered" and e.get("step") == step["id"]]
     if recovered:
         row["recovered"] = [{"what": e.get("what"), "from": e.get("from"), "ok": e.get("ok")} for e in recovered]
@@ -820,6 +828,32 @@ def proactive(inter: list[dict], segments, busy, researchers: dict | None = None
     return out
 
 
+CUE_WAIT_S = 0.5  # Hands waits this long for the studio to show its cue before the effect (voice/hands.py)
+
+
+def drive(inter: list[dict], bench: dict) -> dict:
+    """Hands, the partner's drive (docs/architecture/on-screen.md, claude/p25-best): each cue shown before its effect
+    (drive-shown within CUE_WAIT_S of its sending, else the effect ran without it), each user takeover's way from the
+    studio to the server, every cue ended (drive-end, seen in the page), and no action after a takeover planned against
+    an earlier control version."""
+    drives = [r for r in inter if r.get("kind") == "partner-drive"]
+    hands = [r for r in inter if r.get("kind") == "partner-hands"]
+    takeovers = [r for r in inter if r.get("kind") == "partner-takeover"]
+    first = [r for r in drives if r.get("ok") and isinstance(r.get("shownT"), (int, float))
+             and isinstance(r.get("sentT"), (int, float)) and r["shownT"] - r["sentT"] <= CUE_WAIT_S]
+    ways = [round(r["atServer"] - r["atStudio"], 3) for r in takeovers
+            if isinstance(r.get("atServer"), (int, float)) and isinstance(r.get("atStudio"), (int, float))]
+    stale = [h for t in takeovers for h in hands if isinstance(t.get("atServer"), (int, float))
+             and isinstance(h.get("t"), (int, float)) and h["t"] > t["atServer"]
+             and isinstance(h.get("version"), int) and isinstance(t.get("version"), int) and h["version"] < t["version"]]
+    sent = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive"}
+    ended = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive-end"}
+    return {"cues": len(drives), "cueFirst": len(first), "notShown": [r.get("why") for r in drives if not r.get("ok")],
+            "takeovers": len(takeovers), "takeoverS": ways, "staleAfterTakeover": len(stale),
+            "unended": len(sent - ended) if sent else None,
+            "results": {k: sum(1 for h in hands if h.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}}
+
+
 def reconnects(inter: list[dict], bench: dict) -> list[dict]:
     faults = [e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
     out = []
@@ -923,6 +957,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
             "proactive": proactive(inter, segments, busy, api_researchers(bench)), "reconnects": reconnects(inter, bench),
+            "drive": drive(inter, bench),
             "liveView": live_view(bench, [{**e, "t": seconds(e.get("t"))} for e in baseline or []]),
             "error": bench.get("error"), "audioFrom": heard_from}
 
@@ -983,6 +1018,12 @@ def summarise(runs: list[dict]) -> dict:
         "toolFirstTry": {"right": sum(1 for r in tool_rows if r["toolRight"]), "n": len(tool_rows)},
         "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
         "think": think_share([r for r in steps if r["toolSource"] == "partner"]),
+        "drive": {k: sum((run.get("drive") or {}).get(k, 0) for run in runs)
+                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover")}
+                 | {"takeoverMax": max((w for run in runs for w in (run.get("drive") or {}).get("takeoverS", [])), default=None),
+                    "unended": sum((run.get("drive") or {}).get("unended") or 0 for run in runs),
+                    "verified": sum(((run.get("drive") or {}).get("results") or {}).get("verified", 0) for run in runs),
+                    "hands": sum(sum(((run.get("drive") or {}).get("results") or {}).values()) for run in runs)},
         "falseDone": {"count": sum(r["falseDone"] for r in judged), "judgedSteps": len(judged),
                       "unconfirmedThenSpoke": sum(r["unconfirmedThenSpoke"] for r in steps)},
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
@@ -1025,7 +1066,7 @@ NOT_APPLICABLE = "not applicable to this voice"
 # Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
 # every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
 # by speaking over it).
-ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Drive", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
                   "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
 VOICES_WITHOUT = {"gpt-live-1"}
 
@@ -1077,6 +1118,21 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     th = s.get("think") or {}
     kinds = ", ".join(f"{kind} {k[0]} of {k[1]}" for kind, k in (th.get("byKind") or {}).items())
     unexpected = th.get("unexpected") or []
+    # Drive (the spec, section 1): every action visible as it happens, a takeover stops it within 150 ms, and no queued
+    # action runs after. Actions verified and cues never ended are details within the line.
+    dv = s.get("drive") or {}
+    measured = bool(dv.get("cues")) and bool(dv.get("takeovers"))
+    L.append(_line("Acting", "Drive",
+                   (f"cues before the effect {dv['cueFirst']} of {dv['cues']}; takeovers {dv['takeovers']}"
+                    + (f", studio to server max {dv['takeoverMax']:.2f} s" if dv.get("takeoverMax") is not None else "")
+                    + f"; actions after a takeover on an older version {dv['staleAfterTakeover']}"
+                    + f"; actions verified {dv['verified']} of {dv['hands']}"
+                    + (f"; cues never ended {dv['unended']}" if dv.get("unended") else "")) if dv.get("cues") or dv.get("hands") else "—",
+                   f"every cue first, takeover ≤ {S['takeoverMax']} s, 0 after a takeover",
+                   False if dv.get("staleAfterTakeover") or (dv.get("cues") and dv["cueFirst"] < dv["cues"])
+                   or (dv.get("takeoverMax") is not None and dv["takeoverMax"] > S["takeoverMax"])
+                   else True if measured else None,
+                   "no takeover in the run" if dv.get("cues") and not dv.get("takeovers") else ""))
     L.append({"area": "Acting", "line": "think share", "gate": False, "threshold": "reported, not a gate",
               "value": (f"{th['calls']} of {th['of']}" + (f" ({th['share']:.0%})" if th.get("share") is not None else "")
                         + (f"; by step kind: {kinds}" if kinds else "")
@@ -1158,7 +1214,8 @@ def markdown(result: dict) -> str:
     out = [f"# Live partner journey: {head.get('voice', '?')} ({head.get('talk', '?')}), plan {head.get('plan', '?')}", "",
            f"{result['summary']['runs']} run(s), {result['summary']['steps']} steps. Audio heard {head.get('audioFrom', 'in the page')}; "
            f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room. "
-           f"Judged by {head.get('judge', 'none')} (judges are not interchangeable: compare runs judged by the same one).", "",
+           f"Judged by {head.get('judge', 'none')} (judges are not interchangeable: compare runs judged by the same one)."
+           + (f" Settings: {json.dumps(head['settings'])}." if head.get("settings") else ""), "",
            f"**Standard met: {'yes' if meets(result['scoreboard']) else 'no'}**", "",
            *([f"The bench put the journey back in its Project after {len(result['recovered'])} step(s) that left it "
               "elsewhere (scored as they were; the steps after them are not scored again for it)."] if result.get("recovered") else []),

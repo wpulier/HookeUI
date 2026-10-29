@@ -184,7 +184,7 @@ def test_shipped_plans_name_real_tools_and_known_fields(name):
     plan = stack.load_plan(name)
     assert plan["id"] == name and plan["voices"]["user"]
     fields = {"tools", "toolRequired", "visible", "researchers", "marks", "status", "multi", "fails", "outcome",
-              "judge", "silent"}
+              "judge", "silent", "takeover"}
     for step in [*plan.get("setup", []), *plan["steps"]]:
         expect = step.get("expect") or {}
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
@@ -284,7 +284,9 @@ def test_the_broad_journey_covers_what_a_partner_is_asked():
     """Will, 2026-10-29: broad, not a memorised path. 25-30 requests in one session, each area covered."""
     plan = stack.load_plan("part-2.5-broad")
     spoken = [s for s in plan["steps"] if s.get("say")]
-    assert 25 <= len(spoken) <= 30 and len({s["say"] for s in spoken}) == len(spoken)
+    assert 25 <= len(spoken) <= 31 and len({s["say"] for s in spoken}) == len(spoken)
+    taken = [s for s in plan["steps"] if s.get("takeover")]  # the Drive line needs a takeover in every run
+    assert len(taken) == 1 and taken[0]["takeover"]["how"] in ("mouse", "escape") and taken[0]["expect"]["takeover"]
     expects = {s["id"]: s.get("expect") or {} for s in plan["steps"]}
     assert sum(1 for s in plan["steps"] if s.get("interrupt")) == 1
     assert sum(1 for e in expects.values() if e.get("fails")) == 1
