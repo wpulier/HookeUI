@@ -164,6 +164,15 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 user's words, the lines and the tool calls with their confirmations. It judges claims, outcome mentions and whether
 the request was answered. Times, counts and identities are code. `--no-judge` leaves false "done" unmeasured.
 
+**Which judge.** `--judge` chooses it: `gpt-6.1-sol` (the default, so new runs compare with old ones),
+`claude-opus-5-5` (the Messages API over plain httpx, effort low, server-side fallbacks on) or `gemini-3.8-flash`. All
+three get the same prompt; each reply's JSON is read from its text. With `--judge auto` (the default) the default judge
+is used unless its key is missing or a tiny call to it fails (credit run out), then Claude, then Gemini. The judge used
+is kept with each run's verdicts (`_judge`), shown on the scoreboard ("Judged by …"), and in `result.json` with any
+judge passed over and why. `compare.py` warns when runs were judged by different judges: the judged lines are not
+comparable then. A re-score judges again only runs with no verdicts or with a step the judge could not answer
+(`--rejudge` for all); that is paid, so it needs `--budget` and reserves the judged steps' worst case first.
+
 **Overall: partner quality.** The judge also gives every step a `partner_quality` from 0 to 3: did the reply feel like a
 sharp, dynamic colleague? That means specific to what is on screen and in the Project, pointing at what it talks about,
 using earlier turns, brief and natural, with no filler or hedging. The prompt calibrates it with one good and one bad

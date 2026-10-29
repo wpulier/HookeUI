@@ -4,17 +4,140 @@ reading of the words and the app's record of the screen together), how many line
 the request was answered, whether the answer meets the step's expectation, and how much it felt like a sharp
 colleague (`partner_quality`, 0-3: reported on the scoreboard's Overall line, never a gate). The judge sees the camera picture the
 plan names (the bundled still), the user's words, the voice's lines and the tools with their confirmations.
+
+The judge is a choice (`--judge`): GPT-6.1 Sol (the default, so new runs compare with the old ones), Claude Opus 5.5
+(the Messages API over plain httpx, as voice/think.py) or Gemini 3.8 Flash, each given the same prompt. With "auto" the
+default is used unless its key is missing or a tiny call to it fails (credit run out: 2026-10-29), then Claude, then
+Gemini. Judges are not interchangeable: the one used is kept with the verdicts and shown on the scoreboard.
 """
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
+import os
 import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .standard import load_bench, released, step_view, thinks, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
-COST_PER_STEP_USD = 0.02  # a bounded judge call (one image, about 2,000 tokens in, 600 out), for the worst case
+# Each judge: its key, and a judged step's worst cost (one image, about 3,000 tokens in; its output cap, thinking
+# included). The order is "auto"'s: the default first.
+JUDGES = {
+    "gpt-6.1-sol": {"spec": JUDGE, "key": "OPENAI_API_KEY", "usd": 0.03},
+    "claude-opus-5-5": {"key": "ANTHROPIC_API_KEY", "usd": 0.10},  # $4 / $20 per MTok, up to 4,000 out
+    "gemini-3.8-flash": {"spec": "gemini:gemini-3.8-flash@low", "key": "GEMINI_API_KEY", "usd": 0.01},
+}
+DEFAULT_JUDGE = "gpt-6.1-sol"
+COST_PER_STEP_USD = max(j["usd"] for j in JUDGES.values())  # whichever judge runs: the worst case reserved
+CLAUDE_MAX_TOKENS = 4000  # thinking is always on for Opus 5.5 and counts here; the verdict itself is about 300
+
+
+@dataclass
+class Reply:
+    data: dict | None
+    error: str | None = None
+    raw_text: str = ""
+    usage: dict = field(default_factory=dict)
+
+
+def json_of(text: str) -> dict | None:
+    """The verdict in a reply's text: the whole text, a fenced block, or the outermost braces."""
+    text = text.strip()
+    fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
+    for candidate in (text, fenced.group(1) if fenced else "", text[text.find("{"):text.rfind("}") + 1]):
+        try:
+            data = json.loads(candidate)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
+
+
+class ClaudeJudge:
+    """Claude Opus 5.5 over the Messages API, plain httpx (as voice/think.py). Thinking is always on for this model;
+    effort low. No prefill on this model: the JSON is read from the reply's text. Server-side fallbacks are on, so a
+    safety decline is answered by another model rather than not at all."""
+
+    model = "claude-opus-5-5"
+
+    def __init__(self, client=None) -> None:
+        self._client = client
+
+    def _http(self):
+        if self._client is None:
+            import httpx
+
+            self._client = httpx.AsyncClient(base_url="https://api.anthropic.com", timeout=120.0, headers={
+                "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
+                "anthropic-beta": "server-side-fallback-2026-07-01", "content-type": "application/json"})
+        return self._client
+
+    async def ask(self, images: list[bytes], prompt: str, max_output_tokens: int = 600) -> Reply:
+        content: list[dict] = []
+        for picture in images:
+            kind = "image/png" if picture[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+            content.append({"type": "image", "source": {"type": "base64", "media_type": kind,
+                                                        "data": base64.b64encode(picture).decode()}})
+        content.append({"type": "text", "text": prompt})
+        body = {"model": self.model, "max_tokens": max(CLAUDE_MAX_TOKENS, max_output_tokens),
+                "output_config": {"effort": "low"}, "fallbacks": "default",
+                "messages": [{"role": "user", "content": content}]}
+        try:
+            r = await self._http().post("/v1/messages", json=body)
+        except Exception as exc:  # noqa: BLE001 - a judge that can't be reached is said, never fatal for a run
+            return Reply(None, f"{type(exc).__name__}: {exc}"[:300])
+        if r.status_code != 200:
+            return Reply(None, f"HTTP {r.status_code}: {r.text[:200]}")
+        reply = r.json()
+        usage = reply.get("usage") or {}
+        if reply.get("stop_reason") == "refusal":
+            return Reply(None, f"refused ({(reply.get('stop_details') or {}).get('category')})", usage=usage)
+        text = "".join(b.get("text", "") for b in reply.get("content") or [] if b.get("type") == "text")
+        data = json_of(text)
+        return Reply(data, None if data is not None else f"no JSON (stop: {reply.get('stop_reason')})", text, usage)
+
+
+def make_judge(name: str):
+    if name == "claude-opus-5-5":
+        return ClaudeJudge()
+    from orchestrator.vision import make_vision
+
+    return make_vision(JUDGES[name]["spec"])
+
+
+async def works(name: str, judge) -> str | None:
+    """None when this judge answers a tiny call now; else why not (no key, credit, refused key...)."""
+    if not os.environ.get(JUDGES[name]["key"]):
+        return f"no {JUDGES[name]['key']}"
+    try:
+        result = await judge.ask([], 'Reply with JSON only: {"ok": true}', max_output_tokens=16)
+    except Exception as exc:  # noqa: BLE001
+        return f"{type(exc).__name__}: {exc}"[:200]
+    return getattr(result, "error", None) or None
+
+
+async def achoose(name: str = "auto", tried: list | None = None):
+    """(the judge's name, a judge): the one named, or with "auto" the first whose key and credit work now (the default
+    first). `tried` collects each one passed over ("gpt-6.1-sol: HTTP 429 ..."). (None, None) when none works."""
+    from orchestrator.keys import load_keys
+
+    load_keys()
+    for candidate in ([name] if name != "auto" else list(JUDGES)):
+        why = await works(candidate, make_judge(candidate)) if name == "auto" else None
+        if why is None:
+            return candidate, make_judge(candidate)  # a fresh one: its client belongs to the loop that uses it
+        if tried is not None:
+            tried.append(f"{candidate}: {why}")
+    return None, None
+
+
+def choose(name: str = "auto", tried: list | None = None):
+    return asyncio.run(achoose(name, tried))
+
 
 PROMPT = """You are scoring a live voice research partner for a microscope app against a strict standard. Image 1 (if
 given) is the specimen the camera showed.
@@ -76,16 +199,15 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
 
 
 async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict, picture: bytes | None,
-                   model=None) -> dict:
-    """{step id: verdict} for every scored step (claims_on_screen as 0-based line indices, as standard.py reads)."""
+                   model=None, name: str = DEFAULT_JUDGE) -> dict:
+    """{step id: verdict} for every scored step (claims_on_screen as 0-based line indices, as standard.py reads), and
+    "_judge": the judge's name."""
     if model is None:
-        from orchestrator.keys import load_keys
-        from orchestrator.vision import make_vision
-
-        load_keys()
-        model = make_vision(JUDGE)
+        name, model = await achoose(name)
+        if model is None:
+            raise RuntimeError("no judge answers now (keys or credit)")
     expects = {s["id"]: s.get("expect") or {} for s in plan["steps"]}
-    out, history = {}, []
+    out, history = {"_judge": name}, []
     for step in facts(bench, conv, inter):
         expect = expects.get(step["id"], {})
         # The two turns before, so "that one" and "the second researcher" can be judged as references.
@@ -112,8 +234,16 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
     return out
 
 
-def judge_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, checkout: Path) -> dict:
+def judge_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, checkout: Path, *, name: str = DEFAULT_JUDGE,
+              model=None) -> dict:
     still = (plan.get("camera") or {}).get("still")
     picture = (checkout / still).read_bytes() if still and (checkout / still).exists() else None
-    return asyncio.run(verdicts(bench, conv, inter, plan, picture))
+    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name))
+
+
+def judged_by(verdicts: dict | None) -> str | None:
+    """Which judge a run's kept verdicts came from (those from before the choice: the default, unrecorded)."""
+    if not verdicts:
+        return None
+    return verdicts.get("_judge") or f"{DEFAULT_JUDGE} (unrecorded)"
 

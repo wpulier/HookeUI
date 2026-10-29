@@ -28,8 +28,12 @@ def compare(results: list[dict]) -> str:
     head = [f"{r['about'].get('voice')} ({r['about'].get('talk')}, {r['about'].get('reps')} runs)" for r in results]
     out = ["# Live partner journey: the voices against the standard", "",
            f"Plan {', '.join(sorted(p or '?' for p in plans))}. "
-           + "; ".join(f"{h}: {r['about'].get('evidence', '')}, commit {r['about'].get('commit', '?')}"
-                       for h, r in zip(head, results)) + ". Recorded audio is not Will in a room.", ""]
+           + "; ".join(f"{h}: {r['about'].get('evidence', '')}, commit {r['about'].get('commit', '?')}, "
+                       f"judged by {r['about'].get('judge', 'none')}" for h, r in zip(head, results))
+           + ". Recorded audio is not Will in a room.", ""]
+    if len({r["about"].get("judge") for r in results}) > 1:
+        out += ["**Judged by different judges: the judged lines (false done, outcomes said, partner quality) are not "
+                "comparable.**", ""]
     if len(plans) > 1:
         out += ["**Not comparable: the runs used different plans.**", ""]
     out += ["| Area | Line | Standard | " + " | ".join(head) + " |", "|---|---|---|" + "---|" * len(results)]
