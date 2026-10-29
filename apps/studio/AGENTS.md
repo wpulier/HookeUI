@@ -1951,3 +1951,12 @@ Inputs keeps Add material and search in a padded toolbar with full-height contro
 Retained material names stay on one line; the complete title and material facts
 remain in the row tooltip and its full title in the accessible name. Role headings
 use the same inset as the toolbar; grouping never changes accepted content.
+
+Dropping several files chooses separate retained materials, never an inferred
+scientific stack. Stack remains an explicit import mode. Separate files use the
+existing bounded file transactions sequentially, pinned to the sheet's Project;
+each keeps its own request identity and receipt. Stop preserves accepted files,
+retry skips them, and uncertain acceptance must be recovered before replacing
+the selection. The sheet retains progress and opens each exact saved source.
+Folder-drop refusal still directs users to the complete native folder chooser
+so hidden scientific metadata is not silently omitted.

@@ -1110,3 +1110,8 @@ retained owner before paths are used; admission helpers capture `for_session`
 with write intent. Never derive a scientific destination from the visible Stage.
 The shared workflow library remains host-owned; runs retain frozen definitions.
 Live App activation and complete legacy collection remain separate qualification.
+
+`project_folder_copy` is a verified byte-copy stage for inactive Project folders,
+not proof of dependency closure. Incomplete destinations cannot open; sealed
+snapshots cannot acquire a writer. Caller settlement, external/shared dependencies
+and eventual explicit working-copy import remain separate responsibilities.

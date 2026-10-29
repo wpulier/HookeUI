@@ -94,3 +94,18 @@ This slice remains opt-in below App wiring. It does not migrate existing results
 route historical Library/capture stores, or qualify full collection. Real isolated
 bytes and synthetic native edits verify captured ownership, old revisions, workflow
 review, move/reopen and writer exclusion; live UI portability remains a later gate.
+
+## Folder-copy checkpoint
+
+`project_folder_copy` reserves a new destination, estimates disk demand and copies
+an inactive routed folder under its exclusive writer lease. It preserves journal
+and revision bytes, checks each copied hash and checks the source again before
+sealing. Interrupted destinations retain an explicit incomplete marker and cannot
+open as Projects. Existing destinations and source files are never replaced.
+Sealed snapshots are read-only through the host writer API, require no installed
+runtime to verify, and carry no registry entries or host runtime bindings.
+
+This is the byte-copy stage only. Its manifest explicitly says external dependency
+closure is not verified. It is not exposed as Collect Project or complete export;
+legacy assets, shared captures and external dependencies still require their
+collector and inclusion review. No accepted research is rewritten or replayed.
