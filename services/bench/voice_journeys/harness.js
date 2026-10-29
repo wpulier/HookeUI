@@ -24,10 +24,11 @@
   // --- the voice socket, both ways ----------------------------------------------------------------------------------
   const KEEP_IN = new Set(['model', 'ready', 'interrupted', 'turn_complete', 'error', 'closed', 'tool_call', 'tool_result', 'answer']);
   const KEEP_TYPES = new Set(['talk', 'snapshot', 'snapshot-request', 'marks', 'marks-shown', 'marks-clear', 'bench', 'text', 'mute',
-    'voice-phase', 'offer', 'reoffer']);
+    'voice-phase', 'offer', 'reoffer', 'control', 'drive', 'drive-shown', 'drive-end']);
   function brief(message) {
     const m = {};
-    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase'])
+    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase',
+      'version', 'owner', 'ok', 'why', 'outcome', 'intent'])
       if (message[key] !== undefined) m[key] = message[key];
     if (message.marks) m.marks = message.marks;
     if (message.resolved) m.resolved = message.resolved;

@@ -700,7 +700,8 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
     assert result(lines, "do_in_hooke share") == "pass"
     assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
-    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
+    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)",
+                                                                       "Hands: cue first, takeover honored"))
 
 
 def test_think_on_a_quick_step_is_the_wrong_tool():
@@ -797,3 +798,27 @@ def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step
     rows = {r["id"]: r for r in run["steps"]}
     assert rows["table"]["visibleS"] == pytest.approx(21.0 - 12.1) and rows["table"]["outcomesSaid"] == 1
     assert "Here's a dividing nucleus" not in " ".join(rows["researcher"]["lines"])
+
+
+def test_hands_drive_is_reported_cue_first_takeovers_and_no_stale_action():
+    """claude/p25-best, Hands: each cue shown before its effect, the user's takeover reaching the server, no action
+    after a takeover planned on an older control version. Reported, not a gate."""
+    bench, conv, inter, verdicts = good()
+    inter += [{"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
+               "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
+              {"kind": "partner-drive", "id": "d2", "intent": "highlight", "tool": "highlight", "target": "outline:o3",
+               "sentT": T0 + 30.0, "shownT": None, "ok": False, "why": "hidden"},
+              {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
+               "version": 3, "revision": 10, "result": "verified"},
+              {"kind": "partner-takeover", "t": T0 + 40.1, "why": "user-click", "version": 4, "atStudio": T0 + 40.0,
+               "atServer": T0 + 40.06},
+              {"kind": "partner-hands", "t": T0 + 41.0, "intent": "close", "tool": "present", "version": 3, "result": "verified"}]
+    bench["events"] += [{"t": ms(12.4), "e": "ws-in", "m": {"type": "drive", "id": "d1"}},
+                        {"t": ms(13.6), "e": "ws-in", "m": {"type": "drive-end", "id": "d1", "outcome": "verified"}}]
+    _, summary, lines = board(bench, conv, inter, verdicts)
+    line = lines["Hands: cue first, takeover honored"]
+    assert line["result"] == "reported" and line.get("gate") is False
+    assert "cues shown before the effect 1 of 2" in line["value"] and "studio to server max 0.06 s" in line["value"]
+    assert "older version 1 (must be 0)" in line["value"]
+    assert board(bench, conv, inter, verdicts, voice="gpt-live-1")[2]["Hands: cue first, takeover honored"]["result"] == \
+        "not applicable to this voice"

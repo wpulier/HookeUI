@@ -44,6 +44,9 @@ at the worst case.
 - **What it needs.** `node`, Playwright (`HOOKE_PLAYWRIGHT`, else the npx cache) and Chrome or Chromium
   (`HOOKE_CHROMIUM`, else `/Applications/Google Chrome.app`). A fresh browser profile is made per pass. The studio
   build in the checkout (`npm run build` once).
+- **Settings.** `--settings` (JSON, over a plan's own `"settings"`) reaches the stack as `MICROMIND_SETTINGS`, e.g. the
+  best version's `{"vision": "claude-opus-5-5-fast", "think": "claude-opus-5-5"}`; it is kept in `about.json` and shown
+  on the scoreboard.
 - **Its own ports.** `--port` and `--bridge-port` (defaults 28870 and 28865) keep it apart from other stacks.
 - **What a run folder holds.**
   - `home/`: the stack's home and its logs.
@@ -154,6 +157,7 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | One researcher | Researchers the orchestrator lists as created in the step (else the successful `start_researcher` calls) equal `expect.researchers`; ≤ 2 s from release to its creation. |
 | Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
+| Hands (reported) | The partner's drive (claude/p25-best, `docs/architecture/on-screen.md` "Hands"): cues shown before their effect (`partner-drive` shown within 0.5 s of sending), actions verified (`partner-hands`), each user takeover's way from the studio to the server (`partner-takeover`), cues the page saw without a `drive-end`, and actions after a takeover planned on an older control version (must be 0). Reported, not a gate. |
 | Events | `partner-proactive`: the event to its first audio ≤ 2 s; never while the key is held or within 1.5 s of release; one line per event; pointing at its card. |
 | Reconnect | `partner-reconnect` `ms` (the bench fault closes the provider's call): ≤ 2 s. |
 | Live view | Frames per second and delay p90 while the journey runs, against the 10 s before Talk (else the setup's): at least 90% of the frame rate, no more than 50 ms added delay. Only seconds with a source on the stage count, and a freeze with a source on it fails; a run with nothing on the stage says "not measured: no live view on the stage". |
