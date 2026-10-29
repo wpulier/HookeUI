@@ -412,6 +412,16 @@ its licence on its page (approval can take a while) (checked 21:29)", or "Its li
 could ask (offline, no key). **Unknown is never a refusal.** No ✗ on a card is a declaration: each is read here or
 carries when it was said (a test walks every card).
 
+**Real use is an observation too** (kind "use"; Will, 2026-10-29: Claude Opus 5.5 answered him all session while its
+card said "Not checked", grey). Every run of an entry the running app makes (a run of a model or method, a cloud call, a
+voice session that opened) keeps its latest outcome with when: it ran and returned, or it ran and failed with its own
+error. What the app cut short itself (its deadline, a newer request, the monthly cap), what never reached the model
+(busy, unavailable, refused in words), a blind trial before its vote and the app's own check are not use. The card says
+**Working here · last ran 14:02** from a run that worked, **Broken** with the failure's words from one that failed (the
+next run that works clears it), and **Ready · not checked yet** when it can run and nothing of it is recorded; the newer
+of a real use and the app's own check counts. They are kept beside the app's own checks (`uses.json` in the logs
+folder, docs/saves.md), so a test's or the sim's home keeps its own; benches and `make capability-check` record none.
+
 Answers are kept in `<catalog>/observed.json`, so a restart shows the last one with its time until it is asked again. No
 key's value is ever kept there, logged or said.
 

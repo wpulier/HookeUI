@@ -129,7 +129,12 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
         ledger = api_usage.UsageLedger(built.paths.research / "api-usage")
         ledger.seed_research(built.research.today(), built.research.spending.spent())
         app.state.usage = ledger
-        api_usage.configure(ledger, provider_allowed=lambda: not built.day.local_only)
+        from . import observed
+        # Each model's real use is kept (observed.py "use"): a model that ran here is working here on its card, one that
+        # failed says why, and every studio is sent the Models page again when one turns.
+        api_usage.configure(ledger, provider_allowed=lambda: not built.day.local_only, outcome=observed.call_used)
+        observed.record_use(built.paths.checks.parent / observed.USES,
+                            changed=lambda: built.hub.broadcast(built.capabilities_wire()))
         lifecycle = app.state.research_lifecycle
         try:
             await built.start()
@@ -146,6 +151,7 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
                         await built.stop()
                     finally:
                         api_usage.configure(None)
+                        observed.record_use(None)
                         try:
                             ledger.close()
                         finally:

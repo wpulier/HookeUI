@@ -28,35 +28,38 @@ import contract from '../../../contract/actions.json';
 export const OWN_TASKS: Readonly<Record<string, string>> = contract.ownTasks.titles;
 
 /** Models' sections, the same in Models, Tools By model and a task's model list (one meaning of Ready: face on or
- * obtained; Not checked is its own state). */
+ * obtained, by Hooke's own check or by a real use that worked here; ready to run with neither recorded is its own
+ * section, Ready, not checked yet). */
 export type ModelSection = 'needs' | 'ready' | 'unchecked' | 'setup' | 'away';
 export const MODEL_SECTIONS: readonly (readonly [ModelSection, string])[] = [
-  ['needs', 'Needs you'], ['ready', 'Ready'], ['unchecked', 'Not checked'], ['setup', 'Can be set up'], ['away', 'Not on this Mac'],
+  ['needs', 'Needs you'], ['ready', 'Ready'], ['unchecked', 'Ready, not checked yet'], ['setup', 'Can be set up'], ['away', 'Not on this Mac'],
 ];
 
 /** An entry's section from the server's own words: its group (needs-you: a choice of yours it can't run) and its
- * card's face state (catalog_view.face). */
-export function modelSection(row: { group?: string; status: string; face?: { state: string } }): ModelSection {
+ * card's face state (catalog_view.face). Ready, not checked yet is only what can run with nothing recorded of it; a
+ * contribution waiting for a person's comparison or review (its `execution`, catalog_view.execution_block) can be set up. */
+export function modelSection(row: { group?: string; status: string; face?: { state: string }; execution?: unknown }): ModelSection {
   if (row.group === 'needs-you') return 'needs';
   // A row without a face (an older server): its readiness alone.
   if (!row.face) return row.status === 'ready' ? 'ready' : row.status === 'unavailable' || row.group === 'unavailable' ? 'away' : 'setup';
   const face = row.face.state;
   if (row.status === 'unavailable' || row.group === 'unavailable' || face === 'unavailable') return 'away';
   if (face === 'on' || face === 'obtained') return 'ready';
-  if (face === 'unchecked' || face === 'ready') return 'unchecked';
+  if (face === 'unchecked' || face === 'ready') return row.execution ? 'setup' : 'unchecked';
   return 'setup';
 }
 
-/** A model that can run here but Hooke's own check has not run on (Models' Not checked), said the one way: "Downloaded ·
- * not checked" for one whose files are here, else "Not checked". A run of yours is not that check (contract/AGENTS.md). */
+/** A model that can run here with nothing recorded of it yet (Models' Ready, not checked yet: no run of it here worked
+ * and Hooke's own check has not run), said the one way: "Downloaded · not checked yet" for one whose files are here,
+ * else "Ready · not checked yet". Ready, since it can run: grey "Not checked" read as not there (Will, 2026-10-29). */
 export function uncheckedWords(entry: { runs?: string; size?: number }): string {
-  return entry.runs !== 'cloud' && (entry.size ?? 0) > 0 ? 'Downloaded · not checked' : 'Not checked';
+  return entry.runs !== 'cloud' && (entry.size ?? 0) > 0 ? 'Downloaded · not checked yet' : 'Ready · not checked yet';
 }
 
 /** The word for a model that can run, wherever one is said (the small-models offer, Tools, the settings picker, a status
- * in words): "Ready" only in Models' Ready section; Not checked as `uncheckedWords`. With no catalog row (an older
- * server, the app's own method) its readiness alone: Ready. One meaning of Ready (ticket 67). */
-export function runnableWords(entry: { group?: string; status: string; runs?: string; size?: number; face?: { state: string } } | undefined): string {
+ * in words): "Ready" only in Models' Ready section; Ready, not checked yet as `uncheckedWords`. With no catalog row (an
+ * older server, the app's own method) its readiness alone: Ready. One meaning of Ready (ticket 67). */
+export function runnableWords(entry: { group?: string; status: string; runs?: string; size?: number; face?: { state: string }; execution?: unknown } | undefined): string {
   return entry && modelSection(entry) === 'unchecked' ? uncheckedWords(entry) : 'Ready';
 }
 
@@ -69,7 +72,7 @@ export function optionEntry(wire: CapabilitiesWire | null | undefined, option: P
 /** A section's lit cell and its word (the cell's accessible name). */
 export function sectionCell(section: ModelSection): { cell: LitCellState; word: string } {
   return section === 'needs' ? { cell: 'needs', word: 'Needs you' } : section === 'ready' ? { cell: 'ready', word: 'Ready' }
-    : section === 'unchecked' ? { cell: 'idle', word: 'Not checked' } : section === 'away' ? { cell: 'stopped', word: 'Not on this Mac' }
+    : section === 'unchecked' ? { cell: 'partial', word: 'Ready · not checked yet' } : section === 'away' ? { cell: 'stopped', word: 'Not on this Mac' }
     : { cell: 'idle', word: 'Not set up' };
 }
 
@@ -202,7 +205,8 @@ export interface RunChoice {
   cloud: string | null;
   /** The option's own words with where it runs ("micro-sam (light microscopy) on this Mac": what Activity names it by). */
   said: string;
-  /** Not checked on this Mac yet: its check (Check it here), which a click-driven trial needs first. */
+  /** Hooke's own check has not passed on this Mac (Ready, not checked yet, or working here by a real use only): its
+   * check (Check it here), which a click-driven trial needs first (capability_trials: a current passed check). */
   check: RunStep | null;
   /** What Run sends: the capability, and `use` for a model chosen for this run only. */
   run: { capability: string; use: Record<string, string> };
@@ -286,8 +290,10 @@ function choiceFor(wire: CapabilitiesWire, task: RunTask, role: Role | undefined
   // Its section's own cell and word, as Models draws it: never "Ready" for a model Models files elsewhere (ticket 67).
   const look = download ? { cell: 'setup' as LitCellState, word: 'Downloading' } : person ? { cell: 'needs' as LitCellState, word: 'Needs you' }
     : sectionCell(section);
-  const face = entry?.face?.action;
-  const check = section === 'unchecked' && face?.kind === 'check' ? runStep({ kind: 'check', says: face.says, how: face.how ?? '' } as ReadinessStep, entry!.id).step : null;
+  // A model working here by a real use only still has no passed check of Hooke's own, which a click trial needs first.
+  const face: { kind: string; says: string; how?: string } | null | undefined = section === 'unchecked' ? entry?.face?.action
+    : entry?.face?.by === 'use' ? entry.face.also.find((a) => a.kind === 'check') : null;
+  const check = face?.kind === 'check' ? runStep({ kind: 'check', says: face.says, how: face.how ?? '' } as ReadinessStep, entry!.id).step : null;
   const own = entry?.newKind && entry.newKind.operation === roleId ? ownRow(rows, entry) : entry && !role ? ownRow(rows, entry) : undefined;
   const cloudy = option?.runs === 'cloud' || (!option?.runs && entry?.runs === 'cloud');
   const key = cloudy ? keyOf(wire, entry) : null;

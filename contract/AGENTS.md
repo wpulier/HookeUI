@@ -70,6 +70,10 @@ can't run. Every setting is in exactly one; a model role whose options run no mo
   and keep the result where the live app reads it. The local check must pass before a model-related PR merges; a
   change to `services/uv.lock` or `pyproject.toml` is model-related (every built-in model runs in that Python), and
   the check's last line says which Python it ran in and how it differs from that lock (`shared_python.drift`).
+  The check is not the only evidence a card reads: a real use of the model here that worked is too (`observed.py`
+  "use", catalog/AGENTS.md "Observed, not declared"), so a model in use says Working here, never Not checked. A real use
+  is never recorded as the check: `use`/`set_default`'s refusals, a click trial's gate (`capability_shelf._proven`) and
+  "Last check" on the Capabilities page still read the check alone.
 - **Fallbacks** a capability takes are listed with it (`fallbacks`: when, what happens, the roles), only
   as the code does them (find all like this: the vision and outline models when SAM 3.1 can't run
   here, not when it finds nothing; `test_finder` pins it). A capability whose own model can't run

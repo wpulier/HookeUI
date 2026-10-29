@@ -36,6 +36,7 @@ import time
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterator, Mapping
 
@@ -751,6 +752,40 @@ def broken(r: Readiness, check: dict | None) -> Readiness:
                 "Check again on the Capabilities page (Check now), or make capability-check")
     return Readiness("broken", "Broken", why=r.why, steps=(step,), model=r.model, obtained=r.obtained,
                      missing_bytes=r.missing_bytes)
+
+
+def _moment(at: str, fallback: float = 0.0) -> float:
+    try:
+        return datetime.fromisoformat(at).timestamp()
+    except (TypeError, ValueError):
+        return fallback
+
+
+def newest_use(key: str, check: dict | None) -> dict | None:
+    """The real use of `key` here that is its newest evidence (observed.last_use: it ran and returned, or it ran and
+    failed), or None: none was kept, or the app's own check that passed on this build is newer. A check and a real run
+    are both what happened here; the later one says how it is now (Will, 2026-10-29: Claude Opus 5.5 answered him all
+    session while its card said "Not checked")."""
+    use = observed.last_use(key)
+    if use is None:
+        return None
+    passed = bool(check) and check.get("state") == "works" and not check.get("earlierBuild")
+    if passed and _moment(check.get("at", "")) >= _moment(use.get("at", ""), float(use.get("t") or 0)):
+        return None
+    return use
+
+
+def failed_in_use(r: Readiness, use: dict | None) -> Readiness:
+    """The same readiness, broken when its newest evidence is a real use here that failed (`newest_use`), with that
+    failure's own words and when. The next run that works makes it working again."""
+    if not use or use.get("state") != "no" or r.status != "ready":
+        return r
+    from .model_checks import at_words
+
+    step = Step("check", f"Its last use here failed ({at_words(use.get('at', ''))}): {use.get('says') or 'it failed'}",
+                "Use it again, or Check it here")
+    return Readiness("broken", "Broken", why=r.why, steps=(step,), model=r.model, obtained=r.obtained,
+                     missing_bytes=r.missing_bytes, update=r.update)
 
 
 def broken_wire(w: dict, check: dict | None) -> dict:

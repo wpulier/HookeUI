@@ -287,17 +287,18 @@ test('failed: said in plain words from the server, with Choose another model and
   expect(pageOf('cells').querySelector('.run-models')).not.toBeNull(); // the models in place, to pick another
 });
 
-test('a Not checked model that just ran here says so on With, and stays Not checked (its own check is a separate record)', async () => {
+test('a model ready but not checked yet that just ran here says so on With', async () => {
   const said = 'Outlined and measured 341 cells with micro-sam (light microscopy). No scale: sizes are in pixels of the original image.';
   const { panel, pageOf } = await page({ run: vi.fn(async () => ({ ok: true, said })) });
   expect(panel.useModel('micro-sam-lm')).toBe(true);
   const sub = () => pageOf('cells').querySelector('.run-with')!.querySelector('.run-val-sub')!.textContent;
   expect(sub()).toBe('On this Mac · free · not checked on this Mac yet');
-  expect(pageOf('cells').querySelector('.run-with')!.title).toMatch(/^Not checked: Hooke’s own check of micro-sam \(light microscopy\) \(one run on the public example\)/);
+  expect(pageOf('cells').querySelector('.run-with')!.title).toBe('Ready, not checked yet: micro-sam (light microscopy) can run here, and no run of it on this Mac is recorded yet.');
   await panel.start(panel.rowsShown().find((r) => r.id === 'cells')!);
   expect(pageOf('cells').dataset.phase).toBe('done');
-  expect(sub()).toBe('On this Mac · free · ran here · its check not run yet');
-  expect(pageOf('cells').querySelector('.run-with')!.title).toMatch(/ran here on your picture\. Not checked means Hooke’s own check/);
+  // The server keeps the run as its real use (observed.py "use"): the next Models page it sends says Working here.
+  expect(sub()).toBe('On this Mac · free · ran here');
+  expect(pageOf('cells').querySelector('.run-with')!.title).toBe('micro-sam (light microscopy) ran here on your picture.');
 });
 
 test('a model with two tasks: a switch under the header; a click-driven task’s primary is its check, then Click in the view', async () => {
@@ -321,8 +322,15 @@ test('a model with two tasks: a switch under the header; a click-driven task’s
   fire(check as never, 'click');
   expect(deps.openModels).toHaveBeenLastCalledWith('micro-sam-lm/setup', { task: 'click-outline' });
   expect(tryClicks).not.toHaveBeenCalled();
-  // Checked: Click in the view arms the next click with it.
+  // Working here by a real use only: Ready, yet a click trial still needs Hooke's own check (capability_trials), so its
+  // check stays the primary rather than a Click in the view the server would refuse.
   const entry = wire.models!.find((m) => m.id === 'micro-sam-lm')!;
+  entry.face = { state: 'on', by: 'use', says: 'Working here · last ran 14:02', action: null, also: [{ kind: 'check', says: 'Check it here', model: 'micro-sam-lm' }] };
+  panel.setCapabilities(structuredClone(wire));
+  click = pageOf('click-outline');
+  expect(click.querySelector('.run-foot')!.querySelector('.action-step')!.textContent).toBe('Check it here');
+  expect(click.querySelector('.run-foot')!.querySelector('.action-go')).toBeNull();
+  // Checked: Click in the view arms the next click with it.
   entry.face = { state: 'on', says: 'On', action: null, also: [] };
   panel.setCapabilities(structuredClone(wire));
   click = pageOf('click-outline');
@@ -402,7 +410,7 @@ test('the Tools list: a fixed icon column, the model it will use beside its lit 
   expect(setup.querySelector('.mm-num')!.textContent).toBe(String(setup.querySelectorAll('.trow').length));
   panel.setMode('model');
   const sections = root.querySelectorAll('.tools-section').map((s) => s.querySelector('.mm-dsection')?.textContent);
-  expect(sections).toEqual(['Needs you 1', 'Not checked 7', 'Can be set up 5']);
+  expect(sections).toEqual(['Needs you 1', 'Ready, not checked yet 7', 'Can be set up 5']);
   // Past five, the rest wait behind Show all.
   const unchecked = root.querySelectorAll('.tools-section').find((s) => s.dataset.section === 'unchecked')!;
   expect(unchecked.querySelectorAll('.trow-model')).toHaveLength(5);

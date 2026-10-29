@@ -893,7 +893,8 @@ export interface ModelFact {
 export interface ModelUse { role: string; title: string; option: string; options: string[]; current: boolean; fixed: boolean }
 /** One catalog entry as the Models page shows it (catalog_view.rows). */
 export interface ToolAbility { id: string; title: string; what: string; actor: string; say: string; preview?: string; role: string; option: string; current: boolean }
-export interface ToolFace { state: string; says: string; action: ({ kind: string; says: string; model?: string; key?: string } & Partial<ReadinessStep>) | null; also: { kind: string; says: string; model?: string; key?: string }[] }
+/** A card's face (catalog_view.face): `by: 'use'` when what shows it working is its real use here, not Hooke's own check. */
+export interface ToolFace { state: string; says: string; by?: 'use'; action: ({ kind: string; says: string; model?: string; key?: string } & Partial<ReadinessStep>) | null; also: { kind: string; says: string; model?: string; key?: string }[] }
 export interface ToolSetup { ready?: boolean; recipe?: string; current?: string; role: string; title: string; option: string; plan: NonNullable<import('./capabilityshelf').ShelfCard['turnOn']> | null; recheck: boolean; canTry: boolean; check?: ModelCheck | null }
 export interface ToolTrial { role: string; option: string; title: string; try: { command: string; job?: string; option?: string; model?: string } }
 export interface ModelRow extends Readiness {

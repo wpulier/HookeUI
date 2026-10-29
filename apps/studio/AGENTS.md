@@ -362,7 +362,7 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   task's role) is no second row: it is a model of that task, its own settings showing when it is chosen there. An
   entry contract/actions.json `ownTasks` lists is a task row of its own by that name: Bright objects is **Find bright
   regions** in Common ("Bright objects · built in"), never a cell finder's row (a threshold finds regions, not cells),
-  though it stays a choice in Outline every cell, where its declared output words follow it. By model is the wire's `models` in Models' sections and counts (Needs you, Ready, Not checked, Can be
+  though it stays a choice in Outline every cell, where its declared output words follow it. By model is the wire's `models` in Models' sections and counts (Needs you, Ready, Ready, not checked yet, Can be
   set up, then Not on this Mac folded, then New), five a section until **Show all N**, each row its lit cell, one quiet
   line and its next step; a ready model's row opens its first task with it chosen, another opens its card in Models.
   A task that compares (cells, outline) has **Compare models…** in its page's ⋯: up to three ready models ticked in
@@ -1421,10 +1421,10 @@ The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-par
   they come from, **Download <size>** (following the ticks) and **Not now**. What is ticked follows one rule read from
   the wire: the default of a role that powers a capability whose actor is `auto`, open licence tier, no install, under
   100 MB. Download keeps the answer and uses `model-download` (or `model-turn-on` for an entry with its own software) in
-  the one queue, the rows then showing measured progress with the lit cell, then "Downloaded · not checked" until
-  Hooke's own check has passed here and Ready after (one meaning of Ready: Models' sections, `run-spec.ts`
-  `runnableWords`, which the offer, Tools, the settings picker, a download's pill and a status in words all say; a run of
-  yours is not that check); Not now collapses to "No models
+  the one queue, the rows then showing measured progress with the lit cell, then "Downloaded · not checked yet" (the
+  green outline: it can run) until Hooke's own check has passed here or a run of it worked here, and Ready after (one
+  meaning of Ready: Models' sections, `run-spec.ts` `runnableWords`, which the offer, Tools, the settings picker, a
+  download's pill and a status in words all say); Not now collapses to "No models
   downloaded. Models has them whenever you want them." The answer is the server's (`onboarding-models`,
   `onboarding/models.json` in the data home), so no place asks again. Choosing the folder is a separate ticket: no
   Change button until a real setting exists. The key note (`setup-note.ts`) waits until something that needs the key was asked
@@ -1622,9 +1622,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   note: EdgeTAM automatic masks is not "Outlines what you click"); **On**, one row per declared data input (the
   Stage's picture with the specimen's thumbnail, a saved input behind its Change, a volume, each typed port, the
   selected outline a task needs, a click task's clicks); **With**, the chosen model as a card with its lit cell, whole
-  name and where it runs (a Not checked model adds "not checked on this Mac yet", and "ran here · its check not run yet"
-  once this page ran it without a failure: Hooke's own check, one run on the public example, is a record a run of yours
-  does not make, contract/AGENTS.md; its tooltip says so), whose Change opens the models in place (Models' sections, Not on this Mac folded; each row a
+  name and where it runs (a model Ready, not checked yet adds "not checked on this Mac yet", and "ran here" once this
+  page ran it without a failure: the server keeps that run as its real use, observed.py "use", so the next Models page
+  says Working here; a click task still leads with Check it here while Hooke's own check has not passed, since a click
+  trial needs it), whose Change opens the models in place (Models' sections, Not on this Mac folded; each row a
   lit cell, the whole name in up to two lines, what it does here, at most one action under the name; a step nobody can
   press here says its reason, "Made from your corrections", and is not picked; a step only the person can take, their
   key or a licence, is the needs cell wherever its section is); a cloud model says where the picture goes ("Sends this
@@ -1827,7 +1828,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   dropped by a capture, so nothing is lost; an old "Go to results" notice of one opens the researcher's own Tab.
 - **Models and Add model or tool (step 8).** Models (`modelspage.ts`, the mock's `modelsSheet()`) is one grid of one card
   shape a section, and its sections are run-spec.ts's `modelSection`, the ones Tools By model and a task's model list
-  use: Needs you, Ready (face on or obtained, the one meaning of Ready), Not checked, Can be set up, then Not on this Mac
+  use: Needs you, Ready (face on or obtained, the one meaning of Ready: Hooke's own check passed, or a real use of it
+  worked here, which the card says as Working here · last ran 14:02), Ready, not checked yet (it can run and nothing of
+  it is recorded: the green outline, never grey; Will 2026-10-29), Can be set up, then Not on this Mac
   folded; so the summary, the side's counts (`workspace-study-surfaces.ts`: a card's `data-section`, never its words;
   where it runs by `data-runs`) and Tools agree exactly, and a section with nothing in it is not listed on the side. The
   sheet: a 60 px header (Models; **Add model or tool**, which opens the three ways in, through `hooke-models-add`; the
@@ -1835,12 +1838,13 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   where-it-runs chips, the grid (220 px columns, 200 px rows). **The card** (`card`, its look and verb from
   model-status.ts `cardLook`, tested in `model-status.test.ts`): its lit cell and name, what it is and where it runs
   ("Model, on this Mac", "Cloud model, Google", "Built-in method"), what it does in two lines, one facts line ("On this
-  Mac · free", "413 MB · free", "Your Google key", "Your choice for find all like this", "Needs Fiji · free", or a setup's
+  Mac · free", "413 MB · free", "Your Google key", "Working here · last ran 14:02" with the cell's Working here for one a
+  real use showed working, "Your choice for find all like this", "Needs Fiji · free", or a setup's
   own words while it works; the face's words are its tooltip), one action at the bottom; a click anywhere on it opens
   its Details beside the grid (`model-card-hit`, 360 px pane). No step lists, terms or status pills on a card: they are
   in its setup sheet and Details. **One verb per state:** Use it here (ready and serving a task here: `useModel` through
   `hooke-use-model`; a ready entry that serves none, and every data entry, says "Used by the Assistant and researchers"
-  with no button), Check it here (Not checked: its sheet), Download 413 MB (started in place; the card then fills from
+  with no button), Check it here (Ready, not checked yet: its sheet), Download 413 MB (started in place; the card then fills from
   the server's measured bytes, "Downloading · 42%" with its setup cell and Cancel; a stopped download says where it
   stopped and offers Retry and Details), Add key and Accept licence (the person's step, on the button; the cell is its
   section's: blue only in Needs you, the grey outline in Can be set up, as Tools By model draws the same row), Turn on, Set up
@@ -1855,9 +1859,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Needs you cards is gone (the needs cell says it). **Details** (the mock's `modelDetail()`): its name and a 28 px ×
   ("Close details"), what it is and does, then **Tasks**, one row per task a person runs here (by name, once), each with
   Try it on <specimen> where it can run (`served`, `specimen`: actions-panel.ts `served` and `stageName`, wired in
-  main.ts), which opens that task's run page with it chosen (`useModel(model, task)`), so a Not checked model is one press
-  from use; a Not checked model's Tasks are followed by what that means (`tool-check-note`: Hooke's own check is not
-  recorded on this Mac; trying it on your picture does not record it, Check it here in its setup does); then Size, Licence (its short name) and Pictures. A candidate's Prepare for review stays in view; everything
+  main.ts), which opens that task's run page with it chosen (`useModel(model, task)`), so a model Ready, not checked yet
+  is one press from use; its Tasks are followed by what that means (`tool-check-note`: no run of it here is recorded
+  yet; once one works it shows as working here; Check it here in its setup runs Hooke's own check); then Size, Licence (its short name) and Pictures. A candidate's Prepare for review stays in view; everything
   else (every capability, the Assistant's too, demonstrations, trial and setup controls, alternatives, facts and files,
   versions, updates, Turn off, Remove, Share, Report) is under a closed "More about this model" (How to install opens it).
   Its check line says its time as people read it ("works · Oct 28, 2:46 am · 1700 ms", `readableTime`), never ISO. Its

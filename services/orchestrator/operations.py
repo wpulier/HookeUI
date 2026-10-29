@@ -1138,6 +1138,8 @@ class Runner:
                       "ticket": getattr(ticket, "id", None), "trial": record.trial})
         except Exception:
             pass
+        if not reused and record.trial is None:
+            _used(record)
         first = record.made_by().get("fallbackFrom")
         if first and not reused and record.trial is None:
             # The default did not run and another did in its place: said in the meter's panel (fallbacks.py).
@@ -1205,6 +1207,7 @@ class Runner:
         record = self.get(execution_id)
         if record is not None:
             record.revealed = True
+            _used(record)  # a blind trial's run is real use once its vote is in
             try:
                 self.log({"kind": "execution-revealed", **record.wire(), "trial": record.trial})
             except Exception:
@@ -1223,6 +1226,21 @@ class Runner:
 
     def get(self, execution_id: str | None) -> Execution | None:
         return self.executions.get(execution_id) if execution_id else None
+
+
+def _used(record: Execution) -> None:
+    """Each catalog entry an execution ran, as real use here (observed.py "use"): it ran and returned, or it ran and
+    failed with its own error. What never reached the model (cancelled, busy, unavailable, refused in words) says nothing;
+    the app's own check (origin "check") keeps its own record (model_checks.py)."""
+    if record.origin == "check":
+        return
+    from . import observed
+
+    for attempt in record.attempts:
+        key = IMPL_MODEL.get(attempt.impl)
+        if key and (attempt.ok or (attempt.error and not attempt.not_run)):
+            with contextlib.suppress(Exception):  # keeping the record never breaks a run
+                observed.used(key, attempt.ok, attempt.error)
 
 
 def _request_choice(ticket, operation: str, from_context: bool = True) -> dict | None:

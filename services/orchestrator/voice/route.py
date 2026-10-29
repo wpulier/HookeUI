@@ -255,6 +255,9 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             async for event in session.events():
                 if event.kind == 'ready':
                     provider_ready.set()
+                    with contextlib.suppress(Exception):  # the voice opened: real use of its model here (observed.py "use")
+                        from .. import observed
+                        observed.call_used(session.config.model, True)
                 if event.kind == 'error':
                     diagnostics.provider_error(event.data)
                 else:
