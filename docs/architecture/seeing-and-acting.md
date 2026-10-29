@@ -315,8 +315,11 @@ other files.
     33 ms frame; the population's reading 0.1 ms for 500 members, once a second.
   - **Events, on the settled view only,** each a measured change, never a name or a verdict:
     - **slide-moved:** the view settled (Sight's `SETTLE_S`) more than Sight's `MOVED_FRACTION` of the eyepiece's
-      radius from where it last settled, or after continuity was lost once the tracker had `CUT_SETTLE_S` (1.2 s) to
-      rejoin; a rejoin while standing still (an epoch going back to an old number) is the same place, not a move.
+      radius from where it last rested (still for `REST_S`, 3 s: a later nudge is measured from there; shorter stops in
+      one repositioning add up), or after continuity was lost once the tracker had `CUT_SETTLE_S` (1.2 s) to rejoin; a
+      rejoin while standing still (an epoch going back to an old number) is the same place, not a move, and so is a
+      cut whose picture still matches the field's last still one (the hub's 64 px thumbnail, at least the re-find
+      score 0.8, `watch-skip` logged: a starved feed lost continuity on a still picture in the voice bench).
       Facts: how far (fields of view, px, µm with a scale) and which way the picture moved.
     - **focus-drifted:** on a field with texture (`quality.MIN_PEAK`), the sharpness over the contrast squared (a
       change of light is not one of focus) stayed under 60% of the sharpest this field looked since it settled for 3 s,
@@ -348,7 +351,9 @@ other files.
     (`watch-event`, delivered or not).
   - **Measured** (`docs/bench/voice-journeys.md`, "The watcher on footage"): on synthetic eyepiece footage through the
     hub's own analysis, a pan, a cut and a defocus each raised one event (0.7 s, 1.9 s and 3.0 s after it happened),
-    a halved light and a turn of the knob none, and a steady hour none (0 false alarms in 60 minutes). The journey
+    a halved light and a turn of the knob none, and a steady hour none (0 false alarms in 60 minutes); on the real June 14
+    leaf recording (3m43s) the 6 real moves of the slide and no false alarm (one, a nudge after a long rest, before
+    `REST_S`). The journey
     bench's watch lines (`plans/part-2.5-watch.json`, the broad journey): event to speech at most 2 s when nobody is
     talking, and false alarms per hour.
 - Outcomes (`orchestrator/outcomes.py`, tool `outcomes`, K3): how each way of doing something has gone on this
