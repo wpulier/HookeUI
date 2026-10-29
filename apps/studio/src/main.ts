@@ -1746,7 +1746,7 @@ function beginTurn(): void {
   voiceStatus.textContent = holdWords();
   renderTalk();
   // What the window looks like as the user starts to speak, sent with the turn (amendment 1).
-  voice.send(windowSnapshot(`talk-${n}`, 1280, windowCapture));
+  voice.tellVoice(windowSnapshot(`talk-${n}`, 1280, windowCapture));
 }
 
 function endTurn(cancel: boolean): void {
@@ -1825,7 +1825,7 @@ function panelPlace(name: string): Place {
 }
 
 /** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear (partner.ts). */
-voice.onPartner = partnerHandler({ send: (command) => voice.send(command), capture: windowCapture, marks });
+voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is

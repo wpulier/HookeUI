@@ -368,7 +368,7 @@ export class VoiceClient {
       const made = await this.offerPeer(attempt);
       if (!made || attempt !== this.connectionAttempt) return;
       this.nextPeer = made.peer;
-      this.send({ type: 'offer', sdp: made.sdp, id: String(id) });
+      this.tellVoice({ type: 'offer', sdp: made.sdp, id: String(id) });
     } catch {
       if (attempt === this.connectionAttempt) this.fail('Voice could not renew its audio connection. Start Talk again to reconnect.');
     }
@@ -383,7 +383,7 @@ export class VoiceClient {
   }
 
   /** One of the partner's messages to the server (talk, snapshot, marks-shown, offer); false when not connected. */
-  send(command: PartnerCommand): boolean {
+  tellVoice(command: PartnerCommand): boolean {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify(command));
     return true;
@@ -394,19 +394,19 @@ export class VoiceClient {
     this.muteOutput();
     if (this.micTimer !== null) { clearTimeout(this.micTimer); this.micTimer = null; }
     this.micOpen = true; this.applyMic();
-    this.send({ type: 'talk', down: true, n });
+    this.tellVoice({ type: 'talk', down: true, n });
   }
 
   /** Released: the turn goes to the model; the microphone closes a moment later (MIC_TAIL_MS). */
   talkUp(n: number): void {
-    this.send({ type: 'talk', down: false, n });
+    this.tellVoice({ type: 'talk', down: false, n });
     this.closeMicSoon(MIC_TAIL_MS);
     this.restoreOutputSoon();
   }
 
   /** Dropped (Escape, a tap, a chord): no answer, the microphone closes at once. */
   talkCancel(n: number): void {
-    this.send({ type: 'talk', cancel: true, n });
+    this.tellVoice({ type: 'talk', cancel: true, n });
     this.closeMicSoon(0);
     this.restoreOutputSoon();
   }

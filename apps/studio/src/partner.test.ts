@@ -28,7 +28,7 @@ test('a capture that fails is said at once, so the server does not wait out its 
 test('a snapshot request and a set of marks are answered in the same task they arrive in', () => {
   const sent: PartnerCommand[] = [];
   const marks = { show: vi.fn(() => [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] as [number, number, number, number] }]), clear: vi.fn() };
-  const handle = partnerHandler({ send: (c) => { sent.push(c); return true; }, capture: capture(false), marks });
+  const handle = partnerHandler({ reply: (c) => { sent.push(c); return true; }, capture: capture(false), marks });
   handle({ type: 'snapshot-request', id: 'look-4', maxSide: 1024 });
   expect(sent[0]).toMatchObject({ type: 'snapshot', id: 'look-4', how: 'composed', w: 1024 });
   handle({ type: 'marks', id: 'm1', marks: [{ target: 'outline:o12' }], until: 'speech-end' });

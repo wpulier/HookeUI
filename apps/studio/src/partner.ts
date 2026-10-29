@@ -27,13 +27,13 @@ export function windowSnapshot(id: string, maxSide: number, capture: WindowCaptu
 
 /** Answers each partner message: a snapshot request with the window now, marks with which were drawn. */
 export function partnerHandler(options: {
-  send: (command: PartnerCommand) => boolean;
+  reply: (command: PartnerCommand) => boolean;
   capture: WindowCapture;
   marks: { show(message: MarksMessage): MarkResolution[]; clear(id?: string): void };
 }): (message: PartnerMessage) => void {
   return (message) => {
-    if (message.type === 'snapshot-request') options.send(windowSnapshot(String(message.id), Number(message.maxSide ?? 1280), options.capture));
-    else if (message.type === 'marks') options.send({ type: 'marks-shown', id: String(message.id), resolved: options.marks.show(message) });
+    if (message.type === 'snapshot-request') options.reply(windowSnapshot(String(message.id), Number(message.maxSide ?? 1280), options.capture));
+    else if (message.type === 'marks') options.reply({ type: 'marks-shown', id: String(message.id), resolved: options.marks.show(message) });
     else if (message.type === 'marks-clear') options.marks.clear(message.id);
   };
 }

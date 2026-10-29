@@ -1335,7 +1335,7 @@ class App:
         except Exception as exc:  # noqa: BLE001 - Activity said it; the conversation's line is logged when it fails
             self.agent.log({"kind": "turn-on", "error": f"{type(exc).__name__}: {exc}"})
         # The one-brain voice says it in one line when nobody is talking (voice/partner.py `happened`); GPT-Live has none.
-        happened = getattr(getattr(self.brain, "voice", None), "happened", None)
+        happened = getattr(getattr(getattr(self, "brain", None), "voice", None), "happened", None)
         if callable(happened):
             with contextlib.suppress(RuntimeError):  # no running loop (a test's direct call): nothing to say it on
                 asyncio.get_running_loop().create_task(happened("capability-on", says, ref=job))

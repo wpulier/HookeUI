@@ -343,7 +343,7 @@ test('the partner\'s own messages go to the studio, not into the conversation', 
   t.say({ type: 'marks-clear' });
   expect(partner.mock.calls.map(([m]) => m.type)).toEqual(['snapshot-request', 'marks', 'marks-clear']);
   expect(events).not.toHaveBeenCalled();
-  expect(t.voice.send({ type: 'marks-shown', id: 'm1', resolved: [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] }] })).toBe(true);
+  expect(t.voice.tellVoice({ type: 'marks-shown', id: 'm1', resolved: [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] }] })).toBe(true);
   expect(t.sent().at(-1)).toEqual({ type: 'marks-shown', id: 'm1', resolved: [{ target: 'outline:o12', ok: true, rect: [1, 2, 3, 4] }] });
   t.voice.stop();
 });
