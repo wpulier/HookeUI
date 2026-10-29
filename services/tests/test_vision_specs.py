@@ -45,7 +45,7 @@ def test_claude_specs_set_effort_and_fast_mode(monkeypatch):
     assert make_vision("anthropic:claude-opus-5-5@default").effort is None
 
 
-def _claude_replying(monkeypatch, reply: dict):
+def _claude_replying(monkeypatch, reply: dict, status: int = 200):
     import asyncio
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
@@ -53,8 +53,9 @@ def _claude_replying(monkeypatch, reply: dict):
     sent = {}
 
     class Response:
-        def raise_for_status(self):
-            pass
+        is_error = status >= 400
+        status_code = status
+        text = ""
 
         def json(self):
             return reply
@@ -87,3 +88,9 @@ def test_a_claude_refusal_is_said_as_a_refusal_never_read_as_an_answer(monkeypat
         "model": "claude-opus-5-5", "stop_reason": "refusal", "stop_details": {"type": "refusal", "category": "bio"},
         "usage": {"input_tokens": 1000, "output_tokens": 0}, "content": []})
     assert result.data is None and "refused" in result.error and "bio" in result.error
+
+
+def test_a_claude_api_error_says_anthropics_reason(monkeypatch):
+    result, _ = _claude_replying(monkeypatch, {"type": "error", "error": {
+        "type": "invalid_request_error", "message": "Your credit balance is too low to access the Anthropic API."}}, 400)
+    assert result.data is None and result.error.startswith("RuntimeError: Anthropic 400: Your credit balance is too low")

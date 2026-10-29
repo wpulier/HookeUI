@@ -358,7 +358,12 @@ class AnthropicVision(_Client):
                                          in_tokens=api_usage.tokens_in(prompt, len(images)),
                                          out_tokens=body["max_tokens"]):
                 response = await client.post("/v1/messages", json=body)
-                response.raise_for_status()
+                if response.is_error:  # say Anthropic's own reason ("credit balance is too low"), not a bare status
+                    try:
+                        reason = response.json()["error"]["message"]
+                    except Exception:
+                        reason = response.text[:200]
+                    raise RuntimeError(f"Anthropic {response.status_code}: {reason}")
                 reply = response.json()
                 usage = reply.get("usage") or {}
                 price = api_usage.PRICES.get(self.model)
