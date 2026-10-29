@@ -31,7 +31,7 @@ describe('Project access', () => {
 describe('native Project access', () => {
   it.each([true, false])('waits for the owner dialog result (%s), with no unsigned write', async (ok) => {
     const postMessage = vi.fn().mockResolvedValue({ ok, says: 'Project access was not changed.' });
-    vi.stubGlobal('window', { webkit: { messageHandlers: { hookeProjectGrant: { postMessage } } } });
+    vi.stubGlobal('window', { hookeStudioToken: 'synthetic-owner-window', webkit: { messageHandlers: { hookeProjectGrant: { postMessage } } } });
     vi.stubGlobal('document', syntheticDOM().document);
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ editable: true,
       confirmation: 'native', projects: [{ session: '2026-10-28.2', name: 'Microscopy', by: 'agent:ac_owner', grants: {} }] })));
@@ -42,6 +42,7 @@ describe('native Project access', () => {
     await vi.waitFor(() => expect(host.textContent).toContain(ok ? 'Peer now has read access' : 'was not changed'));
     expect(postMessage).toHaveBeenCalledWith({ session: '2026-10-28.2', connection: 'ac_peer', role: 'read' });
     expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1]?.headers).toEqual({ 'X-MicroscopeMind': 'agent-connections', 'X-Hooke-Studio': 'synthetic-owner-window' });
   });
   it('does not fall back to unsigned writes if the native bridge is missing', async () => {
     vi.stubGlobal('window', {});

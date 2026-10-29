@@ -174,3 +174,17 @@ connections refuse. Preparing a choice is not authorization. Source development
 keeps its explicit development-only owner boundary. Neither route is agent-token
 administration. Signing/transport tests and actual packaged-dialog qualification
 remain separate evidence classes.
+
+
+### Owner-selected Projects created in the UI
+
+The same explicit read/contribute grant applies to a retained Project created by a
+person. Owner access settings list the canonical Project catalogue; listing and
+preparing native confirmation grant nothing. Only successful owner confirmation
+registers an unshared Project with `by: user` in the permission registry. This denotes
+local-owner authority, not a reconstruction of the Project's historical creator;
+existing journal authorship is unchanged.
+Agents still discover only their own or explicitly granted Projects. No new agent
+administration route, automatic sharing or replacement Project is introduced.
+Revocation removes that connection's authority and retains prior authorship. Missing
+Projects and invalid IDs refuse before permission records are written.

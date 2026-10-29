@@ -139,6 +139,27 @@ def register(app, built, studio_origin, header: str) -> Connections:
             raise Refused(403, "studio-only", "Only the Hooke window may answer or end a connection.",
                           next="use Hooke on this Mac")
 
+    def owner_read(request: Request) -> None:
+        """Native window identity, or the explicitly enabled development Studio only."""
+        import secrets
+        studio(request, writes=False)
+        if request.headers.get('authorization'):
+            raise Refused(403, 'owner-only', 'Project access choices belong to the owner window.', next='use Settings in Hooke')
+        expected = os.environ.get('HOOKE_STUDIO_TOKEN')
+        given = request.headers.get('x-hooke-studio') or ''
+        if expected:
+            if secrets.compare_digest(given, expected):
+                return
+        elif native.public_key() is None and os.environ.get('HOOKE_DEV_CONFIRM') == '1':
+            # Same-origin GET may omit Origin; Referer still supplies the Studio's origin.
+            from urllib.parse import urlsplit
+            source = request.headers.get('origin') or request.headers.get('referer') or ''
+            parsed = urlsplit(source)
+            origin = f'{parsed.scheme}://{parsed.netloc}'
+            if studio_origin(origin, request.url.port) and request.headers.get(header) == 'agent-connections':
+                return
+        raise Refused(403, 'owner-only', 'Project access choices need the owner window.', next='open Settings in Hooke')
+
     async def body(request: Request) -> dict:
         try:
             value = await request.json()
@@ -430,12 +451,13 @@ def register(app, built, studio_origin, header: str) -> Connections:
     async def project_access_list(request: Request):
         from .projects import access
         try:
-            studio(request, writes=False)
-            rows = access(built).rows()
-            result = []
-            for sid, row in rows.items():
-                owner = built.day.elsewhere(sid)
-                result.append({'session': sid, 'name': owner.name, **row})
+            owner_read(request)
+            def owner_choices():
+                rows = access(built).rows()
+                return [{'session': project.id, 'name': project.name,
+                         **rows.get(project.id, {'by': 'user', 'grants': {}})}
+                        for project in built.day.catalogue.list()]
+            result = await asyncio.to_thread(owner_choices)
             return _no_store({'ok': True, 'projects': result,
                              'editable': native.public_key() is not None or os.environ.get('HOOKE_DEV_CONFIRM') == '1',
                              'confirmation': 'native' if native.public_key() is not None else 'development'})
@@ -446,8 +468,9 @@ def register(app, built, studio_origin, header: str) -> Connections:
     @app.post('/api/agent-project-access/prepare')
     async def project_access_prepare(request: Request):
         try:
-            studio(request, writes=False)  # preparation grants nothing; native signature is authority
-            choice = grant_confirmations.prepare(await body(request))
+            owner_read(request)  # preparation grants nothing; native signature is authority
+            value = await body(request)
+            choice = await asyncio.to_thread(grant_confirmations.prepare, value)
             return _no_store({'ok': True, 'choice': choice})
         except (Refused, ValueError, OSError, KeyError, TypeError) as error:
             return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',
@@ -457,7 +480,8 @@ def register(app, built, studio_origin, header: str) -> Connections:
     async def project_access_confirm(request: Request):
         try:
             studio(request, writes=False)
-            choice = grant_confirmations.confirm(await body(request))
+            value = await body(request)
+            choice = await asyncio.to_thread(grant_confirmations.confirm, value)
             return _no_store({'ok': True, 'choice': choice})
         except (Refused, ValueError, OSError, KeyError, TypeError) as error:
             return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',
@@ -479,8 +503,11 @@ def register(app, built, studio_origin, header: str) -> Connections:
             candidates = {c.id: c for c in connections.connections() if c.revoked_at is None}
             if value['connection'] not in candidates:
                 raise ValueError('Choose a live confirmed connection')
-            built.day.elsewhere(value['session'])
-            access(built).grant(value['session'], 'agent:' + value['connection'], value['role'], authority='development')
+            from .projects import owner_project
+            def apply_grant():
+                owner_project(built, value['session'])
+                access(built).grant(value['session'], 'agent:' + value['connection'], value['role'], authority='development', user_project=True)
+            await asyncio.to_thread(apply_grant)
             return _no_store({'ok': True})
         except (Refused, ValueError, OSError, KeyError) as error:
             return _refusal(error if isinstance(error, Refused) else Refused(400, 'project-grant-refused',

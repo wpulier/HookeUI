@@ -27,7 +27,7 @@ def server(reply):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             length = int(self.headers.get('Content-Length', '0'))
-            seen.append((self.path, self.headers.get('Authorization'), self.rfile.read(length)))
+            seen.append((self.path, self.headers.get('Authorization'), self.rfile.read(length), self.headers.get('X-Hooke-Studio')))
             status, location = reply(self.path)
             self.send_response(status)
             if location: self.send_header('Location', location)
@@ -51,6 +51,7 @@ def test_redirect_never_replays_credentials_or_body(transport_program, mode, sta
                                     check=True, capture_output=True, text=True, timeout=20)
             assert result.stdout.strip() == str(status)
             assert len(seen) == 1 and seen[0][1] == 'Bearer synthetic-test-credential'
+            assert seen[0][3] == 'synthetic-owner-window'
             assert other_seen == [], 'redirect contacted another process'
 
 @pytest.mark.parametrize('mode', ['data', 'download'])

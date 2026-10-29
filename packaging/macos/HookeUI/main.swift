@@ -1286,10 +1286,13 @@ final class AgentProjectGrant: NSObject, WKScriptMessageHandlerWithReply {
 
     private func post(_ action: String, _ body: [String: Any], done: @escaping ([String: Any]) -> Void) {
         var request = URLRequest(url: origin.appendingPathComponent("api/agent-project-access/" + action))
+        request.setValue(studioToken, forHTTPHeaderField: "X-Hooke-Studio")
         request.httpMethod = "POST"; request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        let transport = AgentDoorTransport.session()
+        transport.dataTask(with: request) { data, response, error in
+            defer { transport.finishTasksAndInvalidate() }
             var result = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])
                 ?? ["ok": false, "says": error?.localizedDescription ?? "Project access could not be confirmed."]
             if (response as? HTTPURLResponse)?.statusCode != 200 { result["ok"] = false }

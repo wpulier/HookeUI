@@ -12,14 +12,17 @@ export async function mountProjectAccess(host: HTMLElement, connection: { id: st
   const status = document.createElement('p'); status.setAttribute('role', 'status'); status.textContent = 'Reading Project access…';
   panel.append(legend, status); host.append(panel);
   try {
-    const reply = await request('/api/agent-project-access', { cache: 'no-store' });
+    const token = (typeof window === 'undefined' ? undefined : window as unknown as { hookeStudioToken?: string })?.hookeStudioToken;
+    const headers: Record<string, string> = { 'X-MicroscopeMind': 'agent-connections' };
+    if (token) headers['X-Hooke-Studio'] = token;
+    const reply = await request('/api/agent-project-access', { cache: 'no-store', headers });
     const data = await reply.json();
     if (!reply.ok || !Array.isArray(data.projects)) throw new Error(data.says ?? 'Project access could not be read.');
     if (!data.editable || (data.confirmation === 'native' && !nativeGrant())) { status.textContent = 'Project access changes need the qualified owner confirmation in Hooke. This copy cannot grant access yet.'; return; }
     type Row = { session: string; name: string; by: string; grants?: Record<string, string> };
     const projects: Row[] = data.projects.filter((p: unknown): p is Row => !!p && typeof p === 'object' &&
       'session' in p && typeof p.session === 'string' && 'name' in p && typeof p.name === 'string' && 'by' in p && typeof p.by === 'string');
-    if (!projects.length) { status.textContent = 'No agent Project exists yet. Create a Project through the connector first.'; return; }
+    if (!projects.length) { status.textContent = 'No retained Project is available yet. Open or create a Project in Hooke first.'; return; }
     const choose = document.createElement('select'); choose.setAttribute('aria-label', 'Project to share');
     const option = (label: string, value: string) => { const o = document.createElement('option'); o.textContent = label; o.value = value; return o; };
     for (const p of projects) choose.append(option(`${p.name || 'Untitled project'} (${p.session})`, p.session));

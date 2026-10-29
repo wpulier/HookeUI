@@ -8,7 +8,7 @@ import time
 
 from . import native
 from .connections import Refused
-from .projects import access
+from .projects import access, owner_project
 
 
 def message(challenge, *, cancel=False):
@@ -34,10 +34,10 @@ class GrantConfirmations:
         connection = self._live(value['connection'])
         if connection is None:
             raise ValueError('Choose a live confirmed connection')
-        row = access(self.built).rows().get(value['session'])
-        if row is None or row['by'] == connection.actor:
+        project = owner_project(self.built, value['session'])
+        row = access(self.built).rows().get(value['session'], {'by': 'user', 'grants': {}})
+        if row['by'] == connection.actor:
             raise ValueError('Choose an existing Project and a connection other than its creator')
-        project = self.built.day.elsewhere(value['session'])
         with self.lock:
             now = self.clock()
             self.pending = {key: entry for key, entry in self.pending.items() if entry['expires'] > now}
@@ -70,9 +70,10 @@ class GrantConfirmations:
             connection = self._live(choice['connection'])
             if connection is None:
                 raise ValueError('The connection was revoked before confirmation')
+            owner_project(self.built, choice['session'])
             current = access(self.built).rows().get(choice['session'], {})
             if current.get('grants', {}).get(connection.actor) != pending['previous']:
                 raise ValueError('Project access changed while the dialog was open; review it again')
             access(self.built).grant(choice['session'], connection.actor,
-                                    None if choice['role'] == 'none' else choice['role'], authority='native')
+                                    None if choice['role'] == 'none' else choice['role'], authority='native', user_project=True)
             return choice

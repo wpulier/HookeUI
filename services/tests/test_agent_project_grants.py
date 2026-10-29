@@ -10,6 +10,7 @@ from orchestrator.door.projects import access
 from orchestrator.door.connections import Refused
 from tests.test_agent_door import connect, bearer, STUDIO, WINDOW, _window_key, window_key
 from tests.test_agent_projects import project_door, run
+OWNER = {**STUDIO, "X-Hooke-Studio": "synthetic-owner-window"}
 
 
 def sign(choice, key=WINDOW, *, cancel=False):
@@ -28,7 +29,7 @@ def shared(project_door):
 
 def test_native_grant_is_one_use_and_bound_to_exact_choice(shared):
     client, built, peer, value = shared
-    prepared = client.post('/api/agent-project-access/prepare', json=value)
+    prepared = client.post('/api/agent-project-access/prepare', headers=OWNER, json=value)
     assert prepared.status_code == 200, prepared.text
     choice = prepared.json()['choice']
     assert choice['projectName'] == 'Shared corpus' and choice['label'] == 'Peer'
@@ -41,7 +42,7 @@ def test_native_grant_is_one_use_and_bound_to_exact_choice(shared):
     answer = sign(choice)
     assert client.post('/api/agent-project-access/confirm', json=answer).status_code == 200
     assert access(built).rows()[value['session']]['grants'][actor] == 'read'
-    revoke = client.post('/api/agent-project-access/prepare', json={**value,'role':None}).json()['choice']
+    revoke = client.post('/api/agent-project-access/prepare', headers=OWNER, json={**value,'role':None}).json()['choice']
     assert client.post('/api/agent-project-access/confirm', json=sign(revoke)).status_code == 200
     assert client.post('/api/agent-project-access/confirm', json=answer).status_code == 410
     assert actor not in access(built).rows()[value['session']]['grants']
@@ -71,13 +72,13 @@ def test_development_cannot_impersonate_native_owner(shared,monkeypatch):
     client, built, _, value = shared
     monkeypatch.delenv('HOOKE_CONFIRM_KEY')
     monkeypatch.setenv('HOOKE_DEV_CONFIRM','1')
-    assert client.post('/api/agent-project-access/prepare',json=value,headers=STUDIO).status_code == 403
+    assert client.post('/api/agent-project-access/prepare', headers=OWNER,json=value).status_code == 403
 
 
 def test_repeated_cancel_releases_capacity_without_granting(shared):
     client, built, peer, value = shared
     for _ in range(6):
-        prepared = client.post('/api/agent-project-access/prepare',json=value)
+        prepared = client.post('/api/agent-project-access/prepare', headers=OWNER,json=value)
         assert prepared.status_code == 200
         choice = prepared.json()['choice']
         cancelled = sign(choice, cancel=True)
@@ -85,5 +86,81 @@ def test_repeated_cancel_releases_capacity_without_granting(shared):
         assert client.post('/api/agent-project-access/confirm',json={k:v for k,v in cancelled.items() if k!='answer'}).status_code == 403
         assert client.post('/api/agent-project-access/confirm',json=cancelled).status_code == 200
     assert 'agent:'+peer['connection']['id'] not in access(built).rows()[value['session']]['grants']
-    choice = client.post('/api/agent-project-access/prepare',json=value).json()['choice']
+    choice = client.post('/api/agent-project-access/prepare', headers=OWNER,json=value).json()['choice']
     assert client.post('/api/agent-project-access/confirm',json=sign(choice)).status_code == 200
+
+
+def test_user_project_requires_owner_confirmation_and_keeps_creator(project_door):
+    client, built = project_door
+    peer = connect(client, label='Outside researcher')
+    sid = built.day.sid
+    actor = 'agent:' + peer['connection']['id']
+    headers = bearer(peer['token'])
+    assert sid not in access(built).rows()
+    listing = client.get('/api/agent-project-access', headers=OWNER).json()
+    assert any(p['session'] == sid and p['by'] == 'user' for p in listing['projects'])
+    assert sid not in access(built).rows()  # viewing Settings creates no grant
+    assert run(client, headers, 'project.list', {}, 'before-grant-list')['outcome']['projects'] == []
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'read'}
+    choice = client.post('/api/agent-project-access/prepare', headers=OWNER, json=value).json()['choice']
+    assert sid not in access(built).rows()  # preparing consent grants nothing
+    assert client.post('/api/agent-project-access/confirm', json=sign(choice)).status_code == 200
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert access(built).role(sid, actor) == 'read'
+    assert run(client, headers, 'project.read', {}, 'after-grant-read', sid)['outcome']['project']['session'] == sid
+    assert built.day.sid == sid
+    revoke = client.post('/api/agent-project-access/prepare', headers=OWNER, json={**value, 'role': None}).json()['choice']
+    assert client.post('/api/agent-project-access/confirm', json=sign(revoke)).status_code == 200
+    assert access(built).role(sid, actor) is None
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert built.day.catalogue.get(sid) is not None
+    assert run(client, headers, 'project.list', {}, 'after-revoke-list')['outcome']['projects'] == []
+
+
+@pytest.mark.parametrize('sid', [None, '../outside', '1999-01-01'])
+def test_missing_or_invalid_user_project_does_not_gain_registry_record(project_door, sid):
+    client, built = project_door
+    peer = connect(client)
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'contribute'}
+    assert client.post('/api/agent-project-access/prepare', headers=OWNER, json=value).status_code in (400, 404)
+    assert access(built).rows() == {}
+
+
+def test_source_owner_can_share_existing_user_project_without_navigation(project_door, monkeypatch):
+    client, built = project_door
+    peer = connect(client)
+    sid = built.day.sid
+    monkeypatch.delenv('HOOKE_CONFIRM_KEY'); monkeypatch.setenv('HOOKE_DEV_CONFIRM', '1')
+    value = {'session': sid, 'connection': peer['connection']['id'], 'role': 'contribute'}
+    assert client.post('/api/agent-project-access', json=value, headers=STUDIO).status_code == 200
+    actor = 'agent:' + peer['connection']['id']
+    assert access(built).role(sid, actor) == 'contribute'
+    assert access(built).rows()[sid]['by'] == 'user'
+    assert built.day.sid == sid
+    # A token alone cannot use the owner route, even when it already contributes.
+    assert client.post('/api/agent-project-access', json={**value, 'role':'read'}, headers=bearer(peer['token'])).status_code == 403
+
+
+@pytest.mark.parametrize('route', ['list', 'prepare'])
+def test_owner_catalogue_and_choice_metadata_refuse_agent_or_unsigned_requests(project_door, route):
+    client, built = project_door
+    peer = connect(client)
+    for headers in ({}, bearer(peer['token']), {**OWNER, **bearer(peer['token'])}, {'X-Hooke-Studio':'wrong'}):
+        reply = (client.get('/api/agent-project-access', headers=headers) if route == 'list' else
+                 client.post('/api/agent-project-access/prepare', headers=headers,
+                    json={'session':built.day.sid,'connection':peer['connection']['id'],'role':'read'}))
+        assert reply.status_code == 403
+        assert 'projects' not in reply.json() and 'choice' not in reply.json()
+    assert access(built).rows() == {}
+
+
+def test_development_catalogue_requires_explicit_studio_origin(project_door, monkeypatch):
+    client, _built = project_door
+    monkeypatch.delenv('HOOKE_STUDIO_TOKEN'); monkeypatch.delenv('HOOKE_CONFIRM_KEY')
+    monkeypatch.setenv('HOOKE_DEV_CONFIRM','1')
+    assert client.get('/api/agent-project-access', headers=STUDIO).status_code == 200
+    headers={'Referer':'http://127.0.0.1:8770/','X-MicroscopeMind':'agent-connections'}
+    assert client.get('/api/agent-project-access', headers=headers).status_code == 200
+    assert client.get('/api/agent-project-access', headers={'Referer':'https://evil.example/','X-MicroscopeMind':'agent-connections'}).status_code == 403
+    monkeypatch.delenv('HOOKE_DEV_CONFIRM')
+    assert client.get('/api/agent-project-access', headers=STUDIO).status_code == 403
