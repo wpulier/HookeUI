@@ -207,3 +207,37 @@ for context in ('a','b'):
     assert record['output']['summary']['shape']==[2,2]
     assert record['output']['summary']['storedEntries']==4
     assert all(record['inputs'][port]['digest']==ref['digest'] for port,ref in refs.items())
+
+
+def test_prepared_count_diagnostics_retains_inputs_and_details(tmp_path, monkeypatch):
+    if not os.environ.get('HOOKE_MATRIX_TEST_CATALOG'):
+        pytest.skip('This acceptance probe requires the explicitly prepared pinned runtime')
+    import subprocess
+    monkeypatch.setenv('MICROMIND_HEAVY_SLOT', str(tmp_path/'slot'))
+    current = descriptor('matrix-count-diagnostics')
+    executable, _ = matrix_catalog.execution_runtime(current['runtime'])
+    path = tmp_path/'counts.h5ad'
+    script = """
+import anndata,numpy as np,pandas as pd,sys
+from scipy import sparse
+anndata.AnnData(X=sparse.csr_matrix([[1,3],[2,2]],dtype=np.float32),
+ obs=pd.DataFrame({'context':['a','a'],'target_gene':['x','x']},index=['c1','c2']),
+ var=pd.DataFrame(index=['g1','g2'])).write_h5ad(sys.argv[1])
+"""
+    subprocess.run([str(executable), '-c', script, str(path)], check=True, capture_output=True)
+    store = ProjectStore(tmp_path/'projects'); body = path.read_bytes()
+    intake = FileIntake(store, 's1', 'count-diagnostics-input', name=path.name, size=len(body), max_bytes=len(body))
+    try:
+        intake.write(body); saved = intake.publish()
+    finally:
+        intake.close()
+    ref = {'id': saved.id, 'session': 's1', 'revision': saved.revision, 'digest': saved.digest}
+    result = runs.run_matrix(store=store, session='s1', capability='matrix-count-diagnostics',
+        generation=current['generation'], inputs={'prediction': ref, 'reference': ref}, params={},
+        request='count-diagnostics-run-0001')
+    record = result.document['state']['matrixOperation']
+    assert all(record['inputs'][port]['digest'] == ref['digest'] for port in ('prediction', 'reference'))
+    summary = record['output']['summary']
+    assert all(v == 0 for v in summary['contexts'][0]['metrics'].values())
+    assert summary['detailsRetained'] and not summary['competitionScore']
+    assert 'details' not in summary

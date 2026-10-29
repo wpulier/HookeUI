@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 import json
 
-IDS = ('matrix-inspect', 'matrix-prepare', 'response-fit', 'response-predict', 'matrix-evaluate', 'response-combine', 'matrix-export', 'matrix-evaluate-cell', 'aggregate-profile-prepare', 'response-effects-merge', 'response-effect-evaluate', 'matrix-concatenate')
+IDS = ('matrix-inspect', 'matrix-prepare', 'response-fit', 'response-predict', 'matrix-evaluate', 'response-combine', 'matrix-export', 'matrix-evaluate-cell', 'aggregate-profile-prepare', 'response-effects-merge', 'response-effect-evaluate', 'matrix-concatenate', 'matrix-count-diagnostics')
 BASE = Path(__file__).resolve().parents[2]
 
 
@@ -70,7 +70,7 @@ def descriptor(capability, environ=None):
     for path in (BASE / 'catalog' / 'models' / capability / 'model.toml',
                  Path(__file__).with_name('engine.py'), Path(__file__).with_name('cell_evaluation.py'), Path(__file__).with_name('worker.py'),
                  Path(__file__).with_name('reservation.py'), Path(__file__).with_name('aggregate_profiles.py'),
-                 Path(__file__).with_name('bounded_h5.py'), Path(__file__).with_name('effect_evaluation.py'), Path(__file__).with_name('matrix_assembly.py'), Path(__file__).with_name('count_emission.py'),
+                 Path(__file__).with_name('bounded_h5.py'), Path(__file__).with_name('effect_evaluation.py'), Path(__file__).with_name('matrix_assembly.py'), Path(__file__).with_name('count_emission.py'), Path(__file__).with_name('count_diagnostics.py'),
                  BASE / 'services' / 'orchestrator' / 'matrix_capability_runs.py', Path(__file__)):
         digest.update(path.name.encode() + b'\0' + path.read_bytes())
     digest.update(json.dumps(current, sort_keys=True).encode())

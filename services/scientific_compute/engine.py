@@ -442,8 +442,16 @@ def concatenate_counts(inputs, params, output, check):
     return concatenate(inputs, params, output, check)
 
 
+def compare_count_populations(inputs, params, output, check):
+    if __package__:
+        from .count_diagnostics import compare
+    else:
+        from count_diagnostics import compare
+    return compare(inputs, params, output, check)
+
+
 OPERATIONS = {'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,
-              'response-effect-evaluate': evaluate_effects, 'matrix-concatenate': concatenate_counts}
+              'response-effect-evaluate': evaluate_effects, 'matrix-concatenate': concatenate_counts, 'matrix-count-diagnostics': compare_count_populations}

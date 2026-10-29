@@ -61,13 +61,25 @@ def nothing_downloaded(tmp_path, monkeypatch):
 
 
 def test_what_do_i_need_says_the_users_choices_and_keys_in_plain_words(nothing_downloaded):
-    said = asyncio.run(registry(services({"GEMINI_API_KEY": True})).tools["models"].handler(ctx(), {}))
+    svc = services({"GEMINI_API_KEY": True})
+    reg = registry(svc)
+    said = asyncio.run(reg.tools["models"].handler(ctx(), {}))
     assert said.startswith("Needs the user (their current choices use these and they can't run yet):")
     assert "Talking: GPT-Live needs your OpenAI API key." in said, said
     assert "Outlining: EdgeTAM download 56 MB" in said, "a download is a step of its own"
     assert "Keys added: Google." in said and "OpenAI (Talking by voice" in said
     assert "Offered (p" in said and "get_model with model 'EdgeTAM'" in said, "each download the choices wait on is offered"
-    assert "Setup and checks" in said and "DINOv3 small" in said
+    assert "Setup and checks" in said
+    available = [row for row in svc.capabilities()["models"] if row["group"] == "available"]
+    for row in available[:12]:
+        assert catalog_view.named(row) in said
+    if len(available) > 12:
+        assert f"and {len(available) - 12} more on the Models page" in said
+    # The bounded overview may omit DINO as the catalog grows; named discovery
+    # must still describe its actual readiness, regardless of its position.
+    detail = asyncio.run(reg.tools["models"].handler(ctx("What does DINOv3 need?"), {"about": "DINOv3 small"}))
+    dino = next(row for row in svc.capabilities()["models"] if row["name"] == "DINOv3 small")
+    assert "DINOv3 small" in detail and catalog_view.state_words(dino) in detail
 
 
 def test_all_set_is_said_only_when_every_choice_can_run(monkeypatch):
