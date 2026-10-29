@@ -1,5 +1,11 @@
 # Checks
 
+`test_project_media.py` copies synthetic media through actual immutable intake,
+moves its owning Project, deletes the original, and reads the exact retained bytes.
+It checks changed/replaced originals, cancellation, writer exclusion, origin/digest
+refusal, Record-part refusal and shared inventory meaning. It does not qualify a
+decoder, full Library history, Record collection or ordinary media playback.
+
 `test_project_table_routing.py` uses synthetic measurements through real table
 publication, journal revisions and analysis. It checks relocated historical
 snapshots, read-only access by a second host, closed/missing/replaced destinations

@@ -1,0 +1,121 @@
+"""Copy a selected Library source into its captured Project's immutable file store.
+
+The retained document scopes the historical Library ID by Project origin. It does
+not register that ID in another host's Library or follow a mutable original later.
+This is selected-media retention, not collection of a whole Record dataset or its
+Library edit history. Callers must run the bounded file work off the event loop.
+"""
+from contextlib import contextmanager
+from dataclasses import dataclass
+import asyncio
+import os
+import stat
+
+from .library import Asset, is_asset_id
+from .project_roots import ProjectLocationError
+from .scientific_file_intake import FileIntake
+from .scientific_files import CHUNK_BYTES
+from .scientific_provenance import frozen
+
+
+def _background():
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    raise ProjectLocationError('Retain Project media on the background intake worker')
+
+
+def _stamp(info):
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+@dataclass(frozen=True)
+class MediaReference:
+    origin: str
+    session: str
+    document: str
+    revision: int
+    digest: str
+
+
+class _MediaIntake(FileIntake):
+    def __init__(self, *args, metadata, check_source, **kwargs):
+        self.metadata = frozen(metadata)
+        self.check_source = check_source
+        super().__init__(*args, **kwargs)
+
+    def document(self, ref):
+        value = super().document(ref)
+        value['state']['librarySource'] = self.metadata
+        return value
+
+    @contextmanager
+    def acceptance(self):
+        self.check_source()
+        yield
+
+
+class ProjectMedia:
+    def __init__(self, stores):
+        self.stores = stores
+
+    def retain(self, session, asset: Asset, *, request, max_bytes, producer, stopping=lambda: False):
+        """Retain one admitted source and its known metadata; no parsing or execution.
+
+        A lost reply retries the same request/content through FileIntake. A changed
+        original requires a new explicit request; an accepted source never follows it.
+        Record parts refuse here: collecting those needs whole-dataset inclusion review.
+        """
+        _background()
+        root = self.stores.locations.project(session)
+        if root is None:
+            raise ProjectLocationError('Selected-media retention needs an explicitly opened portable Project')
+        if not isinstance(asset, Asset) or not is_asset_id(asset.id) or asset.kind not in ('still', 'recording'):
+            raise ProjectLocationError('Choose a known image or recording from the Library')
+        if asset.group == 'record' or asset.key.startswith('dataset:'):
+            raise ProjectLocationError('Collect this Record dataset with its shared captures; a single part is not a complete dataset')
+        metadata = {'format': 1, 'projectOrigin': root.origin, 'asset': asset.metadata(),
+                    'libraryKey': asset.key, 'scope': 'selected-media', 'history': 'metadata-at-retention'}
+        descriptor = os.open(asset.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, 'rb') as source:
+            original = os.fstat(source.fileno())
+            if not stat.S_ISREG(original.st_mode):
+                raise ProjectLocationError('The selected Library source must be a regular file')
+            def check_source():
+                if (self.stores.locations.project(session) != root
+                        or _stamp(os.fstat(source.fileno())) != _stamp(original)
+                        or _stamp(asset.path.lstat()) != _stamp(original)):
+                    raise ProjectLocationError('The selected source or Project changed during retention; preserve it and retry')
+            intake = _MediaIntake(self.stores, session, request, name=asset.path.name,
+                size=original.st_size, max_bytes=max_bytes, producer=producer,
+                metadata=metadata, check_source=check_source)
+            try:
+                while True:
+                    if stopping():
+                        raise ProjectLocationError('Media retention stopped; the source was not added')
+                    block = source.read(CHUNK_BYTES)
+                    if not block:
+                        break
+                    intake.write(block)
+                check_source()
+                saved = intake.publish(stopping)
+            finally:
+                intake.close()
+        return MediaReference(root.origin, session, saved.id, saved.revision, saved.digest)
+
+    def read(self, reference: MediaReference):
+        """Read the original exact metadata and verified chunks without a Library or decoder."""
+        _background()
+        root = self.stores.locations.project(reference.session)
+        if root is None or root.origin != reference.origin:
+            raise ProjectLocationError('This media reference belongs to another Project origin')
+        saved = self.stores.read(reference.document, reference.session, revision=reference.revision)
+        metadata = saved.document['state'].get('librarySource', {})
+        if (saved.digest != reference.digest or saved.document['kind'] != 'source-file'
+                or metadata.get('format') != 1 or metadata.get('projectOrigin') != root.origin
+                or metadata.get('scope') != 'selected-media'):
+            raise ProjectLocationError('The retained media identity does not match this reference')
+        source = saved.document['state']['sourceFile']['reference']
+        return metadata, self.stores.file_source(saved.id, saved.session, saved.revision, source,
+                                                verify_content=False)

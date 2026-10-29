@@ -174,3 +174,18 @@ all bytes for explicit reconciliation. Removing that marker is the final accepta
 action; a crash may conservatively restore uncertainty. Background identity lifecycle
 binding and reconciliation UI remain open gates: the staged adapter explicitly
 refuses event-loop use, rather than blocking live frames or silently claiming a save.
+
+### Selected Library media retention
+
+The staged `ProjectMedia` adapter copies an admitted image or recording through the
+existing immutable file intake. Its exact reference includes the Project origin,
+document revision and digest; a coincident `a1` in another host's Library cannot
+resolve it. Known Library metadata is retained at that revision. Changed originals
+require a new admission, and deleting the original does not remove accepted bytes.
+The shared inventory uses the declared media kind and preserves generated origin
+when a snapshot is selected as input. Reading retained chunks needs no media decoder.
+
+This adapter does not remap live Library aliases, collect Library edit history,
+materialize playback files or collect Record datasets. Record parts refuse until
+whole-dataset inclusion is reviewed. Live portable activation and complete mixed
+Project collection remain off pending those integrations.
