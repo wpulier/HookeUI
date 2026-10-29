@@ -1,19 +1,21 @@
 {
   "id": "part-2.5",
-  "about": "The Part 2.5 journey (docs/testing/part-2.5-journey.md), steps 1-8 and 10 in Will's words, on the bundled nuclei sample played as the camera (a still image, not the live camera). Step 9 (a connected agent) is a person's step. expect: tools = the acceptable first acting tool (mark does not count), toolRequired = a tool must be used, visible = the change the studio must report, researchers = how many this request starts (0 when absent), marks = the target prefixes a mark may use, status = the answer names the researcher this run started last, multi = several steps (8 s), fails = the request cannot succeed and the failure is its outcome. kind: act, view, ask, status, idle (no words: the voice may speak only to tell an event), restart (the runner quits and reopens Hooke, then checks what must be there), typed (in the chat).",
+  "about": "The Part 2.5 journey (docs/testing/part-2.5-journey.md), steps 1-8 and 10 in Will's words, on the bundled nuclei sample played as the camera (a still image, not the live camera), plus one multi-step request in Will's words. Step 9 (a connected agent) is a person's step. expect: tools = the acceptable first acting tool (mark does not count), toolRequired = a tool must be used, visible = the change the studio must report, researchers = how many this request starts (0 when absent), marks = the target prefixes a mark may use, status = the answer names the researcher this run started last, multi = several steps (8 s), fails = the request cannot succeed and the failure is its outcome. ensure = where the journey must be after the step: when the voice left it elsewhere, the bench puts it back (the step is scored as it was; the steps after it are not scored again for it). A restart's checks ask that what was there before it is there after it. kind: act, view, ask, status, idle (no words: the voice may speak only to tell an event), restart (the runner quits and reopens Hooke, then checks what must be there), typed (in the chat), stage (the specimen put on a new Project's empty stage, as a person does: Use live camera, the bridge playing the still).",
   "minMs": 6000,
   "quietMs": 4000,
   "voices": {"user": "Samantha"},
-  "camera": {"still": "assets/examples/human_mitosis.png"},
+  "camera": {"still": "assets/examples/human_mitosis.png", "footage": "human_mitosis-noise.mp4"},
   "setup": [
     {"id": "setup-project", "kind": "typed", "say": "Start a new project called Nuclei.", "wait": 30},
+    {"id": "setup-stage-nuclei", "kind": "stage"},
     {"id": "setup-outline", "kind": "typed", "say": "Outline the nuclei and measure them.", "wait": 90},
     {"id": "setup-researcher", "kind": "typed", "say": "Start a researcher to summarise the nucleus sizes in two sentences.",
      "waitFor": {"researcher": "done"}, "wait": 600},
-    {"id": "setup-scratch", "kind": "typed", "say": "Start a new project called Scratch.", "wait": 30}
+    {"id": "setup-scratch", "kind": "typed", "say": "Start a new project called Scratch.", "wait": 30},
+    {"id": "setup-stage-scratch", "kind": "stage"}
   ],
   "steps": [
-    {"id": "open", "kind": "act", "say": "Open the Nuclei project.",
+    {"id": "open", "kind": "act", "say": "Open the Nuclei project.", "ensure": "project:Nuclei",
      "expect": {"tools": ["switch_session"], "visible": "the Nuclei project open where it was left", "outcome": true}},
     {"id": "looking", "kind": "view", "say": "What am I looking at?",
      "expect": {"tools": ["look_hard", "look_at_screen", "inspect_camera", "name_specimen", "resources", "outcomes"],
@@ -38,6 +40,11 @@
                 "judge": "one researcher, on the measurements table; no video model"}},
     {"id": "status", "kind": "status", "say": "What's our researcher doing?",
      "expect": {"tools": ["research_status"], "toolRequired": false, "status": "latest", "marks": ["researcher:"]}},
+    {"id": "outline-and-sizes", "kind": "act", "say": "Outline the nuclei, then put their measurements in a new tab called Sizes.",
+     "expect": {"tools": ["outline_cells", "count", "find", "show_measurements", "do_in_hooke", "think"], "multi": true,
+                "visible": "the nuclei outlined, and their measurements in a Tab called Sizes in front", "outcome": true,
+                "marks": ["tab:", "document:", "window:", "outline:"],
+                "judge": "outlines the nuclei, then opens their measurements in a new Tab called Sizes, saying progress while it works and the outcome once"}},
     {"id": "idle", "kind": "idle", "wait": 240, "waitFor": {"researcher": "latest-done"},
      "expect": {"silent": true}},
     {"id": "reopen", "kind": "restart",

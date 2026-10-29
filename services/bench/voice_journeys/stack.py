@@ -64,6 +64,21 @@ def words(plan: dict, folder: Path) -> None:
         said.write_text(key)
 
 
+NOISE_S = 20  # the still's loop: long enough that its seam is rare, short enough to make in a second
+
+
+def noisy_loop(still: Path, folder: Path) -> Path:
+    """The still image as a short looping video with sensor-like noise, so no two frames are byte-identical: the bridge
+    heals a camera whose frames are (FROZEN_HEAL_S: a frozen iPhone), which stopped a still's live view about 17 s after
+    a Project's Use live camera (2026-10-29). A file encode, never a capture; made once per stack."""
+    out = folder / f"{still.stem}-noise.mp4"
+    if not out.exists():
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25", "-i", str(still),
+                        "-t", str(NOISE_S), "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,noise=alls=3:allf=t+u,format=yuv420p",
+                        "-c:v", "libx264", "-crf", "18", "-r", "25", str(out)], check=True)
+    return out
+
+
 def healthy(url: str, seconds: float) -> bool:
     end = time.monotonic() + seconds
     while time.monotonic() < end:
@@ -123,8 +138,9 @@ def up(args: argparse.Namespace) -> dict:
         (out / sub).mkdir(parents=True, exist_ok=True)
     publish(checkout, args.build)
     camera = plan.get("camera") or {}
-    if camera.get("still"):  # a still image as the camera (the bundled example): no footage store needed
-        first, footage = checkout / camera["still"], out / "footage"
+    if camera.get("still"):  # a still image as the camera (the bundled example), with sensor-like noise: no store needed
+        footage = out / "footage"
+        first = noisy_loop(checkout / camera["still"], footage)
     else:
         first, footage = ASSETS / "footage" / plan["steps"][0]["footage"], ASSETS / "footage"
     bridge = subprocess.Popen(
