@@ -304,3 +304,9 @@ host directory. Registry format 2 also retains the compatible session handle so 
 offline folder's handle cannot be allocated again. It carries no research or grants.
 This seam is not enabled in App.build until scientific and legacy artifact routing
 is qualified; it is not a claim of complete portable creation or collection.
+
+An unavailable registered folder stays in the Project list with `storageUnavailable`;
+healthy Projects can still be found and read. It is excluded from last-used resume.
+Global legacy result-ID allocation refuses while any registered journal is unavailable,
+because treating its IDs as zero could reuse IDs in shared day storage. A failed
+post-lock ownership check releases the lease without caching trusted ownership.

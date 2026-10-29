@@ -19,7 +19,7 @@ import json
 import re
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import sid as sids
@@ -132,6 +132,7 @@ class Info:
     # snapshot), so the index and the library know whose it is (resources.py `_made`, app.py `origin_of`).
     claims: dict[tuple[str, str], str] = field(default_factory=dict)
     ids: dict[tuple[str, str], int] = field(default_factory=dict)  # (day, prefix) -> the highest number given
+    unavailable: str | None = None  # retained locator exists, but its research cannot currently be read
 
     @property
     def label(self) -> str:
@@ -162,6 +163,8 @@ class Info:
                "specimens": list(self.specimens)}
         if self.picture:
             row["thumb"] = f"/api/library/{self.picture}/thumbnail"  # the library's own small picture (thumbnails.py)
+        if self.unavailable is not None:
+            row['storageUnavailable'] = self.unavailable
         return row
 
 
@@ -201,7 +204,17 @@ class Catalogue:
 
     def _refresh(self, sid: str) -> Info | None:
         from ..scientific_import_transaction import reading
-        root = self.locations.root_for(sid) if self.locations is not None else self.root
+        if self.locations is not None:
+            from ..project_roots import ProjectLocationError
+            try:
+                root = self.locations.root_for(sid)
+            except (ProjectLocationError, OSError) as error:
+                if sid not in self.locations.handles():
+                    raise
+                prior = self._reads.get(sid)
+                return replace(prior.info if prior else Info(sid), unavailable=str(error))
+        else:
+            root = self.root
         with reading(root):
             return self._read_journal(sid, root)
 
@@ -326,14 +339,18 @@ class Catalogue:
 
     def last_used(self) -> Info | None:
         """The session the user last made a request in; with no request anywhere, the most recently active."""
-        infos = self.list()
+        infos = [info for info in self.list() if info.unavailable is None]
         asked = [i for i in infos if i.last_user]
         return max(asked, key=lambda i: i.last_user) if asked else (infos[0] if infos else None)
 
     def used(self, day: str, prefix: str) -> int:
         """The highest number of an id with `prefix` that any session gave on calendar `day` (0: none): a new id on
         that day takes a higher one, so two sessions never share an id in one day's folder (day/ids.py)."""
-        return max((i.ids.get((day, prefix), 0) for i in self.list()), default=0)
+        infos = self.list()
+        if any(i.unavailable is not None for i in infos):
+            from ..project_roots import ProjectLocationError
+            raise ProjectLocationError('A Project is unavailable; reconnect it before allocating shared legacy result IDs')
+        return max((i.ids.get((day, prefix), 0) for i in infos), default=0)
 
     def find(self, ref: str, *, current: str | None = None, now: float | None = None) -> list[Info]:
         """The sessions `ref` may mean, best first ([] when none): its id; "previous" (the most recent other than

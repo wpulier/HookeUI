@@ -72,9 +72,13 @@ class ProjectLocations:
             if prior is not None and prior != root:
                 raise ProjectLocationError('The active Project location changed; finish its work and reopen it')
             if prior is None:
-                lease = self._held.enter_context(writer(root))
-                self._leases[root.origin] = lease
-                verify_owner(root)
+                with ExitStack() as acquiring:
+                    lease = acquiring.enter_context(writer(root))
+                    if self.registry.locate(root.origin) != root:
+                        raise ProjectLocationError('The Project location changed during writer admission')
+                    verify_owner(root)
+                    self._held.enter_context(acquiring.pop_all())
+                    self._leases[root.origin] = lease
 
     def create(self, name, *, date, preferences, actor, clock, local_only=True, started_from=None, guide=None):
         """Allocate a compatible handle over legacy and portable Projects together."""

@@ -96,9 +96,47 @@ def test_offline_locator_reserves_handle_without_hiding_other_projects(tmp_path)
         second = day.create_retained('Available', actor='agent:a')
         assert second.sid != first.sid
         assert second.name == 'Available'
+        listed = {i.id: i for i in day.catalogue.list()}
+        assert listed[first.sid].unavailable
+        assert listed[first.sid].wire()['storageUnavailable']
+        assert listed[second.sid].unavailable is None
+        assert day.catalogue.find('Available')[0].id == second.sid
+        assert day.catalogue.last_used().unavailable is None
+        with pytest.raises(ProjectLocationError, match='shared legacy result IDs'):
+            day.catalogue.used(day.date, 'e')
         with pytest.raises(ProjectLocationError):
             locations.root_for(first.sid)
         assert not (locations.legacy / first.sid).exists()
+    finally:
+        locations.close()
+
+
+def test_failed_post_lock_verification_never_caches_or_retains_lease(tmp_path, monkeypatch):
+    import orchestrator.project_locations as module
+    from orchestrator.project_roots import writer
+    day, locations = setup(tmp_path)
+    root = create(locations.parent, 'Verification failure', session='2026-10-29.8',
+                  host_preferences=day.user_prefs)
+    locations.registry.register(root)
+    verify, calls = module.verify_owner, []
+    def change_after_acquisition(candidate):
+        calls.append(candidate)
+        if len(calls) == 2:
+            path = root.path / 'history/sessions' / root.session / 'journal.jsonl'
+            lines = path.read_text().splitlines()
+            first = json.loads(lines[0]); first['origin'] = 'f' * 32
+            lines[0] = json.dumps(first)
+            path.write_text('\n'.join(lines) + '\n')
+        return verify(candidate)
+    monkeypatch.setattr(module, 'verify_owner', change_after_acquisition)
+    try:
+        with pytest.raises(ProjectLocationError, match='do not match'):
+            locations.writable(root.session)
+        assert not locations._leases
+        with writer(root):
+            pass  # failure relinquished the filesystem lock as well as its cache
+        with pytest.raises(ProjectLocationError, match='do not match'):
+            locations.writable(root.session)
     finally:
         locations.close()
 
