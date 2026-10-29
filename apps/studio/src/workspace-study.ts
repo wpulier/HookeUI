@@ -964,24 +964,25 @@ async function openStudy(id:string):Promise<void>{
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The Project or Study view changed. Return to the original Study.');
     const next=await work();if(current()&&currentStudyPage===page&&!researchStage.hidden)draw(next);
   };
+  const openRetained=async(ref:{id:string;revision:number},title:string)=>{
+    if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('Return to the originating Study to open its result.');
+    if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
+    clearStudyDraftMarkers();
+    // Evidence opens in its own workspace Tab; it must never appear behind the Study on Main.
+    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
+    closeResearchStage();
+    const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
+    if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
+  };
   const conversation=studyConversation(study,{
     current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
     open:async(ref,title)=>{
-      if(!current()||currentStudyPage!==page||researchStage.hidden||ref.session!==session)throw new Error('Return to the originating Study.');
-      await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
+      if(ref.session!==session)throw new Error('Return to the originating Study.');
+      await openRetained(ref,title);
     },
   });
   const draw=(next:Effort)=>{
     if(!current())return;openStudyNow=next;retireStudyStaging?.();
-    // One way to open what this Study kept (a job's result or a researcher's file): its exact saved revision, in the
-    // workspace's ordinary scientific window; the Study closes over it only once it has opened.
-    const openRetained=async(ref:{id:string;revision:number},title:string)=>{
-      if(!ownsView())throw new Error('Return to the originating Study to open its result.');
-      if(!canLeaveStudy(()=>void openRetained(ref,title)))return;clearStudyDraftMarkers();
-      const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
-      if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
-      if(ownsView())closeResearchStage();
-    };
     conversation.update(next);
     renderStudy(page,next,{
       conversation:conversation.root,

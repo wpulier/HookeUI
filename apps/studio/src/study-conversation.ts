@@ -37,7 +37,7 @@ export function studyConversation(initial:Effort, options:{
   const controls=node('div','study-conversation-controls');controls.append(status,refreshButton);
   root.append(log,controls,compose.root);
   function ready(){compose.send.disabled=sending||!loaded||!select.value||!options.current();select.disabled=sending;compose.field.readOnly=sending;}
-  select.addEventListener('change',ready);compose.field.addEventListener('input',ready);compose.field.addEventListener('focus',ready);
+  select.addEventListener('change',ready);compose.field.addEventListener('input',()=>{if(compose.field.value)root.dataset.draft='true';else delete root.dataset.draft;ready();});compose.field.addEventListener('focus',ready);
   function render(rows:StudyQuestion[]){
     const next=JSON.stringify(rows);if(next===signature)return;signature=next;
     const follow=log.scrollHeight-log.scrollTop-log.clientHeight<40;
@@ -52,8 +52,8 @@ export function studyConversation(initial:Effort, options:{
         card.append(node('strong','study-answer-author',answer.byLabel),node('p','study-answer-words',answer.statement));
         if(answer.limitations)card.append(node('p','study-answer-limits',answer.limitations));
         const evidence=node('details','study-answer-evidence');evidence.append(node('summary','',`Evidence · ${answer.evidence.length}`));
-        for(const ref of answer.evidence){
-          const link=node('button','study-quiet',`Open evidence · revision ${ref.revision}`);link.type='button';link.title=ref.id;
+        for(const [index,ref] of answer.evidence.entries()){
+          const link=node('button','study-quiet',`Evidence ${index+1} · revision ${ref.revision}`);link.type='button';link.title=ref.id;
           link.addEventListener('click',()=>{void options.open(ref,'Answer evidence').catch(error=>{status.textContent=String(error.message||error);});});evidence.append(link);
         }
         card.append(evidence,node('small','study-answer-status','Agent answer · not a reviewed finding'));
@@ -89,7 +89,7 @@ export function studyConversation(initial:Effort, options:{
   });
   async function responseAfterSave(captured:NonNullable<typeof retry>){
     try{await response(await fetcher(url(study),{method:'POST',headers,body:JSON.stringify(captured.body)}));
-      if(!options.current())return;compose.set('');retry=null;status.textContent='Question saved. Waiting for your agent.';
+      if(!options.current())return;compose.set('');delete root.dataset.draft;retry=null;status.textContent='Question saved. Waiting for your agent.';
     }catch(error){if(options.current()){sendError=`${error instanceof Error?error.message:String(error)} Retry keeps the same question identity.`;status.textContent=sendError;}}
     finally{sending=false;delete root.dataset.pending;ready();void refresh();}
   }

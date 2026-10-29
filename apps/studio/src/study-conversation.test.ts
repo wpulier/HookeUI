@@ -28,7 +28,7 @@ test('an attributed real response projection stays inline with exact evidence an
   expect(c.root.textContent).toContain('Waiting for Connected reviewer');
   c.field.value='Follow-up draft';state.questions[0].answer={by:recipient.actor,byLabel:recipient.label,statement:'The generator failed its fixed criterion.',limitations:'Development evidence only.',evidence:[ref]};await c.refresh();
   expect(c.root.textContent).toContain('The generator failed');expect(c.root.textContent).toContain('Development evidence only');expect(c.field.value).toBe('Follow-up draft');
-  const link=c.root.querySelectorAll('button').find(n=>n.textContent?.startsWith('Open evidence'))!;fire(link,'click',{});
+  const link=c.root.querySelectorAll('button').find(n=>n.textContent?.startsWith('Evidence 1'))!;fire(link,'click',{});
   expect(c.open).toHaveBeenCalledWith(ref,'Answer evidence');
 });
 

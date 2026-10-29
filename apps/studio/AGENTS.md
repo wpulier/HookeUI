@@ -1934,3 +1934,6 @@ state only, preserves drafts and focus, and stops when its originating Project/S
 current. Lost-reply retries preserve the request identity and captured context. Answers retain
 limitations and evidence and never become reviewed findings automatically. The ordinary Assistant
 remains available separately; no Gemini dependency or subscribed-CLI launch is added to this path.
+
+Study evidence opens in a separate workspace Tab, leaving the retained Study available to return to.
+The conversation owns its unsent draft marker; a saved question no longer triggers a discard-form warning.
