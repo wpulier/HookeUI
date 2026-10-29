@@ -529,14 +529,45 @@ def resaid_spans(inter: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
+def outcome_spans(inter: list[dict]) -> dict[str, list[tuple[float, float]]]:
+    """The spoken outcome of a tool the voice called, said when it landed (a hand-off's, a slow tool's: the bus's
+    tool-done event, ref its call id): by call id, the lines that said only such outcomes. Each belongs to the step that
+    made the call, wherever it falls (will-leaf, 29 Oct: Cellpose's outcome, said in its step, was dropped as unprompted;
+    a reference photo's, cut off by the next words and said again then, was counted in that step)."""
+    events = {r.get("eventId"): r for r in inter if r.get("kind") == "partner-proactive" and r.get("eventId")}
+    turns = sorted(r["releasedT"] for r in inter if r.get("kind") == "partner-turn"
+                   and isinstance(r.get("releasedT"), (int, float)))
+    ends, out = audio_ends(inter), {}
+    for r in inter:
+        if r.get("kind") != "partner-response" or r.get("cause") != "proactive" \
+                or not isinstance(r.get("firstAudioT"), (int, float)) or not r.get("events"):
+            continue
+        said = [events.get(i) for i in r["events"]]
+        if not said or any(e is None or e.get("event") != "tool-done" or not e.get("ref") for e in said):
+            continue
+        end = response_end(r, ends)
+        if end is None:  # its end unrecorded: at most until the user's next words
+            end = min([t for t in turns if t > r["firstAudioT"]] + [r["firstAudioT"] + 10])
+        span = (r["firstAudioT"] - NEAR_S, end)
+        for ref in {e["ref"] for e in said}:
+            out.setdefault(str(ref), []).append(span)
+    return out
+
+
 def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
-    """When the one brain spoke on its own (a proactive event, a reconnect line): those lines belong to no step."""
+    """When the one brain spoke on its own (a proactive event, a reconnect line): those lines belong to no step. A
+    called tool's outcome said when it landed is its step's (outcome_spans), not unprompted."""
     ends, out = audio_ends(inter), []
+    owned = {span for spans in outcome_spans(inter).values() for span in spans}
     for r in inter:
         if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "reconnect") \
                 and isinstance(r.get("firstAudioT"), (int, float)):
+            if r.get("cause") == "proactive" and any(span[0] == r["firstAudioT"] - NEAR_S for span in owned):
+                continue
             end = response_end(r, ends)
-            out.append((r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10))
+            span = (r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10)
+            if span not in owned:
+                out.append(span)
     return out
 
 
@@ -613,6 +644,10 @@ def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[fl
     mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
     own = [x for cid, t in (tasks or {}).items() if cid in mine for x in (t.get("spans") or [t["span"]]) if x]
     others = [x for cid, t in (tasks or {}).items() if cid not in mine for x in (t.get("spans") or [t["span"]]) if x]
+    # A called tool's outcome said when it landed is this step's when it called it, and no other step's.
+    called = {c.call_id for c in partner_calls(inter, n, start, end) if c.call_id}
+    for cid, spans in (bench.get("_outcomes") or {}).items():
+        (own if cid in called else others).extend(spans)
     return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)
 
 
@@ -1239,6 +1274,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     bench["_heard"] = heard_cues(bench, inter)
     bench["_thinks"] = thinks(inter)
     bench["_resaid"] = resaid_spans(inter)
+    bench["_outcomes"] = outcome_spans(inter)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
         # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
@@ -1256,7 +1292,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             by_step[step["id"]] = numbers
             started_numbers += numbers[-1:]
         rows.append(row)
-    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard", "_resaid"):
+    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard", "_resaid", "_outcomes"):
         bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),

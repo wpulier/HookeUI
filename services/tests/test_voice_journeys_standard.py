@@ -1203,3 +1203,21 @@ def test_the_alive_plan_closes_and_reopens_the_assistant_while_work_runs():
     assert steps["slow"]["wait"] <= 10  # the next words come while the search still runs
     assert steps["closed"]["assistant"] == "close" and steps["reopen"]["assistant"] == "open"
     assert all(s["footage"] == "real/2026-06-14-leaf-epidermis-23s.mp4" for s in plan["steps"])
+
+
+def test_a_called_tools_outcome_said_when_it_landed_belongs_to_its_step():
+    """will-leaf, 29 Oct: "Outline every cell." was handed over, and its outcome ("158 outlines now visible") came as
+    the bus's tool-done line within the step; the scorer dropped every event line as unprompted, so the step had "the
+    outcome was not said". A tool-done line for a call is that call's step's, and no other step's."""
+    from bench.voice_journeys.standard import outcome_spans, unprompted_spans
+
+    inter = [{"kind": "partner-proactive", "event": "tool-done", "ref": "call_A", "eventId": "ev-1"},
+             {"kind": "partner-response", "cause": "proactive", "firstAudioT": 100.0, "events": ["ev-1"],
+              "transcript": "158 outlines now visible."},
+             {"kind": "partner-proactive", "event": "notice", "ref": None, "eventId": "ev-2"},
+             {"kind": "partner-response", "cause": "proactive", "firstAudioT": 200.0, "events": ["ev-2"],
+              "transcript": "A researcher finished."}]
+    owned = outcome_spans(inter)
+    assert list(owned) == ["call_A"] and owned["call_A"][0][0] < 100.0
+    spans = unprompted_spans(inter)
+    assert len(spans) == 1 and spans[0][0] < 200.0 < spans[0][1], "a notice stays unprompted; the outcome does not"

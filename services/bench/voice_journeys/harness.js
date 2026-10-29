@@ -333,7 +333,11 @@
     const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing()
       || ['heard', 'thinking'].includes(document.body?.dataset.voiceState || '');
     const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
-    while (Date.now() - t0 < (handing() ? Math.max(maxMs, HANDOFF_MS) : maxMs) && busy()) await sleep(200);
+    // Once a hand-off has worked in this wait, its step's limit stays long: its outcome is said after its row ends
+    // (will-leaf, 29 Oct: the row ended past the step's own limit, and the next words cut its outcome off).
+    let handed = false;
+    const limit = () => ((handed = handed || handing()) ? Math.max(maxMs, HANDOFF_MS) : maxMs);
+    while (Date.now() - t0 < limit() && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.
   // Until the answer has been under way for `afterMs` from its first audio after `since` (the request's release; a
