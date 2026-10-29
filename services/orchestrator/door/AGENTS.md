@@ -154,6 +154,11 @@ original attempts. Agent review never supplies human acceptance. Shared operatio
 reads retain the original author; request keys remain per connection. A second agent
 reads an existing operation by ID, rather than reusing another agent's request key.
 
+The existing `workflow` admission appears in tools discovery when `workflow.write`
+is declared. Its shared `workflow-admission` schema also validates the request.
+Discovery describes the entrance, not a ready scientific run or Project grant:
+contribute permission, exact inputs and frozen-step readiness remain admission checks.
+
 Settings → Connected agents → Project access is the owner's source-Studio grant
 interface. Source Studio requires explicit `HOOKE_DEV_CONFIRM=1`. A packaged window
 uses `hookeProjectGrant`: the server prepares a bounded, expiring one-use choice,

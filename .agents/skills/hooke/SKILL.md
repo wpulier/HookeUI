@@ -107,7 +107,9 @@ offset. Read all relevant pages, not just titles.
 The generic resource transport is `hooke api GET|POST <relative-path> [json]`.
 For example, `hooke api GET 'studies?session=<project>'`. Study creation uses POST
 `studies` with session, requestKey, title, objective, criteria, budgetUsd and inputs.
-Workflow discovery uses `workflows?session=<project>` and `workflows/capabilities`.
+Discover the execution contract with `hooke tools workflow`; this does not grant
+Project access or qualify the individual steps. Workflow discovery uses
+`workflows?session=<project>` and `workflows/capabilities`.
 To author a workflow, POST `workflows/command` with `project` and the declared frozen
 workflow command fields. Execution is `hooke run workflow` with study, session,
 workflow, revision and inputs. Read original operation IDs after disconnection;
