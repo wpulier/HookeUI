@@ -713,6 +713,23 @@ with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
   to the Assistant, act then look. A change on screen comes back with the studio's report and a fresh window picture.
   It ends with `report(say, points, checked, done)`: "done" counts only when it also says every change was checked.
   Its tools are the voice's plus the brain's longer ones (`compare_models`, counts, tables, graphs, research reads).
+- **Long tools are waited for:** behind the voice, a tool still running at the voice's 12 s (a comparison of three
+  outline models loading cold took ~40 s) is waited for up to 70 s (`THINK_TOOL_WAIT_S`), and its real outcome goes
+  to the backend; while think waits, the outcome is filed but not said as a line of its own (`PartnerTools.held`), so
+  it is said once, in think's result. Past that wait the backend is told it is still running, and the outcome is said
+  as one line when it lands, as any long tool's is (think-broad-1: think reported "they're still running" and the
+  comparison came 40 s later during another step).
+- **Progress while it works:** think's call is answered at once, so no tool round is pending; behind a quiet voice
+  (no key held, nothing said for 2 s since its acknowledgement), a short line on what is under way and for how long
+  (`running_facts`: "thinking with claude-opus-5-5, now running compare_models, 15 s so far"), at most 3, 8 s apart,
+  never once its result is due (`RealtimeSession.tell_progress`).
+- **Prompt caching:** the tools and the system prompt (the same for every task) are cached by a marker on the system,
+  each round's growing conversation by the automatic marker; cache writes and reads are priced in its spend.
+- **Which questions go to it:** the voice answers what is already here (what was found, how something was made or
+  measured, what a researcher reported) itself from the brief or resources; think is for what needs working out,
+  several steps, comparisons and close looks (think-broad-1: a question about how the nuclei were measured went to
+  think and was spoken 16 s later). The model it runs on is a setting like the others: `set_default` think
+  ("switch your brain to Claude"), and `models_in_use` has its row, "Thinking behind the voice".
 - **The result** waits for quiet (no key held, nothing said), is written out of band in the voice's own words
   (`response.create` with `conversation: "none"`, text only, `metadata.task`; the backend's own words when that
   does not come back in 4 s), is added to the conversation, and is said once through the gate, with marks on the ids
