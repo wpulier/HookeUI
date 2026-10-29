@@ -770,3 +770,18 @@ the tool returned, 0.4 s after its first words had played; two turns cost $0.006
 answered; a `WHEN_IDLE` result ended the turn unsaid; a line asked as client content was spoken 1.06 s after; a
 connection resumed with a changed tool list in 0.67 s and remembered the conversation (whether the new tool was taken is
 not confirmed); `usage_metadata` comes once a turn, with its `turn_complete`, counting the whole context.
+
+**On the part-2.5 journey** (one run each, recorded macOS speech, the nuclei still as the camera; beside
+`gpt-realtime-2.1`'s three runs at a1e11f7: release to first audio p50 1.40 s / p95 1.90 s, right tool 29 of 30,
+outcomes said once 16 of 18, false "done" 3 in 30, longest silence 4.93 s). Gemini, by commit:
+- aeb1299 (06:05): first audio p50 1.54 s / p95 2.44 s (answers with no tool 0.8-1.0 s; tool turns 2.2-2.4 s,
+  because it calls the tool without a word first), right tool 9 of 10, false "done" 0 of 10, outcomes said once 3 of 6
+  (progress lines made it withdraw calls), researcher started 0.92 s, events spoken 0.88 s, live view unchanged.
+- 4bf1e67 (12:17): first audio p50 1.87 s / p95 5.04 s, right tool 9 of 10, false "done" 1 of 10, outcomes 2 of 6
+  (said, but as lines nobody asked for: the reason for a622e94).
+- a622e94 (12:36): outcomes said once 5 of 6, right tool 10 of 10, false "done" 0 of 10, one researcher, marks within
+  0.03 s of speech; but first audio p50 5.77 s, because Gemini itself answered about 5 s after `activity_end` all that
+  afternoon (the first audio chunk left the server 4.7-5.2 s after it; the same held in a micro-bench with no stack, 3 of
+  6 turns), where in the morning it took 0.6-0.9 s. The live view's delay line failed in the two afternoon runs only
+  (p90 190 ms vs 108 ms baseline, the machine loaded) and passed in the morning with the same 1 fps stream.
+Gemini 3.8 Live is parked (Will's live-partner spec, section 6) until the default voice meets the standard.
