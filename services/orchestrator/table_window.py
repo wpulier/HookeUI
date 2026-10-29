@@ -36,9 +36,9 @@ AREA_FITTED = 0.6  # a window covering this much of the Tab's presentation area 
 
 @dataclass
 class Shown:
-    """What the studio's report showed of the table window: where, and how it stands."""
+    """What the studio's last report showed of the table window: it, its Tab's title, whether the studio was in view,
+    and the window over it."""
     item: dict | None
-    tab: str
     tab_title: str
     in_view: bool | None
     over: dict | None  # an open window over it, by the report
@@ -140,7 +140,8 @@ async def _tab(services, ctx, asked: str) -> tuple[str, str, bool]:
     listed = await services.workspace_tabs(ctx, {"action": "list"})
     tabs = [t for t in listed.get("tabs") or [] if (t.get("kind") or "work") == "work"]
     key = " ".join(asked.split()).casefold()
-    found = [t for t in tabs if t.get("id") == asked] or [t for t in tabs if " ".join(str(t.get("title") or "").split()).casefold() == key]
+    found = ([t for t in tabs if t.get("id") == asked]
+             or [t for t in tabs if " ".join(str(t.get("title") or "").split()).casefold() == key])
     if len(found) > 1:
         raise ToolFailed(f"several Tabs are called {inline(asked, 80)!r} in this Project",
                          next="ask which one, by the Tabs listed (tabs list)")
@@ -177,8 +178,8 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
     if tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
-        tab_id = _strip(_current(studio, guard)).get("tab") or studio.tab
-        tab_title = _strip(_current(studio, guard)).get("tabTitle")
+        strip = _strip(_current(studio, guard))
+        tab_id, tab_title = strip.get("tab") or studio.tab, strip.get("tabTitle")
     guard()
     where = f'Tab "{inline(tab_title, 80)}"' if tab_title else "the Tab in front"
 
@@ -201,13 +202,13 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
     tick = asked_at = loop.time()
     in_view_s = background_s = 0.0  # time waited with the studio in view, and out of it
     away = False  # the studio is in the background now (its progress said once)
-    last = Shown(None, tab_id, tab_title or "", None, None)
+    last = Shown(None, tab_title or "", None, None)
     while True:
         report = _current(studio, guard)
         strip = _strip(report)
         item = window_in(report, placement, ref, project, tab_id)
         visible = report.get("visible")
-        last = Shown(item, tab_id, strip.get("tabTitle") or tab_title or "", visible,
+        last = Shown(item, strip.get("tabTitle") or tab_title or "", visible,
                      over(item, report.get("items") or []) if item is not None else None)
         state = ((item or {}).get("document") or {}).get("state")
         if item is not None and state == "failed":
@@ -218,8 +219,8 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
         now = loop.time()
         if visible is False:  # the studio in the background paints nothing: waited for, its time out of view not counted
             if not away and run is not None:
-                run.report_progress("waiting for the studio to be in view: the table is saved and placed there, and "
-                                    "shows as soon as the studio is in view again")
+                run.report_progress("waiting for the studio to be in view: the table is saved in Data, and its window "
+                                    "is confirmed once the studio is in view again")
             away = True
             background_s += now - tick
             if background_s >= BACKGROUND_WAIT_S:
@@ -248,12 +249,11 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
         # Observed: the studio was not in view when it reported (another app's window over it, or the app hidden), and
         # the window laid out in the Tab in front.
         return (f"placed {what} in its table window in {where}{new}; not shown yet: the studio was not in view when it "
-                f"last reported, so it shows there once the app is in front again; {saved}. "
+                f"last reported, and the window is laid out there for when the app is in front again; {saved}. "
                 + facts(target, revision, rows, displayed="not yet (the studio is not in view)", front="unknown"))
+    if _strip(report).get("tab") != tab_id:
+        refused("another Tab came to the front before it was shown")
     if item is None:
-        tab_now = _strip(_current(studio, guard)).get("tab")
-        if tab_now != tab_id:
-            refused("another Tab came to the front before it was shown")
         refused("the studio has not shown its window there" + (" (the Tab is open without it)" if tab else ""))
     state = (item.get("document") or {}).get("state")
     if last.over is not None:

@@ -53,8 +53,9 @@ class TableStudio:
     `report_after`: seconds before it reports what it opened (a slow report)."""
 
     def __init__(self, app, *, opens=True, answers=True, in_view=True, state='rendered', covered=False,
-                 report_after=0.0, fits=True):
+                 report_after=0.0, fits=True, then_tab=None):
         self.app, self.opens, self.answers, self.in_view, self.state = app, opens, answers, in_view, state
+        self.then_tab = then_tab  # the person goes to this Tab right after the window opens
         self.covered, self.report_after, self.fits = covered, report_after, fits
         self.seq, self.messages, self.tasks = 0, [], []
         self.tabs = [{'id': 'main', 'title': 'Main'}]
@@ -168,6 +169,8 @@ class TableStudio:
         await COMMANDS['table-window-result'](self.app, self, {'type': 'table-window-result', 'id': message['id'],
                                                                'session': message['session'],
                                                                'workspacePin': message['workspacePin'], 'result': result})
+        if self.then_tab:
+            self.active = self.then_tab
         self.later(self.send_report(self.report_after))
 
     def sent(self, kind):
@@ -331,6 +334,16 @@ def test_the_log_s_empty_measurements_tab_is_never_claimed(tmp_path, monkeypatch
         assert run.ok is False
         assert any(t['title'] == 'Measurements' for t in studio.tabs)
         assert '"Measurements"' in run.summary and 'saved in Data as d4' in run.summary and 'not shown' in run.summary
+    asyncio.run(go())
+
+
+def test_another_tab_brought_forward_before_it_showed_is_said_so(tmp_path, monkeypatch):
+    monkeypatch.setattr(table_window, 'TABLE_WAIT_S', 0.4)
+
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch, then_tab='main')
+        run = await asked(app, studio, 'show_measurements', {'of': 'd4', 'tab': 'Measurements'})
+        assert run.ok is False and 'another Tab came to the front' in run.summary and 'saved in Data as d4' in run.summary
     asyncio.run(go())
 
 
