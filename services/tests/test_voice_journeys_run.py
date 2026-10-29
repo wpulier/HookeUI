@@ -159,7 +159,7 @@ def test_compare_switches_the_default_only_when_the_one_brain_meets_every_line(t
     assert "default to the one brain with hold to talk: no**" in compare.compare([live_result, good_result])
 
 
-KNOWN = {"look_hard", "mark", "do_in_hooke", "show_measurements", "run_capability", "web_search"}
+KNOWN = {"look_hard", "mark", "do_in_hooke", "think", "show_measurements", "run_capability", "web_search"}
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in stack.PLANS.glob("*.json")))
