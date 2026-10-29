@@ -695,3 +695,35 @@ def test_a_voice_use_holds_for_the_later_steps_of_its_turn(monkeypatch):
         await t.partner.tools.run("outline_cells", {})
         assert seen and seen[0]["implementation"] == "sam-3.1", "the choice reached the turn's next step"
     asyncio.run(go())
+
+
+def test_outlining_rings_the_whole_picture_and_hookes_record_decides_when_the_report_cannot(monkeypatch):
+    """Smoke run, 29 Oct: the cue's "frame" target had no region (the studio refused it, bad-target), and Cellpose's
+    outlines were said "not sure" because the report carried no counted layer. The population the run saved, in Hooke's
+    evidence store, is its record."""
+    from types import SimpleNamespace as NS
+
+    from orchestrator import evidence
+
+    store = {"e5": NS(live=lambda: [object()] * 12)}
+    monkeypatch.setattr(evidence, "evidence_of", lambda hub: NS(get=lambda eid: store.get(eid)))
+
+    async def go():
+        screen = {"now": report()}
+        hands, studio, _ = make(screen)
+        hands.hub = NS()
+        out = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
+            0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
+        drive = next(m for m in studio.sent if m["type"] == "drive")
+        assert drive["intent"]["target"] == "frame" and drive["intent"]["region"] == list(hands_mod.WHOLE_PICTURE)
+        assert out["result"] == "verified" and out["said"] == "Done: 12 outlined."
+        # The studio names the layer by its presentation, not the population, and carries no counts: no failure.
+        screen["now"]["items"].append({"id": "layer:pr-1", "open": True, "view": {"legacy": {}}})
+        shown = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
+            0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
+        assert shown["result"] == "verified" and shown["said"] == "Done: 12 outlined."
+        store.clear()
+        none = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
+            0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
+        assert none["result"] == "uncertain", "no record and no report: never done"
+    asyncio.run(go())

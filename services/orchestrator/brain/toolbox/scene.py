@@ -4,7 +4,7 @@ dissect."""
 from __future__ import annotations
 
 from ...day.sid import session_of
-from ..registry import Registry, Tool, ToolContext, ToolFailed, current_step, record_made, schema
+from ..registry import CURRENT_RUN, Registry, Tool, ToolContext, ToolFailed, current_step, record_made, record_output, schema
 from .common import OBJECT, describe, resolve_object, visible_object
 
 
@@ -79,6 +79,8 @@ def add_scene_tools(registry: Registry, services) -> None:
         except tools.ToolError as exc:
             raise ToolFailed(str(exc), next=exc.next) from exc
         record_made(ctx, population.id)  # "@n" to the steps after this one (the step fixed when it started)
+        if CURRENT_RUN.get() is not None:  # its typed output on its run: what it made, for the receipt (voice/hands.py)
+            record_output(ctx, {"kind": "population", "id": population.id})
         from ...population import drawn_on_stage
 
         original = bool(population.view.get("sourceImage"))
