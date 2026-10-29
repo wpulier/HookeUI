@@ -262,6 +262,13 @@ frozen hash of the cases and scoring, `--report` for the table (`docs/bench/acti
 request is answered are chosen there. The maintainers' live cases are their own words and pictures from live
 sessions, kept privately: the run takes `live_cases.json` beside `run.py` (ignored by Git) or `--cases FILE`, and
 without either says so and skips.
+The voice journeys bench (`services/bench/voice_journeys/`, `docs/bench/voice-journeys.md`) measures the live
+partner against its acceptance standard for both voices (GPT-Live and the one brain, hold or open): one command
+(`bench.voice_journeys.run`) reserves the worst case in the budget, starts an isolated second stack, plays a plan's
+recorded words in a real Chromium N times and writes `result.json` and a pass/FAIL scoreboard; `compare` puts the two
+voices side by side; `acoustic` replays through the speakers into the microphone. Its scoring and runner are in the
+Python tests with synthetic event logs that pass and fail each line (`test_voice_journeys_standard.py`,
+`test_voice_journeys_run.py`); the paid runs are the coordinator's.
 
 The testing reference for the end of an effort is the maintainers' Human Interaction Testing Playbook, kept
 privately. In short: agents test as the user does, the live app by voice and typing in the user's casual wording,
