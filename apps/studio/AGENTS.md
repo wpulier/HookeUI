@@ -1937,3 +1937,8 @@ remains available separately; no Gemini dependency or subscribed-CLI launch is a
 
 Study evidence opens in a separate workspace Tab, leaving the retained Study available to return to.
 The conversation owns its unsent draft marker; a saved question no longer triggers a discard-form warning.
+
+The Study discussion uses compact attributed question bubbles, readable agent replies and
+expandable evidence and scope/limitations. Its existing composer keeps the recipient beside
+Send. A pending question exposes a copyable handoff in that question, not a permanent
+page-wide instruction; connection authorization still does not claim a running agent.

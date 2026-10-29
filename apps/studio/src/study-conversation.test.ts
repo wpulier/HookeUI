@@ -25,7 +25,7 @@ test('an attributed real response projection stays inline with exact evidence an
   const ref={id:study.id,session:study.session,revision:7,digest:study.digest};
   const state:QuestionState={basis,recipients:[recipient],questions:[{id:'q_one',question:'what does it mean?',basis:ref,recipient,byLabel:'You',answer:null}]};
   const c=fixture(vi.fn(async()=>json({ok:true,...state})) as unknown as typeof fetch);await c.refresh();
-  expect(c.root.textContent).toContain('Waiting for Connected reviewer');
+  expect(c.root.textContent).toContain('Ready for Connected reviewer');
   c.field.value='Follow-up draft';state.questions[0].answer={by:recipient.actor,byLabel:recipient.label,statement:'The generator failed its fixed criterion.',limitations:'Development evidence only.',evidence:[ref]};await c.refresh();
   expect(c.root.textContent).toContain('The generator failed');expect(c.root.textContent).toContain('Development evidence only');expect(c.field.value).toBe('Follow-up draft');
   const link=c.root.querySelectorAll('button').find(n=>n.textContent?.startsWith('Evidence 1'))!;fire(link,'click',{});
