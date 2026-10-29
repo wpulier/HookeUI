@@ -84,7 +84,7 @@ import { ResultFocus } from './result-focus';
 import { SessionsModel, sessionName } from './sessions';
 import { SessionMenu } from './session-menu';
 import { SideBar, type SideSection } from './sidebar';
-import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, StageGate, startMayLand, viewOnOpen, type Landing, type StartLook } from './session-view';
+import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, ProjectLanding, StageGate, startMayLand, viewOnOpen, voiceBlocks, type Landing, type StartLook } from './session-view';
 import { addFiles, isAssetFeed, joinedSince, liveState, plainError, SourcesModel, SourcesSection, stageOf, type SourceRow, type SourcesState } from './sources';
 import { assetFor, isOwnFootage, libraryUrl, readLibrary } from './asset-library';
 import { SessionHome } from './session-home';
@@ -107,6 +107,10 @@ const shell = new StudioShell();
 const view = new View(element<HTMLCanvasElement>('view'));
 // The stage between two sessions (session-view.ts): from a session's opening until its source lands, no frame is drawn.
 const stageGate = new StageGate();
+// The Project the server opened, while this studio lands its Tabs: Talk does not hold that back (session-view.ts).
+const projectLanding = new ProjectLanding();
+window.addEventListener('workspace-tab-context', () =>
+  projectLanding.landed(document.body.dataset.workspaceProject, document.body.dataset.workspaceOpening === 'true'));
 const stageOpening = element<HTMLElement>('stage-opening'); // what it says meanwhile ("Opening “…”…")
 let openingTimer = 0;
 let switchAsked = ''; // the session a click here asked for ('new' for a new one), while it is waited for
@@ -1181,6 +1185,7 @@ function handleMessage(message: ServerMessage): void {
       chat.apply(message); // the chat shows the active conversation
       break;
     case 'session-cleared': // the shared View dispatcher retired old overlay identities; Made in this session is another's
+      if (message.session) projectLanding.opened(message.session, message.why, performance.now());
       madeToday.sessionChanged();
       measurementsPage.sessionChanged();
       connectionStart.cleared();
@@ -3643,8 +3648,8 @@ export function workspaceStudyBridge() {
     if (!connected) return 'Reconnect before switching projects.';
     const documentBlock=studyArtifacts().blockReason(sessionsModel.current);if(documentBlock)return documentBlock;
     if (isRecording() || stopping || recorder.state !== 'idle') return 'Stop the recording before switching projects.';
-    if (voice.state !== 'off') return 'End voice before switching projects.';
-    return null;
+    // Talk holds back the user's switch or input change, never the landing of a Project the server opened.
+    return voiceBlocks(voice.state !== 'off', projectLanding, sessionsModel.current, performance.now());
   };
   const waitFor = async (check: () => boolean, message: string, timeout = 25_000) => {
     const deadline = performance.now() + timeout;

@@ -185,3 +185,37 @@ export function emptyCameraHomeWanted(facts: {
   const selectedAsset = facts.onStage !== null && facts.onStage !== 'live';
   return facts.cameraOff && !selectedAsset && !facts.asset && !facts.footage && !facts.busy && !facts.holding;
 }
+
+/** How long a Project the server opened counts as landing at most (its Tabs normally open within a second or two). */
+export const LANDING_MS = 30_000;
+
+/** The Project the server just opened (`session-cleared`: the voice's switch_session or new_project, another window's
+ * switch), until this studio has its Tabs open (workspace-views.ts `load`, seen as the body's workspaceProject with no
+ * workspaceOpening). While it lands, Talk does not hold back restoring its Tab input: the server has already switched,
+ * and a studio that refused would keep showing the Project left, so every Tab tool failed for the rest of Talk (bench
+ * think-broad-1, 2026-10-29). A connection's start is not a landing. */
+export class ProjectLanding {
+  private sid: string | null = null;
+  private until = 0;
+
+  opened(sid: string, why: OpenWhy | null | undefined, now: number): void {
+    if (why === 'start' || !sid) return;
+    this.sid = sid;
+    this.until = now + LANDING_MS;
+  }
+
+  /** What the Tabs show now (the body's workspaceProject, and whether they are still opening). */
+  landed(project: string | undefined, opening: boolean): void {
+    if (this.sid !== null && project === this.sid && !opening) this.sid = null;
+  }
+
+  landing(current: string | null | undefined, now: number): boolean {
+    return this.sid !== null && this.sid === current && now < this.until;
+  }
+}
+
+/** Whether Talk holds back a Project switch or an input change now: yes while it is on, except for the Project the
+ * server opened while that lands. */
+export function voiceBlocks(voiceOn: boolean, landing: ProjectLanding, current: string | null | undefined, now: number): string | null {
+  return voiceOn && !landing.landing(current, now) ? 'End voice before switching projects.' : null;
+}

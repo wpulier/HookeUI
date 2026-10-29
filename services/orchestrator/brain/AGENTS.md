@@ -20,7 +20,14 @@ other files.
   taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
   change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
   pause. Both write the same journal lines and conversation turns; neither replaces the other
-  (docs/architecture/seeing-and-acting.md "The one-brain loop").
+  (docs/architecture/seeing-and-acting.md "The one-brain loop"). The one brain follows the open Project.
+  - Its binding is the studio connection (`workspace-bind`), not a Project, so each tool's pin is that studio's
+    report now.
+  - On a switch it is told the new Project (`App._session_event`'s recap) and its brief is refreshed at once
+    (`Partner.project_changed`).
+  - A Tab tool (show_measurements, tabs, present) that fails while the studio has not yet shown the open Project's
+    Tabs waits for them (`LANDING_WAIT_S`, its progress line saying so) and is tried once more. If they never show,
+    that is said plainly (`partner_tools.py`; tests/test_voice_follows_project.py).
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

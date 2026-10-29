@@ -1746,6 +1746,10 @@ class App:
                 elif voice is not None and not voice.closed:
                     asyncio.ensure_future(voice.inject(self.brain.voice_recap(), respond=False, source="recap",
                                                        facts={"why": kind}))
+                    # The one-brain voice's Project brief follows at once (voice/partner.py project_changed).
+                    changed = getattr(voice, "project_changed", None)
+                    if kind == "session-opened" and asyncio.iscoroutinefunction(changed):
+                        asyncio.ensure_future(changed())
         # The sessions list (the header chip's menu and the sessions rail): at once when a session opens or is named,
         # and, when what the open session holds changes (a product, a source, a researcher, a conversation), at most
         # every 2 s.

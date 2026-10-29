@@ -2,7 +2,7 @@
 // home; a returning one lands on its last source, held (a recording where it was left, a picture as it is), or live;
 // a start keeps what plays. Nothing is read from or kept in the browser (#252's remembered map is gone).
 import { describe, expect, test } from 'vitest';
-import { LAND_GRACE_MS, LAND_WAIT_MS, StageGate, cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, lookState, onStart, startMayLand, viewOnOpen, type StageFacts } from './session-view';
+import { LAND_GRACE_MS, LAND_WAIT_MS, LANDING_MS, ProjectLanding, StageGate, cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, lookState, onStart, startMayLand, viewOnOpen, voiceBlocks, type StageFacts } from './session-view';
 
 const facts = (onStage: string | null, sources: StageFacts['sources'] = []): StageFacts => ({ onStage, sources });
 const sperm = { id: 'a7', kind: 'recording', position: 192.4 };
@@ -224,5 +224,33 @@ describe('a connection\'s start: the first session message after hello lands, on
     start.hello();
     start.cleared();
     expect(start.session()).toBe(false);
+  });
+});
+
+// Bench think-broad-1 and tune-8 (2026-10-29): with Talk on, a Project the voice opened (switch_session) never got its
+// Tabs: restoring its Tab's input asked switchBlockReason, which said "End voice before changing the input", so the
+// studio kept reporting the Project left and every Tab tool failed for the rest of Talk. The Project the server opened
+// lands whatever the voice is doing; Talk still holds back a switch or an input change the user starts.
+describe('a Project the server opened lands even while Talk is on', () => {
+  test('while it lands, the voice does not block restoring its Tab input; after, it blocks the user\'s changes as before', () => {
+    const landing = new ProjectLanding();
+    expect(voiceBlocks(true, landing, 'p2', 0)).toBe('End voice before switching projects.');
+    landing.opened('p2', 'switch', 100);
+    expect(voiceBlocks(true, landing, 'p2', 200)).toBe(null); // restoring p2's Tab input: allowed
+    expect(voiceBlocks(true, landing, 'p1', 200)).toBe('End voice before switching projects.'); // another Project: not this landing
+    landing.landed('p2', false);
+    expect(voiceBlocks(true, landing, 'p2', 300)).toBe('End voice before switching projects.');
+    expect(voiceBlocks(false, landing, 'p2', 300)).toBe(null);
+  });
+
+  test('a landing that never finishes stops exempting after LANDING_MS; a connection\'s start is not a landing', () => {
+    const landing = new ProjectLanding();
+    landing.opened('p2', 'new', 0);
+    landing.landed('p2', true); // still opening its Tabs
+    expect(voiceBlocks(true, landing, 'p2', LANDING_MS - 1)).toBe(null);
+    expect(voiceBlocks(true, landing, 'p2', LANDING_MS + 1)).toBe('End voice before switching projects.');
+    const start = new ProjectLanding();
+    start.opened('p1', 'start', 0);
+    expect(voiceBlocks(true, start, 'p1', 10)).toBe('End voice before switching projects.');
   });
 });
