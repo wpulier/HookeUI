@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectInputs, materialFacts } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry } from './project-inputs';
 import { dataRows, type DataEntry } from './data-roles';
 
 const entry = (id: string, input: boolean, extra = {}): DataEntry => ({
@@ -34,4 +34,13 @@ it('keeps a generated historical revision selected by a Study visible and pinned
   expect(input.source?.sha256).toBe('a'.repeat(64));
   expect(input.material?.origin).toBe('generated');
   expect(model.version).toBe(2);
+});
+
+it('resolves a retained Tab pin without substituting the newest model', () => {
+  const model = entry('model', false, {origin: 'generated', uses: [{study: 'study', revision: 1, digest: 'a'.repeat(64), title: 'Original model', available: true}]});
+  const pin = {id: 'model', day: '2026-10-29', version: 1};
+  expect(projectEntry([model], pin, pin.day)?.title).toBe('Original model');
+  expect(projectEntry([model], {...pin, version: 2}, pin.day)).toBe(model);
+  expect(projectEntry([model], {...pin, version: 3}, pin.day)).toBeNull();
+  expect(projectEntry([model], {...pin, day: 'foreign'}, pin.day)).toBeNull();
 });

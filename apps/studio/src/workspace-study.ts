@@ -1,4 +1,4 @@
-import { projectInputs, materialFacts } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -1827,11 +1827,9 @@ function inputEntry(asset: AssetMeta): ReaderEntry {
   return { id: asset.id, kind: 'asset', title: asset.title, summary: '', state: '', actions: [], day: snapshot.session, asset,
     ...(typeof asset.capturedAt === 'number' ? { at: asset.capturedAt } : {}) } as ReaderEntry;
 }
-/** A Data item by its identity: this Project's index entry (that revision, else its newest), or one of its inputs. */
+/** A Data item by its identity: this Project's exact index or pinned input revision, or one of its inputs. */
 function readerEntryOf(ref: { id: string; day: string; version: number | null }): ReaderEntry | null {
-  const day = (entry: StudyResource) => entry.day ?? snapshot.session;
-  const found = entries.find((entry) => entry.id === ref.id && day(entry) === ref.day && (entry.version ?? null) === ref.version)
-    ?? entries.find((entry) => entry.id === ref.id && day(entry) === ref.day);
+  const found = projectEntry(entries, ref, snapshot.session);
   if (found) return found as ReaderEntry;
   const asset = ref.day === snapshot.session ? snapshot.sources.find((item) => item.id === ref.id) : undefined;
   return asset ? inputEntry(asset) : null;

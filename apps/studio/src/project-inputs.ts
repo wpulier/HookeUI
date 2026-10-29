@@ -26,3 +26,10 @@ export function materialFacts(entry: DataEntry): string {
   return [material.kind === 'assignment' ? 'Study assignment' : material.kind === 'folder' ? 'Folder' : 'File',
     material.format, material.shape?.join(' × '), size, `Revision ${entry.version ?? 1}`].filter(Boolean).join(' · ');
 }
+
+/** Returning to a retained Tab never substitutes the head for a pinned revision. */
+export function projectEntry(entries: readonly DataEntry[], ref: {id: string; day: string; version: number | null}, session: string): DataEntry | null {
+  const inventory = [...entries, ...projectInputs(entries)];
+  return inventory.find(entry => entry.id === ref.id && (entry.day ?? session) === ref.day &&
+    (ref.version === null || (entry.version ?? null) === ref.version)) ?? null;
+}
