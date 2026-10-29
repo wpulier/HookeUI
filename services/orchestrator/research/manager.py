@@ -43,6 +43,7 @@ from ..learner import of as learner_of
 from ..magnifier import crop_jpeg, object_box_in
 from ..marks import encode_crop, fov_crop
 from ..paths import Paths
+from ..project_locations import ProjectLocationError
 from ..presenter import items as presenter_items
 from .content import lesson_from_html, render
 from . import findings as scientific_findings
@@ -862,6 +863,7 @@ class ResearchManager:
             working = [s for s in self._read_folder(self.today(), kept_only=False, working=True)
                        if s.sitting != sid and s.rid not in self.sessions]
             loaded += self._renumber(working)
+        self.storage.check_identities(loaded, self.sessions.values())
         for session in sorted(loaded, key=lambda x: x.created):
             interrupted_jobs = False
             for usage in session.usage_runs.values():
@@ -1118,7 +1120,8 @@ class ResearchManager:
         now = self.session()
         return {"sessions": [s.wire() for s in self.sessions.values()
                              if s.purpose != "research" or s.sitting == now or self.working(s)],
-                "spentToday": round(self.spent_today(), 4), "estimatedToday": round(self.estimated_today(), 4)}
+                "spentToday": round(self.spent_today(), 4), "estimatedToday": round(self.estimated_today(), 4),
+                **({"unavailable": self.storage.diagnostics()} if self.storage.unavailable else {})}
 
     def working_by_session(self) -> dict[str, int]:
         """How many researchers are working in each session ({sid: n}; the session list's "working")."""
@@ -1173,6 +1176,8 @@ class ResearchManager:
             candidates.append(current)
         self.storage.check_identities(candidates)
         if not candidates:
+            if any(key[1:] == (date, rid) for key in self.storage.unavailable):
+                raise ProjectLocationError("This retained researcher is unavailable; inspect its Project diagnostics")
             return self.root  # compatible historical files without a session record
         return self.directory(candidates[0]).parent.parent
 

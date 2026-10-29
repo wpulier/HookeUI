@@ -4,6 +4,8 @@ This staged adapter preserves previous session records and exact file locations.
 It does not collect shared acquisitions or authorize provider execution in portable
 Projects: that requires host-local spending and worker-lifetime qualification.
 """
+from collections import deque
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -11,6 +13,7 @@ from pathlib import Path
 import re
 import stat
 
+from ..file_locks import fcntl
 from ..project_artifact_folder import ArtifactFolder
 from ..project_roots import ProjectLocationError
 from ..scientific_projects import ProjectStore
@@ -23,6 +26,7 @@ class ResearchStorage:
         self.day = day
         self.storage = ArtifactFolder(legacy, 'research')
         self._folders = {}
+        self.unavailable = {}
 
     def portable(self, session):
         locations = getattr(self.day, 'locations', None)
@@ -60,19 +64,50 @@ class ResearchStorage:
         roots = [(None, self.storage.legacy)]
         locations = getattr(self.day, 'locations', None)
         if locations is not None:
-            roots.extend((sid, self.root_for(sid)) for sid in locations.handles())
+            for sid in locations.handles():
+                key = (sid, '', '')
+                try:
+                    roots.append((sid, self.root_for(sid)))
+                    self.unavailable.pop(key, None)
+                except (OSError, ProjectLocationError) as error:
+                    self.unavailable[key] = str(error)
         return roots
 
     def records(self, date, session=None):
         for owner, root in self.roots(session):
             parent = self._directory(root / date) if owner else root / date
             for path in sorted(parent.glob('*/session.json')):
+                key = (owner or session or '', date, path.parent.name)
                 if owner:
-                    self._directory(path.parent)
-                    record = self.read(path)
-                    if record.get('session') != owner or record.get('rid') != path.parent.name:
-                        raise ProjectLocationError('Retained research identity does not match its Project')
+                    try:
+                        self._directory(path.parent)
+                        record = self.read(path)
+                        if record.get('session') != owner or record.get('rid') != path.parent.name:
+                            raise ProjectLocationError('Retained research identity does not match its Project')
+                        self.unavailable.pop(key, None)
+                    except (OSError, ValueError) as error:
+                        self.unavailable[key] = str(error)
+                        continue
                 yield path
+
+    def diagnostics(self):
+        return [{'session': sid, 'day': date, 'rid': rid, 'reason': reason}
+                for (sid, date, rid), reason in sorted(self.unavailable.items())]
+
+    @contextmanager
+    def publication(self, session, folder):
+        fd = os.open(folder / '.publication.lock', os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ProjectLocationError('Research publication lock was replaced')
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise ProjectLocationError('This researcher is being saved; retry after publication') from None
+            self.directory(session, write=True)
+            yield
+        finally:
+            os.close(fd)
 
     @staticmethod
     def check_identities(found, existing=()):
@@ -109,6 +144,10 @@ class ResearchStorage:
             return
         if len(body) > MAX_RECORD:
             raise ProjectLocationError('Research metadata exceeds its retained record limit')
+        with self.publication(session, folder):
+            self._publish(session, folder, path, body)
+
+    def _publish(self, session, folder, path, body):
         pending = folder / '.publication-pending'
         if pending.exists() or pending.is_symlink():
             raise ProjectLocationError('Research publication needs recovery before another save')
@@ -135,3 +174,33 @@ class ResearchStorage:
         if self.portable(session.sitting):
             return str(self.directory(session, write=True) / 'transcript.jsonl')
         return str(legacy / session.day / f'{session.rid}.jsonl') if legacy is not None else None
+
+    def steps(self, session, limit=200):
+        """Bounded background read; traces are retained whole, never pruned here."""
+        folder = self.directory(session)
+        path = folder / 'steps.jsonl'
+        if not path.exists() and not path.is_symlink():
+            return {'steps': [], 'stepsTotal': 0}
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, 'rb') as source:
+            before = os.fstat(source.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > 32 << 20:
+                raise ProjectLocationError('Research steps exceed the bounded preview; retain the original trace')
+            recent, count, size = deque(maxlen=limit), 0, 0
+            while True:
+                line = source.readline((64 << 10) + 1)
+                if not line:
+                    break
+                size += len(line)
+                if len(line) > 64 << 10 or size > 32 << 20:
+                    raise ProjectLocationError('Research steps exceed the bounded preview')
+                if line.strip():
+                    row = json.loads(line)
+                    if not isinstance(row, dict):
+                        raise ProjectLocationError('Research steps contain an invalid record')
+                    recent.append(row); count += 1
+            from ..project_folder_copy import _stamp
+            if _stamp(before) != _stamp(os.fstat(source.fileno())) or _stamp(before) != _stamp(path.lstat()):
+                raise ProjectLocationError('Research steps changed while reading; retry the preview')
+        self.directory(session)
+        return {'steps': list(recent), 'stepsTotal': count}

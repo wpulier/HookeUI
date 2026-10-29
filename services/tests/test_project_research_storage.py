@@ -157,3 +157,75 @@ def test_restoring_interrupted_work_never_replays_or_writes_from_readonly_host(t
             assert path.read_bytes()==before and reader._worker is None
         finally: reader_locations.close()
     finally: locations.close()
+
+
+def test_concurrent_publishers_cannot_share_the_pending_marker(tmp_path, monkeypatch):
+    locations, day, sid, manager = setup(tmp_path)
+    try:
+        item=session(sid); manager._save(item)
+        folder=manager.directory(item); before=(folder/'session.json').read_bytes()
+        other=ResearchStorage(manager.root,day)
+        write=ProjectStore._write
+        attempted=[]
+        def interleave(path, body, **options):
+            if path.name == '.publication-pending':
+                with pytest.raises(ProjectLocationError,match='being saved'):
+                    other.save(item, {'session':sid,'rid':item.rid,'other':'must not publish'})
+                attempted.append(True)
+            return write(path,body,**options)
+        monkeypatch.setattr(ProjectStore,'_write',staticmethod(interleave))
+        item.result={'summary':'first accepted update'}; manager._save(item)
+        assert attempted == [True]
+        assert manager.storage.read(folder/'session.json')['result']['summary']=='first accepted update'
+        assert (folder/'history'/(hashlib.sha256(before).hexdigest()+'.json')).read_bytes()==before
+        assert not (folder/'.publication-pending').exists()
+    finally: locations.close()
+
+
+def test_cross_date_startup_collision_refuses_before_inserting(tmp_path):
+    locations, day, sid, manager = setup(tmp_path)
+    try:
+        first=session(sid); first.day='2026-10-28'; manager._save(first)
+        # Explicitly include the earlier day in the scoped restoration.
+        other_sid=day.new('Other Project'); second=session(other_sid); second.status='running'; manager._save(second)
+        original=manager._dates_of
+        manager._dates_of=lambda selected: ['2026-10-28'] if selected==sid else original(selected)
+        manager._loaded.discard(sid)
+        with pytest.raises(ProjectLocationError,match='ambiguous'): manager._load_session(sid,start=True)
+        assert not manager.sessions
+    finally: locations.close()
+
+
+def test_offline_project_and_pending_peer_do_not_hide_healthy_research(tmp_path):
+    locations, day, sid, manager = setup(tmp_path)
+    try:
+        good=session(sid); manager._save(good)
+        bad=session(sid,'r999'); manager._save(bad)
+        (manager.directory(bad)/'.publication-pending').write_text('interrupted')
+        offline_sid=day.new('Offline Project'); offline=locations.project(offline_sid)
+        offline.path.rename(tmp_path/'Temporarily offline')
+        reader=ResearchManager(FakeHub(),root=manager.root,today=lambda:DATE,session=lambda:DATE,store=day)
+        reader._load_session(sid)
+        assert reader.get(good.rid).result==good.result
+        assert reader.file_root(DATE,good.rid)==manager.directory(good).parent.parent
+        unavailable=reader.list_wire()['unavailable']
+        assert any(row['session']==offline_sid for row in unavailable)
+        assert any(row['rid']==bad.rid for row in unavailable)
+        with pytest.raises(ProjectLocationError,match='unavailable'): reader.file_root(DATE,bad.rid)
+    finally: locations.close()
+
+
+def test_step_read_is_bounded_nofollow_and_preserves_trace(tmp_path):
+    locations, day, sid, manager=setup(tmp_path)
+    try:
+        item=session(sid); manager._save(item)
+        path=manager.directory(item)/'steps.jsonl'
+        path.write_text(''.join(json.dumps({'text':str(n)})+'\n' for n in range(225)))
+        before=path.read_bytes(); result=manager.storage.steps(item)
+        assert result['stepsTotal']==225 and len(result['steps'])==200
+        assert result['steps'][0]['text']=='25' and path.read_bytes()==before
+        target=path.with_name('original-steps.jsonl'); path.rename(target); path.symlink_to(target)
+        with pytest.raises(OSError): manager.storage.steps(item)
+        path.unlink(); path.write_text('x'*65537)
+        with pytest.raises(ProjectLocationError,match='bounded'): manager.storage.steps(item)
+    finally: locations.close()
