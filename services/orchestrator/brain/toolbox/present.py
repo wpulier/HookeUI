@@ -23,6 +23,9 @@ MAGNIFIER_MIN_W = 160  # the studio's narrowest magnifier (magnifier.ts resizeTo
 BACKGROUND_WAIT_S = 300.0
 # A window change with no report since it was sent asks the studio for one this often while it waits (`screen-ask`).
 ASK_REPORT_S = 0.5
+# A report that disagrees with the app about a window an action touches is asked for again once, waiting at most this
+# for the studio's next report, before the action's checks run on it (`_native_present`).
+CAUGHT_UP_S = 1.0
 
 
 def _no_report_since(result, actual, fence) -> bool:
@@ -1311,33 +1314,90 @@ def _window_expectations(message, presentation_area=None, before_report=None, ar
     return expected
 
 
-def _placement_observation(states, report, ids):
-    """Exact original CSS geometry, shared by initial and later placement."""
-    import copy
+def _rectangle(value) -> bool:
     import math
+    return (isinstance(value, (list, tuple)) and len(value) == 4
+            and all(type(v) in (int, float) and math.isfinite(v) for v in value)
+            and value[2] > 0 and value[3] > 0)
+
+
+def _not_shown_where(row, report) -> str:
+    """Where a window open but laid out nowhere is, from the report: on another Tab than the one in front (its
+    arrangement's Tab and the Tab strip's titles), or plainly not shown there."""
+    from ...untrusted import inline
+    from ...workspace_observation import front
+
+    tab = (((row or {}).get("view") or {}).get("arrangement") or {}).get("tab")
+    now = front(report)
+    strip = next((i for i in report.get("items") or () if i.get("id") == "workspace-tabs"), None)
+    tabs = ((((strip or {}).get("view") or {}).get("legacy") or {}).get("workspace") or {}).get("tabs") or ()
+    titles = {t.get("id"): t.get("title") for t in tabs if isinstance(t, dict)}
+    if tab and now.get("tab") and tab != now["tab"]:
+        there = f'the "{inline(titles[tab], 80)}" Tab' if titles.get(tab) else "another Tab"
+        here = f'the "{inline(now["tabTitle"], 80)}" Tab' if now.get("tabTitle") else "another Tab"
+        return f"it is on {there}, and {here} is in front"
+    return "it is not shown on the Tab in front"
+
+
+def _placement_issue(state, row, report):
+    """Why the report's `row` cannot place anything against the Core's window `state` now, or None when it can.
+    One truth for what is on screen: the Core says what the window is, the report where it is.
+
+    - "disagrees": the report and the Core differ about the window (no row, another lifetime or source, an older
+      version or another owner of one of its properties): the report may simply be behind, so Hooke asks the studio
+      for a fresh one and looks again before it says so (`_native_present`).
+    - "gone": the Core has it closed.
+    - "hidden": the same window, open in both, laid out nowhere the person sees (on a Tab not in front, hidden):
+      nothing can be placed against it, and nobody changed it.
+
+    Each comes with the check that failed, in words. A studio in the background paints nothing, so no window in it
+    reports visible: one laid out shown there (`screen.laid_out`) still anchors, as `completion` counts it shown."""
+    from ...screen import laid_out
+
+    if not state.open:
+        return "gone", "it was closed"
+    if row is None:
+        return "disagrees", "the studio's report does not show it"
+    if (row.get("lifetimeGeneration") != state.lifetime_generation
+            or row.get("sourceGeneration") != state.source_generation):
+        return "disagrees", "the studio's report shows another opening of it"
+    if row.get("sourceRef") != state.source.to_wire():
+        return "disagrees", "the studio's report shows another source in it"
+    for k, v in state.property_versions.items():
+        name = "rect" if k == "geometry" else k
+        if row.get("propertyVersions", {}).get(name) != v:
+            return "disagrees", f"the studio's report has another version of its {name} than the app"
+        if row.get("propertyOwners", {}).get(name) != state.owners.get(k):
+            return "disagrees", f"the studio's report has another owner of its {name} than the app"
+    if row.get("open") is not True:
+        return "disagrees", "the studio's report shows it closed"
+    shown = row.get("visible") is True or (report.get("visible") is False and laid_out(row))
+    if row.get("connected") is not True or not shown or not _rectangle(row.get("rect")):
+        return "hidden", _not_shown_where(row, report)
+    return None
+
+
+def _placement_observation(states, report, ids):
+    """Exact original CSS geometry, shared by initial and later placement. A window that cannot anchor raises with
+    `placement` set to why (`_placement_issue`) and its reason in words."""
+    import copy
     from ...presentations import PresentationError
     area = report["viewport"].get("presentationArea")
-    def rectangle(value):
-        return (isinstance(value, (list, tuple)) and len(value) == 4
-                and all(type(v) in (int, float) and math.isfinite(v) for v in value)
-                and value[2] > 0 and value[3] > 0)
-    if not rectangle(area):
+    if not _rectangle(area):
         raise PresentationError("layout_unavailable", "beside needs the original measured visible presentation area",
                                 next="show the workspace and ask again")
     rows = {row["id"]: row for row in report["items"]}
     observed = {}
     for iid in ids:
         state, row = states[iid], rows.get(iid)
-        if (row is None or not rectangle(row.get("rect"))
-                or not all(row.get(k) is True for k in ("open", "visible", "connected"))
-                or row.get("lifetimeGeneration") != state.lifetime_generation
-                or row.get("sourceGeneration") != state.source_generation
-                or row.get("sourceRef") != state.source.to_wire()
-                or any(row.get("propertyVersions", {}).get("rect" if k == "geometry" else k) != v
-                       or row.get("propertyOwners", {}).get("rect" if k == "geometry" else k) != state.owners.get(k)
-                       for k, v in state.property_versions.items())):
-            raise PresentationError("target_revised", "beside needs both exact current window rectangles and owners",
-                                    next="check the two windows and ask again")
+        issue = _placement_issue(state, row, report)
+        if issue is not None:
+            kind, why = issue
+            error = PresentationError("target_hidden" if kind == "hidden" else "target_revised",
+                                      f"window {iid} cannot be placed against: {why}",
+                                      next="show that window, then arrange again" if kind == "hidden" else None)
+            error.placement, error.why = kind, why
+            raise error
         # Placement depends on the original window, source and owned geometry,
         # not the next camera sample or paint receipt. A live anchor redraws while
         # the new source is being prepared without moving or changing owners.
@@ -1528,6 +1588,18 @@ async def _native_present(services, ctx, args):
             "commandId": effect.command_id if effect else None, "status": "failed",
             "failure": {"code": code.upper(), "reason": reason}, "receipts": list(receipts)}
         raise ToolFailed(reason, next=next_step or "check the original window or source, then ask again")
+
+    beside_note = []  # why an open asked for beside its anchor was opened where the person is instead
+
+    def unplaced(opening, why):
+        """An open asked for beside a window laid out nowhere the person sees (on a Tab not in front, hidden): nobody
+        changed that window, it is just not there to be beside. One part that cannot be done never takes the whole
+        action down (live 2026-10-29 18:54: the photo was kept and never shown), so the new window opens where the
+        studio opens any (on the Tab in front), its anchor left out of the action, and the receipt says why."""
+        reference = (opening.values.get('relation') or opening.values.get('placement', {}).get('relation') or {}).get('reference')
+        before.pop(reference, None)
+        beside_note.append(f"not beside window {reference}: {why}")
+        return replace(opening, values={k: v for k, v in opening.values.items() if k not in ('relation', 'placement')})
     try:
         pctx = services.workspace_context(ctx.client, request_id=occurrence.request_id, owner=occurrence.action_id)
         pin = ctx.request_snapshot
@@ -1557,6 +1629,20 @@ async def _native_present(services, ctx, args):
         if action.op in ("arrange", "open") and action.values.get("relation", {}).get("reference"):
             anchor = action.values["relation"]["reference"]
             before.setdefault(anchor, core.get(pctx.workspace_id, anchor))
+        # One truth for what is on screen: when the studio's last report is not current, or disagrees with the app
+        # about a window this action touches, the report may only be behind. Hooke asks the studio for one now and
+        # looks again, once, before any check below says the window changed (an internal conflict is Hooke's to
+        # resolve, never the user's to ask again).
+        try:
+            observed = screen.observation(ctx.client)
+            latest = screen.completion_report(ctx.client)
+        except ObservationError:
+            observed = latest = None
+        if latest is not None and (not screen._current_observation(observed) or any(
+                (_placement_issue(state, next((r for r in latest["items"] if r["id"] == iid), None), latest)
+                 or ("",))[0] == "disagrees" for iid, state in before.items())):
+            if callable(getattr(screen, "refresh", None)):
+                await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
         baseline = screen.completion_report(ctx.client)
         if baseline is None:
             failure("observation_incomplete", "the accepted workspace has no current observation")
@@ -1624,10 +1710,16 @@ async def _native_present(services, ctx, args):
             child_deliveries.append(lease)
             action = replace(action, source=lease.source)
             if 'relation' in action.values:
-                arrangement = _opening_basis(action.values['relation'], before, baseline, lease.to_wire().get('originalSize'))
-                values = {k:v for k,v in action.values.items() if k != 'relation'}
-                values['placement'] = {'position':arrangement[0][:2], 'size':arrangement[0][2:], 'relation':arrangement[3]}
-                action = replace(action, values=values)
+                try:
+                    arrangement = _opening_basis(action.values['relation'], before, baseline, lease.to_wire().get('originalSize'))
+                except PresentationError as exc:
+                    if getattr(exc, "placement", None) != "hidden":
+                        raise
+                    action = unplaced(action, getattr(exc, "why", exc.reason))
+                else:
+                    values = {k:v for k,v in action.values.items() if k != 'relation'}
+                    values['placement'] = {'position':arrangement[0][:2], 'size':arrangement[0][2:], 'relation':arrangement[3]}
+                    action = replace(action, values=values)
         elif action.op in ("duplicate", "split"):
             parent = before[action.instance]
             refs = parent.source.components if action.op == "split" else (parent.source,)
@@ -1643,8 +1735,15 @@ async def _native_present(services, ctx, args):
             await ctx.prepared_source_check()
         if action.op == 'open' and arrangement is not None:
             current_report = screen.completion_report(ctx.client)
-            current = _placement_observation(before,current_report,(arrangement[2]['id'],)) if current_report else None
-            if current is None or current[0] != arrangement[1] or current[1][arrangement[2]['id']] != arrangement[2]:
+            try:
+                current = _placement_observation(before,current_report,(arrangement[2]['id'],)) if current_report else None
+            except PresentationError as exc:
+                if getattr(exc, "placement", None) != "hidden":
+                    raise
+                current, arrangement = "unplaced", None
+                action = unplaced(action, getattr(exc, "why", exc.reason))
+            if current != "unplaced" and (current is None or current[0] != arrangement[1]
+                                          or current[1][arrangement[2]['id']] != arrangement[2]):
                 failure('target_revised','the original report or visible area changed while preparing its captured view')
         for iid, original in before.items():
             now = core.get(pctx.workspace_id, iid)
@@ -1911,14 +2010,15 @@ async def _native_present(services, ctx, args):
                 failure("request_canceled", retired.reason)
             await deliver(retired.value.retirement, "close", parent_before, required=True)
             run.outcome = {**children_receipt, "retirement": receipts[-1], "receipts": list(receipts)}
+        note = "".join(f"; {line}" for line in beside_note)
         if not confirmed and unseen["background"]:
             return ("the window change was sent to the studio, which stayed in the background: it shows once the "
-                    "studio is in view again, not confirmed on screen yet")
+                    "studio is in view again, not confirmed on screen yet" + note)
         if not confirmed and unseen["unreported"]:
             return ("sent, but not confirmed on screen: the studio has not reported what it shows since it was sent "
-                    "(not known whether it happened; not done and not failed)")
+                    "(not known whether it happened; not done and not failed)" + note)
         if not confirmed:
-            return "the window change was sent; its display is unverified"
+            return "the window change was sent; its display is unverified" + note
         # This is also the receipt carried into conversation/voice reconciliation.
         # A generic success loses which retained source actually changed, letting
         # an older assistant claim rename an unrelated image as the original: each
@@ -1939,7 +2039,7 @@ async def _native_present(services, ctx, args):
             if web.get('page'):
                 line += f" ({inline(web['page'], 1000)})"
             changed.append(f"{line} in window {iid}")
-        return f"shown on screen ({action.op}, confirmed by the studio): " + "; ".join(changed)
+        return f"shown on screen ({action.op}, confirmed by the studio): " + "; ".join(changed) + note
     except PresentationError as exc:
         failure({"components_unavailable": "component_unavailable"}.get(exc.code, exc.code), exc.reason,
                 next_step=exc.next)

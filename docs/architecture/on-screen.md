@@ -104,8 +104,30 @@ other files.
     the screen. The reply says what was left out (`partial`) and the log has a `screen-partial` line; the studio shows
     no notice. Facts that differ from a source still prepared here, and a live window still claiming to draw from a
     producer that stopped, are still refused whole (`screen-refused`).
+    A live window's grant ends at its close too, though the close's own read-only borrow keeps its source pinned until
+    the close is confirmed (live 2026-10-29 18:57: "close everything on this tab" left the magnifier's close "sent, but
+    not confirmed on screen", every report in its wait refused whole): a live source with no visibility owner left
+    (`PreparedSources.prepared_key`) counts as ended, so a report racing the close is taken without that window.
+  - **A window the studio closed is reported closed** (`WorkspaceWindows.apply`): it is never presented again, so its
+    owner does not mount it back in the Project's artifacts container. It is reported open false, not connected, with
+    no controls and its close result absent, which is the inactive closed window the server takes
+    (`Screen._closed_source_rows`) and its close is confirmed from (`workspace-runtime.test.ts`, with the server's own
+    intake in `native_workspace_contract_consumer.py`).
   - **A user change with no original in the last report taken**, or one that changed nothing, is left unowned, never
     a refused report (a property no window has is still refused).
+  - **A report that disagrees with the app about a window an action touches** (no row for it, another lifetime or
+    source, another version or owner of a property: `present._placement_issue`), or is not current, is asked for again
+    once (`Screen.refresh(..., newer=True)`, at most `CAUGHT_UP_S`) before the action's checks run on it, so a report
+    that is only behind is never said as "that window changed".
+  - **A placement beside a window** (`present` open or arrange with a `beside` relation, `reference_photo`
+    beside=true) says the check that failed: the anchor "disagrees" (after that one fresh report), is "gone" (closed in
+    the app), or is "hidden": open and unchanged, but laid out nowhere the person sees, with where it is ("it is on
+    the "Main" Tab, and the "Reference" Tab is in front"). A window laid out in a studio in the background still
+    anchors (`screen.laid_out`, as `completion` counts it shown). An open beside a hidden anchor opens where the studio
+    opens any window, on the Tab in front, and its receipt says it is not beside it and why (live 2026-10-29 18:54: the
+    magnifier was on Main when the web photo came, after "open a new tab called Reference"; the photo was kept and
+    never shown). An anchor gone, or changed by someone else since the request, still refuses the placement (the photo
+    is kept, as before).
   - **A change with no report since it was sent** asks the studio for one (`screen-ask`, every `ASK_REPORT_S`) while it
     waits. If none comes it is **uncertain**: "sent, but not confirmed on screen" (STUDIO_UNREPORTED; Hands'
     receipt `uncertain`, "I sent it but couldn't confirm it on screen"), never done, never "ask again". A step the

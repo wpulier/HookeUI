@@ -1023,11 +1023,14 @@ class App:
             return lease.source
         except PresentationError as error:
             refused = ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection")
-            # Ended, not wrong: nothing is prepared under this key for this connection any more (its window was
-            # closed and its pin released, or it was never granted here). Screen leaves that window out of the
-            # report. Facts differing from a source still prepared, and a live window still claiming to draw from a
-            # producer that stopped (the studio says it failed, then `_workspace_failed_source` takes it), stay refused.
-            refused.ended = error.code == "source_not_prepared" and not store.prepared_key(supplied.get("key"), ctx)
+            # Ended, not wrong: nothing is granted under this key for this connection any more (its window was
+            # closed and its pin released, or it was never granted here; or a live source whose close took its
+            # visibility, pinned only by that close's read-only borrow, so its live check fails `delivery_revoked`).
+            # Screen leaves that window out of the report. Facts differing from a source still prepared, and a live
+            # window still claiming to draw from a producer that stopped (its visibility owner is still there; the
+            # studio says it failed, then `_workspace_failed_source` takes it), stay refused.
+            refused.ended = (error.code in ("source_not_prepared", "delivery_revoked")
+                             and not store.prepared_key(supplied.get("key"), ctx))
             raise refused from None
         finally:
             if lease is not None and lease.release is not None:
