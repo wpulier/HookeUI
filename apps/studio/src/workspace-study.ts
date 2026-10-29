@@ -2307,7 +2307,12 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
-  if (next.session !== previous.session) { studyReadGeneration++; studiesLoadedSession = ''; knownStudies = []; studiesNote = ''; studiesAvailable = false; }
+  if (next.session !== previous.session) {
+    // Retire the inventory owner with its contents before any view renders. An A→B→A switch
+    // can otherwise mistake A's emptied cache for a completed read while B is still pending.
+    entries = []; resourceSession = ''; resourceRevision = ''; resultsFailedSession = '';
+    studyReadGeneration++; studiesLoadedSession = ''; knownStudies = []; studiesNote = ''; studiesAvailable = false;
+  }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();
@@ -2331,7 +2336,7 @@ bridge.subscribe(next => {
     }
   }
   const key = JSON.stringify([next.session, next.title, next.sources, next.projects, next.projectsRoot]);
-  if (next.session !== previous.session) { entries = []; resourceRevision = ''; madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
+  if (next.session !== previous.session) { madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
   // Data's Pictures and recordings are the Project's inputs, and "On this Tab" marks the one on the Stage: drawn again
   // when either changes.
   const dataKey = JSON.stringify([next.sources.map(asset => [asset.id, asset.title, asset.thumb ?? '', asset.seconds]), next.onStage]);

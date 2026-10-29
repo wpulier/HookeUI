@@ -149,3 +149,15 @@ test('material arriving before Studies keeps the populated overview through refr
  home.update('p1',[study()],'',{},[],{count:2,groups:[],loading:false});
  expect(root.textContent).toContain('Response transfer');
 });
+
+
+test('a return to the same Project waits for new reads and rejects its previous buttons',()=>{
+ const {home,root,button,actions,setCurrent}=setup();
+ home.update('p1',[study()]);const original=button('Open Study');
+ setCurrent('p2');home.update('p2',[],'',{},[],{count:0,groups:[],loading:true});
+ setCurrent('p1');home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
+ fire(original as unknown as TestElement,'click');expect(actions.openStudy).not.toHaveBeenCalled();
+ expect(root.textContent).toContain('Opening your Project');
+ home.update('p1',[],'',{},[],{count:2,groups:[],loading:false});
+ expect(root.textContent).toContain('2 Project inputs');
+});
