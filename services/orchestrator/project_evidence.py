@@ -14,8 +14,8 @@ from .project_roots import ProjectLocationError
 from .scientific_projects import ProjectStore
 
 
-def _project(store, session):
-    locations = getattr(store.day, 'locations', None)
+def _project(artifacts, session):
+    locations = getattr(artifacts.day, 'locations', None)
     return locations.project(session) if locations is not None else None
 
 
@@ -34,11 +34,11 @@ def _directories(root, path, *, create=False):
     return path
 
 
-def destination(store, population):
-    session = population.session or store._session()
-    root = store.root_for(session, write=True)
-    project = _project(store, session)
-    date = population.day or store._date()
+def destination(artifacts, population):
+    session = population.session or artifacts._session()
+    root = artifacts.root_for(session, write=True)
+    project = _project(artifacts, session)
+    date = population.day or artifacts._date()
     if not sids.is_sid(date) or sids.parse(date)[1] != 1 or not re.fullmatch(r'[em]\d+', population.id):
         raise ProjectLocationError('Evidence needs its original date and identity')
     folder = root / date / population.id
@@ -55,8 +55,8 @@ def destination(store, population):
     return folder, True
 
 
-def sync_publication(store, population, folder):
-    root = store.root_for(population.session, write=True)
+def sync_publication(artifacts, population, folder):
+    root = artifacts.root_for(population.session, write=True)
     _directories(root, folder)
     current = folder
     while current != root:
@@ -65,14 +65,14 @@ def sync_publication(store, population, folder):
     ProjectStore._sync_directory(root)
 
 
-def reference(store, population, folder):
-    session = population.session or store._session()
-    project = _project(store, session)
+def reference(artifacts, population, folder):
+    session = population.session or artifacts._session()
+    project = _project(artifacts, session)
     if project is None:
         return str(folder), {}
-    store.root_for(session, write=True)  # refuse a closed/replaced host before journal acceptance
+    artifacts.root_for(session, write=True)  # refuse a closed/replaced host before journal acceptance
     _directories(project.path, folder)
-    pin = store._retained_manifests.get(folder)
+    pin = artifacts._retained_manifests.get(folder)
     from .project_folder_copy import _stamp
     if pin is None or _stamp((folder / 'manifest.json').lstat()) != pin[1]:
         raise ProjectLocationError('Evidence publication has no unchanged retained manifest identity')
@@ -80,13 +80,13 @@ def reference(store, population, folder):
     return f'project:{project.origin}/{folder.relative_to(project.path).as_posix()}', {'manifestSha256': digest}
 
 
-def resolve(store, session, entry):
-    store.root_for(session)  # also enforce this service's captured folder identity
-    return resolve_entry(store.day, session, entry)
+def resolve(artifacts, session, entry):
+    artifacts.root_for(session)  # also enforce this service's captured folder identity
+    return resolve_entry(artifacts.day, session, entry)
 
 
 def resolve_entry(day, session, entry):
-    """Shared journal reader, including workspace recovery without a live Evidence store."""
+    """Shared journal reader, including workspace recovery without a live Evidence artifacts."""
     path = entry['path']
     locations = getattr(day, 'locations', None)
     project = locations.project(session) if locations is not None else None
@@ -121,17 +121,17 @@ def _digest(path):
     return _stream(path)[1]
 
 
-def remember(store, folder):
+def remember(artifacts, folder):
     from .project_folder_copy import _stamp
     path = folder / 'manifest.json'
     before = _stamp(path.lstat())
     digest = _digest(path)
     if _stamp(path.lstat()) != before:
         raise ProjectLocationError('Evidence manifest changed during publication')
-    store._retained_manifests[folder] = (digest, before)
+    artifacts._retained_manifests[folder] = (digest, before)
 
 
-def verify_previous(store, population):
+def verify_previous(artifacts, population):
     """Do not bless externally changed prior evidence by emitting fresh checksums."""
     import json
     folder = population.path
@@ -139,7 +139,7 @@ def verify_previous(store, population):
         return
     from .project_folder_copy import _stream
     import io
-    pin = store._retained_manifests.get(folder)
+    pin = artifacts._retained_manifests.get(folder)
     if pin is None:
         raise ProjectLocationError('Previous evidence has no retained manifest identity')
     with io.BytesIO() as output:
@@ -150,7 +150,7 @@ def verify_previous(store, population):
     if record.get('id') != population.id or record.get('session') != population.session:
         raise ProjectLocationError('Previous evidence has a different owner')
     for name, digest in record.get('files', {}).items():
-        if name == 'vectors.npz' and name in store._recovered_optional.get(folder, set()):
+        if name == 'vectors.npz' and name in artifacts._recovered_optional.get(folder, set()):
             continue  # explicitly dropped at reopen, never read or copied into the next save
         if name not in {'capture.jpg', 'source.image', 'masks.npz', 'vectors.npz', 'tracks.jpg', 'tracks.npz'} or _digest(folder / name) != digest:
             raise ProjectLocationError('Previous evidence bytes changed; restore the accepted save before continuing')
