@@ -633,3 +633,13 @@ def test_a_restart_keeps_the_project_the_journal_was_in():
             c["day"] = "2026-10-29.4"  # reopened somewhere else
     run, _, _ = board(bench, conv, inter, verdicts, plan)
     assert {r["id"]: r for r in run["steps"]}["reopen"]["checks"]["project:Nuclei"] is False
+
+
+def test_an_idle_wait_or_a_restart_is_nobody_talking():
+    from bench.voice_journeys.standard import holds
+    steps = [{"id": "status", "say": "What's our researcher doing?", "start": 10.0, "end": 12.0},
+             {"id": "idle", "say": "", "idle": True, "start": 14.0, "end": 35.0},
+             {"id": "reopen", "say": "", "restart": True, "start": 36.0, "end": 50.0},
+             {"id": "held", "say": "Outline them.", "down": 60.0, "up": 61.5, "start": 60.2, "end": 61.3}]
+    spans = holds(steps)
+    assert [round(a, 1) for a, _ in spans] == [10.0, 60.0]  # the idle wait and the restart are not the user talking

@@ -665,8 +665,10 @@ def overlap(a, b) -> float:
 
 
 def holds(steps: list[dict]) -> list[tuple[float, float]]:
-    """When the user was talking: each key hold, else each step's words, plus the quiet after (USER_BUSY_S)."""
-    return [(opened(s), released(s) + USER_BUSY_S) for s in steps]
+    """When the user was talking: each key hold, else each step's words, plus the quiet after (USER_BUSY_S). A step
+    with no words and no key (an idle wait, a restart) is nobody talking: an event told during it is not over the user."""
+    return [(opened(s), released(s) + USER_BUSY_S) for s in steps
+            if s.get("say") or isinstance(s.get("down"), (int, float))]
 
 
 def proactive(inter: list[dict], segments, busy, researchers: dict | None = None) -> list[dict]:
