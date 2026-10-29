@@ -647,6 +647,9 @@ settles. Restoration never reopens a locally dismissed window. Explicit accepted
 native restore raises its shell; stale callbacks cannot move a newer Project.
 The specimen shell has its own stack group because it is a sibling of the fixed
 artifacts stacking context; its order must never be reindexed with child windows.
+The details card (`#description`) goes with the specimen it describes: while the specimen was pressed last, which is
+how the card opens, it is in front of the artifacts' windows and a floated specimen; after a press on another window,
+level with the specimen and later in the stage, so never behind it (`workspace-views.css`).
 
 Unrun Python drafts use browser-local recovery, scoped to the Project, exact
 scientific resource revision and placement, with separate writer identities.
