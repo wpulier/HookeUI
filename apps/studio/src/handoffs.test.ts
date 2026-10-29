@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { ChatModel } from './chatmodel';
 import { ChatLog } from './chatlog';
-import { FlightStrip, flightOrder, handoffState, handoffView, plainWords, type FlightEntry } from './handoffs';
+import { FlightStrip, flightEntries, flightOrder, flightPills, handoffState, handoffView, plainWords, VOICE_SOURCE, voiceEntries, type FlightEntry } from './handoffs';
 import type { HandoffLine, ServerMessage, ToolRun } from './protocol';
 import { fire, syntheticDOM, TestElement } from './workspace-windows.test-support';
 
@@ -199,5 +199,59 @@ describe('the strip over the composer', () => {
     strip.set('handoffs', []);
     strip.set('researchers', []);
     expect(root.hidden).toBe(true);
+  });
+});
+
+describe('one in-progress list (W3: the voice\'s state counts what the strips list)', () => {
+  let dom: ReturnType<typeof syntheticDOM>;
+  beforeEach(() => { dom = syntheticDOM(); vi.stubGlobal('document', dom.document); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const entry = (key: string, name: string, since: number, more: Partial<FlightEntry> = {}): FlightEntry =>
+    ({ key, name, since, doing: 'Hooke is working', go: vi.fn(), ...more });
+
+  test('a key its row or researcher shows is never doubled by the server\'s own list, which adds only what they do not', () => {
+    const sources = new Map<string, FlightEntry[]>([
+      [VOICE_SOURCE, [entry('handoff:h1', 'from the server', 10), entry('job:j1', 'Compare three models', 12)]],
+      ['handoffs', [entry('handoff:h1', PHOTO, 10)]],
+      ['researchers', [entry('researcher:r2', 'Researcher 2', 11)]],
+    ]);
+    expect(flightEntries(sources).map((e) => [e.key, e.name])).toEqual([
+      ['handoff:h1', PHOTO], ['researcher:r2', 'Researcher 2'], ['job:j1', 'Compare three models']]);
+  });
+
+  test('the server\'s list as entries: each key, label and since; none once Talk is off', () => {
+    const go = vi.fn();
+    const message = { type: 'voice-state' as const, state: 'working' as const, n: 2, seq: 3, at: 50,
+      working: [{ key: 'handoff:h1', label: PHOTO, since: 10 }, { key: 'job:j1', label: '', since: Number.NaN }] };
+    const entries = voiceEntries(message, go);
+    expect(entries.map((e) => [e.key, e.name, e.since])).toEqual([['handoff:h1', PHOTO, 10], ['job:j1', 'Hooke’s work', 50]]);
+    entries[1].go();
+    expect(go).toHaveBeenCalledWith('job:j1');
+    expect(voiceEntries({ ...message, state: 'off' }, go)).toEqual([]);
+    expect(voiceEntries(null, go)).toEqual([]);
+  });
+
+  test('the Working strip gets a pill for each hand-off and job in flight (researchers keep their own), counting its time', () => {
+    const open = vi.fn(), dismiss = vi.fn();
+    const pills = flightPills([entry('handoff:h1', PHOTO, 10), entry('researcher:r2', 'Researcher 2', 11), entry('job:j1', 'Compare', 12),
+      entry('then:h1', 'then: put it in a Tab', 10, { waiting: true })], new Set(['job:j1']), open, dismiss);
+    expect(pills.map((p) => [p.id, p.name, p.cell, p.counting, p.since])).toEqual([['handoff:h1', PHOTO, 'working', true, 10_000]]);
+    pills[0].open();
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ key: 'handoff:h1' }));
+    pills[0].dismiss();
+    expect(dismiss).toHaveBeenCalledWith('handoff:h1');
+  });
+
+  test('the strip counts what it lists as working and tells each change once', () => {
+    const strip = new FlightStrip();
+    const changes: string[][] = [];
+    strip.onChange = (entries) => changes.push(entries.map((e) => e.key));
+    strip.set('handoffs', [entry('handoff:h1', PHOTO, 10), entry('then:h1', 'then: x', 10, { waiting: true })]);
+    strip.set('researchers', [entry('researcher:r2', 'Researcher 2', 11)]);
+    strip.set('researchers', [entry('researcher:r2', 'Researcher 2', 11)]); // the same: not told again
+    strip.set(VOICE_SOURCE, [entry('handoff:h1', 'from the server', 10)]); // already listed: no change
+    expect(strip.working).toBe(2);
+    expect(changes).toEqual([['handoff:h1', 'then:h1'], ['handoff:h1', 'then:h1', 'researcher:r2']]);
+    expect((strip.root as unknown as TestElement).querySelector('.chat-flight-count')!.textContent).toBe('2 working');
   });
 });

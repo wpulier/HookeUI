@@ -185,6 +185,11 @@ export interface LoadOptions {
   claimed?: (event: ActivityEvent) => boolean;
   models?: () => readonly { id: string; name: string; runs?: string }[];
 }
+/** A voice session's Activity line (voice/diagnostics.py names it by `ids.voiceSession`, its id `voice-…`). */
+export function isVoiceSession(event: ActivityEvent): boolean {
+  const ids = (event.details as { ids?: Record<string, unknown> } | undefined)?.ids;
+  return typeof ids?.voiceSession === 'string' || /^voice-[0-9a-f]{8,}$/.test(event.id);
+}
 export class LoadPills {
   private readonly loads = new Map<string, { name: string; state: ActivityEvent['state']; at: number; text: string; event: ActivityEvent; withRun: boolean }>();
   private readonly hidden = new Set<string>();
@@ -199,7 +204,9 @@ export class LoadPills {
   }
 
   apply(event: ActivityEvent): void {
-    if (event.kind !== 'model') return;
+    // A voice session's line (voice/diagnostics.py) is a `model` line too, kept in Activity; it is the voice, not a load:
+    // its presence on the strip is the voice's own pill (voice-presence.ts), never "gpt-realtime-2.1 18:21".
+    if (event.kind !== 'model' || isVoiceSession(event)) return;
     const name = event.ref?.model;
     if (name && (event.state === 'running' || event.state === 'failed')) {
       const withRun = this.loads.get(event.id)?.withRun ?? false;

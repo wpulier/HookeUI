@@ -1,7 +1,7 @@
 // The Working strip's other sources (strip-sources.ts): a hand-started run, agent steps still running after their
 // answer, and models loading. Each says only what the app knows; none shows a percent; work under a second shows none.
 import { expect, test } from 'vitest';
-import { KEPT_RUNS, LoadPills, pillName, QUICK_MS, runPill, RunPills, StepPills, type HandRun, type RunFacts, type StepFact } from './strip-sources';
+import { isVoiceSession, KEPT_RUNS, LoadPills, pillName, QUICK_MS, runPill, RunPills, StepPills, type HandRun, type RunFacts, type StepFact } from './strip-sources';
 import type { ActivityEvent } from './protocol';
 import type { StripPill } from './working-strip';
 
@@ -293,4 +293,16 @@ test('a finished download says Downloaded · not checked yet until Hooke has che
   expect(shown[0]).toMatchObject({ cell: 'partial', words: 'Downloaded · not checked yet' });
   pills.update([row('done')], model('on'));
   expect(shown[0]).toMatchObject({ cell: 'ready', words: 'Ready' });
+});
+
+test('a voice session\'s Activity line is kept in Activity, never a loading pill ("gpt-realtime-2.1 18:21")', () => {
+  let pills: StripPill[] = [];
+  const loads = new LoadPills(() => {}, (p) => { pills = p; });
+  const voice: ActivityEvent = { type: 'activity', id: 'voice-0123456789abcdef', kind: 'model', text: 'The voice provider acknowledged the session',
+    at: T / 1000, state: 'running', ref: { model: 'gpt-realtime-2.1' }, details: { ids: { voiceSession: 'voice-0123456789abcdef', model: 'gpt-realtime-2.1' } } };
+  expect(isVoiceSession(voice)).toBe(true);
+  loads.apply(voice);
+  expect(pills).toEqual([]);
+  loads.apply({ ...voice, id: 'model:micro-sam:1', details: undefined, ref: { model: 'micro-sam' } });
+  expect(pills.map((p) => p.name)).toEqual(['micro-sam']);
 });

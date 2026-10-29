@@ -76,7 +76,8 @@ import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk
 import { CursorPainter, PartnerCursor, Takeover } from './drive';
 import { HeardRing, HeardTone, heardCue, heardHandler, type HeardCue } from './heard';
 import './drive.css';
-import { FlightStrip } from './handoffs';
+import { FlightStrip, flightPills, voiceEntries, VOICE_SOURCE, type FlightEntry } from './handoffs';
+import { VoicePresence } from './voice-presence';
 import './handoffs.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
@@ -1011,7 +1012,68 @@ const voice = new VoiceClient(handleVoice, renderVoiceState, (level) => {
   const value = Math.min(1, level * 4).toFixed(2);
   talkButton.style.setProperty('--level', value);
   holdRing.style.setProperty('--level', value);
+  presence.mark.style.setProperty('--level', value);
 });
+
+// The voice's state, always in sight and true (voice-presence.ts): the server's `voice-state`, the user's own key held,
+// and Hooke's work in flight counted from the strip over the composer. Beside Talk (its mark and the status line), in
+// the Assistant header (a chip by its title), and with the Assistant closed as the presence pill in the Working strip.
+/** Whether the Assistant itself shows now (the Stage bar's Assistant pressed; the older layout: the chat not folded). */
+function assistantShown(): boolean {
+  if (document.body.dataset.workspaceStudy === 'true') {
+    const toggle = document.querySelector('.study-agent-toggle');
+    return toggle ? toggle.getAttribute('aria-pressed') === 'true' : true;
+  }
+  return document.body.dataset.chat !== 'hidden';
+}
+function openAssistant(): void {
+  if (document.body.dataset.workspaceStudy === 'true') window.dispatchEvent(new Event('workspace-show-agent'));
+  else setChatHidden(false);
+}
+const presence = new VoicePresence({
+  talk: () => voice.state,
+  held: () => { try { return !!talkHold.held && turns.open; } catch { return false; } }, // before Talk's hold is made: none
+  working: () => flightStrip.working,
+  assistantShown,
+  openAssistant,
+  sink: (pills) => shell.strip.set('voice', pills),
+  header: () => document.querySelector<HTMLElement>('.study-right-header'),
+  talkButton,
+  rendered: () => watchAssistant(),
+});
+const voiceLine = Object.assign(document.createElement('span'), {className: 'voice-session-line'});
+voiceStatus.replaceWith(voiceLine);
+voiceLine.append(presence.mark, voiceStatus);
+// The Assistant opening or closing: the presence pill shows or goes (its button's pressed state, read once it exists).
+let assistantWatched: Element | null = null;
+const assistantWatch = typeof MutationObserver === 'function' ? new MutationObserver(() => presence.render()) : null;
+function watchAssistant(): void {
+  if (!assistantWatch) return;
+  const toggle = document.querySelector('.study-agent-toggle');
+  if (!toggle || toggle === assistantWatched) return;
+  assistantWatched = toggle;
+  assistantWatch.observe(toggle, { attributes: true, attributeFilter: ['aria-pressed'] });
+}
+assistantWatch?.observe(document.body, { attributes: true, attributeFilter: ['data-chat', 'data-study-inspector', 'data-assistant-over'] });
+// Hooke's own work in flight on the Working strip too (hand-offs and think jobs; researchers have the shelf's pills),
+// from the same list as the strip over the composer, so both count the same; the voice's state counts it as well.
+const flightHidden = new Set<string>();
+function showFlight(entry: FlightEntry): void {
+  const shown = assistantShown();
+  if (!shown) openAssistant();
+  if (shown) entry.go(); else requestAnimationFrame(() => requestAnimationFrame(() => entry.go()));
+}
+function renderFlight(entries: readonly FlightEntry[]): void {
+  for (const key of [...flightHidden]) if (!entries.some((entry) => entry.key === key)) flightHidden.delete(key);
+  shell.strip.set('handoffs', flightPills(entries, flightHidden, showFlight, (key) => { flightHidden.add(key); renderFlight(flightStrip.entries); }));
+  renderVoiceStatus();
+}
+flightStrip.onChange = renderFlight;
+/** The server's list of Hooke's work in flight joins the one list (a key its row or researcher shows is not doubled). */
+function revealFlight(key: string): void {
+  if (key.startsWith('handoff:') && chat.revealHandoff(key.slice(8))) return;
+  showActivity(true);
+}
 
 // The chat: the conversation open now, typed and spoken (chatlog.ts). Its Activity is the side bar's Activity.
 const activityNavigation = new ActivityNavigation({
@@ -1337,6 +1399,9 @@ function handleMessage(message: ServerMessage): void {
       lastAdvice = message.advice;
       break;
     case 'thinking':
+      // A voice hand-off's working signal is its row's and the voice's state's (handoffs.ts, voice-presence.ts): it never
+      // turns the typed request's slot on or clears it early.
+      if (message.channel === 'voice') break;
       chat.thinking(message.on, message.phase);
       break;
     case 'arena': {
@@ -1790,7 +1855,7 @@ const turns = new TalkTurns({
   start: startTalk,
   began: (n) => {
     marks.clear(); // barge-in: what it pointed at goes with what it was saying
-    voiceStatus.textContent = holdWords();
+    renderVoiceStatus();
     // What the window looks like as the user starts to speak, sent with the turn (amendment 1). The pictures are
     // taken in this task; the rest is composed without holding up the live view (screen.ts captureWindow).
     void windowSnapshot(`talk-${n}`, 1280, windowCapture).then((shot) => voice.tellVoice(shot));
@@ -1808,9 +1873,9 @@ const talkHold = new TalkHold({
     turns.release();
     // Nothing is said to be sent until the server says it took the turn (`heard`): a turn it drops (too short, or lost
     // on a reconnect) never shows as waiting for an answer (Will's feel check, 29 Oct).
-    if (said) voiceStatus.textContent = holdWords();
+    if (said) renderVoiceStatus();
   },
-  cancel: (why) => { const said = turns.open; heardRing.clear(); turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
+  cancel: (why) => { const said = turns.open; heardRing.clear(); turns.cancel(why); if (said) renderVoiceStatus(); },
 });
 // The sign it heard you (heard.ts; the live-partner spec, decision 1): the ring settles and, with HEARD_CUE "tone", a
 // soft tone plays in the voice's own speaker context, once per turn and never for one older than the newest begun.
@@ -1898,7 +1963,9 @@ const cursorPainter = new CursorPainter(document);
 const takeover = new Takeover({ cursor: partnerCursor, send: (command) => voice.tellVoice(command) });
 takeover.attach(window);
 voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks,
-  drive: { cursor: partnerCursor, takeover }, heard: (message) => { if (heardSign(message)) voiceStatus.textContent = 'Heard you · answering'; } });
+  drive: { cursor: partnerCursor, takeover }, heard: (message) => { if (heardSign(message)) renderVoiceStatus(); },
+  // The voice's state, the server's: shown at once, and its own list of Hooke's work joins the one in-progress list.
+  voiceState: (message) => { presence.serverState(message); flightStrip.set(VOICE_SOURCE, voiceEntries(message, revealFlight)); renderVoiceStatus(); } });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
@@ -1946,18 +2013,34 @@ function renderVoiceState(state: VoiceState, detail?: string): void {
   else if (state === 'live' || (state === 'connecting' && micCard.state === 'asking')) micCard.hide();
   else if (state === 'error' && voice.micBlocked) micCard.show('blocked');
   if (state === 'live') { try { localStorage.setItem('mic-heard', '1'); } catch { /* not remembered */ } }
-  voiceStatus.textContent = micWaiting() ? 'Allow the microphone to talk'
-    : state === 'connecting' ? detail ?? 'Connecting to the voice…'
-    : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
+  // A Talk session's state is its own: nothing an earlier one said is kept (the server says the new one's as it goes).
+  if (state !== 'live') { presence.reset(); flightStrip.set(VOICE_SOURCE, []); }
+  presence.render();
+  voiceStatus.textContent = statusLine(detail);
   turns.stateChanged(state, !!talkHold.held);
   if (state === 'off' || state === 'error') { marks.clear(); heardRing.clear(); }
   renderTalk();
   if (state === 'error' && detail && !voice.micBlocked) chat.system(detail); // a blocked microphone: the card says it
   if (state !== 'live') {
-    setVoiceWorking(false);
     chat.voice.stopped();
     clearStateHint('voice');
   }
+}
+
+/** Talk's status line: the microphone's wait, connecting and a problem in their own words; live, what the voice is
+ * doing (voice-presence.ts: "Thinking", "Speaking · 2 working", "Hooke is working · 2"), else how to talk. */
+function statusLine(detail?: string): string {
+  if (micWaiting()) return 'Allow the microphone to talk';
+  if (voice.state === 'connecting') return detail ?? 'Connecting to the voice…';
+  if (voice.state === 'error') return detail ?? 'Voice needs attention. Open Activity.';
+  const view = presence.view;
+  if (view.status) return view.also ? `${view.status} · ${view.also}` : view.status;
+  return holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
+}
+/** The voice's state drawn again, and the status line with it (live only: connecting and problems keep their words). */
+function renderVoiceStatus(): void {
+  presence.render();
+  if (voice.state === 'live') voiceStatus.textContent = statusLine();
 }
 
 /** The status while turns are held: what to do now. */
@@ -1969,10 +2052,12 @@ function handleVoice(event: VoiceEvent): void {
   switch (event.kind) {
     case 'status': {
       const phase = String(event.data?.phase ?? '');
-      const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting…'};
       const hold = holdToTalk();
-      voiceStatus.textContent = hold && (phase === 'listening' || turns.open) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
-        (voice.muted && phase !== 'muted' ? ' · microphone muted' : '');
+      // A voice that sends no state of its own (GPT-Live) is shown from these; the one brain's are the server's.
+      presence.setFallback(phase === 'processing' ? 'processing' : phase === 'speaking' ? 'speaking' : phase === 'listening' ? 'listening' : null);
+      if (phase === 'muted' || phase === 'reconnecting') voiceStatus.textContent = phase === 'muted' ? 'Microphone muted' : 'Reconnecting…';
+      else if (!['listening', 'processing', 'speaking'].includes(phase)) voiceStatus.textContent = 'Voice needs attention';
+      else { renderVoiceStatus(); if (voice.muted && !hold) voiceStatus.textContent += ' · microphone muted'; }
       if (phase === 'listening') showStateHint('voice', hold ? `Hold ${talkKeyWords(talkKeySetting)}, or hold Talk, and ask about the view or your work.` : 'Listening. Ask about the view or your work.');
       marks.phase(phase); // marks stay while it speaks and go a moment after
       break;
@@ -2002,13 +2087,13 @@ function handleVoice(event: VoiceEvent): void {
     case 'turn_complete':
       if (endsVoiceTurn(event)) chat.voice.turnEnd();
       break;
-    // The voice handed something to the app: the Talk dot breathes while it works (the chat
-    // stays for what was said; the view shows what was done).
+    // The voice handed something to the app: for a voice that sends no state of its own (GPT-Live), it is thinking until
+    // the result comes (never a timer); the one brain's state is the server's (voice-state).
     case 'tool_call':
-      setVoiceWorking(true);
+      presence.setFallback('tool');
       break;
     case 'tool_result':
-      if (!event.data?.interim) setVoiceWorking(false);
+      if (!event.data?.interim) presence.setFallback(null);
       break;
     case 'error':
       chat.system(`Voice: ${String(event.data?.message ?? 'something went wrong')}`);
@@ -2016,16 +2101,6 @@ function handleVoice(event: VoiceEvent): void {
   }
 }
 
-let workingTimer = 0;
-function setVoiceWorking(on: boolean): void {
-  window.clearTimeout(workingTimer);
-  if (on) {
-    talkButton.dataset.working = '';
-    workingTimer = window.setTimeout(() => delete talkButton.dataset.working, 20000);
-  } else {
-    delete talkButton.dataset.working;
-  }
-}
 
 /** A capability's run page (a run pill, a researcher's Used row): its task in Tools, or its Models entry. */
 function openRunPage(capability: string): void {

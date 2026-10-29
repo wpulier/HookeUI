@@ -34,6 +34,7 @@ from typing import Any, Awaitable, Callable
 from . import knowing
 from .openai_realtime import Perception, RealtimeSession
 from .partner_tools import STARTED_TOOLS, PartnerTools
+from .presence import VoicePresence
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
 OPENER_LOOK_S = 1.0  # its first line's pictures (the camera, the window) are waited for this long at most
@@ -100,6 +101,11 @@ class Partner:
         session.handed_late = self.tools.handed_late  # a hand-off's late steps, for its one outcome (announcer)
         session.heard = self.heard
         session.on_retired = self.retired
+        # The voice's state on screen (presence.py): its phase and Hooke's work in flight, sent as each changes.
+        self.presence = VoicePresence(session, handoffs=self.tools.handoffs, jobs=self.tools.thinking,
+                                      project=self.tools._project, send=self.send, spawn=self._spawn, log=self.log)
+        session.on_phase = self.presence.changed
+        self.tools.handoffs.counted = self.presence.changed
         if knowing.UserActions.enabled():  # the user's own actions as silent context, and what "that" can be
             from .. import activity
 
@@ -129,6 +135,9 @@ class Partner:
             self._notes_task = asyncio.get_running_loop().create_task(self._chat_notes())
 
     def close(self) -> None:
+        presence = getattr(self, "presence", None)
+        if presence is not None:
+            presence.close()
         if self._notes_task is not None:
             self._notes_task.cancel()
         found, actions = getattr(self, "_activity", None), getattr(self, "_user_actions", None)
@@ -543,6 +552,10 @@ class Partner:
         elif event.kind in ("generation_complete", "interrupted"):
             with contextlib.suppress(Exception):
                 self.lines.reply_line.close()
+        elif event.kind == "ready" and getattr(self, "presence", None) is not None:
+            self.presence.start()  # live: its state is said from now (idle), then as it changes
+        elif event.kind == "closed" and getattr(self, "presence", None) is not None:
+            self.presence.close()
         elif event.kind == "go_away" and self.reconnecting is None:
             reason = str((event.data or {}).get("reason") or "close")
             self._dropped_because = str((event.data or {}).get("message") or "")[:300]

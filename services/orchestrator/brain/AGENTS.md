@@ -109,6 +109,13 @@ other files.
     the stop is told once when it lands (`job-cancelled`). Work that had finished before the stop reached it says so.
     A cancelled step is stopped, never a failure. Its row ends `unknown` with `stopped`. Researchers are still stopped
     through `do_in_hooke` (the brain's `cancel_researcher`). Tests: `tests/test_one_way_in.py`.
+- **The voice's state on screen** (`voice/presence.py`; W3): the one brain's session says its own phase
+  (`RealtimeSession.phase`: listening, heard, thinking from the released turn to its first words and while a tool of its
+  own runs, speaking, quiet) and `VoicePresence` adds Hooke's work in flight (this session's open hand-offs, the hub's
+  think jobs, a hand-off kept as a job under its row's key), sending the studio `{type:"voice-state", state, n, working,
+  seq, at, turn}` at each change: into a state at once, out of an active one after SETTLE_S, read again every TICK_S.
+  A hand-off's wait is Hooke working, never the voice thinking. Each change is logged (`partner-state`) for the journeys'
+  Alive line; tests/test_voice_presence.py.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

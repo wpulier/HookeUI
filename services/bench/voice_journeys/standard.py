@@ -41,7 +41,7 @@ THINK = "think"
 # The scorer's version, recorded with every result: a kept run rescored by the same version gives the same result
 # (hooke-web part-2.5-live-partner-spec.md, section 2 "The rescore is a warning about the gate itself"). Raise it with
 # any change to what is scored.
-SCORER_VERSION = "2026-10-29.3"
+SCORER_VERSION = "2026-10-29.4"
 
 # The standard's numbers (live-partner-contract.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
@@ -1032,8 +1032,132 @@ def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[st
             "raised": len(events), "steadyPlanned": steady_planned}
 
 
+# Alive and available (W3; the live partner spec 4.8, horizontal 2): the voice's state as the studio showed it.
+ALIVE_GAP_S = 2.0  # a wait longer than this with nothing playing must show a state (the finish line: no silent gap)
+ALIVE_STATES = frozenset({"listening", "heard", "thinking", "working", "speaking"})  # a state that says something goes on
+PRESENCE_GRACE_S = 1.0  # the presence pill shows within this of the Assistant closing
+
+
+def shown_states(bench: dict, inter: list[dict]) -> tuple[list[dict], str | None]:
+    """The voice's state over time as shown, oldest first: what the page showed (harness `voice-shown`: state, n,
+    pill, assistant), else the server's voice-state messages the page received (ws-in), else the server's own log of
+    them (partner-state records, an acoustic run with no page). With it, where it came from; none: ([], None)."""
+    page = [{"t": e["t"], "state": e.get("state"), "n": e.get("n"), "pill": e.get("pill"), "assistant": e.get("assistant")}
+            for e in bench["events"] if e.get("e") == "voice-shown" and isinstance(e.get("t"), (int, float))]
+    if page:
+        return page, "page"
+    sent = [{"t": e["t"], "state": (e.get("m") or {}).get("state"), "n": (e.get("m") or {}).get("n")}
+            for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "voice-state"
+            and isinstance(e.get("t"), (int, float))]
+    if sent:
+        return sent, "voice-state messages"
+    logged = sorted(({"t": r["t"], "state": r.get("state"), "n": r.get("n")} for r in inter
+                     if r.get("kind") == "partner-state" and isinstance(r.get("t"), (int, float))), key=lambda r: r["t"])
+    return (logged, "server log") if logged else ([], None)
+
+
+def _merge(spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    out: list[list[float]] = []
+    for a, b in sorted(s for s in spans if s[1] > s[0]):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out]
+
+
+def _silences(segments, start: float, end: float) -> list[tuple[float, float]]:
+    """The silences in [start, end] between the audio segments (as longest_gap reads them)."""
+    out, at = [], start
+    for a, b in sorted(segments):
+        if b <= start or a >= end:
+            continue
+        if a > at:
+            out.append((at, a))
+        at = max(at, b)
+    if end > at:
+        out.append((at, end))
+    return out
+
+
+def handoff_spans(inter: list[dict], until: float) -> dict[str, tuple[float, float]]:
+    """Each hand-off's working span from the server's partner-handoff records: its first working record to its first
+    record in another state (still working at the end: to `until`)."""
+    spans: dict[str, list] = {}
+    for r in sorted((r for r in inter if r.get("kind") == "partner-handoff" and r.get("id")
+                     and isinstance(r.get("t"), (int, float))), key=lambda r: r["t"]):
+        span = spans.get(r["id"])
+        if r.get("state") == "working":
+            if span is None:
+                spans[r["id"]] = [r["t"], None]
+        elif span is not None and span[1] is None:
+            span[1] = r["t"]
+        elif span is None:
+            spans[r["id"]] = [r["t"], r["t"]]  # seen only once it had ended: no wait to cover
+    return {hid: (a, b if b is not None else max(until, a)) for hid, (a, b) in spans.items()}
+
+
+def alive(bench: dict, inter: list[dict], steps: list[dict], wins, segments, expects: dict[str, dict]) -> dict:
+    """What the studio showed of the voice while it worked (the finish line: "no gap over 2 s without a visible state"):
+    - every silence over ALIVE_GAP_S inside a wait (a spoken step's release to its first audio, a partner tool's call, a
+      hand-off while it works) had a state that says something goes on shown the whole time (never idle, off or none);
+    - every hand-off the server filed has its row in the chat (harness `handoff-row`);
+    - with Talk on and the Assistant closed, the presence pill showed within PRESENCE_GRACE_S and stayed."""
+    end = wins[-1][1] if wins else (bench.get("ended") or 0)
+    origin = wins[0][0] if wins else (bench.get("started") or 0)
+    shown, source = shown_states(bench, inter)
+    waits: list[tuple[float, float]] = []
+    for step, (start, until) in zip(steps, wins):
+        if step.get("kind") in ("idle", "restart", "stage", "typed") or not step.get("say"):
+            continue
+        release = released(step)
+        first = first_on_after(segments, release, until)
+        if first is not None:
+            waits.append((release, first))
+        elif not (expects.get(step.get("id")) or {}).get("silent"):
+            waits.append((release, until))  # never answered: the whole step is a wait
+    waits += [(r["startT"], r["endT"]) for r in inter if r.get("kind") == "partner-tool"
+              and isinstance(r.get("startT"), (int, float)) and isinstance(r.get("endT"), (int, float))]
+    # This run's hand-offs (the stack's log may hold an earlier run's): those begun from its first step on.
+    handoffs = {hid: span for hid, span in handoff_spans(inter, end).items() if origin - 1.0 <= span[0] <= end}
+    waits += list(handoffs.values())
+    waits = [(max(a, origin), min(b, end)) for a, b in waits]  # inside the run's steps (not the opener before them)
+    gaps = [(a, b) for wa, wb in _merge(waits) for a, b in _silences(segments, wa, wb) if b - a > ALIVE_GAP_S]
+
+    def states_in(a: float, b: float) -> list:
+        before = [s for s in shown if s["t"] <= a]
+        return ([before[-1]["state"]] if before else [None]) + [s["state"] for s in shown if a < s["t"] < b]
+
+    uncovered = [{"atS": round(a - origin, 1), "s": round(b - a, 1), "shown": sorted({str(x) for x in states_in(a, b)})}
+                 for a, b in gaps if not all(x in ALIVE_STATES for x in states_in(a, b))]
+    rows = {e.get("id") for e in bench["events"] if e.get("e") == "handoff-row" and e.get("id")}
+    missing = sorted(hid for hid in handoffs if hid not in rows)
+    # Closed spans: Talk on (a state shown, not off) with the Assistant closed; the pill shown from the grace on.
+    closed, misses = 0, []
+    page = [s for s in shown if "assistant" in s]
+    for i, s in enumerate(page):
+        if s.get("assistant") is not False or s.get("state") in (None, "off"):
+            continue
+        if i > 0 and page[i - 1].get("assistant") is False and page[i - 1].get("state") not in (None, "off"):
+            continue  # the same closed span, a later change in it
+        j = i
+        while j + 1 < len(page) and page[j + 1].get("assistant") is False and page[j + 1].get("state") not in (None, "off"):
+            j += 1
+        a, b = s["t"], page[j + 1]["t"] if j + 1 < len(page) else end
+        if b - a < PRESENCE_GRACE_S:
+            continue  # closed for less than the grace: nothing to show yet
+        closed += 1
+        # The pill as shown from the grace on: the last sample at or before a + grace, then every change before b.
+        settled = [x for x in page[i:j + 1] if x["t"] <= a + PRESENCE_GRACE_S][-1:] + \
+            [x for x in page[i:j + 1] if a + PRESENCE_GRACE_S < x["t"] < b]
+        if not all(x.get("pill") for x in settled):
+            misses.append({"atS": round(a - origin, 1), "s": round(b - a, 1)})
+    return {"measured": bool(shown), "source": source, "gaps": len(gaps), "uncovered": uncovered,
+            "handoffs": len(handoffs), "missingRows": missing, "closed": closed, "presenceMissed": misses}
+
+
 def reconnects(inter: list[dict], bench: dict) -> list[dict]:
-    faults = [e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
+    faults =[e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
     out = []
     for r in inter:
         if r.get("kind") != "partner-reconnect":
@@ -1139,6 +1263,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             "proactive": proactive(inter, segments, busy, api_researchers(bench)), "reconnects": reconnects(inter, bench),
             "drive": drive(inter, bench),
             "watch": watch(inter, segments, busy, steps, expects),
+            "alive": alive(bench, inter, steps, wins, segments, expects),
             "liveView": live_view(bench, [{**e, "t": seconds(e.get("t"))} for e in baseline or []]),
             "error": bench.get("error"), "audioFrom": heard_from}
 
@@ -1253,12 +1378,27 @@ def summarise(runs: list[dict]) -> dict:
                     "n": len(q), "under2": [r["id"] for r in steps if r.get("partnerQuality") is not None
                                             and r["partnerQuality"] < 2]},
         "unasked": sum(r["unaskedChanges"] for r in steps),
+        "alive": alive_summary([run.get("alive") or {} for run in runs]),
         "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay,
                      "runsWithoutLiveView": no_live},
         "stepFailures": sum(1 for r in steps if r["failures"]),
         "runsClean": sum(1 for run in runs if not any(r["failures"] for r in run["steps"]) and not run.get("error")),
         "errors": [run["error"] for run in runs if run.get("error")],
     }
+
+
+def alive_summary(runs: list[dict]) -> dict:
+    """Every run's `alive` pooled; measured when any run showed a state."""
+    measured = [r for r in runs if r.get("measured")]
+    return {"measured": bool(measured), "runs": len(measured),
+            "gaps": sum(r.get("gaps", 0) for r in measured),
+            "uncovered": [{"run": i + 1, **u} for i, r in enumerate(runs) if r.get("measured") for u in r.get("uncovered", [])],
+            "handoffs": sum(r.get("handoffs", 0) for r in measured),
+            "missingRows": [h for r in measured for h in r.get("missingRows", [])],
+            "closed": sum(r.get("closed", 0) for r in measured),
+            "presenceMissed": [{"run": i + 1, **m} for i, r in enumerate(runs) if r.get("measured")
+                               for m in r.get("presenceMissed", [])],
+            "sources": sorted({r["source"] for r in measured if r.get("source")})}
 
 
 # --- the scoreboard --------------------------------------------------------------------------------------------------
@@ -1321,6 +1461,23 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     so = s["saidOnce"]
     L.append(_line("Feel", "Each outcome said exactly once", f"{so['once']} of {so['n']} (never {so['never']}, more {so['more']})",
                    "all", None if not so["n"] else so["once"] == so["n"]))
+    al = s.get("alive") or {}
+    if al.get("measured"):
+        uncovered, missing, missed = al["uncovered"], al["missingRows"], al["presenceMissed"]
+        gaps_at = ", ".join("%s s (%s s, shown %s)" % (u["atS"], u["s"], "/".join(u["shown"])) for u in uncovered[:3])
+        pills_at = ", ".join("%s s" % m["atS"] for m in missed[:3])
+        value = (f"gaps covered {al['gaps'] - len(uncovered)} of {al['gaps']}; rows {al['handoffs'] - len(missing)} of "
+                 f"{al['handoffs']}; presence {al['closed'] - len(missed)} of {al['closed']}"
+                 + (f"; uncovered at {gaps_at}" if uncovered else "")
+                 + (f"; no row for {', '.join(missing[:3])}" if missing else "")
+                 + (f"; no pill at {pills_at}" if missed else "")
+                 + (f" (from the {', '.join(al['sources'])})" if al.get("sources") and al["sources"] != ["page"] else ""))
+        ok = not uncovered and not missing and not missed
+    else:
+        value, ok = "—", None
+    L.append(_line("Feel", "Alive: a state shown in every wait", value,
+                   f"every wait over {ALIVE_GAP_S:.0f} s shows a state; every hand-off its row; the pill while the "
+                   "Assistant is closed", ok, "the studio's shown voice state was not recorded" if not al.get("measured") else ""))
     L.append(_line("Feel", "Nothing meant for the model spoken", f"{s['leaks']} {s['leakLines'][:3]}", "0",
                    s["leaks"] == 0 if s["steps"] else None))
     L.append(_line("Seeing", 'Never "I can\'t see your screen"', str(s["cantSee"]), "0", s["cantSee"] == 0 if s["steps"] else None))

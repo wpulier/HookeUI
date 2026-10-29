@@ -808,7 +808,11 @@ export type ServerMessage =
   | CapabilitiesWire
   | ScaleState
   | CoachState
-  | { type: 'thinking'; on: boolean; phase?: 'answering' } // answering: its steps have run, its answer is being written
+  // answering: its steps have run, its answer is being written. A voice hand-off's working signal (channel "voice",
+  // claude/p25-w1) carries its hand-off's id, job, label and, when off, its state; its row and the voice's state show it,
+  // never the typed slot.
+  | { type: 'thinking'; on: boolean; phase?: 'answering'; id?: string; channel?: 'chat' | 'voice'; job?: string; label?: string;
+      state?: 'done' | 'failed' | 'uncertain' | 'running' | 'cancelled' | 'cancelling' }
   | SessionState
   | SessionsList
   | SessionCleared // actual App reset: a new session, or a switch to another one
@@ -1504,8 +1508,24 @@ export interface DriveEnd { type: 'drive-end'; id: string; outcome?: DriveOutcom
 /** A sign it heard you (the live-partner spec, decision 1): sent as released turn `n` begins (voice/partner.py
  * Partner.heard); the hold ring settles and, with HEARD_CUE "tone", a soft tone plays (heard.ts). Never a word. */
 export interface HeardMessage { type: 'heard'; n: number }
-export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd | HeardMessage;
-export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end', 'heard'];
+/** The voice's state, the server's truth of it (voice/presence.py; voice-presence.ts shows it): the key held
+ * (listening), the released turn taken (heard), an answer being made with nothing playing (thinking), its words audible
+ * (speaking), Hooke's own work in flight and nothing else (working, `n` of it: each one's key is the in-progress strip's,
+ * `handoff:<id>` or `job:<id>`), live and ready (idle), Talk ended (off). Sent at each change; `seq` rises. */
+export interface VoiceStateMessage {
+  type: 'voice-state';
+  state: 'listening' | 'heard' | 'thinking' | 'speaking' | 'working' | 'idle' | 'off';
+  n: number;
+  working: { key: string; label: string; since: number }[];
+  seq: number;
+  /** When it changed (epoch seconds, the server's clock), and the turn it is in. */
+  at: number;
+  turn?: number;
+}
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd | HeardMessage
+  | VoiceStateMessage;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end', 'heard',
+  'voice-state'];
 /** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
 export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
 // Studio -> server.

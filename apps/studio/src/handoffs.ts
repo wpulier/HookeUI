@@ -22,8 +22,8 @@ import { arrive } from './chat-cards';
 import { lineIcon } from './chat-scroll';
 import { litCell, setLitCell, type LitCellState } from './lit-cell';
 import { renderMarkdown } from './markdown';
-import type { HandoffLine, ToolRun } from './protocol';
-import { clock } from './working-strip';
+import type { HandoffLine, ToolRun, VoiceStateMessage } from './protocol';
+import { clock, type StripPill } from './working-strip';
 
 export type HandoffState = HandoffLine['state'];
 
@@ -316,6 +316,44 @@ export function flightOrder(entries: readonly FlightEntry[]): FlightEntry[] {
   return placed;
 }
 
+/** One in-progress list: every source's entries, one per key, the first source to name a key keeping it (the hand-off
+ * rows and the researchers before the server's own list, `VOICE_SOURCE`, which only adds what they do not show: a think
+ * job), in the strip's order. */
+export function flightEntries(sources: ReadonlyMap<string, readonly FlightEntry[]>): FlightEntry[] {
+  const seen = new Set<string>(), out: FlightEntry[] = [];
+  const ordered = [...sources.entries()].sort(([a], [b]) => Number(a === VOICE_SOURCE) - Number(b === VOICE_SOURCE));
+  for (const [, entries] of ordered) for (const entry of entries) {
+    if (seen.has(entry.key)) continue;
+    seen.add(entry.key);
+    out.push(entry);
+  }
+  return flightOrder(out);
+}
+
+/** The source the server's own list of Hooke's work in flight is set under (voice-state `working`). */
+export const VOICE_SOURCE = 'voice';
+
+/** The server's list of Hooke's work in flight (voice/presence.py), as entries: a hand-off (`handoff:<id>`, the same key
+ * as its row's) or a think job (`job:<id>`). `go` shows it: its row, else Activity. */
+export function voiceEntries(message: VoiceStateMessage | null, go: (key: string) => void): FlightEntry[] {
+  if (!message || message.state === 'off') return [];
+  return (message.working ?? []).filter((w) => w && typeof w.key === 'string').map((w) => ({
+    key: w.key, name: (w.label || 'Hooke’s work').trim(), since: Number.isFinite(w.since) ? w.since : message.at,
+    doing: 'Hooke is working', go: () => go(w.key) }));
+}
+
+/** The Working strip's pills for Hooke's own work in flight (hand-offs and think jobs; researchers have the shelf's own
+ * pills), from the same list as the strip over the composer, so the strip counts what that strip lists. Each counts its
+ * time; a click shows it in the Assistant; × hides the pill only. */
+export function flightPills(entries: readonly FlightEntry[], hidden: ReadonlySet<string>, open: (entry: FlightEntry) => void,
+  dismiss: (key: string) => void): StripPill[] {
+  return entries.filter((e) => !e.waiting && /^(?:handoff|job):/.test(e.key) && !hidden.has(e.key)).map((entry) => ({
+    id: entry.key, name: entry.name, cell: 'working', urgency: 1, since: entry.since * 1000, counting: true,
+    title: `${entry.name}: ${entry.doing}.\nShow it in the Assistant`, hide: `Hide ${entry.name} from the strip. It keeps working.`,
+    open: () => open(entry), dismiss: () => dismiss(entry.key),
+  }));
+}
+
 /** The slim strip over the composer: shown only while something runs, listing it ("2 working · Reference photo of a
  * stoma · A new Tab"); each entry jumps to where that work shows. Entries are drawn in place, never rebuilt. */
 export class FlightStrip {
@@ -326,6 +364,8 @@ export class FlightStrip {
   private readonly buttons = new Map<string, HTMLButtonElement>();
   private readonly current = new Map<string, FlightEntry>();
   private shown: FlightEntry[] = [];
+  /** Told after each change of what it lists (the voice's state counts it; the Working strip lists the same). */
+  onChange: (entries: readonly FlightEntry[]) => void = () => {};
 
   constructor() {
     this.root = make('div', 'chat-flight');
@@ -348,9 +388,16 @@ export class FlightStrip {
   /** What the strip lists now, in its order. */
   get entries(): readonly FlightEntry[] { return this.shown; }
 
+  /** How many pieces of work it lists as working (a later step waiting on other work is not counted). */
+  get working(): number { return this.shown.filter((entry) => !entry.waiting).length; }
+
   private render(): void {
-    const all = flightOrder([...this.sources.values()].flat());
+    const all = flightEntries(this.sources);
+    const before = this.shown.map((e) => `${e.key}|${e.name}|${e.waiting ? 1 : 0}`).join('\n');
     this.shown = all;
+    if (all.map((e) => `${e.key}|${e.name}|${e.waiting ? 1 : 0}`).join('\n') !== before) {
+      try { this.onChange(all); } catch { /* a listener's fault never stops the strip */ }
+    }
     const was = !this.root.hidden;
     this.root.hidden = all.length === 0;
     this.current.clear();

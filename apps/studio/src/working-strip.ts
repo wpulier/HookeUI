@@ -11,6 +11,7 @@
 import { LIT_CELL_WORDS, litCell, setLitCell, type LitCellState } from './lit-cell';
 import { tabMark } from './tab-marks';
 import { holdUntilLanded } from './side-motion';
+import { setVoiceMark, voiceMark, type ShownVoice } from './voice-mark';
 
 /** Needs you, working, finished (the order of the strip). */
 export type Urgency = 0 | 1 | 2;
@@ -39,6 +40,12 @@ export interface StripPill {
   open(): void;
   /** Hides the pill only; the work goes on and stays where it lives. */
   dismiss(): void;
+  /** The voice's presence (voice-presence.ts): its state mark instead of a lit cell. */
+  voice?: ShownVoice;
+  /** First in the strip, before every piece of work (the voice's presence). */
+  lead?: boolean;
+  /** No × (the voice's presence is not a piece of work to hide). */
+  fixed?: boolean;
 }
 
 /** "0:42", "12:05", "1:01:14": a clock, never a percent. */
@@ -50,7 +57,8 @@ export function clock(ms: number): string {
 /** The strip's order: needs you, then working, then finished; within each, the oldest first (so a pill keeps its place
  * as newer work arrives after it). */
 export function orderPills(pills: readonly StripPill[]): StripPill[] {
-  return [...pills].sort((a, b) => a.urgency - b.urgency || a.since - b.since || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return [...pills].sort((a, b) => Number(!!b.lead) - Number(!!a.lead) || a.urgency - b.urgency || a.since - b.since
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 /** The words a pill shows now. */
@@ -64,7 +72,7 @@ const TICK_MS = 1000;
 
 interface PillNode {
   root: HTMLElement; open: HTMLButtonElement; cell: SVGSVGElement; name: HTMLElement; state: HTMLElement; x: HTMLButtonElement;
-  pill: StripPill; shown: LitCellState | null; words: string;
+  pill: StripPill; shown: LitCellState | null; words: string; mark: HTMLElement | null;
 }
 
 export interface StripOptions {
@@ -226,16 +234,19 @@ export class WorkingStrip {
     node.state.hidden = !words;
     // One settle when a pill lights after the strip's first look, or when its work turns ready.
     const settle = this.primed && (fresh || (pill.cell === 'ready' && before !== 'ready'));
-    if (before !== pill.cell || settle || pill.cell === 'setup') setLitCell(node.cell, pill.cell, { size: 12, decorative: true, fraction: pill.fraction, settle });
+    if (node.mark) setVoiceMark(node.mark, pill.voice ?? 'idle');
+    else if (before !== pill.cell || settle || pill.cell === 'setup') setLitCell(node.cell, pill.cell, { size: 12, decorative: true, fraction: pill.fraction, settle });
     node.shown = pill.cell;
+    if (pill.voice) node.root.dataset.voice = pill.voice; else delete node.root.dataset.voice;
     node.root.dataset.cell = pill.cell;
     node.root.dataset.urgency = String(pill.urgency);
     if (fresh && this.primed) node.root.classList.add('strip-pill-rise');
-    if (!fresh && before !== pill.cell && this.primed && ['ready', 'needs', 'attention', 'partial'].includes(pill.cell))
+    if (!fresh && !node.mark && before !== pill.cell && this.primed && ['ready', 'needs', 'attention', 'partial'].includes(pill.cell))
       this.live.textContent = `${pill.name}: ${words || LIT_CELL_WORDS[pill.cell]}`;
     if (node.open.title !== pill.title) node.open.title = pill.title;
     node.open.setAttribute('aria-label', words ? `${pill.name}, ${words}` : pill.name);
     if (node.x.title !== pill.hide) { node.x.title = pill.hide; node.x.setAttribute('aria-label', pill.hide); }
+    node.x.hidden = !!pill.fixed;
     return node.root;
   }
 
@@ -247,16 +258,19 @@ export class WorkingStrip {
     open.type = 'button';
     open.className = 'strip-pill-open';
     const cell = litCell(pill.cell, { size: 12, decorative: true, fraction: pill.fraction });
+    // The voice's presence carries its state mark (voice-mark.ts), not a lit cell: it is the voice, not a piece of work.
+    const mark = pill.voice ? voiceMark(pill.voice, 8) : null;
+    if (mark) root.classList.add('strip-pill-voice');
     const name = document.createElement('b');
     name.className = 'strip-pill-name';
     const state = document.createElement('span');
     state.className = 'strip-pill-state mm-num';
-    open.append(cell, name, state);
+    open.append(mark ?? cell, name, state);
     const x = document.createElement('button');
     x.type = 'button';
     x.className = 'strip-pill-x';
     x.append(tabMark('x', 'strip-pill-x-icon'));
-    const node: PillNode = { root, open, cell, name, state, x, pill, shown: null, words: '' };
+    const node: PillNode = { root, open, cell, name, state, x, pill, shown: null, words: '', mark };
     open.addEventListener('click', () => node.pill.open());
     x.addEventListener('click', () => node.pill.dismiss());
     root.addEventListener('animationend', (event) => { if ((event as AnimationEvent).animationName === 'mm-strip-rise') root.classList.remove('strip-pill-rise'); });

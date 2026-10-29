@@ -64,3 +64,14 @@ test('Hands: control and cues reach the cursor; a cue from before the user took 
   expect(ended).toEqual(['d1']);
   expect(sent).toEqual([{ type: 'drive-shown', id: 'd2', ok: false, why: 'stale' }]);
 });
+
+test('the voice\'s state goes to its display, and nothing is answered for it', () => {
+  const replies: PartnerCommand[] = [];
+  const shown: unknown[] = [];
+  const handle = partnerHandler({ reply: (c) => { replies.push(c); return true; }, capture: { share: async () => null, compose: async () => ({ jpeg: 'x', w: 1, h: 1 }) },
+    marks: { show: () => [], clear: () => {} }, voiceState: (m) => shown.push(m) });
+  const message = { type: 'voice-state' as const, state: 'thinking' as const, n: 0, working: [], seq: 2, at: 1 };
+  handle(message);
+  expect(shown).toEqual([message]);
+  expect(replies).toEqual([]);
+});

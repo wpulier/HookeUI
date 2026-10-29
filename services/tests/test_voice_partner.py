@@ -311,7 +311,8 @@ def test_release_commits_and_asks_for_the_answer_with_nothing_fetched_after_it(m
         after = t.sb.types()[sent_before:]
         assert after[-2:] == ["input_audio_buffer.commit", "response.create"]
         assert set(after[:-2]) <= {"conversation.item.create", "conversation.item.delete"}
-        asked = [m for m in t.studio[studio_before:] if m["type"] != "heard"]  # the heard cue is told, not asked
+        # The heard cue and the voice's state on screen (presence.py) are told, not asked.
+        asked = [m for m in t.studio[studio_before:] if m["type"] not in ("heard", "voice-state")]
         assert len(t.grabs) == grabs_before and not asked, "nothing fetched after release"
         assert [m for m in t.studio if m["type"] == "heard"] == [{"type": "heard", "n": 1}]
         assert any(r["kind"] == "partner-heard" and r["n"] == 1 for r in t.logged)

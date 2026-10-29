@@ -1,0 +1,88 @@
+/* The voice's state (voice-presence.ts, voice-mark.ts): one small mark beside Talk's status, in the Assistant header's
+   chip and on the presence pill in the Working strip. Calm and small, in the studio's own vocabulary: the accent dot
+   and its halo as the heard cue draws them (marks.css .talk-hold-dot) while the voice listens, has heard, thinks or
+   speaks; the gold lit cell breathing while Hooke works, as a hand-off's row does (handoffs.css); a still dot while it
+   is live and ready. Only opacity and the halo move; reduced motion keeps the states and drops the motion. */
+
+.voice-state-mark {
+  --voice-mark: 8px;
+  position: relative; flex: none; display: inline-grid; place-items: center;
+  width: calc(var(--voice-mark) + 4px); height: calc(var(--voice-mark) + 4px);
+}
+.voice-state-mark > * { grid-area: 1 / 1; }
+.voice-state-dot {
+  width: var(--voice-mark); height: var(--voice-mark); border-radius: 50%; box-sizing: border-box;
+  background: var(--mm-accent, #79adff);
+  transition: background var(--mm-fast, 120ms) var(--mm-ease, ease), box-shadow 90ms linear, opacity var(--mm-fast, 120ms);
+}
+/* One of the two shows (the studio's own .lit-cell rule is stronger than a plain class, hence !important). */
+.voice-state-mark:not([data-state='working']) > .lit-cell { display: none !important; }
+.voice-state-mark[data-state='working'] > .voice-state-dot { display: none; }
+.voice-state-mark[data-state='off'] > .voice-state-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--mm-text-3, #909099); }
+/* Live and ready: the accent dot, still. */
+.voice-state-mark[data-state='idle'] > .voice-state-dot { opacity: 0.72; }
+/* Connecting: its outline breathing, as Talk's own dot does while it connects. */
+.voice-state-mark[data-state='connecting'] > .voice-state-dot {
+  background: transparent; box-shadow: inset 0 0 0 1.5px var(--mm-accent, #79adff); animation: mm-lit-breathe 1.6s ease-in-out infinite;
+}
+/* Listening: the halo follows the microphone's level (--level), as the hold ring's does. */
+.voice-state-mark[data-state='listening'] > .voice-state-dot {
+  box-shadow: 0 0 0 calc(1.5px + var(--level, 0) * 4px) color-mix(in srgb, var(--mm-accent, #79adff) 30%, transparent);
+}
+/* Heard: the halo eases into a soft disc once (the heard cue's settle). */
+.voice-state-mark[data-state='heard'] > .voice-state-dot { animation: voice-heard 260ms var(--mm-ease, ease) both; }
+/* Thinking: a ring leaves the dot, slowly, again and again (nothing is playing; it is making its answer). */
+.voice-state-mark[data-state='thinking'] > .voice-state-dot { animation: voice-think 1.8s var(--mm-ease, ease) infinite; }
+/* Speaking: a soft halo breathing with it. */
+.voice-state-mark[data-state='speaking'] > .voice-state-dot { animation: voice-speak 1.1s ease-in-out infinite; }
+@keyframes voice-heard {
+  0% { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--mm-accent, #79adff) 30%, transparent); }
+  100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--mm-accent, #79adff) 38%, transparent); }
+}
+@keyframes voice-think {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--mm-accent, #79adff) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mm-accent, #79adff) 0%, transparent); }
+}
+@keyframes voice-speak {
+  0%, 100% { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--mm-accent, #79adff) 30%, transparent); }
+  50% { box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--mm-accent, #79adff) 22%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-state-mark > .voice-state-dot { animation: none !important; transition: none; }
+  .voice-state-mark[data-state='thinking'] > .voice-state-dot { box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--mm-accent, #79adff) 35%, transparent); }
+  .voice-state-mark[data-state='speaking'] > .voice-state-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--mm-accent, #79adff) 26%, transparent); }
+}
+
+/* Beside Talk: the mark, then the status line ("Thinking", "Speaking · 2 working", "Hooke is working · 2"). */
+/* One row with End Talk at its end when they fit; longer words (how to talk) wrap beside it rather than being cut. */
+.voice-session-line { display: inline-flex; align-items: center; gap: 7px; flex: 1 1 160px; min-width: 0; }
+.voice-session-line > .voice-state-mark { align-self: flex-start; margin-top: 2px; }
+.voice-session-line > .voice-session-status { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+body[data-voice-state='heard'] .voice-session-line > .voice-session-status,
+body[data-voice-state='thinking'] .voice-session-line > .voice-session-status,
+body[data-voice-state='speaking'] .voice-session-line > .voice-session-status,
+body[data-voice-state='working'] .voice-session-line > .voice-session-status { color: var(--mm-text, inherit); }
+
+/* In the Assistant header, by its title: a compact chip. The title gives up its spare room while the chip shows, so the
+   chip sits beside it, and the header's other controls keep their place at the right. */
+.voice-chip {
+  flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px; height: 22px; box-sizing: border-box;
+  margin: 0 auto 0 2px; padding: 0 9px 0 6px; border-radius: 11px;
+  box-shadow: inset 0 0 0 1px var(--mm-line, rgb(255 255 255 / 10%)); color: var(--mm-text-2, #a7a7b0);
+  font: 500 12px/16px var(--mm-sans, system-ui, sans-serif); white-space: nowrap;
+}
+.voice-chip[hidden] { display: none; }
+.voice-chip-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.voice-chip:is([data-state='heard'], [data-state='thinking'], [data-state='speaking'], [data-state='listening'], [data-state='working']) {
+  color: var(--mm-text, #ededf0);
+}
+body[data-workspace-study='true'] .mm-dhead:has(> .voice-chip:not([hidden])) > h2 { flex: none; }
+
+/* With the Assistant closed: the presence pill, first in the Working strip ("Hooke · thinking"), its mark in place of
+   a lit cell and a hairline in the accent, so it reads as the voice beside the work. No ×: it is not a piece of work. */
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mm-accent, #79adff) 32%, transparent), var(--mm-highlight, 0 0 #0000); }
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice .strip-pill-name { font-weight: 600; }
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice .strip-pill-state { color: var(--mm-text-2, #a7a7b0); }
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice:is([data-voice='thinking'], [data-voice='speaking'], [data-voice='heard'], [data-voice='listening']) .strip-pill-state { color: var(--mm-text, #ededf0); }
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice .strip-pill-x[hidden] { display: none; }
+body[data-workspace-study='true'] .strip-pill.strip-pill-voice { padding: 0 11px 0 8px; gap: 0; }

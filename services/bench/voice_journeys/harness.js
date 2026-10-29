@@ -14,6 +14,11 @@
 //   researchers  the Project's researchers from the orchestrator (/api/research; the board only when that fails),
 //           when they change; key, fault, check, recovered (the bench put the journey back where it belongs)
 //   frames also say whether the stage had a source ("source") or showed the empty stage ("empty": nothing to view)
+//   voice-shown  the voice's state as the studio shows it (body data-voice-state and data-voice-working), whether the
+//           presence pill is in the Working strip (.strip-pill[data-id="voice:presence"], its words) and whether the
+//           Assistant is open (.study-agent-toggle pressed), each time any of them changes
+//   handoff-row  a hand-off's row in the chat (li.chat-handoff[data-handoff]) appearing or changing state
+//   assistant-set  the bench closed or opened the Assistant before a step's words (a plan step's "assistant")
 // The scorer (standard.py) reads these with the stack's own logs; this file decides nothing.
 (() => {
   if (window.__bench || window.top !== window) return; // the studio's own page, once (not its frames)
@@ -25,11 +30,11 @@
   // --- the voice socket, both ways ----------------------------------------------------------------------------------
   const KEEP_IN = new Set(['model', 'ready', 'interrupted', 'turn_complete', 'error', 'closed', 'tool_call', 'tool_result', 'answer']);
   const KEEP_TYPES = new Set(['talk', 'snapshot', 'snapshot-request', 'marks', 'marks-shown', 'marks-clear', 'bench', 'text', 'mute',
-    'voice-phase', 'offer', 'reoffer', 'control', 'drive', 'drive-shown', 'drive-end']);
+    'voice-phase', 'offer', 'reoffer', 'control', 'drive', 'drive-shown', 'drive-end', 'voice-state']);
   function brief(message) {
     const m = {};
     for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase',
-      'version', 'owner', 'ok', 'why', 'outcome', 'intent'])
+      'version', 'owner', 'ok', 'why', 'outcome', 'intent', 'state', 'seq', 'turn'])
       if (message[key] !== undefined) m[key] = message[key];
     if (message.marks) m.marks = message.marks;
     if (message.resolved) m.resolved = message.resolved;
@@ -258,6 +263,46 @@
   setInterval(() => { void pollResearchers(); }, 1500);
   const newest = () => researchers().filter((r) => r.number != null).sort((a, b) => b.number - a.number)[0];
 
+  // --- the voice's state as shown, the presence pill, the Assistant, and the hand-off rows, sampled ----------------
+  // On every change of the body's voice attributes, and every 250 ms (the pill and the Assistant's toggle have no one
+  // attribute to watch): one voice-shown event whenever what is shown changes; one handoff-row per row and state.
+  const agentToggle = () => document.querySelector('.study-agent-toggle');
+  const assistantOpen = () => { const t = agentToggle(); return t ? t.getAttribute('aria-pressed') === 'true' : null; };
+  let shownKey = '';
+  const rowStates = new Map();
+  function sampleShown() {
+    if (!document.body) return;
+    const pill = document.querySelector('.strip-pill[data-id="voice:presence"]');
+    const visible = !!pill && !pill.hidden && pill.getClientRects().length > 0;
+    const n = Number(document.body.dataset.voiceWorking);
+    const now = { state: document.body.dataset.voiceState || null, n: Number.isFinite(n) ? n : null, pill: visible,
+      pillWords: visible ? (pill.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '', assistant: assistantOpen() };
+    const key = JSON.stringify(now);
+    if (key !== shownKey) { shownKey = key; ev({ e: 'voice-shown', ...now }); }
+    for (const row of document.querySelectorAll('li.chat-handoff[data-handoff]')) {
+      const id = row.dataset.handoff, at = row.dataset.state || '';
+      if (rowStates.get(id) === at) continue;
+      rowStates.set(id, at);
+      ev({ e: 'handoff-row', id, state: at });
+    }
+  }
+  setInterval(sampleShown, 250);
+  const watchBody = () => {
+    if (!document.body) { setTimeout(watchBody, 50); return; }
+    new MutationObserver(sampleShown).observe(document.body, { attributes: true, attributeFilter: ['data-voice-state', 'data-voice-working'] });
+    sampleShown();
+  };
+  watchBody();
+  // A plan step's "assistant": "close" | "open", before its words: the Assistant's own toggle, pressed only when it
+  // differs, then a moment for the panel (and the presence pill) to settle.
+  async function setAssistant(want, stepId) {
+    const open = want === 'open', toggle = agentToggle();
+    if (toggle && assistantOpen() !== open) toggle.click();
+    await sleep(600);
+    sampleShown();
+    ev({ e: 'assistant-set', step: stepId, want, ok: assistantOpen() === open });
+  }
+
   // The open Project, from the orchestrator (/api/sessions).
   async function openProject() {
     const listing = await (await fetch('/api/sessions', { cache: 'no-store' })).json().catch(() => ({}));
@@ -284,7 +329,9 @@
   async function quiet(quietMs, maxMs, minMs) {
     const t0 = Date.now();
     const handing = () => !!document.querySelector('[data-role="handoff"][data-state="working"]');
-    const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing();
+    // The voice about to answer (heard you, thinking: the studio's shown state) is not quiet either.
+    const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing()
+      || ['heard', 'thinking'].includes(document.body?.dataset.voiceState || '');
     const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
     while (Date.now() - t0 < (handing() ? Math.max(maxMs, HANDOFF_MS) : maxMs) && busy()) await sleep(200);
   }
@@ -501,9 +548,11 @@
             await stageSpecimen(plan, base, step.id);
             continue;
           }
+          if (step.assistant) await setAssistant(step.assistant, step.id);
           const record = { id: step.id, kind: step.kind, say: step.say };
           if (step.interrupt) record.interrupt = true;
           const startedBefore = step.waitFor ? new Set(researchers().map((r) => r.rid)) : null;
+          if (step.assistant) record.assistant = step.assistant;
           if (mode === 'hold') {
             record.down = await hold(true);
             await sleep(150);

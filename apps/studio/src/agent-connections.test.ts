@@ -241,3 +241,42 @@ describe('Project connection entrance', () => {
     expect(host.textContent).toContain('has not supplied setup instructions'); expect(writeText).not.toHaveBeenCalled();
   });
 });
+
+describe('Connect your own agent… (the Assistant header\'s ⋯, W3)', () => {
+  it('shows a small dot on the header while an agent is connected, named in its tooltip, and none otherwise', () => {
+    const { connections } = rig();
+    const header = new TestElement('header'); const more = new TestElement('button'); header.append(more);
+    const dot = connections.mountDot(more as unknown as HTMLElement) as unknown as TestElement;
+    expect(header.children[0]).toBe(dot);
+    expect(dot.hidden).toBe(true);
+    connections.apply({ pending: [], connections: [{ id: 'ac_1', label: 'Claude Code', kind: 'claude-code', at: 1, revokedAt: null },
+      { id: 'ac_2', label: 'Old client', kind: 'other', at: 1, revokedAt: 2 }] });
+    expect(dot.hidden).toBe(false);
+    expect(dot.title).toBe('Connected to Hooke: Claude Code');
+    expect(connections.connected()).toEqual(['Claude Code']);
+    connections.apply({ pending: [], connections: [] });
+    expect(dot.hidden).toBe(true);
+  });
+
+  it('opens the same entrance as a popover: who is connected, Copy setup prompt and Manage connections; Escape closes it', () => {
+    const { connections } = rig();
+    const more = new TestElement('button'); const manage = vi.fn();
+    connections.apply({ pending: [], connections: [] });
+    const pop = connections.openEntry(more as unknown as HTMLElement, manage, () => 'p1') as unknown as TestElement;
+    expect(document.body.children).toContain(pop);
+    expect(pop.getAttribute('aria-label')).toBe('Connect your own agent');
+    expect(pop.textContent).toContain('Continue with your own agent');
+    const names = buttons(pop).map((b) => b.textContent);
+    expect(names).toEqual(expect.arrayContaining(['Copy setup prompt', 'Manage connections']));
+    buttons(pop).find((b) => b.textContent === 'Manage connections')!.onclick();
+    expect(manage).toHaveBeenCalledOnce();
+    expect(document.body.children).not.toContain(pop); // Manage closes it
+    const again = connections.openEntry(more as unknown as HTMLElement, manage, () => 'p1') as unknown as TestElement;
+    const escape = new Event('keydown', { cancelable: true }); Object.defineProperty(escape, 'key', { value: 'Escape' });
+    again.dispatchEvent(escape);
+    expect(document.body.children).not.toContain(again);
+    const third = connections.openEntry(more as unknown as HTMLElement, manage, () => 'p1');
+    expect(connections.openEntry(more as unknown as HTMLElement, manage, () => 'p1')).toBeNull(); // pressed again: it closes
+    expect(document.body.children).not.toContain(third);
+  });
+});

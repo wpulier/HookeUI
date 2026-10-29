@@ -290,10 +290,14 @@ function assistantMenu(): MenuItem[] {
     { label: 'New conversation', title: 'Start a new conversation; this one is kept', act: () => chooseThread('__new') },
     { label: 'Rename this one…', disabled: !threads.length, act: () => chooseThread('__rename') },
     'separator',
-    { label: 'Activity', title: 'What the Assistant and the app did, request by request', act: () => showActivity(true) }];
+    { label: 'Activity', title: 'What the Assistant and the app did, request by request', act: () => showActivity(true) },
+    'separator',
+    { label: 'Connect your own agent…', title: 'Copy the setup prompt for your own agent, or manage connections',
+      act: () => agentConnections.openEntry(assistantMore, manageAgents, () => snapshot.session || undefined) }];
 }
 const assistantMore = moreButton('Conversations and Activity', assistantMenu, 'mm-dhead-more study-assistant-more');
 rightHeader.append(el('h2','','Assistant'), controlsChip, assistantMore, closeRight);
+agentConnections.mountDot(assistantMore); // a small dot while an agent is connected (agent-connections.ts)
 const resize = el('div', 'study-resize');
 function resizePanel(handle: HTMLElement, side: 'left'|'right'): void {
   handle.tabIndex=0; handle.setAttribute('role','separator'); handle.setAttribute('aria-label',`Resize ${side === 'left' ? 'left panel' : 'Assistant'}`); handle.setAttribute('aria-orientation','vertical');
@@ -2137,12 +2141,10 @@ assistantOff.append(el('h3','','This example Project'),
   el('p','','Your example inputs and results are kept here. You can inspect them with the local tools. The Assistant is off in this example to keep it local; open another Project to use it.'),
   assistantExamples,button('Open your Projects',()=>bridge.navigate('#sessions'),'mm-primary'));
 find('starters').before(assistantOff);
-const agentEntry = el('div');
-find('starters').before(agentEntry);
-agentConnections.mountEntry(agentEntry, () => {
+function manageAgents(): void {
   bridge.navigate('#settings');
   requestAnimationFrame(() => settings.querySelector<HTMLElement>('.agent-connections-settings')?.scrollIntoView({ block: 'start' }));
-}, () => snapshot.session || undefined);
+}
 function renderAgentScope(using: { name: string; thumb?: string; none: boolean }, output: string): void {
   const local = !!snapshot.session && snapshot.session === exampleProject();
   const scientific = scientificAskSelection();
