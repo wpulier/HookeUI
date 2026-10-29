@@ -11,7 +11,7 @@ other files.
   registry's tools). `toolbox.build(Services)` is the one way the tool list is made (the app,
   tests and benches; a tool is there only when what it acts on exists; ADR 0003); a tool fails
   with `ToolFailed` (an `orchestrator/tools.ToolError` is one).
-- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
+- **Three voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
   each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
   lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
   camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
@@ -19,8 +19,14 @@ other files.
   brain only what no tool covers (`do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
   taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
   change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
-  pause. Both write the same journal lines and conversation turns; neither replaces the other
-  (docs/architecture/seeing-and-acting.md "The one-brain loop").
+  pause. **The one brain on Gemini** (`gemini-3.8-live`, `voice/gemini_partner.py`) is the same partner on Gemini 3.8
+  Live: `Partner` binds either session through `voice/partner_session.py` (`PartnerSession`), so perception, the
+  brief, marks, act then look, chat and proactive lines are the same code. Its differences: its audio is relayed
+  through the app (Gemini Live has no WebRTC), a held turn is an activity (`activity_start`/`activity_end`), the camera
+  also streams at 1 fps while Talk is open, its tools are `NON_BLOCKING` with results sent `INTERRUPT` once its words
+  have played (never empty: it repeats calls on empty results), and it resumes with a handle on GoAway, a drop or new
+  tools. All write the same journal lines and conversation turns; none replaces another
+  (docs/architecture/seeing-and-acting.md "The one-brain loop" and "The one brain on Gemini 3.8 Live").
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

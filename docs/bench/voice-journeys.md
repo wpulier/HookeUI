@@ -4,7 +4,10 @@
 tells, in numbers, whether the live research partner meets the acceptance standard of 29 Oct
 (`PARTNER-CONTRACT.md`, the Part 2.5 plan), for both voices:
 - `gpt-live-1` (GPT-Live, the default today): open microphone, every request handed to the brain;
-- `gpt-realtime-2.1` (the one brain): hold to talk (or open), sees the window and the frame, calls tools itself.
+- `gpt-realtime-2.1` (the one brain): hold to talk (or open), sees the window and the frame, calls tools itself;
+- `gemini-3.8-live` (the one brain on Gemini 3.8 Live): the same partner, its audio relayed through the app, the camera
+  also as 1 fps video. Its audio is heard in the page only through the studio's own `voice-phase`, so its times come
+  from the server's records (`partner-response`, `partner-audio`); the scoreboard says so.
 
 The default switches to the one brain with hold to talk only when it meets every line. A line that was not measured
 is not met.
@@ -30,6 +33,9 @@ at the worst case.
     --budget /path/budget.py --keys <keys file>
 # The second pass, on the same stack folder after the first (its setup is already done there)
 .venv/bin/python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --plan part-2.5-second --reps 10 --out /path/p25-rt-2 ...
+# The one brain on Gemini, on the same journey (--owner names the budget's reservation)
+.venv/bin/python -m bench.voice_journeys.run --voice gemini-3.8-live --talk hold --plan part-2.5 --reps 10 \
+    --out /path/p25-gemini --budget /path/budget.py --keys <keys file> --owner <name>
 # Both voices side by side, and whether the default may switch
 .venv/bin/python -m bench.voice_journeys.compare /path/p25-live /path/p25-rt
 # Score kept runs again (a scorer change, a new threshold): nothing started, nothing spent
@@ -37,7 +43,8 @@ at the worst case.
 ```
 
 - **Voices and talk modes.** `--voice` and `--talk` set the stack's `voice` and `talk` settings
-  (`MICROMIND_SETTINGS`). GPT-Live listens with an open microphone only, so `--talk hold` is refused for it. Hold mode
+  (`MICROMIND_SETTINGS`). GPT-Live listens with an open microphone only, so `--talk hold` is refused for it; both one
+  brains hold by default. Hold mode
   presses Playwright's trusted Control+Option around each step's words, the studio's talk key. The studio then sends
   `{type:"talk", down:true, n}` with its key-down snapshot, and `{type:"talk", down:false}` on release. Without the
   driver, the player holds the Talk button instead (pointerdown and pointerup).

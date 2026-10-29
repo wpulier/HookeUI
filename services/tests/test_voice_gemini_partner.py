@@ -621,6 +621,33 @@ def test_a_line_nobody_asked_for_waits_for_quiet_and_is_said_once(monkeypatch):
     asyncio.run(go())
 
 
+def test_two_lines_nobody_asked_for_are_never_asked_before_the_first_ones_answer_begins(monkeypatch):
+    """Client content that completes a turn interrupts whatever Gemini is generating: a second line waits until the
+    first's answer has begun and ended (the OpenAI voice's one-response gate, here), and an answer that begins while
+    the key is held is never heard (the user is talking)."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.session._last_user_at = 0.0
+        await t.partner.happened("tool-done", '{"tool": "count", "status": "done"}', ref="a1")
+        await t.partner.happened("capability-on", '{"capability": "Cellpose"}', ref="cellpose")
+        await until_async(lambda: asked(t.live) or None)
+        await asyncio.sleep(0.6)
+        assert len(asked(t.live)) == 1, "the second waits for the first's answer"
+        t.live.emit(audio(0.1))
+        t.live.emit(said("Counting is done."))
+        t.live.emit(turn_done())
+        await until_async(lambda: len(asked(t.live)) == 2)
+        await press(t, 1, snapshot=None, hold=False)
+        out = []
+        t.session.on(lambda e: out.append(e.kind))
+        t.live.emit(audio(0.1))
+        t.live.emit(said("Cellpose is on."))
+        t.live.emit(turn_done())
+        await settle()
+        assert "audio" not in out and "Cellpose is on." not in [turn.text for turn in t.brain.conversation.turns]
+    asyncio.run(go())
+
+
 def test_typed_chat_and_the_narrators_context_reach_it_without_an_answer(monkeypatch):
     async def go():
         t = await partner_session(monkeypatch)

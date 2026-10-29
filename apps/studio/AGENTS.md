@@ -1012,11 +1012,13 @@ reported step; that is an observation, not a claim that work stopped.
 ### Hold to talk and marks (the one-brain voice, Part 2.5)
 
 The one-brain voice (`gpt-realtime-2.1`, `voice.ts` `PARTNER_VOICE`) hears, sees and acts in one model; GPT-Live keeps
-everything above. It talks over WebRTC only, whatever the saved Voice link. Its own messages share `/ws/voice`
-(`protocol.ts` `PartnerMessage` and `PartnerCommand`; the server is `services/orchestrator/voice/`).
+everything above. It talks over WebRTC only, whatever the saved Voice link. Its Gemini option (`gemini-3.8-live`,
+`GEMINI_PARTNER_VOICE`) is the same partner whose audio goes through the app (the relay: Gemini Live has no WebRTC),
+whatever the saved Voice link; both are `PARTNER_VOICES` and everything below holds for both. Their own messages share
+`/ws/voice` (`protocol.ts` `PartnerMessage` and `PartnerCommand`; the server is `services/orchestrator/voice/`).
 
-- **Hold to talk** (`talk.ts` `TalkHold`): when the session says `talk: "hold"` (before connecting: the Voice is the one
-  brain and TALK is not `open`), each turn is held. The talk key is a Behaviour setting (`talk_key`): Control+Option
+- **Hold to talk** (`talk.ts` `TalkHold`): when the session says `talk: "hold"` (before connecting: the Voice is one of
+  `PARTNER_VOICES` and TALK is not `open`), each turn is held. The talk key is a Behaviour setting (`talk_key`): Control+Option
   (the default; it is VoiceOver's modifier, so with VoiceOver on choose Right Option) or Right Option held alone.
   Keys are read on the window in the capture phase, so the hold works while a text field has focus. Auto-repeat is
   ignored. Escape while held drops the turn and closes nothing else. Another key pressed during the hold (a VoiceOver

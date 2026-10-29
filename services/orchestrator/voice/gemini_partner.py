@@ -58,6 +58,7 @@ PROACTIVE_KEPT_S = 60.0
 SAME_EVENT_S = 120.0
 RECONNECT_WAIT_S = 10.0
 RESULT_QUIET_WAIT_S = 3.0  # a tool's result waits at most this long for the voice's current words to end
+ANSWER_WAIT_S = 4.0  # something Gemini was asked to answer counts as being said this long, or until its answer begins
 PROGRESS_AFTER_S = 1.2  # a tool round this long without its results, and the voice quiet: one progress line
 PROGRESS_LINES = 1
 NOTES_KEPT = 12
@@ -233,6 +234,8 @@ class GeminiPartnerSession(VoiceSession):
         # What the next generation answers (its cause and turn): "tap" when it answers a tap or Escape after a barge-in,
         # which nothing of is heard or filed.
         self._next_cause: tuple[str, int] = ("unknown", 0)
+        self._awaiting: float | None = None  # when Gemini was last asked for an answer that has not begun (monotonic)
+        self._flushing = False  # the audio held for an activity is being sent: newer audio queues behind it
         self._gens = 0
         self._audio_until = 0.0  # when the audio sent to the studio ends playing (monotonic estimate)
         self._last_audio_at = 0.0
@@ -438,9 +441,12 @@ class GeminiPartnerSession(VoiceSession):
 
     # --- talking ---------------------------------------------------------------------------------------------
     def speaking(self) -> bool:
-        """Generating or audible (a generation waiting on its tool calls counts: Gemini ends it only after their
-        results)."""
-        return (self._gen is not None and not self._gen.get("suppressed")) or self.audible()
+        """Generating, about to (asked for an answer that has not begun), or audible. A generation waiting on its tool
+        calls counts: Gemini ends it only after their results."""
+        if self._awaiting is not None and self.clock() - self._awaiting > ANSWER_WAIT_S:
+            self._awaiting = None  # nothing came of it (Gemini may stay silent)
+        return ((self._gen is not None and not self._gen.get("suppressed")) or self._awaiting is not None
+                or self.audible())
 
     def audible(self) -> bool:
         """Its words are playing in the studio: as the studio says, or as the audio sent there lasts."""
@@ -504,16 +510,17 @@ class GeminiPartnerSession(VoiceSession):
         """Turn n's activity: `activity_start`, then the audio held since its key went down."""
         if self._activity == n or self._live is None:
             return
-        self._activity = n
-        held, self._held_audio = self._held_audio, []
+        self._activity, self._flushing = n, True
         try:
             from google.genai import types
 
             await self._realtime(activity_start=types.ActivityStart())
-            for chunk in held:
-                await self._send_pcm(chunk)
+            while self._held_audio:  # in order: audio arriving meanwhile queues behind (send_audio)
+                await self._send_pcm(self._held_audio.pop(0))
         except Exception as exc:  # reconnecting: the release finds the connection replaced and says so
             self._log({"kind": "partner-talk-failed", "n": n, "error": f"{type(exc).__name__}: {exc}"[:300]})
+        finally:
+            self._flushing = False
         self._opened.setdefault(n, asyncio.Event()).set()
 
     async def _close_activity(self, *, answered: bool) -> None:
@@ -558,6 +565,7 @@ class GeminiPartnerSession(VoiceSession):
         await asyncio.sleep(RELEASE_TAIL_S)
         self._next_cause, self._heard_n = ("turn", n), n
         await self._close_activity(answered=True)
+        self._awaiting = self.clock()
         committed = self.wall()
         self._last_user_at = self.clock()
         self._log({"kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
@@ -627,10 +635,10 @@ class GeminiPartnerSession(VoiceSession):
                 with contextlib.suppress(Exception):
                     await self._send_pcm(pcm)
             return
-        if self._activity is not None:
+        if self._activity is not None and not self._flushing:
             with contextlib.suppress(Exception):
                 await self._send_pcm(pcm)
-        elif self._held is not None:
+        elif self._held is not None or self._flushing:
             self._held_audio.append(pcm)
             self._trim(self._held_audio, HELD_AUDIO_S)
         else:
@@ -652,6 +660,7 @@ class GeminiPartnerSession(VoiceSession):
         self._last_user_at = self.clock()
         self._next_cause = ("typed", self.n)
         await self._text(text, complete=True)
+        self._awaiting = self.clock()
 
     async def inject(self, text: str, *, respond: bool = False, delegation_id: str | None = None,
                      source: str = "app", facts: dict | None = None) -> None:
@@ -700,6 +709,7 @@ class GeminiPartnerSession(VoiceSession):
             await self._text(text, complete=True)
         except Exception:
             return False
+        self._awaiting = self.clock()
         return True
 
     async def proactive(self, text: str, *, event: str, ref: str | None = None,
@@ -913,9 +923,12 @@ class GeminiPartnerSession(VoiceSession):
                 self._done = None
             self._gens += 1
             cause, n = self._next_cause
+            # Never heard: the answer to a tap or Escape after a barge-in, and anything begun while the key is held (the
+            # user is talking; the activity opening stops it).
             self._gen = {"id": f"gm_{self._gens}", "cause": cause, "n": n, "createdT": self.wall(), "firstAudioT": None,
                          "heardT": None, "audioS": 0.0, "transcript": "", "status": "completed",
-                         "suppressed": cause == "tap"}
+                         "suppressed": cause == "tap" or self._held is not None}
+            self._awaiting = None
             self._next_cause = ("unknown", n)
         return self._gen
 
@@ -1107,6 +1120,8 @@ class GeminiPartnerSession(VoiceSession):
             self._next_cause = ("look" if looked else "tool", n)
         try:
             await self._live.send_tool_response(function_responses=responses)
+            if scheduling != types.FunctionResponseScheduling.SILENT:
+                self._awaiting = self.clock()
         except Exception as exc:
             self._log({"kind": "partner-output-dropped", "callIds": [r.id for r in responses],
                        "why": f"{type(exc).__name__}: {exc}"[:300]})

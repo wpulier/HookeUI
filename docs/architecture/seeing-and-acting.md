@@ -699,3 +699,67 @@ own path adds about 0.2 s), 10-35 s when the machine is loaded by other work. mi
 the same frame: 0.65 s, 308 outlines against Cellpose's 343, 298 of Cellpose's matched one to one at IoU >= 0.5 (mean
 IoU 0.78): an option for the user to choose; the default is unchanged.
 
+
+## The one brain on Gemini 3.8 Live (option VOICE `gemini-3.8-live`)
+
+The same partner on a second model, beside `gpt-realtime-2.1` and never in its place (item 6 of the live partner's
+architecture brief; research: hooke-web `docs/research/2026-10-29-live-partner/gemini-live.md`). `Partner`
+(`voice/partner.py`) binds either session through `PartnerSession` (`voice/partner_session.py`): the members it and the
+route use, which `RealtimeSession` and `GeminiPartnerSession` (`voice/gemini_partner.py`) both have. Everything the
+partner does above (perception at key-down, the brief, the studio link, marks, act then look, one conversation with
+chat, lines nobody asked for, the `partner-*` records) is the same code; only the session differs.
+
+- **Transport:** Gemini Live is a WebSocket only (no WebRTC, no sideband), so this server holds the connection
+  (google-genai's `client.aio.live.connect`, model `gemini-3.8-live`, GA since 2026-09-15) and the audio is relayed
+  through `/ws/voice` both ways, as GPT-Live's relay is: the studio's microphone as 24 kHz PCM (Gemini resamples it),
+  the voice's 24 kHz PCM back as `MMA1` frames, played by the studio, which reports `voice-phase` as for WebRTC. The
+  studio picks the relay for this Voice whatever the saved Voice link, and the route refuses WebRTC for it. What the
+  relay means: one more local hop each way (a few ms on this Mac), no WebRTC jitter buffer (the studio schedules
+  each chunk 50 ms ahead), and the browser's echo cancelling does not cover audio the studio plays itself, so with an
+  open mic use headphones; hold to talk relays the microphone only while the key is held, so it never hears itself.
+- **Config** (`build_config`): tools `NON_BLOCKING`; no `proactivity` or `enable_affective_dialog` (removed in 3.8:
+  always on) and no `thinking_level` (refused) but `thinking_budget: 0` (first audio 0.96-1.22 s against 1.27-1.47 s
+  with thinking, docs/bench/live.md of 2026-10-03; accepted on 2026-10-29); `custom_vocabulary` of microscopy and
+  Hooke words on the input transcription; context-window compression set explicitly (64K tokens down to 32K: half the
+  128K window, as each turn re-reads its whole context at its price); resumption handles; `media_resolution: low`;
+  `HistoryConfig(initial_history_in_client_content)` on a fresh connection. Hold to talk turns the server's activity
+  detection off; open mic uses it.
+- **A turn (hold):** a key held past 0.25 s opens an activity (`activity_start`, then the audio relayed since the key
+  went down, kept with 0.3 s before it because the studio's first chunks can arrive before the key-down is handled);
+  the turn's note and pictures go in as client content (user role, marked "From Hooke, not the user speaking", never
+  completing the turn); release closes it (`activity_end` after the 0.05 s tail) and Gemini answers. A tap or Escape
+  opens nothing. A key down while it generates opens the activity at once (Gemini stops generating only then), the
+  studio flushes its audio, and what still comes of that generation is neither relayed nor filed; a tap after that
+  closes the activity and its answer is dropped too. Gemini has no item delete: earlier pictures stay until compression
+  slides them out; the notes are kept here for a fresh connection.
+- **Seeing continuously:** while Talk is open the eyepiece crop streams as video, the newest frame at most once a
+  second (`partner.camera`, off the loop), a frame already sent not again (70 tokens a frame at low resolution).
+- **Tools:** each call runs its ToolSpec handler as for the OpenAI voice (`partner_tools`); the results of one
+  `tool_call` message go back together, each never empty (`status`, `retryable`, `message`: Gemini 3.8 repeats a call
+  2-5 times when a result says nothing), a failure telling it not to call again; a call repeated while the first runs
+  is answered with the first's result and never run twice; a fresh look (the studio's report and window) goes in
+  before the result. Scheduling: `INTERRUPT`, sent once the words already sent have played (on the real API a
+  `WHEN_IDLE` result ended the turn without the answer being said); `SILENT` when a newer turn has begun or the calls
+  only pointed after the answer was spoken. One progress line (client content completing a turn, "call no tool") when
+  a round runs past 1.2 s with the voice quiet. `PARTNER_GEMINI` adds Google's own cap to the prompt: never more than
+  two tools in a row without speaking.
+- **Lines nobody asked for, typed lines, a reconnect's line:** client content that completes a turn (which Gemini
+  answers), only when nobody talks and nothing is said, once per event, as for the OpenAI voice.
+- **Session length:** a GoAway (about a minute before a connection ends) and a change of tools (Gemini takes none
+  mid-session on the Gemini API) renew the connection with the newest handle when it is quiet; a dropped connection
+  is resumed the same way (the partner asks; no browser offer). A handle the server refuses, or none, gives a fresh
+  connection seeded with the last 8 exchanges, the notes and the brief (the seed completes the turn, which Gemini does
+  not answer). A release whose audio went to a replaced connection is answered "please say that again".
+- **Usage:** each turn's `usage_metadata` (in by modality, out by modality) at `budget.PRICES["gemini-3.8-live"]`
+  ($0.75 text, $3 audio, $1 image and video in; $4.50 text, $12 audio out, per million); minutes ahead under a cap
+  held at $0.10.
+
+Measured on the real API, 2026-10-29 (no browser; `gemini_partner.probe`, the session itself): a held turn with the
+brief, a labelled 512 px picture, 1 fps video and "Outline the nuclei in this picture and tell me how many there are"
+(macOS Samantha, 24 kHz): heard word for word; it spoke first ("Counting the nuclei.") **627 ms** after `activity_end`,
+called the tool at **796 ms**, and said the result ("I have outlined seven nuclei in the current view.") 1.41 s after
+the tool returned, 0.4 s after its first words had played; two turns cost $0.0064 at list price (about 1.5K text,
+0.3K audio and 0.3K image tokens re-read each turn). An exploration before it found: a seed completing the turn is not
+answered; a `WHEN_IDLE` result ended the turn unsaid; a line asked as client content was spoken 1.06 s after; a
+connection resumed with a changed tool list in 0.67 s and remembered the conversation (whether the new tool was taken is
+not confirmed); `usage_metadata` comes once a turn, with its `turn_complete`, counting the whole context.
