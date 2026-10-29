@@ -1,3 +1,4 @@
+import { organizeMaterial } from './material-organization';
 import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
@@ -1496,7 +1497,11 @@ function renderInputs(): void {
     let matchingMedia = 0;
     for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
     const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
-    for (const entry of selected) {
+    const grouped = [...selected].sort((a, b) => (a.material?.organization?.role || 'Material').localeCompare(b.material?.organization?.role || 'Material'));
+    let previousGroup = '';
+    for (const entry of grouped) {
+      const group = entry.material?.organization?.role || 'Material';
+      if (group !== previousGroup) { materialList.append(el('h3', 'project-input-group', group)); previousGroup = group; }
       const actions = entryActions(entry);
       const open = () => { if (!inputOwnerCurrent(owner)) return;
         if (entry.material?.kind === 'assignment') void openStudy(entry.id);
@@ -1707,6 +1712,10 @@ function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:st
       // The mock's row ⋯: what its researcher made (Data under that maker's chip), and a Tab of its own.
       const who=(entry as DataEntry).maker;
       if(who?.kind==='researcher'&&who.name)items.push({label:`Show what ${who.name} made`,act:()=>showMadeBy(researcherKey(who.name))});
+      if (entry.kind === 'project' && entry.material && !entry.material.record && entry.material.kind !== 'assignment') {
+        items.push({label:'Organize material…',act:()=>organizeMaterial(entry, owner.session,
+          ()=>inputOwnerCurrent(owner), ()=>void refreshResults())});
+      }
       items.push({label:'Open in new Tab',act:()=>void openReaderTab(entry as ReaderEntry)});
       return items;
     };

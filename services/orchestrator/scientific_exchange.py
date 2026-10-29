@@ -45,6 +45,9 @@ def _references(document):
         if type(ref) is dict and type(ref.get('id')) is str and type(ref.get('session')) is str \
                 and type(ref.get('revision')) is int:
             found.append((ref['id'], ref['session'], ref['revision']))
+    membership = state.get('materialMembership')
+    if document.get('kind') == 'project-material-membership' and type(membership) is dict:
+        add(membership.get('reference'))
     edit = state.get('hookeEdit')
     for change in (edit.get('changes', []) if type(edit) is dict and edit.get('format') == 2 else [edit]):
         if type(change) is dict:
