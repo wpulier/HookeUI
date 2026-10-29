@@ -51,13 +51,10 @@ def describe(document: dict) -> dict:
     return material
 
 
-def attach_usage(entries) -> None:
-    """Join exact Study input memberships without changing their historical origin.
-
-    Older pinned revisions remain listed in uses; only an exact current revision
-    becomes an input row. Reading an older input stays the Study's exact-ref path.
-    """
-    materials = {}
+def attach_usage(entries, store=None) -> list[str]:
+    """Join exact Study inputs. Bad memberships never hide unrelated material."""
+    import re
+    materials, problems = {}, []
     for entry in entries:
         if entry.kind == 'project' and isinstance(entry.values, dict):
             entry.material = describe(entry.values)
@@ -67,15 +64,33 @@ def attach_usage(entries) -> None:
         if study.values.get('kind') != 'research-effort':
             continue
         effort = study.values.get('state', {}).get('researchEffort', {})
-        if not isinstance(effort, dict):
+        refs = effort.get('inputs', []) if isinstance(effort, dict) else None
+        if not isinstance(refs, list) or len(refs) > 64:
+            problems.append(f'Study {study.id}: input membership is unreadable')
             continue
-        for ref in effort.get('inputs', []):
-            if not isinstance(ref, dict):
+        for ref in refs:
+            if (not isinstance(ref, dict) or not isinstance(ref.get('id'), str)
+                    or type(ref.get('revision')) is not int or ref['revision'] < 1
+                    or not isinstance(ref.get('digest'), str)
+                    or not re.fullmatch(r'[a-f0-9]{64}', ref['digest'])):
+                problems.append(f'Study {study.id}: an input reference is invalid')
                 continue
-            entry = materials.get(ref.get('id'))
+            entry = materials.get(ref['id'])
             if entry is None:
+                problems.append(f'Study {study.id}: input {ref["id"]} is unavailable')
                 continue
-            use = {'study': study.id, 'revision': ref.get('revision'), 'digest': ref.get('digest')}
+            current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
+            use = {'study': study.id, 'revision': ref['revision'], 'digest': ref['digest'],
+                   'title': entry.title, 'available': current, 'material': describe(entry.values)}
+            if not current and store is not None:
+                try:
+                    old = store.read(entry.id, entry.day, revision=ref['revision'])
+                    if old.digest != ref['digest']:
+                        raise ValueError('digest mismatch')
+                    use.update(title=old.document['title'], available=True, material=describe(old.document))
+                except (OSError, ValueError, KeyError):
+                    problems.append(f'Study {study.id}: input {entry.id} revision {ref["revision"]} is unavailable')
             entry.material['uses'].append(use)
-            if entry.version == ref.get('revision') and entry.source.get('sha256') == ref.get('digest'):
+            if current:
                 entry.material['input'] = True
+    return problems

@@ -68,7 +68,9 @@
         "required": [
           "study",
           "revision",
-          "digest"
+          "digest",
+          "title",
+          "available"
         ],
         "properties": {
           "study": {
@@ -81,6 +83,15 @@
           "digest": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "material": {
+            "$ref": "project-material.schema.json"
           }
         }
       }

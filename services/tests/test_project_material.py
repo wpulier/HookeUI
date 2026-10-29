@@ -70,3 +70,28 @@ def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
     attach_usage([model, assignment])
     assert not model.material['input']
     assert model.material['uses'][0]['revision'] == 1
+
+
+def test_malformed_memberships_degrade_without_hiding_inventory(tmp_path):
+    from orchestrator.project_material import attach_usage
+    store = ProjectStore(tmp_path)
+    for inputs in (None, [{'id': []}], [{'id': 'model'}], 'bad'):
+        saved = store.create('2026-10-29', document('research-effort', {'researchEffort': {'inputs': inputs}}))
+        entry = Index.project_entry(saved)
+        assert attach_usage([entry], store)
+        assert entry.material['kind'] == 'assignment'
+        check(entry.material, 'project-material')
+
+
+def test_historical_input_is_retained_with_its_original_title(tmp_path):
+    from orchestrator.project_material import attach_usage
+    store = ProjectStore(tmp_path)
+    original = store.create('2026-10-29', document('matrix-result', title='Original model'))
+    study = store.create(original.session, document('research-effort', {'researchEffort': {'inputs': [
+        {'id': original.id, 'revision': 1, 'digest': original.digest}]}}))
+    newer = store.save(original.id, original.session, document('matrix-result', title='New model'), expected_revision=1)
+    entry = Index.project_entry(newer)
+    assert not attach_usage([entry, Index.project_entry(study)], store)
+    [use] = entry.material['uses']
+    assert use['title'] == 'Original model' and use['available']
+    assert use['digest'] == original.digest and use['revision'] == 1

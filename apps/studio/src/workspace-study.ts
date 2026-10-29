@@ -1460,9 +1460,12 @@ function importScientificSource(): void {
 /** Inputs (the drawer): the live camera and this Project's pictures and recordings as rows of the shared anatomy
  * (workspace-feel step 4), each opening its preview; ⋯ holds Open in Tab and its Results. The ways to bring an input in
  * are the drawer header's ⋯ (`inputsMore`), as Data's header has them. */
-let inputQuery = '';
+let inputQuery = '', inputQueryOwner = '';
+let refreshInputRows: (() => void) | null = null;
 function renderInputs(): void {
   const owner=workspaceViews.tabOwner();
+  if (inputQueryOwner !== owner.session) { inputQuery = ''; inputQueryOwner = owner.session; }
+  const mediaRows: {node: HTMLElement; text: string}[] = [];
   const list=el('div','study-specimens');
   // The live camera: green only while it is truly live (refreshLiveCameraStatus); its words say which camera.
   const liveLead=el('span','mm-row-icon');liveLead.append(el('span','study-live-mark'));
@@ -1477,7 +1480,7 @@ function renderInputs(): void {
     const {wrap,row}=dataRow(thumb,asset.title,`${kind} · ${where}`,`${asset.title}\nPreview; Open in Tab gives it a Tab of its own`,()=>showPreview(asset,owner),
       ()=>[{label:'Open in Tab',title:'Open it in a Tab of its own',act:()=>void openSource(asset,owner)},{label:'Results',title:'What was made from it, in Data',act:()=>{sourceFilter=asset.id;showSection('results');}}],`More for ${asset.title}`);
     wrap.classList.add('study-input');row.classList.toggle('active',asset.id===snapshot.onStage);if(asset.id===snapshot.onStage)row.setAttribute('aria-current','true');
-    list.append(wrap);
+    list.append(wrap); mediaRows.push({node: wrap, text: `${asset.title} ${kind}`.toLocaleLowerCase()});
   }
   const material = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
   const controls = el('div', 'project-input-controls');
@@ -1485,7 +1488,11 @@ function renderInputs(): void {
   search.setAttribute('aria-label', 'Search Project material'); search.value = inputQuery;
   const materialList = el('div', 'project-input-material');
   const drawMaterial = () => {
+    if (!inputOwnerCurrent(owner)) return;
     materialList.replaceChildren();
+    const needle = inputQuery.trim().toLocaleLowerCase();
+    let matchingMedia = 0;
+    for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
     const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
     for (const entry of selected) {
       const actions = entryActions(entry);
@@ -1497,8 +1504,9 @@ function renderInputs(): void {
         () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
       materialList.append(wrap);
     }
-    if (inputQuery && !selected.length) materialList.append(el('p', 'study-muted', 'No matching material.'));
+    if (inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
   };
+  refreshInputRows = drawMaterial;
   search.addEventListener('input', () => { inputQuery = search.value; drawMaterial(); });
   controls.append(button('Add material', () => { if (inputOwnerCurrent(owner)) importScientificSource(); }, 'study-primary'), search);
   drawerBody.append(controls, materialList, list); drawMaterial();
@@ -1604,7 +1612,7 @@ async function refreshResults(): Promise<void> {
     resultsFailed = false;
     madeMemo.clear();
     if (dataOpen) renderResults();
-    if (drawerOpen && section === 'inputs') { drawerBody.replaceChildren(); renderInputs(); }
+    if (drawerOpen && section === 'inputs') refreshInputRows?.();
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
   } catch (error) { if (dataOpen && generation === refreshGeneration) { resultsFailed = true; dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults())); } }

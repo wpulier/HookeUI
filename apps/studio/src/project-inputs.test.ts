@@ -25,3 +25,13 @@ describe('shared Project material', () => {
     expect(rows[0].parts.map(item => item.id)).toEqual(['run', 'attempt']);
   });
 });
+
+it('keeps a generated historical revision selected by a Study visible and pinned', () => {
+  const model = entry('model', false, {origin: 'generated', uses: [{study: 'study', revision: 1, digest: 'a'.repeat(64), title: 'Original model', available: true}]});
+  const [input] = projectInputs([model]);
+  expect(input.version).toBe(1);
+  expect(input.title).toBe('Original model');
+  expect(input.source?.sha256).toBe('a'.repeat(64));
+  expect(input.material?.origin).toBe('generated');
+  expect(model.version).toBe(2);
+});

@@ -1383,7 +1383,7 @@ class Index:
             except Exception as exc:  # one store that cannot be read never hides the others
                 unreadable.append(f"{name} ({exc})" if isinstance(exc, Unread) else f"{name} ({type(exc).__name__})")
         from .project_material import attach_usage
-        attach_usage(out)
+        unreadable.extend(attach_usage(out, self.projects))
         who = None
         for entry in out:
             made = entry.made_by if isinstance(entry.made_by, dict) else {}

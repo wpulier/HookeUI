@@ -13,7 +13,7 @@ export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' 
 export interface ProjectMaterial {
   kind: string; origin: 'imported' | 'generated' | 'authored' | 'unknown'; input: boolean;
   section: DataRole; category: string; record: boolean; run?: string;
-  uses?: {study: string; revision: number; digest: string}[];
+  uses?: {study: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
   format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
 }
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
