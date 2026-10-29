@@ -25,9 +25,11 @@ What the app did (seconds after the user finished; "confirmed" = the studio repo
 {actions}
 
 Judge from these facts only:
-- claims_on_screen: each claim that something is now on screen, open, shown, highlighted, started or done, as
-  {{"line": its line's number (1-based), "words": the few words of the line that make the claim, exactly as said}}
-  (a description of the specimen is not a claim; "opening it now" is a promise, not a claim).
+- claims_on_screen: each claim that a change is now on screen or complete (open, shown, highlighted, outlined, done),
+  as {{"line": its line's number (1-based), "words": the few words of the line that make the claim, exactly as said}}.
+  Not claims: a description of the specimen; a promise or a preamble ("opening it now", "outlining the nuclei");
+  a statement that work is still under way ("it's still outlining"); and a researcher's state ("Researcher 2 is
+  still running", "I started a researcher"), which the bench checks against the app's own list of researchers.
 - outcome_mentions: how many separate lines state the request's outcome (its result, or its failure). A preamble
   ("pulling that up") is not an outcome; a line that says the same outcome again counts again.
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
