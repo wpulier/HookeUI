@@ -734,6 +734,17 @@ with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
   (`response.create` with `conversation: "none"`, text only, `metadata.task`; the backend's own words when that
   does not come back in 4 s), is added to the conversation, and is said once through the gate, with marks on the ids
   it names drawn as the words start. A key press while it waits holds it; it is never said twice.
+- **Said when settled:** the result waits until nobody is talking, nothing is asked for, no tool of a turn is still
+  running or unanswered and the voice has been idle `IDLE_S` (`RealtimeSession.settled`); its words are prepared
+  once, and a delivery dropped for a key press keeps them (think-broad-2: said in the gap between the user's next turn
+  and its tool round, the voice talked about that turn instead, and the second preparation held the user's turn 1.6 s).
+- **Behind any partner session:** RealtimeSession's `deliver` and `tell_progress` when the session has them; otherwise
+  the result is the one `proactive` line every partner session says (`think-done`), with a mark on its first point
+  (Gemini 3.8 Live needs only `n`, `closed` and `proactive`).
+- **Slow tools the same way** (`partner_tools.BACKGROUND`: `reference_photo`, `retrieve_page`): "started" at once with
+  one acknowledgement, a progress line naming the tool, the result said once when it lands (`partner-background`,
+  then `partner-think-said` and a `think` response), a reference photo's window marked as the words start; past 70 s
+  still running, it is said as one line when it lands. `retrieve_page` waits up to 45 s and says a timeout as one.
 - **A refusal** (Anthropic's safeguards may refuse life-science requests) is said as a refusal, the other model
   offered by name; another model never answers in its place. A missing key is said, with where to set it.
 - Records: `partner-think` (task, model, rounds, tools with confirmed, checked, refused, ms, tokens) and
