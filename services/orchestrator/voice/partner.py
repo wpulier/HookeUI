@@ -159,6 +159,9 @@ class Partner:
 
         seen = self._seen.setdefault(n, {"window": None})  # a window picture that came first is kept
         seen["screen"] = self.screen_now()
+        board = getattr(self.brain, "board", None)
+        with contextlib.suppress(Exception):
+            seen["when_asked"] = board.when_asked() if board is not None else None
         seen["at"] = time.time()
         loop = asyncio.get_running_loop()
         seen["camera_task"] = loop.run_in_executor(None, view_frame, self.hub, 768)
@@ -272,6 +275,10 @@ class Partner:
                 + (f"Camera frame {frame_id}." if frame_id is not None else "No fresh camera frame.")
                 + ("" if window is not None else " No window picture this turn."))
         return Perception(note, images, facts)
+
+    def when_asked(self, n: int):
+        """What was pointed at when turn n's key went down (board.WhenAsked), or None."""
+        return (self._seen.get(n) or {}).get("when_asked")
 
     async def words(self, n: int, timeout: float) -> str:
         """What the user said on turn n (its transcription), waiting at most `timeout` for it."""

@@ -162,10 +162,14 @@ class PartnerTools:
             try:
                 info = hub.latest_info
                 board = getattr(brain, "board", None)
+                # "That" is what was pointed at when the user pressed talk (board.WhenAsked), not after.
+                asked_at = self.partner.when_asked(self.partner.turn())
+                if asked_at is None and board is not None:
+                    asked_at = board.when_asked()
                 ctx = ToolContext("voice", 0, info.id if info else None, question=words,
                                   asked=request.asked, admission=request.admission,
                                   request_id=request.admission.request_id, voice_owner=self.partner.session,
-                                  when_asked=board.when_asked() if board is not None else None)
+                                  when_asked=asked_at)
                 if self.client is not None:
                     with contextlib.suppress(Exception):  # no current report: the tool runs on the app's own view
                         pin = hub.screen.pin(self.client, request_id=request.admission.request_id,
@@ -214,11 +218,12 @@ class PartnerTools:
                 self.brain._remember_run_outputs(run, ctx, unbound=True)
 
     async def _late(self, run, ctx) -> None:
-        """A step that finished after its call was answered "still working": its row and receipt, and one line."""
-        self._file(run, ctx)
+        """A step that finished after its call was answered "still working": its row and receipt, and one line. One
+        that finished within the call's own wait was filed and answered already."""
         action = getattr(run.occurrence, "action_id", None)
         if action in self.reported:
             return
+        self._file(run, ctx)
         if action:
             self.reported.add(action)
         status = "done" if run.ok else ("stopped" if run.stopped else "failed")

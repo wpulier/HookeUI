@@ -66,6 +66,11 @@ CLOSE_STEP_S = 2.0
 AUDIBLE_AFTER_DONE_S = 20.0
 
 
+def best_effort() -> str:
+    """The event id of a step whose refusal is no failure (its error is logged, not said)."""
+    return f"be_{uuid.uuid4().hex[:20]}"
+
+
 def item_id(prefix: str = "hk") -> str:
     """A client-chosen item id (at most 32 characters), so an item can be deleted without waiting for its echo."""
     return f"{prefix}_{uuid.uuid4().hex[:24]}"
@@ -301,6 +306,10 @@ class RealtimeSession(VoiceSession):
     async def _seed(self) -> None:
         """What a new call starts knowing: the recent conversation, the brief and the notes of what was seen."""
         self._images, self._requested, self._response, self._speaking = [], None, None, False
+        # Calls of the old conversation are not this one's: their work goes on (and is told as it lands), but no
+        # output is sent for a call id this conversation never had, and nothing waits on them.
+        self._calls.clear()
+        self._round.clear()
         for role, text in self.history()[-16:]:
             if text.strip():
                 await self._send({"type": "conversation.item.create",
@@ -354,9 +363,7 @@ class RealtimeSession(VoiceSession):
         mid_speech = self._speaking
         try:
             if offer_sdp:
-                old = self.call_id
                 await self._end_call()
-                self.call_id = old  # replaced by _open_call
                 await self._open_call(offer_sdp)
             else:
                 task, self._recv_task = self._recv_task, None
@@ -392,7 +399,7 @@ class RealtimeSession(VoiceSession):
 
     async def delete(self, iid: str) -> None:
         with contextlib.suppress(Exception):
-            await self._send({"type": "conversation.item.delete", "item_id": iid})
+            await self._send({"type": "conversation.item.delete", "item_id": iid, "event_id": best_effort()})
 
     async def respond(self, cause: str, *, n: int | None = None, wait: bool = True, **response) -> bool:
         """Ask for a response, after the one in progress (at most RESPONSE_WAIT_S). False when it could not be asked."""
@@ -450,9 +457,9 @@ class RealtimeSession(VoiceSession):
         cancel_at = self.wall()
         if self._response is not None or self._requested is not None:
             with contextlib.suppress(Exception):
-                await self._send({"type": "response.cancel"})
+                await self._send({"type": "response.cancel", "event_id": best_effort()})
         with contextlib.suppress(Exception):
-            await self._send({"type": "output_audio_buffer.clear"})
+            await self._send({"type": "output_audio_buffer.clear", "event_id": best_effort()})
         self._speaking = False
         self._emit(VoiceEvent("interrupted"))
         self._log({"kind": "partner-barge", "n": self.n, "cancelT": cancel_at, "clearT": self.wall()})
@@ -698,6 +705,12 @@ class RealtimeSession(VoiceSession):
             await self._response_done(ev.get("response") or {})
         elif kind == "error":
             error = ev.get("error") or {}
+            if str(error.get("event_id") or "").startswith("be_"):
+                # A best-effort step refused because there was nothing to do (no response to cancel, no audio to clear,
+                # an item already gone): logged, never an error for the user.
+                self._log({"kind": "partner-provider-note", "code": error.get("code"),
+                           "message": str(error.get("message") or "")[:200]})
+                return
             self._emit(VoiceEvent("error", data={"message": str(error.get("message") or "")[:300],
                                                  "code": error.get("code"), "eventId": error.get("event_id")}))
             if self._requested is not None and error.get("event_id") == self._requested.get("eventId"):
