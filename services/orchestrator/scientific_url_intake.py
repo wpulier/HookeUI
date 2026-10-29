@@ -199,6 +199,7 @@ class Download:
     """One researcher's download request, captured with its Project session before any byte arrives."""
 
     def __init__(self, store, session, request, url, *, sha256=None, name=None, sample=None, size=None):
+        store = store.for_session(session, write=True)
         _identity(session, 'session')
         if type(request) is not str or not REQUEST.fullmatch(request):
             raise RemoteRefused('The download request has an invalid identity.', next='start the download again')

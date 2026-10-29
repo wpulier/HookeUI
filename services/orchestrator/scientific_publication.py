@@ -11,6 +11,7 @@ from .scientific_projects import InvalidProject, _json
 
 class ArrayPublication:
     def __init__(self, store, saved, prepared, transaction):
+        store = store.for_session(saved.session, write=True)
         from .scientific_arrays import MAX_NATIVE_COMPONENTS
         from .scientific_copies import PreparedArray
         from .scientific_projects import DIGEST

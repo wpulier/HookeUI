@@ -100,7 +100,7 @@ async def run_native(host, *, reference, session, capability, generation, enviro
                      params, request, environ=os.environ, check=lambda: None):
     """One execution intent is owned by the caller; reopening only reads its result."""
     from .operations import Prompt
-    store = host.resources.projects
+    store = await asyncio.to_thread(host.resources.projects.for_session, session, write=True)
     source, descriptor, exact = native_picture_inputs.layout(store, reference, session)
     saved = store.read(reference['id'], session, revision=reference['revision'])
     kind, values = await asyncio.to_thread(_admit, capability, params, environ)

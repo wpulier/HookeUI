@@ -133,6 +133,15 @@ class ProjectStore:
             except (Retained, OSError) as error:
                 self.runtime_problem = str(error)  # Reading saved work stays available; publication retries registration.
 
+    @property
+    def workflow_library_root(self):
+        return self.root.parent / 'workflow-library'
+
+    def for_session(self, session, *, write=False):
+        """Capture the owner before a service uses storage paths or starts work."""
+        _identity(session, 'session')
+        return self
+
     def register_runtime(self):
         if self.runtime_root is not None:
             from .scientific_retention import bind

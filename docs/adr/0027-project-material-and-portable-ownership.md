@@ -57,3 +57,55 @@ runtimes remain external. Saved reads require neither a running worker nor runti
 installation. Isolated close/move/reopen tests preserve conversation events and
 exact document revision hashes; these do not certify complete collection, legacy
 migration, cross-machine reassociation or the live connector.
+
+## Journal routing checkpoint
+
+The optional host `ProjectLocations` resolver lets the existing SessionStore and
+Catalogue use legacy journals alongside separate Project roots. Background filing
+captures the original owner; changing the workspace does not change its folder.
+Writer leases belong to the host lifetime. A missing registered folder refuses
+instead of recreating an empty legacy Project. Host preferences remain external.
+
+Registry format 2 adds the compatible session handle to each origin/location
+pointer, allowing unavailable folders to reserve their handles. Readable format-1
+locators upgrade on registration; an unavailable old locator requires explicit
+recovery using the matching origin. Colliding legacy origins refuse. Foreign
+same-handle reassociation and independent-copy creation remain unfinished.
+
+The live App is not enabled on this seam until all scientific/legacy result stores
+are routed. The isolated tests exercise real journals, writer exclusion, move and
+resume; they do not qualify complete Project collection or live UI portability.
+
+## Scientific routing checkpoint
+
+`ProjectStores` binds scientific storage to the captured Project before a service
+uses paths or admits work. Imports, corrections, output publication and workflow
+receipts use that binding; the shared workflow library stays host-owned and each
+run retains its frozen definition. Unbound filesystem access refuses instead of
+falling back to the global store. Legacy stores keep their existing layout.
+
+A bound writer requires the same registered origin/location and host lease.
+Another host may read saved results without registering installed runtimes; it
+cannot publish while the writer holds the lease. Closed or relocated bindings
+refuse late writes. Scientific exports resolve each dependency's owner separately
+and still constitute partial scientific bundles, not complete Project exports.
+
+This slice remains opt-in below App wiring. It does not migrate existing results,
+route historical Library/capture stores, or qualify full collection. Real isolated
+bytes and synthetic native edits verify captured ownership, old revisions, workflow
+review, move/reopen and writer exclusion; live UI portability remains a later gate.
+
+## Folder-copy checkpoint
+
+`project_folder_copy` reserves a new destination, estimates disk demand and copies
+an inactive routed folder under its exclusive writer lease. It preserves journal
+and revision bytes, checks each copied hash and checks the source again before
+sealing. Interrupted destinations retain an explicit incomplete marker and cannot
+open as Projects. Existing destinations and source files are never replaced.
+Sealed snapshots are read-only through the host writer API, require no installed
+runtime to verify, and carry no registry entries or host runtime bindings.
+
+This is the byte-copy stage only. Its manifest explicitly says external dependency
+closure is not verified. It is not exposed as Collect Project or complete export;
+legacy assets, shared captures and external dependencies still require their
+collector and inclusion review. No accepted research is rewritten or replayed.

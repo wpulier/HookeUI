@@ -133,6 +133,7 @@ class FamilySave:
     kind = 'families'
 
     def __init__(self, store, saved, identity, names, *, inputs=None, producer=None):
+        store = store.for_session(saved.session, write=True)
         from .scientific_history import CELL
         if (type(identity) is not str or not CELL.fullmatch(identity)
                 or store.read(saved.id, saved.session, revision=saved.revision) != saved):

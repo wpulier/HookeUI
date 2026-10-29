@@ -103,6 +103,7 @@ class OutputSave:
     capture_seconds = outputs.transfer_seconds(outputs.MAX_STREAMED_BYTES) + 8 * 60
 
     def __init__(self, store, saved, identity, layer, meaning, *, producer=None, selections=None, tool=False):
+        store = store.for_session(saved.session, write=True)
         from .scientific_host import _token
         if (type(identity) is not str or not CELL.fullmatch(identity) or not _token(layer,32)
                 or store.read(saved.id,saved.session,revision=saved.revision) != saved):

@@ -37,18 +37,25 @@ def document_root(root: ProjectRoot) -> Path:
 
 
 def verify_owner(root: ProjectRoot):
+    from .scientific_import_transaction import ImportPending
     # This reader does not mint an origin or create a host preference/namespace file.
     actual = ProjectRoot.open(root.path)
     if actual != root:
         raise ProjectLocationError('Project location changed; reopen before continuing')
-    owner = retained_owner(session_root(root), root.session)
+    try:
+        owner = retained_owner(session_root(root), root.session)
+    except ImportPending:
+        # Publication is temporary unavailability, not damaged ownership.
+        raise
+    except ValueError as error:
+        raise ProjectLocationError(f'Project ownership is unreadable: {error}') from error
     if owner is None or owner['origin']['origin'] != root.origin:
         raise ProjectLocationError('Project manifest and retained journal identity do not match')
     return owner
 
 
 def create(parent: Path, name: str, *, session: str, host_preferences: Prefs,
-           actor: str = 'user', clock=time.time) -> ProjectRoot:
+           actor: str = 'user', clock=time.time, local_only=True, started_from=None, guide=None) -> ProjectRoot:
     """Create a fresh journal-owned Project, without changing host selection or grants.
 
     The host allocates its compatible session handle. A temporary journal mints
@@ -67,7 +74,7 @@ def create(parent: Path, name: str, *, session: str, host_preferences: Prefs,
         staging = Path(temporary)
         store = SessionStore(staging, clock=clock, session=session, prefs=host_preferences,
             _header={'type': 'session-started', 'session': session, 'name': name.strip(),
-                     'created': round(clock(), 3), 'from': None, 'by': actor, 'localOnly': True})
+                     'created': round(clock(), 3), 'from': started_from, 'by': actor, 'localOnly': local_only, 'guide': guide})
         owner = retained_owner(staging, session)
         if owner is None:
             raise ProjectLocationError('Project journal creation did not retain its identity')
