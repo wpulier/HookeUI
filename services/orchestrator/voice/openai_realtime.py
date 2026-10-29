@@ -63,7 +63,7 @@ RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the 
 # while it works; the line takes ~0.6 s to start). At most PROGRESS_LINES per round, never the same words twice.
 PROGRESS_AFTER_S = 0.8  # a tool round this long without its outputs: a progress line may be due
 PROGRESS_LINES = 2
-PROGRESS_EVERY_S = 4.0
+PROGRESS_EVERY_S = 2.0  # the second line may be asked for as the first ends (the bench: a 1.6 s gap at 4.0)
 # The progress line is asked for when the voice's current words have this little left to play (the measured time from
 # response.create to the first audio is ~0.9 s): its words follow them without a silence.
 PROGRESS_LEAD_S = 1.0
@@ -1120,6 +1120,7 @@ class RealtimeSession(VoiceSession):
                     and (not progress_said or now - progress_said[-1] > PROGRESS_EVERY_S)):
                 progress_said.append(now)
                 facts = self.running_facts() or "the tool you called"
+                self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress_said)})
                 again = (" You already told them once: say what has changed, in different words." if len(progress_said) > 1
                          else "")
                 self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
