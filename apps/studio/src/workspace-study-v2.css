@@ -345,16 +345,17 @@ body.studio-shell .session-home[data-project-research='true'] .home-title { marg
 
 /* Retained discussion: the same composer, with context and handoff kept secondary. */
 body[data-workspace-study='true'] .study-retained-conversation {
-  min-width: 0; padding: 16px 20px 10px; border-top: 1px solid var(--mm-line);
+  min-width: 0; min-height: 0; max-height: 60%; display:flex; flex-direction:column; box-sizing:border-box;
+  padding: 12px 20px 10px; border-top: 1px solid var(--mm-line);
   background: var(--mm-page); color: var(--mm-text); font: 400 13px/1.5 var(--mm-sans);
 }
-body[data-workspace-study='true'] .study-retained-conversation .study-discussion-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+body[data-workspace-study='true'] .study-retained-conversation .study-discussion-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; flex:none; }
 body[data-workspace-study='true'] .study-retained-conversation .study-discussion-title h3 { font:600 13px/20px var(--mm-sans); margin:0; color:var(--mm-text); }
 body[data-workspace-study='true'] .study-retained-conversation .study-discussion-title > span { font-size:11px; color:var(--mm-text-3); }
 body[data-workspace-study='true'] .study-retained-conversation .study-quiet { width:auto; min-height:28px; padding:4px 9px; border:1px solid var(--mm-line); border-radius:7px; background:transparent; color:var(--mm-text-2); font:500 11px/18px var(--mm-sans); cursor:pointer; }
 body[data-workspace-study='true'] .study-retained-conversation .study-quiet:hover { background:var(--mm-hover); color:var(--mm-text); }
 body[data-workspace-study='true'] .study-retained-conversation .study-replies-refresh { border:0; flex-shrink:0; }
-body[data-workspace-study='true'] .study-retained-conversation .study-conversation-log { max-height:min(44vh,440px); overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:6px; }
+body[data-workspace-study='true'] .study-retained-conversation .study-conversation-log { min-height:0; flex:1 1 auto; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; padding-right:6px; }
 body[data-workspace-study='true'] .study-retained-conversation .study-question { padding:4px 0 20px; border:0; }
 body[data-workspace-study='true'] .study-retained-conversation .study-question + .study-question { padding-top:16px; border-top:1px solid var(--mm-line); }
 body[data-workspace-study='true'] .study-retained-conversation .study-question-prompt { width:fit-content; max-width:88%; margin:0 0 18px auto; padding:10px 14px; background:var(--mm-card); border-radius:12px 12px 3px 12px; }
@@ -378,7 +379,7 @@ body[data-workspace-study='true'] .study-retained-conversation .study-recipient-
 body[data-workspace-study='true'] .study-retained-conversation .study-recipient-label { color:var(--mm-text-3); font-size:11px; white-space:nowrap; }
 body[data-workspace-study='true'] .study-retained-conversation .study-question-recipient { min-width:0; max-width:100%; width:auto; height:28px; margin:0; padding:3px 6px; border:0; border-radius:6px; background:transparent; color:var(--mm-text-2); font:500 11px/18px var(--mm-sans); text-overflow:ellipsis; }
 body[data-workspace-study='true'] .study-retained-conversation .study-question-recipient:hover { background:var(--mm-hover); }
-body[data-workspace-study='true'] .study-retained-conversation .study-conversation-controls { margin:7px 2px 0; }
+body[data-workspace-study='true'] .study-retained-conversation .study-conversation-controls { margin:7px 2px 0; flex:none; }
 body[data-workspace-study='true'] .study-retained-conversation .study-ask-status { margin:0; color:var(--mm-text-3); font:400 11px/1.5 var(--mm-sans); }
 @media(max-width:600px) {
   body[data-workspace-study='true'] .study-retained-conversation { padding:12px; }
