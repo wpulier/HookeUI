@@ -5,24 +5,47 @@ import time
 from orchestrator.looplag import LIMIT_MS, LoopLag
 
 
-def stuck_on_purpose():
-    time.sleep(0.45)  # the loop held, as a blocking send or a decode on it would
+def stuck_on_purpose(observed):
+    from tests.waiting import HANG_S
+    # Keep the real loop blocked until the monitor has sampled its stack. A fixed
+    # 450 ms sleep can finish before the daemon gets CPU on a loaded CI runner.
+    assert observed.wait(HANG_S), "the loop monitor did not sample the deliberate stall"
 
 
-def test_a_stall_is_logged_with_what_the_loop_was_doing():
+def test_a_stall_is_logged_with_what_the_loop_was_doing(monkeypatch):
+    import threading
+    from orchestrator import looplag
+    from tests.waiting import HANG_S
+
+    observed = threading.Event()
+    original = looplag.stack_of
+
+    def capture(thread):
+        stack = original(thread)
+        if "stuck_on_purpose" in stack:
+            observed.set()
+        return stack
+
+    monkeypatch.setattr(looplag, "stack_of", capture)
+
     async def go():
         logged = []
-        lag = LoopLag(log=logged.append, readings=lambda: {"load1": 142})
+        completed = asyncio.Event()
+        def record(value):
+            logged.append(value)
+            completed.set()
+        lag = LoopLag(log=record, readings=lambda: {"load1": 142})
         lag.start(asyncio.get_running_loop())
-        await asyncio.sleep(0.2)  # ticks on time: nothing logged
-        quiet = list(logged)
-        stuck_on_purpose()
-        await asyncio.sleep(0.2)
-        lag.stop()
-        return quiet, logged, lag
+        try:
+            await asyncio.sleep(0.2)
+            assert logged == []  # an unblocked loop must not report a stall
+            stuck_on_purpose(observed)
+            await asyncio.wait_for(completed.wait(), HANG_S)
+        finally:
+            lag.stop()
+        return logged, lag
 
-    quiet, logged, lag = asyncio.run(go())
-    assert quiet == []
+    logged, lag = asyncio.run(go())
     assert len(logged) == 1 and logged[0]["kind"] == "loop-lag" and logged[0]["ms"] >= LIMIT_MS
     assert "stuck_on_purpose" in logged[0]["stacks"][0]  # taken while it was stuck, not after
     assert logged[0]["machine"] == {"load1": 142}
