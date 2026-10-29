@@ -647,3 +647,5 @@ writer ownership, corrupt archives and workspace completion recovery. It shares 
 population evidence resolver; full microscopy collection is a separate gate.
 
 `test_project_bookmark_routing.py` exercises real isolated Project journals with synthetic camera images: relocation, inactive-Project reads, delayed capture across a switch, second-host refusal, changed media and interrupted publication. These are persistence tests, not live-camera or complete collection qualification.
+
+`test_project_snapshot_routing.py` uses synthetic camera bytes through the real tool, journal and index. It checks owner capture, clean/annotated retention, relocation, second-host reads, interrupted publication and changed folders/bytes. It does not qualify Library collection or a live microscopy experiment.

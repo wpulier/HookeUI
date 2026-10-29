@@ -326,3 +326,5 @@ Project reads share that resolver; missing/corrupt archives cannot be resaved as
 accepted measurements. Legacy tracks keep their current layout.
 
 Opt-in portable bookmarks resolve the captured Project before decoding and again before publication. Records and their pictures are retained under artifacts/bookmarks; reads and Record capture use that same owner after a UI switch. Pictures carry their retained digest. Legacy bookmark paths remain unchanged.
+
+Staged portable snapshots retain annotated and clean images under their captured Project. The index resolves the same owner after relocation. Publication retains a pending marker until durable completion; incomplete captures are never accepted results. Library/source reassociation remains unqualified and live portable activation stays off.

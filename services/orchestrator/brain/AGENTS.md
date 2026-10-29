@@ -465,3 +465,5 @@ numbers, units, exclusions and input identities remain available. Saved never im
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.
 
 Bookmark capture gives Record the retained picture from the bookmark’s captured Project and date, never the currently selected Project after background work completes.
+
+The snapshot tool captures its Project and storage destination before drawing. In staged portable storage, its annotated/clean pictures publish together with hashes and pending-state recovery; a closed writer or changed destination refuses publication. Legacy capture semantics remain unchanged.

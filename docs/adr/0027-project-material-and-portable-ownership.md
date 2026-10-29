@@ -145,3 +145,17 @@ workspace recovery establish storage behavior, not a real microscopy experiment.
 ### Staged bookmark adapter
 
 Bookmarks join the opt-in Project-owned artifact stores. Each accepted bookmark keeps its original owner, date, identity, note and picture digest; it can be read after relocation without a camera. Background decoding cannot retarget a later Project selection. Library assets, recordings and remaining research dependencies still block live activation and complete collection.
+
+### Staged snapshot adapter
+
+Snapshots now publish annotated and clean source images under their captured Project,
+with hashes and an incomplete marker removed only after publication. Index reads
+resolve that original owner after relocation without a camera or installed runtime.
+Legacy snapshots keep their existing format and location. Library identity mapping,
+shared captures and remaining dependencies still block live activation and complete
+collection; this adapter alone is not the full portability journey.
+
+If final directory syncing and restoration of the pending marker both fail, all
+readers in that host hide the uncertain snapshot. That fallback is process-local;
+recovery across host loss in this double-failure case is not qualified. It remains
+an explicit gate before live activation or complete-portability claims.

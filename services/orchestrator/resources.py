@@ -1299,6 +1299,8 @@ class Index:
         self.results = results or Results(None)
         self.research = research
         self.snapshots = Path(snapshots) if snapshots is not None else None
+        from .project_snapshots import Snapshots
+        self.snapshot_store = Snapshots(self.snapshots, day) if self.snapshots is not None else None
         self.seen = seen
         self.taught = taught
         self.scale = scale
@@ -2017,8 +2019,8 @@ class Index:
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"snapshot-\d{6}-(?:[0-9a-f]{12}-)?f\d+", eid) and self.snapshots is not None and sids.is_sid(day):
             entry = next((e for e in self._snapshots(day) if e.id == eid), None)
-            path = self.snapshots / entry.date / f"{eid}.png" if entry is not None else None
-            return (read_picture_bytes(path, max_bytes), "image/png") if path is not None and path.is_file() else None
+            data = self.snapshot_store.picture(day, entry.date, eid, max_bytes=max_bytes) if entry is not None else None
+            return (data, "image/png") if data is not None else None
         if self.research is not None:
             session = self.research.get(eid)
             if session is not None and _sitting(session) != day:  # another session's researcher with this id
@@ -2539,7 +2541,7 @@ class Index:
             return []
         out = []
         for date in self.dates(day):
-            folder = self.snapshots / date
+            folder = self.snapshot_store.folder(day, date)
             if folder.is_dir():
                 out += self._snapshots_in(folder, date, day)
         return out
@@ -2548,7 +2550,7 @@ class Index:
         out = []
         for path in sorted(folder.glob("snapshot-*.json")):
             try:
-                facts = json.loads(path.read_text())
+                facts = self.snapshot_store.read(day, date, path.stem)
             except (OSError, ValueError):
                 continue
             if not isinstance(facts, dict) or session_of(facts, date) != day:
