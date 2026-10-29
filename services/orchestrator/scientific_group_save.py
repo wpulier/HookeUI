@@ -12,6 +12,7 @@ from .scientific_saves import LayerSave, SaveConflict, SaveNotStarted, SaveUnava
 
 class LayersSave:
     def __init__(self, store, saved, identity, layers, *, producer=None):
+        store = store.for_session(saved.session, write=True)
         if (type(layers) is not list or not 1 < len(layers) <= MAX_NATIVE_COMPONENTS
                 or any(type(row) is not dict or set(row) != {'layer', 'input'} for row in layers)):
             raise InvalidProject('Choose the editable layers to save together')

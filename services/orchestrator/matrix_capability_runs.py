@@ -141,6 +141,7 @@ def _compute(capability, sources, params, work, check, executable, runtime_folde
 
 
 def run_matrix(store, session, capability, generation, inputs, params, request, check=lambda: None, wait_seconds=0, waiting=lambda value: None):
+    store = store.for_session(session, write=True)
     current = descriptor(capability)
     if generation != current['generation']:
         raise InvalidProject('The scientific capability generation or runtime changed; admit a new attempt')

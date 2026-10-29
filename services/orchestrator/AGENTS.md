@@ -1104,3 +1104,9 @@ resource discovery and comparison-table validation. Imported images use their ex
 including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.
 Camera results require capture, sequence, boot and process run. Unknown source identity refuses comparison.
 Existing table snapshots remain readable; new publication/update revalidates inputs without rewriting evidence.
+
+Portable scientific routing is described by ADR 0027. `ProjectStores` resolves a
+retained owner before paths are used; admission helpers capture `for_session`
+with write intent. Never derive a scientific destination from the visible Stage.
+The shared workflow library remains host-owned; runs retain frozen definitions.
+Live App activation and complete legacy collection remain separate qualification.

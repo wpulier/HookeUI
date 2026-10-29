@@ -110,7 +110,7 @@ def wire(saved):
 class Workflows:
     def __init__(self, store):
         self.store=store
-        self.library=ProjectStore(store.root.parent/'workflow-library', runtime_root=store.runtime_root)
+        self.library=ProjectStore(store.workflow_library_root, runtime_root=store.runtime_root)
 
     def definition(self, id_, revision=None):
         saved=self.library.read(id_,OWNER,revision=revision)
@@ -192,7 +192,7 @@ class Workflows:
                 'graph':definition.document['state']['workflow']['graph']}
         state={'format':1,'definition':frozen,'inputs':[identity(s) for s in sources],'control':'active','actor':actor,**({'bindings':bindings} if bindings else {})}
         runid=run_identity(session,req)
-        if self.store._folder(runid).exists():
+        if self.store.for_session(session, write=True)._folder(runid).exists():
             original=self.store.read(runid,session,revision=1)
             prior=original.document['state']['workflowRun']
             if {k:prior.get(k,{}) for k in ('definition','inputs','bindings')} != {k:state.get(k,{}) for k in ('definition','inputs','bindings')}:
@@ -210,7 +210,7 @@ class Workflows:
     @contextmanager
     def locked(self,id_,session):
         self.run(id_,session) # validates identity before constructing a lock path
-        with open(self.store.root/f'.workflow-{id_}.lock','a+b') as lock:
+        with open(self.store.for_session(session, write=True).root/f'.workflow-{id_}.lock','a+b') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
             try:yield
             finally:fcntl.flock(lock,fcntl.LOCK_UN)
@@ -412,7 +412,7 @@ class Workflows:
                 raise InvalidProject('Restore this removed workflow before creating a derived run')
             binding={'run':id_,'attempt':attempt,'result':result}
             target='p'+token({'derivedWorkflow':req,'session':session})[:32]
-            if self.store._folder(target).exists():
+            if self.store.for_session(session, write=True)._folder(target).exists():
                 saved=self.run(target,session)
                 if saved.document['state']['workflowRun'].get('derivedFrom')!=binding:
                     raise Conflict('This request already belongs to another correction')
@@ -441,7 +441,7 @@ class Workflows:
             saved=self.run(saved.id,saved.session);doc=saved.document;state=doc['state']['workflowRun']
             if 'initializing' not in state:return saved
             for seed in state['initializing']:
-                if self.store._folder(seed['id']).exists():continue
+                if self.store.for_session(saved.session, write=True)._folder(seed['id']).exists():continue
                 a=seed['state']
                 self.store.create(saved.session,{'kind':'scientific-workflow-attempt','title':a['node'],
                     'state':{'workflowAttempt':a},'resources':[reference(exact(self.store,a['output'],saved.session))],

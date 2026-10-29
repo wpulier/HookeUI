@@ -163,7 +163,7 @@ async def run(hub, day, operation, selection, *, caller, stopping=None, check_ca
         return False
 
     permission()
-    projects = hub.resources.projects
+    projects = hub.resources.projects.for_session(session, write=True)
     target, transaction = request_identity(session, selected['request'])
 
     def retry():

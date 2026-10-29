@@ -113,15 +113,16 @@ class Transfers:
                     raise InvalidProject('This request already owns a different source transfer')
             if len(self.items) >= MAX_TRANSFERS:
                 raise InvalidProject('Finish or stop another source import before starting one')
-            self.store.root.mkdir(parents=True, exist_ok=True)
+            store = self.store.for_session(session, write=True)
+            store.root.mkdir(parents=True, exist_ok=True)
             outstanding = sum(max(0, item.total-item.offset) for item in self.items.values())
-            if shutil.disk_usage(self.store.root).free < size + outstanding + WORKING_BYTES + SPARE:
+            if shutil.disk_usage(store.root).free < size + outstanding + WORKING_BYTES + SPARE:
                 raise InvalidProject('Free disk space before importing this source')
             room = self.memory.reserve('analysis', WORKING_BYTES + RETAINED_METADATA_BYTES + (4*MAX_INDEX if kind == 'directory' else 0) + 3*CHUNK_BYTES,
                                        'retaining bounded source chunks')
             try:
                 factory = FileIntake if kind == 'file' else DirectoryTransfer
-                owner = factory(self.store, session, request, name=name, size=size, max_bytes=MAX_BYTES)
+                owner = factory(store, session, request, name=name, size=size, max_bytes=MAX_BYTES)
                 token = secrets.token_hex(32)
                 item = Transfer(owner, token, session, request, name, size, total, room, kind)
                 self.items[token] = item
@@ -184,8 +185,9 @@ class Transfers:
                 if self.items.get(item.token) is item: self.items.pop(item.token)
             if any(item.identity[:2] == (session, request) for item in self.items.values()):
                 raise InvalidProject('This import restarted during recovery; check its outcome again')
-            if not self.store._folder(target).exists(): return None
-            saved = self.store.read(target, session, revision=1)
+            store = self.store.for_session(session)
+            if not store._folder(target).exists(): return None
+            saved = store.read(target, session, revision=1)
             if saved.transaction != transaction or saved.document['kind'] != 'source-' + kind:
                 raise InvalidProject('The original request belongs to different retained work')
             return saved
