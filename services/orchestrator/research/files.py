@@ -75,7 +75,11 @@ def research_file(root: Path, day: str, rid: str, sub: str, name: str) -> tuple[
 def add_research_routes(app: FastAPI, manager: ResearchManager) -> None:
     @app.api_route("/research/{day}/{rid}/{sub}/{name}", methods=["GET", "HEAD"])
     async def research_files(day: str, rid: str, sub: str, name: str) -> Response:
-        found = research_file(manager.root, day, rid, sub, name)
+        try:
+            root = await asyncio.to_thread(manager.file_root, day, rid)
+            found = research_file(root, day, rid, sub, name)
+        except (OSError, ValueError):
+            return JSONResponse({"error": "Retained research location is unavailable"}, status_code=409)
         if found is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         path, kind = found
@@ -114,13 +118,11 @@ def add_research_routes(app: FastAPI, manager: ResearchManager) -> None:
             session = next((s for s in await asyncio.to_thread(manager.read_day, day, False) if s.rid == rid), None)
         if session is None:
             return JSONResponse({"error": "no such researcher"}, status_code=404)
-        steps = []
-        path = manager.root / session.day / session.rid / "steps.jsonl"
-        if path.exists():
-            steps = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-        # The newest STEPS_SHOWN, and how many there were: a long run's list says it is the end of a longer one.
-        return JSONResponse({**session.wire(), "steps": steps[-STEPS_SHOWN:], "stepsTotal": len(steps)},
-                            headers={"Cache-Control": "no-store"})
+        try:
+            steps = await asyncio.to_thread(manager.storage.steps, session, STEPS_SHOWN)
+        except (OSError, ValueError) as error:
+            steps = {"steps": [], "stepsTotal": None, "stepsUnavailable": str(error)}
+        return JSONResponse({**session.wire(), **steps}, headers={"Cache-Control": "no-store"})
 
     @app.get('/api/research/{rid}/findings/{version}')
     async def research_findings(rid: str, version: int, day: str) -> JSONResponse:

@@ -110,6 +110,11 @@ closure is not verified. It is not exposed as Collect Project or complete export
 legacy assets, shared captures and external dependencies still require their
 collector and inclusion review. No accepted research is rewritten or replayed.
 
+Copy intent is synced before retained-looking files are created. Final directory
+syncs finish before completion is published; a failed sync or marker removal leaves
+the destination incomplete across restart. No fallible storage read or sync follows
+marker removal. A crash may conservatively restore the incomplete marker.
+
 ## Numeric snapshot routing checkpoint
 
 Dataset tables and derived analyses/graphs retain their existing versioned snapshot
@@ -155,10 +160,11 @@ Legacy snapshots keep their existing format and location. Library identity mappi
 shared captures and remaining dependencies still block live activation and complete
 collection; this adapter alone is not the full portability journey.
 
-If final directory syncing and restoration of the pending marker both fail, all
-readers in that host hide the uncertain snapshot. That fallback is process-local;
-recovery across host loss in this double-failure case is not qualified. It remains
-an explicit gate before live activation or complete-portability claims.
+Snapshot publication durably retains its pending marker before writing output.
+All required syncing finishes before the final acceptance action removes the marker.
+Failures preserve uncertainty across host restart without relying on process-local
+state or a second recovery write. A crash may conservatively restore a pending
+marker; explicit reconciliation is still required, never automatic replay.
 
 ### Staged volume and registration storage
 
@@ -175,6 +181,21 @@ action; a crash may conservatively restore uncertainty. Background identity life
 binding and reconciliation UI remain open gates: the staged adapter explicitly
 refuses event-loop use, rather than blocking live frames or silently claiming a save.
 
+### Retained researcher files
+
+The staged research storage adapter routes saved researcher records, previous
+interpretations, output files, notes and bounded transcripts by their captured
+Project. Historical file serving resolves the saved owner rather than the active
+workspace. Ambiguous researcher identities refuse rather than silently choosing
+another Project. An interrupted imported effort is displayed as interrupted and
+never replayed; a read-only host does not rewrite its saved accounting or status.
+
+This is retained-work routing, not provider execution qualification. New provider
+runs, follow-ups and presentation generation in portable Projects explicitly
+refuse until host-local spending, worker lifetime, source acquisitions and full
+collection are qualified. Existing legacy Projects keep their working researcher
+paths. Global descriptions/shared acquisitions, dependency closure and live App
+activation remain open; no complete portable Project claim follows from this slice.
 ### Selected Library media retention
 
 The staged `ProjectMedia` adapter copies an admitted image or recording through the

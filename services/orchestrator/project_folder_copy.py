@@ -119,6 +119,7 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
         destination.mkdir(mode=0o700)
         intent = destination / COPY_INTENT
         ProjectStore._write(intent, b'Copy incomplete. Preserve the original Project.\n')
+        ProjectStore._sync_directory(destination)
         ProjectStore._sync_directory(parent)
         entries = []
         # Empty retained folders are part of the storage layout too.
@@ -155,10 +156,14 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
         for folder in sorted((p for p in destination.rglob('*') if p.is_dir()), reverse=True):
             ProjectStore._sync_directory(folder)
         ProjectStore._sync_directory(destination)
+        ProjectStore._sync_directory(parent)
         check()
+        # These exact identity bytes were copied and checked above. Do not make
+        # a further fallible read/sync after publishing completion: a reported
+        # failure must still have the durable incomplete marker on restart.
+        copied = ProjectRoot(destination, root.origin, root.session, root.name)
         intent.unlink()
-        ProjectStore._sync_directory(destination)
-        return ProjectRoot.open(destination)
+        return copied
 
 
 def verify_snapshot(location: Path, *, check=lambda: None):

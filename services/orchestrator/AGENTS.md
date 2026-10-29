@@ -1140,3 +1140,5 @@ journal identity; changed metadata refuses without accepting a mixed revision.
 History hashes cover selected records only, so unrelated later edits do not change
 an accepted import's request identity. Author labels remain historical evidence,
 not grants. This does not collect a whole Record dataset or activate playback aliases.
+
+Portable snapshots accept only after all output and directory syncing finishes. The durable pending marker is removed as the last fallible action; failures remain uncertain across host restart without a recovery write. Explicit reconciliation remains required before using uncertain output.

@@ -6,6 +6,11 @@ It checks changed/replaced originals, cancellation, writer exclusion, origin/dig
 refusal, Record-part refusal and shared inventory meaning. It does not qualify a
 decoder, full Library history, Record collection or ordinary media playback.
 
+Folder-copy completion tests inject final sync/removal failures and reopen the
+destination independently. Incomplete markers survive and original data remains;
+successful publication performs no post-completion storage verification that could
+report failure after making the copy visible. These are isolated storage checks.
+
 `test_project_table_routing.py` uses synthetic measurements through real table
 publication, journal revisions and analysis. It checks relocated historical
 snapshots, read-only access by a second host, closed/missing/replaced destinations
@@ -665,3 +670,11 @@ The loop-stall regression holds its deliberate real event-loop block until the m
 with synthetic pixels. It checks retained calibration revisions, unrelated-item
 exclusion, stable retries, change-during-copy refusal and bounded history recovery.
 It does not qualify playback, live capture or complete Project collection.
+
+`test_project_research_storage.py` uses real journals and files with synthetic
+researcher records: moved-folder readback, retained prior interpretations, output
+and transcript paths, interrupted read-only recovery, conflicting identities,
+writer exclusion, replaced storage and durable failed-publication markers. These
+checks do not run a provider or certify complete dependency collection. Legacy
+research lifecycle checks remain required alongside the adapter tests.
+Snapshot publication failure probes retain the pending marker after complete output bytes, directory-sync failures and failed acceptance. A fresh host refuses the uncertain result and preserves it on retry; no process-local fallback is needed. These are synthetic payloads through real storage, not complete Project restoration.
