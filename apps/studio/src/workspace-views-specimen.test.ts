@@ -2,6 +2,7 @@ import {afterEach,expect,test,vi} from 'vitest';
 const artifacts=vi.hoisted(()=>({blockReason:vi.fn(()=>null),removeDocument:vi.fn(),applyDocument:vi.fn(),document:vi.fn(),clearDocuments:vi.fn()}));
 vi.mock('./workspace-study-artifacts',()=>({studyArtifacts:()=>artifacts}));
 import {WorkspaceViews} from './workspace-views';
+import {FloatingWindow,PanelStack} from './panels';
 import {TestElement,syntheticDOM} from './workspace-windows.test-support';
 afterEach(()=>vi.unstubAllGlobals());
 
@@ -70,4 +71,25 @@ test('the Stage bar says the specimen\'s name, its credit quieter, and its pictu
  expect(current.stageThumb.style.backgroundImage).toBe('url("/t.png")');expect(current.stageThumb.hidden).toBe(false);
  Reflect.get(WorkspaceViews.prototype,'specimenLabel').call(current,'Live camera','');
  expect(current.stageName.textContent).toBe('Live camera');expect(current.stageCredit.hidden).toBe(true);expect(current.stageThumb.hidden).toBe(true);
+});
+
+test('the details card opens in front of the main feed\'s window, and stays above it after another window is pressed (Will, 2026-10-29)',async()=>{
+ const {readFileSync}=await import('node:fs');const dir=new URL('.',import.meta.url).pathname;
+ const rules=(file:string)=>[...readFileSync(dir+file,'utf8').replace(/\/\*[\s\S]*?\*\//g,'').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([,selector,body])=>({selector:selector.trim(),z:Number(/z-index:\s*(\d+)/.exec(body)?.[1])}));
+ const level=(file:string,selector:string)=>rules(file).find(rule=>rule.selector===selector)?.z;
+ // The main feed's window as the workspace makes it: the real FloatingWindow in its own stack group, fronted on open.
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const root=new TestElement('section'),bar=new TestElement('header');root.append(bar);const panels=new PanelStack();
+ const specimen=panels.register(new FloatingWindow({id:'workspace-specimen',stackGroup:'specimen',root:root as unknown as HTMLElement,bar:bar as unknown as HTMLElement,
+  panels,close:()=>{},facts:()=>null,content:()=>({kind:'text'})})).front();
+ const floated=level('workspace-views.css','.workspace-specimen[data-front=true]:not(.workspace-specimen-full)')!,windows=level('workspace-study-v2.css','#study-artifacts')!;
+ expect(level('style.css','.description')).toBeLessThan(specimen); // the card's own level, which left it behind the feed
+ // The workspace's levels for the card: one while the specimen was pressed last (how the card opens), one after.
+ const card=rules('workspace-views.css').filter(rule=>/(^|[\s>~)])#description$/.test(rule.selector));
+ const front=card.find(rule=>rule.selector.includes('.workspace-specimen[data-front=true]'))?.z,back=card.find(rule=>!rule.selector.includes('data-front'))?.z;
+ expect(front).toBeGreaterThan(Math.max(specimen,floated,windows));
+ // Level with the specimen, the card is above it: the specimen is the stage's first child, the card later in the stage.
+ expect(back).toBeGreaterThanOrEqual(specimen);expect(back).toBeLessThan(windows);
+ const html=readFileSync(dir+'../index.html','utf8'),stage=html.indexOf('id="stage"');
+ expect(html.indexOf('id="description"')).toBeGreaterThan(stage);expect(html.indexOf('id="description"')).toBeLessThan(html.indexOf('</main>',stage));
 });
