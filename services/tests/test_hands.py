@@ -362,8 +362,8 @@ def test_talking_over_it_is_a_pause_what_is_being_done_finishes_and_what_was_que
         await hands.takeover({"type": "takeover", "version": hands.version, "why": "talk", "at": 1})
         assert not hands.cancel.is_set(), "a pause sends no cancel"
         gate.set()
-        done = await asyncio.wait_for(first, 2)
-        assert done["result"] == "verified", "what was being done finished, and its receipt stands"
+        finished = await asyncio.wait_for(first, 2)
+        assert finished["result"] == "verified", "what was being done finished, and its receipt stands"
         later = await asyncio.wait_for(queued, 2)
         assert later["result"] == "failed" and later["paused"] and "started speaking" in later["error"]
         assert ran == ["first"]

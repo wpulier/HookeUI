@@ -825,8 +825,8 @@ class Hands:
                 checked = {"result": "uncertain", "error": f"Hooke's record of it could not be read ({type(exc).__name__})"}
         if checked is not None:
             result.update({k: v for k, v in checked.items() if v is not None})
-            if result["result"] == "verified" and intent.kind == "project":
-                self.moved_to(self._project_now())
+            if intent.kind == "project" and checked.get("project"):  # it opened one, shown yet or not
+                self.moved_to(checked["project"])
         elif ok is False:
             result["result"] = "failed"
             if result.get("stopped"):
