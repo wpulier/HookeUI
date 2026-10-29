@@ -176,12 +176,13 @@ def test_the_specimen_verb_takes_only_its_own_words(tmp_path, monkeypatch, args)
     asyncio.run(go())
 
 
-def test_a_new_tab_the_assistant_makes_reports_its_specimen_floating_small(tmp_path, monkeypatch):
+def test_a_new_tab_the_assistant_makes_reports_it_is_a_canvas_with_no_specimen(tmp_path, monkeypatch):
+    """Will, 29 Oct: a new Tab is a canvas for data, not a second live view."""
     async def go():
         app, studio = await built(tmp_path, monkeypatch)
         run = await asked(app, studio, 'tabs', {'action': 'create', 'title': 'Reference'})
         assert run.ok is True, run.summary
-        assert front(wire(app, studio))['specimen'] == {'state': 'float', 'rect': CORNER}
+        assert front(wire(app, studio))['specimen'] == {'state': 'hidden'}
     asyncio.run(go())
 
 
