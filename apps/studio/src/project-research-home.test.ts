@@ -1,0 +1,43 @@
+// Synthetic rendering/ownership evidence; actual retained-Project browser acceptance is separate.
+import {afterEach, expect, test, vi} from 'vitest';
+import {ProjectResearchHome} from './project-research-home';
+import type {Effort} from './research-efforts';
+import {TestElement, syntheticDOM, fire} from './workspace-windows.test-support';
+afterEach(() => vi.unstubAllGlobals());
+const study = (session = 'p1'): Effort => ({id:'s1',session,revision:1,digest:'digest',title:'Response transfer',
+  objective:'Does the fitted response generalize?',criteria:'Measured error',status:'active',capMicrousd:0,
+  spentMicrousd:0,heldMicrousd:0,availableMicrousd:0,inputs:[{id:'data',revision:2,digest:'data-digest'}],tasks:{},
+  experiments:{first:{operation:'op1',byLabel:'Codex',execution:{id:'run1',session}}},findings:[],
+  claims:[{request:'claim',statement:'Observed a limitation',byLabel:'Claude Code',evidence:[],dependsOn:[]}]});
+function setup() {
+  const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
+  const host = new TestElement('section'); let current = 'p1';
+  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn()};
+  const home = new ProjectResearchHome(host as unknown as HTMLElement, actions);
+  const root = home.root as unknown as TestElement;
+  const button = (text: string) => root.querySelectorAll('button').find(item => item.textContent === text) as unknown as HTMLButtonElement;
+  return {home,host,root,actions,button,setCurrent:(id:string) => {current=id;}};
+}
+test('retained question and evidence replace new-project onboarding without starting research', () => {
+  const {home,host,root,actions,button} = setup(); home.update('p1',[study()]);
+  expect(host.dataset.projectResearch).toBe('true'); expect(root.hidden).toBe(false);
+  expect(root.textContent).toContain('Does the fitted response generalize?');
+  expect(root.textContent).toContain('1 input · 1 recorded experiment · 1 finding or claim');
+  expect(root.textContent).not.toContain('Start a Project'); expect(actions.openStudy).not.toHaveBeenCalled();
+  fire(button('Open Study') as unknown as TestElement, 'click'); expect(actions.openStudy).toHaveBeenCalledWith('s1');
+  fire(button('Browse Project data') as unknown as TestElement, 'click'); expect(actions.data).toHaveBeenCalledOnce();
+  fire(button('Add material or choose a camera') as unknown as TestElement, 'click'); expect(actions.inputs).toHaveBeenCalledOnce();
+});
+test('another Project, a stale button and a late foreign Study cannot redirect the current workspace', () => {
+  const {home,host,root,actions,button,setCurrent} = setup();home.update('p1',[study()]);const old=button('Open Study');
+  setCurrent('p2'); fire(old as unknown as TestElement, 'click'); expect(actions.openStudy).not.toHaveBeenCalled();
+  home.update('p2',[study()]); expect(root.hidden).toBe(true); expect(host.dataset.projectResearch).toBe('false');
+  setCurrent('p1');home.update('p1',[study()]);fire(old as unknown as TestElement, 'click');expect(actions.openStudy).not.toHaveBeenCalled();
+  fire(button('Open Study') as unknown as TestElement, 'click');expect(actions.openStudy).toHaveBeenCalledOnce();
+});
+test('unchanged polling preserves the action node and a failed refresh qualifies the retained overview', () => {
+  const {home,root,button} = setup(); home.update('p1',[study()]);const first=button('Open Study');
+  home.update('p1',[study()]);expect(button('Open Study')).toBe(first);
+  home.update('p1',[study()],'Reconnect to refresh.');expect(root.textContent).toContain('Showing the last saved overview. Reconnect to refresh.');
+  home.update('p1',[]);expect(root.hidden).toBe(true);
+});

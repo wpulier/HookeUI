@@ -1,3 +1,4 @@
+import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
 import {configureDataTableDocuments} from './datatable-presentation';
 import { scientificAskSelection, clearScientificAsk } from './scientific-ask-input';
@@ -439,13 +440,20 @@ const researcherBrowser=el('section','study-researcher-browser');
 // Researchers list (researchers-board.ts), after its researchers.
 /** This Project's studies as last read (All Tabs ⌄ and the Researchers list); null when this build has none. */
 let knownStudies:Effort[]=[];
+const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
+  data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
+});
 let studiesAvailable=false;
 let studiesNote='';
+let studyReadGeneration = 0;
 async function refreshStudies():Promise<void>{
-  const owner=workspaceViews.tabOwner(),session=owner.session;if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
+  const session = snapshot.session, generation = ++studyReadGeneration;
+  const current = () => snapshot.session === session && generation === studyReadGeneration;
+  if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!inputOwnerCurrent(owner))return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
-  if(!inputOwnerCurrent(owner))return;
+  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  if(!current())return;
   studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
 }
@@ -489,6 +497,7 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote);
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -1445,7 +1454,8 @@ function renderInputs(): void {
   }
   drawerBody.append(list);
   if (!snapshot.sources.length) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No inputs in this Project yet. Import a picture or video, or try the guided example: a real microscope image, measured in pixels.'));
+    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No pictures or videos in this Project yet. Scientific files and saved results are in Data. Use the Inputs menu to import material, or try the guided microscopy example.'));
+    empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
     empty.append(example);drawerBody.append(empty);
   }
@@ -1519,6 +1529,8 @@ async function refreshBackgroundRun(): Promise<void> {
   } catch { /* Retained state is authoritative; a failed poll never marks a job complete. */ }
 }
 async function refreshResults(): Promise<void> {
+  // Project research is visible on return, independent of which drawer is open.
+  void refreshStudies();
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
@@ -2200,6 +2212,7 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
+  if (next.session !== previous.session) { studyReadGeneration++; knownStudies = []; studiesNote = ''; studiesAvailable = false; }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();

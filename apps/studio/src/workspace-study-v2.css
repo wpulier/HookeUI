@@ -288,3 +288,17 @@ body[data-workspace-study=true] #example-guide{right:var(--guide-right,12px);bot
 body[data-assistant-local='true'] .study-right-panel .chat-log-wrap{flex:0 0 auto}
 .study-assistant-off{margin:auto 24px!important;padding:24px 0}
 .study-assistant-off .mm-primary{margin-top:6px;padding:9px 18px;border:0;border-radius:8px;font:600 13px var(--mm-sans);cursor:pointer}
+
+/* A Project with retained research reopens on its own work. Inputs retains camera/import controls. */
+.session-home[data-project-research='true'] > :not(.home-title):not(.project-research-home) { display: none; }
+.project-research-home { display: grid; gap: 16px; text-align: left; }
+.project-research-home[hidden] { display: none; }
+.project-research-home p { margin: 0; color: var(--mm-text-2); overflow-wrap: anywhere; }
+.project-research-summary { padding: 16px 0; border-top: 1px solid var(--mm-divider, #383838); display: grid; gap: 10px; }
+.project-research-summary h3 { margin: 0; font: 500 var(--mm-18)/1.3 var(--mm-sans); overflow-wrap: anywhere; }
+.project-research-summary button { justify-self: start; }
+.project-research-home button { min-height: 32px; padding: 6px 12px; border: 1px solid var(--mm-line-strong); border-radius: 7px; font: 500 13px var(--mm-sans); cursor: pointer; }
+.project-research-home button.quiet { background: var(--mm-ctl-fill); color: var(--mm-text); }
+.project-research-home button.quiet:hover { background: var(--mm-ctl-fill-hover); }
+.project-research-facts { font-size: var(--mm-12); }
+.project-research-actions { display: flex; flex-wrap: wrap; gap: 12px; }
