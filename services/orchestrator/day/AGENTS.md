@@ -318,3 +318,9 @@ through the host location registry. Corrections and same-revision links create n
 saved folders, preserving earlier accepted bytes. Legacy absolute references keep
 their prior layout; a portable Project cannot silently adopt them. Background writes
 require the captured owner and its writer lease, never the active workspace.
+
+Motion-track saves use the same opt-in immutable evidence folders and origin-qualified
+journal references as populations. Their points, captured image, rendered tracks,
+provenance and each prior save move with the Project. Workspace recovery and inactive
+Project reads share that resolver; missing/corrupt archives cannot be resaved as fresh
+accepted measurements. Legacy tracks keep their current layout.

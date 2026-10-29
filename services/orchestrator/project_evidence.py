@@ -39,7 +39,7 @@ def destination(store, population):
     root = store.root_for(session, write=True)
     project = _project(store, session)
     date = population.day or store._date()
-    if not sids.is_sid(date) or sids.parse(date)[1] != 1 or not re.fullmatch(r'e\d+', population.id):
+    if not sids.is_sid(date) or sids.parse(date)[1] != 1 or not re.fullmatch(r'[em]\d+', population.id):
         raise ProjectLocationError('Evidence needs its original date and identity')
     folder = root / date / population.id
     if project is None:
@@ -98,7 +98,7 @@ def resolve_entry(day, session, entry):
         return Path(path)
     if project is None:
         raise ProjectLocationError('The evidence Project location is unavailable')
-    match = re.fullmatch(r'project:([a-f0-9]{32})/artifacts/evidence/(\d{4}-\d{2}-\d{2})/(e\d+)/([a-f0-9]{32})', path)
+    match = re.fullmatch(r'project:([a-f0-9]{32})/artifacts/evidence/(\d{4}-\d{2}-\d{2})/([em]\d+)/([a-f0-9]{32})', path)
     if match is None or match[1] != project.origin:
         raise ProjectLocationError('Evidence belongs to a different or invalid Project origin')
     root = _directories(project.path, project.folder('artifacts') / 'evidence')
@@ -152,5 +152,5 @@ def verify_previous(store, population):
     for name, digest in record.get('files', {}).items():
         if name == 'vectors.npz' and name in store._recovered_optional.get(folder, set()):
             continue  # explicitly dropped at reopen, never read or copied into the next save
-        if name not in {'capture.jpg', 'source.image', 'masks.npz', 'vectors.npz'} or _digest(folder / name) != digest:
+        if name not in {'capture.jpg', 'source.image', 'masks.npz', 'vectors.npz', 'tracks.jpg', 'tracks.npz'} or _digest(folder / name) != digest:
             raise ProjectLocationError('Previous evidence bytes changed; restore the accepted save before continuing')

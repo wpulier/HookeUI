@@ -640,3 +640,8 @@ It checks immutable population saves through correction/link, relocation, inacti
 Project reading, origin/digest refusal, closed/replaced storage, second-host writer
 exclusion and failed directory syncing. It does not qualify a real segmentation
 model, Library collection or complete live Project portability.
+
+`test_project_tracks_routing.py` checks real track publication/reopen using synthetic
+points and images, including relocation, prior saves, inactive-Project previews,
+writer ownership, corrupt archives and workspace completion recovery. It shares the
+population evidence resolver; full microscopy collection is a separate gate.

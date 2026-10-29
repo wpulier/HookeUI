@@ -1605,18 +1605,15 @@ class Index:
         store = evidence_of(self.hub) if eid.startswith('e') else tracks_of(self.hub)
         if store.root is None:
             return None
-        root = (store.root_for(day) if eid.startswith('e') else store.root).resolve()
+        root = store.root_for(day).resolve()
         filed = self._journal(day)['evidence' if eid.startswith('e') else 'tracks'].get(eid)
         if filed is None and self.day is None:  # no session store (a test, a bench): a day was a session
             filed = {'path': str(root / day / eid)}
         if filed is None or not filed.get('path'):
             return None
         try:
-            if eid.startswith('e'):
-                from .project_evidence import resolve
-                folder = resolve(store, day, filed)
-            else:
-                folder = Path(filed['path']).resolve()
+            from .project_evidence import resolve
+            folder = resolve(store, day, filed)
             portable = str(filed['path']).startswith('project:')
             date = folder.parent.parent.name if portable else folder.parent.name
             expected = root / date / eid

@@ -132,3 +132,12 @@ This adapter does not collect original Library assets, tracks or shared Record
 captures. It remains below live App activation and does not certify complete
 microscopy Project portability. Isolated synthetic-image tests qualify retention
 and failure behavior; actual mixed-domain collection remains a separate gate.
+
+## Motion evidence routing checkpoint
+
+Tracks now share the staged immutable evidence publication and resolution path.
+Every accepted save pins its original Project, relative location and manifest hash;
+reads do not recompute motion. This closes the tracks adapter gap but not Library,
+Record, researcher, snapshot/bookmark or full dependency-collection coverage.
+Live App activation remains off. Synthetic points/images through real journals and
+workspace recovery establish storage behavior, not a real microscopy experiment.
