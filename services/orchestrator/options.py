@@ -633,16 +633,29 @@ CLAIM_CHECK = {
     ]
 }
 
-# Where reference photos are searched for (orchestrator/reference.py; bench/reference_bench.py, 2026-10-11, 20
-# subjects asked for live, each photo judged by GPT-6.1 Sol): the grounded web search alone found 20/20, 18 right, p50
-# 10.7 s; Wikimedia Commons' catalogue found 11/20, all right, ~5 s; raced, 20/20 right, p50 6.2 s. Every candidate goes
-# through the same pixel check, which sees the original request (a request for another site refuses Commons).
+# Where reference photos are searched for (orchestrator/reference.py). Every candidate, from either, is looked at the
+# same way (retrieval.look_at_photo: its pixels against the whole request) and the first one accepted wins.
+# bench/reference_bench.py, 2026-10-11, 20 subjects asked live, each photo judged by GPT-6.1 Sol only as "a real
+# photograph of <subject>" (no count, kind of view or "a different one"): the web alone 20/20 found, 18 right, p50
+# 10.7 s; Commons' catalogue 11/20, all right, ~5 s; the race, computed from the two run apart, 20/20, p50 6.2 s.
+# The web has been the default since 2026-10-29: raced, the catalogue (about 0.5 s) wins whenever one of its photos
+# passes, so it is Commons first, and the founder expects the open web first ("why wiki commons?? we have the web");
+# its bench lead was measured by a judge that would have passed the cross-section shown at 17:16 for "just a single
+# stoma"; and that day every catalogue search answered HTTP 403 (Wikimedia's robot policy refused our User-Agent,
+# since fixed in safe_fetch), so it added nothing. The 17:16 cross-section itself came from the web search's own
+# Commons result; the look at its pixels is what now turns such a picture down (checked 2026-10-29 on the saved
+# picture: "cross-section view rather than surface view"). After the fix, "a single stoma, surface view, light
+# microscopy" and the founder's own words, twice each: 4/4 right single-stoma surface views by eye, 11-19 s.
 REFERENCE_SEARCH = {
     o.id: o
     for o in [
-        Option("web+commons", "Web and Commons together", "bench: 20/20 right, p50 6.2 s (Commons first when it has one)",
-               uses=("gemini-api", "wikimedia-commons")),
-        Option("web", "Web search", "bench: 18/20 right, p50 10.7 s (as before 2026-10-11)", uses=("gemini-api",)),
+        Option("web", "Web search", "the open web first; bench 2026-10-11: 18/20 right (subject only), p50 10.7 s; live "
+               "2026-10-29: 2 of 3 right (the third turned down now by the look); with the look, 2/2 single-stoma "
+               "surface views, 11-19 s", uses=("gemini-api",)),
+        Option("web+commons", "Web and Commons together", "Commons raced beside the web, first accepted wins (in effect "
+               "Commons first); bench 2026-10-11: 20/20 right (subject only), p50 6.2 s; live 2026-10-29: its catalogue "
+               "refused 2/2 (HTTP 403); with the look, 2/2 single-stoma surface views, 13-19 s, both from the web (the "
+               "catalogue had none)", uses=("gemini-api", "wikimedia-commons")),
     ]
 }
 
@@ -1024,7 +1037,7 @@ class Settings:
     # How sourced points are checked on their pages (CLAIM_CHECK; docs/bench/claims.md). "model" since 2026-10-11, the
     # user's call on the bench's trade: "words" passed every negated point as found (57/57).
     claim_check: str = "model"
-    reference_search: str = "web+commons"  # where reference photos are searched for (REFERENCE_SEARCH)
+    reference_search: str = "web"  # where reference photos are searched for (REFERENCE_SEARCH); the open web first
     outline_repair: str = "same"  # what the outline check's redraw draws with (OUTLINE_REPAIR)
     naming: str = "one"  # how every outline the app draws is named (NAMING)
     naming_model: str = "close-look"  # which model names an outline (NAMING_MODEL)

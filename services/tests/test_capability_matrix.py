@@ -403,8 +403,8 @@ def world(tmp_path, monkeypatch):
         return safe_fetch.FetchedImage(leaf(), 1280, 720, url, "https://en.wikipedia.org/wiki/Stoma", "Stoma", "CC BY-SA 4.0",
                                        "A. Botanist")
 
-    async def matches_photo(query, jpeg):
-        return True
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(True, "a surface view of a leaf epidermis with stomata, light microscopy")
 
     async def page_images(url, client=None):
         return []
@@ -416,7 +416,7 @@ def world(tmp_path, monkeypatch):
         return []  # nothing there: the web's photo is the one shown, the same for both choices
 
     monkeypatch.setattr(retrieval, "lookup", lookup)
-    monkeypatch.setattr(retrieval, "matches_photo", matches_photo)
+    monkeypatch.setattr(retrieval, "look_at_photo", look_at_photo)
     monkeypatch.setattr(safe_fetch, "fetch_text", fetch_text)
     monkeypatch.setattr(safe_fetch, "fetch_image", fetch_image)
     monkeypatch.setattr(safe_fetch, "page_images", page_images)

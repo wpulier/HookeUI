@@ -395,7 +395,7 @@
   "presentation": "off",
   "quality": "tell",
   "quieter": false,
-  "reference_search": "web+commons",
+  "reference_search": "web",
   "reflex": "lean-3.5-flash",
   "research": "gpt-6.1-sol",
   "researchCap": null,

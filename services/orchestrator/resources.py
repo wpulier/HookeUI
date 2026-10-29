@@ -642,9 +642,14 @@ class Results:
         source = None
         if isinstance(web, dict):
             source = {"frame": None, "seq": None, "boot": None, "web": copy.deepcopy(web)}
+            # A reference photo's description is what a look at its pixels saw (reference.retrieve), named by who
+            # looked, so it is never taken for the request's words.
             description = (run.values or {}).get("description")
             if isinstance(description, str) and description:
                 source["description"] = description[:600]
+                described_by = (run.values or {}).get("describedBy")
+                if isinstance(described_by, str) and described_by:
+                    source["describedBy"] = described_by[:80]
         elif isinstance(capture_sources, list):
             # Multi-capture outputs cannot be attributed to the unrelated current request frame.
             source = {"frame": None, "seq": None, "boot": None, "captures": capture_sources[:8]}
