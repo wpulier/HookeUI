@@ -80,9 +80,10 @@ PROGRESS_LINES = 1
 # length is set by its instructions; this only stops a runaway.
 PROGRESS_TOKENS = 400
 # Words for any progress line (a tool round's and a job's): what is under way, as a colleague says it mid-task.
-PROGRESS_WORDS = ("In one short sentence (under 12 words), say what Hooke is doing now or waiting on, the way a "
-                  "colleague would mid-task (\"Still running the three models.\"). Only what it is doing, never what "
-                  "it may find; how long only if it has been a while.")
+PROGRESS_WORDS = ("In one short sentence (under 12 words), say what Hooke is doing now or waiting on, in the user's "
+                  "words, the way a colleague would mid-task (\"Still running the three models.\"). Only what it is "
+                  "doing, never what it may find, no tool's name and no \"segmentation\"; how long only if it has "
+                  "been a while.")
 # A job behind the voice (think, a slow tool): a line on what is under way once the voice has been quiet this long, then
 # another only when what it is doing has changed, at least THINK_PROGRESS_EVERY_S later, THINK_PROGRESS_LINES in all.
 THINK_PROGRESS_AFTER_S = 6.0
@@ -107,7 +108,7 @@ RECEIPT_RULES = {
 OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak first, once, in one or two short "
                "sentences: what is on the stage right now, as specifically as the pictures and the Project let you say "
                "it, and the one obvious next thing, offered as a question (the shape: \"That's onion epidermis; the "
-               "nuclei are easy to see. Want me to outline them?\"). Point with mark at what you name as you say it, "
+               "nuclei are easy to see. Want me to outline them?\"). Say it first, then call mark on what you named, "
                "without saying that you point. "
                "With nothing on the stage, say in one sentence how to start. No greeting on its own, no list of what "
                "you can do.")
@@ -1722,7 +1723,11 @@ class RealtimeSession(VoiceSession):
         points = result.pop("_point", None)
         if isinstance(points, list) and points:
             self._point = [str(t) for t in points][:4]
-        output = json.dumps(result, ensure_ascii=False, default=str)[:12000]
+        # The receipt first (its result and its words): what the voice says comes from them; the rest is detail for
+        # when the user asks how (smoke-ux-2 still said "the outlines are now on the layer" from the tool's summary).
+        first = {k: result[k] for k in ("result", "said") if k in result}
+        output = json.dumps({**first, **{k: v for k, v in result.items() if k not in first}}, ensure_ascii=False,
+                            default=str)[:12000]
         await self.add({"id": item_id("fo"), "type": "function_call_output", "call_id": call_id, "output": output})
         if isinstance(look, dict) and (look.get("images") or look.get("text")):
             note = str(look.get("text") or "")
