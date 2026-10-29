@@ -1810,7 +1810,10 @@ class Index:
             lines = ["What has been made in this session:"]
             for k in s["kinds"]:
                 newest = k["newest"]
-                lines.append(f"- {k['name']}: {k['count']} (newest: {newest['title']} ({newest['id']})"
+                # A saved Project document's title is its maker's (an imported file's name, an agent's): data, said by
+                # the Project's view only inside its untrusted wrapper (project_state.text), never here.
+                title = newest["title"] if k["kind"] != "project" else "a saved document, titled in its own words"
+                lines.append(f"- {k['name']}: {k['count']} (newest: {title} ({newest['id']})"
                              + (f", {newest['summary']}" if newest["summary"] else "")
                              + (f"; {newest['placement']}" if newest.get("placement") else "") + ")")
         if s["running"]:

@@ -96,11 +96,14 @@ in `NAMES` and needs no dependency, so the hosted side can use the same files). 
 Project as every reader sees it, built by `orchestrator/project_state.py` and described in
 `docs/architecture/session-index.md`. It is a scoped, read-only projection, never a store or an instruction source:
 the Project's identity (`project-reference`) and each source's revision, `observedAt` with an explicit consistency
-statement (the reads are not atomic), data items each with an exact reference (kind, id, revision, a Project document's
-digest), its source and whether its words are trusted, and its maker, in pages with a cursor bound to the revisions;
+statement (the reads are not atomic), its `stage` (what it has on stage and its specimen, from its journal), data items
+each with an exact reference (kind, id, revision, a Project document's digest), its source and whether its words are
+trusted, and its maker, in pages with a cursor bound to the data's revisions only (the index's and the Studies' as the
+role reads them: the studio's repeated reports and a researcher's next step never break a cursor);
 researchers running first, then finished, then stopped (labelled); Studies; agents' operations; the saved Tabs; the
 app's model choices (only for the Project open now); and the studio's state, `unavailable` when no studio reports this
-Project, never empty. The door checks every `project.state` answer against it before returning it; `project.read`'s
+Project, never empty; its revision holds no time. A field added
+to it is additive within `project-state/1`, as `stage` was. The door checks every `project.state` answer against it before returning it; `project.read`'s
 output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
 contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed
 cache.

@@ -38,19 +38,22 @@ other files.
     (`workspace_layout`, read, never migrated) and the studio's latest report. Nothing is written and nothing is kept on
     disk; it is never an instruction source.
   - **What it carries:** the Project's identity (as `project.read` names it) and the revision of each source it was built
-    from; `observedAt` and a consistency statement (the reads are not atomic); data, newest first, each item with its
+    from; `observedAt` and a consistency statement (the reads are not atomic); its stage (`stage`: what it has on stage
+    and the specimen it last saw, from its journal's `on_stage` and subjects); data, newest first, each item with its
     exact reference (kind, id, revision; a Project document's digest), category (table, measurement, outline layer,
     import, researcher's findings, Study result, workflow result, analysis, note, other), source store and whether its
     words are trusted, its maker (`resources.maker_of`, "not recorded" when the record cannot tell) and model; a page
-    of at most 50 with a cursor bound to the revisions (a changed Project refuses an old cursor: pages never mix two
-    states); researchers in one order, `project_state.ordered` (running first with its step, then finished, then
+    of at most 50 with a cursor bound to the data's revisions only (the index's and the Studies', as this role reads
+    them): data that changed refuses an old cursor, so pages never mix two states, while a window opening or a
+    researcher's next step does not; researchers in one order, `project_state.ordered` (running first with its step, then finished, then
     stopped, labelled "stopped before it finished; not running"; newest first in each); Studies; agents' operations;
     the saved Tabs; the app's model choices (role -> model, from `options.Settings`, only for the Project open now:
     never inferred for another); and the studio's state.
   - **The studio's state** comes only from its latest report (`screen.latest`): the Tab open, the windows of this
     Project and the one in front (`screen.frontmost`). With no studio reporting it is `unavailable` ("no-studio"),
     never empty; a studio showing another Project, or a report that does not say which, is `unavailable` too, and the
-    other Project is never named.
+    other Project is never named. Its revision is what the report shows, never when it said so: the studio reports
+    again every few seconds unchanged, and that changes neither the cache nor a cursor.
   - **Permissions first, then the cache:** the in-app Assistant, the studio and the app's researchers read as the owner
     (`project_state.OWNER`); an outside agent reads by the door's registry (`door/projects.py`: creator or an explicit
     grant), checked before anything is read. The cache is one entry per actor and Project, keyed on every source's
@@ -58,12 +61,29 @@ other files.
     its projection is still cached. The revisions are read from the stores on every call (several change in memory
     without a write), so the cache saves the projection's building, never a read.
   - **Untrusted facts are kept, labelled:** a researcher's, an imported file's or an agent's words stay in the
-    projection with `source.trusted: false`; the brain's text puts them only inside one `untrusted.block`.
+    projection with `source.trusted: false`. The brain's text and the brief put them, the Project's name, a source's
+    title and every agent's label only inside one `untrusted.block`; their lines say "titled below", "its name is below"
+    or "by a connected agent". `Index.summary_text` says a saved Project document by its id, never its title.
+  - **The owner's own:** what a researcher asks the user for and the conversations it belongs to are the owner's view
+    only. Any other reader gets a researcher's row without `asking`, and its report as a data item summarised by its
+    public line (`_public_line`: name, subject, status, the step while it runs, its finding), never `Session.line()`.
+  - **A store that cannot be read is said, never fatal:** the researchers (`researchers' work (OSError)` in
+    `unreadable`, as the index says it), the Project's journal and the app's model choices each degrade alone. If the
+    view still cannot be built, the brain's `resources` says so and gives the index's summary.
   - **Readers:** the brain's `resources` with no id, kind or query (`project_state.text`: each item's line, the
-    researchers, Studies, agents' work and the studio, then what could be made); `research_status` with no researcher
+    researchers, Studies, agents' work and the studio, then the index's own summary by kind, `Index.summary_text`, with
+    each kind's count and newest, what is live and what could be made); `research_status` with no researcher
     (the running one first, else the one last spoken of in the conversation: the newest turn filed about it, `refs.rid`;
     then the rest in the one order); the voice roster (`brain/context.py` `_roster`, the first 4 in the one order, so a
-    stopped researcher is last or left out); the researchers' `session` summary; the door's `project.state`.
+    stopped researcher is last or left out); the researchers' `session` summary (its `project`, only for a session a
+    researcher of this app is working in: `ResearchManager.working`); the door's `project.state`.
+  - **The brief for the realtime voice and researchers** (`project_state.brief(state, max_chars=3000)`): the owner's
+    view as one compact text, injected whole as one replaced item, never written to disk or kept as an editable file.
+    At most `BRIEF_MAX` (3000) characters whatever the Project holds; sections in a fixed order, each in its own share
+    of the cap (`BRIEF_SHARES`) of whole lines then how many more: the Project and its stage and specimen, data newest
+    first, researchers running first, the Tabs with the Tab open and the window in front, the models in use. Then the
+    words that are not the app's in one untrusted wrapper cut to what is left, so it always closes. It holds no time of
+    reading, so an unchanged Project gives the same brief.
 - **Pulled, never pushed into a prompt.** Entries lead with a plain title ("Motion · 18:10"); the id is one step away.
   The brain's `resources` tool lists, and its summary counts, every kind but a researcher's sources, tables, charts,
   lessons, videos and pictures (`produces.ASKED_FOR_ONLY`): those are many entries of the researcher's own words, so

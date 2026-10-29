@@ -846,16 +846,23 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
             summary = await asyncio.to_thread(built.hub.resources.summary, day)
             if researcher:
                 # A researcher's summary also names the Project's data, its researchers and its Studies, as every reader
-                # sees them (project_state.py; the app's own researcher reads as the owner, in its own session only).
+                # sees them (project_state.py). Only for its own session: one a researcher of this app is working in
+                # (research_worker/session_index.py always sends it), read as the owner. Never fatal to the summary.
                 from . import project_state
 
-                try:
-                    state = await project_state.state_of(built.hub).read(day or built.hub.resources.session(),
-                                                                         project_state.OWNER, limit=12)
-                    summary["project"] = {k: state[k] for k in ("project", "observedAt", "consistency", "data",
-                                                                "researchers", "studies", "untrusted")}
-                except (project_state.NoProject, ValueError) as exc:
-                    summary["project"] = {"unavailable": str(exc)}
+                research = getattr(built, "research", None)
+                working = day is not None and research is not None and any(
+                    s.purpose == "research" and s.sitting == day and research.working(s)
+                    for s in list(research.sessions.values()))
+                if not working:
+                    summary["project"] = {"unavailable": "only a researcher working in this Project reads its view here"}
+                else:
+                    try:
+                        state = await project_state.state_of(built.hub).read(day, project_state.OWNER, limit=12)
+                        summary["project"] = {k: state[k] for k in ("project", "observedAt", "consistency", "stage",
+                                                                    "data", "researchers", "studies", "untrusted")}
+                    except Exception as exc:
+                        summary["project"] = {"unavailable": f"the Project's view could not be read ({type(exc).__name__})"}
             return JSONResponse(summary, headers={"Cache-Control": "no-store"})
         return resources_summary
 

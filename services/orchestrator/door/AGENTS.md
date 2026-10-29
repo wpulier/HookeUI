@@ -142,8 +142,8 @@ history. Credentials and assignment identities are distinct from display names.
 file, and read exact artifact revisions with bounded text. `project.state {cursor?, limit?}` (read access) answers
 `{state}`: the Project as every reader sees it (`orchestrator/project_state.py`, `contract/agent/project-state.schema.json`,
 `docs/architecture/session-index.md`), checked against its schema before it is returned; the actor's access is checked
-before anything is read or cached, and its cache is the actor's own. A cursor from a Project that changed since is
-refused (409 `project-state-changed`). `project.read`'s output is unchanged. They appear in tools
+before anything is read or cached, and its cache is the actor's own. A cursor from a Project whose data changed since is
+refused (409 `project-state-changed`); the studio's state changing does not refuse it. `project.read`'s output is unchanged. They appear in tools
 without new CLI-specific scientific logic. Creation uses `SessionStore.create_retained`
 without changing the active Project, stage or resume preference. Intake reuses
 FileIntake, memory admission, hashes and immutable chunks. Each imported document retains its source-import actor, label and operation ID,

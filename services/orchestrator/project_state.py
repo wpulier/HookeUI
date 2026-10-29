@@ -35,6 +35,9 @@ OPERATIONS_MAX = 20
 WINDOWS_MAX = 40
 TABS_MAX = 24
 CACHE_MAX = 16  # (actor, Project) projections kept, each its whole data list; the least recently read goes first
+BRIEF_MAX = 3000  # characters of `brief`, the whole text injected into the realtime voice and researchers
+# Each section's share of a brief, in its order (the rest is the untrusted words'): no section crowds out another.
+BRIEF_SHARES = {"stage": 0.10, "data": 0.34, "researchers": 0.16, "tabs": 0.10, "models": 0.12}
 
 RUNNING = frozenset({"queued", "starting", "running", "revising"})
 GROUP_RANK = {"running": 0, "finished": 1, "cancelled": 2}
@@ -136,8 +139,22 @@ def _project_category(document) -> str | None:
     return "other"
 
 
-def _item(entry) -> dict | None:
-    """One index entry as a data item, or None when it is not data (members, outcomes, facts, jobs) or a Study."""
+def _public_line(s) -> str:
+    """A researcher's line for any reader: its name, subject, status, step while it runs and its finding. Not its
+    Session.line(), which says what it asks the owner and in which conversation (the owner's own view keeps those)."""
+    from .untrusted import inline
+
+    result = s.result if isinstance(getattr(s, "result", None), dict) else {}
+    finding = result.get("one_liner") or result.get("summary")
+    line = f"{s.name} ({inline(s.label or s.brief, 60)}): {s.status}"
+    if group_of(s.status) == "running" and s.step:
+        line += f", {inline(s.step, 160)}"
+    return line + (f": {inline(finding, 120)}" if finding else "")
+
+
+def _item(entry, *, owner: bool = True, researchers: dict | None = None) -> dict | None:
+    """One index entry as a data item, or None when it is not data (members, outcomes, facts, jobs) or a Study. For
+    any reader but the owner, a researcher's report is summarised by its public line (`_public_line`)."""
     from .operations import label_of
     from .untrusted import inline
 
@@ -159,9 +176,13 @@ def _item(entry) -> dict | None:
         return item
     if entry.role is None or entry.kind not in CATEGORY and entry.role != "other":
         return None
+    summary = entry.summary
+    if entry.kind == "research" and not owner:
+        session = (researchers or {}).get(entry.id)
+        summary = _public_line(session) if session is not None else f"{entry.title}: {entry.state}"
     item = {"ref": {"kind": entry.kind, "id": entry.id, "revision": entry.version},
             "category": CATEGORY.get(entry.kind, "other"),
-            "title": inline(entry.title, 200), "summary": inline(entry.summary, 300), "at": float(entry.at or 0),
+            "title": inline(entry.title, 200), "summary": inline(summary, 300), "at": float(entry.at or 0),
             "state": str(entry.state),
             "source": {"store": "researcher" if entry.kind == "research" or ":" in entry.id else "session-index",
                        "trusted": not entry.untrusted},
@@ -250,10 +271,10 @@ def ui_of(screen, project: str, now: float | None = None) -> dict:
                "z": i.get("z") if isinstance(i.get("z"), (int, float)) else None}
         if isinstance(document.get("tab"), str):
             row["tab"] = document["tab"][:120]
-        resource = document.get("resource") if isinstance(document.get("resource"), dict) else None
-        if resource and isinstance(resource.get("id"), str):
-            version = resource.get("version")
-            row["resource"] = {"id": resource["id"][:120], "version": version if type(version) is int else None}
+        held = document.get("resource") if isinstance(document.get("resource"), dict) else None
+        if held and isinstance(held.get("id"), str):
+            version = held.get("version")
+            row["resource"] = {"id": held["id"][:120], "version": version if type(version) is int else None}
         windows.append(row)
     front = frontmost(mine)
     observed = float(report.get("at") or 0.0)
@@ -264,6 +285,26 @@ def ui_of(screen, project: str, now: float | None = None) -> dict:
             "activeTab": shown.get("tab") if isinstance(shown.get("tab"), str) else None, "windows": windows,
             "front": ({"id": str(front.get("id"))[:120], "title": inline(front.get("title"), 120),
                        "kind": str(front.get("kind") or "")} if front is not None else None)}
+
+
+def stage_of(store, entries) -> dict:
+    """What the Project has on stage and the specimen it last saw, from its journal (SessionStore `on_stage`,
+    `subjects`): a retained record, not the studio's report."""
+    from .untrusted import inline
+
+    on = getattr(store, "on_stage", None) if store is not None else None
+    on = on if isinstance(on, str) and on else None
+    subjects = sorted((s for s in (getattr(store, "subjects", None) or {}).values() if isinstance(s, dict) and s.get("name")),
+                      key=lambda s: -float(s.get("last") or 0))
+    out = {"onStage": on, "specimen": inline(subjects[0]["name"], 80) if subjects else None,
+           "specimens": [inline(s["name"], 80) for s in subjects[:8]]}
+    if subjects:
+        out["namedBy"] = "user" if subjects[0].get("named_by") == "user" else "app"
+    if on and on != "live":
+        title = next((e.title for e in entries if e.id == on and e.kind == "asset"), None)
+        if title:
+            out["title"] = inline(title, 120)
+    return out
 
 
 def operations_of(hub, project: str) -> list[dict]:
@@ -300,14 +341,18 @@ def capabilities_of(hub, open_now: bool) -> dict:
     if settings is None:
         return {"state": "unavailable", "scope": "app", "roles": [], "says": "The app's settings are not available."}
     roles = []
-    with _not_recorded():  # read to say them, not as settings this run uses
-        for role, title in _model_roles():
-            option = getattr(settings, role, None)
-            if not isinstance(option, str):
-                continue
-            chosen = GROUPS[role].get(option)
-            roles.append({"role": role, "title": title, "option": option,
-                          "model": chosen.label if chosen is not None else option})
+    try:
+        with _not_recorded():  # read to say them, not as settings this run uses
+            for role, title in _model_roles():
+                option = getattr(settings, role, None)
+                if not isinstance(option, str):
+                    continue
+                chosen = GROUPS[role].get(option)
+                roles.append({"role": role, "title": title, "option": option,
+                              "model": chosen.label if chosen is not None else option})
+    except Exception as exc:  # one unreadable list never hides the rest of the Project
+        return {"state": "unavailable", "scope": "app", "roles": [],
+                "says": f"The app's model choices could not be read ({type(exc).__name__})."}
     return {"state": "reported", "scope": "app", "roles": roles[:32],
             "says": "The app's choices for new work in the Project open now; what made each item is its madeWith."}
 
@@ -360,9 +405,15 @@ class ProjectState:
         index = resources_of(self.hub)
         with index.one_pass():
             entries, unreadable = index.collect(project)
-            researchers = ordered(index.researchers_of(project))
+            try:
+                researchers = ordered(index.researchers_of(project))
+            except Exception as exc:  # said, as the index says a store it cannot read; never fatal
+                researchers = []
+                if not any(u.startswith("researchers' work") for u in unreadable):
+                    unreadable.append(f"researchers' work ({type(exc).__name__})")
         open_now = project == index.session()
-        identity, layout = self._identity(index, project, role)
+        identity, layout, store = self._identity(index, project, role, unreadable)
+        stage = stage_of(store, entries)
         capabilities = capabilities_of(self.hub, open_now)
         from .research.efforts import summary as study_summary
 
@@ -387,10 +438,16 @@ class ProjectState:
             "studies": _digest([(row["id"], row["revision"], row["digest"]) for row, _ in studies]),
             "operations": _digest([(o["id"], o["state"]) for o in operations]),
             "workspace": layout.get("revision") if isinstance(layout.get("revision"), int) else None,
-            "screen": _digest({k: v for k, v in ui.items() if k != "ageMs"}) if ui["state"] == "reported" else None,
+            # What the studio shows, never when it said so: a report repeated unchanged (every few seconds) is the same.
+            "screen": (_digest({k: v for k, v in ui.items() if k not in ("ageMs", "observedAt")})
+                       if ui["state"] == "reported" else None),
         }
-        key = _digest({"revisions": revisions, "role": role, "ui": ui.get("reason"), "capabilities": capabilities,
-                       "identity": identity, "owner": actor == OWNER})
+        # A cursor is bound to the data alone (the index and the Studies, as this role reads them), so a window that
+        # opens or a researcher's next step never breaks paging through unchanged data.
+        data_key = _digest({"resources": revisions["resources"], "studies": revisions["studies"], "role": role,
+                            "owner": actor == OWNER})
+        key = _digest({"revisions": revisions, "data": data_key, "ui": ui.get("reason"), "capabilities": capabilities,
+                       "identity": identity, "stage": stage})
         with self._lock:
             cached = self._cache.get((actor, project))
             whole = cached[1] if cached is not None and cached[0] == key else None
@@ -399,13 +456,13 @@ class ProjectState:
         reused = whole is not None
         if whole is None:
             whole = self._project(identity, entries, unreadable, researchers, studies, studies_why, operations, layout,
-                                  capabilities, ui, revisions, owner=actor == OWNER)
+                                  capabilities, ui, revisions, stage, owner=actor == OWNER)
             with self._lock:
                 self._cache[(actor, project)] = (key, whole)
                 self._cache.move_to_end((actor, project))
                 while len(self._cache) > CACHE_MAX:
                     self._cache.popitem(last=False)
-        offset = _offset(cursor, key)
+        offset = _offset(cursor, data_key)
         items = whole["data"]["items"]
         if offset > len(items):
             raise Changed("that cursor is past the end of this Project's data; read again from the first page")
@@ -413,7 +470,7 @@ class ProjectState:
         state = {key_: copy.deepcopy(value) for key_, value in whole.items() if key_ != "data"}
         state["data"] = {**{k: copy.deepcopy(v) for k, v in whole["data"].items() if k != "items"}, "items": page,
                          "offset": offset, "limit": limit,
-                         "next": f"{offset + limit}:{key}" if offset + limit < len(items) else None}
+                         "next": f"{offset + limit}:{data_key}" if offset + limit < len(items) else None}
         state["ui"] = copy.deepcopy(ui)  # its age is this read's
         observed = time.time()
         state["observedAt"] = observed
@@ -421,29 +478,33 @@ class ProjectState:
                                 "readMs": round((time.monotonic() - clock) * 1000, 1), "reused": reused, "says": CONSISTENCY}
         return state
 
-    def _identity(self, index, project: str, role: str) -> tuple[dict, dict]:
-        """The Project as the door names it (project-reference) and its saved Tab arrangement (journal), read-only."""
+    def _identity(self, index, project: str, role: str, unreadable: list) -> tuple[dict, dict, object]:
+        """The Project as the door names it (project-reference), its saved Tab arrangement and its store (journal),
+        read-only. A journal that cannot be read is said, and the rest of the Project still read."""
         store = None
         if index.day is not None:
             try:
                 store = index.day.elsewhere(project)
             except KeyError:
                 store = None
+            except Exception as exc:
+                unreadable.append(f"the Project's journal ({type(exc).__name__})")
         name = str(getattr(store, "name", "") or "")  # as project.read names it ("" until it has a name)
         layout = getattr(store, "workspace_layout", None) if store is not None else None
         return ({"session": project, "name": name, "role": role, "localOnly": bool(getattr(store, "local_only", False))},
-                layout if isinstance(layout, dict) else {})
+                layout if isinstance(layout, dict) else {}, store)
 
     def _project(self, identity, entries, unreadable, researchers, studies, studies_why, operations, layout,
-                 capabilities, ui, revisions, *, owner: bool) -> dict:
+                 capabilities, ui, revisions, stage, *, owner: bool) -> dict:
         from .produces import ASKED_FOR_ONLY, KINDS
 
         items, omitted, kinds = [], 0, {}
+        by_rid = {s.rid: s for s in researchers}
         for entry in entries:
             if entry.kind in ASKED_FOR_ONLY:
                 omitted += 1
                 continue
-            item = _item(entry)
+            item = _item(entry, owner=owner, researchers=by_rid)
             if item is None:
                 continue
             items.append(item)
@@ -469,7 +530,7 @@ class ProjectState:
         if running:
             line += f"; running: {', '.join(running)}"
         return {
-            "contract": CONTRACT, "project": identity, "revisions": revisions,
+            "contract": CONTRACT, "project": identity, "revisions": revisions, "stage": stage,
             "summary": {"line": line, "kinds": [{"kind": k, "name": KINDS.get(k, k), "count": n} for k, n in kinds.items()]},
             "data": {"items": items, "total": len(items), "order": "newest first",
                      "omitted": {"researchersWork": omitted,
@@ -516,52 +577,111 @@ def state_of(hub) -> ProjectState:
     return found
 
 
-# --- the brain's reading -------------------------------------------------------------------------------------------
-def _by(author: dict) -> str:
-    from .untrusted import inline
+# --- the brain's reading and the voice's brief ----------------------------------------------------------------------
+# Words that are not the app's (a Project name an agent or the user chose, an agent's label, a researcher's subject,
+# step, question and finding, an imported file's title, a Study's title) reach these texts only inside one
+# untrusted.block, each under the reference it belongs to (ADR 0002); the lines around it are the app's own words.
+WRAPPER = {"tag": "project", "source": "researchers, imports and agents"}
 
+
+def _by(author: dict, ref: str, words: list) -> str:
+    """Who made it, in the app's words; an agent's label (its own words) goes to `words`, under `ref`."""
     if author["kind"] == "unknown":
         return "maker not recorded"
-    return f"by {inline(author['name'], 40)}" + (" (a connected agent, as it names itself)" if author["kind"] == "agent" else "")
+    if author["kind"] == "agent":
+        words.append(f"{ref}: made by the connected agent that names itself {author['name']}")
+        return "by a connected agent (its label is below)"
+    return f"by {author['name']}"
 
 
-def text(state: dict, could_make: list[str] | None = None) -> str:
-    """The projection as the brain's resources tool answers "what data do we have?": each item with its exact
-    reference, what it is, who made it and with what; the researchers in their one order; Studies, agents' work and
-    the studio. Words that are not the app's (a researcher's, an imported file's, an agent's) are only inside one
-    untrusted block (ADR 0002), each under its reference."""
+def _item_line(item: dict, words: list, *, detail: bool = True) -> str:
+    """One data item in the app's words; what is not the app's goes to `words`."""
+    ref = item["ref"]
+    where = f"{ref['id']}, {ref['kind']}" + (f", revision {ref['revision']}" if ref.get("revision") is not None else "")
+    trusted = item["source"]["trusted"]
+    # A researcher's report is titled in the app's own words; any other untrusted title is in the block below.
+    title = f"{item['title']} ({where})" if trusted or ref["kind"] == "research" else f"({where}), titled below"
+    parts = [f"- {CATEGORY_WORDS[item['category']]}: {title}", _by(item["author"], ref["id"], words)]
+    if detail and item.get("madeWith"):
+        parts.append(f"with {item['madeWith']}")
+    if item.get("table"):
+        parts.append("its measurements open as a table")
+    if trusted and item["summary"]:
+        parts.append(item["summary"])
+    if detail and item.get("placement"):
+        parts.append(item["placement"])
+    if item["state"] not in ("done", "saved"):
+        parts.append(item["state"])
+    if not trusted and ref["kind"] != "research":  # a researcher's words are under Researchers, once
+        words.append(f"{ref['id']}: " + " · ".join(w for w in (item["title"], item["summary"]) if w))
+    return "; ".join(parts)
+
+
+def _researcher_line(r: dict, words: list) -> str:
+    row = f"{r['name']} ({r['ref']['id']}): {r['status']}" + (", asking the user for evidence" if r.get("asking") else "")
+    if r["group"] == "cancelled":
+        row += f" ({r['says']})"
+    # Its subject, current step, question and finding are its own (or its request's) words.
+    about = " · ".join(w for w in (r["about"], r["step"] and f"now: {r['step']}",
+                                   r.get("asking") and f"asking for: {r['asking']}", r["finding"]) if w)
+    if about:
+        words.append(f"{r['ref']['id']} ({r['name']}): {about}")
+    return row
+
+
+def _studio_line(state: dict, *, age: bool = True) -> str:
+    ui = state["ui"]
+    if ui["state"] != "reported":
+        return "The studio: " + ui["says"]
+    front = ui.get("front")
+    said = f" (its report {round(ui['ageMs'] / 1000)} s ago)" if age else ""
+    return (f"The studio{said}: Tab {ui.get('activeTab') or 'unknown'} open"
+            + (f", in front: {front['title'] or front['kind']} ({front['id']})" if front else ", no window in front")
+            + ("" if ui.get("visible", True) else "; the studio is in the background"))
+
+
+def _project_line(project: dict, words: list) -> str:
+    if project["name"]:
+        words.append(f"{project['session']}: the Project's name: {project['name']}")
+    return f"Project {project['session']}" + (" (its name is below)" if project["name"] else "")
+
+
+def _wrapped(words: list, limit: int | None = None) -> str:
+    """The untrusted words in their one wrapper, cut whole lines first to `limit` characters in all, so the wrapper
+    always closes."""
     from .untrusted import block, inline
 
+    if not words:
+        return ""
+    if limit is None:
+        return block("\n".join(inline(w, 400) for w in words), **WRAPPER)
+    empty = len(block("", **WRAPPER))
+    kept, size = [], empty
+    for w in words:
+        line = inline(w, 300)
+        if size + len(line) + 1 > limit:
+            if size + 2 <= limit and not kept:
+                kept.append(line[:max(0, limit - size - 2)])
+            break
+        kept.append(line)
+        size += len(line) + 1
+    return block("\n".join(kept), **WRAPPER) if kept else ""
+
+
+def text(state: dict, index: str | None = None) -> str:
+    """The projection as the brain's resources tool answers "what data do we have?": each item with its exact
+    reference, what it is, who made it and with what; the researchers in their one order; Studies, agents' work and
+    the studio; then `index`, the index's own summary by kind (Index.summary_text: each kind's count and newest, what
+    is shown live, what could be made). Words that are not the app's are only inside one untrusted block."""
     project, data = state["project"], state["data"]
-    when = time.strftime("%H:%M:%S", time.localtime(state["observedAt"]))
-    lines = [f"Project {inline(project['name'] or project['session'], 80)} ({project['session']}), read at {when}; "
-             "its stores are read one after another, not at once."]
     words = []
+    when = time.strftime("%H:%M:%S", time.localtime(state["observedAt"]))
+    lines = [f"{_project_line(project, words)}, read at {when}; its stores are read one after another, not at once."]
     if data["total"]:
-        shown = len(data["items"])
-        lines.append(f"Data, newest first ({data['offset'] + 1}-{data['offset'] + shown} of {data['total']}):")
+        lines.append(f"Data, newest first ({data['offset'] + 1}-{data['offset'] + len(data['items'])} of {data['total']}):")
     else:
         lines.append("Data: nothing has been made or brought into this Project yet.")
-    for item in data["items"]:
-        ref = item["ref"]
-        where = f"{ref['id']}, {ref['kind']}" + (f", revision {ref['revision']}" if ref.get("revision") is not None else "")
-        trusted = item["source"]["trusted"]
-        # A researcher's report is titled in the app's own words; any other untrusted title is in the block below.
-        title = f"{item['title']} ({where})" if trusted or ref["kind"] == "research" else f"({where}), titled below"
-        parts = [f"- {CATEGORY_WORDS[item['category']]}: {title}", _by(item["author"])]
-        if item.get("madeWith"):
-            parts.append(f"with {item['madeWith']}")
-        if item.get("table"):
-            parts.append("its measurements open as a table")
-        if trusted and item["summary"]:
-            parts.append(item["summary"])
-        if item.get("placement"):
-            parts.append(item["placement"])
-        if item["state"] not in ("done", "saved"):
-            parts.append(item["state"])
-        lines.append("; ".join(parts))
-        if not trusted and ref["kind"] != "research":  # a researcher's words are under Researchers, once
-            words.append(f"{ref['id']}: " + " · ".join(w for w in (item["title"], item["summary"]) if w))
+    lines.extend(_item_line(item, words) for item in data["items"])
     if data["next"]:
         lines.append(f"(and {data['total'] - data['offset'] - len(data['items'])} older: ask for them by kind or query)")
     if data["omitted"]["researchersWork"]:
@@ -569,46 +689,88 @@ def text(state: dict, could_make: list[str] | None = None) -> str:
                      "(ask by kind: lesson, video, figure, finding-table, finding-chart, source)")
     research = state["researchers"]
     if research["total"]:
-        row_lines = []
-        for r in research["items"]:
-            row = f"{r['name']} ({r['ref']['id']}): {r['status']}" + (", asking the user for evidence" if r.get("asking") else "")
-            if r["group"] == "cancelled":
-                row += f" ({r['says']})"
-            row_lines.append(row)
-            # Its subject, current step, question and finding are its own (or its request's) words.
-            about = " · ".join(w for w in (r["about"], r["step"] and f"now: {r['step']}",
-                                           r.get("asking") and f"asking for: {r['asking']}", r["finding"]) if w)
-            if about:
-                words.append(f"{r['ref']['id']} ({r['name']}): {about}")
         more = research["total"] - len(research["items"])
-        lines.append("Researchers, running first, then finished, then stopped: " + "; ".join(row_lines)
+        lines.append("Researchers, running first, then finished, then stopped: "
+                     + "; ".join(_researcher_line(r, words) for r in research["items"])
                      + (f"; and {more} more" if more > 0 else ""))
     studies = state["studies"]
     if studies["state"] == "unavailable":
         lines.append("Studies: " + studies.get("why", "unavailable"))
     elif studies["total"]:
         lines.append("Studies: " + "; ".join(
-            f"{s['ref']['id']} (revision {s['ref']['revision']}), {s['status']}, {s['findings']} findings, "
-            f"{s['claims']} claims, {_by(s['author'])}" for s in studies["items"]))
+            f"{s['ref']['id']} (revision {s['ref']['revision']}, titled below), {s['status']}, {s['findings']} findings, "
+            f"{s['claims']} claims, {_by(s['author'], s['ref']['id'], words)}" for s in studies["items"]))
         words.extend(f"{s['ref']['id']}: {s['title']}" for s in studies["items"])
     if state["operations"]["total"]:
         lines.append("Connected agents' work here: " + "; ".join(
-            f"{o['tool']} {o['state']} ({_by({'kind': 'agent', 'name': o['by']})})" for o in state["operations"]["items"][:6]))
-    ui = state["ui"]
-    if ui["state"] == "reported":
-        front = ui.get("front")
-        lines.append(f"The studio (its report {round(ui['ageMs'] / 1000)} s ago): Tab {ui.get('activeTab') or 'unknown'} open"
-                     + (f", in front: {front['title'] or front['kind']} ({front['id']})" if front else ", no window in front")
-                     + ("" if ui.get("visible", True) else "; the studio is in the background"))
-    else:
-        lines.append("The studio: " + ui["says"])
+            f"{o['tool']} {o['state']} ({_by({'kind': 'agent', 'name': o['by']}, o['id'], words)})"
+            for o in state["operations"]["items"][:6]))
+    lines.append(_studio_line(state))
     if state["unreadable"]:
         lines.append("Couldn't read: " + "; ".join(state["unreadable"]))
-    if state["summary"]["kinds"]:
-        lines.append("By kind: " + ", ".join(f"{k['name']} {k['count']}" for k in state["summary"]["kinds"]))
-    if could_make:
-        lines.append("Could also be made here now: " + "; ".join(could_make))
+    if index:
+        lines.append(index)
     out = "\n".join(lines)
-    if words:
-        out += "\n" + block("\n".join(inline(w, 400) for w in words), tag="project", source="researchers, imports and agents")
-    return out
+    return out + ("\n" + _wrapped(words) if words else "")
+
+
+def brief(state: dict, max_chars: int = BRIEF_MAX) -> str:
+    """The owner's project.state as one compact text for the realtime voice and researchers, injected whole as one
+    replaced item: never written to disk, never an editable file, and never longer than `max_chars` (BRIEF_MAX, 3000).
+    Sections in a fixed order, each in its own share of the cap (BRIEF_SHARES) of whole lines, then how many more:
+    on stage and the specimen; data, newest first; researchers, running first; the Tabs and the window in front; the
+    models in use. Then the words that are not the app's, in one untrusted wrapper cut to what is left, so it always
+    closes. It holds no time of reading (observedAt, a report's age), so an unchanged Project gives the same brief."""
+    from .untrusted import inline
+
+    if type(max_chars) is not int or max_chars < 400:
+        raise ValueError("a brief needs at least 400 characters")
+    words = []
+
+    def section(lines: list[str], share: float, more: str = "and {n} more") -> str:
+        budget, kept, size = int(max_chars * share), [], 0
+        head, rows = lines[0], lines[1:]
+        size = len(head)
+        for n, row in enumerate(rows):
+            tail = len(more.format(n=len(rows) - n)) + 3
+            if size + len(row) + 1 + (tail if n < len(rows) - 1 else 0) > budget:
+                kept.append(more.format(n=len(rows) - n))
+                break
+            kept.append(row)
+            size += len(row) + 1
+        return "\n".join([head, *kept])
+
+    stage, data = state["stage"], state["data"]
+    on = stage["onStage"]
+    shown = "the live camera" if on == "live" else f"a source ({on}, titled below)" if on else "not recorded"
+    if on and on != "live" and stage.get("title"):  # a file's name is its maker's (an agent's open, too)
+        words.append(f"{on}: the source on stage: {stage['title']}")
+    # The specimen is the app's naming (its look's or the user's), as the view notes say it.
+    specimen = (f"; specimen: {stage['specimen']} (named by {'the user' if stage.get('namedBy') == 'user' else 'the app'})"
+                + (f"; seen before: {', '.join(stage['specimens'][1:4])}" if len(stage["specimens"]) > 1 else "")
+                if stage["specimen"] else "; no specimen named yet")
+    parts = [section([f"{_project_line(state['project'], words)}. On stage: {shown}{specimen}"], BRIEF_SHARES["stage"])]
+    # Data: the newest page the state holds, compact (no model, no placement).
+    rows = [_item_line(item, words, detail=False) for item in data["items"]]
+    head = f"Data (newest first, {data['total']} in all):" if data["total"] else "Data (none yet)."
+    parts.append(section([head, *rows], BRIEF_SHARES["data"],
+                         more=f"and {{n}} more of these; {data['total'] - len(rows)} older (resources lists them)"
+                         if data["total"] > len(rows) else "and {n} more (resources lists them)"))
+    research = state["researchers"]
+    rows = [_researcher_line(r, words) for r in research["items"]]
+    parts.append(section([f"Researchers (running first; {research['running']} running, {research['finished']} finished, "
+                          f"{research['cancelled']} stopped):" if research["total"] else "Researchers (none).", *rows],
+                         BRIEF_SHARES["researchers"]))
+    tabs = state["tabs"]["items"]
+    rows = [f"- {inline(t['title'], 60)} ({t['id']}): {t['windows']} windows" for t in tabs]
+    parts.append(section(["Tabs: " + _studio_line(state, age=False), *rows], BRIEF_SHARES["tabs"]))
+    models = state["capabilities"]
+    rows = ([f"- {r['title']}: {r['model']}" for r in models["roles"]] if models["state"] == "reported"
+            else [f"- {models['says']}"])
+    parts.append(section(["Models in use:", *rows], BRIEF_SHARES["models"]))
+    body = "\n".join(parts)
+    if len(body) > max_chars:  # whole lines only, should every section's own line be longer than its share
+        body = body[:body.rfind("\n", 0, max_chars)]
+    rest = max_chars - len(body) - 1
+    wrapped = _wrapped(words, rest) if words and rest > 0 else ""
+    return body + ("\n" + wrapped if wrapped else "")
