@@ -15,9 +15,9 @@
   background: var(--mm-accent, #79adff);
   transition: background var(--mm-fast, 120ms) var(--mm-ease, ease), box-shadow 90ms linear, opacity var(--mm-fast, 120ms);
 }
-.voice-state-mark > .lit-cell { display: none; }
+/* One of the two shows (the studio's own .lit-cell rule is stronger than a plain class, hence !important). */
+.voice-state-mark:not([data-state='working']) > .lit-cell { display: none !important; }
 .voice-state-mark[data-state='working'] > .voice-state-dot { display: none; }
-.voice-state-mark[data-state='working'] > .lit-cell { display: inline-block; }
 .voice-state-mark[data-state='off'] > .voice-state-dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--mm-text-3, #909099); }
 /* Live and ready: the accent dot, still. */
 .voice-state-mark[data-state='idle'] > .voice-state-dot { opacity: 0.72; }
@@ -54,8 +54,10 @@
 }
 
 /* Beside Talk: the mark, then the status line ("Thinking", "Speaking · 2 working", "Hooke is working · 2"). */
-.voice-session-line { display: inline-flex; align-items: center; gap: 7px; flex: 1 1 100%; min-width: 0; }
-.voice-session-line > .voice-session-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* One row with End Talk at its end when they fit; longer words (how to talk) wrap beside it rather than being cut. */
+.voice-session-line { display: inline-flex; align-items: center; gap: 7px; flex: 1 1 160px; min-width: 0; }
+.voice-session-line > .voice-state-mark { align-self: flex-start; margin-top: 2px; }
+.voice-session-line > .voice-session-status { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 body[data-voice-state='heard'] .voice-session-line > .voice-session-status,
 body[data-voice-state='thinking'] .voice-session-line > .voice-session-status,
 body[data-voice-state='speaking'] .voice-session-line > .voice-session-status,

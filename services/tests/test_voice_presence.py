@@ -212,3 +212,19 @@ def test_phase_of_a_bare_session():
     assert s.phase() == "thinking"
     s.closed = True
     assert s.phase() == "off"
+
+
+def test_a_hand_off_kept_as_a_job_is_counted_once_by_its_rows_key(monkeypatch):
+    """claude/p25-w1 keeps each hand-off as a job too (kind "hooke", the hand-off's id): counted once, under its row's
+    key, also while a late step of it runs after the brain answered and its row has left the open hand-offs."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        await state_is(t, "idle")
+        handed = SimpleNamespace(id="h9", kind="hooke", label="A video about stomata", request="find a video",
+                                 state="running", started=100.0, project=None)
+        jobs_of(t.hub)[handed.id] = handed
+        working = await state_is(t, "working", n=1)
+        assert working["working"] == [{"key": "handoff:h9", "label": "A video about stomata", "since": 100.0}]
+        handed.state = "done"
+        await state_is(t, "idle", n=0)
+    asyncio.run(go())

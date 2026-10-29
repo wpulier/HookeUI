@@ -94,7 +94,7 @@ describe('VoicePresence', () => {
     sink: (pills) => sunk.push(pills), header: () => header as unknown as HTMLElement, talkButton: button as unknown as HTMLElement,
   });
 
-  it('puts the chip after the header\'s title, says the state there and on the page, and marks Talk working', () => {
+  it('puts the chip after the header\'s title, says the state there and on the page, and marks Talk while Hooke works', () => {
     const p = make();
     p.serverState(state('thinking'));
     const chip = header.children[1];
@@ -103,10 +103,11 @@ describe('VoicePresence', () => {
     expect(chip.textContent).toBe('Thinking');
     expect(document.body.dataset.voiceState).toBe('thinking');
     expect(document.body.dataset.voiceWorking).toBe('0');
-    expect('working' in button.dataset).toBe(true);
+    expect('working' in button.dataset).toBe(false); // thinking is the mark's; Talk's gold dot is Hooke working
     working = 2;
     p.serverState(state('working', 2, 2));
     expect(chip.textContent).toBe('Working · 2');
+    expect('working' in button.dataset).toBe(true);
     expect(document.body.dataset.voiceWorking).toBe('2');
     p.serverState(state('speaking', 2, 3));
     expect(chip.textContent).toBe('Speaking · 2 working');

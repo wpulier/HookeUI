@@ -98,7 +98,7 @@ export interface PresenceHooks {
   sink(pills: StripPill[]): void;
   /** The Assistant header, where the chip goes after its title (found when there is one). */
   header?(): HTMLElement | null;
-  /** Talk: `data-working` while Hooke works or the voice thinks. */
+  /** Talk: `data-working` while Hooke works (its level dot turns gold). */
   talkButton?: HTMLElement | null;
   /** Called after each render with what is shown (main.ts writes the status line from it). */
   rendered?(view: PresenceView): void;
@@ -189,7 +189,7 @@ export class VoicePresence {
     if (this.chip.getAttribute('aria-label') !== view.label) { this.chip.setAttribute('aria-label', view.label); this.chip.title = view.label; }
     const button = this.hooks.talkButton;
     if (button) {
-      if (view.state === 'working' || view.state === 'thinking' || view.state === 'heard') button.dataset.working = '';
+      if (view.state === 'working') button.dataset.working = ''; // its level dot turns gold, as Hooke's work does
       else delete button.dataset.working;
     }
     const shown = this.hooks.assistantShown();

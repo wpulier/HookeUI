@@ -73,11 +73,20 @@ class VoicePresence:
                 out.append({"key": f"handoff:{handoff.id}", "label": _label(handoff.label or handoff.request),
                             "since": round(float(handoff.started), 3)})
         if self.jobs is not None:
+            keys = {w["key"] for w in out}
             with contextlib.suppress(Exception):
                 for job in self.jobs.of(self.project()):
-                    if job.state in JOB_WORKING:
-                        out.append({"key": f"job:{job.id}", "label": _label(job.request),
-                                    "since": round(float(job.started), 3)})
+                    if job.state not in JOB_WORKING:
+                        continue
+                    # A hand-off kept as a job too (claude/p25-w1's HandoffJob, kind "hooke", the hand-off's own id) has
+                    # its row's key, so it is counted once: by its row while it is open, by its job while a late step
+                    # of it still runs after the brain answered.
+                    key = f"handoff:{job.id}" if getattr(job, "kind", "think") == "hooke" else f"job:{job.id}"
+                    if key in keys:
+                        continue
+                    keys.add(key)
+                    out.append({"key": key, "label": _label(getattr(job, "label", "") or job.request),
+                                "since": round(float(job.started), 3)})
         return sorted(out, key=lambda w: (w["since"], w["key"]))
 
     def now(self) -> tuple[str, list[dict]]:

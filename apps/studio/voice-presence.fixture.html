@@ -1,0 +1,111 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Voice presence · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (W3 "alive and available"): the production voice state (voice-presence.ts, voice-mark.ts) beside
+     Talk, in the Assistant header's chip and as the presence pill in the production Working strip (working-strip.ts),
+     with the production chat, hand-off rows and the strip over the composer (handoffs.ts), over synthetic server
+     messages (no server, no voice, no model). Parameters: ?state=thinking|speaking|working|closed|connect, &theme=light.
+     thinking: a turn released, the voice making its answer; speaking: the voice talking over the video search still
+     running; working: the voice idle and two hand-offs in flight; closed: the Assistant closed while the voice thinks
+     about "Outline every cell" and the video search runs; connect: Connect your own agent… open from the header's ⋯. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:44px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;gap:12px;padding:0 12px 0 86px;font:600 13px var(--mm-sans)}
+ .fx-top .fx-gap{flex:1}
+ .fx-top .study-agent-toggle{height:28px;padding:0 12px;border:0;border-radius:7px;background:transparent;color:var(--mm-text-2);font:500 12px var(--mm-sans)}
+ .fx-top .study-agent-toggle[aria-pressed='true']{background:var(--mm-accent-soft);color:var(--mm-text)}
+ .fx-rail{position:fixed;left:0;top:44px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-stage{position:fixed;left:72px;right:360px;top:44px;bottom:40px;background:#000;display:grid;place-items:center}
+ body[data-fx-closed] .fx-stage{right:0}
+ .fx-stage div{width:min(90%,708px);aspect-ratio:1;background:center/contain no-repeat;border-radius:50%}
+ body[data-workspace-study='true'] .working-strip{position:fixed!important;left:72px!important;right:0!important;top:auto!important;bottom:0!important;height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;box-sizing:border-box;box-shadow:inset 0 1px 0 var(--mm-line);background:var(--mm-page);z-index:5}
+ .working-strip #hint{margin:0;color:var(--mm-text-3);font:400 12px var(--mm-sans);white-space:nowrap}
+ .working-strip .strip-end{margin-left:auto;color:var(--mm-text-3);font:400 12px var(--mm-sans)}
+ body[data-workspace-study='true'] .study-right-panel{position:fixed;top:44px;right:0;bottom:40px;width:360px;display:flex;flex-direction:column}
+ body[data-fx-closed] .study-right-panel{display:none}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-study-layout="global">
+<div class="fx-top">Fixture: the voice's state (design evidence only)<span class="fx-gap"></span><button type="button" class="study-agent-toggle" aria-pressed="true">Assistant</button></div>
+<nav class="fx-rail" aria-label="Fixture rail"></nav>
+<main class="fx-stage" id="stage"><div id="specimen"></div></main>
+<aside class="study-right-panel" aria-label="Assistant">
+ <header class="study-panel-header study-right-header mm-dhead"><h2>Assistant</h2><span id="more"></span><button type="button" class="study-close" aria-label="Close Assistant">×</button></header>
+ <aside class="notebook" id="notebook" aria-label="Conversation about the view">
+  <div class="chat-log-wrap" id="wrap"><ol class="log" id="log" aria-live="polite"></ol></div>
+  <div class="starters" id="starters" hidden></div>
+  <form class="ask" id="ask">
+   <button type="button" class="talk" id="talk" aria-pressed="true" data-state="live"><svg class="talk-mic" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.75" y="1.75" width="4.5" height="8" rx="2.25"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.25"/></svg><span class="talk-level" aria-hidden="true"></span><span class="talk-label">Hold to talk</span></button>
+  </form>
+ </aside>
+</aside>
+<section id="shelf"></section><p id="hint">Click anything in the view to outline it.</p>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';import '/src/handoffs.css';
+import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
+import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';
+import {FlightStrip,flightPills,voiceEntries,VOICE_SOURCE} from '/src/handoffs.ts';
+import {VoicePresence} from '/src/voice-presence.ts';import {WorkingStrip} from '/src/working-strip.ts';
+import {AgentConnections} from '/src/agent-connections.ts';
+import leaf from '../../catalog/models/basic-bright-objects/example-human-cells.png';
+const params=new URLSearchParams(location.search),state=params.get('state')||'thinking';
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+document.getElementById('specimen').style.backgroundImage=`url(${leaf})`;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const DAY='2026-10-29',PROJECT='2026-10-29.2',now=Date.now()/1000;
+const closed=state==='closed';
+if(closed){document.body.dataset.fxClosed='';document.querySelector('.study-agent-toggle').setAttribute('aria-pressed','false');}
+const strip=new FlightStrip();
+const working=new WorkingStrip({pills:document.getElementById('shelf'),hint:document.getElementById('hint'),stage:document.getElementById('stage')});
+document.body.append(working.root);working.end.textContent='30 fps · 0.1 s';
+const chat=new ChatLog(document.getElementById('log'),document.getElementById('starters'),{
+ research:()=>undefined,show:()=>{},describe:()=>{},hint:()=>{},voiceLive:()=>true,unread:()=>{},steps:()=>{},
+ researchCards:{list:()=>[],view:researcherCardView,open:()=>{}},
+ cells:{make:(s,l)=>litCell(s,{size:12,label:l}),set:(c,s,l)=>setLitCell(c,s,{size:12,label:l})},ResizeObserver,
+ flight:entries=>strip.set('handoffs',entries),openActivity:()=>{},
+});
+document.getElementById('ask').before(strip.root);
+const composer=new Composer(document.getElementById('ask'),{fieldId:'question',label:'Message to the Assistant',placeholder:'Ask anything',
+ attach:{label:'Add a specimen',items:()=>[]},model:{words:'Gemini 3.8 Flash',title:'',open:()=>{}},extra:[document.getElementById('talk')]});
+const more=moreButton('Conversations and Activity',()=>[],'mm-dhead-more');document.getElementById('more').replaceWith(more);
+// The connected-agent dot: one agent connected here.
+const agents=new AgentConnections(async()=>({ok:true,json:async()=>({pending:[],connections:[{id:'ac_1',label:'Claude Code',kind:'claude-code',at:now-3600,revokedAt:null}],playbook:'https://hookeui.org/get-started-beta.md'})}),()=>({open(){},close(){},onDismiss(){}}));
+agents.mountDot(more);agents.apply({pending:[],connections:[{id:'ac_1',label:'Claude Code',kind:'claude-code',at:now-3600,revokedAt:null}]});
+// Talk's live controls at the composer's head, as main.ts builds them.
+const talk=document.getElementById('talk');
+const controls=Object.assign(document.createElement('div'),{className:'voice-session-controls'});
+const status=Object.assign(document.createElement('span'),{className:'voice-session-status'});status.setAttribute('role','status');
+const line=Object.assign(document.createElement('span'),{className:'voice-session-line'});
+const end=Object.assign(document.createElement('button'),{type:'button',className:'voice-session-end',textContent:'End Talk'});
+let server=null;
+const presence=new VoicePresence({talk:()=>'live',held:()=>false,working:()=>strip.working,assistantShown:()=>!closed,openAssistant:()=>{},
+ sink:pills=>working.set('voice',pills),header:()=>document.querySelector('.study-right-header'),talkButton:talk});
+line.append(presence.mark,status);controls.append(line,end);talk.closest('form').prepend(controls);
+const render=()=>{const v=presence.render();status.textContent=v.status?(v.also?`${v.status} · ${v.also}`:v.status):'Hold Control+Option or Talk, and speak';
+ working.set('handoffs',flightPills(strip.entries,new Set(),()=>{},()=>{}));};
+strip.onChange=render;
+const say=m=>chat.apply(m);
+say({type:'day',id:PROJECT,label:'',active:'t1',threads:[],subjects:[],prefs:{}});
+const spoken=(role,text)=>say({type:'chat',role,text,voice:true,thread:'t1',day:PROJECT});
+const handoff=(id,fields)=>say({type:'handoff',id,lineId:`handoff:${id}`,state:'working',thread:'t1',day:PROJECT,...fields});
+const voiceState=(s,keys=[])=>{server={type:'voice-state',state:s,n:keys.length,working:keys,seq:(server?.seq??0)+1,at:now};presence.serverState(server);strip.set(VOICE_SOURCE,voiceEntries(server,()=>{}));render();};
+const VIDEO={label:'A YouTube video about stomata',request:'find a YouTube video about stomata'};
+spoken('user','Find a YouTube video about stomata.');
+if(state==='thinking'){voiceState('thinking');}
+else{
+ spoken('assistant','I’ll have Hooke find a video about stomata.');
+ handoff('h1',{...VIDEO,startedAt:now-(state==='speaking'?6:24),long:state!=='speaking'});
+ const h1={key:'handoff:h1',label:VIDEO.label,since:now-24};
+ if(state==='speaking'){spoken('user','What’s the thing in the middle?');spoken('assistant','That oval in the middle is a stoma: two guard cells around a pore.');voiceState('speaking',[h1]);}
+ if(state==='working'||state==='closed'||state==='connect'){
+  spoken('assistant','The video search is still running; I’ll tell you when it’s in.');
+  spoken('user','Open the cell results in a new Tab.');
+  spoken('assistant','Hooke is opening them in a new Tab.');
+  handoff('h2',{label:'Cell results in a new Tab',request:'open the cell results in a new tab',startedAt:now-5});
+  const h2={key:'handoff:h2',label:'Cell results in a new Tab',since:now-5};
+  if(closed){spoken('user','Outline every cell.');voiceState('thinking',[h1,h2]);}
+  else voiceState('working',[h1,h2]);
+ }
+}
+render();
+if(state==='connect'){await sleep(80);agents.openEntry(more,()=>{},()=>PROJECT);}
+</script></body></html>

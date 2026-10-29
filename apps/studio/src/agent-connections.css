@@ -60,7 +60,7 @@
 
 /* Connect your own agent… (the Assistant header's ⋯): the same entrance as a small popover under the ⋯, and a small dot
    on the header while an agent is connected. */
-.agent-entry-popover {position:fixed;z-index:1000;width:min(320px,calc(100vw - 16px));box-sizing:border-box;padding:4px;
+.agent-entry-popover {position:fixed;z-index:1000;width:min(344px,calc(100vw - 16px));box-sizing:border-box;padding:4px;
   border-radius:var(--mm-r-card,12px);background:var(--mm-raise,#25252b);box-shadow:0 0 0 1px var(--mm-line-strong,#ffffff22),var(--mm-shadow-2,0 12px 32px #0008);
   color:var(--mm-text,#ededf0);animation:agent-entry-in var(--mm-base,200ms) var(--mm-ease,ease) both;}
 .agent-entry-popover .agent-project-entry {margin:0;padding:12px 14px 14px;border:0;border-radius:inherit;font:400 13px/18px var(--mm-sans,system-ui,sans-serif);}
@@ -77,3 +77,6 @@
 .agent-connected-dot {flex:none;width:6px;height:6px;margin:0 -4px 0 2px;border-radius:50%;background:var(--mm-ready,#4cc987);
   box-shadow:0 0 0 2px var(--mm-ready-soft,rgb(76 201 135 / 14%));}
 .agent-connected-dot[hidden] {display:none;}
+.agent-entry-popover .agent-entry-actions {flex-wrap:wrap;gap:8px;}
+.agent-entry-popover .agent-setup-control {display:inline-grid;max-width:none;}
+.agent-entry-popover .agent-setup-control textarea:not([hidden]) {width:100%;}
