@@ -1135,6 +1135,10 @@ body[data-workspace-study='true'] .chat-new-messages-arrow { width: 12px; height
    composer and Talk, and at some zooms the whole chat (Will, 29 Oct). More specific than that rule, so it wins in
    either order. */
 body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel aside.notebook { overflow-y: auto; }
+/* The classic layout's "hide the chat" (localStorage chat-hidden, main.ts) is not this column's: here the column's own
+   close decides. A browser that once hid the chat kept an empty Assistant column with no way back (Will, 29 Oct:
+   empty in his Chrome, fine in Incognito). */
+body[data-workspace-study='true'][data-chat='hidden'] .study-right-panel aside.notebook { visibility: visible; }
 body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel aside.notebook > form.ask {
   position: sticky; bottom: 0; z-index: 2; box-shadow: 0 8px 0 8px var(--mm-panel, rgb(25, 25, 28));
 }
