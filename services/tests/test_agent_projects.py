@@ -51,6 +51,33 @@ def test_detached_project_creation_is_retained_without_switching(project_door):
     assert [r['session'] for r in rows]==[sid]
     assert access(built).rows()[sid]['by']=='agent:'+c['connection']['id']
 
+
+def test_workflow_discovery_uses_shared_contract_and_default_deny(project_door, monkeypatch):
+    from orchestrator.door import listing, schema
+    from orchestrator import agent_runnable
+    client, _ = project_door
+    monkeypatch.setattr(listing, 'gather', lambda built: [])
+    h = bearer(connect(client)['token'])
+    response = client.get('/api/agent/v1/tools?q=workflow', headers=h)
+    assert response.status_code == 200
+    rows = response.json()['tools']
+    assert len(rows) == 1
+    row = rows[0]
+    assert row['id'] == 'workflow' and row['state'] == 'available'
+    schema.check(row, 'capability')
+    assert row['inputSchema'] == schema.load('workflow-admission')
+    valid = {'study':'p'+'a'*32, 'session':'2026-10-28', 'workflow':'p'+'b'*32,
+        'revision':1, 'inputs':[{'id':'p'+'c'*32,'session':'2026-10-28','revision':1,'digest':'d'*64}]}
+    schema.validate(valid, row['inputSchema'])
+    with pytest.raises(ValueError):
+        schema.validate({**valid, 'inputs':[]}, row['inputSchema'])
+    with pytest.raises(ValueError):
+        schema.validate({**valid, 'revision':True}, row['inputSchema'])
+    monkeypatch.delitem(agent_runnable.DOOR_RESOURCES, 'workflow.write')
+    assert client.get('/api/agent/v1/tools?q=workflow', headers=h).json()['tools'] == []
+    assert client.post('/api/agent/v1/operations', headers=h,
+        json={'tool':'workflow','args':valid,'requestKey':'cannot-admit'}).status_code == 403
+
 def test_project_grants_read_contribute_and_revoke_without_rewriting_history(project_door,monkeypatch):
     client,built=project_door
     a=connect(client); b=connect(client,label='Reviewer',secret='another-real-fixture-secret')

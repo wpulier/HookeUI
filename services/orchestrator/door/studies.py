@@ -11,6 +11,23 @@ from ..research.efforts import summary
 from ..scientific_projects import Conflict
 
 
+def descriptors(build):
+    """Describe the existing Study execution entrance, without granting Project access."""
+    from .listing import app_generation
+    from .schema import load
+    if not agent_runnable.door_resource('workflow.write'):
+        return []
+    return [{'id': 'workflow', 'name': 'Run a Study workflow',
+        'task': agent_runnable.DOOR_RESOURCES['workflow.write'],
+        'description': 'Run an existing frozen workflow in an authorized Study. Discover definitions with '
+            'GET workflows?session=<project> and scientific steps with GET workflows/capabilities. '
+            'Project contribute access, exact inputs and step readiness are checked at admission.',
+        'inputs': [{'type':'project-evidence','label':'Exact retained Study inputs'}],
+        'outputs': [{'type':'workflow-run','label':'Retained workflow run and attempts'}],
+        'inputSchema': load('workflow-admission'), 'generation': app_generation(build),
+        'state': 'available', 'runsOn':'this Mac', 'cost':'local computation only'}]
+
+
 def register(app, built, connected, body, reply, refusal):
     prefix = '/api/agent/v1'
 
