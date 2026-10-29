@@ -4,7 +4,7 @@ runs = "cloud"
 version = "claude-opus-5-5"
 licence = ["anthropic-api"]
 kind = "cloud-model"
-what = "Arranges findings into presentations"
+what = "Looks at the view, answers and names; arranges findings into presentations"
 runner = "cloud"
 service = "anthropic"
 source = { url = "https://docs.anthropic.com/en/docs/about-claude/models" }

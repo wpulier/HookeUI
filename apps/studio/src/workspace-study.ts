@@ -1,3 +1,4 @@
+import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
 import {configureDataTableDocuments} from './datatable-presentation';
@@ -24,6 +25,7 @@ import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
 import { RunPills } from './strip-sources';
 import { StudyRefused, controlStudy, createStudy, listStudies, readStudy, studyName, studyNeeds, studySpending, taskCounts, type Effort, type StudyProvider, type StudyInput, studyInputDescription, studyState, studyInputs, studyReadiness, startStudy, collectStudyTask, recoverStudyTask, studyEvidence, reviewStudyTask, retainStudyFinding } from './research-efforts';
+import { studyConversation } from './study-conversation';
 import { renderStudy, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import { ADOPT_WAIT_MS, adoptedResearcher, beginStart, draftLine, notStartedWords, settleStart, type DraftStart } from './researcher-draft';
 import { mountScientificStaging } from './research-scientific';
@@ -440,7 +442,9 @@ const researcherBrowser=el('section','study-researcher-browser');
 // Researchers list (researchers-board.ts), after its researchers.
 /** This Project's studies as last read (All Tabs ⌄ and the Researchers list); null when this build has none. */
 let knownStudies:Effort[]=[];
+let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  openResearcher: id => openResearcher(id),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
@@ -450,11 +454,16 @@ let studyReadGeneration = 0;
 async function refreshStudies():Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
   const current = () => snapshot.session === session && generation === studyReadGeneration;
-  if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
+  if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
   try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
   studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
+  renderBoard();
+  const activity=await readProjectActivity(knownStudies);
+  if(!current())return;
+  projectActivity=activity;
+  knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
   renderBoard();
 }
 /** A Study's lit cell: needs you (an experiment to review or check), Stop requested, working, or quiet. */
@@ -497,7 +506,7 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
-  projectResearchHome.update(snapshot.session, knownStudies, studiesNote);
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers());
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -963,18 +972,28 @@ async function openStudy(id:string):Promise<void>{
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The Project or Study view changed. Return to the original Study.');
     const next=await work();if(current()&&currentStudyPage===page&&!researchStage.hidden)draw(next);
   };
+  const openRetained=async(ref:{id:string;revision:number},title:string)=>{
+    if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('Return to the originating Study to open its result.');
+    if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
+    clearStudyDraftMarkers();
+    // Evidence opens in its own workspace Tab; it must never appear behind the Study on Main.
+    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching||!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
+    closeResearchStage();
+    const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
+    if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
+  };
+  const conversation=studyConversation(study,{
+    current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
+    open:async(ref,title)=>{
+      if(ref.session!==session)throw new Error('Return to the originating Study.');
+      await openRetained(ref,title);
+    },
+  });
   const draw=(next:Effort)=>{
     if(!current())return;openStudyNow=next;retireStudyStaging?.();
-    // One way to open what this Study kept (a job's result or a researcher's file): its exact saved revision, in the
-    // workspace's ordinary scientific window; the Study closes over it only once it has opened.
-    const openRetained=async(ref:{id:string;revision:number},title:string)=>{
-      if(!ownsView())throw new Error('Return to the originating Study to open its result.');
-      if(!canLeaveStudy(()=>void openRetained(ref,title)))return;clearStudyDraftMarkers();
-      const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
-      if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
-      if(ownsView())closeResearchStage();
-    };
+    conversation.update(next);
     renderStudy(page,next,{
+      conversation:conversation.root,
       localWorkflows:true,
       readiness:async()=>{const latest=await studyReadiness(session,fetch,next.id);if(!current()||currentStudyPage!==page)throw new Error('Return to the original Study.');providers=latest;return latest;},
       control:action=>apply(()=>controlStudy(next.id,session,action)),
@@ -985,10 +1004,15 @@ async function openStudy(id:string):Promise<void>{
       review:(task,hash,outcome,review)=>apply(()=>reviewStudyTask(next.id,session,task,hash,outcome,review)),
       finding:(request,statement,tasks)=>apply(()=>retainStudyFinding(next.id,session,request,statement,tasks)),
       openFile:(ref,name)=>openRetained(ref,name),
-      // The Study's composer asks the Assistant: its layer opens and the words go through its composer, as the researcher
-      // draft's Start does; refused (a request still being answered), the words stay in the Study's field.
-      ask:(text:string)=>{assistantLayer.set(true);const question=find('question') as HTMLTextAreaElement,form=question.closest('form') as HTMLFormElement|null;
-        if(!form)return false;const before=question.value;composer.set(text);form.requestSubmit();if(question.value===text){composer.set(before);return false;}return true;},
+      // Use the shared Assistant admission path without replacing its draft. Open the reply panel only after
+      // admission; unavailable or pending requests leave the question in this Study.
+      askBlocked:()=>!current() || currentStudyPage!==page || researchStage.hidden ? 'Return to this Study before asking.' : bridge.askBlocked(),
+      setupAssistant:()=>bridge.navigate('#models'),
+      ask:(text:string)=>{
+        if(!current() || currentStudyPage!==page || researchStage.hidden || bridge.askBlocked())return false;
+        if(!bridge.askAssistant(text))return false;
+        assistantLayer.set(true);return true;
+      },
     },providers,availableInputs);
     // Pause and Stop sit in the Study's bar (Study target); they keep their own actions and guards.
     researchBar.querySelector('.study-view-controls')?.remove();
@@ -1003,10 +1027,11 @@ async function openStudy(id:string):Promise<void>{
     researchStudyKey='';renderResearchStudy();
   };
   if(location.hash.startsWith('#research/'))bridge.navigate('#');
-  openResearchStage(page);draw(study);clearInterval(studyTimer);
+  openResearchStage(page);draw(study);void conversation.refresh();clearInterval(studyTimer);
   // Only local retained state is read. Provider collection is a separate explicit action.
   studyTimer=window.setInterval(()=>{
     if(!current()||researchStage.hidden||currentStudyPage!==page){clearInterval(studyTimer);return;}
+    void conversation.refresh();
     if(page.dataset.pending||page.querySelector('[data-pending]')||page.querySelector('[data-draft]')||page.dataset.draft||page.dataset.reviewOpen||page.contains(document.activeElement))return;
     void readStudy(id,session).then(next=>{if(current()&&currentStudyPage===page&&!page.dataset.pending&&!page.querySelector('[data-pending]')&&!page.querySelector('[data-draft]')&&!page.dataset.draft&&!page.dataset.reviewOpen&&!page.contains(document.activeElement)&&(next.revision!==openStudyNow?.revision||next.stopPending!==openStudyNow?.stopPending))draw(next);}).catch(()=>{});
   },4000);

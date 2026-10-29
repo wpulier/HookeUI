@@ -432,6 +432,14 @@ reported as uncertain, never silently replayed. Stop requests all children, reta
 failures, and stays pending until termination is observed. Managed execution remains an optional
 operator extension; these local paths do not depend on a cloud project or a named agent family.
 
+Study conversations (`study_questions.py`) retain questions and attributed answers in the
+Study's versioned document. Each question pins an immutable Study revision; subsequent
+changes do not rewrite its context. Exact answer evidence must resolve in the same Project.
+Request retries do not duplicate questions, and different answers cannot overwrite the first.
+The current UI keeps this conversation inline, separately from reviewed findings. The
+connector recipient operates externally: no subprocess launcher, provider billing or new
+workflow attempt ledger is implied by saving a question.
+
 ### One saved workflow from every entrance
 
 `tests/test_workflow_entrances.py` qualifies the integrated WorkflowService across the entrances (Part 2.5): one saved
@@ -443,3 +451,5 @@ run by the caller's request identity, so the same request from any of them is th
 own (scoped to its Study and actor; its retry is the same run). Not shared yet: a workflow saved in the studio or by the
 Assistant is not listed or runnable from the door, which reaches only the workflows created or duplicated through the
 door for that Project (`door/projects.py` `require_workflow`; duplicating needs that association too).
+
+Study listings expose `createdAt` from revision 1 and `updatedAt` from the current retained revision. These are saved-document timestamps, not inferred execution start/end times. Legacy missing initiators remain unknown. Reads never add a revision or start work.

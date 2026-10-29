@@ -124,7 +124,7 @@ def result(lines, name):
 
 def test_a_run_that_meets_the_standard_passes_every_line():
     run, summary, lines = board(*good())
-    failed = {name: line for name, line in lines.items() if line["result"] != "pass"}
+    failed = {name: line for name, line in lines.items() if line["result"] != "pass" and line.get("gate", True)}
     assert not failed, json.dumps(failed, indent=1) + json.dumps([r["failures"] for r in run["steps"]], indent=1)
     assert meets(list(lines.values()))
     rows = {r["id"]: r for r in run["steps"]}
@@ -643,3 +643,157 @@ def test_an_idle_wait_or_a_restart_is_nobody_talking():
              {"id": "held", "say": "Outline them.", "down": 60.0, "up": 61.5, "start": 60.2, "end": 61.3}]
     spans = holds(steps)
     assert [round(a, 1) for a, _ in spans] == [10.0, 60.0]  # the idle wait and the restart are not the user talking
+
+
+
+def test_partner_quality_is_reported_on_the_overall_line_never_a_gate():
+    """Will, 2026-10-29: the bar is a sharp, dynamic colleague (HeyClicky), not only timings. The judge's 0-3 per step
+    is reported as its mean and the steps under 2; the standard is met or not on its own lines."""
+    bench, conv, inter, verdicts = good()
+    for sid, q in (("outline", 3), ("table", 3), ("researcher", 1), ("multi", 2)):
+        verdicts[sid]["partner_quality"] = q
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    line = lines["Partner quality (0-3, judged)"]
+    assert line["result"] == "reported" and line["value"] == "mean 2.25 over 4 steps; under 2: 1 (researcher)"
+    assert meets(list(lines.values()))  # a low quality never fails the standard by itself
+    verdicts["outline"]["partner_quality"] = "great"  # not a number: not counted
+    assert board(bench, conv, inter, verdicts)[1]["quality"]["n"] == 3
+
+
+def test_a_status_step_can_name_the_researcher_the_user_named():
+    """"What's researcher 2 doing?": the answer names researcher 2, whichever started last."""
+    bench, conv, inter, verdicts = good()
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][3]["expect"]["status"] = 1
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["status"]
+    assert row["statusExpected"] == 1 and row["statusRight"] is False  # it said researcher 2
+
+
+
+def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
+    """claude/p25-think: think returns at once; the frontier mind's own tool calls are inside partner-think; its result
+    is said once later, here during the next step. That line is the asking step's outcome, not the next step's."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if not (r.get("kind") == "partner-tool" and r.get("n") == 7)]  # the multi step, handed off
+    inter += [{**tool(7, "think", 57.3, 57.4), "callId": "c-think"},
+              {"kind": "partner-think", "task": "t1", "callId": "c-think", "n": 7, "ok": True, "doneT": T0 + 64.0,
+               "tools": [{"name": "outline_cells", "ok": True, "confirmed": True},
+                         {"name": "measure", "ok": True, "confirmed": True}]},
+              {"kind": "partner-think-said", "task": "t1", "n": 8, "responseCreatedT": T0 + 66.0},
+              {"kind": "partner-response", "responseId": "th1", "cause": "think", "firstAudioT": T0 + 66.3,
+               "audioEndT": T0 + 68.0, "transcript": "Done: 42 nuclei outlined; the median area is 210 square microns."}]
+    conv = [c for c in conv if c["lineId"] not in ("L11", "L12")]
+    conv.append(line("L12", 66.3, "Done: 42 nuclei outlined; the median area is 210 square microns."))
+    bench["steps"].append(step("after", 65.0, 65.1, 66.5, 66.6))  # the user's next request starts before it is said
+    bench["events"] += audio(66.3, 68.0) + [talk(8, 65.0)]
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][6]["expect"]["tools"] = ["outline_cells", "measure", "think"]
+    plan["steps"].append({"id": "after", "expect": {"tools": [], "toolRequired": False}})
+    verdicts["multi"] = {"claims_on_screen": [], "answered": True}
+    run, summary, lines = board(bench, conv, inter, verdicts, plan)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["multi"]["firstTool"] == "think" and rows["multi"]["thinkTools"] == ["outline_cells", "measure"]
+    assert rows["multi"]["outcomeS"] == pytest.approx(66.3 - 57.1) and rows["multi"]["outcomesSaid"] == 1
+    assert "Done: 42 nuclei" not in " ".join(rows["after"]["lines"])
+    # think is the intended route for multi-step work: never on the fallback's 5% cap, reported by kind of step.
+    assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
+    assert result(lines, "do_in_hooke share") == "pass"
+    assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
+    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
+
+
+def test_think_on_a_quick_step_is_the_wrong_tool():
+    """"Switch back to the main tab": think where the plan expects tabs fails the first-try line, and shows as think
+    where not expected."""
+    bench, conv, inter, verdicts = good()
+    inter.insert(1, {**tool(2, "think", 12.2, 12.3), "callId": "c2"})  # before show_measurements
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["table"]["toolRight"] is False
+    assert result(lines, "Right tool on the first try") == "FAIL"
+    assert summary["think"]["unexpected"] == ["table"] and "where not expected: 1 (table)" in lines["think share"]["value"]
+
+
+
+def test_a_status_step_can_name_the_first_researcher_a_step_started():
+    """think-broad-1: "make two researchers, one compares the sizes, the other looks for dividing cells" was numbered 1
+    and 2 by the app, not 2 and 3 as the plan assumed. "The size one" is the first that step started, by its number."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if r.get("name") != "start_researcher"]
+    bench["events"].append({**api_rows({"rid": "r668081", "number": 1, "created": T0 + 23.6},
+                                       {"rid": "r668082", "number": 2, "created": T0 + 23.9}), "t": ms(26)})
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][2]["expect"]["researchers"] = 2
+    plan["steps"][3]["expect"]["status"] = {"from": "researcher", "index": 0}
+    conv[6] = line("L7", 32.0, "Researcher 1 is comparing the sizes.")
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["researcher"]["researcherNumbers"] == [1, 2]
+    assert rows["status"]["statusExpected"] == 1 and rows["status"]["statusRight"] is True
+
+
+def test_a_claim_after_a_tool_that_changes_nothing_on_screen_needs_its_success_not_a_report():
+    """think-broad-2: "Researcher 2 got the message" after researcher_note, "Done." after set_default: no screen
+    change, so no studio report can come; the claim stands on the call having succeeded (and fails if it did not)."""
+    bench, conv, inter, verdicts = good()
+    inter.append(tool(5, "researcher_note", 41.7, 41.9))
+    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 0
+    inter[-1]["ok"] = False
+    run, _, _ = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 1
+
+
+def test_a_note_or_a_setting_claim_is_backed_by_the_apps_own_state():
+    """The coordinator: confirm such calls by their result and the state the app reports (/api/research's notes, the
+    settings the studios are sent), not by a studio report that can't come."""
+    bench, conv, inter, verdicts = good()
+    inter.append(tool(5, "researcher_note", 41.7, 41.9))
+    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
+    rows = lambda notes: {"rows": [{"source": "api", "rid": "r2", "number": 2, "created": T0 + 23.9, "notes": notes}]}
+    bench["events"] += [{"t": ms(41.0), "e": "researchers", **rows(0)}, {"t": ms(41.95), "e": "researchers", **rows(1)}]
+    row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
+    assert row()["falseDone"] == 0
+    bench["events"][-1].update(rows(0))  # ok said, but no note reached the researcher
+    assert row()["falseDone"] == 1
+    inter[-1]["name"] = "set_default"
+    bench["events"] += [{"t": ms(-5), "e": "settings", "first": True, "changed": ["brain"]},
+                        {"t": ms(41.9), "e": "settings", "first": False, "changed": ["brain"]}]
+    assert row()["falseDone"] == 0
+    bench["events"].pop()  # the setting never changed
+    assert row()["falseDone"] == 1
+
+
+def test_a_hand_off_does_not_back_a_claim_by_its_ok():
+    """think-broad-2: after a think that changed nothing confirmed, "the reference image is still there" is a claim
+    about the screen; the hand-off's own ok says nothing about it."""
+    bench, conv, inter, verdicts = good()
+    inter.append({**tool(5, "think", 41.7, 41.9), "callId": "c5"})
+    conv[7] = line("L8", 42.0, "The reference image is still there.")
+    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "still there"}], "answered": True}
+    assert {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]["falseDone"] == 1
+
+
+def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step_that_asked():
+    """claude/p25-think: reference_photo returns at once ({"started": true}) with its task; partner-background says when
+    the photo landed; its result, said during the next step, is the asking step's outcome."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if not (r.get("kind") == "partner-tool" and r.get("n") == 2)]  # the table step, as a photo
+    inter += [{**tool(2, "reference_photo", 12.4, 12.5), "callId": "c-photo", "task": "t-photo"},
+              {"kind": "partner-background", "task": "t-photo", "name": "reference_photo", "n": 2, "ok": True,
+               "points": ["window:w-1"], "doneT": T0 + 21.0},
+              {"kind": "partner-think-said", "task": "t-photo", "n": 3, "responseCreatedT": T0 + 21.2},
+              {"kind": "partner-response", "responseId": "ph", "cause": "think", "firstAudioT": T0 + 21.5,
+               "audioEndT": T0 + 22.5, "transcript": "Here's a dividing nucleus for comparison."}]
+    conv = [c for c in conv if c["lineId"] not in ("L4",)]
+    conv.append(line("LP", 21.5, "Here's a dividing nucleus for comparison."))
+    bench["events"] += audio(21.5, 22.5)
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][1]["expect"] = {"tools": ["reference_photo"], "visible": "a reference picture", "outcome": True}
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    rows = {r["id"]: r for r in run["steps"]}
+    assert rows["table"]["visibleS"] == pytest.approx(21.0 - 12.1) and rows["table"]["outcomesSaid"] == 1
+    assert "Here's a dividing nucleus" not in " ".join(rows["researcher"]["lines"])

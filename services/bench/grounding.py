@@ -248,7 +248,7 @@ async def main() -> None:
     rows = []
     for spec in args.models.split(","):
         provider = spec.split(":")[0]
-        needed = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY"}[provider]
+        needed = {"gemini": "GEMINI_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}[provider]
         if not available.get(needed):
             print(f"skip {spec}: {needed} is not set")
             continue

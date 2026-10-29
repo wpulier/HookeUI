@@ -29,9 +29,8 @@ were made ("Started / Planned / Starting / Asked to start <its name>", its state
 cell of its phase or a tick once accepted, never coloured dots or words; its problems, recovery and actions such as
 Check for results and Review beneath), then Your move (each decision in words with its one action), then New
 experiment and the composer card (researcher tiles, brief, what it works from with the copy and tool steps, both
-amounts, Start naming its hold). A Study takes no messages of its own, so its composer (the shared one, no + or model
-chip, "Ask the Assistant about this study") opens the Stage bar's Assistant over the write-up and sends the words
-through the Assistant's composer (`actions.ask(text)`). On the right the write-up on a
+amounts, Start naming its hold). A Study retains its questions and replies inline, with its shared composer selecting an authorized connected contributor.
+The Stage bar still opens the ordinary Assistant separately; saving a Study question never opens that side panel. On the right the write-up on a
 paper page (the question as its title, Judged by as its byline, What we know with each finding's experiments, and Add a
 finding), under a status pill with the Study's state. The allowance is said once, in its Tab's
 Stage bar (`studyAllowanceWords`: "$0.32 · $0.25 held of $1.00", spent, held and left in its tooltip); spent and held
@@ -1923,3 +1922,31 @@ stay available in disclosures, without dominating the list.
 Retained matrix summaries use label/value rows with bounded column widths. Large arrays,
 objects and text expand into a scrollable exact metadata view on demand; opening a result
 never reruns computation. Download and exact input/revision links remain available.
+
+
+
+Study Ask and the main Assistant consult the same selected-model readiness and pending-request state before
+sending. A missing model, disconnected workspace or pending answer keeps the question in place without creating a
+chat bubble or opening another panel. Study readiness is shown beside its field and refreshed without replacing the
+draft; setup is an explicit Models action. Ready sends say where the answer will appear and open the Assistant only
+after the ordinary send succeeds. A generic planner failure never establishes that a key is missing. Connected-agent
+authorization is separate from Assistant model readiness; test both unavailable and real configured-answer journeys.
+
+`study-conversation.ts` provides the retained Study question path. A person chooses a connected
+Project contributor, saves a question against the visible Study revision, and reads the attributed
+answer inline. It uses the same Composer and exact-result opening surface. Connection authorization
+is not liveness: queued questions say waiting and offer a copyable handoff. Polling reads retained
+state only, preserves drafts and focus, and stops when its originating Project/Study is no longer
+current. Lost-reply retries preserve the request identity and captured context. Answers retain
+limitations and evidence and never become reviewed findings automatically. The ordinary Assistant
+remains available separately; no Gemini dependency or subscribed-CLI launch is added to this path.
+
+Study evidence opens in a separate workspace Tab, leaving the retained Study available to return to.
+The conversation owns its unsent draft marker; a saved question no longer triggers a discard-form warning.
+
+The Study discussion uses compact attributed question bubbles, readable agent replies and
+expandable evidence and scope/limitations. Its existing composer keeps the recipient beside
+Send. A pending question exposes a copyable handoff in that question, not a permanent
+page-wide instruction; connection authorization still does not claim a running agent.
+
+Main's research overview aggregates every retained Study in its Project. A Study is an effort, not an actor or an output. Creation dates come from the first retained revision; authorship is grouped by stable identity, never by label. The overview reads existing workflow evidence with bounded fan-out; interrupted, unstarted and failed-refresh states never imply running work. Study lifecycle stays separate from execution. Contributor origins, unanswered questions, reports and dated admissions remain inspectable, and report language is not accepted as a finding. Same-Project refresh preserves disclosures/focus; Project-opening guards still protect stale actions. Existing Hooke researcher records appear separately, with their observed state and model, without inventing external-agent liveness.

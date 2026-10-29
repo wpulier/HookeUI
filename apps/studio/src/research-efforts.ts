@@ -19,19 +19,21 @@ export interface EffortTask {
   managedActions?: { archive?: string };
 }
 export interface EffortFinding { request: string; statement: string; tasks: string[] }
-export interface EffortClaim { request:string; statement:string; byLabel:string; limitations?:string;
+export interface EffortClaim { by?:string; at?:number; request:string; statement:string; byLabel:string; limitations?:string;
   evidence:{artifact:{id:string;revision:number};relation:string}[]; dependsOn:string[] }
 export interface Effort {
   id: string; session: string; revision: number; digest: string;
+  createdAt?:number; updatedAt?:number; createdBy?:{by:string;byLabel:string};
+  questions?:{id:string;question:string;by?:string;byLabel:string;at?:number;recipient:{actor:string;label:string};answer:null|{by:string;byLabel:string;at?:number;statement:string}}[];
   stopPending?: boolean; title?: string; objective: string; criteria: string; status: EffortStatus | string;
   controlProblems?: string[];
   capMicrousd: number; spentMicrousd: number; heldMicrousd: number; availableMicrousd: number;
   inputs: { id: string; revision: number; digest: string }[];
   tasks: Record<string, EffortTask>;
-  experiments?: Record<string, {operation:string; byLabel:string; execution:{id:string;session:string}}> ;
+  experiments?: Record<string, {by?:string; operation:string; byLabel:string; execution:{id:string;session:string}}> ;
   findings: EffortFinding[];
   claims?: EffortClaim[];
-  claimChanges?: {claim:string;reason:string;byLabel:string}[];
+  claimChanges?: {by?:string;at?:number;claim:string;reason:string;byLabel:string}[];
 }
 
 const HEADERS = { 'Content-Type': 'application/json', 'X-MicroscopeMind': 'research-effort' };
