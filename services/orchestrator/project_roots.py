@@ -158,26 +158,46 @@ class ProjectRegistry:
         self.home = Path(home)
         self.path = self.home / 'project-locations.json'
 
-    def _entries(self):
+    def _entries(self, *, recovering=None):
         try:
             self.path.lstat()
         except FileNotFoundError:
             return {}
         value = _read(self.path)
-        if type(value) is not dict or set(value) != {'format', 'locations'} or type(value['format']) is not int or value['format'] != 1 or type(value['locations']) is not dict:
+        if type(value) is not dict or set(value) != {'format', 'locations'} or type(value['format']) is not int or value['format'] not in (1, 2) or type(value['locations']) is not dict:
             raise ProjectLocationError('The Project location registry is unreadable; do not replace it')
+        result = {}
         for key, location in value['locations'].items():
             _origin(key)
-            if not isinstance(location, str) or not Path(location).is_absolute():
-                raise ProjectLocationError('The Project location registry contains an invalid path')
-        return value['locations']
+            if value['format'] == 1:
+                if not isinstance(location, str) or not Path(location).is_absolute():
+                    raise ProjectLocationError('The Project location registry contains an invalid path')
+                # The old locator did not retain the host handle. A missing old location
+                # must be explicitly recovered before allocating any possibly colliding handle.
+                if recovering is not None and key == recovering.origin and not Path(location).exists() and not Path(location).is_symlink():
+                    root = recovering
+                else:
+                    root = ProjectRoot.open(Path(location))
+                if root.origin != key:
+                    raise ProjectLocationError('The folder at this location belongs to another Project')
+                location = {'path': location, 'session': root.session}
+            if (type(location) is not dict or set(location) != {'path', 'session'}
+                    or not isinstance(location['path'], str) or not Path(location['path']).is_absolute()
+                    or not is_sid(location['session'])):
+                raise ProjectLocationError('The Project location registry contains an invalid locator')
+            result[key] = dict(location)
+        return result
+
+    def locations(self):
+        """Host locators, including unavailable folders; no research or authority is cached here."""
+        return self._entries()
 
     def locate(self, origin: str) -> ProjectRoot | None:
         location = self._entries().get(_origin(origin))
         if location is None:
             return None
-        root = ProjectRoot.open(Path(location))
-        if root.origin != origin:
+        root = ProjectRoot.open(Path(location['path']))
+        if root.origin != origin or root.session != location['session']:
             raise ProjectLocationError('The folder at this location belongs to another Project')
         return root
 
@@ -186,14 +206,16 @@ class ProjectRegistry:
         fd = os.open(self.home / '.project-locations.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            entries = self._entries()
+            entries = self._entries(recovering=root if replace_inactive else None)
             if ProjectRoot.open(root.path) != root:
                 raise ProjectLocationError('Project identity changed before registration')
             previous = entries.get(root.origin)
-            if previous and Path(previous) != root.path:
+            if previous and previous['session'] != root.session:
+                raise ProjectLocationError('A Project origin cannot change its retained session identity')
+            if previous and Path(previous['path']) != root.path:
                 if not replace_inactive:
                     raise ProjectLocationError('This Project is already known elsewhere. Choose read-only, replace its inactive location, or create an independent Project.')
-                old_path = Path(previous)
+                old_path = Path(previous['path'])
                 if old_path.is_symlink():
                     raise ProjectLocationError('The previous Project location was replaced by a link')
                 old = ProjectRoot.open(old_path) if old_path.exists() else None
@@ -202,11 +224,11 @@ class ProjectRegistry:
                         raise ProjectLocationError('The previous location now contains another Project')
                     with writer(old):
                         with writer(root):
-                            entries[root.origin] = str(root.path)
-                            _atomic(self.path, {'format': 1, 'locations': entries})
+                            entries[root.origin] = {'path': str(root.path), 'session': root.session}
+                            _atomic(self.path, {'format': 2, 'locations': entries})
                     return
             with writer(root):
-                entries[root.origin] = str(root.path)
-                _atomic(self.path, {'format': 1, 'locations': entries})
+                entries[root.origin] = {'path': str(root.path), 'session': root.session}
+                _atomic(self.path, {'format': 2, 'locations': entries})
         finally:
             os.close(fd)
