@@ -651,3 +651,4 @@ population evidence resolver; full microscopy collection is a separate gate.
 `test_project_snapshot_routing.py` uses synthetic camera bytes through the real tool, journal and index. It checks owner capture, clean/annotated retention, relocation, second-host reads, interrupted publication and changed folders/bytes. It does not qualify Library collection or a live microscopy experiment.
 
 `test_project_volume_routing.py` uses isolated real journals and job execution with a synthetic registration adapter. It covers relocation, copied-source independence, metadata history, owner changes, writer refusal and restart without replay. It is not brain-registration accuracy or ordinary UI qualification.
+The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
