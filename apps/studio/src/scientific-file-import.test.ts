@@ -73,7 +73,8 @@ test('saved source uses exact revision for original-byte download and does not s
   const host = document.createElement('section');
   showScientificSource(host, { sourceFile: { format: 1, name: 'native.npy', size: 8, sha256: 'a'.repeat(64) } },
     { id: 'p' + 'b'.repeat(32), day: 'origin', version: 3 });
-  expect(host.textContent).toContain('compatible reader integration is still needed');
+  expect(host.textContent).toContain('Revision 3 · 8 bytes · Retained original');
+  expect(host.textContent).toContain('Preview as text');
   expect(host.querySelector('a')?.href).toContain('session=origin&revision=3');
   expect(request).not.toHaveBeenCalled();
 });

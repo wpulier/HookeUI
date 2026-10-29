@@ -2290,3 +2290,21 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .setup-progress-name { color: var(--mm-text); font-weight: 600; }
 .setup-progress-says, .setup-progress-amount, .setup-progress-where { color: var(--mm-text-2); overflow-wrap: anywhere; }
 .setup-progress-open { flex: none; }
+
+/* Retained files put their content before optional processing and provenance. */
+.scientific-source-inspector { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 20px; text-align: left; }
+.scientific-source-inspector > header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.scientific-source-inspector > header > div { flex: 1 1 220px; min-width: 0; }
+.scientific-source-inspector h3 { margin: 0 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+.scientific-source-inspector p { margin: 0; color: var(--mm-text-2); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.scientific-source-inspector .scientific-source-download { flex: none; margin: 0; padding: 8px 12px; border: 1px solid var(--mm-line-strong); border-radius: 8px; color: var(--mm-text); text-decoration: none; font-size: 13px; }
+.scientific-source-inspector .scientific-text-preview { margin: 0; }
+.scientific-source-inspector .scientific-text-preview > div:not([hidden]) { display: flex; flex-direction: column; gap: 10px; }
+.scientific-source-inspector .scientific-text-preview pre { margin: 0; max-height: 58vh; background: var(--mm-control); }
+.scientific-source-inspector button { padding: 8px 12px; border: 1px solid var(--mm-line-strong); border-radius: 8px; background: var(--mm-control); color: var(--mm-text); font: inherit; font-size: 13px; cursor: pointer; }
+.scientific-source-inspector button:disabled { opacity: .45; cursor: default; }
+.scientific-source-inspector :is(button,a,summary,pre):focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 3px; }
+.scientific-source-inspector > details { padding-top: 14px; border-top: 1px solid var(--mm-line-strong); font-size: 13px; }
+.scientific-source-inspector summary { cursor: pointer; color: var(--mm-text-2); }
+.scientific-source-inspector code { display: block; margin-top: 10px; overflow-wrap: anywhere; font-size: 12px; }
+@media (max-width: 600px) { .scientific-source-inspector { padding: 14px; gap: 14px; } }
