@@ -626,4 +626,5 @@ ids (`hk_…`, at most 32 characters) and `response.metadata` (`cause`, `n`) cam
 (`item_delete_invalid_item_id`, `response_cancel_not_active`), which is how a best-effort step's refusal is logged and
 not said; and a proactive `response.create` with `instructions`, `tool_choice: "none"` and `metadata` spoke one
 sentence from a system item of facts ("Researcher 3 finished and reported finding two size groups."), its first audio
-**692 ms** after asking. Both runs cost $0.04 at list price.
+**692 ms** after asking. Both runs cost $0.04 at list price. A third run (a session.update only) took all 78 registry
+tools of the golden fixture as the partner reshapes them, with mark, look_hard and do_in_hooke: 81 of 81 accepted.
