@@ -2733,6 +2733,50 @@
       ]
     },
     {
+      "id": "research-chart",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Chart saved measurements",
+      "what": "Draws a chart from a saved table's own values",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher chart the nucleus areas"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_researcher_outputs.py"
+      ],
+      "parts": [
+        "research-worker",
+        "measurement-charts",
+        "resources"
+      ]
+    },
+    {
+      "id": "research-animation",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Animate saved measurements",
+      "what": "Animates a saved table row by row, not a generated video",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher animate the measurements table"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_researcher_outputs.py"
+      ],
+      "parts": [
+        "research-worker",
+        "measurement-charts",
+        "resources"
+      ]
+    },
+    {
       "id": "start-researcher",
       "family": "researchers",
       "actor": "agent",
@@ -3921,6 +3965,24 @@
       ],
       "evidence": [
         "services/tests/test_catalog_tools.py"
+      ]
+    },
+    {
+      "id": "models-in-use",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Say what powers it",
+      "what": "Each job's model now, where it runs, its speed",
+      "how": {
+        "tool": "models_in_use",
+        "say": "what models are powering you right now?"
+      },
+      "parts": [
+        "settings",
+        "catalogue"
+      ],
+      "evidence": [
+        "services/tests/test_models_in_use.py"
       ]
     },
     {
@@ -5343,6 +5405,13 @@
       "kind": "app",
       "purpose": "Runs the app's operations a researcher asks for, off screen",
       "source": "services/orchestrator/research/hands.py"
+    },
+    {
+      "id": "measurement-charts",
+      "title": "Charts of saved tables",
+      "kind": "app",
+      "purpose": "Draws a chart or animation from a saved table's own values",
+      "source": "services/research_worker/measurement_charts.py"
     },
     {
       "id": "library",

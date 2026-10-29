@@ -393,8 +393,11 @@ is loading: the live view is slowed"; live 2026-10-11 it blamed WindowServer), a
 logged whenever a reading crosses one of the contract's lines. Timing results (fps, click p95, the sim's
 timing checks) mean little while it is red for the computer's sake.
 
-Its panel also says which models really ran in the last ten minutes ("Models", `/api/health` `models`), so a
-slower run is never taken for a regression of a model that did not run (live 2026-10-11):
+Its panel lists who is doing each job now ("Doing each job now", `perf.ts` `inUseRows`, `/api/health` `models.inUse`
+from `orchestrator/models_in_use.py`, the rows the agent's `models_in_use` reads): the job, its model, cloud or this Mac and
+its calls' typical time lately; hovering a row says where to change it. It also says which models really ran in the last
+ten minutes ("Models", `/api/health` `models`), so a slower run is never taken for a regression of a model that did not
+run (live 2026-10-11):
 - **Defaults:** "The default models ran", or each exception with how often and why (`orchestrator/fallbacks.py`).
   Each is noted where it is decided: the operation runner, when an implementation's fallback produced the result,
   and the fast pass, when the full look answered instead.
@@ -424,7 +427,10 @@ Try/input/comparison paths; when the entry serves a task in the workspace its pr
 <specimen>"), which closes the sheet and opens that task's run page with it chosen (opened by a run page's step, the
 task of that page, which `doStep` hands over through `openModels(…, { task })` and `ModelsPage.openedFrom` just before
 it navigates, when the model serves it; otherwise its first task), unless the job's current choice can't run, when
-Use <name> (choose it for the job) stays the primary (step 8 below). Escape closes the sheet alone (its default
+Use <name> (choose it for the job) stays the primary (step 8 below). An entry turned on from its own card is on, not
+chosen: when a job it serves can't run its own choice, the first such job is offered it ("Look-alikes uses DINOv3 small,
+which can't run here. Use BioCLIP 2 for Look-alikes now?", `useForJob`; `capability-select`), and otherwise the jobs keep
+their models (contract/AGENTS.md "On is not chosen"). Escape closes the sheet alone (its default
 prevented, so the Models dialog's cancel never follows) and focus goes back to the press that opened it.
 
 Actions and card Try share workspace admission and owned execution. Their origins bind the initiating Project,
