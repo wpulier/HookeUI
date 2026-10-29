@@ -1,0 +1,116 @@
+{
+ "id": "will-leaf",
+ "about": "Will's own requests on the real June 14 leaf epidermis recording (the old voice's basics: name it, segment the thing he means, enlarge it, move to the other one, a reference picture, every cell, the average). Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "middle",
+   "kind": "view",
+   "say": "What's the thing in the middle?",
+   "expect": {
+    "tools": [
+     "look_hard",
+     "find",
+     "inspect_camera"
+    ],
+    "toolRequired": false,
+    "marks": [
+     "frame",
+     "outline:"
+    ],
+    "judge": "names the oval in the middle as most likely a stoma (guard cells around a pore) in a leaf epidermis and points at it"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "segment",
+   "kind": "act",
+   "say": "Use a segmentation model on the center thing.",
+   "expect": {
+    "tools": [
+     "find"
+    ],
+    "visible": "the stoma in the middle outlined",
+    "outcome": true,
+    "judge": "outlines the oval in the middle within a couple of seconds and says so once, plainly"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "enlarge",
+   "kind": "act",
+   "say": "Can you enlarge it?",
+   "expect": {
+    "tools": [
+     "zoom"
+    ],
+    "visible": "a magnifier showing the outlined stoma",
+    "outcome": true,
+    "judge": "opens a magnified view of the thing it just outlined and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "left-one",
+   "kind": "act",
+   "say": "Now show me the one on the left instead.",
+   "expect": {
+    "tools": [
+     "find",
+     "zoom"
+    ],
+    "visible": "the oval on the left outlined and magnified",
+    "outcome": true,
+    "judge": "finds the other oval on the left, outlines it and moves the magnified view to it"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "reference",
+   "kind": "act",
+   "say": "Pull up a reference image of a stoma.",
+   "expect": {
+    "tools": [
+     "reference_photo"
+    ],
+    "visible": "a reference photo of a stoma",
+    "outcome": true,
+    "judge": "shows a real reference photo of a stoma and says what it is"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "outline-all",
+   "kind": "act",
+   "say": "Outline every cell.",
+   "expect": {
+    "tools": [
+     "outline_cells"
+    ],
+    "visible": "the cells outlined as a layer",
+    "outcome": true,
+    "judge": "outlines the cells in view and says how many, once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "average",
+   "kind": "view",
+   "say": "What's the average size?",
+   "expect": {
+    "tools": [
+     "query_population",
+     "resources",
+     "measure"
+    ],
+    "toolRequired": false,
+    "judge": "gives the mean size of the outlined cells with its unit, not a median"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}
