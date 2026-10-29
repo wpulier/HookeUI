@@ -34,7 +34,7 @@ STUDIES_MAX = 20
 OPERATIONS_MAX = 20
 WINDOWS_MAX = 40
 TABS_MAX = 24
-CACHE_MAX = 64  # (actor, Project) projections kept; the oldest read goes first
+CACHE_MAX = 16  # (actor, Project) projections kept, each its whole data list; the least recently read goes first
 
 RUNNING = frozenset({"queued", "starting", "running", "revising"})
 GROUP_RANK = {"running": 0, "finished": 1, "cancelled": 2}
