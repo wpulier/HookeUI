@@ -985,10 +985,15 @@ async function openStudy(id:string):Promise<void>{
       review:(task,hash,outcome,review)=>apply(()=>reviewStudyTask(next.id,session,task,hash,outcome,review)),
       finding:(request,statement,tasks)=>apply(()=>retainStudyFinding(next.id,session,request,statement,tasks)),
       openFile:(ref,name)=>openRetained(ref,name),
-      // The Study's composer asks the Assistant: its layer opens and the words go through its composer, as the researcher
-      // draft's Start does; refused (a request still being answered), the words stay in the Study's field.
-      ask:(text:string)=>{assistantLayer.set(true);const question=find('question') as HTMLTextAreaElement,form=question.closest('form') as HTMLFormElement|null;
-        if(!form)return false;const before=question.value;composer.set(text);form.requestSubmit();if(question.value===text){composer.set(before);return false;}return true;},
+      // Use the shared Assistant admission path without replacing its draft. Open the reply panel only after
+      // admission; unavailable or pending requests leave the question in this Study.
+      askBlocked:()=>!current() || currentStudyPage!==page || researchStage.hidden ? 'Return to this Study before asking.' : bridge.askBlocked(),
+      setupAssistant:()=>bridge.navigate('#models'),
+      ask:(text:string)=>{
+        if(!current() || currentStudyPage!==page || researchStage.hidden || bridge.askBlocked())return false;
+        if(!bridge.askAssistant(text))return false;
+        assistantLayer.set(true);return true;
+      },
     },providers,availableInputs);
     // Pause and Stop sit in the Study's bar (Study target); they keep their own actions and guards.
     researchBar.querySelector('.study-view-controls')?.remove();

@@ -1840,3 +1840,10 @@ separate input/experiment/report/finding counts, and the latest appended attribu
 Reports are not accepted findings; full statements and limitations remain expandable. Contributor labels
 describe prior authorship, not live presence. Stats navigate to existing Project Data or the retained Study
 tab, never start work. Project-opening guards and unchanged-refresh focus preservation remain in force.
+
+Study Ask and the main Assistant consult the same selected-model readiness and pending-request state before
+sending. A missing model, disconnected workspace or pending answer keeps the question in place without creating a
+chat bubble or opening another panel. Study readiness is shown beside its field and refreshed without replacing the
+draft; setup is an explicit Models action. Ready sends say where the answer will appear and open the Assistant only
+after the ordinary send succeeds. A generic planner failure never establishes that a key is missing. Connected-agent
+authorization is separate from Assistant model readiness; test both unavailable and real configured-answer journeys.

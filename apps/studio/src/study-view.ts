@@ -19,9 +19,11 @@ export interface StudyActions {
   /** Open a file the researcher made, kept at its exact revision, in the workspace (the same route as Study job results). */
   openFile?(ref: { id: string; revision: number }, name: string): Promise<unknown>;
   /** Open the Stage bar's Assistant beside the write-up (a Study takes no messages of its own). */
-  /** Asks the Stage bar's Assistant these words over the write-up (it opens and they go through its composer): a Study
+  /** Asks the Stage bar's Assistant these words over the write-up (its panel opens after admission): a Study
    * takes no messages of its own. False when they were not sent (the words then stay in the field). */
   ask?(text: string): boolean | void;
+  askBlocked?(): string | null;
+  setupAssistant?(): void;
 }
 const node = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] => {
   const el = document.createElement(tag); if (className) el.className = className; if (text) el.textContent = text; return el;
@@ -576,13 +578,29 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     const dock = node('div', 'rcomp');
     const compose = new Composer(null, { label: 'Ask the Assistant about this study', placeholder: 'Ask the Assistant about this study' });
     compose.root.classList.add('study-ask-composer');
-    compose.send.title = 'Ask the Assistant (Enter); it opens beside the write-up';
+    compose.send.title = 'Ask in Assistant (Enter)';
+    compose.send.setAttribute('aria-label', 'Ask in Assistant');
+    const status = node('p', 'study-ask-status'); status.setAttribute('role', 'status');
+    const setup = actions.setupAssistant ? action('Assistant model settings', actions.setupAssistant, 'study-ask-setup') : null;
+    const ready = () => {
+      const reason = actions.askBlocked?.() ?? null;
+      status.textContent = reason || 'Replies open in the Assistant beside this Study.';
+      compose.send.disabled = Boolean(reason);
+      if (setup) setup.hidden = !reason;
+      return !reason;
+    };
+    compose.root.addEventListener('assistant-readiness', ready);
+    compose.field.addEventListener('input', ready);
+    compose.field.addEventListener('focus', ready);
+    ready();
     compose.root.addEventListener('submit', (event) => {
       event.preventDefault();
       const text = compose.field.value.trim();
-      if (!text) return;
+      if (!text || !ready()) return;
       if (actions.ask?.(text) !== false) compose.set('');
+      else { ready(); if (!actions.askBlocked?.()) status.textContent = 'Your question was not sent. Keep it here and try again.'; }
     });
+    dock.append(status); if (setup) dock.append(setup);
     dock.append(compose.root); centre.append(dock);
   }
   // The write-up on paper: the question as its title, what was concluded from reviewed experiments, and a finding to add.

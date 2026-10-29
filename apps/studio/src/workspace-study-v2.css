@@ -337,3 +337,8 @@ body.studio-shell .session-home[data-project-research='true'] .home-title { marg
   .project-research-study-footer { align-items: flex-start; flex-direction: column; gap: 12px; }
   .project-research-home p.project-research-contributors { max-width: 100%; }
 }
+
+/* Readiness belongs at the Study's question, before any handoff to the Assistant. */
+.study-ask-status { margin: 0 0 8px; color: var(--mm-text-2); font: 400 12px/1.5 var(--mm-sans); }
+.study-ask-setup { margin-bottom: 10px; border: 1px solid var(--mm-line-strong); border-radius: 7px; padding: 6px 10px; background: var(--mm-ctl-fill); color: var(--mm-text); font: 500 12px var(--mm-sans); cursor: pointer; }
+.study-ask-setup[hidden] { display: none; }
