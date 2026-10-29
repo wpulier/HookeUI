@@ -94,3 +94,23 @@ def test_stopped_native_admission_never_reads_or_holds_pixels(tmp_path, monkeypa
     stop = threading.Event(); stop.set()
     with pytest.raises(ValueError, match='stopped'):
         native.resolve(built.hub, reference, owner.session, cancelled=stop)
+
+
+def test_native_comparison_identity_uses_exact_revision_and_scientific_metadata(tmp_path):
+    from orchestrator.retained_input import comparison_input_key
+    built = build_app(tmp_path/'home')
+    owner, _, reference = input_at(built)
+    first, first_hold = native.resolve(built.hub, reference, owner.session)
+    second, second_hold = native.resolve(built.hub, reference, owner.session)
+    try:
+        key = comparison_input_key(first.id, {'sourceImage': first.source_image})
+        assert key and key == comparison_input_key(second.id, {'sourceImage': second.source_image})
+        changed = copy.deepcopy(second.source_image)
+        changed['resource']['revision'] += 1
+        changed['nativeSource']['revision'] += 1
+        assert comparison_input_key(second.id, {'sourceImage': changed}) != key
+        changed = copy.deepcopy(second.source_image)
+        changed['scientific']['calibration']['units'] = ['pixels', 'pixels']
+        assert comparison_input_key(second.id, {'sourceImage': changed}) != key
+    finally:
+        first_hold.release(); second_hold.release()

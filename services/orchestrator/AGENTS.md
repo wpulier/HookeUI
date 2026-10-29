@@ -1095,3 +1095,9 @@ retaining the original running attempt and a waiting progress note. Stop or serv
 shutdown prevents a waiting step from acquiring compute; no other owner’s lock is
 reclaimed. The admission rechecks disk and the pinned generation after acquiring the slot;
 the scientific worker retains its memory guard.
+
+Retained comparison input identity comes from `retained_input.comparison_input_key`, shared by
+resource discovery and comparison-table validation. Imported images use their exact source descriptor,
+including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.
+Camera results require capture, sequence, boot and process run. Unknown source identity refuses comparison.
+Existing table snapshots remain readable; new publication/update revalidates inputs without rewriting evidence.

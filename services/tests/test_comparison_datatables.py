@@ -10,7 +10,7 @@ from orchestrator.day import DayStore
 @pytest.fixture
 def comparison(tmp_path, monkeypatch):
     day = DayStore(root=tmp_path/'sessions')
-    populations = {f'e{i}': SimpleNamespace(session=day.sid, revision=i, capture_id='exact-input', implementation=f'method{i}') for i in (1, 2)}
+    populations = {f'e{i}': SimpleNamespace(session=day.sid, revision=i, capture_id=10, view={'boot': 'camera-one', 'seq': 3, 'run': 'run-one'}, implementation=f'method{i}') for i in (1, 2)}
     app = SimpleNamespace(day=day, hub=SimpleNamespace(evidence=SimpleNamespace(get=populations.get)))
     service = DataTables(app, tmp_path/'tables')
     layout = w.read(day, schema=5)['layout']; layout['schema'] = 5
@@ -87,3 +87,57 @@ def test_ordinary_comparison_route_keeps_exact_layout_and_native_rows(comparison
     assert table['mode'] == 'frozen' and table['rows'][1]['area'] == 12.25
     assert table['comparison']['sourceRevisions'] == {'e1': 1, 'e2': 2}
     assert client.post('/api/datatables/comparison', json={**body, 'layoutRevision': 2}, headers={'X-MicroscopeMind': 'datatable'}).status_code == 409
+
+
+def test_saved_image_comparison_survives_independent_captures_and_restart(comparison):
+    _, service, populations = comparison
+    image = {'asset': 'a2', 'session': populations['e1'].session,
+             'sha256': 'a'*64, 'pixelSha256': 'b'*64, 'width': 512, 'height': 512,
+             'dtype': 'uint8', 'axes': 'YX', 'channels': 1, 'units': 'pixels'}
+    for i, population in enumerate(populations.values(), 1):
+        population.capture_id = -i
+        population.view = {'sourceImage': dict(image), 'boot': '', 'seq': None, 'run': f'run-{i}'}
+    async def go():
+        made = await service.from_comparison('main', 1)
+        assert service.read(made['id'])['comparison']['inputKey']
+        populations['e2'].view['sourceImage']['pixelSha256'] = 'c'*64
+        populations['e2'].revision += 1
+        with pytest.raises(DataTableRefused):
+            await service.update(made['id'])
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize('change', ['boot', 'seq', 'run', 'unknown'])
+def test_equal_temporary_capture_numbers_are_not_input_identity(comparison, change):
+    app, service, populations = comparison
+    if change == 'unknown':
+        for p in populations.values(): p.view = {}
+    else:
+        populations['e2'].view[change] = 'other'
+    async def go():
+        with pytest.raises(DataTableRefused):
+            await service.from_comparison('main', 1)
+        assert not app.day.datatables
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize('field,value', [('asset', 'another'), ('session', 'another'),
+    ('sha256', 'c'*64), ('pixelSha256', 'c'*64), ('width', 256), ('height', 256),
+    ('units', 'micrometers'), ('axes', 'XY'), ('dtype', 'uint16'), ('channels', 3)])
+def test_same_capture_cannot_override_changed_saved_image_metadata(comparison, field, value):
+    _, service, populations = comparison
+    image = {'asset': 'a2', 'session': populations['e1'].session,
+             'sha256': 'a'*64, 'pixelSha256': 'b'*64, 'width': 512, 'height': 512,
+             'dtype': 'uint8', 'axes': 'YX', 'channels': 1, 'units': 'pixels'}
+    for population in populations.values(): population.view['sourceImage'] = dict(image)
+    populations['e2'].view['sourceImage'][field] = value
+    with pytest.raises(DataTableRefused):
+        asyncio.run(service.from_comparison('main', 1))
+
+
+def test_legacy_snapshot_cannot_adopt_a_new_common_input(comparison):
+    _, service, populations = comparison
+    old = {'capture': 10, 'arms': [{'id': key, 'implementation': p.implementation} for key, p in populations.items()]}
+    for population in populations.values(): population.capture_id = 11
+    with pytest.raises(DataTableRefused, match='older comparison'):
+        service._comparison_sources(old, service.capture())

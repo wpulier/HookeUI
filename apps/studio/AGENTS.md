@@ -1811,3 +1811,7 @@ the UI. It supplies the launch Studio token when packaged, never an agent bearer
 source development uses its explicit owner mode and same-origin request context.
 Seeing a Project in this owner picker grants nothing. A confirmed grant records the
 person as creator and the connection as reader/contributor without changing the stage.
+
+Retained comparison choices use the resource index's canonical comparison input key, not temporary
+frame numbers. Independently captured runs of an unchanged imported image can share a Compare Tab;
+unknown inputs and unrelated Project/revision/method entries remain excluded. Opening never reruns a model.

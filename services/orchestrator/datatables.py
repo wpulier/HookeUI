@@ -31,6 +31,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .retained_input import comparison_input_key
+
 PREFIX = "tb"
 ID = re.compile(r"tb[0-9]+")
 MODES = ("follow", "frozen")
@@ -765,13 +767,20 @@ class DataTables:
         """Revalidate actual producer/input identity, never infer matches from model labels or pixels."""
         owner.check(self.app)
         evidence = getattr(self.app.hub, 'evidence', None)
+        expected_input = comparison.get('inputKey')
+        if not expected_input:
+            raise DataTableRefused('this older comparison has no retained input identity for an update',
+                                   next='keep this snapshot and create a new comparison from its original results')
         for arm in comparison['arms']:
             population = evidence.get(arm['id']) if evidence is not None else None
             if (population is None or population.session != owner.session
-                    or population.capture_id != comparison['capture']
                     or population.implementation != arm['implementation']):
                 raise DataTableRefused('a comparison result no longer belongs to the selected input and method',
                                        next='reopen the saved comparison and choose its retained results')
+            actual_input = comparison_input_key(population.capture_id, population.view)
+            if actual_input is None or (expected_input is not None and actual_input != expected_input):
+                raise DataTableRefused('these comparison lanes use different or unknown retained inputs',
+                                       next='compare methods on the same retained input')
 
     async def from_comparison(self, tab, layout_revision, *, owner=None, title='Comparison measurements'):
         """Pool an exact saved A/B/C Tab through the ordinary retained measurements reader."""
@@ -788,7 +797,7 @@ class DataTables:
         if view is None or view.get('kind') != 'compare' or not view.get('compare'):
             raise DataTableRefused('choose a saved A/B/C comparison Tab', next='open the retained results as a comparison Tab')
         items = {i['placementId']: i for i in view['items']}
-        arms, capture = [], None
+        arms, input_key = [], None
         evidence = getattr(self.app.hub, 'evidence', None)
         for lane in view['compare']['lanes']:
             ref = items[lane['placementId']]['resource']
@@ -799,16 +808,17 @@ class DataTables:
                     or population.implementation != lane['impl']):
                 raise DataTableRefused('each lane needs an exact retained population from its declared method',
                                        next='retain the population measurements and reopen their exact revisions')
-            if capture is not None and capture != population.capture_id:
+            actual_input = comparison_input_key(population.capture_id, population.view)
+            if actual_input is None or (input_key is not None and input_key != actual_input):
                 raise DataTableRefused('these comparison lanes use different captured inputs',
                                        next='compare methods on the same retained input')
-            capture = population.capture_id
+            input_key = actual_input
             arms.append({'id': ref['id'], 'revision': ref['version'], 'implementation': population.implementation,
-                         'method': f"{lane['label']} · {lane['impl']}"})
+                         'capture': population.capture_id, 'method': f"{lane['label']} · {lane['impl']}"})
         if len({a['id'] for a in arms}) != len(arms):
             raise DataTableRefused('the same population appears in more than one lane', next='select distinct retained results')
         comparison = {'session': owner.session, 'tab': tab, 'layoutRevision': layout_revision,
-                      'capture': capture, 'arms': arms,
+                      'inputKey': input_key, 'arms': arms,
                       'note': 'Same objects, not independent samples. Method groups do not establish matched object pairs.'}
         tables = await self._read_sources(arms, owner.session)
         self._comparison_sources(comparison, owner)

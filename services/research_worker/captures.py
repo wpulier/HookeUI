@@ -6,9 +6,19 @@ import hashlib
 import json
 
 
+def without_comparison_hint(document: dict) -> dict:
+    """A derived UI comparison key is not part of a retained scientific revision."""
+    entry = document.get('entry', {})
+    source = entry.get('source')
+    if not isinstance(source, dict) or 'comparisonInput' not in source:
+        return document
+    return {**document, 'entry': {**entry, 'source': {
+        key: value for key, value in source.items() if key != 'comparisonInput'}}}
+
 
 def basis_digest(document: dict) -> str:
     """Scientific capture facts exclude layer placement, display words and read badges."""
+    document = without_comparison_hint(document)
     entry = document.get('entry', {})
     detail = document.get('detail', {})
     basis = {'entry':{key:entry.get(key) for key in ('day','id','kind','version','source','pictures')},
