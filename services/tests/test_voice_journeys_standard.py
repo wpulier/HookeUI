@@ -124,7 +124,7 @@ def result(lines, name):
 
 def test_a_run_that_meets_the_standard_passes_every_line():
     run, summary, lines = board(*good())
-    failed = {name: line for name, line in lines.items() if line["result"] != "pass"}
+    failed = {name: line for name, line in lines.items() if line["result"] != "pass" and line["area"] != "Overall"}
     assert not failed, json.dumps(failed, indent=1) + json.dumps([r["failures"] for r in run["steps"]], indent=1)
     assert meets(list(lines.values()))
     rows = {r["id"]: r for r in run["steps"]}
@@ -643,3 +643,28 @@ def test_an_idle_wait_or_a_restart_is_nobody_talking():
              {"id": "held", "say": "Outline them.", "down": 60.0, "up": 61.5, "start": 60.2, "end": 61.3}]
     spans = holds(steps)
     assert [round(a, 1) for a, _ in spans] == [10.0, 60.0]  # the idle wait and the restart are not the user talking
+
+
+
+def test_partner_quality_is_reported_on_the_overall_line_never_a_gate():
+    """Will, 2026-10-29: the bar is a sharp, dynamic colleague (HeyClicky), not only timings. The judge's 0-3 per step
+    is reported as its mean and the steps under 2; the standard is met or not on its own lines."""
+    bench, conv, inter, verdicts = good()
+    for sid, q in (("outline", 3), ("table", 3), ("researcher", 1), ("multi", 2)):
+        verdicts[sid]["partner_quality"] = q
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    line = lines["Partner quality (0-3, judged)"]
+    assert line["result"] == "reported" and line["value"] == "mean 2.25 over 4 steps; under 2: 1 (researcher)"
+    assert meets(list(lines.values()))  # a low quality never fails the standard by itself
+    verdicts["outline"]["partner_quality"] = "great"  # not a number: not counted
+    assert board(bench, conv, inter, verdicts)[1]["quality"]["n"] == 3
+
+
+def test_a_status_step_can_name_the_researcher_the_user_named():
+    """"What's researcher 2 doing?": the answer names researcher 2, whichever started last."""
+    bench, conv, inter, verdicts = good()
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][3]["expect"]["status"] = 1
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["status"]
+    assert row["statusExpected"] == 1 and row["statusRight"] is False  # it said researcher 2

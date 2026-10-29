@@ -82,6 +82,7 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 |---|---|
 | `part-2.5` | The journey's steps 1–8 and 10 in Will's words, voice Samantha, plus one multi-step request ("Outline the nuclei, then put their measurements in a new tab called Sizes."). Step 8 restarts the orchestrator on the same home and reloads the page, then checks that the Project, its Measurements Tab and the researcher are there. An idle wait before it lets a researcher finish, so its event can be told. Step 9 (a connected agent) is a person's step. |
 | `part-2.5-second` | The second pass: another order, other words, voice Karen. It adds one interruption (the key pressed 2.5 s into the voice's answer), one request that cannot succeed (a table that does not exist), one forced reconnect (`fault: close-provider`) and a switch to another Project while the researcher runs, then back. |
+| `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. An idle wait at the end lets the last researcher finish and its event be told. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
@@ -112,7 +113,8 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
   - `visible`: the change the studio must report;
   - `researchers`: how many researchers this request starts (0 when absent);
   - `marks`: the target prefixes a mark may use;
-  - `status`: the answer must name the researcher this run started last;
+  - `status`: the answer must name the researcher this run started last (`"latest"`), or the one the user named (a
+    number: "what's researcher 2 doing?");
   - `multi`: several steps, held to 8 s;
   - `fails`: the request cannot succeed, so the failure is its outcome;
   - `judge`: what a good answer does, for the judge.
@@ -156,9 +158,15 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Robustness | Runs with no failed step. A step fails on any of the above, no answer, or a missing restart check. |
 | Elegance | Lines of one or two sentences: at least 90% (the bench's reading of "one or two plain sentences"). No confirmed screen change by a tool outside `expect.tools`. |
 
-**The judge** (`judge.py`, the same model as `score.py`) is shown the specimen picture, the user's words, the lines
-and the tool calls with their confirmations. It judges claims, outcome mentions and whether the request was answered.
-Times, counts and identities are code. `--no-judge` leaves false "done" unmeasured.
+**The judge** (`judge.py`, the same model as `score.py`) is shown the specimen picture, the two turns before, the
+user's words, the lines and the tool calls with their confirmations. It judges claims, outcome mentions and whether
+the request was answered. Times, counts and identities are code. `--no-judge` leaves false "done" unmeasured.
+
+**Overall: partner quality.** The judge also gives every step a `partner_quality` from 0 to 3: did the reply feel like a
+sharp, dynamic colleague? That means specific to what is on screen and in the Project, pointing at what it talks about,
+using earlier turns, brief and natural, with no filler or hedging. The prompt calibrates it with one good and one bad
+answer. The scoreboard's Overall line reports the mean and the steps under 2. It is reported only, never a gate: the
+standard is met or not on its own lines.
 
 **GPT-Live** has no `do_in_hooke`, marks, events told unprompted or reconnect of its own: those lines say "not
 applicable to this voice" for it. Barge-in applies to both voices (GPT-Live's open microphone is interrupted by

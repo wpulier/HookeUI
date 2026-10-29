@@ -1,12 +1,14 @@
 """What code can't time in a partner step, judged by a model (standard.py reads its verdicts): which spoken lines claim
 that something is now on screen or done (checked there against the studio's reports, so a false "done" is the judge's
 reading of the words and the app's record of the screen together), how many lines state the request's outcome, whether
-the request was answered, and whether the answer meets the step's expectation. The judge sees the camera picture the
+the request was answered, whether the answer meets the step's expectation, and how much it felt like a sharp
+colleague (`partner_quality`, 0-3: reported on the scoreboard's Overall line, never a gate). The judge sees the camera picture the
 plan names (the bundled still), the user's words, the voice's lines and the tools with their confirmations.
 """
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 
 from .standard import card_calls, load_bench, partner_calls, released, step_lines, turn_number, unprompted_spans, windows
@@ -17,7 +19,7 @@ COST_PER_STEP_USD = 0.02  # a bounded judge call (one image, about 2,000 tokens 
 PROMPT = """You are scoring a live voice research partner for a microscope app against a strict standard. Image 1 (if
 given) is the specimen the camera showed.
 
-The user said: "{say}"
+{earlier}The user said: "{say}"
 What a good answer does here: {expect}
 What the voice said afterwards, in order (seconds after the user finished):
 {lines}
@@ -34,11 +36,21 @@ Judge from these facts only:
   ("pulling that up") is not an outcome; a line that says the same outcome again counts again.
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
 - meets_expectation: true if the answer does what "a good answer does here" says; null if that says nothing.
+- partner_quality: 0-3, how much the reply felt like a sharp, dynamic colleague at the microscope. 3: specific to what
+  is on screen and in the Project (names the thing, the count, the table, the researcher), points at what it talks
+  about (a mark or a highlight, in the actions), uses the earlier turns ("that one", "the second researcher") without
+  asking again, brief and natural, no filler or hedging. 2: right but generic, a little long, or a missed chance to
+  point. 1: vague, hedging, filler, robotic, or narrating its own machinery. 0: wrong, unhelpful or off-putting.
+  A reply to small talk ("thanks") is a 3 when it is a few warm words and does nothing else.
+  Calibration, for "What's that bright one at the top?":
+    3: "That's a dividing cell: its chromosomes have condensed, so it glows brighter. I've circled it." (mark: ok)
+    0: "I can see the image. It appears to contain various cellular structures. Let me know if you'd like me to
+       analyze anything further." (no action)
 - why: one sentence.
 
 Reply with JSON only:
 {{"claims_on_screen": [{{"line": 2, "words": "the table is open"}}], "outcome_mentions": 1, "answered": true,
- "meets_expectation": true, "why": ""}}"""
+ "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
 
 
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
@@ -53,7 +65,7 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
         n = turn_number(bench["events"], start, end)
         lines = step_lines(conv, inter, start, end, unprompted)
         calls = partner_calls(inter, n, start, end) or card_calls(conv, start, end)
-        out.append({"id": step["id"], "say": step.get("say", ""), "release": release,
+        out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "
                                 f"{'ok' if c.ok else 'failed' if c.ok is False else 'running'}"
@@ -73,10 +85,14 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
         load_keys()
         model = make_vision(JUDGE)
     expects = {s["id"]: s.get("expect") or {} for s in plan["steps"]}
-    out = {}
+    out, history = {}, []
     for step in facts(bench, conv, inter):
         expect = expects.get(step["id"], {})
-        prompt = PROMPT.format(say=step["say"].replace("[[slnc 1500]] ", ""),
+        # The two turns before, so "that one" and "the second researcher" can be judged as references.
+        earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}\n'
+                          for say, said in history[-2:])
+        history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"]))
+        prompt = PROMPT.format(earlier=earlier, say=re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]),
                                expect=expect.get("judge") or (f"shows {expect['visible']}" if expect.get("visible") else
                                                               "answers what was asked"),
                                lines="\n".join(step["lines"]) or "(nothing)",

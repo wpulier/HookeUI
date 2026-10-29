@@ -155,6 +155,54 @@ def register(app, built, connected, body, reply, refusal):
         except (Refused, ValueError, OSError) as error:
             return failure(error)
 
+    @app.get(prefix + '/studies/{study}/questions')
+    async def questions(study: str, request: Request, session: str):
+        try:
+            authorized(request, session, resource='study-question')
+            from ..research.study_questions import for_app
+            rows = await asyncio.to_thread(for_app(built).rows, study, session)
+            return reply({'ok': True, 'questions': rows})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
+    @app.get(prefix + '/studies/{study}/questions/{question}')
+    async def question_context(study: str, question: str, request: Request, session: str):
+        try:
+            authorized(request, session, resource='study-question')
+            from ..research.study_questions import for_app
+            return reply({'ok': True, **await asyncio.to_thread(for_app(built).context, study, session, question)})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
+    @app.post(prefix + '/studies/{study}/questions')
+    async def ask_question(study: str, request: Request):
+        try:
+            b = await body(request)
+            if set(b) != {'session', 'request', 'question', 'basis', 'recipient'}:
+                raise ValueError('Use the declared Study question fields')
+            session = b.pop('session')
+            caller = authorized(request, session, True, resource='study-question')
+            from ..research.study_questions import for_app, require_recipient
+            b['recipient'] = require_recipient(built, session, b['recipient'])
+            result = await asyncio.to_thread(for_app(built).ask, study, session, actor=caller.actor, label=caller.label, **b)
+            return reply({'ok': True, 'question': result})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
+    @app.post(prefix + '/studies/{study}/questions/{question}/answer')
+    async def answer_question(study: str, question: str, request: Request):
+        try:
+            b = await body(request)
+            if set(b) != {'session', 'statement', 'evidence', 'limitations'}:
+                raise ValueError('An answer needs its statement, exact evidence and limitations')
+            session = b.pop('session')
+            caller = authorized(request, session, True, resource='study-question')
+            from ..research.study_questions import for_app
+            result = await asyncio.to_thread(for_app(built).answer, study, session, question, actor=caller.actor, label=caller.label, **b)
+            return reply({'ok': True, 'question': result})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
     @app.get(prefix + '/workflows')
     async def workflows(request: Request, session: str):
         try:

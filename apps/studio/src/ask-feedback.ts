@@ -4,7 +4,7 @@ export interface AskFailure extends AskScope { error: string; status: string; dr
 const same = (a: AskScope, b: AskScope) => a.day === b.day && a.thread === b.thread;
 /** The server's reasons in words a person can act on (the server's own words are a ticket; until then they are mapped here). */
 const PLAIN_REASONS: [RegExp, string][] = [
-  [/planner did not answer/i, 'The Assistant needs its Google Gemini key before it can answer. Add it in Models, then ask again.'],
+  [/planner did not answer/i, 'The Assistant did not return an answer. Your question is kept; check its model status or try again.'],
   [/^CLIENT_MISMATCH\b/, 'This window lost its link to the studio. Reload to reconnect.'],
 ];
 /** A reason in words: a known one as a sentence a person can act on (`plain`), else the server's own words without a

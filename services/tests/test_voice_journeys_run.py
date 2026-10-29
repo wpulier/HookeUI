@@ -173,6 +173,7 @@ def test_shipped_plans_name_real_tools_and_known_fields(name):
     for step in [*plan.get("setup", []), *plan["steps"]]:
         expect = step.get("expect") or {}
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
+        assert expect.get("status") in (None, "latest") or (isinstance(expect["status"], int) and expect["status"] > 0), step["id"]
         assert set(expect.get("tools") or []) <= tools, (step["id"], set(expect["tools"]) - tools)
         assert step["kind"] in ("act", "view", "ask", "status", "idle", "restart", "typed", "plural", "close", "photo",
                                 "side", "stage"), step["id"]
@@ -257,3 +258,24 @@ def test_the_judge_numbers_the_lines_the_scorer_reads():
     judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
     assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
     assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]
+    assert "partner_quality: 0-3" in model.prompts[0] and "I've circled it." in model.prompts[0]  # calibrated
+    assert "Earlier" not in model.prompts[0] and 'Earlier, the user said "outline"' in model.prompts[1]  # the turns before
+
+
+def test_the_broad_journey_covers_what_a_partner_is_asked():
+    """Will, 2026-10-29: broad, not a memorised path. 25-30 requests in one session, each area covered."""
+    plan = stack.load_plan("part-2.5-broad")
+    spoken = [s for s in plan["steps"] if s.get("say")]
+    assert 25 <= len(spoken) <= 30 and len({s["say"] for s in spoken}) == len(spoken)
+    expects = {s["id"]: s.get("expect") or {} for s in plan["steps"]}
+    assert sum(1 for s in plan["steps"] if s.get("interrupt")) == 1
+    assert sum(1 for e in expects.values() if e.get("fails")) == 1
+    assert expects["thanks"]["tools"] == [] and not expects["thanks"].get("toolRequired")  # small talk: no tool
+    assert expects["two-researchers"]["researchers"] == 2 and run.researchers(plan) == 3
+    assert [e["status"] for e in expects.values() if e.get("status")] == [2, 2]  # the researcher the user named
+    assert any("compare_models" in e.get("tools", []) and e.get("multi") for e in expects.values())
+    assert {"reference_photo", "retrieve_page", "run_capability", "models_in_use", "set_default", "new_project"} <= \
+        {t for e in expects.values() for t in e.get("tools", [])}
+    assert [s["ensure"] for s in plan["steps"] if s.get("ensure")] == ["project:Nuclei", "project:Experiment", "project:Nuclei"]
+    assert plan["steps"][-2]["kind"] == "idle" and plan["steps"][-2]["waitFor"] == {"researcher": "latest-done"}
+    assert run.worst_case(plan, 1, "gpt-realtime-2.1", judge=True, setup=True) < 30  # one run's worst case stays bounded

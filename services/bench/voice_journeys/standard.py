@@ -602,6 +602,9 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         fail("no answer")
     if verdict and verdict.get("answered") is False:
         fail(f"not answered: {verdict.get('why', '')}")
+    # How it felt as a colleague (judge.py partner_quality, 0-3): reported, never a step failure.
+    quality = (verdict or {}).get("partner_quality")
+    row["partnerQuality"] = quality if isinstance(quality, (int, float)) and not isinstance(quality, bool) and 0 <= quality <= 3 else None
     row["judge"] = verdict
     return row
 
@@ -782,7 +785,10 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     bench["_fragments"] = fragments(bench)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
-        bench["_expectedResearcher"] = started_numbers[-1] if expect.get("status") and started_numbers else None
+        # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
+        status = expect.get("status")
+        bench["_expectedResearcher"] = status if isinstance(status, int) and not isinstance(status, bool) else \
+            started_numbers[-1] if status and started_numbers else None
         row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), unprompted)
         if expect.get("researchers"):
             numbers = sorted({board[rid] for rid in row["researcherIds"] if rid in board} | set(row["researcherNumbers"]))
@@ -861,6 +867,10 @@ def summarise(runs: list[dict]) -> dict:
                    "pointed": sum(1 for p in events if p["pointed"])},
         "reconnect": {"max": max((r["s"] for r in recon if r["s"] is not None), default=None), "n": len(recon)},
         "plain": {"share": round(sum(1 for s in spoken if s <= 2) / len(spoken), 3) if spoken else None, "n": len(spoken)},
+        "quality": {"mean": round(statistics.mean(q), 2) if (q := [r["partnerQuality"] for r in steps
+                                                                    if r.get("partnerQuality") is not None]) else None,
+                    "n": len(q), "under2": [r["id"] for r in steps if r.get("partnerQuality") is not None
+                                            and r["partnerQuality"] < 2]},
         "unasked": sum(r["unaskedChanges"] for r in steps),
         "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay,
                      "runsWithoutLiveView": no_live},
@@ -973,6 +983,13 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
     L.append(_line("Elegance", "One or two sentences", f"{_fmt(pl['share'], '')} of {pl['n']} lines", f"≥ {S['plainShare']:.0%}",
                    None if pl["share"] is None else pl["share"] >= S["plainShare"]))
     L.append(_line("Elegance", "Nothing on screen not asked for", str(s["unasked"]), "0", s["unasked"] == 0 if s["steps"] else None))
+    # Overall: how much it felt like a sharp colleague (the judge's partner_quality, 0-3). Reported, not a gate.
+    q = s.get("quality") or {}
+    under = q.get("under2") or []
+    L.append({"area": "Overall", "line": "Partner quality (0-3, judged)",
+              "value": (f"mean {q['mean']:.2f} over {q['n']} steps; under 2: {len(under)}"
+                        + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
+              "threshold": "reported, not a gate", "result": "reported" if q.get("mean") is not None else "not measured"})
     if voice in VOICES_WITHOUT:
         for line in L:
             if line["line"] in ONE_BRAIN_ONLY:
@@ -982,8 +999,9 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
 
 def meets(board: list[dict]) -> bool:
     """The standard holds only when every line passes: a line not measured, or not applicable to the voice, is not a
-    pass (a voice without a feature the standard asks for does not meet it)."""
-    return all(line["result"] == "pass" for line in board)
+    pass (a voice without a feature the standard asks for does not meet it). Overall's partner quality is reported only,
+    never a gate."""
+    return all(line["result"] == "pass" for line in board if line["area"] != "Overall")
 
 
 def markdown(result: dict) -> str:

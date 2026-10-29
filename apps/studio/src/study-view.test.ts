@@ -315,3 +315,20 @@ it('does not say no work ran when an agent admitted workflow experiments', () =>
   expect(text()).toContain('Workflow experiments are shown in the Study.');
   expect(text()).not.toContain('None yet. Prepare the inputs');
 });
+
+// The actual study -> Assistant handoff must refuse before clearing or navigating.
+it('an unavailable Study ask keeps the question in place and does not hand it off', () => {
+  vi.stubGlobal('document', syntheticDOM().document);
+  const root = new TestElement('article'), ask = vi.fn(() => true), setup = vi.fn();
+  let reason: string | null = 'Gemini needs a key in this workspace.';
+  renderStudy(root as unknown as HTMLElement, study, {control:vi.fn(),ask,askBlocked:()=>reason,setupAssistant:setup});
+  const form=root.querySelector('.study-ask-composer')!,field=form.querySelector('textarea')!;
+  field.value='what does it mean?';fire(form,'submit');
+  expect(ask).not.toHaveBeenCalled();expect(field.value).toBe('what does it mean?');
+  expect(root.textContent).toContain('Gemini needs a key in this workspace.');
+  expect(form.querySelector('.mm-composer-send')!.disabled).toBe(true);
+  fire(root.querySelector('.study-ask-setup')!,'click');expect(setup).toHaveBeenCalledOnce();
+  reason=null;fire(form,'assistant-readiness');expect(form.querySelector('.mm-composer-send')!.disabled).toBe(false);
+  expect(field.value).toBe('what does it mean?');
+  fire(form,'submit');expect(ask).toHaveBeenCalledOnce();expect(field.value).toBe('');
+});
