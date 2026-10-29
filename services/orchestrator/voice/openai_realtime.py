@@ -75,6 +75,8 @@ RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the 
 # If the result lands before the line is heard starting, the line is let go unheard and the result is said instead;
 # one already playing is heard to its end. Its outputs then going on as "still running" are not said again.
 PROGRESS_AFTER_S = 5.0
+# After the voice's own lead-in ("Outlining that now.") the wait is already said: a line comes only if it runs long.
+PROGRESS_AFTER_LEADIN_S = 12.0
 PROGRESS_LINES = 1
 # A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
 # length is set by its instructions; this only stops a runaway.
@@ -1636,7 +1638,8 @@ class RealtimeSession(VoiceSession):
             # would feel broken is filled.
             now = self.clock()
             quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
-            if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= PROGRESS_AFTER_S
+            wait = PROGRESS_AFTER_LEADIN_S if rid in self._first_audio else PROGRESS_AFTER_S
+            if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= wait
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
                 facts = self.running_facts() or "the tool you called"
@@ -1652,10 +1655,12 @@ class RealtimeSession(VoiceSession):
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:
             return
-        if progress and still_running and go_on and not ack:
-            # The line said it is under way; outputs that only say so again are not said a second time (the outcome
-            # comes as one line when it lands).
-            self._log({"kind": "partner-round-quiet", "n": n, "why": "a progress line said it is under way"})
+        if (progress or rid in self._first_audio) and still_running and go_on and not ack:
+            # A progress line, or the voice's own words before the tool in the reply that called it ("Outlining that
+            # now."), said it is under way; outputs that only say so again are not said a second time (the outcome
+            # comes as one line when it lands). Will's try-out, 29 Oct: three "still working" lines for one request.
+            self._log({"kind": "partner-round-quiet", "n": n,
+                       "why": "a progress line said it is under way" if progress else "its lead-in said it is under way"})
             return
         if pointing and shown:
             self._log({"kind": "partner-round-quiet", "n": n, "why": "the marks went with the words"})
