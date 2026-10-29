@@ -180,6 +180,31 @@ applicable to this voice" for it. Barge-in applies to both voices (GPT-Live's op
 speaking over it; the second pass has the interruption). "Not applicable" is not a pass: a voice without a feature the
 standard asks for does not meet it.
 
+## The watcher on footage
+
+`bench/watch_bench.py` runs the watcher (`orchestrator/view_watch.py`) with no voice, no model and no cost: every frame
+goes through the hub's own per-frame analysis (the eyepiece disc, the slide's motion and epoch, sharpness and light, the
+disc's edge, JPEG at the bridge's quality) and the coach, on the footage's own clock. Its synthetic footage is the
+bundled example as a brightfield-like slide through an eyepiece, with what a hand-held phone adds: sensor noise,
+sub-pixel shake, a jolt every 25 s, the focus breathing (sharpness swinging 13% median, 15% p90 within a second, near the
+June 14 footage's 6%, 15% and 29%) and light flicker. `--video` runs it over a recording and lists its events.
+
+Measured 2026-10-29 (30 fps, `--minutes 60`):
+
+| Scenario | Truth | Raised | After it happened |
+|---|---|---|---|
+| pan (most of the eyepiece, then still) | one slide-moved | one | 0.73 s (settled 0.6 s, then the tracker's steady frames) |
+| cut (continuity lost, then still) | one slide-moved | one | 1.87 s (still 1.2 s first, for a rejoin) |
+| defocus (a blur that stays) | one focus-drifted | one | 2.97 s (under 60% for 3 s) |
+| light halved | nothing | nothing | |
+| knob turned and left blurred | nothing | nothing (one focus-drifted without the coach's sweep) | |
+| steady, 60 minutes | nothing | **0 false alarms** | |
+
+The watcher's own cost on the frame path over that hour: p50 8.4 µs, p99 36.6 µs, at most 2.3 ms once in 108,000
+frames. The stack's panning clip (`stack.panning_clip`) gives one slide-moved, 0.8 s after its move ends, and four
+plays of the noisy loop none. The synthetic hour is not a real recording: run `--video` on a steady real one (the June
+14 recordings, in the assets store) for its false alarms per hour.
+
 ## Read the scoreboard
 
 `scoreboard.md` has one row per line: area, line, what was measured (with how many samples), the standard, and

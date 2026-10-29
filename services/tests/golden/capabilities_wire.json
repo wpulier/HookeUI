@@ -12126,7 +12126,7 @@
      "label": "Quiet",
      "licence": "",
      "models": [],
-     "note": "says when the focus drifts or counted cells change; a move of the slide is only noted",
+     "note": "says when the focus drifts or counted cells change; a move of the slide is only noted; synthetic bench: 0 false alarms in an hour",
      "readiness": {
       "group": "Ready",
       "next": null,

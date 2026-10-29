@@ -310,8 +310,9 @@ other files.
   - **On the camera path, newest frame only:** a listener on every published frame (`Hub.on_frame`, after the coach's)
     that reads the numbers the hub already measured (offset, epoch, steady, the disc, sharpness stats): nothing
     decoded, copied, queued or awaited, a late frame simply the newest. The counted population is read once a second,
-    after the frame's publish (`call_soon`), from the layer's own member checks. Its cost on the frame path: p50 6 µs,
-    p99 under 60 µs a frame (`bench/watch_bench.py`), against a 33 ms frame.
+    after the frame's publish (`call_soon`), from the layer's own member checks. Its cost on the frame path: p50 8 µs,
+    p99 37 µs a frame over a synthetic hour (`bench/watch_bench.py`; one frame of 108,000 took 2.3 ms), against a
+    33 ms frame; the population's reading 0.1 ms for 500 members, once a second.
   - **Events, on the settled view only,** each a measured change, never a name or a verdict:
     - **slide-moved:** the view settled (Sight's `SETTLE_S`) more than Sight's `MOVED_FRACTION` of the eyepiece's
       radius from where it last settled, or after continuity was lost once the tracker had `CUT_SETTLE_S` (1.2 s) to
@@ -345,10 +346,11 @@ other files.
     makes every rule context. A kind is told at most once in its gap (`GAP_S`: a slide move 10 s, focus 60 s,
     counted cells 20 s). Only the one-brain voice gets them (`Partner.happened`); every event is logged
     (`watch-event`, delivered or not).
-  - **Measured** (`docs/bench/voice-journeys.md`, "The watcher on footage"): on synthetic eyepiece footage through the hub's own analysis, a pan, a cut and
-    a defocus each raised one event (0.7 s, 1.9 s and 3.0 s after it happened), a halved light and a turn of the knob
-    none, and a steady hour none. The journey bench's watch lines (`plans/part-2.5-watch.json`, the broad journey):
-    event to speech at most 2 s when nobody is talking, and false alarms per hour.
+  - **Measured** (`docs/bench/voice-journeys.md`, "The watcher on footage"): on synthetic eyepiece footage through the
+    hub's own analysis, a pan, a cut and a defocus each raised one event (0.7 s, 1.9 s and 3.0 s after it happened),
+    a halved light and a turn of the knob none, and a steady hour none (0 false alarms in 60 minutes). The journey
+    bench's watch lines (`plans/part-2.5-watch.json`, the broad journey): event to speech at most 2 s when nobody is
+    talking, and false alarms per hour.
 - Outcomes (`orchestrator/outcomes.py`, tool `outcomes`, K3): how each way of doing something has gone on this
   specimen, from the executions and only unambiguous signals (the user's corrections of their members, blind
   votes of the outline trials that compared them, won or lost only for a letter winner, ties and "none good" apart,
