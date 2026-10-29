@@ -543,6 +543,21 @@ export class View {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }
 
+  /** The outlines drawn on the live view now (tracking, this epoch, in the eyepiece), with their kind: what Hands'
+   * verifier checks a highlight or a clear against (screen.ts verifierLegacy). */
+  drawnOutlines(): { id: string; kind: string }[] {
+    const h = this.header;
+    if (!h || !this.outlinesVisible || this.hideOverlays) return [];
+    return this.objects.filter((o) => isVisible(o, h)).map((o) => ({ id: o.id, kind: String(o.kind || 'part') }));
+  }
+
+  /** The shown population's members, and how many are drawn on this frame (outline(model, target)'s check). */
+  layerMembers(): { count: number; drawn: number } | null {
+    const h = this.header, pop = this.population;
+    if (!pop) return null;
+    return { count: pop.count, drawn: h ? drawable(pop, this.layer, h).members.filter((m) => !memberLook(m, this.layer?.style).hidden).length : 0 };
+  }
+
   /** Whether the scene has the outline `id` at all (drawn or not). */
   hasObject(id: string): boolean {
     return this.objects.some((o) => o.id === id);

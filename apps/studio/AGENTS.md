@@ -1064,6 +1064,30 @@ everything above. It talks over WebRTC only, whatever the saved Voice link. Its 
   - A Project the voice itself opened had its Tab input refused, so its Tabs said "Not opened" and the studio kept
     reporting the Project left. Every show_measurements, tabs and present-close then failed for the rest of Talk
     ("the studio that asked is not showing this Project's Tabs"; bench think-broad-1).
+- **Hands: the partner cursor and takeover** (`drive.ts`, `drive.css`; the live-partner spec 4.2 and decision 2; the wire
+  is docs/architecture/on-screen.md "Hands: the partner's drive").
+  - **The cursor.** Before each intent runs, the server sends `drive` (its id, the control `version`, and an intent with
+    a kind, a target in the marks grammar or `control:<element id>`, and a 2–4 word caption). A pointer drawn inside
+    Hooke's window moves there, eased over 320 ms, with the caption beside it. Things on the picture are ringed
+    instead (`defaultStyle`).
+    - It never moves the Mac's pointer and never takes a click: it is one fixed layer moved by transforms.
+    - `drive-shown` answers once it arrives with the target's rect, or at once with `ok:false` and why (marks' values,
+      plus `stale` for a cue planned before the user took control back).
+    - It follows its target each frame.
+    - `drive-end` shows a tick (verified) or a cross (failed) for a moment, then fades; uncertain and running just fade.
+  - **Takeover.** While `control` says the partner has it, the user takes control back in the same task as their
+    input: their own pointer moving at least 3 px over the window, Escape (which then closes nothing else), or the talk
+    key or button. The cursor stops and fades, and `takeover` goes to the server with the version the studio last saw.
+    The server raises the version, drops everything queued and acknowledges with `control` (`ack`).
+    - Measured in Chromium (`drive.fixture.html`, with real pointer, key and click input, and a worker standing in
+      for the server): input to cursor stopped at most 18 ms; input to the server's acknowledgement 3–18 ms.
+  - **The verifier's report.** Within the existing screen check, the report carries what each intent is checked
+    against (`screen.ts` `verifierLegacy`, bounded as `workspace_observation._legacy` checks):
+    - the Project's open Tabs in strip order with the one in front (`workspace.tabs`);
+    - the outlines drawn now with their kind (`drawn`, on the outlines item);
+    - the layer's members and how many are drawn (`members`);
+    - already there: the selection's ids, and the magnifier's outline and zoom level.
+    - Intents bind to the report's `seq`.
 - **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
   the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
   `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`

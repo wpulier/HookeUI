@@ -1,7 +1,7 @@
 // The screen report (screen.ts): sent when what is shown changes, saying which changes were applied and
 // which changes were the user's own (once).
 import { describe, expect, test } from 'vitest';
-import { rectOf, ScreenReporter, type ScreenItem, type WorkspaceObservation } from './screen';
+import { observeLegacyForTest, rectOf, ScreenReporter, verifierLegacy, type ScreenItem, type WorkspaceObservation } from './screen';
 import type { ClientCommand } from './protocol';
 import { SPACES } from './spaces';
 
@@ -125,5 +125,41 @@ describe('the accepted workspace report', () => {
     reporter.tick(450);
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ type: 'screen', seq: 1, viewport: { layoutSize: [1440, 900] } });
+  });
+});
+
+// Hands' verifier (the live-partner spec 4.2): the studio's report says what each intent's outcome is checked against,
+// within the existing screen check. The Project's open Tabs (focus, close a Tab), the outlines drawn now (highlight,
+// clear), the population layer's members (outline). Bounded as workspace_observation._legacy checks them.
+describe('the report carries what the verifier checks', () => {
+  test('the open Tabs, in strip order, one in front; the outlines drawn; the layer\'s members', () => {
+    const legacy = verifierLegacy({
+      tabs: [{ id: 'main', title: 'Main', front: false }, { id: 't2', title: 'Measurements', front: true }],
+      drawn: [{ id: 'o12', kind: 'highlight' }, { id: 'o3', kind: 'part' }],
+      members: { count: 341, drawn: 290 },
+    });
+    expect(legacy).toEqual({ tabs: [{ id: 'main', title: 'Main', front: false }, { id: 't2', title: 'Measurements', front: true }],
+      drawn: [{ id: 'o12', kind: 'highlight' }, { id: 'o3', kind: 'part' }], members: { count: 341, drawn: 290 } });
+  });
+
+  test('kept within the server\'s bounds: 24 Tabs, titles of 80, 60 outlines, drawn never over count', () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `t${i}`, title: 'x'.repeat(100), front: i === 29 }));
+    const legacy = verifierLegacy({ tabs: many, drawn: Array.from({ length: 80 }, (_, i) => ({ id: `o${i}`, kind: 'part' })),
+      members: { count: 10, drawn: 12 } });
+    expect(legacy.tabs).toHaveLength(24);
+    expect(legacy.tabs!.every((t) => t.title.length <= 80)).toBe(true);
+    expect(legacy.tabs!.filter((t) => t.front)).toHaveLength(1); // the one in front is kept even past 24
+    expect(legacy.drawn).toHaveLength(60);
+    expect(legacy.members).toEqual({ count: 10, drawn: 10 });
+  });
+
+  test('the new fields pass the report\'s own closed check', () => {
+    const observed = observeLegacyForTest({ schema: 'studio-surface-v1', scope: 'dom-observation',
+      workspace: { project: 'p1', tab: 't2', tabTitle: 'Measurements', tabs: [{ id: 'main', title: 'Main', front: false }, { id: 't2', title: 'Measurements', front: true }] },
+      drawn: [{ id: 'o12', kind: 'highlight' }], members: { count: 3, drawn: 2 } });
+    expect(observed.workspace!.tabs).toHaveLength(2);
+    expect(observed.drawn).toEqual([{ id: 'o12', kind: 'highlight' }]);
+    expect(observed.members).toEqual({ count: 3, drawn: 2 });
+    expect(() => observeLegacyForTest({ schema: 'studio-surface-v1', scope: 'dom-observation', members: { count: 1, drawn: 2 } })).toThrow();
   });
 });

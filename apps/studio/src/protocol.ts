@@ -1447,8 +1447,17 @@ export interface MarksMessage { type: 'marks'; id: string; marks: MarkSpec[]; un
 export interface MarksClear { type: 'marks-clear'; id?: string }
 /** The call ended (its 60-minute limit, a provider error): answer with a fresh offer on the same socket. */
 export interface Reoffer { type: 'reoffer'; id: string; why?: string }
-export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer;
-export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer'];
+/** Hands (the live-partner spec 4.2): who has control, and the control version every intent is bound to. While the
+ * partner has it, the user's input takes it back (drive.ts Takeover). */
+export interface ControlMessage { type: 'control'; version: number; owner: 'partner' | 'user'; ack?: boolean; at?: number }
+/** The partner cursor's cue before an intent runs: its target by the marks' ids (or control:<element id>) and a caption. */
+export interface DriveIntent { kind: 'open' | 'close' | 'focus' | 'highlight' | 'select' | 'zoom' | 'outline' | 'present' | string;
+  target: string; caption?: string; style?: 'cursor' | 'ring'; region?: [number, number, number, number]; polygon?: [number, number][] }
+export interface DriveMessage { type: 'drive'; id: string; version: number; intent: DriveIntent; frame?: MarkFrameRef }
+export type DriveOutcome = 'verified' | 'failed' | 'uncertain' | 'running';
+export interface DriveEnd { type: 'drive-end'; id: string; outcome?: DriveOutcome }
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end'];
 /** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
 export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
 // Studio -> server.
@@ -1459,7 +1468,9 @@ export type PartnerCommand =
   | { type: 'snapshot'; id: string; error: string }
   | { type: 'marks-shown'; id: string; resolved: MarkResolution[] }
   | { type: 'offer'; sdp: string; id: string } // a server's reoffer id, or the studio's own rc-<n> after a dropped connection
-  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number }; // the voice's measured output, as it changes
+  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number } // the voice's measured output, as it changes
+  | { type: 'drive-shown'; id: string; ok: boolean; rect?: [number, number, number, number]; why?: string } // the cue reached its target
+  | { type: 'takeover'; version: number; why: 'mouse' | 'escape' | 'talk'; at: number }; // the user took control back
 
 const MAGIC = 'MMF1';
 
