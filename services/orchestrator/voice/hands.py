@@ -41,7 +41,6 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable
 
-WHOLE_PICTURE = (0.04, 0.04, 0.92, 0.92)  # a frame target's region for the whole picture: x, y, width, height
 CUE_WAIT_S = 0.5  # the studio's drive-shown, at most; the cue never blocks the action
 RECONCILE_S = 30.0  # after a takeover, a cut-off effect is reconciled in the background for this long
 APPROVAL_S = 120.0  # a permission asked is good for this long
@@ -156,12 +155,15 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
                       caption="Zooming in", ids=[thing] if thing else [])
     if tool == "clear":
         return Intent("close", tool, args, target="panel:outlines", caption="Clearing outlines")
+    # A model run on the picture (a segmentation, a search) is computing, not driving Hooke's UI: the user's hand on
+    # Hooke never stops it (the spec's 4.2 table: background work keeps computing), it finishes and gets its receipt.
+    # Stopping it on a takeover cut Cellpose off a second in, every time (Will's feel check, 29 Oct).
     if tool == "outline_cells":
-        return Intent("outline", tool, args, target="frame", caption="Outlining")
+        return Intent("outline", tool, args, target="frame", caption="Outlining", background=True)
     if tool == "find":  # a search: its receipt says what was found, never "done"
         inside = _target_of(args.get("inside"))
         return Intent("find", tool, args, target=_thing_target(inside) if inside else "frame", caption="Looking for it",
-                      model=str(args.get("by") or ""))
+                      model=str(args.get("by") or ""), background=True)
     if tool in PROJECT_TOOLS:
         caption = "Opening the Project" if tool == "switch_session" else "Making a new Project"
         return Intent("project", tool, args, target="panel:sidebar", caption=caption, check="record",
@@ -585,28 +587,37 @@ class Hands:
             future.set_result(message)
 
     # --- the cue ------------------------------------------------------------------------------------------------
-    async def _cue(self, intent: Intent, frame: dict | None) -> dict | None:
+    async def _cue(self, intent: Intent, frame: dict | None) -> None:
+        """The cue, sent before the effect starts, so the studio always has it before the action's drive-end (sent from
+        a task of its own, a quick failure's end could arrive first and leave the cursor drawn after it: Will's feel
+        check, 29 Oct). The studio's answer is waited for on the side; the action never waits for it. An action on the
+        whole picture (outlining every cell) has nothing to point at: what it draws is its cue, so no ring flashes over
+        the view."""
+        if intent.target == "frame":
+            self.log({"kind": "partner-drive", "id": intent.id, "intent": intent.kind, "tool": intent.tool,
+                      "target": intent.target, "skipped": "the whole picture: what it draws shows it"})
+            return
         message = {"type": "drive", "id": intent.id, "version": intent.version,
                    "intent": {"kind": intent.kind, "target": intent.target or "panel:workspace",
-                              "caption": intent.caption,
-                              # The whole picture (outlining it): the studio rings a frame target only with a region
-                              # (marks.ts frameShape), so it is the picture, a little inside its edges.
-                              **({"region": list(WHOLE_PICTURE)} if intent.target == "frame" else {})},
-                   **({"frame": frame} if frame else {})}
+                              "caption": intent.caption}, **({"frame": frame} if frame else {})}
         future = asyncio.get_running_loop().create_future()
         self._shown[intent.id] = future
         sent = time.time()
+        await self._send(message)
+        self._spawn(self._cue_answer(intent, future, sent))
+
+    async def _cue_answer(self, intent: Intent, future: asyncio.Future, sent: float) -> None:
+        stop = asyncio.ensure_future(self.cancel.wait())
         try:
-            await self._send(message)
-            done, _ = await asyncio.wait({future, asyncio.ensure_future(self.cancel.wait())}, timeout=CUE_WAIT_S,
-                                         return_when=asyncio.FIRST_COMPLETED)
+            done, _ = await asyncio.wait({future, stop}, timeout=CUE_WAIT_S, return_when=asyncio.FIRST_COMPLETED)
             answer = future.result() if future in done else None
         finally:
             self._shown.pop(intent.id, None)
+            if not stop.done():
+                stop.cancel()
         self.log({"kind": "partner-drive", "id": intent.id, "intent": intent.kind, "tool": intent.tool,
                   "target": intent.target, "sentT": sent, "shownT": time.time() if answer else None,
                   "ok": (answer or {}).get("ok"), "why": (answer or {}).get("why")})
-        return answer
 
     # --- acting -------------------------------------------------------------------------------------------------
     def spends(self, intent: Intent) -> str | None:
@@ -681,7 +692,7 @@ class Hands:
                                                 **({"paused": True} if why == SPOKE else {})}, line, "failed")
                 intent.record = self._before(intent)
                 # The cue runs alongside the action and never delays it (the spec, 4.2: the cursor is feedback).
-                self._spawn(self._cue(intent, frame))
+                await self._cue(intent, frame)
                 if stop is not None and not intent.background:
                     self._stops[intent.id] = stop
                 try:

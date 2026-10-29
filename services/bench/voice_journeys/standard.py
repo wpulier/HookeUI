@@ -882,7 +882,8 @@ def drive(inter: list[dict], bench: dict) -> dict:
     (drive-shown within CUE_WAIT_S of its sending, else the effect ran without it), each user takeover's way from the
     studio to the server, every cue ended (drive-end, seen in the page), and no action after a takeover planned against
     an earlier control version."""
-    drives = [r for r in inter if r.get("kind") == "partner-drive"]
+    # An action on the whole picture has no cue (what it draws shows it: hands.Hands._cue), so it is no cue missed.
+    drives = [r for r in inter if r.get("kind") == "partner-drive" and not r.get("skipped")]
     hands = [r for r in inter if r.get("kind") == "partner-hands"]
     takeovers = [r for r in inter if r.get("kind") == "partner-takeover"]
     first = [r for r in drives if r.get("ok") and isinstance(r.get("shownT"), (int, float))

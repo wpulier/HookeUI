@@ -693,10 +693,10 @@ def test_a_voice_use_holds_for_the_later_steps_of_its_turn(monkeypatch):
     asyncio.run(go())
 
 
-def test_outlining_rings_the_whole_picture_and_hookes_record_decides_when_the_report_cannot(monkeypatch):
-    """Smoke run, 29 Oct: the cue's "frame" target had no region (the studio refused it, bad-target), and Cellpose's
-    outlines were said "not sure" because the report carried no counted layer. The population the run saved, in Hooke's
-    evidence store, is its record."""
+def test_outlining_everything_has_no_ring_and_hookes_record_decides_when_the_report_cannot(monkeypatch):
+    """An action on the whole picture sends no cue (a ring over the view flashed for nothing: Will's feel check, 29 Oct),
+    and Cellpose's outlines were said "not sure" because the report carried no counted layer: the population the run
+    saved, in Hooke's evidence store, is its record."""
     from types import SimpleNamespace as NS
 
     from orchestrator import evidence
@@ -710,8 +710,7 @@ def test_outlining_rings_the_whole_picture_and_hookes_record_decides_when_the_re
         hands.hub = NS()
         out = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
             0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
-        drive = next(m for m in studio.sent if m["type"] == "drive")
-        assert drive["intent"]["target"] == "frame" and drive["intent"]["region"] == list(hands_mod.WHOLE_PICTURE)
+        assert not [m for m in studio.sent if m["type"] == "drive"], "the whole picture: no ring flashing over the view"
         assert out["result"] == "verified" and out["said"] == "Done: 12 outlined."
         # The studio names the layer by its presentation, not the population, and carries no counts: no failure.
         screen["now"]["items"].append({"id": "layer:pr-1", "open": True, "view": {"legacy": {}}})
@@ -722,4 +721,28 @@ def test_outlining_rings_the_whole_picture_and_hookes_record_decides_when_the_re
         none = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
             0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
         assert none["result"] == "uncertain", "no record and no report: never done"
+    asyncio.run(go())
+
+
+def test_a_segmentation_keeps_running_when_the_user_takes_over_and_gets_its_receipt():
+    """Will's feel check, 29 Oct: a takeover a second into Cellpose stopped it, every time. A model run on the picture
+    is computing, not driving the UI: it finishes, whoever has control, and is checked then."""
+    async def go():
+        screen = {"now": report()}
+        hands, studio, _ = make(screen)
+        started = asyncio.Event()
+
+        finished = []
+
+        async def effect():
+            started.set()
+            await asyncio.sleep(0.05)
+            finished.append(True)
+            return {"ok": True, "summary": "41 cells"}
+        task = asyncio.ensure_future(hands.act("outline_cells", {}, effect))
+        await started.wait()
+        await hands.takeover({"type": "takeover", "why": "mouse", "version": hands.version})
+        out = await task
+        assert finished == [True], "the run was not stopped"
+        assert "took over" not in str(out.get("error") or "") and not out.get("stopped")
     asyncio.run(go())

@@ -202,6 +202,8 @@ class Board:
         text = str(ref or "").strip()
         if text.startswith("@"):
             text = step_output(ctx, text)
+        if text.startswith("outline:"):  # the marks' and the screen report's way of naming an outline (marks.ts)
+            text = text[len("outline:"):]
         if not text:
             return self._that(self.now(), ctx, None)
         if text in scene.objects:
