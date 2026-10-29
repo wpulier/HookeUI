@@ -205,7 +205,8 @@ class ClaudeThinker:
                     answers.append({"type": "tool_result", "tool_use_id": use["id"], "content": "reported"})
                     continue
                 progress(use.get("name") or "")
-                out = await call_tool(use["name"], use.get("input") or {})
+                # Its id is the step's: a retry of the same step gets the earlier receipt (partner_tools call_tool).
+                out = await call_tool(use["name"], {**(use.get("input") or {}), "_call_id": use.get("id") or ""})
                 result.tools.append(summary_of(use["name"], out))
                 blocks_out: list[dict] = [{"type": "text", "text": tool_text(out)}]
                 for jpeg, label in tool_pictures(out):
@@ -299,7 +300,7 @@ class SolThinker:
                     items.append({"type": "function_call_output", "call_id": call.call_id, "output": "reported"})
                     continue
                 progress(call.name)
-                out = await call_tool(call.name, args)
+                out = await call_tool(call.name, {**args, "_call_id": getattr(call, "call_id", "") or ""})
                 result.tools.append(summary_of(call.name, out))
                 items.append({"type": "function_call_output", "call_id": call.call_id, "output": tool_text(out)})
                 pictures.extend(tool_pictures(out))

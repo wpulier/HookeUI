@@ -25,7 +25,8 @@ from typing import Any
 
 from .base import ToolSpec
 from . import knowing
-from .hands import Hands, intent_of
+from .hands import Hands, Intent, intent_of
+from .records import Records
 
 # The registry's tools the voice gets, by name (tests/golden/tool_schemas.json): those this registry has are offered.
 # Web search is retrieve_page; a capability by name is run_capability (there once one is turned on); pictures are
@@ -36,13 +37,24 @@ PARTNER_TOOLS = ("present", "tabs", "show_measurements", "highlight", "find", "o
                  "run_capability", "reference_photo", "use", "set_default")
 # What `think`'s backend may call besides the voice's own (voice/think.py): the brain's longer tools, comparisons of
 # models among them. Never think itself, mark or look_hard (the voice points; the backend has the pictures).
+# Every capability the Actions panel can run is reachable here too (tests/test_partner_reach.py): the panel's own tools
+# that the voice does not call directly go to think, which acts through Hands as the voice does.
 THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_population", "group_cells",
                                "describe_groups", "read_result", "summarize_research", "researcher_followup",
-                               "make_table", "edit_table", "analyze", "make_graph", "read_analysis", "recall",
-                               "where_is", "magnifier_picture", "show_result", "close_result", "close_magnifier",
-                               "dissect", "contrast", "enhance", "snapshot", "outcomes", "individuals", "follow_cells")
-HANDS_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
-                         "outline_cells", "find"})  # what Hands wraps (hands.intent_of)
+                               "revise_work", "make_table", "edit_table", "analyze", "make_graph", "read_analysis",
+                               "recall", "where_is", "magnifier_picture", "show_result", "close_result",
+                               "close_magnifier", "show_in_magnifier", "dissect", "contrast", "enhance", "snapshot",
+                               "outcomes", "individuals", "follow_cells", "track_motion", "watch", "watching",
+                               "stop_watching", "what_happened", "hold", "focus_check", "set_style", "name_outline",
+                               "bookmark", "way_to_bookmark", "show_map", "calibrate_scale", "set_objective",
+                               "measure_saved_objects", "retain_population_labels", "compare_retained_methods",
+                               "register_volume", "describe_capability", "find_workflows", "assets", "add_asset")
+# The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
+# approval back.
+PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
+                              "outline_cells", "find", "start_researcher", "run_capability"})
+HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
+TURN_CHOICE_S = 20.0  # a voice `use` holds its choice for the later steps of its turn this long
 APPROVED = {"approved": {"type": "string", "description": (
     "Only after Hands asked permission for this (its result had result \"permission\") and the user said yes: that "
     "approval's id.")}}
@@ -125,8 +137,14 @@ class PartnerTools:
         self._task_now: dict[str, str] = {}  # task -> what it is doing now, in words
         # Hands: actions in Hooke typed, cued, verified and yielding to the user (hands.py); None runs tools directly.
         self.hands: Hands | None = Hands(send=self._send_studio, observe=self._observation,
-                                         log=lambda record: self.partner.log(record), hub=hub)
+                                         log=lambda record: self.partner.log(record), hub=hub,
+                                         records=Records(hub, services=getattr(brain, "services", None),
+                                                         shown=self.project_shown, landed=self.project_landed))
         self.hands.project = self._project
+        self.hands.turn = lambda: self.partner.turn()
+        self.hands.reconciled = self._reconciled
+        self._chosen: dict[int, tuple[dict, dict]] = {}  # turn -> a voice `use`'s choices, for its turn's later steps
+        self._steps: dict[str, int] = {}  # think task -> its calls so far (a call's step when the backend names none)
         self.backend = None  # think's backend factory (option -> backend); tests pass a fake
 
     def running_facts(self) -> str:
@@ -176,15 +194,48 @@ class PartnerTools:
                 params = json.loads(json.dumps(spec.parameters))
                 params.setdefault("properties", {}).update(DISTINCT)
                 spec.parameters = params
-            if self.hands is not None and spec.name in HANDS_TOOLS:  # an approval Hands asked for, given back
+            if self.hands is not None and spec.name in PERMISSION_TOOLS:  # an approval Hands asked for, given back
                 params = json.loads(json.dumps(spec.parameters))
                 params.setdefault("properties", {}).update(APPROVED)
                 spec.parameters = params
         return specs
 
     async def activity(self, args: dict) -> dict:
-        """Recent Activity lines, newest first (knowing.py)."""
-        return knowing.read(self.hub, args or {})
+        """Recent Activity lines of the Project open, newest first (knowing.py)."""
+        return knowing.read(self.hub, args or {}, project=self._project())
+
+    async def _reconciled(self, intent: Intent, receipt: dict) -> None:
+        """An action cut off by the user's takeover has ended: its real receipt goes to the voice as context, so a later
+        question about it is answered from it (its uncertain receipt was what was said)."""
+        facts = {"tool": intent.tool, "receipt": receipt.get("result"), "said": receipt.get("said"),
+                 **({"error": receipt["error"]} if receipt.get("error") else {})}
+        with contextlib.suppress(Exception):
+            await self.partner.happened("hands-reconciled", "An action cut off when the user took over has now ended "
+                                        "(context only, say nothing unless asked): "
+                                        + json.dumps(facts, ensure_ascii=False, default=str), delivery="context")
+
+    def _registry_words(self, name: str) -> dict:
+        """The registry's own words for a tool, for its intent: kind (effect or query), what it produces, its family."""
+        tool = (getattr(self.brain.registry, "tools", {}) or {}).get(name)
+        if tool is None:
+            return {}
+        words: dict = {"kind": getattr(tool, "kind", "effect"), "family": getattr(tool, "family", ""),
+                       "sets": tuple(getattr(tool, "sets", ()) or ())}
+        with contextlib.suppress(Exception):
+            words["produces"] = tool.produces
+        return words
+
+    def intent(self, name: str, args: dict) -> Intent | None:
+        """The call's typed intent (hands.intent_of), None for a look or without Hands."""
+        if self.hands is None:
+            return None
+        found = intent_of(name, args, **self._registry_words(name))
+        if found is not None and found.kind in ("outline", "find") and not found.model:
+            # outline(model, target): the model it outlines with, a choice this turn made (use) or the setting.
+            group = "cells" if name == "outline_cells" else "outline"
+            chosen = (self._chosen.get(self.partner.turn()) or ({}, {}))[1]
+            found.model = str(chosen.get(group) or getattr(getattr(self.hub, "settings", None), group, "") or "")
+        return found
 
     def _project(self) -> str | None:
         with contextlib.suppress(Exception):
@@ -219,32 +270,27 @@ class PartnerTools:
         return run
 
     # --- a registry tool ---------------------------------------------------------------------------
-    async def run(self, name: str, args: dict, *, n: int | None = None, patient: bool = False) -> dict:
-        """`patient`: a caller behind the voice (think) that waits for a long tool's outcome: past TOOL_WAIT_S the
-        result carries `_pending` for `outcome`, and the outcome is held from being said on its own."""
-        call_id = str((args or {}).get("_call_id") or "") or None  # the action's id: a retry is never a second effect
+    async def run(self, name: str, args: dict, *, n: int | None = None, patient: bool = False,
+                  action_id: str | None = None) -> dict:
+        """One call of a registry tool. Every acting one goes through Hands (its contract and receipt); a look runs
+        directly and its result is its answer. `patient`: a caller behind the voice (think) that waits for a long
+        tool's outcome: past TOOL_WAIT_S the result carries `_pending` for `outcome`, and the outcome is held from being
+        said on its own. `action_id`: the action's id (the voice's call id, or think's task and step): a retry is never
+        a second effect."""
+        call_id = str((args or {}).get("_call_id") or "") or action_id or None
         args = {k: v for k, v in (args or {}).items() if not k.startswith("_") and k != "after_steps"}
         n = self.partner.turn() if n is None else n
         if name in BACKGROUND and not patient:
             return self.background(name, args, n)
         distinct = str(args.pop("distinct_from", "") or "").strip() if name == "start_researcher" else ""
+        approved = str(args.pop("approved", "") or "") or None
         if self.fail_next is not None:
             why, self.fail_next = self.fail_next, None
             return {"ok": False, "error": why, "_log": {"fault": "bench"}}
         if name not in ONCE_PER_TURN:
-            if name in SCREEN_CHANGING:
-                async def screen_change() -> dict:
-                    async with self._screen:  # changes on screen one after another, each with its own look after it
-                        return await self._run(name, args, n, patient)
-                if self.hands is not None and intent_of(name, args) is not None:
-                    # An action in Hooke: typed, cued, re-checked, verified by the app, yielding to the user (hands.py).
-                    approved = str(args.pop("approved", "") or "") or None
-                    return await self.hands.act(name, args, screen_change, approved=approved, from_think=patient,
-                                                action_id=call_id, project=self._project())
-                return await screen_change()
-            return await self._run(name, args, n, patient)
+            return await self._act(name, args, n, patient, call_id, approved)
         # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second
-        # call of it in the same turn, in parallel or later and whatever its words, waits for the first's result.
+        # call of it in the same turn, in parallel or later and whatever its words, gets the first's receipt.
         key = (n, name)
         if distinct:
             # A researcher the model declares distinct from another this request asked for ("make two researchers, one
@@ -264,12 +310,65 @@ class PartnerTools:
         self._once = {k: v for k, v in self._once.items() if k[0] == n}  # only this turn's are kept
         slot = self._once[key] = asyncio.get_running_loop().create_future()
         try:
-            result = await self._run(name, args, n, patient)
+            result = await self._act(name, args, n, patient, call_id, approved)
         except BaseException as exc:
-            slot.set_result({"ok": False, "error": f"it did not finish ({type(exc).__name__})"})
+            if not slot.done():
+                slot.set_result({"ok": False, "error": f"it did not finish ({type(exc).__name__})"})
             raise
-        slot.set_result(result)
+        if not slot.done():
+            slot.set_result(result)
         return result
+
+    async def _act(self, name: str, args: dict, n: int, patient: bool, call_id: str | None,
+                   approved: str | None) -> dict:
+        """The call under its contract (Hands), or a look run directly."""
+        from .. import user_stop
+
+        intent = self.intent(name, args)
+        if intent is None:
+            result = await self._effect(name, args, n, patient, None)()
+            result.pop("_run", None)
+            return result
+        hands = self.hands
+        # Planned against what was seen: the voice's turn at its key-down (or its last look after an action), think's
+        # call at its start (the spec, 4.2: checked at the moment of dispatch against what it was planned on).
+        plan = hands.plan(None if patient else n, fresh=patient)
+        holder = user_stop.Stop() if intent.ui and not intent.background else None
+        receipt = await hands.act(name, args, self._effect(name, args, n, patient, holder), approved=approved,
+                                  from_think=patient, action_id=call_id, plan=plan,
+                                  stop=holder.stop if holder is not None else None, intent=intent)
+        if receipt.get("_look") is not None and plan.epoch == hands.epoch:
+            hands.fresh_look()  # it saw the screen after its action, and nobody took over meanwhile
+        return receipt
+
+    def _effect(self, name: str, args: dict, n: int, patient: bool, holder):
+        """The tool's run, as Hands runs it: changes on screen one after another, each with its own look after it; under
+        `holder` (user_stop.Stop) where a takeover may stop it."""
+        async def effect() -> dict:
+            from .. import user_stop
+
+            token = user_stop.STOP.set(holder) if holder is not None else None
+            try:
+                if name in SCREEN_CHANGING:
+                    async with self._screen:
+                        return await self._run(name, args, n, patient)
+                return await self._run(name, args, n, patient)
+            finally:
+                if token is not None:
+                    user_stop.STOP.reset(token)
+        return effect
+
+    async def settle(self, name: str, args: dict, early: dict, pending: tuple, action_id: str | None = None) -> dict:
+        """A long tool's outcome, waited for behind the voice (outcome), with its receipt checked again as it landed."""
+        result = await self.outcome(name, early, *pending)
+        intent = self.intent(name, args)
+        if result is early or intent is None:
+            result.pop("_run", None)
+            return result
+        receipt = await self.hands.verify(intent, result)
+        receipt.pop("_run", None)
+        self.hands.keep(action_id, receipt)
+        return receipt
 
     async def _run(self, name: str, args: dict, n: int, patient: bool = False) -> dict:
         words = await self.partner.words(n, WORDS_WAIT_S)
@@ -278,8 +377,9 @@ class PartnerTools:
         self.running[key] = (name, time.monotonic(), None)  # from its start: the runner waits its inline time first
         landing = None
         try:
-            run, ctx = await self._start(name, args, words)
+            run, ctx = await self._start(name, args, words, n)
             self.running[key] = (name, self.running[key][1], run)
+            self._stoppable(run)
             if run.ok is None and run.task is not None:
                 await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
             if run.ok is False and name in TAB_TOOLS and self.project_shown() is False:
@@ -289,8 +389,9 @@ class PartnerTools:
                 self.running[key] = (name, self.running[key][1], SimpleNamespace(progress=LANDING_WORDS))
                 landing = await self.project_landed()
                 if landing:
-                    run, ctx = await self._start(name, args, words)
+                    run, ctx = await self._start(name, args, words, n)
                     self.running[key] = (name, self.running[key][1], run)
+                    self._stoppable(run)
                     if run.ok is None and run.task is not None:
                         await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
         finally:
@@ -302,6 +403,18 @@ class PartnerTools:
         if action in self.held:
             result["_pending"] = (run, ctx, before, action)
         return result
+
+    @staticmethod
+    def _stoppable(run) -> None:
+        """The run a takeover's Stop cancels (user_stop.Stop.task), cancelled now if the Stop came while it started."""
+        from .. import user_stop
+
+        holder = user_stop.current()
+        if holder is None or run.task is None:
+            return
+        holder.task = run.task
+        if holder.requested and not run.task.done():
+            run.task.cancel()
 
     async def _answer(self, name: str, run, ctx, before: float, *, file: bool = True,
                       landing: bool | None = None) -> dict:
@@ -336,6 +449,7 @@ class PartnerTools:
                 result["_point"], result["pointed_at"] = points, points
                 result["pointing"] = "Hooke points at this as you speak about it: do not call mark for it."
         result["_log"] = log
+        result["_run"] = run  # for Hands' receipt (records.py); never sent to the model
         return result
 
     async def outcome(self, name: str, early: dict, run, ctx, before: float, action: str) -> dict:
@@ -406,13 +520,14 @@ class PartnerTools:
                         "its result (do not say it is found or shown): it is told to you to say when it lands."}
 
     async def _background(self, name: str, args: dict, n: int, task: str) -> None:
+        """Its receipt is checked as its result lands (a reference photo: its window in the studio's report)."""
         result = await self.run(name, args, n=n, patient=True)
         pending = result.pop("_pending", None)
         if pending is not None:
             key = object()
             self.running[key] = (name, time.monotonic(), pending[0])
             try:
-                result = await self.outcome(name, result, *pending)
+                result = await self.settle(name, args, result, pending)
             finally:
                 self.running.pop(key, None)
         points = list(result.get("_point") or [])
@@ -443,8 +558,10 @@ class PartnerTools:
         option = VOICE.get("gpt-realtime-2.1")
         return f"{model} ({option.label if option else 'one brain'}, cloud)"
 
-    async def _start(self, name: str, args: dict, words: str):
-        """The tool as the brain runs it, in a voice request of its own, attributed to the Assistant by voice."""
+    async def _start(self, name: str, args: dict, words: str, n: int | None = None):
+        """The tool as the brain runs it, in a voice request of its own, attributed to the Assistant by voice. A `use`
+        earlier in the same turn holds for this call (its choices on this request's ticket): "use SAM 3.1 for this"
+        then the outline it was for."""
         from ..brain.actions import ActionRunner
         from ..brain.registry import ToolContext
         from ..ticket import issue, using
@@ -452,6 +569,10 @@ class PartnerTools:
         brain, hub = self.brain, self.hub
         conversation = brain.conversation
         request = issue(hub, "turn", asked=conversation.here(), channel="voice")
+        chosen = self._chosen.get(n) if n is not None else None
+        if chosen is not None:  # the same dicts: what this step uses is marked used on the choice itself
+            request.choices.update(chosen[0])
+            request.overrides.update({k: v for k, v in chosen[1].items() if k not in request.overrides})
         with using(request):
             try:
                 info = hub.latest_info
@@ -477,6 +598,10 @@ class PartnerTools:
                 runner = ActionRunner(brain.registry, hub, lambda: brain.sight, self._late, board,
                                       log=getattr(brain.agent, "log", None))
                 runs = await runner.run([(name, args)], ctx)
+                if name == "use" and runs and runs[0].ok and n is not None and request.choices:
+                    # Held for the turn's later steps; a choice none of them uses is still said (ticket.UNUSED_CHOICE).
+                    request.keep_choices(TURN_CHOICE_S)
+                    self._chosen = {n: (request.choices, request.overrides)}
             finally:
                 request.seal()
         return runs[0], ctx
@@ -499,6 +624,8 @@ class PartnerTools:
             out["resource"] = run.resource
         if run.ok is False and not run.summary:
             out["error"] = "it did not work"
+        if getattr(run, "stopped", False):
+            out["stopped"] = True
         return out
 
     def _file(self, run, ctx) -> None:
@@ -745,17 +872,23 @@ class PartnerTools:
             self.running[key] = (f"thinking with {option}, now running {tool}", self.running[key][1], None)
 
         async def call_tool(name: str, args: dict) -> dict:
+            args = dict(args or {})
+            # The action's id: the task and its step (the backend's own id for the call), so a retry of the same step
+            # returns its receipt and is never a second effect.
+            step = str(args.pop("_call_id", "") or "")
+            if not step:
+                self._steps[task.id] = self._steps.get(task.id, 0) + 1
+                step = f"s{self._steps[task.id]}"
             if name == "activity":
-                return knowing.read(self.hub, args or {})
+                return knowing.read(self.hub, args, project=self._project())
             if name not in THINK_TOOLS:
                 return {"ok": False, "error": f"there is no {name} tool here"}
-            result = await self.run(name, args, n=n, patient=True)
+            action = f"{task.id}:{step}"
+            result = await self.run(name, args, n=n, patient=True, action_id=action)
             pending = result.pop("_pending", None)
             if pending is None:
                 return result
-            result = await self.outcome(name, result, *pending)
-            intent = intent_of(name, args) if self.hands is not None else None
-            return self.hands.verify(intent, result) if intent is not None else result
+            return await self.settle(name, args, result, pending, action)
 
         log = getattr(self.partner, "log", lambda record: None)
         missing = "ANTHROPIC_API_KEY" if not option.startswith("gpt-") else "OPENAI_API_KEY"
@@ -769,6 +902,7 @@ class PartnerTools:
                 result = await thinking.think(task, backend, self.think_tools(), call_tool, progress, THINK)
         finally:
             self.running.pop(key, None)
+            self._steps.pop(task.id, None)
         if result.refused:
             other = "GPT-6.1 Sol" if not option.startswith("gpt-") else "Claude Opus 5.5"
             result.say = result.say or ""
