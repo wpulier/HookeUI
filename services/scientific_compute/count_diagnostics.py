@@ -36,7 +36,7 @@ def _population(file, params, check):
         if np.sum(contexts == context) < 2:
             raise engine.Refused('Each population needs at least two cells')
         records[context] = {'population': str(next(iter(populations))), 'depths': [],
-                            'sum': np.zeros(len(genes)), 'square': np.zeros(len(genes)),
+                            'mean': np.zeros(len(genes)), 'm2': np.zeros(len(genes)),
                             'detected': np.zeros(len(genes)), 'normalized': np.zeros(len(genes))}
     for start in range(0, matrix.shape[0], engine.BLOCK_ROWS):
         check()
@@ -51,15 +51,22 @@ def _population(file, params, check):
             if np.any(depth <= 0) or not np.isfinite(depth).all():
                 raise engine.Refused('Normalized diagnostics need positive finite cell depths')
             record = records[context]
+            previous = len(record['depths']); count = block.shape[0]
+            batch_mean = np.asarray(block.sum(axis=0)).ravel() / count
+            # Center within this bounded row block, then combine moments. E[X²]-E[X]²
+            # would lose small real variance at large count offsets.
+            centered = block.toarray() - batch_mean
+            batch_m2 = np.einsum('ij,ij->j', centered, centered)
+            delta = batch_mean - record['mean']
+            record['mean'] += delta * (count / (previous + count))
+            record['m2'] += batch_m2 + delta ** 2 * (previous * count / (previous + count))
             record['depths'].extend(depth.tolist())
-            record['sum'] += np.asarray(block.sum(axis=0)).ravel()
-            record['square'] += np.asarray(block.power(2).sum(axis=0)).ravel()
             record['detected'] += np.asarray((block > 0).sum(axis=0)).ravel()
             record['normalized'] += np.asarray(block.multiply((params['normalization_total'] / depth)[:, None]).sum(axis=0)).ravel()
     for record in records.values():
         n = len(record['depths'])
-        mean = record.pop('sum') / n
-        variance = np.maximum(0, record.pop('square') / n - mean ** 2)
+        mean = record.pop('mean')
+        variance = record.pop('m2') / n
         normalized = record.pop('normalized') / n
         zero = 1 - record.pop('detected') / n
         if not all(np.isfinite(a).all() for a in (mean, variance, normalized, zero)):

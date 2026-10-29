@@ -90,3 +90,17 @@ def test_malformed_pointer_refuses_before_reading_counts(tmp_path):
     source = adata(tmp_path/'source.h5ad', [[1, 2]]*2, ['a']*2, ['x']*2)
     with h5py.File(source, 'r+') as f: f['X/indptr'][0] = 1
     with pytest.raises(engine.Refused): compare(tmp_path, source, source)
+
+
+@pytest.mark.parametrize('cells', [2, 258])
+def test_large_offsets_preserve_small_variance_across_blocks(tmp_path, cells):
+    anndata = pytest.importorskip('anndata')
+    import numpy as np
+    from scipy import sparse
+    source = adata(tmp_path/'source.h5ad', [[1, 2]]*cells, ['a']*cells, ['x']*cells)
+    data = anndata.read_h5ad(source)
+    data.X = sparse.csr_matrix(np.tile([[100000000, 1], [100000001, 1]], (cells//2, 1)), dtype=np.float64)
+    data.write_h5ad(source)
+    path, summary = compare(tmp_path, source, source)
+    assert json.loads(path.read_text())['details'][0]['reference']['variance'] == pytest.approx([.25, 0])
+    assert summary['contexts'][0]['metrics']['varianceRelativeL1'] == 0
