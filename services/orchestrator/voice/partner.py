@@ -457,7 +457,9 @@ class Partner:
         if self.session is None or self.session.closed:
             return
         if delivery == "context":
-            await self.session.inject(text, respond=False, source=event)
+            inject = getattr(self.session, "inject", None)
+            if inject is not None:
+                await inject(text, respond=False, source=event)
             return
         drawn = marks or ([{"target": mark, "style": "box"}] if mark else [])
         before = None

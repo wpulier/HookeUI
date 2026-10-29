@@ -30,7 +30,8 @@ frame only). Watches the user asked for ("tell me when they stop moving") are wa
 - **One delivery rule per kind** (`DELIVERY`, by option WATCH): "context" (told to the voice silently), "idle" (one
   sentence when nobody is talking) or "interrupt" (as soon as the user is not talking: the voice's own words give way).
   The user's "only what I asked" (`quieter`, "let me find things") makes every rule "context". A kind is told at
-  most once in its `GAP_S`. Every event is logged ("watch-event"), delivered or not: the bench counts false alarms from them.
+  most once in its `GAP_S`. Every event is logged ("watch-event"), delivered or not: the benches count false alarms
+  from them.
 """
 from __future__ import annotations
 
@@ -52,26 +53,28 @@ KINDS = ("slide-moved", "focus-drifted", "population-changed", "cell-divided")
 #   "idle"      said in one short sentence when nobody is talking (no key held, nobody spoke for 1.5 s)
 #   "interrupt" said as soon as the user is not talking: the voice's own words are stopped for it, never the user's
 DELIVERY = {
-    "quiet": {"slide-moved": "context", "focus-drifted": "idle", "population-changed": "idle", "cell-divided": "interrupt"},
-    "chatty": {"slide-moved": "idle", "focus-drifted": "idle", "population-changed": "idle", "cell-divided": "interrupt"},
+    "quiet": {"slide-moved": "context", "focus-drifted": "idle", "population-changed": "idle",
+              "cell-divided": "interrupt"},
+    "chatty": {"slide-moved": "idle", "focus-drifted": "idle", "population-changed": "idle",
+               "cell-divided": "interrupt"},
 }
 # A kind's next event is told to the voice at most this soon after its last (each is still logged, and counted).
 GAP_S = {"slide-moved": 10.0, "focus-drifted": 60.0, "population-changed": 20.0, "cell-divided": 5.0}
 
 CUT_SETTLE_S = 1.2  # after continuity was lost: still this long, so a rejoin of the same place (motion.py) comes first
-FOCUS_WINDOW_S = 1.0  # sharpness is the median over this long (the scope's own breathing: 6% median, 29% at most a second)
+FOCUS_WINDOW_S = 1.0  # sharpness is the median over this long (the scope's breathing: 6% median, 29% at most, a second)
 DRIFT_SHARE = 0.6  # under this share of the field's sharpest...
 DRIFT_HOLD_S = 3.0  # ...for this long, with nobody turning the knob: focus drifted
 RECOVER_SHARE = 0.85  # said again only after it came back above this share (or on a new field)
 POP_EVERY_S = 1.0  # the counted population is read this often
-POP_MIN, POP_SHARE = 3, 0.15  # members no longer in place (or back): at least this many and this share of those in place
+POP_MIN, POP_SHARE = 3, 0.15  # members no longer in place: at least this many and this share of those in place
 POP_HOLD = 3  # readings in a row
-POP_SETTLE_S = 2.0  # the view still this long before its baseline: the layer's checks (every 0.3 s) caught up after a move
+POP_SETTLE_S = 2.0  # still this long before a baseline: the layer's checks (every 0.3 s) caught up after a move
 POP_TRAVEL_PX = 16.0  # the slide moved more than this since the population's baseline: a new baseline (population.py)
 IN_VIEW = 0.9  # of the eyepiece's radius: a member's centre inside this is in view
 SHOWN_IDS = 8  # member ids named in an event, at most
-# Nothing in the app detects a division yet: following keeps one outline per thing (objtrack.py), and the linking model's
-# links are kept one to one (operations.py), so a division is never made. A detector would call ViewWatch.divided.
+# Nothing in the app detects a division yet: following keeps one outline per thing (objtrack.py), and the linking
+# model's links are kept one to one (operations.py), so a division is never made. A detector would call `divided`.
 DIVISION = None
 NO_DIVISION = ("not available: nothing in the app detects a cell dividing yet (following keeps one outline per thing, "
                "and linking keeps links one to one)")
@@ -185,7 +188,7 @@ class ViewWatch:
         self._previous: tuple | None = None  # (epoch, dx, dy, steady) of the frame before
         self._epochs: set[int] = set()  # every motion epoch seen
         self._focus: deque = deque()
-        self._best: tuple[float, float, float, float] | None = None  # (sharpness, raw, at, disc) of the field's sharpest
+        self._best: tuple | None = None  # (sharpness, raw, at, disc) of the field's sharpest
         self._low_since: float | None = None
         self._drift_said = False
         self._knob = False
@@ -376,7 +379,7 @@ class ViewWatch:
         crop = crop_of(info)
         changed = gone or back
         region = _region([boxes[m] for m in changed], crop)
-        point = [f"population:{population.id}"] + [f"member:{population.id}:{m}" for m in in_place & set(back)][:3]
+        point = [f"population:{population.id}"] + [f"member:{population.id}:{m}" for m in back[:3]]  # back: drawn
         self._pop = _Baseline(key, in_place, info.epoch, float(info.dx), float(info.dy), t)
         self._raise("population-changed", info, t, base.first, facts, point, region=region, crop=crop)
 
@@ -423,8 +426,9 @@ class ViewWatch:
                 to = f"failed: {type(exc).__name__}: {exc}"[:200]
             if to == "voice":
                 self._last_told[kind] = t
-        self.log({"kind": "watch-event", "event": kind, "id": event.id, "eventT": round(t, 3), "sinceT": round(since, 3),
-                  "frame": event.frame, "delivery": rule, "to": to, "pointAt": point, "facts": facts})
+        self.log({"kind": "watch-event", "event": kind, "id": event.id, "eventT": round(t, 3),
+                  "sinceT": round(since, 3), "frame": event.frame, "delivery": rule, "to": to, "pointAt": point,
+                  "facts": facts})
         return event
 
 

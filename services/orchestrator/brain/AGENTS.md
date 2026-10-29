@@ -21,6 +21,17 @@ other files.
   change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
   pause. Both write the same journal lines and conversation turns; neither replaces the other
   (docs/architecture/seeing-and-acting.md "The one-brain loop").
+- **Lines nobody asked for (the one brain's proactive events)** all go through `Partner.happened(event, text, ref=,
+  delivery=, marks=, frame=)` → `RealtimeSession.proactive`: a researcher finished or failed, a long tool done, a
+  capability turned on, and the watcher's events (`orchestrator/view_watch.py`: the slide settled on a new place, the
+  focus drifted, counted cells no longer where they were counted; a division is an interface with no detector yet).
+  The text is facts as JSON (what was measured, when it happened, the ids to point at), never words to read out: the
+  voice model decides how to say them, in one sentence. Each kind of the watcher's events has one delivery rule per
+  WATCH choice (`view_watch.DELIVERY`, the one table): "context" (a silent system item), "idle" (said when no key is
+  held, nothing is said and nobody spoke for 1.5 s) or "interrupt" (the voice's own words stopped for it, never the
+  user's); the user's quieter or "let me find things" makes them all context. Detector state is never pushed into the
+  prompt every turn: only events, and only by their rule (a standing note would be an option that must beat "model
+  alone"). GPT-Live has no `happened`, so it gets none of them; every watcher event is still logged (`watch-event`).
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

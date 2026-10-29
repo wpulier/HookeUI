@@ -777,7 +777,7 @@ LIBRARY_LOOKS = {
 # from numbers the hub already measures (no model call). Each kind of event has one delivery rule per choice
 # (view_watch.DELIVERY): "quiet" tells the voice a slide move silently and says a focus drift or a counted population's
 # change when nobody is talking; "chatty" says the slide's moves too; "off" watches nothing. A division (no detector
-# yet) would be said at once. Measured on synthetic still and moving footage (bench/watch_bench.py, docs/bench/watch.md).
+# yet) would be said at once. Measured on synthetic still and moving footage (bench/watch_bench.py).
 WATCH = {
     o.id: o
     for o in [

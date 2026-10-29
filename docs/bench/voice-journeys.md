@@ -82,7 +82,8 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 |---|---|
 | `part-2.5` | The journey's steps 1–8 and 10 in Will's words, voice Samantha, plus one multi-step request ("Outline the nuclei, then put their measurements in a new tab called Sizes."). Step 8 restarts the orchestrator on the same home and reloads the page, then checks that the Project, its Measurements Tab and the researcher are there. An idle wait before it lets a researcher finish, so its event can be told. Step 9 (a connected agent) is a person's step. |
 | `part-2.5-second` | The second pass: another order, other words, voice Karen. It adds one interruption (the key pressed 2.5 s into the voice's answer), one request that cannot succeed (a table that does not exist), one forced reconnect (`fault: close-provider`) and a switch to another Project while the researcher runs, then back. |
-| `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. An idle wait at the end lets the last researcher finish and its event be told. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
+| `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. Nobody talks while the slide is moved once (the watcher must raise it; with the default WATCH quiet it is told silently). An idle wait at the end lets the last researcher finish and its event be told, and counts the watcher's false alarms. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
+| `part-2.5-watch` | The watcher (`orchestrator/view_watch.py`) with WATCH chatty, the plan's own `settings`: "keep an eye on the slide with me", then nobody talks while the slide is moved once (a panning clip the stack makes from the still: held 14 s, moved over 2 s, held), "what just changed?", then 5 minutes where nothing happens. About $1.30 for the one brain. |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
@@ -117,7 +118,10 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
     number: "what's researcher 2 doing?");
   - `multi`: several steps, held to 8 s;
   - `fails`: the request cannot succeed, so the failure is its outcome;
-  - `judge`: what a good answer does, for the judge.
+  - `judge`: what a good answer does, for the judge;
+  - `watch` (idle steps): the watcher's events that must be raised within the step (`["slide-moved"]`), or `[]` for a
+    steady stretch where every event is a false alarm. A step's `footage` is switched before it starts, so the cut
+    that brings it is not counted in it.
 
 ## What is measured, and from where
 
@@ -154,6 +158,8 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
 | Events | `partner-proactive`: the event to its first audio ≤ 2 s; never while the key is held or within 1.5 s of release; one line per event; pointing at its card. |
+| Watch: an event said when idle | Only in plans with watch steps, when something was to be said or an expected event never came. Each `watch-event` the watcher told the voice to say (rule idle or interrupt), from its `eventT` (the frame at which it was established) to the first audio of its `partner-proactive` line: ≤ 2 s, never over the user, none missed, none raised in its watch step and left unsaid. One brain only. |
+| Watch: false alarms per hour | Every `watch-event` raised in a steady watch step (`expect.watch: []`), per hour of those steps: ≤ 1 an hour, provisional until Will accepts a rate. The watcher is the app's, so this applies to every voice. |
 | Reconnect | `partner-reconnect` `ms` (the bench fault closes the provider's call): ≤ 2 s. |
 | Live view | Frames per second and delay p90 while the journey runs, against the 10 s before Talk (else the setup's): at least 90% of the frame rate, no more than 50 ms added delay. Only seconds with a source on the stage count, and a freeze with a source on it fails; a run with nothing on the stage says "not measured: no live view on the stage". |
 | Robustness | Runs with no failed step. A step fails on any of the above, no answer, or a missing restart check. |

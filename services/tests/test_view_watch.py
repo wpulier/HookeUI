@@ -84,7 +84,8 @@ def test_a_still_view_raises_nothing_and_a_move_to_a_new_field_is_one_event_when
     assert event.facts["moved"]["fieldsOfView"] == pytest.approx(275 / 600, abs=0.02)
     assert event.facts["contentMoved"] == "toward the left"
     assert event.point == ["frame"] and event.marks()[0]["target"] == "frame" and event.frame_ref()["id"] == event.frame
-    assert logged[-1]["kind"] == "watch-event" and logged[-1]["eventT"] == round(event.at, 3) and logged[-1]["to"] == "voice"
+    record = logged[-1]
+    assert record["kind"] == "watch-event" and record["eventT"] == round(event.at, 3) and record["to"] == "voice"
 
 
 def test_a_nudge_is_the_same_field_and_small_nudges_that_add_up_are_a_move():
@@ -390,8 +391,9 @@ def test_the_partner_tells_context_silently_says_idle_lines_and_an_interrupt_sto
         await Partner.happened(p, "slide-moved", "{}", ref="v1", delivery="context")
         assert quiet.calls == [("inject", False, "slide-moved")]
         mark = [{"target": "frame", "region": [0.1, 0.1, 0.2, 0.2], "style": "box"}]
-        await Partner.happened(p, "population-changed", "{}", ref="v2", marks=mark, frame={"id": 9, "crop": [0, 0, 9, 9]})
-        assert quiet.calls[-1] == ("proactive", "population-changed", "v2", "frame") and p.drawn == [(mark, {"id": 9, "crop": [0, 0, 9, 9]})]
+        frame = {"id": 9, "crop": [0, 0, 9, 9]}
+        await Partner.happened(p, "population-changed", "{}", ref="v2", marks=mark, frame=frame)
+        assert quiet.calls[-1] == ("proactive", "population-changed", "v2", "frame") and p.drawn == [(mark, frame)]
         speaking = Session(speaking=True)
         p = partner_with(speaking)
         await Partner.happened(p, "cell-divided", "{}", ref="v3", delivery="interrupt")
@@ -400,4 +402,41 @@ def test_the_partner_tells_context_silently_says_idle_lines_and_an_interrupt_sto
         p = partner_with(over_user)
         await Partner.happened(p, "cell-divided", "{}", ref="v4", delivery="interrupt")
         assert ("stop",) not in over_user.calls  # never over the user: it waits for quiet like any line
+    asyncio.run(go())
+
+
+def test_a_watcher_event_reaches_the_real_session_said_when_quiet_with_its_mark_or_told_silently(monkeypatch):
+    """The app's delivery (app.py watch_told) on the one-brain session over a fake sideband: an idle event is one
+    proactive response (no tools), its frame region drawn as it is said; a context event is a system item only."""
+    from tests.test_voice_partner import partner_session, until_async
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.session._last_user_at -= 5.0  # nobody has spoken for a while
+
+        def deliver(event, rule):
+            asyncio.get_running_loop().create_task(t.partner.happened(
+                event.kind, event.text(), ref=event.id, delivery=rule, marks=event.marks(), frame=event.frame_ref()))
+            return "voice"
+
+        hub = SimpleNamespace(latest_info=None, layer=None, view_held=False)
+        watch = W.ViewWatch(hub, deliver=deliver, mode=lambda: "chatty")
+        feed = Feed(watch)
+        feed.still(2)
+        feed.pan(-300, 0)
+        feed.still(1)
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert marks["marks"][0]["target"] == "frame" and marks["frame"]["id"] == watch.events[0].frame
+        await until_async(lambda: t.sb.responses == 1)
+        response = t.sb.sent[-1]["response"]
+        assert response["metadata"]["cause"] == "proactive" and response["tool_choice"] == "none"
+        facts = [i for i in t.sb.items() if i.get("role") == "system" and "slide-moved" in i["content"][0]["text"]]
+        assert facts and '"eventT"' not in facts[0]["content"][0]["text"]  # the wall clock as hh:mm:ss, the log has eventT
+        said = await until_async(lambda: next((r for r in t.logged if r["kind"] == "partner-proactive"), None))
+        assert said["ref"] == watch.events[0].id and said["markTarget"] == "frame"
+        await t.partner.happened("slide-moved", '{"event": "slide-moved"}', ref="v9", delivery="context")
+        await asyncio.sleep(0.05)
+        assert t.sb.responses == 1
+        assert any(i["content"][0]["text"].startswith("Context only") and '"event": "slide-moved"' in i["content"][0]["text"]
+                   for i in t.sb.items() if i.get("role") == "system")
     asyncio.run(go())

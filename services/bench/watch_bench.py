@@ -22,7 +22,7 @@ second), light flicker and JPEG at the bridge's quality. Each scenario knows whe
   cd services && .venv/bin/python -m bench.watch_bench --video REC.mp4      # a real recording: every event listed
 
 A real recording has no truth here: its events are listed with their times for a person to check against the video
-(a steady stretch of one, with nothing happening, gives its false alarms per hour). Results: docs/bench/watch.md.
+(a steady stretch of one, with nothing happening, gives its false alarms per hour). Results: docs/bench/voice-journeys.md, "The watcher on footage".
 """
 from __future__ import annotations
 
@@ -88,7 +88,8 @@ class Scope:
         half = int(R + 40)
         x0, y0 = self.x + sx - half, self.y + sy - half
         m = np.float32([[1, 0, -x0], [0, 1, -y0]])
-        view = cv2.warpAffine(self.slide, m, (2 * half, 2 * half), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REFLECT)
+        view = cv2.warpAffine(self.slide, m, (2 * half, 2 * half), flags=cv2.INTER_LINEAR,
+                              borderMode=cv2.BORDER_REFLECT)
         if sigma > 0.15:
             view = cv2.GaussianBlur(view, (0, 0), sigma)
         canvas = np.zeros((H_, W_), np.float32)
@@ -189,7 +190,8 @@ def run_scenario(name: str, minutes: float, fps: float) -> dict:
     return {"scenario": name, "seconds": round(total / fps, 1), "expected": [k for k, _ in expected],
             "found": len(matched), "missed": len(expected) - len(matched), "latencyS": latencies,
             "falseAlarms": len(false), "falsePerHour": round(len(false) / hours, 2) if name == "steady" else None,
-            "falseEvents": [{"event": e["event"], "atS": round(e["eventT"] - t0, 1), "facts": e["facts"]} for e in false][:5],
+            "falseEvents": [{"event": e["event"], "atS": round(e["eventT"] - t0, 1), "facts": e["facts"]}
+                            for e in false][:5],
             "frameCostUs": {"p50": round(1e6 * float(np.percentile(spent, 50)), 1),
                             "p99": round(1e6 * float(np.percentile(spent, 99)), 1),
                             "max": round(1e6 * max(spent), 1)}}
@@ -209,7 +211,8 @@ def run_video(path: str, fps_cap: float | None) -> dict:
     events, spent, n = analyse(frames(), fps)
     hours = n / fps / 3600
     return {"video": path, "seconds": round(n / fps, 1),
-            "events": [{"event": e["event"], "atS": round(e["eventT"] - 1000.0, 1), "facts": e["facts"]} for e in events],
+            "events": [{"event": e["event"], "atS": round(e["eventT"] - 1000.0, 1), "facts": e["facts"]}
+                       for e in events],
             "perHour": round(len(events) / hours, 2) if hours else None,
             "frameCostUs": {"p50": round(1e6 * float(np.percentile(spent, 50)), 1),
                             "p99": round(1e6 * float(np.percentile(spent, 99)), 1)}}
@@ -226,7 +229,7 @@ def main() -> None:
     if args.video:
         results = [run_video(args.video, None)]
     else:
-        names = [n for n in (args.only.split(",") if args.only else ["pan", "cut", "defocus", "light", "knob", "steady"])]
+        names = args.only.split(",") if args.only else ["pan", "cut", "defocus", "light", "knob", "steady"]
         results = []
         for name in names:
             start = time.monotonic()
