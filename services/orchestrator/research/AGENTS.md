@@ -147,7 +147,9 @@ other files.
   the step's `detail` (`Researcher.step(text, kind, detail)`, kept in `steps.jsonl` for Activity). The app's own
   words about a run are said without the ids the researcher reads by (`researcher.said_words`). A viewer notice says
   "shown" only once the studio confirmed it (`announcer.shown_words`). `tests/test_research_progress_words.py` reads
-  every step call.
+  every step call. Showing its work beside the view (`Announcer._open_beside`) asks its original studio for a current
+  report first when the last is stale, as every actor's request does (`screen.fresh_report`; live 2026-10-29 17:25 it
+  failed "unavailable or stale"), and a report with no viewer keeps the work in Data instead of raising.
 - Each run's conversation with its model is kept round by round (`research_worker/transcript.py`): what each request
   added, the tools offered and the model's whole reply with its tool calls, the instructions by their hash, pictures by
   their size, a line at most 64 KB (long strings cut, marked), in `research/transcripts/<day>/<rid>.jsonl` (retained research evidence; the app names it, spec `transcript`).
