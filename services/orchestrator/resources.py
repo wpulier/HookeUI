@@ -1353,7 +1353,8 @@ class Index:
                     "annotations": dict(getattr(store, "annotations", {}) or {}),
                     "datatables": dict(getattr(store, "datatables", {}) or {}),
                     "table_derivatives": dict(getattr(store, "table_derivatives", {}) or {}), "made": made}
-        root = getattr(getattr(store, "journal", None), "root", None)
+        root = store.root_for(sid) if store is not None and hasattr(store, 'root_for') and sids.is_sid(sid) else \
+            getattr(getattr(store, "journal", None), "root", None)
         found = _journal_records(Path(root), sid) if root is not None and sids.is_sid(sid) else \
             {"evidence": {}, "tracks": {}, "annotations": {}, "datatables": {}, "table_derivatives": {}}
         return {**found, "made": made}
@@ -1831,7 +1832,7 @@ class Index:
                        if record['version'] == entry.version), None)
         if record is None:
             raise DataTableRefused('the selected saved numeric revision is unavailable')
-        return read_accepted(service.root, record, day, entry.kind)
+        return read_accepted(service.root_for(day), record, day, entry.kind)
 
     def _outline_facts(self, eid: str, day: str | None) -> str:
         """An outline on the board, read one step behind it (known.py: "how do you know?"). A

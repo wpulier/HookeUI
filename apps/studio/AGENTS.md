@@ -5,6 +5,10 @@ to inspect material or choose a camera. Opening starts nothing. Project switches
 old summaries immediately; late reads and stale buttons cannot act on another Project.
 The Assistant retains its same connected-agent entry and current-Project setup prompt.
 Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
+Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
+at the captured Project/document revision. Markup is literal text; previewing neither
+runs a reader nor qualifies scientific interpretation. Failed pages preserve the
+previous text and retry the same range. The original-byte download remains available.
 
 The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
@@ -1960,3 +1964,5 @@ retry skips them, and uncertain acceptance must be recovered before replacing
 the selection. The sheet retains progress and opens each exact saved source.
 Folder-drop refusal still directs users to the complete native folder chooser
 so hidden scientific metadata is not silently omitted.
+
+Main uses the same retained Inputs projection even before a Study exists, showing material and a route to inspect it instead of camera onboarding. Project changes clear that projection; failed refreshes qualify retained counts. The Project menu preserves catalogue source counts (including scientific files) when live session updates report only camera/library sources; newer catalogue counts can decrease as well as increase.

@@ -509,7 +509,9 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
-  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers());
+  const material=resourceSession===snapshot.session?projectInputs(entries):[];
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
+    {count:material.length,error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -1613,7 +1615,7 @@ async function refreshResults(): Promise<void> {
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
     if (generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
-    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
     // ticket). Its lessons, pictures, tables and sources are the server's own entries now (S4), no longer made up here.
     const next = (data.entries ?? []).map(entry => {const base={...entry,day:entry.day??session};if(entry.kind!=='research')return base;
@@ -1631,6 +1633,7 @@ async function refreshResults(): Promise<void> {
   } catch (error) {
     if (generation === refreshGeneration && snapshot.session === session) {
       resultsFailedSession = session;
+      renderBoard();
       if (dataOpen) dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults()));
       if (drawerOpen && section === 'inputs') refreshInputRows?.();
     }

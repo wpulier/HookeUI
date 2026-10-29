@@ -267,6 +267,27 @@ def register(app,built,studio_origin,header):
                 with suppress(asyncio.CancelledError):await watcher
             if owner is not None:await _owned(owner.close)
 
+    @app.get('/api/scientific-files/{project}/text')
+    async def preview_text(project:str,session:str,revision:int,offset:int=0,length:int=65536):
+        from .scientific_text import page, PAGE_BYTES
+        try:
+            if not is_sid(session) or revision < 1 or offset < 0 or not 1 <= length <= PAGE_BYTES:
+                raise InvalidProject('Select an exact source revision and a bounded byte range')
+            def read():
+                saved=store.read(project,session,revision=revision)
+                state=saved.document.get('state',{}).get('sourceFile')
+                if saved.document['kind'] not in ('source-file','matrix-result') or type(state) is not dict or 'reference' not in state:
+                    raise InvalidProject('This document has no retained file to preview as text')
+                source=store.file_source(project,session,revision,state['reference'],verify_content=False)
+                return {'ok':True,'id':saved.id,'session':saved.session,'revision':saved.revision,
+                        'digest':saved.digest,'sha256':source.sha256,'content':page(source,offset,length),
+                        'untrusted':True,'verification':'displayed-chunks-only'}
+            # Each displayed chunk is verified. Unread chunks are not scanned or certified.
+            with captures(built.hub).memory.reserve('analysis',VERIFY_WORKING_BYTES,'previewing retained text'):
+                result=await _owned(read)
+            return JSONResponse(result,headers=HEADERS)
+        except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
+
     @app.get('/api/scientific-files/{project}')
     async def download(request:Request,project:str,session:str,revision:int):
         room=None;watcher=None;stopping=threading.Event();deadline=time.monotonic()+60
