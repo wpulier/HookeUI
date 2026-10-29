@@ -22,6 +22,7 @@ The capabilities are:
 - `response-fit`: fit regularized target effects, optionally with a bounded low-rank approximation.
 - `response-effect-evaluate`: compare fitted effects against measured effects from other biological contexts.
 - `response-predict`: fit control-conditioned count moments and emit sparse whole-count predictions.
+- `matrix-count-diagnostics`: compare population count moments, zero fractions and library depths.
 - `matrix-evaluate`: a deliberately limited mean-expression diagnostic, explicitly not a competition score.
 - `matrix-evaluate-cell`: use pinned upstream cell-eval2 with a retained protocol and complete declared target panels.
 - `response-combine`: combine fitted effects on identical ordered gene/target axes with explicit weights.
@@ -167,3 +168,18 @@ Imported storage and labels are preflighted through bounded HDF5 reads before An
 
 Scientific worker errors place their final exception first so bounded workflow notes preserve the reason.
 The following diagnostic tail remains bounded; this is not a promise to retain a full worker log.
+
+## Population-count diagnostics
+
+`matrix-count-diagnostics` compares one explicitly labelled population per context in each
+input. The population labels may differ (for example generated null response versus controls),
+but context sets and ordered genes must match exactly. Mixed perturbations refuse instead of
+being pooled. Each population needs two cells and positive library depths. Bounded dense/CSR
+HDF5 reads project only X and the requested metadata; auxiliary arrays are not loaded.
+
+It reports relative L1 differences in raw means, population variances and per-cell normalized
+means, plus per-gene zero-fraction MAE and library-depth quantiles. A zero reference denominator
+produces unavailable/null, never invented zero error. Full gene moments remain in the retained
+JSON file; the operation receipt is a compact context summary. Population moments do not test
+covariance, multimodality, biological fidelity or distribution equality. This is not an official
+competition score, and inspecting conditioning controls is not independent predictive evaluation.
