@@ -1096,6 +1096,9 @@ shutdown prevents a waiting step from acquiring compute; no other owner’s lock
 reclaimed. The admission rechecks disk and the pinned generation after acquiring the slot;
 the scientific worker retains its memory guard.
 
+Scientific matrix worker failure notes put the final exception before their bounded traceback tail, so the
+workflow's compact retained note preserves an actionable cause. Full worker logs are not claimed as retained.
+
 Retained comparison input identity comes from `retained_input.comparison_input_key`, shared by
 resource discovery and comparison-table validation. Imported images use their exact source descriptor,
 including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.

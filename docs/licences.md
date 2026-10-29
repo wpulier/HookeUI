@@ -50,6 +50,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `aggregate-profile-prepare` | - |
 | [Upstream cell-eval2 0.20.0 and CPU dependencies](https://github.com/ArcInstitute/cell-eval2/blob/main/LICENSE) | open | MIT (cell-eval2); BSD-3-Clause (scientific libraries); transitive packages retain their own terms | code | catalog: `cell-evaluation-runtime` | - |
 | [InstanSeg brightfield nuclei (code and weights)](https://github.com/instanseg/instanseg) | open | Apache-2.0 | code | catalog: `instanseg-brightfield` | - |
+| [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-concatenate` | - |
 | [Scientific matrix CPU dependencies](https://github.com/scverse/anndata/blob/main/LICENSE) | open | BSD-3-Clause (AnnData, NumPy, SciPy, h5py, pandas); transitive packages retain their own terms | code | catalog: `matrix-cpu-runtime` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-evaluate` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-evaluate-cell` | - |

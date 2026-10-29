@@ -25,6 +25,7 @@ The capabilities are:
 - `matrix-evaluate`: a deliberately limited mean-expression diagnostic, explicitly not a competition score.
 - `matrix-evaluate-cell`: use pinned upstream cell-eval2 with a retained protocol and complete declared target panels.
 - `response-combine`: combine fitted effects on identical ordered gene/target axes with explicit weights.
+- `matrix-concatenate`: join count rows with exact gene order and unique cell identities.
 - `matrix-export`: validate and copy retained AnnData; packaging and upload remain the caller's separate operations.
 
 The generic evaluator protocol is a retained JSON file with `preset`, `context_column`, `target_column`,
@@ -103,7 +104,16 @@ Emission fits control library-depth distributions, expression proportions and sh
 seed/context/target/cell, independent of panel order and processing block boundaries. Each small generated block is
 written as sparse float32 whole counts and combined with AnnData's `concat_on_disk`; there is no full dense prediction
 allocation. Out-of-range counts or effects refuse instead of being clipped or pruned. This is a statistical baseline,
-not a validated biological simulator. Generated-count moments and held-out scientific quality require independent tests.
+not a validated biological simulator. The legacy `proportional-fold-v1` interpretation remains the default
+and is explicitly an approximation to pseudocount-adjusted training effects. The optional
+`pseudocount-inverse-v1` requires fitted aggregate normalization metadata and every normalization gene in controls.
+It computes `(control_normalized + pseudocount) * 2**effect - pseudocount`, explicitly projects negative
+expected expression to zero (reported as a count), then closes the whole output composition. The normalization
+subset uses its own control-expression denominator. Zero effects preserve the original expectation before closure;
+closure can change absolute proportions of genes carrying the zero-effect prior. Legacy/unknown scales refuse
+inverse mode. Both methods retain the same keyed independent-gene sampler. Library depth is a sampled expectation,
+not a promise that emitted totals reproduce the observed depth distribution. Analytical inversion tests establish
+scale conversion, not a scientific improvement. Generated-count moments and held-out scientific quality require independent tests.
 
 ## Runtime and resource ownership
 
@@ -143,3 +153,17 @@ No automatically generated labels or local proxy metric can establish the eventu
 Retained matrix results use the ordinary exact-revision file download route, including fitted models,
 effects and exported prediction files. Download verifies the stored file reference and bytes; it does
 not execute a model or rewrite the result. Source files and computed results retain distinct kinds.
+
+## Count assembly
+
+`matrix-concatenate` takes two exact retained raw-count files. It preserves row order, cell identities,
+context/target labels and ordered genes; overlapping identities, reordered genes and extra annotations refuse
+rather than being renamed, intersected or discarded. This narrow counts-only operation refuses raw/layers,
+embeddings, pairwise arrays and extra obs/var/uns annotations. It emits sparse float32 only when whole values
+are exactly representable, with explicit cell-count and stored-entry limits. Zero entries are removed without
+pruning nonzero values. Bounded chunks and upstream `concat_on_disk` avoid a full dense allocation. Post-assembly
+reads verify labels, dimensions and canonical sparse content hashes before publication; source files are unchanged.
+Imported storage and labels are preflighted through bounded HDF5 reads before AnnData decoding. Dense/CSR inputs are supported; CSC needs a separately qualified conversion. Sparse row-block allocation is bounded independently of logical shape. Ordinary workflow composition joins more than two files. The result is not an official packaged submission.
+
+Scientific worker errors place their final exception first so bounded workflow notes preserve the reason.
+The following diagnostic tail remains bounded; this is not a promise to retain a full worker log.

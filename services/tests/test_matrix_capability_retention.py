@@ -164,3 +164,46 @@ def test_resources_are_rechecked_after_shared_slot_wait(tmp_path, monkeypatch):
     with pytest.raises(InvalidProject, match='after waiting'):
         runs.run_matrix(**arguments(store, ref), wait_seconds=3600)
     assert len(store.list('s1')) == 1
+
+
+def test_bounded_failure_note_keeps_actual_exception_before_traceback(tmp_path):
+    log=tmp_path/'worker.log'
+    log.write_text('Traceback frame detail\n'*500+'ValueError: incompatible normalization gene axis\n')
+    note=runs._failure_message(log)
+    assert 'ValueError: incompatible normalization gene axis' in note[:500]
+    assert 'no result was published' in note[:500]
+    assert len(note)<4600
+
+
+def test_prepared_count_assembly_retains_both_exact_inputs(tmp_path,monkeypatch):
+    if not os.environ.get('HOOKE_MATRIX_TEST_CATALOG'):
+        pytest.skip('This acceptance probe requires the explicitly prepared pinned runtime')
+    import subprocess
+    monkeypatch.setenv('MICROMIND_HEAVY_SLOT',str(tmp_path/'slot'))
+    current=descriptor('matrix-concatenate')
+    executable,_=matrix_catalog.execution_runtime(current['runtime'])
+    script="""
+import anndata,numpy as np,pandas as pd,sys
+from scipy import sparse
+from pathlib import Path
+for context in ('a','b'):
+    data=anndata.AnnData(X=sparse.csr_matrix([[2,3]],dtype=np.float32),
+        obs=pd.DataFrame({'context':[context],'target_gene':['x']},index=[context+'-cell']),
+        var=pd.DataFrame(index=['g1','g2']))
+    data.write_h5ad(Path(sys.argv[1])/(context+'.h5ad'))
+"""
+    subprocess.run([str(executable),'-c',script,str(tmp_path)],check=True,capture_output=True)
+    store=ProjectStore(tmp_path/'projects');refs={}
+    for port,name in [('left','a'),('right','b')]:
+        path=tmp_path/(name+'.h5ad');body=path.read_bytes()
+        intake=FileIntake(store,'s1','assembly-input-'+name,name=path.name,size=len(body),max_bytes=len(body))
+        try:
+            intake.write(body);saved=intake.publish()
+            refs[port]={'id':saved.id,'session':'s1','revision':saved.revision,'digest':saved.digest}
+        finally:intake.close()
+    result=runs.run_matrix(store=store,session='s1',capability='matrix-concatenate',
+        generation=current['generation'],inputs=refs,params={},request='assembly-test-run-0001')
+    record=result.document['state']['matrixOperation']
+    assert record['output']['summary']['shape']==[2,2]
+    assert record['output']['summary']['storedEntries']==4
+    assert all(record['inputs'][port]['digest']==ref['digest'] for port,ref in refs.items())
