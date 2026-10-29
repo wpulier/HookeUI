@@ -71,7 +71,10 @@ PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran 
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
-AUDIO_TOKEN_S = 0.05  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
+AUDIO_TOKEN_S = 0.05
+ACK_TOKENS = 60  # "On it." is a few words
+PREP_WAIT_S = 4.0  # think's result prepared out of band at most this long, else the backend's own words
+DELIVER_WAIT_S = 120.0  # think's result waits this long for quiet (no key, nothing said) before it is said  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
 # this soon after it still stops the voice (the studio mutes its audio element at once too).
 AUDIBLE_AFTER_DONE_S = 20.0
@@ -263,6 +266,8 @@ class RealtimeSession(VoiceSession):
         self.notes: list[str] = []  # each turn's short text note of what was seen
         self._waiting: list[Waiting] = []
         self._said_events: dict[tuple, float] = {}
+        self._delivered: set[str] = set()  # think tasks whose result has been (or is being) said
+        self._prepared: dict[str, asyncio.Future] = {}  # think task -> its out-of-band words
         self._said_texts: dict[tuple, str] = {}
         self._progress_said: set[str] = set()
         self._epoch = 0  # which call this is: each new call is the next
@@ -537,7 +542,7 @@ class RealtimeSession(VoiceSession):
                 continue
             self._asks.remove(ask)
             event_id = f"rc_{uuid.uuid4().hex[:20]}"
-            meta = {"cause": ask.cause, "n": str(ask.n)}
+            meta = {**(ask.response.get("metadata") or {}), "cause": ask.cause, "n": str(ask.n)}
             self._requested = {**meta, "eventId": event_id, "since": self.clock(), "ask": ask}
             try:
                 await self._send({"type": "response.create", "event_id": event_id,
@@ -613,7 +618,7 @@ class RealtimeSession(VoiceSession):
         """What a tool just put on screen is pointed at as the answer about it starts to be heard (no round trip
         through the model's mark tool: the bench's silent `look` response with only a mark in it, 2026-10-29)."""
         targets, self._point = self._point, []
-        if targets and self._causes.get(self._response or "", {}).get("cause") in ("look", "tool"):
+        if targets and self._causes.get(self._response or "", {}).get("cause") in ("look", "tool", "think"):
             with contextlib.suppress(Exception):
                 self.on_point(targets)
         elif targets:
@@ -852,6 +857,57 @@ class RealtimeSession(VoiceSession):
                          "telling the user what just happened, from the facts above. No question, no offer, nothing else.")
             return
 
+    # --- think's results (voice/think.py, partner_tools.think) -----------------------------------------------------
+    async def deliver(self, task: str, *, facts: dict, say: str, points: list[str]) -> None:
+        """A think result, said once: when nobody is talking, prepared out of band (`conversation: none`, text only,
+        `metadata.task`) in the voice's own words, added to the conversation, then said through the gate with marks on
+        what it names as the words start. A user's key press while it waits holds it; it is never said twice."""
+        if task in self._delivered or self.closed:
+            return
+        self._delivered.add(task)
+        end = self.clock() + DELIVER_WAIT_S
+        while (self.user_busy() or self.speaking() or self._asks) and self.clock() < end and not self.closed:
+            await asyncio.sleep(0.1)
+        facts_text = json.dumps(facts, ensure_ascii=False, default=str)[:4000]
+        prepared = await self.prepare(task, facts_text, say)
+        with contextlib.suppress(Exception):
+            await self.add(text_item("system", f"Result of the task you handed to think ({task}):\n{facts_text}"))
+
+        def sent() -> None:
+            self._point = [str(p) for p in points][:4]
+            self.last_commentary_at = self.clock()
+            self._log({"kind": "partner-think-said", "task": task, "n": self.n, "responseCreatedT": self.wall(),
+                       "points": points})
+
+        def dropped(why: str) -> None:  # the user pressed talk just then: said when it is quiet again
+            self._delivered.discard(task)
+            self._spawn(self.deliver(task, facts=facts, say=say, points=points))
+
+        self.respond("think", n=self.n, sent=sent, dropped=dropped, tool_choice="none",
+                     metadata={"task": task},
+                     instructions=self.config.system_prompt + "\n\nThe task you handed to think has finished. Say "
+                     "this to the user now, once, in your own voice, and nothing else: " + prepared)
+
+    async def prepare(self, task: str, facts_text: str, say: str) -> str:
+        """The words for a think result, written out of band by the voice itself (its conversation untouched); the
+        backend's own words when that does not come back in PREP_WAIT_S."""
+        future = asyncio.get_running_loop().create_future()
+        self._prepared[task] = future
+        self.respond("prep", n=self.n, conversation="none", output_modalities=["text"], tool_choice="none",
+                     max_output_tokens=300, metadata={"task": task},
+                     input=[text_item("system", "Result of a task you handed to Hooke's frontier mind (facts, not the "
+                                                "user's words):\n" + facts_text + (f"\nIts own wording: {say}" if say else ""))],
+                     instructions="Write the one or two short sentences you will say to the user about this result: "
+                                  "what was done or found, or what failed and the next step to try. Plain words, no "
+                                  "ids, nothing it did not check. Say a refusal as a refusal.")
+        try:
+            text = await asyncio.wait_for(future, PREP_WAIT_S)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            text = ""
+        finally:
+            self._prepared.pop(task, None)
+        return (text or say or "It is done; I could not word the result.").strip()
+
     async def _noted_only(self, line: Waiting) -> None:
         with contextlib.suppress(Exception):
             await self.add(text_item("system", "Happened while the user was talking (context only): " + line.text))
@@ -916,7 +972,7 @@ class RealtimeSession(VoiceSession):
             meta = response.get("metadata") or (self._requested or {})
             self._response, self._requested = rid, None
             self._causes[rid] = {"cause": meta.get("cause") or "unknown", "n": int(meta.get("n") or self.n),
-                                 "createdT": self.wall()}
+                                 "createdT": self.wall(), "task": meta.get("task")}
         elif kind == "output_audio_buffer.started" or (kind == "response.output_audio.delta" and self.link != "webrtc"):
             # Over WebRTC the browser plays the audio: only the output buffer's events (and the studio's own
             # voice-phase) say when it is audible; a response's audio is generated faster than it plays.
@@ -945,6 +1001,9 @@ class RealtimeSession(VoiceSession):
                            "how": kind.rsplit(".", 1)[-1]})
         elif kind in ("response.output_audio_transcript.delta", "response.output_text.delta"):
             rid = ev.get("response_id") or self._response or ""
+            if self._causes.get(rid, {}).get("cause") == "prep":
+                self._transcripts[rid] = self._transcripts.get(rid, "") + (ev.get("delta") or "")
+                return  # the out-of-band text the voice will say in its own words: never the chat's line
             self._transcripts[rid] = self._transcripts.get(rid, "") + (ev.get("delta") or "")
             self._emit(VoiceEvent("output_transcript", text=ev.get("delta") or "", data={"responseId": rid}))
         elif kind == "conversation.item.input_audio_transcription.delta":
@@ -1025,6 +1084,23 @@ class RealtimeSession(VoiceSession):
         self._gate_wake.set()
         cause = self._causes.pop(rid, {"cause": "unknown", "n": self.n, "createdT": None})
         facts = usage_facts(response.get("usage"))
+        if cause.get("cause") == "prep":
+            words = self._transcripts.pop(rid, "")
+            if not words:
+                for item in response.get("output") or []:
+                    for part in item.get("content") or [] if item.get("type") == "message" else []:
+                        words += part.get("text") or part.get("transcript") or ""
+            meta = response.get("metadata") or {}
+            future = self._prepared.get(meta.get("task") or cause.get("task") or "")
+            if future is not None and not future.done():
+                future.set_result(words)
+            self._log({"kind": "partner-response", "responseId": rid, "n": cause["n"], "cause": "prep",
+                       "task": meta.get("task") or cause.get("task"), "status": response.get("status"),
+                       "text": words, "usage": facts})
+            self._emit(VoiceEvent("usage", data={"seconds": None, "tokens": facts,
+                                                 "usd": usage_usd(facts, self.config.model), "responseId": rid,
+                                                 "cause": "prep"}))
+            return
         if facts["outAudio"]:  # how long its words play: from their start, or from now when they have not started
             start = self._started_at.pop(rid, None)
             if start is not None:
@@ -1051,9 +1127,13 @@ class RealtimeSession(VoiceSession):
         if self._round.get(rid):
             # Answered even when the response was cancelled (the user spoke): their next answer reads the outputs.
             # Only marks, after the answer was spoken: pointing is done, and nothing more is said about it.
-            pointing_only = bool(transcript.strip()) and all(self._call_names.get(cid) == "mark"
-                                                              for cid in self._round[rid])
-            self._spawn(self._finish_round(rid, cause["n"], go_on=not pointing_only))
+            names = {self._call_names.get(cid) for cid in self._round[rid]}
+            spoke = bool(transcript.strip())
+            # think and mark only, after speaking: the acknowledgement was said; think's result follows on its own.
+            # think without a word said: one short acknowledgement, never two (HeyClicky's duplicate one).
+            quiet_round = names <= {"mark", "think"}
+            ack = "think" in names and quiet_round and not spoke
+            self._spawn(self._finish_round(rid, cause["n"], go_on=not (quiet_round and spoke) and not ack, ack=ack))
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:
@@ -1100,7 +1180,7 @@ class RealtimeSession(VoiceSession):
                               result={k: v for k, v in result.items() if k != "_look"}, data={"ms": ms}))
         return result
 
-    async def _finish_round(self, rid: str, n: int, go_on: bool = True) -> None:
+    async def _finish_round(self, rid: str, n: int, go_on: bool = True, ack: bool = False) -> None:
         """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
         dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has
         been replaced (a new call never had these call ids: nothing is posted to it)."""
@@ -1141,6 +1221,11 @@ class RealtimeSession(VoiceSession):
         for cid in ids:
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:
+            return
+        if ack:
+            self.respond("ack", n=n, tool_choice="none", max_output_tokens=ACK_TOKENS,
+                         instructions=self.config.system_prompt + "\n\nSay only a two- or three-word acknowledgement "
+                         "that you are on it (\"On it.\"), nothing else.")
             return
         if not go_on:
             return

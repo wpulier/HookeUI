@@ -119,6 +119,17 @@ class Partner:
     def turn(self) -> int:
         return self.session.n if self.session is not None else 0
 
+    def spawn(self, coro) -> asyncio.Task:
+        return self._spawn(coro)
+
+    def pictures(self, n: int) -> list:
+        """Turn n's two pictures as taken at its key-down (camera, window), for think's backend."""
+        seen = self._seen.get(n) or {}
+        out = [self._camera_image(seen)] if seen else []
+        if seen.get("window") is not None:
+            out.append(self._window_image(seen))
+        return [p for p in out if p is not None]
+
     # --- the studio's messages ---------------------------------------------------------------------
     async def command(self, message: dict) -> bool:
         """One message from the studio for the partner; False when it is not one."""

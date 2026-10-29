@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import time
 from typing import Any
 
@@ -27,7 +28,18 @@ from .base import ToolSpec
 PARTNER_TOOLS = ("present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select", "zoom", "clear",
                  "start_researcher", "research_status", "researcher_note", "cancel_researcher", "show_me", "resources",
                  "models_in_use", "capabilities", "workflow", "new_project", "switch_session", "retrieve_page",
-                 "run_capability", "reference_photo")
+                 "run_capability", "reference_photo", "use", "set_default")
+# What `think`'s backend may call besides the voice's own (voice/think.py): the brain's longer tools, comparisons of
+# models among them. Never think itself, mark or look_hard (the voice points; the backend has the pictures).
+THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_population", "group_cells",
+                               "describe_groups", "read_result", "summarize_research", "researcher_followup",
+                               "make_table", "edit_table", "analyze", "make_graph", "read_analysis", "recall",
+                               "where_is", "magnifier_picture", "show_result", "close_result", "close_magnifier",
+                               "dissect", "contrast", "enhance", "snapshot", "outcomes", "individuals", "follow_cells")
+MAX_RESEARCHERS_A_TURN = 3  # deliberately distinct researchers one request may start (distinct_from)
+DISTINCT = {"distinct_from": {"type": "string", "description": (
+    "Only when the user asked for more than one researcher in this request: the brief of the other researcher this "
+    "one is not. Leave it out otherwise: one request starts one researcher.")}}
 # Tools that change what is on screen: the model gets a fresh look after them (act, then look).
 SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select",
                              "zoom", "clear", "new_project", "switch_session", "reference_photo", "show_me",
@@ -86,6 +98,8 @@ class PartnerTools:
         self.reported: set[str] = set()  # action ids whose outcome went back to the model
         self.fail_next: str | None = None  # the bench's fault hook (MICROMIND_BENCH_FAULTS): the next call fails
         self.running: dict[object, tuple] = {}  # calls still going: (tool, started, run), for a specific progress line
+        self.thinking: dict[str, asyncio.Task] = {}  # think's tasks by id
+        self.backend = None  # think's backend factory (option -> backend); tests pass a fake
 
     def running_facts(self) -> str:
         """What is still running, for a progress line that says something: the tool, how long so far, its own words
@@ -119,11 +133,26 @@ class PartnerTools:
                                   "question": {"type": "string"},
                                   "window": {"type": "boolean", "description": "also send Hooke's window picture"}},
                                "required": ["question"]}, self.look_hard))
-        specs.append(ToolSpec("do_in_hooke", "Rarely: hand a request with several steps that no other tool covers to "
-                              "Hooke's own assistant, in the user's full words. Returns what it found and did.",
-                              {"type": "object", "properties": {"request": {"type": "string"}},
-                               "required": ["request"]}, self.do_in_hooke))
+        specs.append(ToolSpec("think", "Hand a hard question, a request with several steps, a comparison of models or a "
+                              "close look to Hooke's frontier mind, which sees this turn's pictures, uses Hooke's tools, "
+                              "checks the screen and reports back. Returns at once that it started; its result is told "
+                              "to you to say.",
+                              {"type": "object", "properties": {
+                                  "request": {"type": "string", "description": "what the user asked, in their words"},
+                                  "why": {"type": "string", "description": "why it needs more than your own tools"}},
+                               "required": ["request"]}, self.think))
+        for spec in specs:
+            if spec.name == "start_researcher":  # a second, deliberately distinct researcher is the model's to declare
+                params = json.loads(json.dumps(spec.parameters))
+                params.setdefault("properties", {}).update(DISTINCT)
+                spec.parameters = params
         return specs
+
+    def think_tools(self) -> list[dict]:
+        """The tools think's backend may call, as {name, description, parameters}."""
+        tools = getattr(self.brain.registry, "tools", {})
+        declared = {d["name"]: d for d in self.brain.registry.responses_tools()}
+        return [realtime_tool(declared[name]) for name in THINK_TOOLS if name in tools and name in declared]
 
     def _runner(self, name: str):
         async def run(args: dict) -> dict:
@@ -131,9 +160,10 @@ class PartnerTools:
         return run
 
     # --- a registry tool ---------------------------------------------------------------------------
-    async def run(self, name: str, args: dict) -> dict:
+    async def run(self, name: str, args: dict, *, n: int | None = None) -> dict:
         args = {k: v for k, v in (args or {}).items() if not k.startswith("_") and k != "after_steps"}
-        n = self.partner.turn()
+        n = self.partner.turn() if n is None else n
+        distinct = str(args.pop("distinct_from", "") or "").strip() if name == "start_researcher" else ""
         if self.fail_next is not None:
             why, self.fail_next = self.fail_next, None
             return {"ok": False, "error": why, "_log": {"fault": "bench"}}
@@ -145,6 +175,16 @@ class PartnerTools:
         # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second
         # call of it in the same turn, in parallel or later and whatever its words, waits for the first's result.
         key = (n, name)
+        if distinct:
+            # A researcher the model declares distinct from another this request asked for ("make two researchers, one
+            # does X, the other Y"): a slot of its own, up to MAX_RESEARCHERS_A_TURN; a repeat of the same one still
+            # waits for the first (the check is the declared other brief differing from this one's).
+            brief = json.dumps(args, sort_keys=True, default=str)
+            others = [k for k in self._once if k[:2] == (n, name)]
+            if distinct.lower() in brief.lower() or len(others) >= MAX_RESEARCHERS_A_TURN:
+                key = (n, name)  # not distinct after all, or too many: the turn's one slot
+            else:
+                key = (n, name, brief)
         first = self._once.get(key)
         if first is not None:
             result = await asyncio.shield(first)
@@ -450,3 +490,70 @@ class PartnerTools:
             look, facts = await self.look_after(changed[-1], before)
             out["_look"], out["_log"] = look, facts
         return out
+
+    # --- think: the frontier mind behind the voice (voice/think.py) ----------------------------------------------
+    async def think(self, args: dict) -> dict:
+        """Started at once (the voice says a short acknowledgement); the backend works in a task of its own and its
+        result is said when it lands, once (RealtimeSession.deliver)."""
+        from .think import ThinkTask
+
+        request = str(args.get("request") or "").strip()
+        if not request:
+            return {"ok": False, "error": "no request to think about"}
+        n = self.partner.turn()
+        task = ThinkTask(request, str(args.get("why") or "").strip())
+        started = time.time()
+        self.thinking[task.id] = self.partner.spawn(self._think(task, n, args.get("_call_id")))
+        return {"started": True, "task": task.id, "_log": {"task": task.id, "startedT": started},
+                "note": "Started. Say only a two- or three-word acknowledgement now ('On it.'), nothing about the "
+                        "result: it is told to you to say when it lands."}
+
+    def _think_option(self) -> str:
+        return str(getattr(self.hub.settings, "think", "claude-opus-5-5") or "claude-opus-5-5")
+
+    async def _think(self, task, n: int, call_id: str | None) -> None:
+        from ..prompts import THINK
+        from . import think as thinking
+
+        session = self.partner.session
+        task.words = await self.partner.words(n, WORDS_WAIT_S)
+        task.pictures = self.partner.pictures(n)
+        task.brief = getattr(session, "brief_text", "") or ""
+        task.history = self.partner.history()
+        task.notes = list(getattr(session, "notes", []) or [])
+        option = self._think_option()
+        key = object()
+        self.running[key] = (f"thinking about it with {option}", time.monotonic(), None)
+        step = {"now": ""}
+
+        def progress(tool: str) -> None:
+            step["now"] = tool
+            self.running[key] = (f"thinking with {option}, now running {tool}", self.running[key][1], None)
+
+        async def call_tool(name: str, args: dict) -> dict:
+            if name not in THINK_TOOLS:
+                return {"ok": False, "error": f"there is no {name} tool here"}
+            return await self.run(name, args, n=n)
+
+        log = getattr(self.partner, "log", lambda record: None)
+        missing = "ANTHROPIC_API_KEY" if not option.startswith("gpt-") else "OPENAI_API_KEY"
+        try:
+            if not os.environ.get(missing):
+                result = thinking.ThinkResult("", False, model=option, error=(
+                    f"thinking with {option} needs its key ({missing}); set it under Keys, or choose the other model "
+                    "for thinking"))
+            else:
+                backend = self.backend(option) if self.backend is not None else thinking.thinker(option)
+                result = await thinking.think(task, backend, self.think_tools(), call_tool, progress, THINK)
+        finally:
+            self.running.pop(key, None)
+        if result.refused:
+            other = "GPT-6.1 Sol" if not option.startswith("gpt-") else "Claude Opus 5.5"
+            result.say = result.say or ""
+            result.error = (f"{option} refused this request on safety grounds ({result.refused}); nothing was done. "
+                            f"Offer to try it with {other} for thinking, if the user wants.")
+        log({"kind": "partner-think", "task": task.id, "callId": call_id, "n": n, "model": result.model,
+             "ok": result.ok, "checked": result.checked, "refused": result.refused, "error": result.error,
+             "rounds": result.rounds, "tools": result.tools, "points": result.points, "ms": result.usage.get("ms"),
+             "usage": {k: v for k, v in result.usage.items() if k != "ms"}, "doneT": time.time()})
+        await session.deliver(task.id, facts=result.facts(), say=result.say, points=result.points)

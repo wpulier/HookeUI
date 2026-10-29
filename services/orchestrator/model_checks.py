@@ -188,7 +188,7 @@ def _build() -> list[Entry]:
                 probe = ("zeroshot", "medsiglip")
             elif rid == "voice":
                 probe = ("voice", option.id)
-            elif rid in ("research", "presentation"):
+            elif rid in ("research", "presentation", "think"):
                 probe = ("text", _provider(option.id) + ":" + option.id)
             elif rid == "image":
                 probe = ("image", option.id)

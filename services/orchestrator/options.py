@@ -157,6 +157,19 @@ VOICE = {
     ]
 }
 
+# The frontier mind behind the one-brain voice (voice/think.py; part-2.5 architecture, item 2): a hard question, many
+# steps, a comparison or a close look, handed over with the user's words and both pictures. On τ-Voice a fast voice with
+# a frontier backend scored 74.5% where the speech model alone scored 45.7%. Measured on the journey bench (pending).
+THINK = {
+    o.id: o
+    for o in [
+        Option("claude-opus-5-5", "Claude Opus 5.5", "the strongest on Hooke's own pictures; refusals said as refusals",
+               model="claude-opus-5-5"),
+        Option("gpt-6.1-sol", "GPT-6.1 Sol", "OpenAI's frontier model; the other choice when Opus refuses",
+               model="gpt-6.1-sol"),
+    ]
+}
+
 # How the one-brain voice knows a turn (voice/openai_realtime.py). Hold: the talk key or the Talk button is held while
 # the user speaks, and released to answer (turn detection off; nothing it says is cut by a cough). Open: it listens all
 # the time and its own semantic turn detection decides, and the user can talk over it (needs headphones: otherwise it
@@ -776,7 +789,7 @@ LIBRARY_LOOKS = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "think": THINK, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS}
@@ -929,6 +942,7 @@ class Settings:
     voicelink: str = "webrtc"  # native browser media; explicit relay preferences remain supported (VOICELINK)
     talk: str = "hold"  # how the one-brain voice knows a turn (TALK)
     talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
+    think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
     taught: str = "on"  # matching the labels the user teaches (TAUGHT; measured)
     lesson_check: str = "check"  # are lessons' steps answerable without the picture? (LESSON_CHECK; measured)
@@ -1021,7 +1035,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "think": self.think, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
 

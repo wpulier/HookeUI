@@ -2309,6 +2309,7 @@
         "voicelink",
         "talk",
         "talk_key",
+        "think",
         "fixed:voice-words",
         "fast",
         "speculate",
@@ -4561,6 +4562,13 @@
       "title": "Talk key",
       "purpose": "The key you hold to talk",
       "hint": "Control+Option, or Right Option with VoiceOver on"
+    },
+    {
+      "id": "think",
+      "kind": "model",
+      "title": "Thinking behind the voice",
+      "purpose": "Takes hard questions and many steps from the one-brain voice",
+      "hint": "the frontier mind the voice hands work to"
     },
     {
       "id": "fixed:voice-words",

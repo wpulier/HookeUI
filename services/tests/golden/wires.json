@@ -406,6 +406,7 @@
   "talk": "hold",
   "talk_key": "control-option",
   "taught": "on",
+  "think": "claude-opus-5-5",
   "track": "objects",
   "userLeads": true,
   "vision": "gemini-3.8-flash",

@@ -794,7 +794,7 @@ def test_the_route_opens_the_one_brain_voice_over_webrtc_only(monkeypatch):
         model = ws.receive_json()
         assert model["kind"] == "model" and model["data"]["talk"] == "hold" and model["data"]["talkKey"] == "control-option"
     assert made[0].config.model == "gpt-realtime-2.1" and made[0].brief == "Project Leaf"
-    assert {"mark", "look_hard", "do_in_hooke"} <= {t.name for t in made[0].config.tools}
+    assert {"mark", "look_hard", "think"} <= {t.name for t in made[0].config.tools}
 
 
 def test_a_refused_best_effort_step_is_logged_not_said_as_an_error(monkeypatch):
@@ -1152,7 +1152,7 @@ def test_do_in_hooke_and_look_hard_are_bounded_and_say_what_really_happened(monk
             return {"answer": "The table could not open.",
                     "actions": [{"tool": "show_measurements", "ok": False, "summary": "no measurements yet"}]}
         t.brain.turn = turn
-        hand = next(s for s in t.session.config.tools if s.name == "do_in_hooke")
+        hand = SimpleNamespace(handler=t.partner.tools.do_in_hooke)  # kept, undeclared: think replaced it
         first = await asyncio.wait_for(hand.handler({"request": "open the table and fit it"}), 1.0)
         assert first["ok"] is None and first["still_working"] is True
         t.session._last_user_at = 0.0
@@ -1176,7 +1176,7 @@ def test_do_in_hooke_that_changed_the_screen_brings_a_fresh_look(monkeypatch):
             return {"answer": "It is open.", "actions": [{"tool": "show_measurements", "ok": True, "summary": "shown"}]}
         t.brain.turn = turn
         t.hub.screen.report(["w-2: table"])
-        hand = next(s for s in t.session.config.tools if s.name == "do_in_hooke")
+        hand = SimpleNamespace(handler=t.partner.tools.do_in_hooke)  # kept, undeclared: think replaced it
         call = asyncio.ensure_future(hand.handler({"request": "open the table"}))
         request = await until_async(lambda: next((m for m in t.studio if m["type"] == "snapshot-request"), None))
         await t.partner.command({"type": "snapshot", "id": request["id"], "jpeg": base64.b64encode(b"AFTER").decode()})
