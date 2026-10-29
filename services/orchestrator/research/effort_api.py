@@ -27,6 +27,8 @@ class LocalLifecycle:
 
 
 def register(app, built, studio_origin, header):
+    from . import study_questions_api
+    study_questions_api.register(app, built, studio_origin, header)
     extension = os.environ.get('HOOKEUI_RESEARCH_EXTENSION', '').strip()
     if extension:
         # Invalid configuration fails at startup, never silently falls back.

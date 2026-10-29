@@ -41,7 +41,7 @@
     {"id": "status", "kind": "status", "say": "What's our researcher doing?",
      "expect": {"tools": ["research_status"], "toolRequired": false, "status": "latest", "marks": ["researcher:"]}},
     {"id": "outline-and-sizes", "kind": "act", "say": "Outline the nuclei, then put their measurements in a new tab called Sizes.",
-     "expect": {"tools": ["outline_cells", "count", "find", "show_measurements", "do_in_hooke"], "multi": true,
+     "expect": {"tools": ["outline_cells", "count", "find", "show_measurements", "do_in_hooke", "think"], "multi": true,
                 "visible": "the nuclei outlined, and their measurements in a Tab called Sizes in front", "outcome": true,
                 "marks": ["tab:", "document:", "window:", "outline:"],
                 "judge": "outlines the nuclei, then opens their measurements in a new Tab called Sizes, saying progress while it works and the outcome once"}},
