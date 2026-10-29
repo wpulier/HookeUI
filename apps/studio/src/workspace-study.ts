@@ -1,4 +1,4 @@
-import { projectInputs, materialFacts, projectEntry } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -1832,7 +1832,7 @@ function readerEntryOf(ref: { id: string; day: string; version: number | null })
   const found = projectEntry(entries, ref, snapshot.session);
   if (found) return found as ReaderEntry;
   const asset = ref.day === snapshot.session ? snapshot.sources.find((item) => item.id === ref.id) : undefined;
-  return asset ? inputEntry(asset) : null;
+  return asset ? inputEntry(asset) : retainedProjectEntry(ref, snapshot.session) as ReaderEntry | null;
 }
 /** A Data row (or a link inside the reader) opens on the right of the Tab you are on. Below 1200 px it takes the Data
  * drawer's place (‹ Data brings the list back). The Assistant steps aside (× brings it back if it was showing); a page

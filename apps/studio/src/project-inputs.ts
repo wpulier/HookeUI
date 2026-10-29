@@ -37,3 +37,9 @@ export function projectEntry(entries: readonly DataEntry[], ref: {id: string; da
   return inventory.find(entry => entry.id === ref.id && (entry.day ?? session) === ref.day &&
     (ref.version === null || (entry.version ?? null) === ref.version)) ?? null;
 }
+
+/** A saved scientific Tab can outlive the current inventory. The reader must fetch this exact revision. */
+export function retainedProjectEntry(ref: {id: string; day: string; version: number | null}, session: string): DataEntry | null {
+  if (ref.day !== session || !/^p[0-9a-f]{32}$/.test(ref.id) || !Number.isSafeInteger(ref.version) || Number(ref.version) < 1) return null;
+  return {id: ref.id, day: ref.day, version: Number(ref.version), kind: 'project', title: 'Saved material', summary: '', state: 'saved', actions: []};
+}

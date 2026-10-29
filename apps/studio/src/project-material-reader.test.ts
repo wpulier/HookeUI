@@ -4,6 +4,10 @@ const ref = {id: 'p1', day: '2026-10-29', version: 2};
 const digest = 'a'.repeat(64);
 const project = {id: ref.id, session: ref.day, revision: 2, digest, document: {kind: 'source-file', title: 'Controls'}};
 afterEach(() => vi.unstubAllGlobals());
+it('keeps server refusal and recovery instructions', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => ({ok: false, json: async () => ({says: 'Import pending.', next: 'Retry after import completes.'})})));
+  await expect(readMaterialRevision(ref, digest, new AbortController().signal)).rejects.toThrow('Import pending. Retry after import completes.');
+});
 it('reads only the exact Project revision and never loads the source bytes', async () => {
   const fetcher = vi.fn(async (_url: string, _options: RequestInit) => ({ok: true, json: async () => ({project})}));
   vi.stubGlobal('fetch', fetcher);

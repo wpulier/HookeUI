@@ -856,7 +856,7 @@ export class DataReader {
   /** An answer or anything else: its picture when it has one, and its words. */
   private async drawAnswer(body: HTMLElement, signal: AbortSignal): Promise<void> {
     const entry = this.entry!;
-    if (entry.kind === 'project' && ['file', 'folder', 'model', 'analysis'].includes(entry.material?.kind ?? '')) {
+    if (entry.kind === 'project' && (!entry.material || ['file', 'folder', 'model', 'analysis'].includes(entry.material.kind))) {
       this.loading(body, 'Reading saved material…');
       const ref = {id: entry.id, day: entry.day ?? '', version: Number(entry.version)};
       const document = await readMaterialRevision(ref, entry.source?.sha256, signal);
@@ -869,8 +869,11 @@ export class DataReader {
         const {openStudyScientific} = await import('./scientific-document');
         if (!signal.aborted) await openStudyScientific({resource: {...targetRef, picture: null}, title: String(saved.title ?? target.title), zoom: 1, pan: [0, 0]});
       };
+      this.loaded.title = typeof document.title === 'string' ? document.title : entry.title;
+      this.loaded.kind = document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);
+      this.drawHead();
       body.replaceChildren();
-      if (document.kind === 'source-file') { showScientificSource(body, document.state, ref, undefined, document.resources); return; }
+      if (document.kind === 'source-file') { showScientificSource(body, document.state, ref, open, document.resources); return; }
       if (document.kind === 'source-directory') { showScientificFolder(body, document.state, ref, open); return; }
       if (document.kind === 'matrix-result') { showMatrixResult(body, document.state, ref, document.resources, open); return; }
     }

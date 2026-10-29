@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectInputs, materialFacts, projectEntry } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import { dataRows, type DataEntry } from './data-roles';
 
 const entry = (id: string, input: boolean, extra = {}): DataEntry => ({
@@ -43,4 +43,11 @@ it('resolves a retained Tab pin without substituting the newest model', () => {
   expect(projectEntry([model], {...pin, version: 2}, pin.day)).toBe(model);
   expect(projectEntry([model], {...pin, version: 3}, pin.day)).toBeNull();
   expect(projectEntry([model], {...pin, day: 'foreign'}, pin.day)).toBeNull();
+});
+
+it('keeps historical Tabs readable independently of Study membership', () => {
+  const pin = {id: 'p' + 'a'.repeat(32), day: '2026-10-29', version: 1};
+  expect(retainedProjectEntry(pin, pin.day)).toMatchObject({...pin, kind: 'project'});
+  expect(retainedProjectEntry(pin, 'foreign')).toBeNull();
+  expect(retainedProjectEntry({...pin, version: null}, pin.day)).toBeNull();
 });
