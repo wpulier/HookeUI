@@ -89,6 +89,17 @@ VISION = {
                "openai:gpt-5.6-luna@none+priority", "OPENAI_API_KEY", model="gpt-5.6-luna"),
         Option("gpt-6-luna", "GPT-6 Luna", "12/15, ~1.8 s", "openai:gpt-6-luna@none", "OPENAI_API_KEY", model="gpt-6-luna"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "28/30 right with tools (spike S1); rejects reasoning effort none, so low", "openai:gpt-6.1-sol@low", "OPENAI_API_KEY", model="gpt-6.1-sol"),
+        # Claude and Gemini 4, measured 2026-10-29 beside the Gemini defaults in the same hour (docs/bench/naming.md,
+        # docs/bench/grounding-claude.md): grounding bench 15 questions x 2 (box); naming bench 60 uBench pictures.
+        Option("claude-opus-5-5", "Claude Opus 5.5",
+               "grounding 30/30, p50 2.4 s; naming 70% exact, 77% coarse, ECE 0.17 (3.8 Flash: 64%, 0.36), at 4.8 s",
+               "anthropic:claude-opus-5-5@low", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
+        Option("claude-opus-5-5-fast", "Claude Opus 5.5 (fast mode)",
+               "grounding 59/60, p50 0.93-1.03 s (3.5 Flash 1.5 s); naming 60% exact, ECE 0.20 at 1.9 s; twice the price",
+               "anthropic:claude-opus-5-5@low+fast", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
+        Option("gemini-4-argon", "Gemini 4 Argon",
+               "grounding 30/30, p50 4.6 s, p95 19 s; naming 82% exact (the most), ECE 0.18, at 7.2 s",
+               "gemini:gemini-4-argon@low", "GEMINI_API_KEY", model="gemini-4-argon"),
     ]
 }
 
