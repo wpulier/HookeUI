@@ -5,6 +5,7 @@ The 28 Oct chat log (~/Desktop/chatlog.rtf) failures this path must not repeat a
 import asyncio
 import base64
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -252,16 +253,23 @@ def test_a_turn_holds_both_pictures_the_screen_text_and_the_brief_as_they_were_a
                                                        (b"CAMERA-LATER", 42, [0, 0, 100, 100])])
         await press(t, 1)
         t.hub.screen._lines = ["w-9: something opened after the key went down"]
+        await settle()
+        held = len(t.sb.sent)  # everything sent while the key is still held
         await release(t, 1)
         items = t.sb.items()
         brief = [i for i in items if i.get("role") == "system" and "Project Leaf" in i["content"][0]["text"]]
         assert len(brief) == 1, "the brief is one system item"
         note = next(i for i in items if i.get("role") == "system" and i["content"][0]["text"].startswith("Turn 1"))
         assert "w-1: Measurements table, in front" in note["content"][0]["text"]  # as at key-down
-        images = next(i for i in items if any(p["type"] == "input_image" for p in i["content"]))
-        assert pictures(images) == [b"CAMERA-AT-KEY-DOWN", b"WINDOW-AT-KEY-DOWN"]
-        labels = [p["text"] for p in images["content"] if p["type"] == "input_text"]
+        images = [i for i in items if any(p["type"] == "input_image" for p in i["content"])]
+        assert [pic for i in images for pic in pictures(i)] == [b"CAMERA-AT-KEY-DOWN", b"WINDOW-AT-KEY-DOWN"]
+        labels = [p["text"] for i in images for p in i["content"] if p["type"] == "input_text"]
         assert "frame 41" in labels[0] and "tab-share" in labels[1]
+        # Sent while the key was held (the tuning micro-bench: the answer starts ~0.6 s sooner), the window at low
+        # detail (its words are in the note), the camera at full.
+        early = [e["item"] for e in t.sb.sent[:held] if e["type"] == "conversation.item.create"]
+        assert note in early and all(i in early for i in images)
+        assert [[p["detail"] for p in i["content"] if p["type"] == "input_image"][0] for i in images] == ["auto", "low"]
         order = t.sb.types()
         assert order.index("input_audio_buffer.commit") > order.index("conversation.item.create")
         assert t.partner.last_frame == {"id": 41, "crop": [0, 0, 100, 100]}
@@ -281,8 +289,8 @@ def test_the_window_picture_sent_right_behind_the_key_down_is_kept_for_its_turn(
         await release(t, 1)
         await t.partner.command({"type": "snapshot", "id": "talk-1", "jpeg": base64.b64encode(b"LATE").decode(),
                                  "how": "composed", "at": 0})
-        images = next(i for i in t.sb.items() if any(p["type"] == "input_image" for p in i["content"]))
-        assert pictures(images) == [b"CAMERA-AT-KEY-DOWN", b"FIRST"]
+        images = [i for i in t.sb.items() if any(p["type"] == "input_image" for p in i["content"])]
+        assert [pic for i in images for pic in pictures(i)] == [b"CAMERA-AT-KEY-DOWN", b"FIRST"]
         assert t.partner._seen[1]["window"]["jpeg"] == b"FIRST"
     asyncio.run(go())
 
@@ -343,7 +351,7 @@ def test_the_session_config_holds_tools_and_no_turn_detection_for_hold_and_seman
         config = made["configs"][0][1]
         assert config["audio"]["input"]["turn_detection"] is None
         assert config["tools"] == [{"type": "function", "name": "mark", "description": "point", "parameters": {"type": "object"}}]
-        assert config["reasoning"] == {"effort": "low"} and config["truncation"]["retention_ratio"] == 0.8
+        assert config["reasoning"] == {"effort": "minimal"} and config["truncation"]["retention_ratio"] == 0.8
         assert config["audio"]["input"]["noise_reduction"] == {"type": "far_field"}
         _, _, made, _ = await realtime(talk="open")
         turn = made["configs"][0][1]["audio"]["input"]["turn_detection"]
@@ -1199,4 +1207,84 @@ def test_the_studios_speaking_phase_and_its_own_new_call(monkeypatch):
         await t.partner.command({"type": "offer", "sdp": "v=0 studio offer", "id": "rc-1"})
         answer = await until_async(lambda: next((m for m in t.studio if m.get("kind") == "answer"), None))
         assert answer["data"] == {"sdp": "answer", "id": "rc-1"} and t.session.call_id == "rtc_2"
+    asyncio.run(go())
+
+
+# --- tuning against the real model (the bench of 2026-10-29) --------------------------------------------------------
+def test_a_tap_or_a_cancel_takes_back_what_went_in_during_the_hold(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        await settle()
+        sent = [e["item"]["id"] for e in t.sb.sent if e["type"] == "conversation.item.create"
+                and e["item"]["id"] != t.session._brief[0]]
+        assert sent, "the note and pictures went in while the key was held"
+        await t.partner.command({"type": "talk", "cancel": True, "n": 1})
+        await until_async(lambda: {e.get("item_id") for e in t.sb.sent if e["type"] == "conversation.item.delete"}
+                          >= set(sent))
+        assert not [n for n in t.session.notes if n.startswith("Turn 1")], "its note is not kept for a reconnect"
+        assert "response.create" not in t.sb.types()
+    asyncio.run(go())
+
+
+def test_what_a_tool_put_on_screen_is_pointed_at_as_its_answer_is_heard(monkeypatch):
+    """The bench: the model marked the population as outline:e1 (not found) in a silent response of its own, 3.5 s of
+    silence. Now the app points at population:e1 itself as the answer starts, and tells the model it did."""
+    async def go():
+        from orchestrator.brain.registry import record_output
+
+        async def outline(ctx, args):
+            record_output(ctx, {"kind": "population", "id": "e1"})
+            return "outlined 346 cells"
+        t = await partner_session(monkeypatch, tools={"outline_cells": outline})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "outline the nuclei"})
+        t.hub.screen.report(["w-1: live view, in front"])
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "outline_cells", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        request = await until_async(lambda: next((m for m in t.studio if m["type"] == "snapshot-request"), None))
+        await t.partner.command({"type": "snapshot", "id": request["id"], "jpeg": base64.b64encode(b"AFTER").decode()})
+        await until_async(lambda: t.sb.responses == 2)
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["pointed_at"] == ["population:e1"]
+        assert not [m for m in t.studio if m["type"] == "marks"], "not before the answer is heard"
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert marks["marks"] == [{"target": "population:e1", "style": "box"}]
+    asyncio.run(go())
+
+
+def test_marks_called_after_the_answer_was_spoken_ask_for_nothing_more(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": "There it is."})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "m1",
+                   "name": "mark", "arguments": json.dumps({"targets": [{"target": "outline:o1"}]})})
+        await done(t.sb, "resp_1")
+        sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": [{"target": "outline:o1", "ok": True}]})
+        await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()))
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 1, "pointing after speaking is not another answer"
+    asyncio.run(go())
+
+
+def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch)
+        await press(t, 1)  # busy: the line waits
+        before = time.time()
+        await t.partner.happened("capability-on", "Cellpose is on", ref="cellpose")
+        await asyncio.sleep(0.3)
+        await release(t, 1)
+        await done(t.sb, "resp_1")
+        t.session._last_user_at = 0.0
+        await until_async(lambda: t.sb.responses == 2)
+        said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
+        assert before - 0.05 <= said["eventT"] < before + 0.2 and said["responseCreatedT"] - said["eventT"] > 0.3
     asyncio.run(go())

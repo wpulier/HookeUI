@@ -565,6 +565,27 @@ export class View {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }
 
+  /** A shown population's members drawn now, as one box on the canvas (CSS px), clipped to the canvas; or why not. */
+  populationCanvasBox(population: string): [number, number, number, number] | 'not-found' | 'hidden' | 'out-of-view' {
+    const h = this.header;
+    const pop = this.population;
+    if (!h || !pop || pop.id !== population) return this.populations.has(population) ? 'hidden' : 'not-found';
+    const { members, matrix: [a, b, c, d, e, f] } = drawable(pop, this.layer, h);
+    const p = this.placement;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const m of members) {
+      if (memberLook(m, this.layer?.style).hidden) continue;
+      for (const [x, y] of m.polygons.flat()) {
+        const cx = p.ox + (a * x + b * y + c) * p.scale, cy = p.oy + (d * x + e * y + f) * p.scale;
+        x0 = Math.min(x0, cx); y0 = Math.min(y0, cy); x1 = Math.max(x1, cx); y1 = Math.max(y1, cy);
+      }
+    }
+    if (!Number.isFinite(x0)) return 'out-of-view';
+    const r = this.canvas.getBoundingClientRect();
+    x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(r.width, x1); y1 = Math.min(r.height, y1);
+    return x1 - x0 < 2 || y1 - y0 < 2 ? 'out-of-view' : [x0, y0, x1, y1];
+  }
+
   /** The slide's place (dx, dy, motion epoch) when frame `id` was shown, or the frame shown now's without an id; null
    * when that frame is too old to know. A mark anchored to it moves with the specimen from there. */
   frameOffset(id?: number): [number, number, number] | null {

@@ -1775,6 +1775,11 @@ const markHooks: MarkHooks = {
     const box = view.memberCanvasBox(population, member);
     return typeof box === 'string' ? { why: box } : { rect: canvasRect(box) };
   },
+  population: (id) => {
+    if (!liveShown()) return { why: 'hidden' };
+    const box = view.populationCanvasBox(id);
+    return typeof box === 'string' ? { why: box } : { rect: canvasRect(box) };
+  },
   anchor: (ref) => {
     const h = view.header;
     if (!h) return null;

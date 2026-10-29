@@ -47,7 +47,8 @@ MARK = {
             "type": "object",
             "properties": {
                 "target": {"type": "string", "description": (
-                    "What to point at, by Hooke's own id: outline:<id>, member:<population>:<member>, window:<id>, "
+                    "What to point at, by Hooke's own id: outline:<id> (one outline), population:<id> (a whole layer of "
+                    "cell outlines, e.g. population:e1), member:<population>:<member>, window:<id>, "
                     "document:<placement>, tab:<id or exact title>, researcher:<number or id>, panel:<name> "
                     "(magnifier, viewer, slidemap, card, made-today, sidebar, live, workspace-tabs), or \"frame\" with "
                     "a region or polygon in the camera picture you saw.")},
@@ -165,6 +166,10 @@ class PartnerTools:
             look, facts = await self.look_after(name, before)
             result["_look"] = look
             log.update(facts)
+            points = self.points_of(run)
+            if points and run.ok:
+                # Pointed at by the app as the answer about it is heard: the model need not call mark for it.
+                result["_point"], result["pointed_at"] = points, points
         result["_log"] = log
         return result
 
@@ -249,6 +254,18 @@ class PartnerTools:
         text = json.dumps({"tool": run.tool, "status": status, "summary": run.summary,
                            **({"next": run.next} if run.next else {})}, ensure_ascii=False)
         await self.partner.happened("tool-done", text, ref=action or run.tool)
+
+    @staticmethod
+    def points_of(run) -> list[str]:
+        """What a run put on screen, as mark targets: a layer of cell outlines, an outline."""
+        out = []
+        for output in run.outputs or []:
+            wire = output.wire()
+            if wire.get("kind") == "population" and wire.get("id"):
+                out.append(f"population:{wire['id']}")
+            elif wire.get("kind") == "outline" and wire.get("id"):
+                out.append(f"outline:{wire['id']}")
+        return out[:4]
 
     @staticmethod
     def _researcher_of(run) -> str | None:

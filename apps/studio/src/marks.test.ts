@@ -70,6 +70,12 @@ test('outlines and members come from the live view, out of view or hidden said a
   expect(rect(resolveTarget({ target: 'outline:o404' }, h, null))).toBe('not-found');
   expect(rect(resolveTarget({ target: 'member:p1:3' }, h, null))).toEqual([500, 400, 12, 12]);
   expect(rect(resolveTarget({ target: 'member:p2:3' }, h, null))).toBe('hidden');
+  // A whole layer of cell outlines (the bench of 2026-10-29: the model pointed at the population e1 as an outline).
+  expect(parseTarget('population:e1')).toEqual({ kind: 'population', id: 'e1' });
+  expect(parseTarget('layer:e1')).toEqual({ kind: 'population', id: 'e1' });
+  expect(rect(resolveTarget({ target: 'population:e1' }, h, null))).toBe('not-found');
+  const withLayer = hooks([], { population: (id) => id === 'e1' ? { rect: [120, 80, 600, 500] } : { why: 'not-found' } });
+  expect(rect(resolveTarget({ target: 'population:e1' }, withLayer, null))).toEqual([120, 80, 600, 500]);
   expect(rect(resolveTarget({ target: 'nonsense' }, h, null))).toBe('bad-target');
 });
 

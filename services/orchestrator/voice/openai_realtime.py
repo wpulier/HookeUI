@@ -121,6 +121,7 @@ class Perception:
     note: str = ""
     images: list[tuple[bytes, str]] = field(default_factory=list)
     facts: dict = field(default_factory=dict)
+    details: dict = field(default_factory=dict)  # an image's label -> its detail ("low" for the window)
 
 
 @dataclass
@@ -132,6 +133,7 @@ class Waiting:
     at: float = field(default_factory=time.monotonic)
     before: Callable[[], Awaitable[None]] | None = None  # e.g. the mark on the card, drawn as it is said
     mark: str | None = None
+    wall: float = field(default_factory=time.time)  # when it happened (the bench times the line from here)
 
 
 class SdkSideband:
@@ -212,6 +214,8 @@ class RealtimeSession(VoiceSession):
         # What a line the app asks to be said is about, when its own facts say so (a researcher that just finished):
         # tag_notice(text) -> {"event", "ref", "mark", "before"} or None.
         self.tag_notice: Callable[[str], dict | None] = lambda text: None
+        # Points at what a tool just put on screen, as the answer about it starts to be heard (partner: marks).
+        self.on_point: Callable[[list[str]], None] = lambda targets: None
         # --- conversation state ---
         self.n = 0  # the user's turn number (talk presses, or speech in open mic)
         self._held: int | None = None
@@ -231,10 +235,16 @@ class RealtimeSession(VoiceSession):
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
         self._seen_calls: set[str] = set()
+        self._call_names: dict[str, str] = {}
         self._call_epoch: dict[str, int] = {}  # call id -> the call (epoch) it was made on
         self._round: dict[str, list[str]] = {}  # response id -> its calls
         self._rounds_this_turn = 0
         self._images: list[str] = []  # image items of the last turn: deleted at the next
+        self._early_n: int | None = None  # the turn whose perception went in while its key was held
+        self._turn_items: dict[int, list[str]] = {}  # turn -> its perception's item ids (a cancelled turn's are deleted)
+        self._point: list[str] = []  # targets to point at when the next answer is heard
+        self._cancelled: set[int] = set()
+        self._turn_notes: dict[int, list[str]] = {}
         self._brief: tuple[str, str] | None = None  # (item id, revision)
         self.brief_text = ""
         self.notes: list[str] = []  # each turn's short text note of what was seen
@@ -262,7 +272,9 @@ class RealtimeSession(VoiceSession):
         session: dict[str, Any] = {
             "type": "realtime", "model": self.config.model, "output_modalities": ["audio"],
             "audio": {"input": audio_in, **({"output": {"voice": self.config.voice}} if self.config.voice else {})},
-            "reasoning": {"effort": extra.get("reasoning", "low")},
+            # "minimal": response.create to the first audio 0.82 s vs 1.10 s at "low" (the tuning micro-bench of
+            # 2026-10-29: real WebRTC calls with the partner's prompt, tools, brief and pictures).
+            "reasoning": {"effort": extra.get("reasoning", "minimal")},
             "truncation": {"type": "retention_ratio", "retention_ratio": 0.8},
         }
         if self.config.system_prompt:
@@ -574,11 +586,22 @@ class RealtimeSession(VoiceSession):
             if not self._speaking:
                 self._speaking = True
                 self._emit(VoiceEvent("vad", data={"state": "model-start"}))
+                self._point_now()
         elif phase == "listening" and self._speaking:
             self._speaking = False
             self._last_audio_at = now
             self._emit(VoiceEvent("turn_complete", data={"reason": "quiet"}))
             self._gate_wake.set()
+
+    def _point_now(self) -> None:
+        """What a tool just put on screen is pointed at as the answer about it starts to be heard (no round trip
+        through the model's mark tool: the bench's silent `look` response with only a mark in it, 2026-10-29)."""
+        targets, self._point = self._point, []
+        if targets and self._causes.get(self._response or "", {}).get("cause") in ("look", "tool"):
+            with contextlib.suppress(Exception):
+                self.on_point(targets)
+        elif targets:
+            self._point = targets  # not this answer (a progress line): the one about the result
 
     def _maybe_audible(self) -> bool:
         """A response ended moments ago and its audio's end was not reported: the browser may still be playing it."""
@@ -620,6 +643,7 @@ class RealtimeSession(VoiceSession):
         if held_for < MIN_HOLD_S:
             with contextlib.suppress(ConnectionError):
                 await self._send({"type": "input_audio_buffer.clear"})
+                await self._forget_turn(n)
             return False
         seen = self.turn_items(n)  # as it was at key-down, taken now
         if not await self._wait_connected(RECONNECT_WAIT_S):
@@ -645,23 +669,66 @@ class RealtimeSession(VoiceSession):
     async def talk_cancel(self, n: int | None = None) -> None:
         if self._held is None:
             return
-        self._log({"kind": "partner-talk", "n": self._held, "down": False, "cancel": True})
+        n = self._held
+        self._log({"kind": "partner-talk", "n": n, "down": False, "cancel": True})
         self._held = None
         self._gate_wake.set()
         with contextlib.suppress(ConnectionError):
             await self._send({"type": "input_audio_buffer.clear"})
+            await self._forget_turn(n)
 
-    async def _perceived(self, n: int, seen: Perception) -> None:
-        """This turn's perception: last turn's images deleted, this turn's text note (kept) and images (one item)."""
+    async def early(self, n: int, *, note: str = "", image: tuple[bytes, str] | None = None, detail: str = "auto") -> bool:
+        """Part of turn n's perception sent while its key is held, as soon as it is ready (the note at once, the
+        camera and the window as each comes): the API prepares items as they arrive, so the answer starts sooner
+        (the tuning micro-bench: 0.74 s from response.create with the pictures sent during the hold, 1.33 s after).
+        False when the turn is over (cancelled, or a newer one) or the sideband is away: the release sends it."""
+        if n != self.n or self._sb is None or n in self._cancelled:
+            return False
+        await self._turn_start(n)
+        if note:
+            self.notes.append(note[:600])
+            del self.notes[:-NOTES_KEPT]
+            self._turn_notes.setdefault(n, []).append(note[:600])
+            self._turn_items.setdefault(n, []).append(await self.add(text_item("system", note)))
+        if image is not None:
+            iid = await self.add(image_item([image], detail=detail))
+            self._images.append(iid)
+            self._turn_items.setdefault(n, []).append(iid)
+        return True
+
+    async def _turn_start(self, n: int) -> None:
+        """The first perception of turn n: the turn before's pictures go (its notes stay)."""
+        if self._early_n == n:
+            return
+        self._early_n = n
         old, self._images = self._images, []
         for iid in old:
             await self.delete(iid)
+
+    async def _perceived(self, n: int, seen: Perception) -> None:
+        """What of this turn's perception did not go in during the hold goes in now: its text note (kept) and its
+        pictures, each with its own detail (the window at low detail: its words are in the note)."""
+        await self._turn_start(n)
         if seen.note:
             self.notes.append(seen.note[:600])
             del self.notes[:-NOTES_KEPT]
-            await self.add(text_item("system", seen.note))
-        if seen.images:
-            self._images.append(await self.add(image_item(seen.images)))
+            self._turn_notes.setdefault(n, []).append(seen.note[:600])
+            self._turn_items.setdefault(n, []).append(await self.add(text_item("system", seen.note)))
+        for image in seen.images:
+            iid = await self.add(image_item([image], detail=seen.details.get(image[1], "auto")))
+            self._images.append(iid)
+            self._turn_items.setdefault(n, []).append(iid)
+
+    async def _forget_turn(self, n: int) -> None:
+        """A cancelled press or a tap: what of it went in early is taken out again."""
+        self._cancelled.add(n)
+        for note in self._turn_notes.pop(n, []):
+            if note in self.notes:
+                self.notes.remove(note)
+        for iid in self._turn_items.pop(n, []):
+            await self.delete(iid)
+            if iid in self._images:
+                self._images.remove(iid)
 
     # --- input the VoiceSession interface asks for -------------------------------------------------
     async def send_audio(self, pcm: bytes) -> None:
@@ -720,7 +787,7 @@ class RealtimeSession(VoiceSession):
                        "userBusy": self.user_busy(), "skipped": "duplicate"})
             return
         self._said_events[key] = now
-        self._waiting.append(Waiting(text, event, ref, now, before, mark))
+        self._waiting.append(Waiting(text, event, ref, now, before, mark, self.wall()))
         self._deliver()
 
     def _deliver(self) -> None:
@@ -747,12 +814,12 @@ class RealtimeSession(VoiceSession):
                 if not prepared:
                     self._waiting.insert(0, line)  # nothing of it went out: it waits for the next quiet
                     return
-                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": line.wall,
                            "userBusy": True, "skipped": "user-talking"})
 
             def sent(line=line) -> None:
                 self.last_commentary_at = self.clock()
-                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": line.wall,
                            "userBusy": False, "responseCreatedT": self.wall(),
                            **({"markTarget": line.mark} if line.mark else {})})
 
@@ -765,7 +832,7 @@ class RealtimeSession(VoiceSession):
     async def _noted_only(self, line: Waiting) -> None:
         with contextlib.suppress(Exception):
             await self.add(text_item("system", "Happened while the user was talking (context only): " + line.text))
-        self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+        self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": line.wall,
                    "userBusy": True, "skipped": "user-talking"})
 
     async def _watch(self) -> None:
@@ -836,6 +903,7 @@ class RealtimeSession(VoiceSession):
             if not self._speaking:
                 self._speaking = True
                 self._emit(VoiceEvent("vad", data={"state": "model-start"}))
+                self._point_now()
             self._last_audio_at = now
             if kind == "response.output_audio.delta":
                 self._emit(VoiceEvent("audio", audio=base64.b64decode(ev.get("delta") or ""), rate=RATE))
@@ -949,7 +1017,10 @@ class RealtimeSession(VoiceSession):
                            item.get("status"))
         if self._round.get(rid):
             # Answered even when the response was cancelled (the user spoke): their next answer reads the outputs.
-            self._spawn(self._finish_round(rid, cause["n"]))
+            # Only marks, after the answer was spoken: pointing is done, and nothing more is said about it.
+            pointing_only = bool(transcript.strip()) and all(self._call_names.get(cid) == "mark"
+                                                              for cid in self._round[rid])
+            self._spawn(self._finish_round(rid, cause["n"], go_on=not pointing_only))
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:
@@ -969,6 +1040,7 @@ class RealtimeSession(VoiceSession):
             return
         self._round.setdefault(rid, []).append(call_id)
         self._call_epoch[call_id] = self._epoch
+        self._call_names[call_id] = name
         event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args)
         self._emit(event)
         self._calls[call_id] = asyncio.ensure_future(self._run_tool(event))
@@ -995,7 +1067,7 @@ class RealtimeSession(VoiceSession):
                               result={k: v for k, v in result.items() if k != "_look"}, data={"ms": ms}))
         return result
 
-    async def _finish_round(self, rid: str, n: int) -> None:
+    async def _finish_round(self, rid: str, n: int, go_on: bool = True) -> None:
         """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
         dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has
         been replaced (a new call never had these call ids: nothing is posted to it)."""
@@ -1020,12 +1092,14 @@ class RealtimeSession(VoiceSession):
                 self._progress_said.add(rid)
                 self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
                              tool_choice="none", instructions=self.config.system_prompt + "\n\nThe app is still working "
-                             "on your last tool call. Say only a short progress phrase, at most six words, without "
-                             "claiming anything is done.")
+                             "on your last tool call. Say only a short phrase asking the user to wait a few more seconds, "
+                             "at most six words. Do not describe what is running and do not say anything is done.")
         for cid in ids:
             self._calls.pop(cid, None)
         self._progress_said.discard(rid)
         if self.closed or epoch != self._epoch:
+            return
+        if not go_on:
             return
         self._rounds_this_turn += 1
         if self._rounds_this_turn > TOOL_ROUNDS:
@@ -1041,6 +1115,9 @@ class RealtimeSession(VoiceSession):
         except BaseException as exc:  # noqa: BLE001 - a cancelled or broken handler is said as such
             result = {"ok": False, "error": f"the tool did not finish ({type(exc).__name__})"}
         look = result.pop("_look", None)
+        points = result.pop("_point", None)
+        if isinstance(points, list) and points:
+            self._point = [str(t) for t in points][:4]
         output = json.dumps(result, ensure_ascii=False, default=str)[:12000]
         await self.add({"id": item_id("fo"), "type": "function_call_output", "call_id": call_id, "output": output})
         if isinstance(look, dict) and (look.get("images") or look.get("text")):
@@ -1048,7 +1125,7 @@ class RealtimeSession(VoiceSession):
             if note:
                 await self.add(text_item("system", note))
             if look.get("images"):
-                self._images.append(await self.add(image_item(look["images"])))
+                self._images.append(await self.add(image_item(look["images"], detail=look.get("detail", "low"))))
             return True
         return False
 

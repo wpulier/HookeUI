@@ -83,6 +83,8 @@ class Partner:
         session.history = self.history
         session.tag_notice = self.tag_notice
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
+        session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
+                                                                 timeout=1.0))
         session.on(self.on_event)
         self.lines.voice = session
         self._tools_named = tuple(self.tools.names())
@@ -180,11 +182,68 @@ class Partner:
         seen["at"] = time.time()
         loop = asyncio.get_running_loop()
         seen["camera_task"] = loop.run_in_executor(None, view_frame, self.hub, 768)
+        seen.setdefault("sent", set())
         for old in [k for k in self._seen if k < n - 2]:
             self._seen.pop(old, None)
         self._spawn(self.refresh_brief())
+        if self.session is not None and self.session.talk == "hold":
+            self._spawn(self._early(n))
         if self.session is not None and self.session.talk == "open":
             self._spawn(self._open_window(n))
+
+    async def _early(self, n: int) -> None:
+        """Turn n's perception into the conversation while its key is held, each part as it is ready: the note at once,
+        the camera when its grab is done, the window when the studio's picture comes (got_snapshot). What is not in by
+        the release goes then (turn_items). Each part is claimed before it is sent, so none goes twice."""
+        session = self.session
+        end = self.clock() + 0.5
+        while session.n != n and self.clock() < end:  # the key-down's own task has not run yet
+            await asyncio.sleep(0.01)
+        seen = self._seen.get(n)
+        if seen is None or session.n != n or n in self._released:
+            return
+        if "note" not in seen["sent"]:
+            seen["sent"].add("note")
+            if not await session.early(n, note=self._note(n, seen)):
+                seen["sent"].discard("note")
+        camera = seen.get("camera_task")
+        if camera is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(asyncio.shield(camera), 1.0)
+        image = self._camera_image(seen)
+        if image is not None and "camera" not in seen["sent"] and n not in self._released:
+            seen["sent"].add("camera")
+            if not await session.early(n, image=image, detail="auto"):
+                seen["sent"].discard("camera")
+        window = seen.get("window")
+        if window is not None:
+            await self._early_window(n, seen)
+
+    async def _early_window(self, n: int, seen: dict) -> None:
+        if "window" in seen["sent"] or n in self._released or "note" not in seen["sent"]:
+            return  # sent, too late, or the note's own early send has not run (it sends the window after it)
+        seen["sent"].add("window")
+        if not await self.session.early(n, image=self._window_image(seen), detail="low"):
+            seen["sent"].discard("window")
+
+    @staticmethod
+    def _note(n: int, seen: dict) -> str:
+        when = time.strftime("%H:%M:%S", time.localtime(seen.get("at") or time.time()))
+        return f"Turn {n} at {when}. Screen now: {seen.get('screen') or 'no report from the studio'}."
+
+    def _camera_image(self, seen: dict):
+        camera = seen.get("camera_task")
+        if camera is None or not camera.done() or camera.cancelled() or camera.exception() is not None \
+                or camera.result() is None:
+            return None
+        jpeg, frame_id, crop = camera.result()
+        self.last_frame = {"id": frame_id, "crop": crop}
+        return (jpeg, f"Camera, frame {frame_id}: what the microscope showed when the user pressed talk")
+
+    @staticmethod
+    def _window_image(seen: dict):
+        window = seen["window"]
+        return (window["jpeg"], f"Hooke's window when the user pressed talk ({window.get('how') or 'composed'})")
 
     async def _open_window(self, n: int) -> None:
         """Open mic has no key-down: the window picture is asked for as the user starts speaking."""
@@ -203,7 +262,10 @@ class Partner:
             with contextlib.suppress(ValueError):
                 n = int(sid.split("-", 1)[1])
                 if n not in self._released and n >= self.turn():  # after release it is too late for that turn: dropped
-                    self._seen.setdefault(n, {"window": None})["window"] = shot
+                    seen = self._seen.setdefault(n, {"window": None})
+                    seen["window"] = shot
+                    if shot is not None and "sent" in seen and self.session is not None and self.session.talk == "hold":
+                        self._spawn(self._early_window(n, seen))
             return
         self._answer(sid, shot)
 
@@ -269,27 +331,35 @@ class Partner:
         return await asyncio.get_running_loop().run_in_executor(None, view_frame, self.hub, max_side)
 
     def turn_items(self, n: int) -> Perception:
-        """What turn n saw at its key-down, as it is now: never waited for."""
+        """What of turn n's key-down perception is not in the conversation yet, as it is now: never waited for. Each
+        part is claimed here, synchronously, so an early send still running never sends it again."""
         seen = self._seen.get(n) or {}
-        images, facts = [], {"camera": False, "window": None, "screenNowChars": len(seen.get("screen") or "")}
-        camera = seen.get("camera_task")
-        frame_id = None
-        if camera is not None and camera.done() and not camera.cancelled() and camera.exception() is None \
-                and camera.result() is not None:
-            jpeg, frame_id, crop = camera.result()
-            self.last_frame = {"id": frame_id, "crop": crop}
-            images.append((jpeg, f"Camera, frame {frame_id}: what the microscope showed when the user pressed talk"))
-            facts["camera"] = True
+        sent = seen.setdefault("sent", set())
+        images, details = [], {}
+        facts = {"camera": False, "window": None, "screenNowChars": len(seen.get("screen") or "")}
+        camera = self._camera_image(seen) if seen else None
+        facts["camera"] = camera is not None
+        if camera is not None and "camera" not in sent:
+            sent.add("camera")
+            images.append(camera)
         window = seen.get("window")
         if window is not None:
-            images.append((window["jpeg"], f"Hooke's window when the user pressed talk ({window.get('how') or 'composed'})"))
             age = round(time.time() * 1000 - window["at"]) if isinstance(window.get("at"), (int, float)) else None
             facts["window"] = {"how": window.get("how"), "ageMs": age}
-        when = time.strftime("%H:%M:%S", time.localtime(seen.get("at") or time.time()))
-        note = (f"Turn {n} at {when}. Screen now: {seen.get('screen') or 'no report from the studio'}. "
-                + (f"Camera frame {frame_id}." if frame_id is not None else "No fresh camera frame.")
-                + ("" if window is not None else " No window picture this turn."))
-        return Perception(note, images, facts)
+            if "window" not in sent:
+                sent.add("window")
+                image = self._window_image(seen)
+                images.append(image)
+                details[image[1]] = "low"  # its words are in the note; the picture is for layout
+        note = ""
+        if "note" not in sent:
+            sent.add("note")
+            note = self._note(n, seen) if seen else f"Turn {n}. Screen now: no report from the studio."
+        missing = ([] if camera is not None else ["No fresh camera frame this turn."]) + (
+            [] if window is not None else ["No window picture this turn."])
+        if missing:
+            note = (note + " " if note else "") + " ".join(missing)
+        return Perception(note, images, facts, details)
 
     def when_asked(self, n: int):
         """What was pointed at when turn n's key went down (board.WhenAsked), or None."""
