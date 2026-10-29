@@ -13,7 +13,8 @@ export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' 
 export interface ProjectMaterial {
   kind: string; origin: 'imported' | 'generated' | 'authored' | 'unknown'; input: boolean;
   section: DataRole; category: string; record: boolean; run?: string;
-  uses?: {study: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
+  uses?: {study?: string; membership?: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
+  organization?: {role: string; input: boolean; by: string; revision: number};
   format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
 }
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
@@ -36,7 +37,7 @@ export interface DataEntry extends StudyResource {
 
 /** Data's sections, in order (the words Data shows). */
 export const ROLE_SECTIONS: readonly (readonly [DataRole, string])[] = [
-  ['acquired', 'Pictures and recordings'], ['files', 'Files and folders'], ['model', 'Models'], ['analysis', 'Analyses'], ['study', 'Studies'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['history', 'Workflow history'], ['other', 'Files'],
+  ['acquired', 'Pictures and recordings'], ['files', 'Files and folders'], ['model', 'Models'], ['analysis', 'Analyses'], ['study', 'Studies'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['history', 'Research history'], ['other', 'Files'],
 ];
 
 /** A section's heading as Data shows it ("Write-ups"): Help and every message that points into Data say it this way. */

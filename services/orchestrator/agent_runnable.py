@@ -142,6 +142,7 @@ DOOR_RESOURCES = {
     'project.list': 'lists only Projects this connection may read',
     'project.read': 'reads the exact authorized Project and retained corpus index',
     'project.state': 'reads the authorized Project as every reader sees it: data with exact references, researchers, Studies, the studio',
+    'material.organize': 'organizes an exact artifact in an authorized Project; preserves its bytes, producing provenance and historical revisions',
     'project.import': 'retains one explicitly supplied local file in an authorized Project',
     'artifact.read': 'reads an exact authorized retained revision, with bounded source text',
     'study-question.read': 'reads retained questions and exact Study context within an authorized Project',

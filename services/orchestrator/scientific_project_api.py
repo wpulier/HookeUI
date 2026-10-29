@@ -168,6 +168,30 @@ def register(app, built, studio_origin, header):
         except (Refused, MemoryRefused, InvalidProject, OSError) as exc:
             return _error(exc)
 
+    @app.post('/api/scientific-projects/{project}/organization')
+    async def organization(project: str, request: Request):
+        from .project_material_edit import organize
+        stopping = threading.Event()
+        try:
+            if not (request.headers.get(header) == 'save-project'
+                    and studio_origin(request.headers.get('origin'), request.url.port)):
+                raise Refused('Organize material from the Studio.', 403, next='return to the Project’s Inputs')
+            body = await _body(request)
+            if set(body) != {'reference', 'role', 'input', 'request', 'expectedRevision'} or not isinstance(body['reference'], dict):
+                raise InvalidProject('Choose exact material and its group')
+            ref = body['reference']
+            session = ref.get('session')
+            if ref.get('id') != project or session != built.day.sid:
+                raise Refused('The Project changed.', 409, next='reopen this material in its Project')
+            def check():
+                if stopping.is_set():
+                    raise InvalidProject('Organization stopped before publication')
+            saved = await _owned(organize, store, session, ref, role=body['role'], selected=body['input'],
+                expected_revision=body['expectedRevision'], actor='user', request=body['request'], check=check, on_cancel=stopping.set)
+            return JSONResponse({'ok': True, 'project': _wire(saved)}, headers={'Cache-Control':'no-store'})
+        except (Refused, InvalidProject, OSError) as exc:
+            return _error(exc)
+
     @app.post('/api/scientific-projects')
     async def create(request: Request):
         return await write(request)

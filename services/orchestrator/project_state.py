@@ -66,7 +66,7 @@ CATEGORY = {"population": "outline-layer", "named-outline": "outline-layer",
 WITH_TABLE = frozenset({"population", "tracks", "dataset-table", "finding-table"})
 CATEGORY_WORDS = {"table": "table", "measurement": "measurement", "outline-layer": "outline layer",
                   "import": "import", "finding": "researcher's findings", "study-result": "Study result",
-                  "workflow": "workflow result", "analysis": "analysis", "note": "note", "other": "other"}
+                  "workflow": "workflow result", "organization": "organization record", "analysis": "analysis", "note": "note", "other": "other"}
 
 
 class Changed(ValueError):
