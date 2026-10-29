@@ -66,7 +66,7 @@ def add_web_tools(registry: Registry, services) -> None:
         tab = " ".join(str(args.get("tab") or "").split())[:80] or None
         video, url = inline(args.get("video"), 600), str(args.get("url") or "").strip()
         if not video and not url:
-            raise ToolFailed("say which video to find, or give the page's link", next=None)  # the message says what to give
+            raise ToolFailed("say which video to find, or give the page's link", next=None)  # no next: the message says what to give
         if url:
             shown = embed(url)
             if shown is None:

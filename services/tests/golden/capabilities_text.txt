@@ -264,6 +264,7 @@ How it looks (How outlines and spots are drawn):
 - You: Show, fade or colour cells: Shows, hides, fades, fills or colours the cell outlines (say "colour the cells by size")
 - I: Look at the screen: Checks the composed screen when the studio's report is unclear (say "is the video still showing?"); models: Seeing: Claude Opus 5.5 (fast mode) in the cloud, a setting; Needs setup: Needs your Anthropic API key (needs ANTHROPIC_API_KEY)
 - You: Outline style: Outline style in the Behaviour menu
+- I: A video from the web: Finds a video or page and opens it in its own window (say "find a YouTube video about stomata and open it"); models: Fast web retrieval: Gemini 3.8 Flash (cloud), fixed in the code
 - I: Arrange named Tabs: Changes named Tabs and retained placements in the original Studio (say "move this saved graph to the Results Tab")
 Choosing & checking (Which model does each job, blind tests, flags, your verdicts):
 - You: Flag a moment: F marks a moment to look at later (key F)

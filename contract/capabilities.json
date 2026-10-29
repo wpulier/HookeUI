@@ -4297,6 +4297,26 @@
       ]
     },
     {
+      "id": "web-video",
+      "family": "display",
+      "actor": "agent",
+      "title": "A video from the web",
+      "what": "Finds a video or page and opens it in its own window",
+      "how": {
+        "tool": "show_web",
+        "say": "find a YouTube video about stomata and open it"
+      },
+      "evidence": [
+        "services/tests/test_workspace_display.py"
+      ],
+      "roles": [
+        "fixed:retrieval"
+      ],
+      "parts": [
+        "reference-photos"
+      ]
+    },
+    {
       "id": "saved-tabs",
       "family": "display",
       "actor": "agent",

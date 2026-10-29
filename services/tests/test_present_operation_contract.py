@@ -19,6 +19,7 @@ from tests.test_workspace_actions_app import built, plan
 LEGACY = {'show', 'hide', 'opacity', 'colour', 'fill', 'edge', 'emphasise',
           'open', 'close', 'move', 'resize', 'front'}
 NATIVE_ONLY = {'duplicate', 'split', 'zoom', 'pan', 'arrange', 'beside', 'restore', 'group', 'ungroup'}
+PLACE = {'place'}  # do=place with placement: the one placement vocabulary (placement.py), for any target
 TRACKS = {'show', 'hide', 'open', 'close', 'opacity', 'colour', 'emphasise'}
 MAGNIFIER = {'open', 'close', 'move', 'resize', 'front'}
 NATIVE = {'open', 'close', 'duplicate', 'split', 'zoom', 'pan', 'move',
@@ -78,7 +79,7 @@ def test_built_function_call_declaration_has_the_authoritative_operation_enum(na
     verbs = params['properties']['do'].get('enum')
     assert isinstance(verbs, list), 'do is currently an unrestricted string rather than an operation enum'
     assert len(verbs) == len(set(verbs))
-    assert set(verbs) == LEGACY | NATIVE_ONLY
+    assert set(verbs) == LEGACY | NATIVE_ONLY | PLACE
     assert 'value' not in verbs, 'value is an argument to opacity/colour, never an operation'
     assert params['required'] == ['do']
 
@@ -124,7 +125,7 @@ def test_legacy_only_services_do_not_advertise_native_window_operations(native):
     app, _ = native
     registry = build(replace(app.services, presentations=None, prepared_sources=None, workspace_context=None))
     params = declaration(registry)['parameters']
-    assert set(params['properties']['do'].get('enum', [])) == LEGACY
+    assert set(params['properties']['do'].get('enum', [])) == LEGACY | PLACE
     assert 'native_instance' not in target_operations(params)
     assert all(row['do'] not in NATIVE_ONLY and not {'source', 'instance', 'targets'} & set(row)
                for row in examples(params))
@@ -147,8 +148,8 @@ def test_json_action_menu_retains_enum_examples_and_target_capabilities(native, 
     app, _ = native
     params = declaration(app.brain.registry)['parameters']
     rendered = app.brain.registry.prompt_section(layout)
-    assert set(params['properties']['do'].get('enum', [])) == LEGACY | NATIVE_ONLY
-    assert all(verb in rendered for verb in LEGACY | NATIVE_ONLY)
+    assert set(params['properties']['do'].get('enum', [])) == LEGACY | NATIVE_ONLY | PLACE
+    assert all(verb in rendered for verb in LEGACY | NATIVE_ONLY | PLACE)
     supplied = json_objects(rendered)
     assert all(row in supplied for row in examples(params)), 'the text menu dropped the legal argument examples'
     matrix = target_operations(params)
