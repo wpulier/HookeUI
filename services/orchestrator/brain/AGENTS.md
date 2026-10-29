@@ -42,11 +42,16 @@ other files.
   point at), never words to read out: the voice model decides how to say them, in one sentence. Each kind has one
   route in `events.KINDS`; the publisher may give its own (`delivery`: the watcher's per WATCH choice,
   `view_watch.DELIVERY`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
-  nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (the bus stops
-  the voice's own unprompted words for it, never the user's answer); the user's quieter or "let me find things"
+  nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (said as soon
+  as the line playing now ends, without waiting for a pause: a line the voice starts is finished or yielded to the
+  user, never cut by its own next one, Will 29 Oct; never over the user's answer); the user's quieter or "let me find things"
   makes the watcher's all context. A result is owed until heard (the end of its audio); cut off, it comes back once
   ("as I started to say…"); cut twice it is retired, and `Partner.retired` files one Activity line. Progress is its
-  own channel, spaced, never owed. Detector state is never pushed into the prompt every turn: only events, and only
+  own channel, spaced, never owed: a job (think, a slow tool) gets a line once the voice has been quiet 6 s, and a
+  second only when what it is doing has changed; the user's own tool round gets at most one, after 5 s of silence,
+  let go unheard if the result lands first and never cut once playing (seeing-and-acting.md "The one-brain loop").
+  The voice's first line as Talk connects (`opener`: what is on the stage and the obvious next thing, pointed at) is
+  an idle event too, once per Talk session, withdrawn if the user speaks or types first. Detector state is never pushed into the prompt every turn: only events, and only
   by their rule (a standing note would be an option that must beat "model alone"). GPT-Live has no `happened`, so it
   gets none of them; every watcher event is still logged (`watch-event`).
 - **What the voice says of a result is its receipt** (`voice/hands.py`: verified, failed, uncertain, running): a

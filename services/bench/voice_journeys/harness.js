@@ -275,10 +275,13 @@
     new MutationObserver(() => { lastChange = Date.now(); }).observe(log, { childList: true, subtree: true, characterData: true });
   }
   const lastAudio = () => { const a = [...state.events].reverse().find((e) => e.e === 'audio'); return a ? (a.on ? Date.now() : a.t) : 0; };
-  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all).
+  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all),
+  // and no tool the voice called is still running (Talk's working dot): a voice that waits quietly on a long tool is
+  // not done (the smoke run of 29 Oct ended a step 4 s into Cellpose, and the stack's teardown stopped its worker).
   async function quiet(quietMs, maxMs, minMs) {
     const t0 = Date.now();
-    const busy = () => Date.now() - t0 < minMs || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
+    const working = () => document.getElementById('talk')?.dataset.working !== undefined;
+    const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
     while (Date.now() - t0 < maxMs && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.

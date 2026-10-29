@@ -926,7 +926,8 @@ class PartnerTools:
         session = getattr(self.partner, "session", None)
         if session is not None and hasattr(session, "tell_progress"):  # what is under way, said while it works
             self.partner.spawn(session.tell_progress(ref, lambda: not runner.done(),
-                                                     facts=lambda: self.task_facts(ref, "thinking it through")))
+                                                     facts=lambda: self.task_facts(ref, "thinking it through"),
+                                                     step=lambda: self._task_now.get(ref) or "thinking it through"))
 
     def _job_ended(self, job, ref: str, task: asyncio.Task) -> None:
         """Its task ended cancelled (cancel_job): the job confirms it, and that is what is said; one that broke in

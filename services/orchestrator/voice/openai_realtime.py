@@ -107,7 +107,8 @@ RECEIPT_RULES = {
 OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak first, once, in one or two short "
                "sentences: what is on the stage right now, as specifically as the pictures and the Project let you say "
                "it, and the one obvious next thing, offered as a question (the shape: \"That's onion epidermis; the "
-               "nuclei are easy to see. Want me to outline them?\"). Point with mark at what you name as you say it. "
+               "nuclei are easy to see. Want me to outline them?\"). Point with mark at what you name as you say it, "
+               "without saying that you point. "
                "With nothing on the stage, say in one sentence how to start. No greeting on its own, no list of what "
                "you can do.")
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
@@ -909,14 +910,19 @@ class RealtimeSession(VoiceSession):
         return found
 
     async def tell_progress(self, task: str, working: Callable[[], bool], what: str = "think",
-                            facts: Callable[[], str] | None = None, lines: int | None = None) -> None:
+                            facts: Callable[[], str] | None = None, lines: int | None = None,
+                            step: Callable[[], str] | None = None) -> None:
         """While a job works behind the voice: what is under way (what is running, how long so far), on the bus's
         progress channel once the voice has been quiet THINK_PROGRESS_AFTER_S since the job began, at most every
-        THINK_PROGRESS_EVERY_S, THINK_PROGRESS_LINES in all. Said only in a pause and spaced (`_consume`), never owed,
+        THINK_PROGRESS_EVERY_S, THINK_PROGRESS_LINES in all, and a line after the first only when what it is doing
+        (`step`) has changed, so each adds something. Said only in a pause and spaced (`_consume`), never owed,
         dropped once its result is out."""
         started = self.clock()
         most = THINK_PROGRESS_LINES if lines is None else lines
         last: float | None = None
+        said_step: str | None = None  # what it was doing when its last line was said
+        lines_seen = self.bus.progress_lines(task)
+        published_step: str | None = None
 
         def current() -> bool:
             return working() and self.bus.result_for(task) is None
@@ -926,12 +932,17 @@ class RealtimeSession(VoiceSession):
 
         while not self.closed and current() and self.bus.progress_lines(task) < most:
             await asyncio.sleep(0.25)
+            if self.bus.progress_lines(task) > lines_seen:  # a line was said: what it said it was doing
+                lines_seen, said_step = self.bus.progress_lines(task), published_step
             now = self.clock()
             quiet = min(self.idle_since(), now - started)  # quiet since its acknowledgement, at the least
             if (self.user_busy() or self.speaking() or self._asks or quiet < THINK_PROGRESS_AFTER_S
                     or self.bus.progress_waiting(task) or (last is not None and now - last < THINK_PROGRESS_EVERY_S)):
                 continue
-            last = now
+            doing = step() if step is not None else None
+            if said_step is not None and doing == said_step:
+                continue  # nothing new to say about it
+            last, published_step = now, doing
             self.bus.publish("progress", facts_now(), ref=task, still=current, data={"facts": facts_now, "what": what})
             self._consume()
 

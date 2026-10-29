@@ -148,13 +148,31 @@ other files.
   out at a barge-in.
 - **The app points at what a tool just showed** (a layer of cell outlines, an outline): the tool's result names it
   (`pointed_at`), and the mark is drawn as the answer about it starts to be heard (the first `output_audio_buffer.started`
-  of the response after the tool round), with no round trip through the model's `mark`. The model calls `mark` only when
-  the user asks where or which, after speaking.
+  of the response after the tool round), with no round trip through the model's `mark`. The model calls `mark` when
+  the user asks where or which, or when its answer is about one thing in view, after speaking.
+- **A mark goes with the words** (Will's feel check, 29 Oct): a mark shown after the reply's words asks for no reply of
+  its own (the Realtime API leaves the next `response.create` to the client); only a mark that was not shown, or one
+  called before any words, goes on to a reply. Nothing on screen is said twice.
+- **Its first line points too:** as Talk connects, the voice's opening line (seeing-and-acting.md "It talks first") may
+  call `mark` on what it names in the camera picture, and nothing else.
 - **Act, then look:** a tool that changes the screen (`partner_tools.SCREEN_CHANGING`) is followed by a report newer than
   the change (`Screen.until`) and a window picture (`snapshot-request` → `snapshot`), and the model reads both before it
   is asked to go on: "done" is said from the picture, not from the tool's own success. The record of the call says
   whether a report came (`confirmed`, `reportT`).
 
+
+## The microphone moment and Talk's status (the studio)
+
+- **Before the browser's prompt** (`apps/studio/src/mic-card.ts`; Will's feel check, 29 Oct): the microphone
+  permission is read ahead of any press (`navigator.permissions`). Not allowed yet, a press of Talk or the talk key
+  shows one card in the Assistant column, above the composer: what happens in one line ("Hold Control+Option and talk;
+  Hooke listens only while you hold it") and one button whose click starts Talk, so the prompt answers a click the user
+  meant and the call connects at once, before the first hold. While the prompt is up the card says so and Talk's word
+  is "Microphone", never "Connecting"; refused, it says how to turn the microphone back on (the address bar's site
+  settings; in the Mac app, System Settings). A browser that cannot say, or the Mac app once it has heard you, starts
+  at once and the browser asks itself. "Connecting" is only the real connect.
+- **The status says only what is true:** after a release it says the turn was heard only when the server took it
+  (`heard`); a turn the server drops never shows as waiting for an answer.
 
 ## Hands: the partner's drive (spec step 1, section 4.2)
 

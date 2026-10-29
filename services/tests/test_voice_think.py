@@ -182,7 +182,8 @@ def test_think_waits_for_a_long_tools_real_outcome_and_it_is_never_said_on_its_o
 def test_while_think_works_a_quiet_voice_says_what_is_under_way_a_few_times_and_never_after_its_result(monkeypatch):
     """think-broad-1: think's call returns "started" at once, so no tool round was pending and nothing was said for the
     20-40 s it worked (the standard: progress spoken). Behind a quiet voice, a short line on what is under way, at
-    most THINK_PROGRESS_LINES, none while the user holds the key, none once the result is due."""
+    most THINK_PROGRESS_LINES, a second only once what it is doing has changed (each adds something), none while the
+    user holds the key, none once the result is due."""
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 0.2)
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_EVERY_S", 0.3)
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_LINES", 2)
@@ -200,7 +201,12 @@ def test_while_think_works_a_quiet_voice_says_what_is_under_way_a_few_times_and_
         first = await until_async(lambda: progress()[0] if progress() else None)
         assert first["response"]["tool_choice"] == "none" and "thinking" in first["response"]["instructions"]
         await done(t.sb, "resp_1")
+        await asyncio.sleep(0.8)
+        assert len(progress()) == 1, "nothing new to say: no second line"
+        job = next(iter(t.partner.tools.thinking.values()))
+        t.partner.tools._task_now[job.ref()] = "thinking it through, now running compare_models"
         await until_async(lambda: len(progress()) == 2)
+        assert "compare_models" in progress()[1]["response"]["instructions"]
         await done(t.sb, "resp_2")
         await asyncio.sleep(0.8)
         assert len(progress()) == 2, "a few lines, not a running commentary"

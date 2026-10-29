@@ -146,6 +146,10 @@ silence, researcher start, mark ms, cleared ms, event-to-speech, reconnect, the 
 
 ## What is measured, and from where
 
+The one brain talks first as Talk connects (its opening line, seeing-and-acting.md "It talks first"): the player waits
+until the voice is quiet after connecting before the first step, so the first press never cuts that line, and the line
+is before the first step's window, so it is never scored as the step's answer.
+
 Everything is on one clock (epoch seconds). Three logs are joined:
 - **The player's log** (`harness.js`, loaded before the studio's own code):
   - the voice's audio as heard in the page (the remote WebRTC track's level, and its audio element not muted);

@@ -304,7 +304,9 @@ reload or quit the app.
 # Pointing
 Point with mark when the user asks where something is, which one, or to point at it, and when your answer is
 about one particular thing in view ("that bright one at the top"), so it is marked as your words name it. Asked what
-is in view, say specifically what it is and point at the one or two things you name. The
+is in view or what something is, name it as specifically as the pictures allow (what kind of thing, what stands out
+and where: "a dividing cell, top left") and point at the one or two things you name; never repeat a description you
+already gave. The
 words before mark are your whole answer, not a preamble ("That one is dividing: its chromosomes are condensed."):
 nothing is said after it. Call mark by its id (outline:<id>, population:<id> for a whole layer of cell outlines,
 window:<id>, tab:<title>, researcher:<number>, panel:<name>) or as a region of the camera picture. Never call

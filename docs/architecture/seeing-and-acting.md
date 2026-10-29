@@ -728,13 +728,35 @@ Measured over real WebRTC calls (a headless Chrome peer) and the part-2.5 journe
   0.74 s vs 1.33 s with the same pictures sent at release. A tap or Escape deletes them again.
 - **Pictures at full detail** (`auto`): at `low` the model took a new layer of outlines for "hidden behind the tabs
   panel". Sent during the hold, their cost is small.
-- **Speak first, briefly:** every reply starts with a few words before any tool (a tool called in silence cost 2-3 s
-  to the first audio); one or two sentences by default (the judge's one-or-two-sentence line went from 0.5 to 1.0).
-- **Pointing without a round trip:** a mark before speaking cost a silent response (3.5 s of silence). The app points
-  at a tool's result itself (`population:<id>`); the model marks only when asked, after speaking.
-- **Progress lines** say what is still running and for how long (`partner_tools.running_facts`), at most two a round,
-  capped at 100 tokens, asked for so they start as the current words end (their length from response.done's audio
-  tokens, 50 ms each) rather than after a silence.
+- **One voice, briefly** (the UX pass of 29 Oct; `prompts.PARTNER`, the OpenAI voice guide's wording): the answer or
+  outcome first in plain words, one or two sentences by default; how Hooke did it (models, layers, segmentation,
+  checks, receipts) only when the user asks how. A lead-in ("Outlining them now.") only before a tool that takes
+  noticeable time; a quick action (highlight, select, a Tab, close) is called without one and said once after its
+  result. After a tool, only what is new. Receipts, results from behind the voice, events and progress follow the same
+  rules (`RECEIPT_RULES`, `prepare`, `_ask_batch`, `PROGRESS_WORDS`), so they read as one person. An average is the
+  mean (a population's summary gives each column's mean beside its median); a median is said as the median.
+- **Pointing goes with the words:** a mark before speaking cost a silent response (3.5 s of silence). The app points
+  at a tool's result itself (`population:<id>`); the model marks when asked, or when its answer is about one thing in
+  view, after speaking. A round of marks after words gets no response of its own unless a mark was not shown (Will's
+  feel check: a second reply repeated the first, "It's highlighted around the central oval…"); marks with no words
+  before them go on to the answer. HeyClicky's pointing likewise sits alongside speech, and the Realtime API leaves the
+  next `response.create` to the client.
+- **Progress while the user's tool runs:** at most one line a round, only once the voice has said nothing for
+  `PROGRESS_AFTER_S` (5 s) with the tool still running, so only a silence that would feel broken is filled. Its words
+  say what Hooke is doing now or waits on, never what it may find, and the time only when it has been long. If the
+  result lands before the line is heard starting, the line is cancelled and the result said instead; a line already
+  playing is heard to its end. An output after that line that only says the tool is still running gets no reply of its
+  own: the outcome is said once when it lands. Every progress line of 29 Oct had been cut off mid-sentence by
+  `max_output_tokens` 100 (it counts reasoning); the cap is 400 now, there only to stop a runaway (smoke 9dc7398:
+  "It's still working on outlining…", "…nothing is finished yet. You should see", judged robotic).
+- **It talks first** (Will's feel check, 29 Oct): as the studio goes live before any turn (its first `voice-phase`
+  listening), the camera picture and Hooke's window go in with a kept note, and one idle `opener` event goes on the
+  bus; its response has `mark` as its only tool and `OPENER_RULE` as its instruction: what is on the stage, as
+  specifically as the pictures and the Project allow, and the one obvious next thing, pointing at what it names; with
+  nothing on the stage, how to start. Once per Talk session (never on a reconnect); withdrawn if the user presses or
+  types first. It is the voice's own line, written from the pictures, not a template.
+- **A reply's parts are joined:** the words of two parts of one response (either side of a tool call) are joined with
+  a space, in the streamed words and in its items ("…easy to spot.That central oval…").
 - **The release tail is 0.05 s:** committing 0.12 s before the words' end lost none of them.
 - **A Project named exactly that opens** (`day/catalogue.find`): "Open the Nuclei project" no longer matches every
   session that saw nuclei.
@@ -774,9 +796,10 @@ with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
   as one line when it lands, as any long tool's is (think-broad-1: think reported "they're still running" and the
   comparison came 40 s later during another step).
 - **Progress while it works:** think's call is answered at once, so no tool round is pending; behind a quiet voice
-  (no key held, nothing said for 2 s since its acknowledgement), a short line on what is under way and for how long
-  (`running_facts`: "thinking with claude-opus-5-5, now running compare_models, 15 s so far"), at most 3, 8 s apart,
-  never once its result is due (`RealtimeSession.tell_progress`).
+  (no key held, nothing said for `THINK_PROGRESS_AFTER_S`, 6 s, since its acknowledgement), a short line on what is
+  under way (`task_facts`: "thinking it through, now running compare_models, 15 s so far"), at most 2, at least 15 s
+  apart, the second only when what it is doing has changed, never once its result is due
+  (`RealtimeSession.tell_progress`). A slow background tool (a reference photo, a web page) gets one.
 - **Prompt caching:** the tools and the system prompt (the same for every task) are cached by a marker on the system,
   each round's growing conversation by the automatic marker; cache writes and reads are priced in its spend.
 - **Which questions go to it:** the voice answers what is already here (what was found, how something was made or
