@@ -835,3 +835,48 @@ def test_the_option_is_offered_beside_gpt_realtime_and_the_default_is_unchanged(
     from research_worker.budget import PRICES
 
     assert PRICES[MODEL]["audio_out"] == 12.00 and PRICES[MODEL]["image_in"] == 1.00
+
+
+def test_the_probe_runs_one_held_turn_with_a_tool_through_the_session_itself(monkeypatch):
+    """The paid smoke test and the app's own check of the option (model_checks) run `probe`: a fake that answers as the
+    real API did on 2026-10-29 (a few words, the tool call, then the result said after the INTERRUPT response)."""
+    monkeypatch.setattr(gemini_partner, "MIN_HOLD_S", 0.01)
+
+    class Scripted(Connector):
+        def __call__(self, *, model, config):
+            cm = super().__call__(model=model, config=config)
+            connector = self
+            enter = cm.__aenter__
+
+            async def scripted():
+                live = await enter()
+                send_realtime, send_tool = live.send_realtime_input, live.send_tool_response
+
+                async def realtime(**kw):
+                    await send_realtime(**kw)
+                    if kw.get("activity_end") is not None:
+                        for msg in (heard("Outline the nuclei."), audio(0.1), said("Counting the nuclei."),
+                                    call("c1", "outline_cells", {"what": "nuclei"})):
+                            live.emit(msg)
+
+                async def tool(*, function_responses):
+                    await send_tool(function_responses=function_responses)
+                    for msg in (generated(), turn_done(), audio(0.1), said("I outlined seven nuclei."), generated(),
+                                turn_done()):
+                        live.emit(msg)
+                live.send_realtime_input, live.send_tool_response = realtime, tool
+                connector.last = live
+                return live
+            cm.__aenter__ = scripted
+            return cm
+
+    async def go():
+        connector = Scripted()
+        found = await gemini_partner.probe(image=b"JPEG", speech=b"\x01\x00" * 4800, connect=connector, timeout=5)
+        assert found["heard"] == "Outline the nuclei." and found["calls"][0]["what"] == "nuclei"
+        assert found["said"] == [("turn", "Counting the nuclei."), ("tool", "I outlined seven nuclei.")]
+        assert found["toolCallMs"] is not None and found["firstAudioMs"] is not None and found["usd"] > 0
+        response = connector.last.responses()[0]
+        assert response.scheduling == types.FunctionResponseScheduling.INTERRUPT and response.response["count"] == 7
+        assert b"JPEG" in connector.last.pictures()
+    asyncio.run(go())
