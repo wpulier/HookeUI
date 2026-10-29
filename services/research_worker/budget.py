@@ -27,8 +27,13 @@ PRICES = {
     "web_search": 0.010,      # OpenAI, per call (search content tokens are billed as input)
     "google_search": 0.014,   # Gemini, per query beyond the monthly free tier (counted as paid)
     "veo-3.1-fast": 0.10,     # per second at 720p
-    "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
+    # Claude (Anthropic's pricing page, read 2026-10-29): lessons when ANTHROPIC_API_KEY is set, presentations, and the
+    # Claude vision, brain and fast options. Sonnet 5.5 was $3/$15 here before (an older Sonnet's price). Haiku 5.5's is
+    # for prompts up to 100,000 tokens ($0.50/$2.50 beyond; the vision and fast prompts it is chosen for are far shorter).
+    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00},
     "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations (research_worker/presentation.py)
+    "claude-fable-5-1": {"in": 10.00, "out": 50.00},
+    "claude-haiku-5-5": {"in": 0.10, "out": 0.50},
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
     # out, and audio and pictures in and audio out, per million tokens.
     "gpt-realtime-2.1": {"in": 4.00, "out": 24.00, "audio_in": 32.00, "audio_out": 64.00, "image_in": 5.00},

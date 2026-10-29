@@ -1,0 +1,12 @@
+id = "claude-fable-5-1"
+name = "Claude Fable 5.1"
+runs = "cloud"
+version = "claude-fable-5-1"
+licence = ["anthropic-api"]
+kind = "cloud-model"
+what = "Looks at the view, answers and acts with the app's tools"
+runner = "cloud"
+service = "anthropic"
+source = { url = "https://docs.anthropic.com/en/docs/about-claude/models" }
+needs_to_run = ["key:ANTHROPIC_API_KEY"]
+credit = { authors = "Anthropic", link = "https://docs.anthropic.com/en/docs/about-claude/models" }

@@ -1,0 +1,12 @@
+id = "claude-haiku-5-5"
+name = "Claude Haiku 5.5"
+runs = "cloud"
+version = "claude-haiku-5-5"
+licence = ["anthropic-api"]
+kind = "cloud-model"
+what = "Decides quickly from notes and looks at the view"
+runner = "cloud"
+service = "anthropic"
+source = { url = "https://docs.anthropic.com/en/docs/about-claude/models" }
+needs_to_run = ["key:ANTHROPIC_API_KEY"]
+credit = { authors = "Anthropic", link = "https://docs.anthropic.com/en/docs/about-claude/models" }

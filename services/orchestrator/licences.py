@@ -51,7 +51,7 @@ COMPONENTS = {
                   "Gemini API terms of service", "https://ai.google.dev/gemini-api/terms", "terms", "service"),
         Component("openai-api", "OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)",
                   "OpenAI services agreement", "https://openai.com/policies/services-agreement", "terms", "service"),
-        Component("anthropic-api", "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+        Component("anthropic-api", "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
                   "Anthropic commercial terms", "https://www.anthropic.com/legal/commercial-terms", "terms", "service"),
         Component("fal-api", "fal.ai hosted inference (SAM 3.1 in the cloud)",
                   "fal terms of service", "https://fal.ai/terms", "terms", "service"),

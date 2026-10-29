@@ -17,7 +17,7 @@ from orchestrator.brain.fast import decide
 from orchestrator.brain.llm import FunctionCallingBrain
 from orchestrator.brain.registry import Registry, action_number
 from orchestrator.ticket import issue, using
-from orchestrator.vision import GeminiVision, OpenAIVision
+from orchestrator.vision import AnthropicVision, GeminiVision, OpenAIVision
 from tests.fakes import Hub
 
 
@@ -29,6 +29,11 @@ PLAN = {"answer": ANSWER, "actions": [None, {"tool": "close_result", "args": {"r
 
 def sdk_response(provider, *, text=None, limited=False, facts=True):
     text = json.dumps(PLAN) if text is None else text
+    if provider == "anthropic":  # an empty thinking block first (adaptive thinking, display omitted), then the text
+        return NS(model="resolved-model", content=[NS(type="thinking", thinking=""), NS(type="text", text=text)],
+                  usage=NS(input_tokens=91, output_tokens=47,
+                           output_tokens_details=NS(thinking_tokens=11)) if facts else None,
+                  stop_reason="max_tokens" if limited else "end_turn", stop_details=None)
     if provider == "openai":
         return NS(model="resolved-model", output_text=text,
                   usage=NS(input_tokens=91, output_tokens=47,
@@ -43,10 +48,13 @@ def sdk_response(provider, *, text=None, limited=False, facts=True):
 
 
 def vision(provider, create):
-    cls = OpenAIVision if provider == "openai" else GeminiVision
+    cls = {"openai": OpenAIVision, "anthropic": AnthropicVision}.get(provider, GeminiVision)
     model = object.__new__(cls)
     model.model = "selected-model"
-    if provider == "openai":
+    if provider == "anthropic":
+        model.effort = "low"
+        model.client = NS(messages=NS(create=create))
+    elif provider == "openai":
         model.reasoning_effort, model.service_tier = "none", None
         model.client = NS(responses=NS(create=create))
     else:
@@ -69,7 +77,7 @@ def assert_private(data):
                for row in data["steps"] for value in row.values())
 
 
-@pytest.mark.parametrize("provider", ["gemini", "openai"])
+@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic"])
 def test_actual_admitted_vision_retains_provider_facts_without_prose(provider):
     async def go():
         sent = []
@@ -102,6 +110,8 @@ def test_actual_admitted_vision_retains_provider_facts_without_prose(provider):
             assert len(row["planDigest"]) == 64
             if provider == "gemini":
                 assert row["finishReason"] == "STOP"
+            elif provider == "anthropic":
+                assert row["finishReason"] == "end_turn" and row["responseStatus"] is None
             else:
                 assert row["responseStatus"] == "completed"
                 assert row["finishReason"] is None  # no fabricated stop reason
@@ -111,7 +121,7 @@ def test_actual_admitted_vision_retains_provider_facts_without_prose(provider):
     asyncio.run(go())
 
 
-@pytest.mark.parametrize("provider", ["gemini", "openai"])
+@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic"])
 def test_unreadable_limited_response_stays_a_failed_spent_attempt(provider):
     async def go():
         sent = []
@@ -129,7 +139,7 @@ def test_unreadable_limited_response_stays_a_failed_spent_attempt(provider):
                         await AnswerProvider(model, model.model).ask([], PROMPT, max_output_tokens=700)
             row = provider_row(log, root)
             assert row["parseOk"] is False
-            assert row["finishReason"] == ("MAX_TOKENS" if provider == "gemini" else "max_output_tokens")
+            assert row["finishReason"] == {"gemini": "MAX_TOKENS", "anthropic": "max_tokens"}.get(provider, "max_output_tokens")
             assert row["outputCap"] == 700
             assert row["planDigest"] is None and row["rawActionCount"] is None
             assert len(sent) == request.admission.used == 1
@@ -140,7 +150,7 @@ def test_unreadable_limited_response_stays_a_failed_spent_attempt(provider):
     asyncio.run(go())
 
 
-@pytest.mark.parametrize("provider", ["gemini", "openai"])
+@pytest.mark.parametrize("provider", ["gemini", "openai", "anthropic"])
 def test_fc_provider_diagnostics_preserve_original_malformed_slot(monkeypatch, provider):
     async def go():
         sent = []
@@ -148,7 +158,14 @@ def test_fc_provider_diagnostics_preserve_original_malformed_slot(monkeypatch, p
         async def create(**kwargs):
             sent.append(kwargs)
             reply = sdk_response(provider)
-            if provider == "openai":
+            if provider == "anthropic":
+                # The SDK parses each call's input; one that is not an object keeps its slot as the missing call.
+                reply.content = [NS(type="thinking", thinking=""), NS(type="text", text=ANSWER),
+                                 NS(type="tool_use", id="toolu_1", name="missing", input=[1]),
+                                 NS(type="tool_use", id="toolu_2", name="close_result",
+                                    input={"researcher": "2", "after_steps": [1]})]
+                reply.stop_reason = "tool_use"
+            elif provider == "openai":
                 reply.output = [NS(type="function_call", name="missing", arguments="{bad"),
                                 NS(type="function_call", name="close_result",
                                    arguments='{"researcher":"2","after_steps":[1]}')]
@@ -161,7 +178,10 @@ def test_fc_provider_diagnostics_preserve_original_malformed_slot(monkeypatch, p
                 reply.function_calls = reply.function_calls[1:]
             return reply
 
-        if provider == "openai":
+        if provider == "anthropic":
+            import anthropic
+            monkeypatch.setattr(anthropic, "AsyncAnthropic", lambda **kwargs: NS(messages=NS(create=create)))
+        elif provider == "openai":
             import openai
             monkeypatch.setattr(openai, "AsyncOpenAI", lambda **kwargs: NS(responses=NS(create=create)))
         else:
@@ -169,6 +189,7 @@ def test_fc_provider_diagnostics_preserve_original_malformed_slot(monkeypatch, p
             monkeypatch.setattr(genai, "Client", lambda **kwargs: NS(aio=NS(models=NS(generate_content=create))))
         monkeypatch.setenv("OPENAI_API_KEY", "synthetic")
         monkeypatch.setenv("GEMINI_API_KEY", "synthetic")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "synthetic")
         request, model = issue(Hub(), "turn"), FunctionCallingBrain()
         log = execution.ExecutionLog(enabled=True)
         try:
@@ -177,14 +198,14 @@ def test_fc_provider_diagnostics_preserve_original_malformed_slot(monkeypatch, p
                     data, used = await model.ask(provider + ":selected-model@low", b"original-picture", PROMPT, Registry())
             assert data["answer"] == (json.dumps(PLAN) if provider == "openai" else ANSWER)
             assert len(sent) == request.admission.used == 1
-            if provider == "openai":
+            if provider in ("openai", "anthropic"):
                 assert data["actions"][0] is None
                 assert data["actions"][1]["after_steps"] == [1]
             else:
                 assert data["actions"][0]["after_steps"] == [1]
             row = provider_row(log, root, "function-calling")
-            sent_cap = (sent[0]["max_output_tokens"] if provider == "openai"
-                        else sent[0]["config"].max_output_tokens)
+            sent_cap = {"openai": lambda: sent[0]["max_output_tokens"], "anthropic": lambda: sent[0]["max_tokens"]}.get(
+                provider, lambda: sent[0]["config"].max_output_tokens)()
             assert row["outputCap"] == sent_cap and row["parseOk"] is True
             assert row["inputTokens"] == 91 and row["outputTokens"] == 47
             assert row["attemptId"] == request.admission.attempts[0].attempt_id

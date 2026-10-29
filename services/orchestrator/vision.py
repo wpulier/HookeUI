@@ -23,6 +23,32 @@ def image_mime(data: bytes) -> str:
     return "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
 
 
+def claude_image(data: bytes) -> dict:
+    """A picture as Anthropic's Messages API takes it: its bytes in base64, with their own media type."""
+    return {"type": "image", "source": {"type": "base64", "media_type": image_mime(data),
+                                        "data": base64.b64encode(data).decode()}}
+
+
+# The most image tokens one picture can take on Claude's high-resolution models (up to ~4,784 at 2,576 px on the long
+# edge, Anthropic's model notes), so a monthly cap admits a call at its true most (api_usage.tokens_in's per_picture).
+CLAUDE_PICTURE_TOKENS = 4_800
+
+
+def claude_text(response) -> str:
+    """The answer's text blocks, in order. Thinking blocks (empty unless asked for) and tool calls are not the answer."""
+    return "".join(getattr(b, "text", "") or "" for b in getattr(response, "content", None) or []
+                   if getattr(b, "type", None) == "text")
+
+
+def claude_refusal(response) -> str | None:
+    """Why Claude declined, in words, when it did (stop_reason "refusal"; its category when given), else None."""
+    if getattr(response, "stop_reason", None) != "refusal":
+        return None
+    category = getattr(getattr(response, "stop_details", None), "category", None)
+    return f"Refusal: {getattr(response, 'model', None) or 'Claude'} declined to answer" + (
+        f" ({category})" if category else "")
+
+
 @dataclass
 class VisionResult:
     data: dict | None
@@ -123,6 +149,11 @@ def _diagnostic_result(response, provider, data):
             tokens = (getattr(usage, "prompt_token_count", None), getattr(usage, "candidates_token_count", None),
                       getattr(usage, "thoughts_token_count", None))
             status = None
+        elif provider == "anthropic":
+            usage = getattr(response, "usage", None)  # output_tokens includes thinking; thinking_tokens is its part
+            tokens = (getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None),
+                      getattr(getattr(usage, "output_tokens_details", None), "thinking_tokens", None))
+            reason, status = getattr(response, "stop_reason", None), None
         else:
             usage = getattr(response, "usage", None)
             tokens = (getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None),
@@ -311,14 +342,79 @@ class OpenAIVision(_Client):
         return VisionResult(data, latency, self.model, raw_text=text, usage=usage)
 
 
+# Claude has no JSON mode without a schema, and these asks each give their own JSON shape in the prompt: this one line is
+# the same constraint the other two providers' JSON modes set (response_mime_type, json_object), never new context.
+JSON_ONLY = "Reply with one JSON object only, with nothing before or after it and no code fence."
+
+
+class AnthropicVision(_Client):
+    """Claude through Anthropic's Messages API. Thinking stays adaptive (the current models cannot turn it off, or only
+    on some); `effort` is how much it may think and say (low...max), None for the model's own default."""
+
+    def __init__(self, model: str, effort: str | None = "low") -> None:
+        self.model = model
+        self.effort = effort
+        self._key = os.environ["ANTHROPIC_API_KEY"]
+        self._make_client()
+
+    def _new_client(self):
+        from anthropic import AsyncAnthropic
+
+        return AsyncAnthropic(api_key=self._key, max_retries=0)
+
+    @execution.traced("vision")
+    async def ask(self, images: list[bytes], prompt: str, max_output_tokens: int = 1500) -> VisionResult:
+        execution.note(selected=self.model, adapter="orchestrator.vision.AnthropicVision", provider="anthropic",
+                       model=self.model, identity="request-model; hosted revision unconfirmed", optionId=self.model)
+        _diagnostic_entry(prompt, max_output_tokens)
+        kwargs: dict = {
+            "model": self.model,
+            "max_tokens": max_output_tokens,  # thinking included, as OpenAI's and Gemini's limits include theirs
+            "system": JSON_ONLY,
+            "messages": [{"role": "user", "content": [claude_image(img) for img in images]
+                          + [{"type": "text", "text": prompt}]}],
+        }
+        if self.effort:
+            kwargs["output_config"] = {"effort": self.effort}
+        t0 = time.perf_counter()
+        try:
+            client = await self._ready()
+            t0 = time.perf_counter()  # the model's time, never the client's first making
+            async with api_usage.attempt(self.model, provider="Anthropic", area="Live", out_tokens=max_output_tokens,
+                                         in_tokens=api_usage.tokens_in(prompt, len(images), per_picture=CLAUDE_PICTURE_TOKENS,
+                                                                       extra=JSON_ONLY)):
+                response = await client.messages.create(**kwargs)
+            api_usage.response(self.model, response, provider="Anthropic", area="Live", tier=None, search=False)
+        except Exception as exc:
+            execution.finish("failed", errorType=type(exc).__name__)
+            return VisionResult(None, (time.perf_counter() - t0) * 1000, self.model, error=f"{type(exc).__name__}: {exc}"[:400])
+        reported = getattr(response, "model", None)
+        if reported:
+            execution.note(reportedModel=reported, identity="provider-reported")
+        latency = (time.perf_counter() - t0) * 1000
+        text = claude_text(response)
+        usage = {}
+        if getattr(response, "usage", None):  # output includes thinking (no separate "thinking": never counted twice)
+            usage = {"input": response.usage.input_tokens, "output": response.usage.output_tokens}
+        refused = claude_refusal(response)
+        data = None if refused else _parse_json(text)
+        _diagnostic_result(response, "anthropic", data)
+        if refused:
+            execution.finish("refused")
+            return VisionResult(None, latency, self.model, raw_text=text, error=refused, usage=usage)
+        if data is None:
+            execution.finish("unreadable")
+        return VisionResult(data, latency, self.model, raw_text=text, usage=usage)
+
+
 def make_vision(spec: str, temperature: float | None = 0.2):
-    """'gemini:gemini-3.8-flash' or 'openai:gpt-6-luna', optionally '@level' at the end
-    for thinking level / reasoning effort, e.g. 'gemini:gemini-3.8-flash@low' or
-    'openai:gpt-6-luna@none' (use '@default' to leave it to the provider). Gemini also takes
-    '+low|medium|high' after the level for the image resolution it reads at
+    """'gemini:gemini-3.8-flash', 'openai:gpt-6-luna' or 'anthropic:claude-sonnet-5-5', optionally
+    '@level' at the end for thinking level / reasoning effort / effort, e.g. 'gemini:gemini-3.8-flash@low',
+    'openai:gpt-6-luna@none' or 'anthropic:claude-sonnet-5-5@low' (use '@default' to leave it to the
+    provider). Gemini also takes '+low|medium|high' after the level for the image resolution it reads at
     ('gemini:gemini-3.8-flash@low+high'); OpenAI takes the service tier there
     ('openai:gpt-5.6-luna@none+priority'). `temperature`: Gemini's, None for the model's own
-    default (option SAMPLING)."""
+    default (option SAMPLING); Claude takes none (its API refuses sampling settings)."""
     provider, _, rest = spec.partition(":")
     model, _, level = rest.partition("@")
     level, _, resolution = level.partition("+")
@@ -330,4 +426,7 @@ def make_vision(spec: str, temperature: float | None = 0.2):
         # GPT-6 models accept none/low/medium/high/xhigh/max (not "minimal").
         return OpenAIVision(model, reasoning_effort=None if level == "default" else (level or "none"),
                             service_tier=resolution or None)
+    if provider == "anthropic":
+        # Claude's efforts: low/medium/high/xhigh/max; no '@' is "low", the quickest.
+        return AnthropicVision(model, effort=None if level == "default" else (level or "low"))
     raise ValueError(f"unknown vision provider: {spec}")

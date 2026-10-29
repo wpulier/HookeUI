@@ -663,3 +663,37 @@ the first transcript 308 ms, `output_audio_buffer.started` **448 ms**, `response
 `response.done` 1466 ms, `output_audio_buffer.stopped` 6300 ms (the browser received 44,647 bytes of audio): the answer
 plays for seconds after `response.done`, which is why only the buffer's events (and the studio's voice-phase) say when
 it is audible. Not measured without the studio: whether `RELEASE_TAIL_S` keeps the last word.
+
+## Claude as a choice (options VISION and BRAIN_FAST `claude-*`)
+
+Claude Sonnet 5.5, Opus 5.5, Fable 5.1 and Haiku 5.5 are choices for the vision model (the looks, the brain's answers
+and, with BRAIN `fc`, its tool calls) and Haiku 5.5 for the fast pass, beside Gemini and GPT; no default changed. Each
+needs `ANTHROPIC_API_KEY` (asked for in words: "Claude Sonnet 5.5 needs your Anthropic key; add it in Models › Keys,
+then ask again", `agent.key_needed`), is the catalog's folder (`catalog/models/claude-*`) and the `anthropic-api`
+licence component.
+- **The adapter** (`vision.AnthropicVision`, spec `anthropic:<model>@<effort>`, Anthropic's Python SDK 2.x): one
+  Messages API call with the pictures first (base64, their own media type) and the prompt after, `output_config.effort`
+  from the spec (`low` for all four; `@default` leaves it to the model) and adaptive thinking, which these models
+  require; no sampling setting (the API refuses them). Claude has no JSON mode without a schema, so one system line
+  asks for the JSON object the prompt describes (`vision.JSON_ONLY`, the same constraint as the others' JSON modes).
+  Its limit counts thinking, as OpenAI's and Gemini's do; a monthly cap admits a call at up to 4,800 tokens a picture
+  (the high-resolution models' most). A refusal (`stop_reason` "refusal") is kept as the result's error with its
+  category, and an answer attempt fails saying so; a connection error is said as no connection, as GPT's is.
+- **With tools** (`brain/llm.py` `_anthropic`): the registry's tools as Anthropic tools (`Registry.anthropic_tools`:
+  name, description, the same input schema with `after_steps`), `outline` first; tool calls are read in the order made
+  (a call whose input is not an object keeps its slot as a missing call), the text blocks are the answer, a refusal is
+  a failure said, never an empty answer. Text written before a tool call that runs longer than a sentence or two can
+  come back from Opus 5.5, Sonnet 5.5 and Fable 5.1 as an empty progress `thinking` block (Anthropic's model notes);
+  in the smoke below Sonnet 5.5's answer came back as text both times, so nothing asks for those notes yet.
+- **The partner's `look_hard`** sends the frame (and the window) to whichever vision option is chosen, Claude included;
+  a missing key is said in the same words.
+- **Benches:** an acting arm is `--arm claude:vision=claude-sonnet-5-5,fast=claude-haiku-5-5`; `make capability-check`
+  checks each option through `Agent.vision` like the others. None is benched yet (pointing on the 0-1000 box scale the
+  prompts ask for, naming, the fast bench): their notes say so.
+- **Smoke, 2026-10-29** (the real app over stand-in GPU workers, a synthetic picture of three round cells, Sonnet 5.5
+  at effort low, two runs, $0.23 at list price): "Outline the big round cell in the middle and tell me what it might
+  be" made one call with 101 tools and the frame (47.6K tokens in, about 200 out, no thinking) in **3.8 s** and
+  **5.5 s**, its answer a text block before the `outline` call. In the second run (model files stood in) the outline
+  was drawn and the whole turn took 6.6 s, with the outline check and the answer written from what happened each a
+  Claude call of 1.2-2.5 s; in the first the instance had no EdgeTAM files and the answer said so. `look_hard` "How
+  many round purple cells are there, and which is largest?" answered rightly in **2.0 s** and **2.1 s**.

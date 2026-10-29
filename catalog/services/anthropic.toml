@@ -1,7 +1,7 @@
 id = "anthropic"
 name = "Anthropic API"
 key = "ANTHROPIC_API_KEY"
-enables = "Lessons written by Claude (GPT-6.1 Sol writes them otherwise)"
+enables = "Lessons written by Claude (else GPT-6.1 Sol), and Claude for seeing, acting and quick decisions"
 get_key = "https://console.anthropic.com/settings/keys"
 licence = "anthropic-api"
 test = "orchestrator/key_tests.py: anthropic, one free authenticated GET"

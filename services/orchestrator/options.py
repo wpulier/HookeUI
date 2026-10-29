@@ -89,6 +89,19 @@ VISION = {
                "openai:gpt-5.6-luna@none+priority", "OPENAI_API_KEY", model="gpt-5.6-luna"),
         Option("gpt-6-luna", "GPT-6 Luna", "12/15, ~1.8 s", "openai:gpt-6-luna@none", "OPENAI_API_KEY", model="gpt-6-luna"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "28/30 right with tools (spike S1); rejects reasoning effort none, so low", "openai:gpt-6.1-sol@low", "OPENAI_API_KEY", model="gpt-6.1-sol"),
+        # Claude through Anthropic's Messages API (vision.AnthropicVision; brain/llm.py with tools), at effort "low":
+        # thinking stays adaptive, as these models require. Options beside the others, none a default, until the naming,
+        # fast and acting benches have measured them (an acting arm: --arm claude:vision=claude-sonnet-5-5). Haiku is
+        # here because every fast-pass choice is a vision option (Agent.vision); see BRAIN_FAST.
+        Option("claude-sonnet-5-5", "Claude Sonnet 5.5",
+               "not yet benched; smoke 2026-10-29: a look with 101 tools 3.8-5.5 s, a plain look 2.0 s",
+               "anthropic:claude-sonnet-5-5@low", "ANTHROPIC_API_KEY", model="claude-sonnet-5-5"),
+        Option("claude-opus-5-5", "Claude Opus 5.5", "not yet benched",
+               "anthropic:claude-opus-5-5@low", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
+        Option("claude-fable-5-1", "Claude Fable 5.1", "not yet benched; Anthropic's most capable model, and its dearest",
+               "anthropic:claude-fable-5-1@low", "ANTHROPIC_API_KEY", model="claude-fable-5-1"),
+        Option("claude-haiku-5-5", "Claude Haiku 5.5", "not yet benched; the quick, cheap Claude",
+               "anthropic:claude-haiku-5-5@low", "ANTHROPIC_API_KEY", model="claude-haiku-5-5"),
     ]
 }
 
@@ -254,6 +267,7 @@ BRAIN_FAST = {
         Option("gpt-5.6-luna-priority", "GPT-5.6 Luna (priority)", "fast bench 78/80, p50 1.13 s / p90 1.66 s", model="gpt-5.6-luna"),
         Option("gemini-3.8-flash", "Gemini 3.8 Flash", "fast bench 79/80, p50 2.01 s / p90 3.40 s (2026-10-06; 0.81 s on 10-04)", model="gemini-3.8-flash"),
         Option("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "fast bench: 21/24, p50 0.68 s; answered detail it could not see", model="gemini-3.5-flash-lite"),
+        Option("claude-haiku-5-5", "Claude Haiku 5.5", "not yet on the fast bench; effort low", model="claude-haiku-5-5"),
         Option("off", "Always look first", "every request waits for the vision call (~2 s)"),
     ]
 }

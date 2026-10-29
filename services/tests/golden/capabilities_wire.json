@@ -9203,6 +9203,174 @@
      ],
      "tier": "terms",
      "why": ""
+    },
+    {
+     "available": false,
+     "id": "claude-sonnet-5-5",
+     "label": "Claude Sonnet 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet benched; smoke 2026-10-29: a look with 101 tools 3.8-5.5 s, a plain look 2.0 s",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Sonnet 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
+    {
+     "available": false,
+     "id": "claude-opus-5-5",
+     "label": "Claude Opus 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet benched",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Opus 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
+    {
+     "available": false,
+     "id": "claude-fable-5-1",
+     "label": "Claude Fable 5.1",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet benched; Anthropic's most capable model, and its dearest",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Fable 5.1 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
+    {
+     "available": false,
+     "id": "claude-haiku-5-5",
+     "label": "Claude Haiku 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet benched; the quick, cheap Claude",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Haiku 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
     }
    ],
    "powers": [
@@ -9347,6 +9515,48 @@
      ],
      "tier": "terms",
      "why": ""
+    },
+    {
+     "available": false,
+     "id": "claude-haiku-5-5",
+     "label": "Claude Haiku 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet on the fast bench; effort low",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Haiku 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
     },
     {
      "available": true,
@@ -10610,7 +10820,7 @@
      "sources": [
       {
        "licence": "Anthropic commercial terms",
-       "title": "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+       "title": "Anthropic API (Claude writes lessons; Claude vision, brain and fast pass when chosen)",
        "url": "https://www.anthropic.com/legal/commercial-terms"
       }
      ],

@@ -16,7 +16,7 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8.3", "pytest-xdist>=3.6", "h5py>=3.12"]  # pytest-xdist: `make test` runs the suite on every core; h5py: synthetic BigDataViewer fixtures (tests/test_bdv_reader.py)
-cloud = ["google-genai>=2.28", "openai", "fal-client", "websockets", "keyring>=25"]  # keyring: keys the app saves go in the Keychain (orchestrator/secrets.py)
+cloud = ["google-genai>=2.28", "openai", "anthropic>=2.0", "fal-client", "websockets", "keyring>=25"]  # keyring: keys the app saves go in the Keychain (orchestrator/secrets.py); anthropic: Claude as a vision, brain and fast option (orchestrator/vision.py, brain/llm.py)
 gpu = ["torch>=2.7", "transformers>=4.56", "timm>=1.0", "open-clip-torch>=3.3",
        "einops>=0.8"]  # einops: Molmo 2's own code (catalog/models/molmo2-4b) imports it; before, only sam3-setup brought it
 # Packages for the noncommercial edition-policy tier (services/noncommercial/NOTICE, ADR 0005).

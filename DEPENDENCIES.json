@@ -1,6 +1,6 @@
 {
   "scope": "Candidate locked Python environment (all groups) and npm locks; optional catalog environments retain their own locks. Declared license metadata is evidence, not blanket clearance.",
-  "pythonLockSha256": "acf8e11293beb458dfcf26e153886f0cac7e8df9aa9754f5e4c123261c8185bd",
+  "pythonLockSha256": "bc28aad8d0230a06b859ab84b0ff3f3363682ea2eac5b361291312a163012636",
   "python": [
     {
       "name": "aiofiles",
@@ -25,6 +25,16 @@
       "declaredLicense": "MIT",
       "licenseFiles": [
         "annotated_types-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "anthropic",
+      "version": "2.3.0",
+      "declaredLicense": "Apache-2.0",
+      "licenseFiles": [
+        "anthropic-2.3.0.dist-info/licenses/LICENSE",
+        "anthropic-2.3.0.dist-info/licenses/LICENSE-MIT",
+        "anthropic/_vendor/httpx_aiohttp/LICENSE"
       ]
     },
     {
@@ -99,6 +109,14 @@
       "declaredLicense": "Apache License, Version 2.0",
       "licenseFiles": [
         "distro-1.9.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "docstring-parser",
+      "version": "0.18.0",
+      "declaredLicense": "MIT",
+      "licenseFiles": [
+        "docstring_parser-0.18.0.dist-info/licenses/LICENSE.md"
       ]
     },
     {

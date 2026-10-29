@@ -355,7 +355,8 @@ class PartnerTools:
                                       "one or two plain sentences, saying what you are unsure of.\nQuestion: " + question,
                                       max_output_tokens=600)
         except Exception as exc:  # a missing key or a provider error is said, plainly
-            return {"ok": False, "error": f"the vision model could not look ({type(exc).__name__})"}
+            said = getattr(exc, "said", None)  # ToolFailed (agent.key_needed): the model, its key and where to add it
+            return {"ok": False, "error": said() if callable(said) else f"the vision model could not look ({type(exc).__name__})"}
         if result.error:
             return {"ok": False, "error": result.error[:300]}
         answer = (result.data or {}).get("answer") if isinstance(result.data, dict) else None

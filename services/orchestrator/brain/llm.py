@@ -17,7 +17,8 @@ import time
 
 from ..prompts import OUTLINE_SCHEMA
 from .. import execution
-from ..vision import _diagnostic_entry, _diagnostic_result, image_mime
+from ..vision import (CLAUDE_PICTURE_TOKENS, _diagnostic_entry, _diagnostic_result, claude_image, claude_refusal,
+                      claude_text, image_mime)
 from .dispatch import PLANNER_OUTPUT_TOKENS
 
 MAX_OUTPUT_TOKENS = PLANNER_OUTPUT_TOKENS
@@ -25,7 +26,7 @@ OUTLINE_DESCRIPTION = "Outline things in the current microscope view so the user
 
 
 class FunctionCallingBrain:
-    """Calls the selected model ('gemini:...' or 'openai:...' spec) with the registry's tools."""
+    """Calls the selected model ('gemini:...', 'openai:...' or 'anthropic:...' spec) with the registry's tools."""
 
     def __init__(self) -> None:
         self._clients: dict[tuple[str, str], object] = {}  # (provider, key) -> its client (`_client`)
@@ -60,6 +61,10 @@ class FunctionCallingBrain:
             # gpt-6.1-sol rejects reasoning effort "none" (spike S1); "low" works for all.
             effort = "low" if level in ("", "none") else level
             return await dispatch_answer(lambda: self._openai(model, effort, jpeg, prompt, registry),
+                                         model=model, effort=effort)
+        if provider == "anthropic":
+            effort = level or "low"  # "default": the model's own
+            return await dispatch_answer(lambda: self._anthropic(model, effort, jpeg, prompt, registry),
                                          model=model, effort=effort)
         raise ValueError(f"unknown provider in {spec}")
 
@@ -122,6 +127,36 @@ class FunctionCallingBrain:
                     calls.append(None)  # missing original call, never a shifted later success
         data = _normalise(response.output_text or "", calls)
         _diagnostic_result(response, "openai", data)
+        return data, {"model": model, "latency_ms": ms, "marks": None}
+
+    async def _anthropic(self, model: str, effort: str, jpeg: bytes, prompt: str, registry) -> tuple[dict, dict]:
+        from anthropic import AsyncAnthropic
+
+        key = os.environ["ANTHROPIC_API_KEY"]
+        client = await self._client(("anthropic", key), lambda: AsyncAnthropic(api_key=key, max_retries=0))
+        tools = [{"name": "outline", "description": OUTLINE_DESCRIPTION, "input_schema": OUTLINE_SCHEMA}] + registry.anthropic_tools()
+        kwargs: dict = {"model": model, "max_tokens": MAX_OUTPUT_TOKENS, "tools": tools,  # thinking included
+                        "messages": [{"role": "user", "content": [claude_image(jpeg), {"type": "text", "text": prompt}]}]}
+        if effort != "default":
+            kwargs["output_config"] = {"effort": effort}
+        t0 = time.perf_counter()
+        _diagnostic_entry(prompt, MAX_OUTPUT_TOKENS)
+        async with api_usage.attempt(model, provider="Anthropic", area="Chat", out_tokens=MAX_OUTPUT_TOKENS,
+                                     in_tokens=api_usage.tokens_in(prompt, 1, per_picture=CLAUDE_PICTURE_TOKENS,
+                                                                   extra=json.dumps(tools, default=str))):
+            response = await client.messages.create(**kwargs)
+        api_usage.response(model, response, provider="Anthropic", area="Chat", tier=None, search=False)
+        ms = (time.perf_counter() - t0) * 1000
+        execution.note(reportedModel=getattr(response, "model", None))
+        refused = claude_refusal(response)
+        if refused:
+            _diagnostic_result(response, "anthropic", None)
+            raise RuntimeError(refused)  # said as the failure it is, never an empty answer
+        # Tool calls in the order Claude made them; the SDK has parsed each one's input, so one that is not an object is
+        # its slot's missing call (as a malformed OpenAI call is), never a shifted later one.
+        calls = [(b.name, b.input) for b in response.content or [] if getattr(b, "type", None) == "tool_use"]
+        data = _normalise(claude_text(response), calls)
+        _diagnostic_result(response, "anthropic", data)
         return data, {"model": model, "latency_ms": ms, "marks": None}
 
 
