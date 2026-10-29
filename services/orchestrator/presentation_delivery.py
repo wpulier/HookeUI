@@ -592,7 +592,7 @@ class PreparedSources:
         mime = {f'{entry.id}-{n}.jpg': 'image/jpeg', f'{entry.id}-{n}.png': 'image/png'}.get(name) if isinstance(name, str) else None
         if mime is None or self.index.results.root is None:
             _fail('unsafe_source', 'the retained result file address is invalid')
-        root = self.index.results.root.resolve()
+        root = self.index.results.root_for(entry.day).resolve()
         path = root / ((record or {}).get('day') or entry.date or entry.day) / name  # its own date folder
         if path.resolve() != path:
             _fail('unsafe_source', 'the retained original aliases another location')
@@ -1143,7 +1143,7 @@ class PreparedSources:
                     'kind': 'saved-image', 'media': selection.media,
                     'availability': ('retained' if selection.path is not None and selection.path.is_file() and
                                      (selection.kind == 'tracks' or
-                                      (selection.path.parent.name, selection.path.name) not in self.index.results._pending) else 'temporary'),
+                                      not self.index.results.picture_pending(selection.path.parent.name, selection.path.name, selection.address.day)) else 'temporary'),
                     'identity': {'resource': {'day': selection.address.day, 'id': selection.address.id,
                                               'version': selection.address.version, 'picture': selection.address.picture}},
                     'provenance': facts, 'digest': data.digest})

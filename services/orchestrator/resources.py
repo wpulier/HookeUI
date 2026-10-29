@@ -413,6 +413,65 @@ class Results:
         self._floors: dict[tuple, int] = {}  # (session, date) -> the floor read once a run (day/ids.py)
         # Told each result kept (its entry): a clearer picture becomes one of the user's assets (App: library.py).
         self.on_saved: list[Callable[[dict], None]] = []
+        self._project_roots = {}
+
+    def root_for(self, session: str | None = None, *, write=False):
+        """Resolve result bytes using their owner, independent of the visible Project.
+
+        Legacy results retain their shared date layout. Routed results keep that
+        layout beneath their own artifacts/results. A host-held locator or folder
+        inode may not change under an admitted result writer.
+        """
+        locations = getattr(self.day, 'locations', None)
+        if locations is None:
+            return self.root
+        session = session or self._session()
+        project = locations.project(session)
+        if project is None:
+            return self.root
+        if write:
+            locations.writable(session)
+        folder = project.folder('artifacts') / 'results'
+        known = (project.origin, project.path) in self._project_roots
+        if write and not known:
+            folder.mkdir(exist_ok=True)
+        if folder.is_symlink():
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Project result storage was replaced by a link')
+        if folder.exists():
+            import stat
+            from .project_roots import ProjectLocationError
+            info = folder.stat(follow_symlinks=False)
+            if not stat.S_ISDIR(info.st_mode):
+                raise ProjectLocationError('Project result storage is not a folder')
+            key, identity = (project.origin, project.path), (info.st_dev, info.st_ino)
+            prior = self._project_roots.setdefault(key, identity)
+            if prior != identity:
+                raise ProjectLocationError('Project result storage changed; recover it before continuing')
+        elif (project.origin, project.path) in self._project_roots:
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Project result storage is missing; recover it before continuing')
+        return folder
+
+    def folder_for(self, date, session=None, *, write=False):
+        root = self.root_for(session, write=write)
+        if root is None:
+            return None
+        if not isinstance(date, str) or re.fullmatch(r'\d{4}-\d{2}-\d{2}', date) is None:
+            raise ValueError('The retained result date is invalid')
+        folder = root / date
+        if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Result date storage was replaced; recover it before continuing')
+        return folder
+
+    def _file_key(self, date, name, session=None):
+        # Cleanup must wake original waiters even when a locator is gone/closed.
+        # A routed host uses stable owner keys, never mutable filesystem paths.
+        return (f'{session or self._session()}:{date}' if getattr(self.day, 'locations', None) is not None else date, name)
+
+    def picture_pending(self, date, name, session=None):
+        return self._file_key(date, name, session) in self._pending
 
     # --- making ---------------------------------------------------------------------------------
     async def stage_comparison(self, run, ctx, hub, jpeg: bytes, components: tuple[RetainedComponent, ...],
@@ -506,7 +565,7 @@ class Results:
             return
         prepared.consumed = True
         if prepared.entry is not None:
-            self._discarded.add((prepared.entry["day"], prepared.entry["id"]))
+            self._discarded.add(self._file_key(prepared.entry["day"], prepared.entry["id"], session_of(prepared.entry, prepared.entry["day"])))
         prepared.reservation.release()
         threading.Thread(target=self._discard_comparison, args=(prepared,), daemon=True).start()
 
@@ -514,15 +573,17 @@ class Results:
         entry = prepared.entry
         if entry is None:
             return  # add cleans a failed save before it returns a prepared entry
-        self._discarded.add((entry["day"], entry["id"]))
+        self._discarded.add(self._file_key(entry["day"], entry["id"], session_of(entry, entry["day"])))
         self._discard_files(entry)
 
     def _discard_files(self, entry) -> None:
         """A discarded producer remains a small tombstone, never readable constituent pixels."""
         day, rid = entry["day"], entry["id"]
+        session = session_of(entry, day)
+        self.root_for(session, write=True)
         gone = {**entry, "state": "discarded", "pictures": [], "source": {"availability": "missing"}, "values": None}
         # This tombstone also protects a restart when the journal itself is unwritable.
-        self._write(day, f"{rid}.json", json.dumps({"id": rid, "values": None, "state": "discarded"}).encode(), durable=True)
+        self._write(day, f"{rid}.json", json.dumps({"id": rid, "values": None, "state": "discarded"}).encode(), durable=True, session=session)
         # A normal result event with the same id replaces it on restart; no new artifact id.
         try:
             # Its own session's journal: the one loaded, else that session's (an old entry's session is its date).
@@ -533,13 +594,13 @@ class Results:
                 from .day.journal import Journal
                 journal = getattr(self.day, "journal", None)
                 if journal is not None:
-                    Journal(session_of(entry, day), journal.root).append({"type": "result", **gone})
+                    Journal(session, self.day.root_for(session) if hasattr(self.day, 'root_for') else journal.root).append({"type": "result", **gone})
         except (OSError, ValueError):
             pass  # still release private pixel partials and keep the independent tombstone
         for name in entry.get("pictures", []):
-            self._pending.pop((day, name), None)
+            self._pending.pop(self._file_key(day, name, session), None)
             try:
-                (self.root / day / name).unlink(missing_ok=True)
+                (self.folder_for(day, session, write=True) / name).unlink(missing_ok=True)
             except OSError:
                 continue  # the discarded entry never advertises an undeleted private partial
 
@@ -589,7 +650,7 @@ class Results:
             deadline = time.monotonic() + RESULT_SAVE_S
             for name in entry['pictures']:
                 await asyncio.to_thread(self.wait_for_picture, entry['day'], name,
-                                        timeout=max(0, deadline - time.monotonic()), cancelled=cancelled)
+                                        timeout=max(0, deadline - time.monotonic()), cancelled=cancelled, session=session_of(entry, entry['day']))
             entry = {**entry, 'state': 'done'}
             self.day.record_result(entry, strict=True)
         except (OSError, ValueError):
@@ -762,6 +823,7 @@ class Results:
             from .day.ids import owner  # the comparison's session's own journal (never the one open now)
 
             journal = getattr(owner(self.day, session), "journal", journal)
+        self.root_for(session, write=True)
         written = self.root is None
         with self._lock:
             rid = self._new_id(session)
@@ -769,7 +831,7 @@ class Results:
                 initial = ({"id": rid, "values": None, "state": "reserved"} if durable else
                            {"id": rid, "values": values, **({"madeWith": list(made_with)} if made_with else {})})
                 written = self._write(day, f"{rid}.json", json.dumps(initial, default=str).encode(),
-                                      durable=durable)
+                                      durable=durable, session=session)
                 if durable and not written:
                     raise ToolFailed("the comparison metadata could not be saved", next="check local storage and try again")
         at = time.time()
@@ -788,21 +850,23 @@ class Results:
         if writes and not durable:  # comparisons already run on a worker and must finish saving first
             with self._lock:
                 for name, data in writes:
-                    self._pending[(day, name)] = data
-                    self._picture_writes[(day, name)] = threading.Event()
+                    self._pending[self._file_key(day, name, session)] = data
+                    self._picture_writes[self._file_key(day, name, session)] = threading.Event()
 
             def finished(name: str) -> None:
                 with self._lock:
-                    event = self._picture_writes.pop((day, name), None)
+                    event = self._picture_writes.pop(self._file_key(day, name, session), None)
                     if event is not None:
                         event.set()
 
             def write_all() -> None:
                 try:
                     for name, data in writes:
-                        if self._write(day, name, data):  # a write that fails keeps its picture readable from memory
-                            self._pending.pop((day, name), None)
+                        if self._write(day, name, data, session=session):  # a write that fails keeps its picture readable from memory
+                            self._pending.pop(self._file_key(day, name, session), None)
                         finished(name)
+                except (OSError, ValueError):
+                    pass  # retained pending bytes make confirmation fail honestly
                 finally:
                     # Failure wakes consumers too; pending bytes remain display-only.
                     for name, _ in writes:
@@ -861,12 +925,12 @@ class Results:
             try:
                 for name, data in writes:
                     durable_guard()
-                    if not self._write(day, name, data, durable=True):
+                    if not self._write(day, name, data, durable=True, session=session):
                         raise ToolFailed("a comparison original could not be saved", next="check local storage and try again")
                 durable_guard()
                 metadata = json.dumps({"id": rid, "values": values, "source": entry["source"],
                                        **({"madeWith": list(made_with)} if made_with else {})}, allow_nan=False).encode()
-                if len(metadata) > 128 * 1024 or not self._write(day, f"{rid}.json", metadata, durable=True):
+                if len(metadata) > 128 * 1024 or not self._write(day, f"{rid}.json", metadata, durable=True, session=session):
                     raise ToolFailed("the comparison source metadata could not be saved", next="check local storage and try again")
                 durable_guard()
                 # Persist without Day.record_result's tolerant I/O or firing application listeners
@@ -877,7 +941,7 @@ class Results:
                 durable_guard()
                 return entry
             except BaseException:
-                self._discarded.add((day, rid))
+                self._discarded.add(self._file_key(day, rid, session))
                 try:
                     self._discard_files(entry)
                 finally:
@@ -914,10 +978,11 @@ class Results:
         if state != 'saving':
             return state, summary
         date, names = entry.get('day'), entry.get('pictures') or []
+        session = session_of(entry, date)
         with self._lock:
-            if any((date, name) in self._picture_writes for name in names):
+            if any(self._file_key(date, name, session) in self._picture_writes for name in names):
                 return 'saving', 'Saving the original result. It is not yet confirmed as retained.'
-            pending = any((date, name) in self._pending for name in names)
+            pending = any(self._file_key(date, name, session) in self._pending for name in names)
         valid = (self.root is not None and isinstance(date, str)
                  and re.fullmatch(r'\d{4}-\d{2}-\d{2}', date)
                  and isinstance(entry.get('id'), str) and ENTRY_ID.fullmatch(entry['id'])
@@ -925,7 +990,7 @@ class Results:
                                    and name not in ('.', '..') for name in names))
         if valid and not pending:
             try:
-                paths = [self.root / date / name for name in [*names, entry['id'] + '.json']]
+                paths = [self.folder_for(date, session) / name for name in [*names, entry['id'] + '.json']]
                 if all(path.is_file() and not path.is_symlink() for path in paths):
                     return 'done', summary
             except OSError:
@@ -933,14 +998,14 @@ class Results:
         return 'failed', 'The result could not be saved. Check local storage and rerun this tool.'
 
     def wait_for_picture(self, day: str, name: str, *, timeout: float = 30,
-                         cancelled: threading.Event | None = None) -> None:
+                         cancelled: threading.Event | None = None, session: str | None = None) -> None:
         """Off-loop admission waits only for this original, never another result's I/O.
 
         Completion permits a disk read, not trust in preview bytes. The caller still
         verifies the retained digest, metadata and revision after this wait.
         """
         with self._lock:
-            event = self._picture_writes.get((day, name))
+            event = self._picture_writes.get(self._file_key(day, name, session))
         deadline = time.monotonic() + timeout
         while event is not None and not event.is_set():
             if cancelled is not None and cancelled.is_set():
@@ -951,7 +1016,7 @@ class Results:
             event.wait(min(.05, remaining))
         if cancelled is not None and cancelled.is_set():
             raise asyncio.CancelledError()
-        if (day, name) in self._pending:
+        if self._file_key(day, name, session) in self._pending:
             raise ValueError('This original could not be saved. Check local storage and rerun its producer.')
 
     def table_candidate(self, entry: dict, session: str, *, discover: bool = False) -> bool:
@@ -986,7 +1051,7 @@ class Results:
                              if key[:3] == (session, date, rid)), False)
         try:
             import stat
-            path = self.root / date / f'{rid}.json'
+            path = self.folder_for(date, session) / f'{rid}.json'
             if path.parent.is_symlink():
                 return False
             fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -1021,8 +1086,9 @@ class Results:
         if entry is None:
             return None
         if entry.get("full") and self.root is not None:
+            folder = self.folder_for(entry.get("day") or self._day_name(), session_of(entry, entry.get("day") or self._session()))
             try:
-                return json.loads((self.root / (entry.get("day") or self._day_name()) / f"{rid}.json").read_text())["values"]
+                return json.loads((folder / f"{rid}.json").read_text())["values"]
             except (OSError, ValueError, KeyError):
                 pass
         return entry.get("values")
@@ -1038,17 +1104,19 @@ class Results:
 
     def _is_discarded(self, entry) -> bool:
         day, rid = entry.get("day", self._day_name()), entry["id"]
-        if entry.get("state") == "discarded" or (day, rid) in self._discarded:
+        session = session_of(entry, day)
+        key = self._file_key(day, rid, session)
+        if entry.get("state") == "discarded" or key in self._discarded:
             return True
-        if (day, rid) not in self._retention_checked and self.root is not None and (entry.get("source") or {}).get("components"):
+        if key not in self._retention_checked and self.root is not None and (entry.get("source") or {}).get("components"):
             try:
-                metadata = read_picture_bytes(self.root / day / f"{rid}.json", 128 * 1024)
+                metadata = read_picture_bytes(self.folder_for(day, session) / f"{rid}.json", 128 * 1024)
                 if metadata and json.loads(metadata).get("state") == "discarded":
-                    self._discarded.add((day, rid))
+                    self._discarded.add(self._file_key(day, rid, session))
                     return True
             except (OSError, ValueError):
                 pass  # unavailable source metadata does not make the named artifact disappear
-            self._retention_checked.add((day, rid))
+            self._retention_checked.add(key)
         return False
 
     def _new_id(self, session: str | None = None) -> str:
@@ -1062,15 +1130,15 @@ class Results:
         key = (getattr(store, "sid", None), date)
         if key not in self._floors:
             self._floors[key] = floor(store, "d", date)
-        folder = self.root / date if self.root is not None else None
+        folder = self.folder_for(date, session) if self.root is not None else None
         n = max([self._floors[key], self._given] + [int(i[1:]) for i in used if i[1:].isdigit()]) + 1
         while f"d{n}" in used or (folder is not None and (any(folder.glob(f"d{n}-*")) or (folder / f"d{n}.json").exists())):
             n += 1
         self._given = n
         return f"d{n}"
 
-    def _write(self, day: str, name: str, data: bytes, *, durable: bool = False) -> bool:
-        folder = self.root / day
+    def _write(self, day: str, name: str, data: bytes, *, durable: bool = False, session: str | None = None) -> bool:
+        folder = self.folder_for(day, session, write=True)
         try:
             folder.mkdir(parents=True, exist_ok=True)
             tmp = folder / f".{name}.{os.getpid()}.tmp"
@@ -1123,6 +1191,8 @@ class Results:
         root = getattr(getattr(self.day, "journal", None), "root", None)
         if root is None or not sids.is_sid(day):
             return [], []
+        if hasattr(self.day, 'root_for'):
+            root = self.day.root_for(day)
         out: dict[str, dict] = {}
         invalid = 0
         try:
@@ -1156,12 +1226,12 @@ class Results:
         if entry is None or self.root is None or not (0 <= n < len(entry.get("pictures") or [])):
             return None
         folder_day = entry.get("day") or self._day_name()
-        pending = self._pending.get((folder_day, entry["pictures"][n]))
+        pending = self._pending.get(self._file_key(folder_day, entry["pictures"][n], session_of(entry, folder_day)))
         if pending is not None:
             data = pending if max_bytes is None or len(pending) <= max_bytes else None
         else:
             try:
-                data = read_picture_bytes(self.root / folder_day / entry["pictures"][n], max_bytes)
+                data = read_picture_bytes(self.folder_for(folder_day, session_of(entry, folder_day)) / entry["pictures"][n], max_bytes)
             except OSError:
                 return None
         digests = entry.get("digests") or []
@@ -1177,8 +1247,8 @@ class Results:
             raise ValueError("that original result picture is no longer available")
         folder_day = entry.get("day") or self._day_name()
         filename = entry["pictures"][n]
-        pending = self._pending.get((folder_day, filename))
-        maximum = len(pending) if pending is not None else (self.root / folder_day / filename).stat().st_size
+        pending = self._pending.get(self._file_key(folder_day, filename, session_of(entry, folder_day)))
+        maximum = len(pending) if pending is not None else (self.folder_for(folder_day, session_of(entry, folder_day)) / filename).stat().st_size
         return export_image(lambda limit: self.picture(rid, n, day, max_bytes=limit), maximum,
                             entry.get("madeWith") or [], memory)
 
