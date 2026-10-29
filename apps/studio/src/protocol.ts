@@ -116,6 +116,13 @@ export interface Health {
 export interface ModelsHealth {
   fallbacks: { role: string; default: string; used: string; times: number; why: string; agoS: number }[];
   providers: Record<string, Partial<Record<'ok' | 'cut-off' | 'rate-limit' | 'auth' | 'server' | 'connection' | 'failed', number>>>;
+  inUse?: ModelInUse[]; // who's doing each job now (orchestrator/models_in_use.py), the same rows the agent's models_in_use reads
+}
+
+/** One job and the model doing it now: where it runs, its calls' typical time lately, and where to change it. */
+export interface ModelInUse {
+  role: string; title: string; model: string; runs: string; where: string; setting: string | null; how?: string; note?: string;
+  speed: { p50Ms: number; calls: number } | null; speedWords: string; change: string;
 }
 
 /** How the computer is doing (orchestrator/machine.py), sampled every 5 s; any field may be
@@ -1401,7 +1408,7 @@ export interface Settings {
   closeup?: string; // close-ups when naming a click: "single" | "naming" | "naming+answers" (orchestrator/agent.py)
   dust?: string; // telling the models where dust on the optics is: "tell" | "filter" | "off" (orchestrator/dust.py)
   embed?: string; // the picture model of your labels and "seen before today": "dinov2-small" | "bioclip-2" (gpu_worker/embed.py)
-  admit?: string; // how an explicit request for big research is recognised: "quote" | "keywords" (research/policy.py)
+  admit?: string; // how an explicit request for big research is recognised: "quote" (research/policy.py)
   zeroshot?: string; // MedSigLIP's zero-shot names told to naming a click: "off" | "medsiglip-subject" | "medsiglip-always" (orchestrator/zeroshot.py)
   outcome_lines?: string; // how each model has done here, pushed into the brain's prompt: "off" (looked up) | "on" (orchestrator/outcomes.py, K3)
   session_context?: string; // the index entries the conversation names, pushed capped: "off" (pulled) | "on" (brain/context.py, K3)

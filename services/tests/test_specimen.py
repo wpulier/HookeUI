@@ -20,8 +20,8 @@ def test_a_presentation_or_a_walkthrough_is_an_explicit_lesson_request():
     assert explicit_refusal(said, "standard", "lesson", "make a little presentation") is None
     assert explicit_refusal("can you walk me through it", "standard", "lesson", "walk me through it") is None
     assert explicit_refusal("tell me about it", "standard", "lesson")  # no quote: not asked for
-    for words in (said, "can you walk me through it"):  # the keyword rule saw these too
-        assert explicit_refusal(words, "standard", "lesson", mode="keywords") is None
+    for words in (said, "can you walk me through it"):  # the keyword rule is gone: the quote decides, never a word
+        assert explicit_refusal(words, "standard", "lesson", mode="keywords")
 
 
 def test_the_request_counts_from_the_last_half_minute_of_speech():

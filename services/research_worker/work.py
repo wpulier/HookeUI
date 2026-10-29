@@ -289,6 +289,24 @@ def offline_lesson(content: dict) -> str:
             f"<body><h1>{escape(content['title'])}</h1><ul>{ideas}</ul>{steps}</body></html>")
 
 
+# The table a chart or an animation is drawn from (measurement_charts.py), as the session tool names it.
+TABLE_CHART = {
+    "title": {"type": "string", "maxLength": 90, "description": "the chart's title, in plain words"},
+    "table": {"type": "object", "description": "the session entry holding the table: its id, and the page.revision your "
+                                               "read gave (the app reads it whole at that revision; left out: as it is now)",
+              "properties": {"id": {"type": "string"}, "revision": {"type": "string"}}, "required": ["id"],
+              "additionalProperties": False},
+    "rows": {"type": "string", "description": "JSON pointer to the list of rows in the entry, under /detail/ "
+                                              "(a measurements table's rows: /detail/members)"},
+    "value": {"type": "string", "description": "JSON pointer from one row to its number, e.g. /extras/areaPx "
+                                               "(\"\" when each row is a number)"},
+    "label": {"type": "string", "description": "optional JSON pointer from one row to its name, e.g. /id"},
+    "group": {"type": "string", "description": "optional JSON pointer from one row to a category to colour by"},
+    "order": {"type": "string", "enum": ["ascending", "descending", "table"], "description": "ascending if not given"},
+    "kind": {"type": "string", "enum": ["sorted", "histogram"],
+             "description": "sorted: one bar per row in that order; histogram: rows counted in equal bins (sorted if not given)"},
+}
+
 SCHEMAS: dict[str, dict] = {
     "snapshot": {"description": "Get a fresh close-up of the object from the live view (at most one per 10 s; "
                                 "refused if it is not in view).", "parameters": {"type": "object", "properties": {}}},
@@ -319,6 +337,20 @@ SCHEMAS: dict[str, dict] = {
         "parameters": {"type": "object", "properties": {
             "motion": {"type": "string", "description": "what moves and how, in one or two sentences"},
             "seconds": {"type": "integer", "enum": [4, 6, 8]}}, "required": ["motion"]}},
+    "make_chart": {
+        "description": "Draw a chart of one numeric column of a table this session kept (a measurements table, any saved "
+                       "result's rows), read whole by the app at its exact revision: its values are the table's own, never "
+                       "numbers you supply. Kept as a picture with its source; it is attached for you to see.",
+        "parameters": {"type": "object", "properties": TABLE_CHART, "required": ["title", "table", "rows", "value"]}},
+    "animate_measurements": {
+        "description": "Animate one numeric column of a table this session kept: the chart builds row by row in the order "
+                       "you choose (smallest to largest, largest to smallest, or the table's own) and ends on the whole "
+                       "chart. Drawn by the app from the table's own values (an animation of the data, not a generated "
+                       "video); kept as an animated picture with its source. If it can't be animated, the chart is made "
+                       "instead and that is said.",
+        "parameters": {"type": "object", "properties": {**TABLE_CHART, "seconds": {
+            "type": "integer", "minimum": 2, "maximum": 12, "description": "how long it plays, 6 if not given"}},
+            "required": ["title", "table", "rows", "value"]}},
     "make_lesson": {
         "description": "Write an interactive one-page lesson from your outline.",
         "parameters": {"type": "object", "properties": {
