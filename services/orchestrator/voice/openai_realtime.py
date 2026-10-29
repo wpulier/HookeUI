@@ -36,6 +36,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import hashlib
 import json
 import os
 import time
@@ -56,7 +57,8 @@ MIN_HOLD_S = 0.25  # a press shorter than this is a tap: nothing to commit, so n
 IDLE_S = 1.5  # nobody has spoken for this long: a line nobody asked for may be said
 PROACTIVE_KEPT_S = 60.0  # a waiting proactive line is dropped (only noted) after this long
 SAME_EVENT_S = 120.0  # the same event (kind and reference) is said at most once in this long
-RESPONSE_WAIT_S = 3.0  # a new response waits at most this long for the one in progress to end
+RESPONSE_WAIT_S = 3.0  # a response whose end never comes is cancelled and let go after this (the gate never blocks)
+RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the connection to come back
 PROGRESS_AFTER_S = 2.5  # tools still running this long after the model went quiet: one progress line
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
@@ -154,6 +156,24 @@ class SdkSideband:
             await self.manager.__aexit__(None, None, None)
 
 
+@dataclass
+class Ask:
+    """One response.create waiting for its turn at the gate (`RealtimeSession._gate`): the API takes one response at a
+    time, so every response the session asks for goes through one queue and is checked again just before it is sent."""
+    cause: str  # turn | typed | tool | look | progress | proactive | reconnect
+    n: int  # the user's turn it belongs to
+    response: dict
+    epoch: int  # the call it was asked on
+    still: Callable[[], bool] | None = None  # checked just before sending: False drops it
+    prepare: Callable[[], Awaitable[None]] | None = None  # run once just before (a proactive line's facts and mark)
+    sent: Callable[[], None] | None = None
+    dropped: Callable[[str], None] | None = None
+    tries: int = 0
+
+
+USER_CAUSES = ("turn", "typed")  # the user's own turns: first in the queue, and never dropped for waiting
+
+
 class RealtimeSession(VoiceSession):
     def __init__(self, config: VoiceConfig, *, api_key: str | None = None, talk: str = "hold",
                  create_call: Callable[[str, dict], Awaitable[tuple[str, str]]] | None = None,
@@ -176,6 +196,7 @@ class RealtimeSession(VoiceSession):
         self._sb = None
         self._recv_task: asyncio.Task | None = None
         self._watch_task: asyncio.Task | None = None
+        self._gate_task: asyncio.Task | None = None
         self._queue: asyncio.Queue[VoiceEvent] = asyncio.Queue()
         self.closed = False
         self.termination = ""
@@ -188,14 +209,17 @@ class RealtimeSession(VoiceSession):
         # The partner's own hooks (voice/partner.py): the turn's perception, ready now (never fetched after release).
         self.turn_items: Callable[[int], Perception] = lambda n: Perception()
         self.on_speech_started: Callable[[int], None] = lambda n: None  # open mic: the user began; capture now
-        # What a line the app asks to be said is about, when the partner knows (a researcher that just finished):
-        # {"event", "ref", "mark", "before"} or None.
-        self.tag_notice: Callable[[], dict | None] = lambda: None
+        # What a line the app asks to be said is about, when its own facts say so (a researcher that just finished):
+        # tag_notice(text) -> {"event", "ref", "mark", "before"} or None.
+        self.tag_notice: Callable[[str], dict | None] = lambda text: None
         # --- conversation state ---
         self.n = 0  # the user's turn number (talk presses, or speech in open mic)
         self._held: int | None = None
         self._held_at = 0.0
+        self._held_epoch = 0
         self._released_at = 0.0
+        self._asks: list[Ask] = []  # responses waiting for the gate, one at a time
+        self._gate_wake = asyncio.Event()
         self._requested: dict | None = None  # a response.create sent, not yet created
         self._response: str | None = None  # the response in progress
         self._causes: dict[str, dict] = {}  # response id -> {"cause", "n", "createdT"}
@@ -207,6 +231,7 @@ class RealtimeSession(VoiceSession):
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
         self._seen_calls: set[str] = set()
+        self._call_epoch: dict[str, int] = {}  # call id -> the call (epoch) it was made on
         self._round: dict[str, list[str]] = {}  # response id -> its calls
         self._rounds_this_turn = 0
         self._images: list[str] = []  # image items of the last turn: deleted at the next
@@ -216,6 +241,8 @@ class RealtimeSession(VoiceSession):
         self._waiting: list[Waiting] = []
         self._said_events: dict[tuple, float] = {}
         self._progress_said: set[str] = set()
+        self._epoch = 0  # which call this is: each new call is the next
+        self._connected = asyncio.Event()  # a sideband is open
         self._reconnecting = False
         self.reconnects = 0
         self._late: set = set()
@@ -242,7 +269,9 @@ class RealtimeSession(VoiceSession):
             session["instructions"] = self.config.system_prompt
         tools = self.tool_declarations()
         if tools:
-            session["tools"], session["tool_choice"] = tools, "auto"
+            # Several calls in one response save a round trip; the tools are safe run together (partner_tools: one
+            # researcher per turn, screen changes one after another).
+            session["tools"], session["tool_choice"], session["parallel_tool_calls"] = tools, "auto", True
         return session
 
     def tool_declarations(self) -> list[dict]:
@@ -286,21 +315,24 @@ class RealtimeSession(VoiceSession):
         self._defaults()
         await self._open_call(offer_sdp)
         self._watch_task = asyncio.create_task(self._watch())
+        self._gate_task = asyncio.create_task(self._gate())
         self._emit(VoiceEvent("ready", data={"session_id": self.call_id, "link": "webrtc"}))
 
     async def _open_call(self, offer_sdp: str) -> None:
-        self.answer_sdp, self.call_id = await self._create_call(offer_sdp, self.session_config())
-        self.session_id = self.call_id
+        """A new call: made, its sideband attached, then seeded. The previous call (if any) is the caller's to end."""
+        answer, call_id = await self._create_call(offer_sdp, self.session_config())
         try:
-            self._sb = await self._open_sideband(self.call_id)
+            sb = await self._open_sideband(call_id)
         except BaseException:
-            self.answer_sdp = None
             with contextlib.suppress(Exception):
-                await asyncio.wait_for(self._hangup(self.call_id), CLOSE_STEP_S)
+                await asyncio.wait_for(self._hangup(call_id), CLOSE_STEP_S)
             raise
+        self.answer_sdp, self.call_id, self.session_id, self._sb = answer, call_id, call_id, sb
         self.closed = False
         self.opened_at = self.clock()
+        self._epoch += 1
         self._recv_task = asyncio.create_task(self._receive())
+        self._connected.set()
         await self._seed()
 
     async def _seed(self) -> None:
@@ -326,66 +358,87 @@ class RealtimeSession(VoiceSession):
         if self.closed and self._sb is None:
             return
         self.closed = True
-        if self._watch_task is not None:
-            self._watch_task.cancel()
-        unresolved = await self._end_call()
+        for task in (self._watch_task, self._gate_task):
+            if task is not None:
+                task.cancel()
+        self._gate_wake.set()
+        unresolved = await self._end_call(self._sb, self._recv_task, self.call_id)
+        self._sb = self._recv_task = None
+        self._connected.clear()
+        self.answer_sdp = None
         self.termination = "confirmed" if not unresolved else "unconfirmed: " + "; ".join(unresolved)
         self._emit(VoiceEvent("closed", data={"reason": "client"}))
 
-    async def _end_call(self) -> list[str]:
+    async def _end_call(self, sb, task, call_id) -> list[str]:
         unresolved = []
-        task, self._recv_task = self._recv_task, None
         if task is not None:
             task.cancel()
             with contextlib.suppress(BaseException):
                 await asyncio.wait_for(task, CLOSE_STEP_S)
-        sb, self._sb = self._sb, None
         if sb is not None:
             try:
                 await asyncio.wait_for(sb.close(), CLOSE_STEP_S)
             except Exception:
                 unresolved.append("its sideband didn't close")
-        if self.call_id and self._hangup is not None:
+        if call_id and self._hangup is not None:
             try:
-                await asyncio.wait_for(self._hangup(self.call_id), CLOSE_STEP_S)
+                await asyncio.wait_for(self._hangup(call_id), CLOSE_STEP_S)
             except Exception as exc:  # an already-ended call refuses a hangup: it is ended either way
                 if "not found" not in str(exc).lower() and "404" not in str(exc):
                     unresolved.append("its WebRTC call wasn't hung up")
-        self.answer_sdp = None
         return unresolved
 
     async def reconnect(self, offer_sdp: str | None = None, *, why: str = "close") -> float:
-        """A new call from the browser's new offer (the 60-minute limit, a call that ended), or the sideband alone
-        reattached to the same call; seeded as at the start. Returns the seconds it took. The same session object, so
-        everything that holds it (researchers' delivery, the narrator) still reaches it."""
+        """A new call from the browser's new offer (the 60-minute limit, a call that ended, the studio's own new peer
+        connection), or the sideband alone reattached to the same call. Returns the seconds it took. The same session
+        object, so everything that holds it (researchers' delivery, the narrator) still reaches it.
+          - Reattached: the call's conversation still holds everything (the brief, the images by their ids): nothing is
+            seeded again.
+          - A new call: made first, seeded, and only then the old one closed and hung up, in the background, so the new
+            call never waits on the old one's end."""
         started = self.clock()
         self._reconnecting = True
+        self._connected.clear()
         mid_speech = self._speaking
         try:
             if offer_sdp:
-                await self._end_call()
+                old = (self._sb, self._recv_task, self.call_id)
+                self._sb = self._recv_task = None
                 await self._open_call(offer_sdp)
+                self._spawn(self._end_call(*old))
             else:
                 task, self._recv_task = self._recv_task, None
                 if task is not None:
                     task.cancel()
                 sb, self._sb = self._sb, None
                 if sb is not None:
-                    with contextlib.suppress(Exception):
-                        await asyncio.wait_for(sb.close(), CLOSE_STEP_S)
+                    self._spawn(self._quietly(sb.close()))
                 self._sb = await self._open_sideband(self.call_id)
                 self._recv_task = asyncio.create_task(self._receive())
-                await self._seed()
+                self._connected.set()
         finally:
             self._reconnecting = False
+        self._gate_wake.set()
         self.reconnects += 1
         took = self.clock() - started
         self._log({"kind": "partner-reconnect", "reason": why, "closedT": self.wall() - took, "readyT": self.wall(),
-                   "ms": round(took * 1000), "midSpeech": mid_speech})
+                   "ms": round(took * 1000), "midSpeech": mid_speech, "newCall": bool(offer_sdp)})
         if mid_speech:
             await self.proactive("The connection was renewed while you were speaking; say only: Reconnected, go on.",
                                  event="reconnect", ref=str(self.reconnects))
         return took
+
+    @staticmethod
+    async def _quietly(awaitable) -> None:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(awaitable, CLOSE_STEP_S)
+
+    async def _wait_connected(self, seconds: float) -> bool:
+        if self._connected.is_set() and self._sb is not None:
+            return True
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(self._connected.wait(), seconds)
+        return self._connected.is_set() and self._sb is not None and not self.closed
 
     # --- sending -----------------------------------------------------------------------------------
     async def _send(self, event: dict) -> None:
@@ -401,24 +454,95 @@ class RealtimeSession(VoiceSession):
         with contextlib.suppress(Exception):
             await self._send({"type": "conversation.item.delete", "item_id": iid, "event_id": best_effort()})
 
-    async def respond(self, cause: str, *, n: int | None = None, wait: bool = True, **response) -> bool:
-        """Ask for a response, after the one in progress (at most RESPONSE_WAIT_S). False when it could not be asked."""
-        if wait and not await self._no_response(RESPONSE_WAIT_S):
-            self._log({"kind": "partner-respond-skipped", "cause": cause, "why": "a response was still running"})
-            return False
-        meta = {"cause": cause, "n": str(self.n if n is None else n)}
-        event_id = f"rc_{uuid.uuid4().hex[:20]}"
-        self._requested = {**meta, "eventId": event_id, "since": self.clock()}
-        await self._send({"type": "response.create", "event_id": event_id, "response": {**response, "metadata": meta}})
-        return True
+    def respond(self, cause: str, *, n: int | None = None, still: Callable[[], bool] | None = None,
+                prepare: Callable[[], Awaitable[None]] | None = None, sent: Callable[[], None] | None = None,
+                dropped: Callable[[str], None] | None = None, **response) -> Ask:
+        """Ask for a response: queued at the gate, which sends one at a time. The user's own turns go ahead of
+        everything else; the rest are checked again just before sending (no key held, no newer turn, the same call)."""
+        ask = Ask(cause, self.n if n is None else n, response, self._epoch, still, prepare, sent, dropped)
+        if cause in USER_CAUSES:
+            at = next((k for k, queued in enumerate(self._asks) if queued.cause not in USER_CAUSES), len(self._asks))
+            self._asks.insert(at, ask)
+        else:
+            self._asks.append(ask)
+        self._gate_wake.set()
+        return ask
 
-    async def _no_response(self, seconds: float) -> bool:
-        end = self.clock() + seconds
-        while (self._requested is not None or self._response is not None) and self.clock() < end:
+    def _why_not(self, ask: Ask) -> str | None:
+        """Why a waiting response must not be sent now (None: it may)."""
+        if ask.epoch != self._epoch:
+            return "asked on a call that has since been replaced"
+        if ask.n != self.n:
+            return "the user has started a newer turn"  # that turn's answer reads what this one would have
+        if ask.cause not in USER_CAUSES and self._held is not None:
+            return "the user is holding the talk key"
+        if ask.still is not None and not ask.still():
+            return "no longer current"
+        return None
+
+    async def _gate(self) -> None:
+        """The one sender of response.create: a response at a time (the API refuses a second), each checked again with
+        nothing awaited between that check and claiming the slot."""
+        while not self.closed:
+            if not self._asks:
+                self._gate_wake.clear()
+                await self._gate_wake.wait()
+                continue
+            await self._free()
+            if not await self._wait_connected(1.0):
+                continue
+            ask = self._asks[0]
+            why = self._why_not(ask)
+            if why is not None:
+                self._asks.remove(ask)
+                self._log({"kind": "partner-respond-dropped", "cause": ask.cause, "n": ask.n, "why": why})
+                if ask.dropped is not None:
+                    with contextlib.suppress(Exception):
+                        ask.dropped(why)
+                continue
+            if ask.prepare is not None:
+                prepare, ask.prepare = ask.prepare, None
+                with contextlib.suppress(Exception):
+                    await prepare()
+                continue  # checked again: the user may have pressed talk while it was prepared
+            if self._requested is not None or self._response is not None:
+                continue
+            self._asks.remove(ask)
+            event_id = f"rc_{uuid.uuid4().hex[:20]}"
+            meta = {"cause": ask.cause, "n": str(ask.n)}
+            self._requested = {**meta, "eventId": event_id, "since": self.clock(), "ask": ask}
+            try:
+                await self._send({"type": "response.create", "event_id": event_id,
+                                  "response": {**ask.response, "metadata": meta}})
+            except Exception:
+                self._requested = None
+                if ask.tries < 3:  # the sideband went away: sent once it is back
+                    ask.tries += 1
+                    self._asks.insert(0, ask)
+                await asyncio.sleep(0.1)
+                continue
+            if ask.sent is not None:
+                with contextlib.suppress(Exception):
+                    ask.sent()
+
+    async def _free(self) -> None:
+        """Until the response in progress has ended. One whose end never comes (a lost event) is cancelled after
+        RESPONSE_WAIT_S and let go: the queue is never blocked for good, and a user's turn is never skipped."""
+        start = self.clock()
+        while self._requested is not None or self._response is not None:
             if self._requested is not None and self.clock() - self._requested["since"] > RESPONSE_WAIT_S:
                 self._requested = None  # asked, and nothing was made of it: none is coming
+                continue
+            if self.clock() - start > RESPONSE_WAIT_S:
+                self._log({"kind": "partner-response-forced", "responseId": self._response})
+                with contextlib.suppress(Exception):
+                    await self._send({"type": "response.cancel", "event_id": best_effort()})
+                end = self.clock() + 1.0
+                while self._response is not None and self.clock() < end:
+                    await asyncio.sleep(0.02)
+                self._response = self._requested = None
+                return
             await asyncio.sleep(0.02)
-        return self._requested is None and self._response is None
 
     def seed_brief(self, text: str, revision: str) -> None:
         """The brief a new call starts with (sent with the seed, not now)."""
@@ -438,6 +562,24 @@ class RealtimeSession(VoiceSession):
     def speaking(self) -> bool:
         return self._speaking or self._response is not None or self._requested is not None
 
+    def studio_phase(self, phase: str) -> None:
+        """The studio's own measured state of its audio (`voice-phase`): speaking or listening. With the sideband's
+        output_audio_buffer events, a source of truth for whether the voice is audible."""
+        now = self.clock()
+        if phase == "speaking":
+            rid = self._response or ""
+            if rid and rid not in self._first_audio:
+                self._first_audio[rid] = self.wall()
+            self._last_audio_at = now
+            if not self._speaking:
+                self._speaking = True
+                self._emit(VoiceEvent("vad", data={"state": "model-start"}))
+        elif phase == "listening" and self._speaking:
+            self._speaking = False
+            self._last_audio_at = now
+            self._emit(VoiceEvent("turn_complete", data={"reason": "quiet"}))
+            self._gate_wake.set()
+
     def _maybe_audible(self) -> bool:
         """A response ended moments ago and its audio's end was not reported: the browser may still be playing it."""
         return (self._last_done_at > self._last_audio_at and self.clock() - self._last_done_at < AUDIBLE_AFTER_DONE_S)
@@ -446,12 +588,13 @@ class RealtimeSession(VoiceSession):
         """The talk key went down: the voice stops if it is talking (barge-in), and listening starts afresh."""
         self.n = n if isinstance(n, int) else self.n + 1
         barge = self.speaking() or self._maybe_audible()
-        self._held, self._held_at = self.n, self.clock()
+        self._held, self._held_at, self._held_epoch = self.n, self.clock(), self._epoch
+        self._last_user_at = self.clock()
         self._log({"kind": "partner-talk", "n": self.n, "down": True, "barge": barge})
         if barge:
             await self.stop_speaking()
-        await self._send({"type": "input_audio_buffer.clear"})
-        self._last_user_at = self.clock()
+        with contextlib.suppress(ConnectionError):  # reconnecting: the release waits for it
+            await self._send({"type": "input_audio_buffer.clear"})
 
     async def stop_speaking(self) -> None:
         cancel_at = self.wall()
@@ -465,35 +608,48 @@ class RealtimeSession(VoiceSession):
         self._log({"kind": "partner-barge", "n": self.n, "cancelT": cancel_at, "clearT": self.wall()})
 
     async def talk_up(self, n: int | None = None) -> bool:
-        """The talk key was released: the turn's perception goes in, the buffer is committed and an answer asked for
-        at once. False when the press was a tap (nothing said): nothing is asked."""
+        """The talk key was released: the turn's perception goes in, the buffer is committed and its answer queued at
+        once (never skipped). False when nothing is asked: a tap, or a turn whose audio was in a call since replaced."""
         if self._held is None or (isinstance(n, int) and n != self._held):
             return False
-        n, held_for = self._held, self.clock() - self._held_at
+        n, held_for, held_epoch = self._held, self.clock() - self._held_at, self._held_epoch
         self._held, self._released_at = None, self.clock()
         released = self.wall()
         self._log({"kind": "partner-talk", "n": n, "down": False})
+        self._gate_wake.set()
         if held_for < MIN_HOLD_S:
-            await self._send({"type": "input_audio_buffer.clear"})
+            with contextlib.suppress(ConnectionError):
+                await self._send({"type": "input_audio_buffer.clear"})
             return False
-        seen = self.turn_items(n)
+        seen = self.turn_items(n)  # as it was at key-down, taken now
+        if not await self._wait_connected(RECONNECT_WAIT_S):
+            self._log({"kind": "partner-turn-lost", "n": n, "why": "no connection came back"})
+            return False
+        if self._epoch != held_epoch:
+            # Its audio went to a call that has since been replaced: said once, plainly.
+            self._log({"kind": "partner-turn-lost", "n": n, "why": "a new call was made while the key was held"})
+            self.respond("reconnect", n=n, tool_choice="none", instructions=self.config.system_prompt + (
+                "\n\nSay only, in your own words: the connection dropped for a moment, so please say that again."))
+            return False
         await self._perceived(n, seen)
         await asyncio.sleep(RELEASE_TAIL_S)
         await self._send({"type": "input_audio_buffer.commit"})
         committed = self.wall()
         self._rounds_this_turn = 0
         self._last_user_at = self.clock()
-        asked = await self.respond("turn", n=n, wait=True)
-        self._log({"kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
-                   "responseCreatedT": self.wall() if asked else None, **seen.facts})
-        return asked
+        self.respond("turn", n=n, sent=lambda: self._log({
+            "kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
+            "responseCreatedT": self.wall(), **seen.facts}))
+        return True
 
     async def talk_cancel(self, n: int | None = None) -> None:
         if self._held is None:
             return
         self._log({"kind": "partner-talk", "n": self._held, "down": False, "cancel": True})
         self._held = None
-        await self._send({"type": "input_audio_buffer.clear"})
+        self._gate_wake.set()
+        with contextlib.suppress(ConnectionError):
+            await self._send({"type": "input_audio_buffer.clear"})
 
     async def _perceived(self, n: int, seen: Perception) -> None:
         """This turn's perception: last turn's images deleted, this turn's text note (kept) and images (one item)."""
@@ -517,19 +673,22 @@ class RealtimeSession(VoiceSession):
             return
         await self.add(text_item("user", text))
         self._last_user_at = self.clock()
-        await self.respond("typed")
+        self.respond("typed")
 
     async def inject(self, text: str, *, respond: bool = False, delegation_id: str | None = None,
                      source: str = "app", facts: dict | None = None) -> None:
-        """Context from the app (the narrator's lines, researchers' news). respond=True: said as one line when nobody
-        is talking (`proactive`); otherwise a kept system item, never answered."""
-        if self._sb is None or self.closed:
+        """Context from the app (the narrator's lines, researchers' news, typed chat). respond=True: said as one line
+        when nobody is talking (`proactive`); otherwise a kept system item, never answered."""
+        if self.closed:
             return
         if respond:
-            tag = self.tag_notice() or {}
+            tag = self.tag_notice(text) or {}
             event = (facts or {}).get("event") or tag.get("event") or (source if source != "app" else "notice")
             await self.proactive(text, event=event, ref=(facts or {}).get("ref") or tag.get("ref"),
                                  before=tag.get("before"), mark=tag.get("mark"))
+            return
+        if self._sb is None:
+            self._log({"kind": "partner-note-unsent", "source": source, "why": "reconnecting", "chars": len(text)})
             return
         await self.add(text_item("system", "Context only, not a request; do not answer it:\n" + text))
         if self.noted is not None:
@@ -552,8 +711,9 @@ class RealtimeSession(VoiceSession):
     # --- lines nobody asked for --------------------------------------------------------------------
     async def proactive(self, text: str, *, event: str, ref: str | None = None,
                         before: Callable[[], Awaitable[None]] | None = None, mark: str | None = None) -> None:
-        """One sentence about something that happened, said only when nobody is talking, once per event."""
-        key = (event, ref or text[:80])
+        """One sentence about something that happened, said only when nobody is talking, once per event: its kind and
+        reference, or (none given) its whole text. Never a prefix: lines of one template differ only in their facts."""
+        key = (event, ref) if ref else (event, hashlib.sha256(text.encode()).hexdigest())
         now = self.clock()
         if now - self._said_events.get(key, -1e9) < SAME_EVENT_S:
             self._log({"kind": "partner-proactive", "event": event, "ref": ref, "eventT": self.wall(),
@@ -561,43 +721,61 @@ class RealtimeSession(VoiceSession):
             return
         self._said_events[key] = now
         self._waiting.append(Waiting(text, event, ref, now, before, mark))
-        await self._deliver()
+        self._deliver()
 
-    async def _deliver(self) -> None:
-        while self._waiting and not self.closed and self._sb is not None:
+    def _deliver(self) -> None:
+        """The first waiting line to the gate, when nothing else is queued or said and nobody is talking."""
+        while self._waiting and not self.closed:
             line = self._waiting[0]
             if self.clock() - line.at > PROACTIVE_KEPT_S:
                 self._waiting.pop(0)
-                with contextlib.suppress(Exception):
-                    await self.add(text_item("system", "Happened while the user was talking (context only): " + line.text))
-                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
-                           "userBusy": True, "skipped": "user-talking"})
+                self._spawn(self._noted_only(line))
                 continue
-            if self.user_busy() or self.speaking() or self._calls:
+            if (self.user_busy() or self.speaking() or self._calls or self._asks or self._sb is None):
                 return  # the watcher tries again when it is quiet
             self._waiting.pop(0)
-            await self.add(text_item("system", "Something happened (facts, not a request from the user):\n" + line.text))
-            if line.before is not None:
-                with contextlib.suppress(Exception):
-                    await line.before()
-            asked = await self.respond("proactive", wait=False, tool_choice="none",
-                                       instructions=self.config.system_prompt + "\n\nNow say exactly one short spoken "
-                                       "sentence telling the user what just happened, from the facts above. No question, "
-                                       "no offer, nothing else.")
-            self.last_commentary_at = self.clock()
-            self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
-                       "userBusy": False, "responseCreatedT": self.wall() if asked else None,
-                       **({"markTarget": line.mark} if line.mark else {})})
+            prepared = []
+
+            async def prepare(line=line, prepared=prepared) -> None:
+                await self.add(text_item("system", "Something happened (facts, not a request from the user):\n" + line.text))
+                prepared.append(True)
+                if line.before is not None:
+                    with contextlib.suppress(Exception):
+                        await line.before()
+
+            def dropped(why: str, line=line, prepared=prepared) -> None:
+                if not prepared:
+                    self._waiting.insert(0, line)  # nothing of it went out: it waits for the next quiet
+                    return
+                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+                           "userBusy": True, "skipped": "user-talking"})
+
+            def sent(line=line) -> None:
+                self.last_commentary_at = self.clock()
+                self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+                           "userBusy": False, "responseCreatedT": self.wall(),
+                           **({"markTarget": line.mark} if line.mark else {})})
+
+            self.respond("proactive", prepare=prepare, sent=sent, dropped=dropped,
+                         still=lambda: not self.user_busy() and not self._speaking, tool_choice="none",
+                         instructions=self.config.system_prompt + "\n\nNow say exactly one short spoken sentence "
+                         "telling the user what just happened, from the facts above. No question, no offer, nothing else.")
+            return
+
+    async def _noted_only(self, line: Waiting) -> None:
+        with contextlib.suppress(Exception):
+            await self.add(text_item("system", "Happened while the user was talking (context only): " + line.text))
+        self._log({"kind": "partner-proactive", "event": line.event, "ref": line.ref, "eventT": self.wall(),
+                   "userBusy": True, "skipped": "user-talking"})
 
     async def _watch(self) -> None:
-        """Once a second or faster: waiting lines said when it is quiet; a session near the limit renewed while idle
-        (asked of the route through a `go_away` event)."""
+        """Four times a second: waiting lines handed to the gate when it is quiet; a session near the limit renewed
+        while idle (asked of the partner through a `go_away` event)."""
         asked_renewal = False
         while not self.closed:
             await asyncio.sleep(0.25)
             with contextlib.suppress(Exception):
-                if self._waiting:
-                    await self._deliver()
+                self._deliver()
             if (not asked_renewal and self.clock() - self.opened_at > 55 * 60 and self.idle_since() > 5.0):
                 asked_renewal = True
                 self._emit(VoiceEvent("go_away", data={"reason": "limit", "time_left": "5m"}))
@@ -634,7 +812,8 @@ class RealtimeSession(VoiceSession):
         except Exception as exc:
             if self.closed or self._reconnecting or sb is not self._sb:
                 return
-            # The connection went away under us: the route reconnects (a new offer, or the sideband again).
+            # The connection went away under us: the partner reconnects (the sideband again, or a new call).
+            self._connected.clear()
             self._emit(VoiceEvent("go_away", data={"reason": "close", "message": f"{type(exc).__name__}: {exc}"[:300]}))
 
     async def handle(self, ev: dict) -> None:
@@ -649,8 +828,8 @@ class RealtimeSession(VoiceSession):
             self._causes[rid] = {"cause": meta.get("cause") or "unknown", "n": int(meta.get("n") or self.n),
                                  "createdT": self.wall()}
         elif kind == "output_audio_buffer.started" or (kind == "response.output_audio.delta" and self.link != "webrtc"):
-            # Over WebRTC the browser plays the audio: only the output buffer's events say when it is audible (a
-            # response's audio is generated faster than it plays, so its own `done` comes while it still speaks).
+            # Over WebRTC the browser plays the audio: only the output buffer's events (and the studio's own
+            # voice-phase) say when it is audible; a response's audio is generated faster than it plays.
             rid = ev.get("response_id") or self._response or ""
             if rid and rid not in self._first_audio:
                 self._first_audio[rid] = self.wall()
@@ -695,38 +874,46 @@ class RealtimeSession(VoiceSession):
             self._spawn(self._open_turn(self.n))
         elif kind == "response.function_call_arguments.done":
             self._call(ev.get("response_id") or self._response or "", ev.get("call_id") or "", ev.get("name") or "",
-                       ev.get("arguments") or "{}")
+                       ev.get("arguments"))
         elif kind == "response.output_item.done":
             item = ev.get("item") or {}
             if item.get("type") == "function_call":
                 self._call(ev.get("response_id") or self._response or "", item.get("call_id") or "",
-                           item.get("name") or "", item.get("arguments") or "{}")
+                           item.get("name") or "", item.get("arguments"), item.get("status"))
         elif kind == "response.done":
             await self._response_done(ev.get("response") or {})
         elif kind == "error":
-            error = ev.get("error") or {}
-            if str(error.get("event_id") or "").startswith("be_"):
-                # A best-effort step refused because there was nothing to do (no response to cancel, no audio to clear,
-                # an item already gone): logged, never an error for the user.
-                self._log({"kind": "partner-provider-note", "code": error.get("code"),
-                           "message": str(error.get("message") or "")[:200]})
-                return
-            self._emit(VoiceEvent("error", data={"message": str(error.get("message") or "")[:300],
-                                                 "code": error.get("code"), "eventId": error.get("event_id")}))
-            if self._requested is not None and error.get("event_id") == self._requested.get("eventId"):
-                self._requested = None  # that response.create was refused: none is coming
+            self._provider_error(ev.get("error") or {})
         elif kind == "session.created":
             session = ev.get("session") or {}
             self.session_id = session.get("id") or self.session_id
+
+    def _provider_error(self, error: dict) -> None:
+        """A provider error is logged, never an error that ends Talk: each one the API sends here is about one request
+        of ours (a create refused while another runs, a cancel or clear with nothing to stop, an item already gone, an
+        empty commit). A refused response.create is asked again, once the response in progress has ended; a lost
+        connection is handled where the connection ends (reconnect)."""
+        code, event_id = error.get("code"), str(error.get("event_id") or "")
+        self._log({"kind": "partner-provider-note" if event_id.startswith("be_") else "partner-provider-error",
+                   "code": code, "eventId": event_id or None, "message": str(error.get("message") or "")[:300]})
+        requested = self._requested
+        if requested is not None and event_id and event_id == requested.get("eventId"):
+            self._requested = None
+            ask = requested.get("ask")
+            if code == "conversation_already_has_active_response" and ask is not None and ask.tries < 2:
+                ask.tries += 1
+                self._response = self._response or "unknown"  # one we did not ask for is running: wait for its end
+                self._asks.insert(0, ask)
+            self._gate_wake.set()
 
     async def _open_turn(self, n: int) -> None:
         seen = self.turn_items(n)
         committed = self.wall()
         await self._perceived(n, seen)
         self._rounds_this_turn = 0
-        asked = await self.respond("turn", n=n)
-        self._log({"kind": "partner-turn", "n": n, "how": "open", "releasedT": None, "committedT": committed,
-                   "responseCreatedT": self.wall() if asked else None, **seen.facts})
+        self.respond("turn", n=n, sent=lambda: self._log({
+            "kind": "partner-turn", "n": n, "how": "open", "releasedT": None, "committedT": committed,
+            "responseCreatedT": self.wall(), **seen.facts}))
 
     def _spawn(self, coro) -> None:
         task = asyncio.ensure_future(coro)
@@ -736,10 +923,11 @@ class RealtimeSession(VoiceSession):
     async def _response_done(self, response: dict) -> None:
         rid = response.get("id") or self._response or ""
         self._last_done_at = self.clock()
-        if rid == self._response:
+        if rid == self._response or self._response == "unknown":
             self._response = None
         if self._requested is not None and not self._causes.get(rid):
             self._requested = None
+        self._gate_wake.set()
         cause = self._causes.pop(rid, {"cause": "unknown", "n": self.n, "createdT": None})
         facts = usage_facts(response.get("usage"))
         status = response.get("status")
@@ -755,24 +943,33 @@ class RealtimeSession(VoiceSession):
                    "firstAudioT": self._first_audio.pop(rid, None),
                    "audioEndT": self.wall() if self.link != "webrtc" else None,  # WebRTC: partner-audio says it
                    "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts})
-        calls = [item for item in response.get("output") or [] if item.get("type") == "function_call"]
-        for item in calls:
-            self._call(rid, item.get("call_id") or "", item.get("name") or "", item.get("arguments") or "{}")
+        for item in response.get("output") or []:
+            if item.get("type") == "function_call":
+                self._call(rid, item.get("call_id") or "", item.get("name") or "", item.get("arguments"),
+                           item.get("status"))
         if self._round.get(rid):
             # Answered even when the response was cancelled (the user spoke): their next answer reads the outputs.
             self._spawn(self._finish_round(rid, cause["n"]))
 
     # --- tools ---------------------------------------------------------------------------------------
-    def _call(self, rid: str, call_id: str, name: str, arguments: str) -> None:
+    def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:
+        """A function call the model completed runs; one cut off (a cancelled response's incomplete call, arguments
+        that don't parse) is dropped and logged, never run with what it lacked."""
         if not call_id or call_id in self._seen_calls:
             return
         self._seen_calls.add(call_id)
         try:
-            args = json.loads(arguments) if arguments else {}
+            args = json.loads(arguments) if isinstance(arguments, str) and arguments.strip() else (
+                {} if arguments in (None, "") and status in (None, "completed") else None)
         except ValueError:
-            args = {}
+            args = None
+        if status not in (None, "completed") or not isinstance(args, dict):
+            self._log({"kind": "partner-call-dropped", "callId": call_id, "name": name, "status": status,
+                       "why": "not completed" if status not in (None, "completed") else "its arguments did not parse"})
+            return
         self._round.setdefault(rid, []).append(call_id)
-        event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args if isinstance(args, dict) else {})
+        self._call_epoch[call_id] = self._epoch
+        event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args)
         self._emit(event)
         self._calls[call_id] = asyncio.ensure_future(self._run_tool(event))
 
@@ -799,9 +996,11 @@ class RealtimeSession(VoiceSession):
         return result
 
     async def _finish_round(self, rid: str, n: int) -> None:
-        """Every call of one response answered (as each is ready), then the model asked to go on: once, and only when
-        the user has not started a newer turn meanwhile (their turn's answer will read these outputs)."""
+        """Every call of one response answered (as each is ready), then the model asked to go on, through the gate:
+        dropped there if the user has started a newer turn (that turn's answer reads these outputs) or the call has
+        been replaced (a new call never had these call ids: nothing is posted to it)."""
         ids = self._round.pop(rid, [])
+        epoch = next((self._call_epoch[cid] for cid in ids if cid in self._call_epoch), self._epoch)
         tasks = {cid: self._calls[cid] for cid in ids if cid in self._calls}
         progress_at = self.clock() + PROGRESS_AFTER_S
         pending = set(tasks.values())
@@ -812,25 +1011,28 @@ class RealtimeSession(VoiceSession):
             for cid, task in tasks.items():
                 if task in done and cid not in sent:
                     sent.add(cid)
+                    if epoch != self._epoch:
+                        self._log({"kind": "partner-output-dropped", "callId": cid, "why": "its call was replaced"})
+                        continue
                     looked |= await self._output(cid, task)
-            if pending and self.clock() > progress_at and rid not in self._progress_said and not self.speaking() \
-                    and self._held is None and n == self.n:
+            if (pending and self.clock() > progress_at and rid not in self._progress_said and not self.speaking()
+                    and not self._asks and self._held is None and n == self.n and epoch == self._epoch):
                 self._progress_said.add(rid)
-                await self.respond("progress", n=n, wait=False, tool_choice="none",
-                                   instructions=self.config.system_prompt + "\n\nThe app is still working on your last "
-                                   "tool call. Say only a short progress phrase, at most six words, without "
-                                   "claiming anything is done.")
+                self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
+                             tool_choice="none", instructions=self.config.system_prompt + "\n\nThe app is still working "
+                             "on your last tool call. Say only a short progress phrase, at most six words, without "
+                             "claiming anything is done.")
         for cid in ids:
             self._calls.pop(cid, None)
         self._progress_said.discard(rid)
-        if self.closed or self._held is not None or n != self.n:
-            return  # the user is talking again: their turn's answer reads these outputs
+        if self.closed or epoch != self._epoch:
+            return
         self._rounds_this_turn += 1
         if self._rounds_this_turn > TOOL_ROUNDS:
             self._log({"kind": "partner-rounds-stopped", "n": n, "rounds": self._rounds_this_turn})
-            await self.respond("tool", n=n, tool_choice="none")
+            self.respond("tool", n=n, tool_choice="none")
             return
-        await self.respond("look" if looked else "tool", n=n)
+        self.respond("look" if looked else "tool", n=n)
 
     async def _output(self, call_id: str, task: asyncio.Task) -> bool:
         """One call's output into the conversation; a fresh look after a change on screen goes in beside it."""

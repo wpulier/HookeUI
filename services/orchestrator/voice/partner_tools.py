@@ -79,7 +79,8 @@ class PartnerTools:
 
     def __init__(self, brain, hub, partner, *, client=None, dialogue=None) -> None:
         self.brain, self.hub, self.partner, self.client, self.dialogue = brain, hub, partner, client, dialogue
-        self._once: dict[tuple, dict] = {}  # (turn, tool, args) -> its result, for ONCE_PER_TURN
+        self._once: dict[tuple, asyncio.Future] = {}  # (turn, tool) -> its result, for ONCE_PER_TURN
+        self._screen = asyncio.Lock()  # tools that change the screen run one after another (parallel tool calls)
         self.reported: set[str] = set()  # action ids whose outcome went back to the model
         self.fail_next: str | None = None  # the bench's fault hook (MICROMIND_BENCH_FAULTS): the next call fails
 
@@ -121,9 +122,30 @@ class PartnerTools:
         if self.fail_next is not None:
             why, self.fail_next = self.fail_next, None
             return {"ok": False, "error": why, "_log": {"fault": "bench"}}
-        key = (n, name, json.dumps(args, sort_keys=True, default=str))
-        if name in ONCE_PER_TURN and key in self._once:
-            return {**self._once[key], "note": "already done for this request; not done again"}
+        if name not in ONCE_PER_TURN:
+            if name in SCREEN_CHANGING:
+                async with self._screen:  # changes on screen one after another, each with its own look after it
+                    return await self._run(name, args, n)
+            return await self._run(name, args, n)
+        # One per request (one researcher, one Project): the turn's slot is taken before anything awaits, so a second
+        # call of it in the same turn, in parallel or later and whatever its words, waits for the first's result.
+        key = (n, name)
+        first = self._once.get(key)
+        if first is not None:
+            result = await asyncio.shield(first)
+            return {**{k: v for k, v in result.items() if not k.startswith("_")},
+                    "note": "already done for this request; not done again"}
+        self._once = {k: v for k, v in self._once.items() if k[0] == n}  # only this turn's are kept
+        slot = self._once[key] = asyncio.get_running_loop().create_future()
+        try:
+            result = await self._run(name, args, n)
+        except BaseException as exc:
+            slot.set_result({"ok": False, "error": f"it did not finish ({type(exc).__name__})"})
+            raise
+        slot.set_result(result)
+        return result
+
+    async def _run(self, name: str, args: dict, n: int) -> dict:
         words = await self.partner.words(n, WORDS_WAIT_S)
         before = self._reported_at()
         run, ctx = await self._start(name, args, words)
@@ -144,9 +166,6 @@ class PartnerTools:
             result["_look"] = look
             log.update(facts)
         result["_log"] = log
-        if name in ONCE_PER_TURN:
-            self._once = {k: v for k, v in self._once.items() if k[0] == n}  # only this turn's are kept
-            self._once[key] = {k: v for k, v in result.items() if not k.startswith("_")}
         return result
 
     async def _start(self, name: str, args: dict, words: str):
@@ -290,7 +309,31 @@ class PartnerTools:
         missed = [{"target": r.get("target"), "why": r.get("why") or "not drawn"} for r in resolved if not r.get("ok")]
         return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {})}
 
+    async def _bounded(self, name: str, work, call_id: str | None) -> dict:
+        """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working", and what
+        it found is said as one line when it lands (a long tool done)."""
+        task = asyncio.ensure_future(work)
+        done, _ = await asyncio.wait({task}, timeout=TOOL_WAIT_S)
+        if task in done:
+            return task.result()
+
+        def landed(t: asyncio.Task) -> None:
+            if t.cancelled():
+                return
+            if t.exception() is not None:
+                found = {"tool": name, "status": "failed", "error": "something went wrong in the app"}
+            else:
+                found = {"tool": name, **{k: v for k, v in t.result().items() if not k.startswith("_")}}
+            asyncio.ensure_future(self.partner.happened("tool-done", json.dumps(found, ensure_ascii=False, default=str),
+                                                        ref=call_id or name))
+        task.add_done_callback(landed)
+        return {"ok": None, "still_working": True,
+                "note": "still running; its outcome is told to you when it lands. Do not say it is done."}
+
     async def look_hard(self, args: dict) -> dict:
+        return await self._bounded("look_hard", self._look_hard(args), args.get("_call_id"))
+
+    async def _look_hard(self, args: dict) -> dict:
         """The frame (and the window, when asked) with the question, to the app's frontier vision model."""
         question = str(args.get("question") or "").strip()
         if not question:
@@ -319,7 +362,11 @@ class PartnerTools:
         return {"ok": True, "answer": str(answer or result.raw_text or "")[:1500], "model": result.model}
 
     async def do_in_hooke(self, args: dict) -> dict:
-        """A many-step request handed to the brain whole, in the user's words; its findings come back."""
+        return await self._bounded("do_in_hooke", self._do_in_hooke(args), args.get("_call_id"))
+
+    async def _do_in_hooke(self, args: dict) -> dict:
+        """A many-step request handed to the brain whole, in the user's words; what it really did comes back (its
+        failures said as failures), with a fresh look when it changed the screen."""
         text = str(args.get("request") or "").strip()
         if not text:
             return {"ok": False, "error": "no request"}
@@ -334,7 +381,21 @@ class PartnerTools:
                 kwargs.update(client=self.client, request_snapshot=pin, request_ticket=request, asked=request.asked)
             except Exception:
                 request.seal()
+        before = self._reported_at()
         result = await brain.turn(text, "voice", **kwargs)
         actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
                    for a in (result.get("actions") or [])][:8]
-        return {"ok": True, "answer": str(result.get("answer") or "")[:1800], "actions": actions}
+        answer = str(result.get("answer") or "")[:1800]
+        failed = [f"{a['tool']}: {a['summary']}" for a in actions if a["ok"] is False]
+        working = [a["tool"] for a in actions if a["ok"] is None]
+        out: dict[str, Any] = {"ok": None if working and not failed else (not failed and bool(answer or actions)),
+                               "answer": answer, "actions": actions}
+        if failed:
+            out["failed"] = failed
+        if result.get("error"):
+            out["ok"], out["error"] = False, str(result["error"])[:300]
+        changed = [a["tool"] for a in actions if a["ok"] and a["tool"] in SCREEN_CHANGING]
+        if changed:  # act, then look: whether it shows is read from the screen, not from the brain's own answer
+            look, facts = await self.look_after(changed[-1], before)
+            out["_look"], out["_log"] = look, facts
+        return out

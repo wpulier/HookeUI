@@ -593,7 +593,8 @@ def test_a_researcher_the_announcer_speaks_is_tagged_with_its_card_not_said_twic
         await settle()
         assert t.sb.responses == 0, "a researcher asked for by voice is said by the announcer's line"
         t.session._last_user_at = 0.0
-        await t.session.inject("Requested notification: Researcher 3 finished.", respond=True)
+        await t.session.inject('Requested notification: {"event": "completed", "facts": {"researchId": "R3"}}',
+                               respond=True)
         await until_async(lambda: t.sb.responses == 1)
         said = next(r for r in t.logged if r["kind"] == "partner-proactive")
         assert said["event"] == "researcher-done" and said["ref"] == "R3" and said["markTarget"] == "researcher:R3"
@@ -684,7 +685,8 @@ def test_reconnect_seeds_the_new_call_with_the_conversation_the_brief_and_what_w
         offer = await until_async(lambda: next((m for m in t.studio if m["type"] == "reoffer"), None))
         assert offer["why"] == "close"
         await t.partner.command({"type": "offer", "id": offer["id"], "sdp": "v=0 new offer"})
-        await until_async(lambda: {"type": "voice", "kind": "answer", "data": {"sdp": "answer"}} in t.studio)
+        await until_async(lambda: {"type": "voice", "kind": "answer", "data": {"sdp": "answer", "id": offer["id"]}}
+                          in t.studio)
         new = t.sidebands[-1]
         assert new is not t.sb and t.partner.session is session and session.call_id == "rtc_2"
         texts = [(i.get("role"), i["content"][0]["text"]) for i in new.items() if i.get("type") == "message"]
@@ -796,9 +798,9 @@ def test_a_refused_best_effort_step_is_logged_not_said_as_an_error(monkeypatch):
                                               "message": "nothing to clear", "event_id": clear["event_id"]}})
         t.sb.emit({"type": "error", "error": {"message": "a real failure", "event_id": "other"}})
         await settle()
-        errors = [e for e in events if e.kind == "error"]
-        assert [e.data["message"] for e in errors] == ["a real failure"]
+        assert not [e for e in events if e.kind == "error"], "a provider error never ends Talk (review 1)"
         assert any(r["kind"] == "partner-provider-note" for r in t.logged)
+        assert any(r["kind"] == "partner-provider-error" and r["message"] == "a real failure" for r in t.logged)
     asyncio.run(go())
 
 
@@ -828,8 +830,9 @@ def test_two_lines_nobody_asked_for_never_send_two_responses_at_once(monkeypatch
             await asyncio.sleep(0.2)
         await asyncio.gather(session.proactive("Researcher 3 finished", event="researcher-done", ref="r3", before=slow_mark),
                              session.proactive("Cellpose is on", event="capability-on", ref="cellpose"))
-        await settle()
         sb = sbs[-1]
+        await until_async(lambda: sb.responses == 1)
+        await asyncio.sleep(0.3)
         assert sb.refused == 0 and sb.responses == 1, "one response at a time"
         await done(sb, "resp_1")
         await until_async(lambda: sb.responses == 2)
@@ -994,6 +997,7 @@ def test_a_released_turn_always_gets_its_response_even_after_a_long_wait(monkeyp
         t.session._response = "resp_stuck"  # a response whose end never arrives
         t.sb.active = True
         await press(t, 1)
+        await asyncio.sleep(openai_realtime.MIN_HOLD_S)
         await t.partner.command({"type": "talk", "down": False, "n": 1})
         await asyncio.sleep(0.4)
         t.sb.active = False  # the stuck one ends after the app cancelled it

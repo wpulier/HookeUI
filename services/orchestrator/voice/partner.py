@@ -69,6 +69,9 @@ class Partner:
         self.reconnecting: asyncio.Task | None = None
         self.fault: str | None = None
         self._talk_lock = asyncio.Lock()
+        self._reconnect_lock = asyncio.Lock()  # one new call at a time, whoever asks (this server, or the studio)
+        self._latest_offer: str | None = None
+        self._notes_task: asyncio.Task | None = None
         self._released: set[int] = set()  # turns whose key was released (or cancelled): their perception is fixed
         self._reattached_at = -1e9  # a sideband reattached that drops again this soon means its call has ended
 
@@ -87,8 +90,12 @@ class Partner:
         if research is not None and isinstance(getattr(research, "on_done", None), list):
             research.on_done.append(self._research_done)
             self._research = research
+        with contextlib.suppress(RuntimeError):  # no running loop (a direct construction in a test): nothing to watch
+            self._notes_task = asyncio.get_running_loop().create_task(self._chat_notes())
 
     def close(self) -> None:
+        if self._notes_task is not None:
+            self._notes_task.cancel()
         if self._research is not None:
             with contextlib.suppress(ValueError):
                 self._research.on_done.remove(self._research_done)
@@ -125,7 +132,15 @@ class Partner:
         elif kind == "marks-shown":
             self._answer(str(message.get("id") or ""), message)
         elif kind == "offer" and message.get("id"):
-            self._answer(str(message["id"]), message)
+            if str(message["id"]) in self._waiting:
+                self._answer(str(message["id"]), message)  # the new offer this server asked for (reoffer)
+            else:
+                # The studio's own new peer connection (its WebRTC failed or stayed down): a new call, answered with
+                # that offer's id; it retries every 3.5 s, and only the newest offer is answered.
+                self._latest_offer = str(message["id"])
+                self._spawn(self._studio_offer(message))
+        elif kind == "voice-phase" and self.session is not None:
+            self.session.studio_phase(str(message.get("phase") or ""))
         elif kind == "bench" and os.environ.get("MICROMIND_BENCH_FAULTS") == "1":
             await self.bench_fault(str(message.get("fault") or ""))
         else:
@@ -369,12 +384,16 @@ class Partner:
                 await self.marks([{"target": mark, "style": "box"}], timeout=0.5)
         await self.session.proactive(text, event=event, ref=ref, before=before, mark=mark)
 
-    def tag_notice(self) -> dict | None:
-        """The narrator's line just offered is about the researcher that just finished: its event, card and mark."""
-        seen, self._research_seen = self._research_seen, None
+    def tag_notice(self, text: str) -> dict | None:
+        """A narrator line is about the researcher that just finished only when its own facts name that researcher
+        (the announcer's facts carry `"researchId": "<rid>"`); timing alone tags nothing."""
+        seen = self._research_seen
         if seen is None or self.clock() - seen[2] > NOTICE_TAG_S:
             return None
         rid, event = seen[0], seen[1]
+        if f'"researchId": {json.dumps(rid)}' not in text:
+            return None
+        self._research_seen = None
         mark = f"researcher:{rid}"
 
         async def before() -> None:
@@ -392,16 +411,41 @@ class Partner:
         self._research_seen = (rid, event, self.clock())
         if (getattr(session, "origin", None) or {}).get("channel") == "voice":
             return
+        from ..untrusted import block
+
         result = getattr(session, "result", None) or {}
-        facts = {"researcher": getattr(session, "name", rid), "id": rid, "status": status,
-                 **({"finding": result.get("one_liner")} if isinstance(result, dict) and result.get("one_liner") else {})}
+        facts = {"researcher": getattr(session, "name", rid), "id": rid, "status": status}
+        text = json.dumps(facts, ensure_ascii=False)
+        if isinstance(result, dict) and result.get("one_liner"):
+            # The researcher's own words come from the web: information, inside the untrusted wrapper (ADR 0002).
+            text += "\nIts finding, in its own words:\n" + block(result["one_liner"], tag="researchers", source="web",
+                                                                limit=600)
         self._research_seen = None
-        self._spawn(self.happened(event, json.dumps(facts, ensure_ascii=False), ref=rid, mark=f"researcher:{rid}"))
+        self._spawn(self.happened(event, text, ref=rid, mark=f"researcher:{rid}"))
 
     # --- reconnecting ------------------------------------------------------------------------------
     async def reconnect(self, why: str) -> None:
         """The sideband reattached when the call is alive; otherwise a new call from the browser's new offer. Said
         to the user only if it happened while the voice was speaking (one quiet line)."""
+        async with self._reconnect_lock:
+            await self._reconnect(why)
+
+    async def _studio_offer(self, message: dict) -> None:
+        """The studio made a new peer connection of its own: a new call for it, answered with its offer's id (a late
+        answer to an older offer is never applied to the newer peer)."""
+        async with self._reconnect_lock:
+            if message["id"] != self._latest_offer or self.session is None or self.session.closed:
+                return  # a newer offer came while waiting: that one is answered
+            try:
+                await self.session.reconnect(str(message.get("sdp") or ""), why="studio")
+                if self.send is not None:
+                    await self.send({"type": "voice", "kind": "answer",
+                                     "data": {"sdp": self.session.answer_sdp, "id": message["id"]}})
+            except Exception as exc:  # the studio retries, and says so if it cannot
+                self.log({"kind": "partner-reconnect-failed", "reason": "studio",
+                          "error": f"{type(exc).__name__}: {exc}"[:300]})
+
+    async def _reconnect(self, why: str) -> None:
         session = self.session
         try:
             if why == "close" and self.clock() - self._reattached_at > REATTACH_AGAIN_S:
@@ -416,13 +460,30 @@ class Partner:
                 raise ConnectionError("the studio sent no new offer")
             await session.reconnect(str(offer["sdp"]), why=why)
             if self.send is not None:
-                await self.send({"type": "voice", "kind": "answer", "data": {"sdp": session.answer_sdp}})
+                await self.send({"type": "voice", "kind": "answer",
+                                 "data": {"sdp": session.answer_sdp, "id": offer.get("id")}})
         except Exception as exc:
             self.log({"kind": "partner-reconnect-failed", "reason": why, "error": f"{type(exc).__name__}: {exc}"[:300]})
             with contextlib.suppress(Exception):
                 await session.close()
         finally:
             self.reconnecting, self.fault = None, None
+
+    async def _chat_notes(self) -> None:
+        """What happens in typed chat while talking (the brain's voice notes: "the user typed ... and the app answered
+        ..."), told to the voice as it happens, so you can type, talk, then type. GPT-Live reads them with its view
+        notes; this voice has no view notes."""
+        while True:
+            await asyncio.sleep(0.3)
+            session = self.session
+            notes = getattr(self.brain, "voice_notes", None)
+            if session is None or session.closed or not isinstance(notes, list) or not notes or session._sb is None:
+                continue
+            taken = list(notes)
+            del notes[:len(taken)]
+            for text in taken:
+                with contextlib.suppress(Exception):
+                    await session.inject(text, respond=False, source="chat")
 
     async def bench_fault(self, fault: str) -> None:
         """The journey bench's faults (MICROMIND_BENCH_FAULTS=1 only, never in a packaged build)."""
