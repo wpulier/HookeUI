@@ -241,6 +241,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--acoustic", action="store_true",
                         help="play the words through this Mac's speakers into its microphone (a visible browser)")
     parser.add_argument("--no-faults", action="store_true", help="don't inject the plan's faults (forced reconnect)")
+    parser.add_argument("--settings", default="", help='settings for the stack, JSON over the plan\'s "settings" '
+                        '(e.g. {"vision": "claude-opus-5-5-fast", "think": "claude-opus-5-5"})')
     parser.add_argument("--port", type=int, default=28870)
     parser.add_argument("--bridge-port", type=int, default=28865)
     parser.add_argument("--keep-up", action="store_true", help="leave the stack running afterwards")
@@ -280,7 +282,8 @@ def main(argv: list[str] | None = None) -> int:
         worst_case(plan, args.reps, args.voice, judge=not args.no_judge, setup=setup_needed)
     reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}")
     checkout = Path(args.checkout).resolve()
-    about = {"voice": args.voice, "talk": talk, "checkout": str(checkout), "commit": commit(checkout),
+    about = {"voice": args.voice, "talk": talk, "settings": {**(plan.get("settings") or {}),
+                                                              **json.loads(args.settings or "{}")}, "checkout": str(checkout), "commit": commit(checkout),
              "acoustic": args.acoustic, "reservation": reservation, "worstUsd": worst, "started": time.time(),
              "evidence": ("recorded audio played through this Mac's speakers into its microphone" if args.acoustic else
                           "recorded audio (macOS voices) injected as the microphone") +
@@ -288,7 +291,9 @@ def main(argv: list[str] | None = None) -> int:
                           if (plan.get("camera") or {}).get("still") else "; the camera was test footage")}
     about_file.write_text(json.dumps(about, indent=1))
     up = argparse.Namespace(checkout=str(checkout), out=str(out), plan=args.plan, port=args.port,
-                            bridge_port=args.bridge_port, keys=args.keys, build=False, settings="", voice=args.voice,
+                            bridge_port=args.bridge_port, keys=args.keys, build=False,
+                            settings=json.dumps({**(plan.get("settings") or {}), **json.loads(args.settings or "{}")})
+                            if plan.get("settings") or args.settings else "", voice=args.voice,
                             talk=talk if args.voice == "gpt-realtime-2.1" else "", faults=not args.no_faults,
                             research_cap=RESEARCHER_USD * (researchers(plan) * args.reps + int(setup_needed)))
     cost = None
