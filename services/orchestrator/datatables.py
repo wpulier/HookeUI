@@ -537,11 +537,11 @@ def publish_snapshot(root: Path, record: dict, snapshot: dict, session: str, *, 
         except FileExistsError:
             raise DataTableRefused('the table revision already exists on disk',
                                    next='reload the table; preserve its existing saves', status=409) from None
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
+        # The payload can be durable while a newly created ancestor is not. Keep
+        # the complete directory chain durable before its journal accepts it.
+        from .scientific_projects import ProjectStore
+        for folder in (path.parent, path.parent.parent, root, root.parent):
+            ProjectStore._sync_directory(folder)
     except BaseException:
         if published:
             path.unlink(missing_ok=True)

@@ -50,6 +50,16 @@ def test_all_table_and_analysis_revisions_move_with_original_project(project,tmp
     assert derivatives.path_of(result,sid).is_relative_to(root.path)
     assert not tables.root.exists() and not derivatives.root.exists()
     app.day.new('Unrelated research')
+    from orchestrator.resources import Index
+    index=Index(app.hub,day=app.day)
+    assert {entry.id for entry in index.list(kind='dataset-table',day=sid)}=={first['id']}
+    assert {entry.id for entry in index.list(kind='analysis',day=sid)}=={result['id']}
+    assert '"version": 2' in index.read(first['id'],sid)
+    assert '"groups"' in index.read(result['id'],sid)
+    assert index.document(result['id'],sid)['detail']['values']['snapshot']==analysis
+    from dataclasses import replace
+    historical=replace(index.get(first['id'],sid),version=1)
+    assert index._numeric_values(historical,sid)['snapshot']==old
     assert read_accepted(tables.root_for(sid),first,sid,'dataset-table')['snapshot']==old
     assert read_accepted(derivatives.root_for(sid),result,sid,'analysis')['snapshot']==analysis
     locations.close()
@@ -107,3 +117,41 @@ def test_symlinked_numeric_destination_never_writes_elsewhere(project,tmp_path):
     with pytest.raises(ValueError,match='replaced'):
         asyncio.run(tables.create(['d1'],mode='frozen'))
     assert not list(outside.iterdir()) and not app.day.datatables
+
+
+@pytest.mark.parametrize('ancestor',['artifacts','tables','session'])
+def test_ancestor_sync_failure_never_accepts_a_numeric_revision(project,monkeypatch,ancestor):
+    from orchestrator.scientific_projects import ProjectStore
+    app,locations,tables,_=project
+    sid=app.day.new('Research')
+    root=locations.project(sid)
+    target={'artifacts':root.folder('artifacts'),'tables':root.folder('artifacts')/'tables',
+            'session':root.folder('artifacts')/'tables'/sid}[ancestor]
+    sync=ProjectStore._sync_directory
+    def failing(folder):
+        if folder==target:raise OSError('injected directory sync failure')
+        return sync(folder)
+    monkeypatch.setattr(ProjectStore,'_sync_directory',failing)
+    with pytest.raises(OSError,match='injected'):
+        asyncio.run(tables.create(['d1'],mode='frozen'))
+    assert not app.day.datatables
+
+
+def test_shared_registered_analysis_read_uses_portable_owner(project):
+    from orchestrator.brain.registry import Registry, ToolContext
+    from orchestrator.brain.toolbox.datatable_tools import add_datatable_tools
+    app,locations,tables,derivatives=project
+    app.day.new('Analysis through shared capabilities')
+    registry=Registry()
+    add_datatable_tools(registry,app)
+    context=ToolContext('chat',1,None,asked=app.day.here())
+    async def run():
+        table=await tables.create(['d1','d2'],mode='frozen')
+        analysis=await derivatives.create('analysis',table['id'],1,
+            {'method':'welch','value':'value','group':'condition','groups':['d1','d2']},mode='frozen')
+        result=registry.start('read_analysis',{'id':analysis['id'],'version':1},context)
+        if result.task:await result.task
+        assert result.ok is True,result.summary
+        assert '"version": 1' in result.summary
+        assert not derivatives.root.exists()
+    asyncio.run(run())

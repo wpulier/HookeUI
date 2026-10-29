@@ -28,6 +28,8 @@ class ArtifactFolder:
             key = (project.origin, project.path)
             if write and key not in self._identities:
                 folder.mkdir(exist_ok=True)
+                from .scientific_projects import ProjectStore
+                ProjectStore._sync_directory(folder.parent)
             try:
                 info = folder.stat(follow_symlinks=False)
             except FileNotFoundError:

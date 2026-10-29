@@ -1353,7 +1353,8 @@ class Index:
                     "annotations": dict(getattr(store, "annotations", {}) or {}),
                     "datatables": dict(getattr(store, "datatables", {}) or {}),
                     "table_derivatives": dict(getattr(store, "table_derivatives", {}) or {}), "made": made}
-        root = getattr(getattr(store, "journal", None), "root", None)
+        root = store.root_for(sid) if store is not None and hasattr(store, 'root_for') and sids.is_sid(sid) else \
+            getattr(getattr(store, "journal", None), "root", None)
         found = _journal_records(Path(root), sid) if root is not None and sids.is_sid(sid) else \
             {"evidence": {}, "tracks": {}, "annotations": {}, "datatables": {}, "table_derivatives": {}}
         return {**found, "made": made}
