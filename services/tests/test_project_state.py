@@ -469,3 +469,36 @@ def test_the_brief_is_bounded_ordered_and_keeps_others_words_inside_its_wrapper(
     assert len(small) <= 1500 and small.rstrip().endswith("</project>")
     empty = project_state.brief(owner_state(app_at(tmp_path / "empty").state.app))
     assert "Data (none yet)" in empty and len(empty) < 1500
+
+
+def test_think_jobs_are_listed_beside_the_researchers_numbered_together_and_the_wire_is_unchanged(tmp_path):
+    """The part 2.5 spec, 4.4: researchers are jobs too. project_state.jobs numbers the Project's researchers and the
+    partner's think jobs together, by when each started, so "the second one" is the same thing to the voice, think and
+    the brain; the brief and the resources answer list them; project.state's wire (a closed schema) is unchanged."""
+    from orchestrator.voice.jobs import Job, jobs_of
+    from orchestrator.voice.think import ThinkTask
+
+    built = app_at(tmp_path).state.app
+    hub, sid = built.hub, built.day.sid
+    researcher(built, 1, "done", finding="Nuclei measured")
+    researcher(built, 2, "running", step="reading the table")
+    job = jobs_of(hub).add(Job(ThinkTask("compare three outline models"), project=sid, started=NOW - 100 + 1.5))
+    jobs_of(hub).set(job, "running")
+    jobs_of(hub).add(Job(ThinkTask("another Project's work"), project="elsewhere", started=NOW))
+    rows = project_state.jobs(hub, sid)
+    assert [(r["n"], r["kind"], r["id"]) for r in rows] == [(1, "researcher", "r1"), (2, "think", job.id),
+                                                            (3, "researcher", "r2")], "one list, by when each started"
+    state = owner_state(built)
+    schema.check(state, "project-state")  # the think jobs are not on the wire: its schema is closed
+    assert job.id not in json.dumps(state)
+    brief = project_state.brief(state, jobs=rows)
+    assert "Jobs (researchers and think jobs, numbered together by when each started" in brief
+    assert f"#2 think job ({job.id}): running" in brief and "#3 Researcher 2 (r2): running" in brief
+    assert brief.index("#3 Researcher 2") < brief.index("#1 Researcher 1"), "running first"
+    wrapped = brief[brief.index('untrusted="true">'):]
+    assert "compare three outline models" in wrapped, "its request is the user's words, inside the wrapper"
+    assert "Researchers (" not in brief and "another Project" not in brief
+    # Without a think job the researchers are said as before.
+    assert "Researchers (running first" in project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
+    said = asyncio.run(built.brain.registry.tools["resources"].handler(ToolContext("chat", 1, None, "what's running?"), {}))
+    assert f"#2 think job ({job.id})" in said

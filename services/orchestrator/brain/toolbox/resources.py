@@ -165,7 +165,7 @@ def add_resource_tools(registry: Registry, services) -> None:
                 return f"The Project's full view could not be read here ({type(exc).__name__}); its index:\n{said}"
             said = await asyncio.to_thread(index.summary_text, sid)
             require_current(ctx, services.day)
-            return project_state.text(state, said)
+            return project_state.text(state, said, jobs=project_state.jobs(hub, sid))  # think jobs beside researchers
         found = await asyncio.to_thread(index.list, kind, None, query)
         thread = str(args.get("thread") or "")
         if thread:

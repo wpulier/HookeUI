@@ -7,9 +7,11 @@ fast voice with a frontier backend scored 74.5% where the speech model alone sco
 What the backend gets: the voice's `request` and `why`, the user's own words this turn, both pictures of the turn (the
 camera frame and Hooke's window as at key-down), the Project brief, the recent conversation and what was seen on
 earlier turns. It runs its own tool loop through the same registry path the voice's tools use (partner_tools: one voice
-request each, attributed to the Assistant, act then look), and ends by calling `report`: what to say (one or two
-sentences), what to point at, and whether everything it says it did was checked on screen. A tool that changed the
-screen comes back with a fresh picture of the window, so nothing is reported that it did not look at again.
+request each, attributed to the Assistant, act then look, every acting call through Hands with its receipt), and ends
+by calling `report`: what to say (one or two sentences), what to point at, whether all of it is done, and a question
+when it cannot go on without the user. A tool that changed the screen comes back with a fresh picture of the window.
+Whether it is done is decided from the receipts of its acting calls (voice/jobs.py `outcome`), never from its report
+alone: its `checked` is advisory. It runs as a job (voice/jobs.py): the user's follow-ups reach it at its next step.
 
 A refusal (Anthropic's safeguards can refuse life-science requests, and are billed) is said as a refusal, with the other
 backend offered by name; another model never answers silently in its place.
@@ -46,11 +48,13 @@ REPORT = {
             "points": {"type": "array", "items": {"type": "string"}, "maxItems": 4,
                        "description": "Hooke ids to point at while it is said (outline:<id>, population:<id>, "
                                       "window:<id>, tab:<title>, researcher:<number>); only ids a tool gave you."},
-            "checked": {"type": "boolean", "description": "true only if every change said to be done was confirmed"},
+            "checked": {"type": "boolean", "description": "true if every change said to be done was confirmed (advisory: "
+                                                          "Hooke decides done from its receipts)"},
             "done": {"type": "boolean", "description": "true when the request is fully done; false when it failed or "
                                                        "only part of it was done"},
             "question": {"type": "string", "description": "only when you cannot go on without the user: the one short "
-                                                          "question the voice asks them (their answer comes back to you)"},
+                                                          "question the voice asks them, or a permission's ask (their "
+                                                          "answer comes back to you)"},
         },
         "required": ["say", "checked", "done"],
     },
@@ -76,12 +80,20 @@ class ThinkTask:
         fresh, self.taken = self.updates[self.taken:], len(self.updates)
         return fresh
 
+    def unread(self) -> bool:
+        """Follow-ups that came after the backend's last step: its run goes on with them."""
+        return len(self.updates) > self.taken
+
     def context(self) -> str:
+        """What a run starts from, once per run: the follow-ups given so far are taken here (`new_updates`)."""
         parts = [f"The voice handed you this: {self.request}"]
         if self.why:
             parts.append(f"Why it needs you: {self.why}")
         if self.previous:
             parts.append(f"This continues your earlier work on it: {self.previous}")
+        added = self.new_updates()
+        if added:
+            parts.append("The user added: " + " / ".join(added))
         if self.words:
             parts.append(f"The user's own words: {self.words}")
         if self.history:
@@ -97,9 +109,10 @@ class ThinkTask:
 @dataclass
 class ThinkResult:
     say: str
-    ok: bool | None  # True done and checked; False failed or refused; None part done or unchecked
+    ok: bool | None  # True done and verified; False failed or refused; None part done or not all verified (jobs.outcome)
     points: list[str] = field(default_factory=list)
-    checked: bool = False
+    checked: bool = False  # the backend's own word that it checked (advisory)
+    done: bool = False  # the backend's own word that all of the request is done
     refused: str | None = None
     error: str | None = None
     model: str = ""
@@ -107,10 +120,12 @@ class ThinkResult:
     tools: list[dict] = field(default_factory=list)  # each call: {name, ok, confirmed}
     usage: dict = field(default_factory=dict)
     question: str = ""  # asked of the user; their answer goes to the same job (update_job)
+    unverified: list[dict] = field(default_factory=list)  # its acting calls not verified: {tool, result, said}
 
     def facts(self) -> dict:
         return {"done": self.ok is True, "checked": self.checked, "say": self.say, "points": self.points,
                 **({"question": self.question} if self.question else {}),
+                **({"unverified": self.unverified} if self.unverified else {}),
                 "steps": self.tools[-8:], **({"refused": self.refused} if self.refused else {}),
                 **({"error": self.error} if self.error else {})}
 
@@ -138,8 +153,14 @@ def jpeg_b64(data: bytes) -> str:
 
 
 def summary_of(name: str, result: dict) -> dict:
-    return {"name": name, "ok": result.get("ok"), "confirmed": result.get("_log", {}).get("confirmed")
-            if isinstance(result.get("_log"), dict) else None}
+    """One call as the result keeps it; an acting call's receipt (Hands: result and said) with it."""
+    out = {"name": name, "ok": result.get("ok"), "confirmed": result.get("_log", {}).get("confirmed")
+           if isinstance(result.get("_log"), dict) else None}
+    if result.get("result"):
+        out["result"] = str(result["result"])
+        if result.get("said"):
+            out["said"] = str(result["said"])[:200]
+    return out
 
 
 # --- Claude Opus 5.5 over the Messages API ---------------------------------------------------------------------------
@@ -321,13 +342,14 @@ class SolThinker:
 
 
 def finish(result: ThinkResult, report: dict) -> ThinkResult:
-    """The backend's report, checked: "done" only when it also says every change was confirmed."""
+    """The backend's report as it gave it: `ok` is its own word for now; the job decides it from the receipts of its
+    acting calls (jobs.outcome), and `checked` stays advisory."""
     result.say = str(report.get("say") or "").strip()
     result.points = [str(p) for p in (report.get("points") or [])][:4]
     result.checked = bool(report.get("checked"))
     result.question = str(report.get("question") or "").strip()
-    done = bool(report.get("done"))
-    result.ok = True if done and result.checked else (False if not done else None)
+    result.done = bool(report.get("done"))
+    result.ok = True if result.done else False
     return result
 
 

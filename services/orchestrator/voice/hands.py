@@ -682,6 +682,14 @@ class Hands:
                     self._stops[intent.id] = stop
                 try:
                     outcome = await self._run(intent, effect, line)
+                except asyncio.CancelledError:
+                    # Its job was cancelled (cancel_job): the action stops where its tool can stop, its cue ends, and
+                    # its real receipt comes from the reconciling (_run).
+                    if stop is not None:
+                        with contextlib.suppress(Exception):
+                            stop()
+                    await self._send({"type": "drive-end", "id": intent.id, "outcome": "uncertain"})
+                    raise
                 finally:
                     self._stops.pop(intent.id, None)
                 await self._send({"type": "drive-end", "id": intent.id, "outcome": outcome["result"]})
@@ -703,6 +711,10 @@ class Hands:
         intent.record = self._before(intent)
         try:
             result = await effect()
+        except asyncio.CancelledError:  # its job was cancelled while it ran: not known whether it happened
+            self._ended(intent, {"ok": None, "result": "uncertain", "error": "its job was cancelled while it ran"},
+                        line, "uncertain")
+            raise
         except Exception as exc:
             result = {"ok": False, "error": f"it did not run ({type(exc).__name__})"}
         outcome = await self.verify(intent, result)
@@ -780,6 +792,9 @@ class Hands:
         stop = asyncio.ensure_future(self.cancel.wait())
         try:
             done, _ = await asyncio.wait({task, stop}, return_when=asyncio.FIRST_COMPLETED)
+        except asyncio.CancelledError:  # its job was cancelled: the effect is reconciled, as a takeover's is
+            self._spawn(self._reconcile(intent, task, line))
+            raise
         finally:
             if not stop.done():
                 stop.cancel()

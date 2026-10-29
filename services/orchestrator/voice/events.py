@@ -67,7 +67,8 @@ KINDS: dict[str, Kind] = {
     "tool-done": RESULT,
     "job-result": RESULT,
     "job-failed": Kind("idle", owed=True, kept_s=None, urgent_ok=True),  # urgent: a failure to act on now
-    "job-question": RESULT,
+    "job-question": RESULT,  # a job's question or permission request for the user, with its id
+    "job-cancelled": RESULT,  # a job's own confirmation that it stopped: "cancelled" is said only from this
     "notice": RESULT,  # a notification the narrator was asked to say (brain/narrator.py)
     # progress: its own channel
     "researcher-progress": PROGRESS,

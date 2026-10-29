@@ -1183,6 +1183,9 @@ class RealtimeSession(VoiceSession):
         if kind == "job-question":
             rule = ("Write the one short question you will ask the user for this task, from its question (a permission's "
                     "ask with what it costs). Nothing has been done about it yet: never say it is done.")
+        elif kind == "job-cancelled":
+            rule = ("This task was cancelled as the user asked, and has now stopped. Say that in a few words, with what "
+                    "it had already done from its steps, and anything it was doing that may or may not have happened.")
         else:
             rule = ("Write the one or two short sentences you will say to the user about this result: what was done or "
                     "found, or what failed and the next step to try. Plain words, no ids, nothing it did not check. Say "
@@ -1204,8 +1207,9 @@ class RealtimeSession(VoiceSession):
         if text is None:
             return None
         # Never a claim of its own: the receipt's words, else a line that says only that there is news.
-        return (text or say or ("It's done." if receipt == "verified" else "I have news on that task; ask me and I'll "
-                                                                            "say what it found.")).strip()
+        fallback = ("That task is stopped." if kind == "job-cancelled" else "It's done." if receipt == "verified"
+                    else "I have news on that task; ask me and I'll say what it found.")
+        return (text or say or fallback).strip()
 
     async def _watch(self) -> None:
         """Every WATCH_EVERY_S: the bus consumed (`_consume`); a session near the limit renewed while idle (asked of

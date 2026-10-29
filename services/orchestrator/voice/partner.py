@@ -6,8 +6,9 @@ conversation, lines nobody asked for and reconnecting (live-partner-contract.md;
     key goes down), the studio's window picture (it sends `{type:"snapshot", id:"talk-<n>"}` unsolicited right after
     `{type:"talk", down:true, n}`) and the screen now as text (the accepted studio's report: `context._voice_windows`).
     Release uses what is there; nothing is fetched after it;
-  - **the Project brief:** `project_state.brief`, refreshed at each key-down and replaced in the session only when it
-    changed (it holds no times, so an unchanged Project gives the same text);
+  - **the Project brief:** `project_state.brief`, with think's jobs beside the researchers (`project_state.jobs`),
+    refreshed at each key-down and replaced in the session only when it changed (it holds no times, so an unchanged
+    Project gives the same text);
   - **the studio link:** `snapshot-request` (act, then look) and `marks`, each answered by the studio
     (`snapshot`, `marks-shown`) within its bound or not at all;
   - **one conversation with chat:** the user's words and the voice's are filed as the GPT-Live path files them (the
@@ -31,7 +32,7 @@ import time
 from typing import Any, Awaitable, Callable
 
 from . import knowing
-from .openai_realtime import Perception, RealtimeSession, text_item
+from .openai_realtime import Perception, RealtimeSession
 from .partner_tools import STARTED_TOOLS, PartnerTools
 
 SNAPSHOT_WAIT_S = 1.5  # the studio answers a snapshot-request within this or the look goes on without it
@@ -42,7 +43,8 @@ BRIEF_CHARS = 3000
 REATTACH_AGAIN_S = 10.0
 RETIRED_WORDS = {"researcher-done": "a researcher's finding", "researcher-failed": "a researcher stopping",
                  "job-result": "a task's result", "job-failed": "a task that did not work",
-                 "job-question": "a task's question for you", "tool-done": "a tool's result",
+                 "job-question": "a task's question for you", "job-cancelled": "a task stopping as you asked",
+                 "tool-done": "a tool's result",
                  "capability-done": "a capability's result", "notice": "a notice"}
 STORM_S, STORM_RECONNECTS = 60.0, 3  # more than this many reconnects in this long: Talk ends, and says so  # a reattached sideband dropping again within this: the call is gone, so a new one
 
@@ -443,8 +445,8 @@ class Partner:
 
             project = resources_of(self.hub).session()
             state = await project_state.state_of(self.hub).read(project, project_state.OWNER)
-            brief = getattr(project_state, "brief", None)
-            text = brief(state, max_chars=BRIEF_CHARS) if brief is not None else project_state.text(state)[:BRIEF_CHARS]
+            # The think jobs beside the researchers, numbered together: "the second one" after a restart of Talk too.
+            text = project_state.brief(state, max_chars=BRIEF_CHARS, jobs=project_state.jobs(self.hub, project))
         except Exception:
             with contextlib.suppress(Exception):
                 text = self.brain.voice_recap()[:BRIEF_CHARS]
