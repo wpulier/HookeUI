@@ -101,7 +101,7 @@ def test_turn_on_carries_every_step_through_and_says_it_once_on(models):
     turn.advance()
     assert turn.wire()["cells"]["says"] == "Downloading 50%" and app.started == ["cellpose-sam"], "started once"
     turn.advance()
-    assert turn.wire() == {} and app.said == ["Find every cell is ready (A); your model choice is unchanged"]
+    assert turn.wire() == {} and app.said == ["A is on for Find every cell, not chosen yet: its choice, E, can't run here. Use A for Find every cell now?"]
     assert app.settings == {} and app.published == 0, "setup never changes the model choice"
 
 
@@ -158,7 +158,7 @@ def test_an_advance_passed_over_while_a_press_was_admitted_runs_as_its_admission
     turn = shelf.TurnOn(app)
     turn.start("cells")
     assert skipped == ["starting"], "the queue's advance came while the press was admitted"
-    assert turn.wire() == {} and app.said == ["Find every cell is ready (A); your model choice is unchanged"], "on as its admission ended, no tick needed"
+    assert turn.wire() == {} and app.said == ["Find every cell is on: A is ready and is the model it uses"], "on as its admission ended, no tick needed"
 
 
 def test_the_app_shows_jobs_by_colour_and_the_agent_turns_one_on_only_on_the_users_yes(tmp_path):
@@ -202,4 +202,4 @@ def test_one_entry_turns_on_the_same_way_right_after_it_is_added(models):
     turn.advance()
     assert turn.wire()["model:mine/diatoms"]["says"] == "Installing and proving it"
     turn.advance()
-    assert turn.wire() == {} and app.said == ["Diatom counter is ready (Diatom counter); your model choice is unchanged"] and app.settings == {}
+    assert turn.wire() == {} and app.said == ["Diatom counter is on (ready here)"] and app.settings == {}
