@@ -83,6 +83,7 @@ class Partner:
         session.history = self.history
         session.tag_notice = self.tag_notice
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
+        session.running_facts = self.tools.running_facts
         session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
                                                                  timeout=1.0))
         session.on(self.on_event)

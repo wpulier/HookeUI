@@ -26,14 +26,15 @@ from .base import ToolSpec
 # reference_photo; documents and windows are present.
 PARTNER_TOOLS = ("present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select", "zoom", "clear",
                  "start_researcher", "research_status", "researcher_note", "cancel_researcher", "show_me", "resources",
-                 "models_in_use", "capabilities", "workflow", "new_project", "retrieve_page", "run_capability",
-                 "reference_photo")
+                 "models_in_use", "capabilities", "workflow", "new_project", "switch_session", "retrieve_page",
+                 "run_capability", "reference_photo")
 # Tools that change what is on screen: the model gets a fresh look after them (act, then look).
 SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select",
-                             "zoom", "clear", "new_project", "reference_photo", "show_me", "run_capability"})
+                             "zoom", "clear", "new_project", "switch_session", "reference_photo", "show_me",
+                             "run_capability"})
 # One call per user turn: the same call again in the same turn returns the first one's result (one request, one
 # researcher; live 2026-10-28: two researchers from one request).
-ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "cancel_researcher"})
+ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "switch_session", "cancel_researcher"})
 TOOL_WAIT_S = 12.0  # a tool still running after this is answered "still working"; its outcome follows as one line
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
@@ -84,6 +85,19 @@ class PartnerTools:
         self._screen = asyncio.Lock()  # tools that change the screen run one after another (parallel tool calls)
         self.reported: set[str] = set()  # action ids whose outcome went back to the model
         self.fail_next: str | None = None  # the bench's fault hook (MICROMIND_BENCH_FAULTS): the next call fails
+        self.running: dict[object, tuple] = {}  # calls still going: (tool, started, run), for a specific progress line
+
+    def running_facts(self) -> str:
+        """What is still running, for a progress line that says something: the tool, how long so far, its own words
+        of what it waits on (ToolRun.progress), the models it runs on."""
+        now = time.monotonic()
+        rows = []
+        for name, started, run in list(self.running.values()):
+            row = f"{name}, {now - started:.0f} s so far"
+            if getattr(run, "progress", None):
+                row += f", {run.progress}"
+            rows.append(row)
+        return "; ".join(rows)
 
     # --- what the model is offered ------------------------------------------------------------------
     def names(self) -> list[str]:
@@ -149,11 +163,20 @@ class PartnerTools:
     async def _run(self, name: str, args: dict, n: int) -> dict:
         words = await self.partner.words(n, WORDS_WAIT_S)
         before = self._reported_at()
-        run, ctx = await self._start(name, args, words)
+        key = object()
+        self.running[key] = (name, time.monotonic(), None)  # from its start: the runner waits its inline time first
+        try:
+            run, ctx = await self._start(name, args, words)
+            self.running[key] = (name, self.running[key][1], run)
+            if run.ok is None and run.task is not None:
+                await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
+        finally:
+            self.running.pop(key, None)
         log: dict[str, Any] = {"requestId": getattr(getattr(run, "occurrence", None), "request_id", None)}
-        if run.ok is None and run.task is not None:
-            await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
         result = self._result(run)
+        if name == "models_in_use":  # the app's own list leaves out the voice answering: this one
+            result["this_voice"] = (f"{self.voice_label()}: the voice the user hears, which also sees the camera and "
+                                    "Hooke's window and acts with Hooke's tools")
         self._file(run, ctx)
         if run.ok is not None and getattr(run.occurrence, "action_id", None):
             self.reported.add(run.occurrence.action_id)
@@ -173,6 +196,14 @@ class PartnerTools:
                 result["pointing"] = "Hooke points at this as you speak about it: do not call mark for it."
         result["_log"] = log
         return result
+
+    def voice_label(self) -> str:
+        from ..options import VOICE
+
+        model = getattr(getattr(self.partner, "session", None), "config", None)
+        model = getattr(model, "model", "gpt-realtime-2.1")
+        option = VOICE.get("gpt-realtime-2.1")
+        return f"{model} ({option.label if option else 'one brain'}, cloud)"
 
     async def _start(self, name: str, args: dict, words: str):
         """The tool as the brain runs it, in a voice request of its own, attributed to the Assistant by voice."""

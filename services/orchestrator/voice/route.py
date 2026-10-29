@@ -31,6 +31,7 @@ import logging
 import contextlib
 import hashlib
 import json
+import os
 import time
 from uuid import uuid4
 
@@ -144,8 +145,10 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             # One mind that hears, sees and acts (voice/partner.py): its own tools, what it sees each turn and the
             # Project brief; its lines go into the same conversation, and nothing is handed to the brain's hands.
             partner = Partner(hub, brain, dialogue, client=client, send=websocket.send_json, log=brain.agent.log)
-            session = RealtimeSession(VoiceConfig(model=model, system_prompt=instructions),
-                                      talk=getattr(hub.settings, "talk", "hold"))
+            # MICROMIND_REALTIME_MODEL: a measured alternative of the same family (gpt-realtime-2.1-mini) for the journey
+            # bench only; the option stays the one chosen.
+            session = RealtimeSession(VoiceConfig(model=os.environ.get("MICROMIND_REALTIME_MODEL") or model,
+                                                  system_prompt=instructions), talk=getattr(hub.settings, "talk", "hold"))
             partner.bind(session)
             session.config.tools = partner.tools.specs()
             with contextlib.suppress(Exception):

@@ -61,12 +61,17 @@ RESPONSE_WAIT_S = 3.0  # a response whose end never comes is cancelled and let g
 RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the connection to come back
 # Tools still running and the voice quiet this long: a short line asking to wait (the standard: no silence over 1.5 s
 # while it works; the line takes ~0.6 s to start). At most PROGRESS_LINES per round, never the same words twice.
-PROGRESS_AFTER_S = 0.6
-PROGRESS_LINES = 3
+PROGRESS_AFTER_S = 0.8  # a tool round this long without its outputs: a progress line may be due
+PROGRESS_LINES = 2
+PROGRESS_EVERY_S = 4.0
+# The progress line is asked for when the voice's current words have this little left to play (the measured time from
+# response.create to the first audio is ~0.9 s): its words follow them without a silence.
+PROGRESS_LEAD_S = 1.0
 PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran on for 5 s of speech
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
+AUDIO_TOKEN_S = 0.05  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
 # this soon after it still stops the voice (the studio mutes its audio element at once too).
 AUDIBLE_AFTER_DONE_S = 20.0
@@ -236,6 +241,10 @@ class RealtimeSession(VoiceSession):
         self._last_audio_at = 0.0
         self._last_user_at = 0.0
         self._last_done_at = 0.0
+        self._audio_until = 0.0  # when the words being played now will end (monotonic), from the responses' audio tokens
+        self._started_at: dict[str, float] = {}  # response id -> when its audio started (monotonic)
+        self._out_audio: dict[str, int] = {}  # response id -> its audio tokens (50 ms each)
+        self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
         self._seen_calls: set[str] = set()
@@ -904,6 +913,9 @@ class RealtimeSession(VoiceSession):
             rid = ev.get("response_id") or self._response or ""
             if rid and rid not in self._first_audio:
                 self._first_audio[rid] = self.wall()
+                self._started_at[rid] = now
+                if rid in self._out_audio:
+                    self._audio_until = max(self._audio_until, now + self._out_audio.pop(rid) * AUDIO_TOKEN_S)
             if not self._speaking:
                 self._speaking = True
                 self._emit(VoiceEvent("vad", data={"state": "model-start"}))
@@ -917,7 +929,8 @@ class RealtimeSession(VoiceSession):
                 self._speaking = False
                 self._last_audio_at = now
                 self._emit(VoiceEvent("turn_complete", data={"reason": "quiet"}))
-            if kind.startswith("output_audio_buffer."):  # when the browser stopped playing it (its response was logged)
+            if kind.startswith("output_audio_buffer."):
+                self._audio_until = min(self._audio_until, now)  # when the browser stopped playing it (its response was logged)
                 self._log({"kind": "partner-audio", "responseId": ev.get("response_id"), "audioEndT": self.wall(),
                            "how": kind.rsplit(".", 1)[-1]})
         elif kind in ("response.output_audio_transcript.delta", "response.output_text.delta"):
@@ -1002,6 +1015,12 @@ class RealtimeSession(VoiceSession):
         self._gate_wake.set()
         cause = self._causes.pop(rid, {"cause": "unknown", "n": self.n, "createdT": None})
         facts = usage_facts(response.get("usage"))
+        if facts["outAudio"]:  # how long its words play: from their start, or from now when they have not started
+            start = self._started_at.pop(rid, None)
+            if start is not None:
+                self._audio_until = max(self._audio_until, start + facts["outAudio"] * AUDIO_TOKEN_S)
+            else:
+                self._out_audio[rid] = facts["outAudio"]
         status = response.get("status")
         transcript = self._transcripts.pop(rid, "")
         if not transcript:
@@ -1079,6 +1098,7 @@ class RealtimeSession(VoiceSession):
         epoch = next((self._call_epoch[cid] for cid in ids if cid in self._call_epoch), self._epoch)
         tasks = {cid: self._calls[cid] for cid in ids if cid in self._calls}
         progress_said: list[float] = []
+        began = self.clock()
         pending = set(tasks.values())
         looked = False
         sent: set[str] = set()
@@ -1091,16 +1111,22 @@ class RealtimeSession(VoiceSession):
                         self._log({"kind": "partner-output-dropped", "callId": cid, "why": "its call was replaced"})
                         continue
                     looked |= await self._output(cid, task)
-            quiet = self.clock() - max(self._last_audio_at, self._last_done_at)
-            if (pending and quiet >= PROGRESS_AFTER_S and len(progress_said) < PROGRESS_LINES and not self.speaking()
+            # A line about what is still running, asked for so that it starts as the voice's current words end (their
+            # length is known from response.done's audio tokens), not after a silence; at most PROGRESS_LINES a round.
+            now = self.clock()
+            if (pending and now - began >= PROGRESS_AFTER_S and len(progress_said) < PROGRESS_LINES
+                    and self._audio_until - now <= PROGRESS_LEAD_S and self._requested is None and self._response is None
                     and not self._asks and self._held is None and n == self.n and epoch == self._epoch
-                    and (not progress_said or self.clock() - progress_said[-1] > 2.5)):
-                progress_said.append(self.clock())
-                again = " You already asked them to wait: use different words, still short." if len(progress_said) > 1 else ""
+                    and (not progress_said or now - progress_said[-1] > PROGRESS_EVERY_S)):
+                progress_said.append(now)
+                facts = self.running_facts() or "the tool you called"
+                again = (" You already told them once: say what has changed, in different words." if len(progress_said) > 1
+                         else "")
                 self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
-                             tool_choice="none", max_output_tokens=PROGRESS_TOKENS, instructions=self.config.system_prompt + "\n\nThe app is still working "
-                             "on your last tool call. Say only a short phrase asking the user to wait a few more seconds, "
-                             "at most six words. Do not describe what is running and do not say anything is done." + again)
+                             tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
+                             instructions=self.config.system_prompt + "\n\nStill running in Hooke: " + facts + ". In one "
+                             "short sentence, under 12 words, tell the user what is still being done and how long it has "
+                             "taken so far. Do not say anything is done or shown." + again)
         for cid in ids:
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:

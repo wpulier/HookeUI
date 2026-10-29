@@ -1291,11 +1291,12 @@ def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
     asyncio.run(go())
 
 
-def test_a_long_tool_gets_at_most_three_short_wait_lines_soon_after_the_voice_went_quiet(monkeypatch):
-    """The bench: 2.7 s of silence after the preamble before the progress line, then 2.5 s more. A wait line goes out
-    once the voice has been quiet PROGRESS_AFTER_S, at most PROGRESS_LINES a round, capped in length, never the same
-    words."""
+def test_a_long_tool_gets_at_most_two_specific_progress_lines_that_follow_the_words(monkeypatch):
+    """The bench: 2.0 s of silence between the preamble's end and a "please wait" line, and lines that said nothing.
+    A progress line says what is still running and how long so far (partner_tools.running_facts), is asked for so it
+    starts as the current words end (their length from response.done's audio tokens), at most twice a round."""
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.1)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_EVERY_S", 0.3)
     gate = None
 
     async def slow(ctx, args):
@@ -1310,17 +1311,35 @@ def test_a_long_tool_gets_at_most_three_short_wait_lines_soon_after_the_voice_we
         await release(t, 1)
         t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
                    "transcript": "what data do we have?"})
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_1"})
         t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
                    "name": "resources", "arguments": "{}"})
-        await done(t.sb, "resp_1")
-        for k in (2, 3, 4):
-            await until_async(lambda k=k: t.sb.responses == k, seconds=10)
-            await done(t.sb, f"resp_{k}")
-        await asyncio.sleep(3.0)
+        spoke = time.monotonic()
+        await done(t.sb, "resp_1", usage={"output_token_details": {"audio_tokens": 40}})  # 2 s of words
+        await until_async(lambda: t.sb.responses == 2, seconds=10)
+        assert time.monotonic() - spoke >= 2.0 - openai_realtime.PROGRESS_LEAD_S - 0.1, "not over the words, after them"
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_1"})
+        await done(t.sb, "resp_2")
+        await until_async(lambda: t.sb.responses == 3, seconds=10)
+        await done(t.sb, "resp_3")
+        await asyncio.sleep(1.0)
         creates = [e for e in t.sb.sent if e["type"] == "response.create"]
-        assert [e["response"]["metadata"]["cause"] for e in creates] == ["turn", "progress", "progress", "progress"]
-        assert all(e["response"]["max_output_tokens"] == openai_realtime.PROGRESS_TOKENS for e in creates[1:])
-        assert "different words" in creates[-1]["response"]["instructions"]
+        assert [e["response"]["metadata"]["cause"] for e in creates] == ["turn", "progress", "progress"]
+        line = creates[1]["response"]
+        assert line["max_output_tokens"] == openai_realtime.PROGRESS_TOKENS and "resources" in line["instructions"]
+        assert "s so far" in line["instructions"] and "different words" in creates[2]["response"]["instructions"]
         gate.set()
-        await until_async(lambda: t.sb.responses == 5)
+        await until_async(lambda: t.sb.responses == 4)
+    asyncio.run(go())
+
+
+def test_a_project_is_opened_with_switch_session_and_the_voice_names_itself_among_the_models(monkeypatch):
+    """The part-2.5 bench: "Open the Nuclei project" had no tool to do it (expected switch_session), and "what models
+    are powering you" left out the voice answering."""
+    async def go():
+        t = await partner_session(monkeypatch, tools={"switch_session": "opened Nuclei", "models_in_use": "Seeing: Gemini"})
+        assert {"switch_session", "models_in_use"} <= {s.name for s in t.session.config.tools}
+        models = next(s for s in t.session.config.tools if s.name == "models_in_use")
+        result = await models.handler({})
+        assert "gpt-realtime-2.1" in result["this_voice"] and "voice" in result["this_voice"]
     asyncio.run(go())
