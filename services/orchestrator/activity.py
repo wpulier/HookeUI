@@ -23,7 +23,9 @@ What is here, and where each line comes from:
 
 Every line is a line of the conversation it happened in (dialogue.py: the day's journal, the conversation log and
 every open studio), so a reload or a restart replays it (ADR 0001); a later line with the same `id` replaces it in
-place (running, then done). Nothing here goes into a model's prompt.
+place (running, then done). Nothing here goes into a model's prompt by itself; the live partner reads recent lines with
+its `activity` tool when it needs them, and may be told the user's own actions as silent context (voice/knowing.py;
+spec step 1, section 4.3).
 
 **Model loads and unloads** (for the code that loads models; the meter's "our own load", Q10):
 
@@ -242,6 +244,7 @@ class Activity:
         self.running: dict[str, tuple[str, str]] = {}  # a researcher's own running line: its id and words
         self.models: dict[str, str] = {}  # a model load's key -> the model's name (model_loading)
         self.registry = None  # the brain's tools (wire): which settings a tool declares it sets
+        self.listeners: list = []  # called with each line as it is filed (the live partner's Knowing; never a prompt)
         self.counter = itertools.count(1)
 
     # --- filing ---------------------------------------------------------------------------
@@ -293,6 +296,9 @@ class Activity:
         self._show(line, asked, rid)
 
     def _show(self, line: dict, asked, rid) -> None:
+        for listener in list(self.listeners):
+            with contextlib.suppress(Exception):
+                listener(line)
         self.recent[line["id"]] = line
         self.recent.move_to_end(line["id"])
         while len(self.recent) > KEPT:

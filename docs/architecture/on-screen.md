@@ -179,7 +179,8 @@ a typed intent with a resolved target, a visible cue, a verified outcome and tak
     (`outline:`, `member:`, `population:`, `frame`), `cursor` for windows, Tabs and controls, chosen by that rule when
     missing; `frame`, `region` and `polygon` as in marks. The studio moves its partner cursor there (about 300 ms,
     eased, never the Mac pointer) or rings the target, and answers `{type:"drive-shown", id, ok, rect?, why?}` when it
-    arrives, or at once with `ok:false` and why (the marks' why values). The server runs the intent after drive-shown,
+    arrives, or at once with `ok:false` and why (the marks' why values, plus `stale` for a drive below the last control
+    version, answered at once and never drawn). The server runs the intent after drive-shown,
     waiting at most `CUE_WAIT_S` (0.5 s); a cue not shown never blocks the action and is logged.
   - `{type:"drive-end", id, outcome:"verified"|"failed"|"uncertain"|"running"}`: the cursor settles and fades, with a
     tick for verified and a cross for failed.
