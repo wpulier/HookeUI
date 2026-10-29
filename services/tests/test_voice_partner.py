@@ -1264,7 +1264,9 @@ def test_what_a_tool_put_on_screen_is_pointed_at_as_its_answer_is_heard(monkeypa
     asyncio.run(go())
 
 
-def test_marks_called_after_the_answer_was_spoken_ask_for_nothing_more(monkeypatch):
+def test_a_mark_goes_on_to_the_answer_when_its_words_were_only_a_preamble(monkeypatch):
+    """think-check-2: "What's that bright one at the top?" got "Pointing it out." and a mark, and no answer. A round of
+    marks alone goes on, and the mark's result asks for the answer only if the words before it were not it."""
     async def go():
         t = await partner_session(monkeypatch)
         await press(t, 1)
@@ -1276,8 +1278,9 @@ def test_marks_called_after_the_answer_was_spoken_ask_for_nothing_more(monkeypat
         sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
         await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": [{"target": "outline:o1", "ok": True}]})
         await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()))
-        await asyncio.sleep(0.3)
-        assert t.sb.responses == 1, "pointing after speaking is not another answer"
+        await until_async(lambda: t.sb.responses == 2)
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["shown"] == ["outline:o1"] and "already answered" in output["note"]
     asyncio.run(go())
 
 

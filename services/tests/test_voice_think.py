@@ -78,7 +78,7 @@ def test_think_starts_at_once_and_its_result_is_said_once_with_marks(monkeypatch
         t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "MicroSAM matched Cellpose best."})
         await done(t.sb, "resp_1")
         said = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"), None))
-        assert "MicroSAM matched Cellpose best." in said["response"]["instructions"]
+        assert "MicroSAM matched Cellpose best." in said["response"]["input"][0]["content"][0]["text"]
         result = [i for i in t.sb.items() if i.get("role") == "system" and "Result of the task" in i["content"][0]["text"]]
         assert len(result) == 1 and "MicroSAM was closest" in result[0]["content"][0]["text"]
         assert not [turn for turn in t.brain.conversation.turns if "MicroSAM matched" in turn.text], \
@@ -357,7 +357,7 @@ def test_a_result_dropped_for_a_key_press_is_said_later_with_the_words_already_p
         await done(t.sb, "resp_2")
         said = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"),
                                               None), seconds=10)
-        assert "Two look groups." in said["response"]["instructions"]
+        assert "Two look groups." in said["response"]["input"][0]["content"][0]["text"]
         assert len([e for e in creates(t) if e["response"].get("conversation") == "none"]) == 1, "prepared once"
     asyncio.run(go())
 
@@ -494,7 +494,7 @@ def test_a_slow_reference_photo_is_started_at_once_and_said_once_with_its_window
         t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_4", "delta": "Here's a dividing nucleus."})
         await done(t.sb, "resp_4")
         said = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"), None))
-        assert "Here's a dividing nucleus." in said["response"]["instructions"]
+        assert "Here's a dividing nucleus." in said["response"]["input"][0]["content"][0]["text"]
         t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_5"})
         marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
         assert marks["marks"] == [{"target": "window:w-76c0ea48-bc9c", "style": "box"}]
@@ -519,4 +519,25 @@ def test_a_web_lookup_that_fails_is_said_once_plainly(monkeypatch):
         assert started["started"] is True
         prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
         assert "took longer than 45 s" in prep["response"]["input"][0]["content"][0]["text"]
+    asyncio.run(go())
+
+
+def test_a_result_cut_before_a_word_was_heard_is_said_again_when_quiet(monkeypatch):
+    """think-check-2: the comparison's result was cancelled by the next key press before any audio, and never said."""
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(report={"say": "Cellpose found 342.", "checked": True,
+                                                                "done": True}))
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "compare three outline models"})
+        await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "Cellpose found the most."})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: any(e["response"]["metadata"]["cause"] == "think" for e in creates(t)))
+        await done(t.sb, "resp_2", status="cancelled")  # cut by a key press before its audio began
+        again = await until_async(lambda: [e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"][1:],
+                                  seconds=10)
+        assert "Cellpose found the most." in again[0]["response"]["input"][0]["content"][0]["text"]
+        assert len([e for e in creates(t) if e["response"].get("conversation") == "none"]) == 1
     asyncio.run(go())

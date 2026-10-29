@@ -70,9 +70,9 @@ PROGRESS_LEAD_S = 1.0
 PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran on for 5 s of speech
 # think works behind the voice (no tool round pending): a line on what is under way once the voice has been quiet this
 # long, then at most every THINK_PROGRESS_EVERY_S, THINK_PROGRESS_LINES in all (think-broad-1: 20-40 s said nothing).
-THINK_PROGRESS_AFTER_S = 2.0
-THINK_PROGRESS_EVERY_S = 8.0
-THINK_PROGRESS_LINES = 3
+THINK_PROGRESS_AFTER_S = 3.0
+THINK_PROGRESS_EVERY_S = 10.0
+THINK_PROGRESS_LINES = 2  # think-check-2: three a task, two tasks at once, was judged "repeatedly narrated"
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
@@ -252,6 +252,7 @@ class RealtimeSession(VoiceSession):
         self._audio_until = 0.0  # when the words being played now will end (monotonic), from the responses' audio tokens
         self._started_at: dict[str, float] = {}  # response id -> when its audio started (monotonic)
         self._out_audio: dict[str, int] = {}  # response id -> its audio tokens (50 ms each)
+        self._unsaid: dict[str, tuple] = {}  # task -> its delivery, until its words are heard (or cut and re-said)
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
         self._first_audio: dict[str, float] = {}
@@ -898,12 +899,18 @@ class RealtimeSession(VoiceSession):
             self._delivered.discard(task)
             self._spawn(self.deliver(task, facts=facts, say=say, points=points, prepared=prepared, what=what))
 
+        self._unsaid[task] = (facts, say, points, prepared, what)
+        # Its own context (`input`), its words still added to the conversation: in the conversation's context the voice
+        # answered the latest turn instead (think-check-2: "I'm still looking for a citable range" for a photo).
         self.respond("think", n=self.n, sent=sent, dropped=dropped, tool_choice="none",
                      metadata={"task": task},
-                     instructions=self.config.system_prompt + f"\n\nThe task you started with {what} has finished. Say "
-                     "this to the user now, once, in your own voice, and nothing else: " + prepared)
+                     input=[text_item("system", f"The task you started with {what} has finished. Say this to the user "
+                                                "now, once, in your own voice, and nothing else:\n" + prepared)],
+                     instructions=self.config.system_prompt + "\n\nSay exactly the words you are given, once, as "
+                     "yourself, and nothing else.")
 
-    async def tell_progress(self, task: str, working: Callable[[], bool], what: str = "think") -> None:
+    async def tell_progress(self, task: str, working: Callable[[], bool], what: str = "think",
+                            facts: Callable[[], str] | None = None, lines: int | None = None) -> None:
         """While think works behind the voice and nobody is talking: a short line on what is under way (what is
         running, how long so far), after THINK_PROGRESS_AFTER_S of quiet, then at most every THINK_PROGRESS_EVERY_S,
         THINK_PROGRESS_LINES in all; never over the user, never once its result is due."""
@@ -913,7 +920,8 @@ class RealtimeSession(VoiceSession):
         def current() -> bool:
             return working() and task not in self._delivered
 
-        while len(said) < THINK_PROGRESS_LINES and not self.closed and current():
+        most = THINK_PROGRESS_LINES if lines is None else lines
+        while len(said) < most and not self.closed and current():
             await asyncio.sleep(0.25)
             now = self.clock()
             quiet = min(self.idle_since(), now - started)  # quiet since its acknowledgement, at the least
@@ -921,13 +929,13 @@ class RealtimeSession(VoiceSession):
                     or (said and now - said[-1] < THINK_PROGRESS_EVERY_S)):
                 continue
             said.append(now)
-            facts = self.running_facts() or f"{what}, just started"
-            self._log({"kind": "partner-progress", "n": self.n, "task": task, "facts": facts, "line": len(said)})
+            line = (facts() if facts is not None else self.running_facts()) or f"{what}, just started"
+            self._log({"kind": "partner-progress", "n": self.n, "task": task, "facts": line, "line": len(said)})
             again = (" You already told them: say what has changed, in different words." if len(said) > 1 else "")
             self.respond("progress", still=current, tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
                          metadata={"task": task},
                          instructions=self.config.system_prompt + "\n\nStill being worked on in Hooke, for what the user "
-                         "asked: " + facts + ". In one short sentence, under 12 words, tell the user what is under way "
+                         "asked: " + line + ". In one short sentence, under 12 words, tell the user what is under way "
                          "and how long it has taken so far. Do not say anything is done, found or shown." + again)
 
     async def prepare(self, task: str, facts_text: str, say: str) -> str:
@@ -1158,8 +1166,16 @@ class RealtimeSession(VoiceSession):
         self._emit(VoiceEvent("usage", data={"seconds": None, "tokens": facts, "usd": usage_usd(facts, self.config.model),
                                              "responseId": rid, "cause": cause["cause"]}))
         self._emit(VoiceEvent("generation_complete", data={"responseId": rid, "status": status}))
+        first = self._first_audio.pop(rid, None)
+        if cause["cause"] == "think" and cause.get("task") in self._unsaid:
+            unsaid = self._unsaid.pop(cause["task"])
+            if status == "cancelled" and first is None:  # cut before a word was heard: said when it is quiet again
+                facts_, say_, points_, prepared_, what_ = unsaid
+                self._delivered.discard(cause["task"])
+                self._spawn(self.deliver(cause["task"], facts=facts_, say=say_, points=points_, prepared=prepared_,
+                                         what=what_))
         self._log({"kind": "partner-response", "responseId": rid, "n": cause["n"], "cause": cause["cause"],
-                   "firstAudioT": self._first_audio.pop(rid, None),
+                   "firstAudioT": first,
                    "audioEndT": self.wall() if self.link != "webrtc" else None,  # WebRTC: partner-audio says it
                    "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts})
         for item in response.get("output") or []:
@@ -1173,9 +1189,12 @@ class RealtimeSession(VoiceSession):
             spoke = bool(transcript.strip())
             # think and mark only, after speaking: the acknowledgement was said; think's result follows on its own.
             # think without a word said: one short acknowledgement, never two (HeyClicky's duplicate one).
+            # Marks alone go on: the words before a mark were often only "Pointing it out." (think-check-2), and its
+            # result asks for the answer when they were not it.
             quiet_round = names <= {"mark"} | self.started_tools
             ack = bool(names & self.started_tools) and quiet_round and not spoke
-            self._spawn(self._finish_round(rid, cause["n"], go_on=not (quiet_round and spoke) and not ack, ack=ack))
+            go_on = (not (quiet_round and spoke) or names == {"mark"}) and not ack
+            self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack))
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:

@@ -114,6 +114,8 @@ class PartnerTools:
         self.fail_next: str | None = None  # the bench's fault hook (MICROMIND_BENCH_FAULTS): the next call fails
         self.running: dict[object, tuple] = {}  # calls still going: (tool, started, run), for a specific progress line
         self.thinking: dict[str, asyncio.Task] = {}  # think's tasks by id
+        self._task_started: dict[str, float] = {}  # task behind the voice -> when it started (its progress line)
+        self._task_now: dict[str, str] = {}  # task -> what it is doing now, in words
         self.backend = None  # think's backend factory (option -> backend); tests pass a fake
 
     def running_facts(self) -> str:
@@ -334,13 +336,21 @@ class PartnerTools:
             await asyncio.sleep(0.05)
         return bool(self.project_shown())
 
+    def task_facts(self, task: str, what: str) -> str:
+        """What one task behind the voice is doing now and for how long, for its own progress line only (not every
+        call running: think-check-2 mixed a comparison and a photo in one line)."""
+        started, now = self._task_started.setdefault(task, time.monotonic()), self._task_now.get(task) or what
+        return f"{now}, {time.monotonic() - started:.0f} s so far"
+
     def background(self, name: str, args: dict, n: int) -> dict:
         """A slow tool started behind the voice (BACKGROUND): answered at once, its result said when it lands."""
         task = f"{name.split('_')[0][:4]}-{uuid.uuid4().hex[:10]}"
+        self._task_started[task] = time.monotonic()
         job = self.partner.spawn(self._background(name, args, n, task))
         session = getattr(self.partner, "session", None)
         if session is not None and hasattr(session, "tell_progress"):
-            self.partner.spawn(session.tell_progress(task, lambda: not job.done(), what=name))
+            self.partner.spawn(session.tell_progress(task, lambda: not job.done(), what=name, lines=1,
+                                                     facts=lambda: self.task_facts(task, name)))
         return {"started": True, "task": task, "_log": {"task": task, "startedT": time.time()},
                 "note": "Started; it takes a while. Say only a two- or three-word acknowledgement now, nothing about "
                         "its result (do not say it is found or shown): it is told to you to say when it lands."}
@@ -538,7 +548,10 @@ class PartnerTools:
         resolved = [r for r in shown.get("resolved") or [] if isinstance(r, dict)]
         drawn = [r.get("target") for r in resolved if r.get("ok")]
         missed = [{"target": r.get("target"), "why": r.get("why") or "not drawn"} for r in resolved if not r.get("ok")]
-        return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {})}
+        return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {}),
+                **({"note": "Marked. If your words before it already answered the user, end now without a word; "
+                            "otherwise answer them now in one short sentence, without mentioning the mark."}
+                   if drawn else {})}
 
     async def _bounded(self, name: str, work, call_id: str | None) -> dict:
         """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working", and what
@@ -646,7 +659,8 @@ class PartnerTools:
         job = self.thinking[task.id] = self.partner.spawn(self._think(task, n, args.get("_call_id")))
         session = getattr(self.partner, "session", None)
         if session is not None and hasattr(session, "tell_progress"):  # what is under way, said while it works
-            self.partner.spawn(session.tell_progress(task.id, lambda: not job.done()))
+            self.partner.spawn(session.tell_progress(task.id, lambda: not job.done(),
+                                                     facts=lambda: self.task_facts(task.id, "thinking it through")))
         return {"started": True, "task": task.id, "_log": {"task": task.id, "startedT": started},
                 "note": "Started. Say only a two- or three-word acknowledgement now ('On it.'), nothing about the "
                         "result: it is told to you to say when it lands."}
@@ -673,8 +687,11 @@ class PartnerTools:
         task.notes = list(getattr(session, "notes", []) or [])
         step = {"now": ""}
 
+        self._task_started[task.id] = time.monotonic()
+
         def progress(tool: str) -> None:
             step["now"] = tool
+            self._task_now[task.id] = f"thinking it through, now running {tool}"
             self.running[key] = (f"thinking with {option}, now running {tool}", self.running[key][1], None)
 
         async def call_tool(name: str, args: dict) -> dict:
