@@ -1291,10 +1291,11 @@ def test_a_line_nobody_asked_for_is_timed_from_when_it_happened(monkeypatch):
     asyncio.run(go())
 
 
-def test_a_long_tool_gets_at_most_two_short_wait_lines_soon_after_the_voice_went_quiet(monkeypatch):
+def test_a_long_tool_gets_at_most_three_short_wait_lines_soon_after_the_voice_went_quiet(monkeypatch):
     """The bench: 2.7 s of silence after the preamble before the progress line, then 2.5 s more. A wait line goes out
-    once the voice has been quiet PROGRESS_AFTER_S, at most twice a round, never the same words."""
-    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.2)
+    once the voice has been quiet PROGRESS_AFTER_S, at most PROGRESS_LINES a round, capped in length, never the same
+    words."""
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 0.1)
     gate = None
 
     async def slow(ctx, args):
@@ -1312,15 +1313,14 @@ def test_a_long_tool_gets_at_most_two_short_wait_lines_soon_after_the_voice_went
         t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
                    "name": "resources", "arguments": "{}"})
         await done(t.sb, "resp_1")
-        await until_async(lambda: t.sb.responses == 2)
-        await done(t.sb, "resp_2")
-        await until_async(lambda: t.sb.responses == 3)
-        await done(t.sb, "resp_3")
-        await asyncio.sleep(2.6)
-        assert t.sb.responses == 3, "two wait lines at most"
-        causes = [e["response"]["metadata"]["cause"] for e in t.sb.sent if e["type"] == "response.create"]
-        assert causes == ["turn", "progress", "progress"]
-        assert "different words" in [e for e in t.sb.sent if e["type"] == "response.create"][-1]["response"]["instructions"]
+        for k in (2, 3, 4):
+            await until_async(lambda k=k: t.sb.responses == k, seconds=10)
+            await done(t.sb, f"resp_{k}")
+        await asyncio.sleep(3.0)
+        creates = [e for e in t.sb.sent if e["type"] == "response.create"]
+        assert [e["response"]["metadata"]["cause"] for e in creates] == ["turn", "progress", "progress", "progress"]
+        assert all(e["response"]["max_output_tokens"] == openai_realtime.PROGRESS_TOKENS for e in creates[1:])
+        assert "different words" in creates[-1]["response"]["instructions"]
         gate.set()
-        await until_async(lambda: t.sb.responses == 4)
+        await until_async(lambda: t.sb.responses == 5)
     asyncio.run(go())

@@ -52,7 +52,7 @@ RATE = 24000
 TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 # WebRTC audio is still in flight when the key is released: the commit waits this long so the last word is in the
 # buffer (the studio keeps the track on a little longer). Measured on the journey bench, not guessed beyond this.
-RELEASE_TAIL_S = 0.15
+RELEASE_TAIL_S = 0.05  # the tuning micro-bench: a commit even 0.12 s before the words' end lost none of them
 MIN_HOLD_S = 0.25  # a press shorter than this is a tap: nothing to commit, so no answer
 IDLE_S = 1.5  # nobody has spoken for this long: a line nobody asked for may be said
 PROACTIVE_KEPT_S = 60.0  # a waiting proactive line is dropped (only noted) after this long
@@ -61,8 +61,9 @@ RESPONSE_WAIT_S = 3.0  # a response whose end never comes is cancelled and let g
 RECONNECT_WAIT_S = 10.0  # a release during a reconnect waits this long for the connection to come back
 # Tools still running and the voice quiet this long: a short line asking to wait (the standard: no silence over 1.5 s
 # while it works; the line takes ~0.6 s to start). At most PROGRESS_LINES per round, never the same words twice.
-PROGRESS_AFTER_S = 0.8
-PROGRESS_LINES = 2
+PROGRESS_AFTER_S = 0.6
+PROGRESS_LINES = 3
+PROGRESS_TOKENS = 100  # a wait line is a few words: the bench's second one ran on for 5 s of speech
 TOOL_ROUNDS = 8  # tool rounds one user turn may chain (a model calling tools forever is stopped)
 NOTES_KEPT = 12  # per-turn text notes kept for a reconnect's seed
 CLOSE_STEP_S = 2.0
@@ -1093,11 +1094,11 @@ class RealtimeSession(VoiceSession):
             quiet = self.clock() - max(self._last_audio_at, self._last_done_at)
             if (pending and quiet >= PROGRESS_AFTER_S and len(progress_said) < PROGRESS_LINES and not self.speaking()
                     and not self._asks and self._held is None and n == self.n and epoch == self._epoch
-                    and (not progress_said or self.clock() - progress_said[-1] > 2.0)):
+                    and (not progress_said or self.clock() - progress_said[-1] > 2.5)):
                 progress_said.append(self.clock())
-                again = " You already asked them to wait once: use different words, still short." if len(progress_said) > 1 else ""
+                again = " You already asked them to wait: use different words, still short." if len(progress_said) > 1 else ""
                 self.respond("progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
-                             tool_choice="none", instructions=self.config.system_prompt + "\n\nThe app is still working "
+                             tool_choice="none", max_output_tokens=PROGRESS_TOKENS, instructions=self.config.system_prompt + "\n\nThe app is still working "
                              "on your last tool call. Say only a short phrase asking the user to wait a few more seconds, "
                              "at most six words. Do not describe what is running and do not say anything is done." + again)
         for cid in ids:
