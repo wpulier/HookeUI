@@ -22,11 +22,13 @@ test('retained question and evidence replace new-project onboarding without star
   const {home,host,root,actions,button} = setup(); home.update('p1',[study()]);
   expect(host.dataset.projectResearch).toBe('true'); expect(root.hidden).toBe(false);
   expect(root.textContent).toContain('Does the fitted response generalize?');
-  expect(root.textContent).toContain('1 input · 1 recorded experiment · 1 finding or claim');
+  expect(root.textContent).toContain('1Inputs'); expect(root.textContent).toContain('1Experiments');
+  expect(root.textContent).toContain('1Reports'); expect(root.textContent).toContain('0Findings');
+  expect(root.textContent).toContain('Latest report'); expect(root.textContent).toContain('Observed a limitation');
   expect(root.textContent).not.toContain('Start a Project'); expect(actions.openStudy).not.toHaveBeenCalled();
   fire(button('Open Study') as unknown as TestElement, 'click'); expect(actions.openStudy).toHaveBeenCalledWith('s1');
-  fire(button('Browse Project data') as unknown as TestElement, 'click'); expect(actions.data).toHaveBeenCalledOnce();
-  fire(button('Add material or choose a camera') as unknown as TestElement, 'click'); expect(actions.inputs).toHaveBeenCalledOnce();
+  fire(button('Project data') as unknown as TestElement, 'click'); expect(actions.data).toHaveBeenCalledOnce();
+  fire(button('Add material') as unknown as TestElement, 'click'); expect(actions.inputs).toHaveBeenCalledOnce();
 });
 test('another Project, a stale button and a late foreign Study cannot redirect the current workspace', () => {
   const {home,host,root,actions,button,setCurrent} = setup();home.update('p1',[study()]);const old=button('Open Study');
@@ -40,4 +42,23 @@ test('unchanged polling preserves the action node and a failed refresh qualifies
   home.update('p1',[study()]);expect(button('Open Study')).toBe(first);
   home.update('p1',[study()],'Reconnect to refresh.');expect(root.textContent).toContain('Showing the last saved overview. Reconnect to refresh.');
   home.update('p1',[]);expect(root.hidden).toBe(true);
+});
+
+test('latest attributed report remains distinct from accepted findings and exposes its limitations', () => {
+  const {home,root} = setup(); const value = study();
+  value.claims!.push({request:'new',statement:'<script>untrusted</script> New result',byLabel:'Codex',evidence:[],dependsOn:[],limitations:'No independent validation'});
+  value.findings.push({request:'finding',statement:'Reviewed finding',tasks:[]});
+  home.update('p1',[value]);
+  expect(root.textContent).toContain('2Reports'); expect(root.textContent).toContain('1Findings');
+  expect(root.textContent).toContain('No independent validation');
+  expect(root.textContent).toContain('Researcher report · not an accepted finding');
+  expect(root.textContent).not.toContain('Observed a limitation');
+  expect(root.querySelectorAll('script')).toHaveLength(0);
+  expect(root.textContent).toContain('Contributions by Claude Code · Codex');
+});
+test('a study with no report offers an honest empty state and retains its question', () => {
+  const {home,root} = setup();const value=study();value.claims=[];home.update('p1',[value]);
+  expect(root.textContent).toContain('Reports will appear here as the work develops.');
+  expect(root.textContent).toContain('Measured error');
+  expect(root.textContent).not.toContain('Latest report');
 });
