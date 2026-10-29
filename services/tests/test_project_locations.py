@@ -186,3 +186,52 @@ def test_moved_format_one_location_requires_explicit_matching_recovery(tmp_path)
         assert locations.root_for(root.session) == moved / 'history/sessions'
     finally:
         locations.close()
+
+
+def test_malformed_owner_is_unavailable_without_hiding_healthy_projects(tmp_path):
+    day, locations = setup(tmp_path)
+    root = create(locations.parent, 'Damaged owner', session='2026-10-29.8',
+                  host_preferences=day.user_prefs)
+    locations.registry.register(root)
+    path = root.path / 'history/sessions' / root.session / 'journal.jsonl'
+    first = json.loads(path.read_text().splitlines()[0])
+    with path.open('a') as stream:
+        stream.write(json.dumps(first) + '\n')
+    try:
+        listed = {i.id: i for i in day.catalogue.list()}
+        assert 'multiple origins' in listed[root.session].unavailable
+        assert listed[day.sid].unavailable is None
+        with pytest.raises(ProjectLocationError, match='multiple origins'):
+            locations.writable(root.session)
+    finally:
+        locations.close()
+
+
+@pytest.mark.parametrize('failure', ['missing', 'unreadable'])
+def test_leased_journal_failure_does_not_allow_partial_id_allocation(tmp_path, monkeypatch, failure):
+    from pathlib import Path
+    day, locations = setup(tmp_path)
+    saved = day.create_retained('Leased', actor='agent:a')
+    saved._record({'type': 'made', 'id': 'e999', 'kind': 'population'})
+    root = locations.project(saved.sid)
+    path = root.path / 'history/sessions' / root.session / 'journal.jsonl'
+    day.catalogue.list()  # cache a healthy row before failure
+    if failure == 'missing':
+        path.unlink()
+    else:
+        with path.open('a') as stream:
+            stream.write('\n')  # require the next catalogue read
+        original = Path.open
+        def refuse(self, *args, **kwargs):
+            if self == path:
+                raise PermissionError('test journal unreadable')
+            return original(self, *args, **kwargs)
+        monkeypatch.setattr(Path, 'open', refuse)
+    try:
+        listed = {i.id: i for i in day.catalogue.list()}
+        assert listed[saved.sid].unavailable
+        assert listed[day.sid].unavailable is None
+        with pytest.raises(ProjectLocationError, match='shared legacy result IDs'):
+            day.catalogue.used(day.date, 'e')
+    finally:
+        locations.close()

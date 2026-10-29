@@ -41,7 +41,10 @@ def verify_owner(root: ProjectRoot):
     actual = ProjectRoot.open(root.path)
     if actual != root:
         raise ProjectLocationError('Project location changed; reopen before continuing')
-    owner = retained_owner(session_root(root), root.session)
+    try:
+        owner = retained_owner(session_root(root), root.session)
+    except ValueError as error:
+        raise ProjectLocationError(f'Project ownership is unreadable: {error}') from error
     if owner is None or owner['origin']['origin'] != root.origin:
         raise ProjectLocationError('Project manifest and retained journal identity do not match')
     return owner

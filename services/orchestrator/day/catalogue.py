@@ -225,7 +225,10 @@ class Catalogue:
         path = root / sid / sids.JOURNAL
         try:
             stat = path.stat()
-        except OSError:
+        except OSError as error:
+            if self.locations is not None and sid in self.locations.handles():
+                prior = self._reads.get(sid)
+                return replace(prior.info if prior else Info(sid), unavailable=f'Project journal is unavailable: {error}')
             self._reads.pop(sid, None)
             return None
         read = self._reads.get(sid)
@@ -238,7 +241,9 @@ class Catalogue:
             with path.open("rb") as f:
                 f.seek(read.offset)
                 chunk = f.read()
-        except OSError:
+        except OSError as error:
+            if self.locations is not None and sid in self.locations.handles():
+                return replace(read.info, unavailable=f'Project journal is unreadable: {error}')
             return read.info
         end = chunk.rfind(b"\n") + 1  # whole lines only: a line still being written is read next time
         for line in chunk[:end].splitlines():
