@@ -1370,7 +1370,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key' | 'think' | 'watch';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key' | 'heard_cue' | 'think' | 'look_hard' | 'watch';
 
 export interface ModelOption {
   id: string;

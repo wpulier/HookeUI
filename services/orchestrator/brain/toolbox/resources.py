@@ -39,7 +39,7 @@ def add_resource_tools(registry: Registry, services) -> None:
                 text = await fetch_text(match["page"])
         except TimeoutError as exc:  # said as what happened (think-broad-1: "the page could not be read: " and no why)
             raise ToolFailed(f"the web lookup took longer than {RETRIEVE_S:.0f} s and was stopped; nothing was read",
-                             next=None) from exc
+                             next=None) from exc  # no next: the stop and that nothing was read are stated; no automatic substitute action
         except FetchRefused as exc:
             raise ToolFailed(f"the page could not be read: {exc}", next=None) from exc  # no next: the concrete limitation is already stated; no automatic substitute action
         require_current(ctx, services.day)

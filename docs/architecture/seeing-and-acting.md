@@ -600,9 +600,9 @@ other files.
 
 One model hears the user, sees fresh pixels, calls the app's tools with the user's own words, reads their results and
 speaks, all in one context (live-partner-contract.md of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
-`voice/partner_tools.py`). It is an option beside GPT-Live, which stays the default until the journey bench shows it
-better on the packaged build. Where GPT-Live hands the brain an id and the brain guesses the words (`brain/speech.py`),
-this voice has no hops to fall between.
+`voice/partner_tools.py`). It is the default: since 29 Oct 2026 the live partner's stack is Hooke's default, and
+GPT-Live stays beside it as a choice picked by hand, with nothing falling back to it. Where GPT-Live hands the brain an
+id and the brain guesses the words (`brain/speech.py`), this voice has no hops to fall between.
 
 - **Transport:** WebRTC only. The route posts the browser's SDP offer and the session config to `POST
   /v1/realtime/calls` (the SDK's `client.realtime.calls.with_raw_response.create`: the SDP answer is the body, the call

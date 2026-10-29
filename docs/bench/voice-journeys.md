@@ -3,11 +3,13 @@
 `services/bench/voice_journeys` plays a spoken journey through a real voice on a second stack and scores it. It
 tells, in numbers, whether the live research partner meets the acceptance standard of 29 Oct
 (`live-partner-contract.md`, the Part 2.5 plan), for both voices:
-- `gpt-live-1` (GPT-Live, the default today): open microphone, every request handed to the brain;
-- `gpt-realtime-2.1` (the one brain): hold to talk (or open), sees the window and the frame, calls tools itself.
+- `gpt-realtime-2.1` (the one brain, the default): hold to talk (or open), sees the window and the frame, calls tools
+  itself;
+- `gpt-live-1` (GPT-Live, a choice picked by hand): open microphone, every request handed to the brain.
 
-The default switches to the one brain with hold to talk only when it meets every line. A line that was not measured
-is not met.
+Since 29 Oct the live partner's stack is the default (Will: "dont default to anything old, we are building anew the
+right way"). It is judged against the standard, never against GPT-Live, whose numbers are a baseline. A line that was
+not measured is not met.
 
 This is evidence of the first kind in `docs/testing/part-2.5-journey.md`: recorded audio (macOS voices), repeatable,
 on a candidate. Acoustic replay is the second kind (below). Neither is Will in a room, which is the only evidence of
