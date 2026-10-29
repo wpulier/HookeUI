@@ -303,6 +303,65 @@ def test_a_result_landing_while_the_user_talks_waits_and_is_never_over_them(monk
     asyncio.run(go())
 
 
+def test_a_result_waits_for_the_users_turn_to_finish_its_tools_and_is_prepared_once(monkeypatch):
+    """think-broad-2: the comparison landed as the user asked to close a picture; prepared, it was dropped for the key
+    press and prepared again (holding the gate while the user's turn waited), then said in the gap between that turn's
+    answer and its tool round, where the voice talked about the close failing instead. The result waits until the
+    turn's tools are done and answered, and its words are prepared once."""
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+    tool_gate = asyncio.Event()
+
+    async def closing(ctx, args):
+        await tool_gate.wait()
+        return "the picture is closed"
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(report={"say": "Cellpose found 342.", "checked": True,
+                                                                "done": True}), tools={"present": closing})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "present", "arguments": json.dumps({"what": "close the picture"})})
+        await done(t.sb, "resp_1")  # the turn's answer is out; its tool round is still running
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "compare three outline models"})  # its result lands now
+        await asyncio.sleep(0.8)
+        assert [e["response"]["metadata"]["cause"] for e in creates(t)] == ["turn"], \
+            "nothing of think's while the user's turn still has a tool running"
+        tool_gate.set()
+        follow = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] in
+                                                 ("look", "tool")), None))
+        assert follow is not None
+        await done(t.sb, "resp_2")
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        assert creates(t).index(prep) > creates(t).index(follow)
+        await done(t.sb, "resp_3")
+        await until_async(lambda: any(e["response"]["metadata"]["cause"] == "think" for e in creates(t)))
+        assert len([e for e in creates(t) if e["response"].get("conversation") == "none"]) == 1
+    asyncio.run(go())
+
+
+def test_a_result_dropped_for_a_key_press_is_said_later_with_the_words_already_prepared(monkeypatch):
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(report={"say": "Two groups.", "checked": True, "done": True}))
+        spec = next(s for s in t.session.config.tools if s.name == "think")
+        await spec.handler({"request": "group them by look"})
+        await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"), None))
+        await press(t, 1)  # the user presses talk while its words are prepared
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "Two look groups."})
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(0.3)
+        await release(t, 1)
+        await done(t.sb, "resp_2")
+        said = await until_async(lambda: next((e for e in creates(t) if e["response"]["metadata"]["cause"] == "think"),
+                                              None), seconds=10)
+        assert "Two look groups." in said["response"]["instructions"]
+        assert len([e for e in creates(t) if e["response"].get("conversation") == "none"]) == 1, "prepared once"
+    asyncio.run(go())
+
+
 def test_think_without_its_key_says_so_plainly(monkeypatch):
     async def go():
         t = await with_backend(monkeypatch, FakeBackend())

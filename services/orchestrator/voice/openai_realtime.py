@@ -863,7 +863,15 @@ class RealtimeSession(VoiceSession):
             return
 
     # --- think's results (voice/think.py, partner_tools.think) -----------------------------------------------------
-    async def deliver(self, task: str, *, facts: dict, say: str, points: list[str]) -> None:
+    def settled(self) -> bool:
+        """Nobody talking, nothing said or asked for, and no tool of a turn still running or unanswered: a result
+        from behind the voice may be said now (think-broad-2: said between a turn's answer and its tool round, the
+        voice talked about that turn instead)."""
+        return not (self.user_busy() or self.speaking() or self._asks or self._calls or self._round
+                    or self.idle_since() < IDLE_S)
+
+    async def deliver(self, task: str, *, facts: dict, say: str, points: list[str],
+                      prepared: str | None = None) -> None:
         """A think result, said once: when nobody is talking, prepared out of band (`conversation: none`, text only,
         `metadata.task`) in the voice's own words, added to the conversation, then said through the gate with marks on
         what it names as the words start. A user's key press while it waits holds it; it is never said twice."""
@@ -871,12 +879,13 @@ class RealtimeSession(VoiceSession):
             return
         self._delivered.add(task)
         end = self.clock() + DELIVER_WAIT_S
-        while (self.user_busy() or self.speaking() or self._asks) and self.clock() < end and not self.closed:
+        while not self.settled() and self.clock() < end and not self.closed:
             await asyncio.sleep(0.1)
         facts_text = json.dumps(facts, ensure_ascii=False, default=str)[:4000]
-        prepared = await self.prepare(task, facts_text, say)
-        with contextlib.suppress(Exception):
-            await self.add(text_item("system", f"Result of the task you handed to think ({task}):\n{facts_text}"))
+        if prepared is None:  # once: a delivery dropped for a key press keeps its words
+            prepared = await self.prepare(task, facts_text, say)
+            with contextlib.suppress(Exception):
+                await self.add(text_item("system", f"Result of the task you handed to think ({task}):\n{facts_text}"))
 
         def sent() -> None:
             self._point = [str(p) for p in points][:4]
@@ -886,7 +895,7 @@ class RealtimeSession(VoiceSession):
 
         def dropped(why: str) -> None:  # the user pressed talk just then: said when it is quiet again
             self._delivered.discard(task)
-            self._spawn(self.deliver(task, facts=facts, say=say, points=points))
+            self._spawn(self.deliver(task, facts=facts, say=say, points=points, prepared=prepared))
 
         self.respond("think", n=self.n, sent=sent, dropped=dropped, tool_choice="none",
                      metadata={"task": task},
