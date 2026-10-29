@@ -1113,7 +1113,8 @@ def markdown(result: dict) -> str:
     head = result.get("about", {})
     out = [f"# Live partner journey: {head.get('voice', '?')} ({head.get('talk', '?')}), plan {head.get('plan', '?')}", "",
            f"{result['summary']['runs']} run(s), {result['summary']['steps']} steps. Audio heard {head.get('audioFrom', 'in the page')}; "
-           f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room.", "",
+           f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room. "
+           f"Judged by {head.get('judge', 'none')} (judges are not interchangeable: compare runs judged by the same one).", "",
            f"**Standard met: {'yes' if meets(result['scoreboard']) else 'no'}**", "",
            *([f"The bench put the journey back in its Project after {len(result['recovered'])} step(s) that left it "
               "elsewhere (scored as they were; the steps after them are not scored again for it)."] if result.get("recovered") else []),

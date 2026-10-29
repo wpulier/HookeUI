@@ -4,6 +4,8 @@ the stack recorded (else the worst case), re-scores kept runs, and the shipped p
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -82,6 +84,7 @@ def test_a_refused_reservation_starts_nothing(tmp_path, monkeypatch):
 
 
 def test_a_run_reserves_first_and_settles_from_what_the_stack_recorded(tmp_path, monkeypatch):
+    monkeypatch.setenv("MICROMIND_KEYS_FILE", os.environ.get("MICROMIND_KEYS_FILE", ""))  # restored after, whatever run does
     script, log = budget(tmp_path, limit=100.0)
     out = tmp_path / "out"
     seen = []
@@ -287,3 +290,129 @@ def test_the_broad_journey_covers_what_a_partner_is_asked():
     assert [s["ensure"] for s in plan["steps"] if s.get("ensure")] == ["project:Nuclei", "project:Experiment", "project:Nuclei"]
     assert plan["steps"][-2]["kind"] == "idle" and plan["steps"][-2]["waitFor"] == {"researcher": "latest-done"}
     assert run.worst_case(plan, 1, "gpt-realtime-2.1", judge=True, setup=True) < 30  # one run's worst case stays bounded
+
+
+# --- the judge is a choice (2026-10-29: OpenAI's credit ran out and every step's judgement failed) ---------------------
+
+class FakeJudge:
+    def __init__(self, error=None, data=None):
+        self.error, self.data, self.prompts = error, data, []
+
+    async def ask(self, images, prompt, max_output_tokens=600):
+        self.prompts.append(prompt)
+        from bench.voice_journeys.judge import Reply
+
+        return Reply(None if self.error else (self.data or {"ok": True}), self.error)
+
+
+def test_auto_keeps_the_default_judge_and_falls_back_only_when_it_fails(monkeypatch):
+    from bench.voice_journeys import judge
+
+    monkeypatch.setattr("orchestrator.keys.load_keys", lambda *a, **k: None)
+    for key in ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(key, "test-key")
+    made = {"gpt-6.1-sol": FakeJudge(), "claude-opus-5-5": FakeJudge(), "gemini-3.8-flash": FakeJudge()}
+    monkeypatch.setattr(judge, "make_judge", lambda name: made[name])
+    assert judge.choose("auto")[0] == "gpt-6.1-sol"  # the default: new runs compare with old ones
+    made["gpt-6.1-sol"] = FakeJudge(error="HTTP 429: credit_balance_exhausted")
+    tried = []
+    assert judge.choose("auto", tried)[0] == "claude-opus-5-5" and tried == ["gpt-6.1-sol: HTTP 429: credit_balance_exhausted"]
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    tried = []
+    assert judge.choose("auto", tried)[0] == "gemini-3.8-flash" and tried[1] == "claude-opus-5-5: no ANTHROPIC_API_KEY"
+    assert judge.choose("gpt-6.1-sol")[0] == "gpt-6.1-sol"  # named: used as asked, no check
+    monkeypatch.delenv("GEMINI_API_KEY")
+    assert judge.choose("auto") == (None, None)
+
+
+def test_claude_judge_sends_the_same_prompt_and_reads_json_from_its_text():
+    import asyncio
+
+    from bench.voice_journeys.judge import CLAUDE_MAX_TOKENS, ClaudeJudge, json_of
+
+    sent = []
+
+    class Response:
+        def __init__(self, status, body):
+            self.status_code, self._body, self.text = status, body, json.dumps(body)
+
+        def json(self):
+            return self._body
+
+    class Client:
+        def __init__(self, replies):
+            self.replies = replies
+
+        async def post(self, path, json):
+            sent.append((path, json))
+            return self.replies.pop(0)
+
+    text = 'Here it is:\n```json\n{"answered": true, "partner_quality": 3}\n```'
+    judge = ClaudeJudge(Client([Response(200, {"content": [{"type": "thinking", "thinking": ""}, {"type": "text", "text": text}],
+                                               "stop_reason": "end_turn", "usage": {"input_tokens": 900, "output_tokens": 300}}),
+                                Response(200, {"content": [], "stop_reason": "refusal", "stop_details": {"category": "bio"}}),
+                                Response(429, {"error": {"type": "rate_limit_error"}})]))
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 10
+    reply = asyncio.run(judge.ask([png], "the prompt"))
+    assert reply.data == {"answered": True, "partner_quality": 3} and reply.error is None
+    path, body = sent[0]
+    assert path == "/v1/messages" and body["model"] == "claude-opus-5-5" and body["output_config"] == {"effort": "low"}
+    assert body["max_tokens"] == CLAUDE_MAX_TOKENS and body["fallbacks"] == "default" and "temperature" not in body
+    assert body["messages"][0]["content"][0]["source"]["media_type"] == "image/png"
+    assert body["messages"][0]["content"][-1] == {"type": "text", "text": "the prompt"}
+    assert asyncio.run(judge.ask([], "p")).error == "refused (bio)"
+    assert asyncio.run(judge.ask([], "p")).error.startswith("HTTP 429")
+    assert json_of('{"a": 1}') == {"a": 1} and json_of("noise {\"a\": 2} noise") == {"a": 2} and json_of("none") is None
+
+
+def test_a_rescore_judges_again_only_what_the_judge_could_not_answer_and_says_which_judge(tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    kept_run(out)
+    failed = {"_judge": "gpt-6.1-sol", **{sid: {"error": "HTTP 429: credit_balance_exhausted"} for sid in
+                                         ("outline", "table", "researcher", "status", "explain", "barge", "multi")}}
+    (out / "run-1" / "verdicts.json").write_text(json.dumps(failed))
+    from bench.voice_journeys import judge
+
+    fake = FakeJudge(data={"claims_on_screen": [], "answered": True, "partner_quality": 3})
+    monkeypatch.setattr(judge, "choose", lambda name="auto", tried=None: ("claude-opus-5-5", fake))
+    monkeypatch.setattr(judge, "achoose", lambda name="auto", tried=None: _async(("claude-opus-5-5", fake)))
+    plan = {**PLAN, "id": "synthetic"}
+    script, log = budget(tmp_path, limit=100.0)
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps(plan))
+    with pytest.raises(SystemExit):  # judging is paid: no budget, no judge
+        run.main(["--score-only", "--plan", str(plan_file), "--out", str(out)])
+    run.main(["--score-only", "--plan", str(plan_file), "--out", str(out), "--budget", script])
+    kept = json.loads((out / "run-1" / "verdicts.json").read_text())
+    assert kept["_judge"] == "claude-opus-5-5" and kept["outline"]["partner_quality"] == 3
+    result = json.loads((out / "result.json").read_text())
+    assert result["about"]["judge"] == "claude-opus-5-5"
+    assert "Judged by claude-opus-5-5" in (out / "scoreboard.md").read_text()
+    assert [c[0] for c in calls(log)] == ["reserve", "settle"]
+    fake.prompts.clear()
+    run.main(["--score-only", "--plan", str(plan_file), "--out", str(out)])  # kept and answered: nothing judged, no budget
+    assert fake.prompts == []
+
+
+async def _async(value):
+    return value
+
+
+# --- run.main leaves the process environment as it found it (the watcher builder, 2026-10-29) ---------------------------
+
+def test_a_run_leaves_the_environment_as_it_found_it(tmp_path, monkeypatch):
+    """run.main used to set MICROMIND_KEYS_FILE for the rest of the process, so a later test in the same pytest worker
+    (test_golden's capabilities wire) read another keys file."""
+    before = dict(os.environ)
+    test_a_run_reserves_first_and_settles_from_what_the_stack_recorded(tmp_path, monkeypatch)
+    assert dict(os.environ) == before
+
+
+def test_the_run_test_then_the_golden_test_pass_in_one_process(tmp_path):
+    """The order that failed: the run test, then test_golden's wires, in one process (each passed on its own)."""
+    services = Path(__file__).resolve().parents[1]
+    done = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:randomly", "-p", "no:cacheprovider", "-n", "0",
+                           "tests/test_voice_journeys_run.py::test_a_run_reserves_first_and_settles_from_what_the_stack_recorded",
+                           "tests/test_golden.py::test_prompts_and_wires_are_unchanged"],
+                          cwd=services, capture_output=True, text=True, timeout=280)
+    assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-2000:]

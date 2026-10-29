@@ -16,6 +16,7 @@ brain's provider-reported tokens when Spending leaves them unpriced, plus the ju
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -26,6 +27,7 @@ import urllib.request
 from pathlib import Path
 
 from . import stack as stacks
+from .judge import COST_PER_STEP_USD, JUDGES
 from .standard import markdown, meets, read_jsonl, realtime_cost, score_run, scoreboard, summarise
 
 HERE = Path(__file__).resolve().parent
@@ -53,8 +55,6 @@ def researchers(plan: dict) -> int:
 
 def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -> float:
     """The most this run can cost: every spoken step at its worst, every researcher at its cap, the setup, the judge."""
-    from .judge import COST_PER_STEP_USD
-
     per_run = spoken_steps(plan) * (STEP_USD[voice] + (COST_PER_STEP_USD if judge else 0)) + researchers(plan) * RESEARCHER_USD
     return round(per_run * reps + (SETUP_USD if setup and plan.get("setup") else 0), 2)
 
@@ -118,24 +118,54 @@ def runs_in(out: Path) -> list[Path]:
     return sorted((p for p in out.glob("run-*") if (p / "bench.json").exists()), key=lambda p: int(p.name.split("-")[1]))
 
 
+def to_judge(out: Path, *, judge: bool, rejudge: bool = False) -> list[Path]:
+    """The run folders the judge must read: none kept, a kept one with a step the judge could not answer (its credit
+    ran out), or all when asked to judge again."""
+    if not judge:
+        return []
+    folders = []
+    for folder in runs_in(out):
+        kept = folder / "verdicts.json"
+        verdicts = json.loads(kept.read_text()) if kept.exists() else None
+        if rejudge or verdicts is None or any(isinstance(v, dict) and v.get("error") for v in verdicts.values()):
+            folders.append(folder)
+    return folders
+
+
+def judged_steps(folder: Path) -> int:
+    bench = json.loads((folder / "bench.json").read_text())
+    return sum(1 for s in bench.get("steps") or [] if not s.get("setup") and s.get("kind") not in ("idle", "restart"))
+
+
 def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = None, judge: bool = False,
-                  checkout: Path = REPO) -> dict:
+                  checkout: Path = REPO, judge_name: str = "auto", rejudge: bool = False) -> dict:
     """Score every run folder in `out` (run-N/bench.json) against the stack's logs, judged when asked (verdicts kept in
-    run-N/verdicts.json, so a re-score reuses them), and write result.json and scoreboard.md."""
+    run-N/verdicts.json with the judge's name, so a re-score reuses them), and write result.json and scoreboard.md."""
     logs = logs or out / "home" / "logs"
     conv, inter = read_jsonl(logs / "conversation.jsonl"), read_jsonl(logs / "interactions.jsonl")
     setup = out / "setup" / "bench.json"  # its frames: the live view's baseline when a run has none before Talk
     baseline = [e for e in json.loads(setup.read_text()).get("events", []) if e.get("e") == "frames"] if setup.exists() else None
-    runs, recovered, staged = [], [], 0
+    runs, recovered, staged, judges, passed_over = [], [], 0, [], []
+    pending = set(to_judge(out, judge=judge, rejudge=rejudge))
+    chosen = None
+    if pending:
+        from .judge import choose
+
+        chosen, _ = choose(judge_name, passed_over)
+        if chosen is None:
+            print("no judge answers now: " + "; ".join(passed_over), file=sys.stderr)
     for folder in runs_in(out):
         bench = json.loads((folder / "bench.json").read_text())
         kept = folder / "verdicts.json"
         verdicts = json.loads(kept.read_text()) if kept.exists() else None
-        if verdicts is None and judge:
+        if folder in pending and chosen is not None:
             from .judge import judge_run
 
-            verdicts = judge_run(bench, conv, inter, plan, checkout)
+            verdicts = judge_run(bench, conv, inter, plan, checkout, name=chosen)
             kept.write_text(json.dumps(verdicts, indent=1))
+        from .judge import judged_by
+
+        judges.append(judged_by(verdicts) or "none")
         runs.append(score_run(bench, conv, inter, plan, verdicts, baseline))
         recovered += [{"run": folder.name, **{k: e.get(k) for k in ("step", "what", "from", "ok")}}
                       for e in bench.get("events", []) if e.get("e") == "recovered"]
@@ -146,12 +176,28 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
     heard = {"page": "in the page", "server": "from the one brain's audio records",
              "transcripts": "from the transcripts' first words (no audio timing)"}
     result = {"about": {**about, "plan": plan["id"], "reps": len(runs),
-                        "audioFrom": "; ".join(heard.get(s, s) for s in sorted(sources)) or "nowhere: no runs"},
+                        "audioFrom": "; ".join(heard.get(s, s) for s in sorted(sources)) or "nowhere: no runs",
+                        "judge": ", ".join(dict.fromkeys(judges)) or "none",
+                        **({"judgesPassedOver": passed_over} if passed_over else {})},
               "summary": summary, "scoreboard": board, "meets": meets(board), "recovered": recovered,
               "staged": staged, "runs": runs}
     (out / "result.json").write_text(json.dumps(result, indent=1))
     (out / "scoreboard.md").write_text(markdown(result))
     return result
+
+
+@contextlib.contextmanager
+def judge_keys(path: str):
+    """The keys file for the judge's own calls while they run, and the process environment as it was afterwards (the
+    keys the judge loads included): a run never leaves another keys file behind for what runs next in the process
+    (a test worker read another capabilities wire, 2026-10-29)."""
+    saved = dict(os.environ)
+    os.environ["MICROMIND_KEYS_FILE"] = path
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
 
 
 def commit(checkout: Path) -> str:
@@ -171,6 +217,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--budget", default=os.environ.get("HOOKE_BENCH_BUDGET", ""), help="budget.py, for reserve/settle")
     parser.add_argument("--worst-usd", type=float, help="reserve this instead of the computed worst case")
     parser.add_argument("--no-judge", action="store_true", help="timings and counts only: false done not measured")
+    parser.add_argument("--judge", default="auto", choices=("auto", *JUDGES),
+                        help="the judge: auto = gpt-6.1-sol (the default, comparable with old runs), else claude-opus-5-5, "
+                             "else gemini-3.8-flash, the first whose key and credit work now")
+    parser.add_argument("--rejudge", action="store_true", help="judge kept runs again (the judge used is recorded)")
     parser.add_argument("--acoustic", action="store_true",
                         help="play the words through this Mac's speakers into its microphone (a visible browser)")
     parser.add_argument("--no-faults", action="store_true", help="don't inject the plan's faults (forced reconnect)")
@@ -185,7 +235,20 @@ def main(argv: list[str] | None = None) -> int:
     about_file = out / "about.json"
     if args.score_only:
         about = json.loads(about_file.read_text()) if about_file.exists() else {}
-        result = write_results(out, plan, about, judge=not args.no_judge, checkout=Path(args.checkout))
+        judging = to_judge(out, judge=not args.no_judge, rejudge=args.rejudge)
+        reservation = None
+        if judging:  # the judge's calls are paid: reserved first, refused when the budget refuses
+            if not args.budget:
+                parser.error(f"{len(judging)} run(s) need the judge: pass --budget to reserve it, or --no-judge")
+            worst = round(sum(judged_steps(f) for f in judging) * COST_PER_STEP_USD, 2)
+            reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}")
+        try:
+            with judge_keys(args.keys):
+                result = write_results(out, plan, about, judge=not args.no_judge, checkout=Path(args.checkout),
+                                       judge_name=args.judge, rejudge=args.rejudge)
+        finally:
+            if reservation:
+                settle(args.budget, reservation, worst, "judge: worst case")
         print(markdown(result))
         return 0 if result["meets"] else 1
     if not args.voice:
@@ -228,11 +291,10 @@ def main(argv: list[str] | None = None) -> int:
         result = None
         try:
             if runs_in(out):
-                os.environ["MICROMIND_KEYS_FILE"] = args.keys  # the judge's own calls, this process only
-                result = write_results(out, plan, about, judge=not args.no_judge, checkout=checkout)
+                with judge_keys(args.keys):
+                    result = write_results(out, plan, about, judge=not args.no_judge, checkout=checkout,
+                                           judge_name=args.judge)
         finally:
-            from .judge import COST_PER_STEP_USD
-
             judged = 0 if args.no_judge else sum(len(r["steps"]) for r in (result or {}).get("runs", []))
             actual = worst if cost is None else round(cost + judged * COST_PER_STEP_USD, 2)
             settle(args.budget, reservation, actual, "from the stack's Spending" if cost is not None else "worst case")
