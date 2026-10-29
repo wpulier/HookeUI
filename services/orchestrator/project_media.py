@@ -8,6 +8,7 @@ Library edit history. Callers must run the bounded file work off the event loop.
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 import asyncio
+import json
 import os
 import stat
 
@@ -15,7 +16,9 @@ from .library import Asset, is_asset_id
 from .project_roots import ProjectLocationError
 from .scientific_file_intake import FileIntake
 from .scientific_files import CHUNK_BYTES
-from .scientific_provenance import frozen
+from .scientific_projects import _json
+
+MAX_MEDIA_METADATA = 1 << 20
 
 
 def _background():
@@ -41,7 +44,10 @@ class MediaReference:
 
 class _MediaIntake(FileIntake):
     def __init__(self, *args, metadata, check_source, source_guard, **kwargs):
-        self.metadata = frozen(metadata)
+        body = _json(metadata)
+        if len(body) > MAX_MEDIA_METADATA:
+            raise ProjectLocationError('Selected media metadata exceeds its retained history allowance')
+        self.metadata = json.loads(body)
         self.check_source = check_source
         self.source_guard = source_guard
         super().__init__(*args, **kwargs)

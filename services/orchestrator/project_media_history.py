@@ -17,7 +17,7 @@ from .library import Asset, Library
 from .project_roots import ProjectLocationError
 
 MAX_JOURNAL = 64 << 20
-MAX_HISTORY = 4 << 20
+MAX_HISTORY = 512 << 10
 MAX_LINE = 64 << 10
 
 
@@ -32,13 +32,13 @@ class LibraryCapture:
     history: dict
     path: Path
     stamp: tuple
+    state: dict
 
     @contextmanager
     def acceptance(self):
         with self.library.lock:
             if (self.library.path != self.path or _stamp(self.path.lstat()) != self.stamp
-                    or self.library.key_of(self.asset.id) != self.asset.key
-                    or self.library.edits(self.asset.id) != self.asset.user):
+                    or self.library.retention_state(self.asset) != self.state):
                 raise ProjectLocationError('Library metadata changed during intake; keep the source and retry')
             yield
 
@@ -47,7 +47,7 @@ def capture(library, identity):
     from .project_media import _background
     _background()
     with library.lock:
-        asset = library.get(identity)
+        asset = library.assets(fresh=True).get(identity)
         if asset is None or library.path is None:
             raise ProjectLocationError('Choose a retained Library source with readable metadata history')
         asset = deepcopy(asset)
@@ -86,9 +86,25 @@ def capture(library, identity):
                 raise ProjectLocationError('Library history changed while reading; retry intake')
         if not any(row.get('id') == asset.id and row.get('key') == asset.key for row in rows):
             raise ProjectLocationError('Library history does not establish this source identity')
+        edits, looked, shared_looked = {}, {}, {}
+        for row in rows:
+            if row.get('id') == asset.id:
+                for key, value in row.get('set', {}).items():
+                    if value in (None, ''):
+                        edits.pop(key, None)
+                    else:
+                        edits[key] = value
+                if isinstance(row.get('looked'), dict):
+                    looked = row['looked']
+            elif isinstance(row.get('looked-specimen'), dict):
+                shared_looked = row['looked-specimen']
+        if edits != asset.user or (looked or shared_looked) != asset.looked:
+            raise ProjectLocationError('Library metadata differs from its retained history; recover the failed edit before collection')
         # Identity is scoped to these retained records: unrelated Library edits
         # must not change a completed intake's request/content identity.
         encoded = json.dumps(rows, sort_keys=True, separators=(',', ':')).encode()
+        if len(encoded) > MAX_HISTORY:
+            raise ProjectLocationError('Selected media history exceeds the retained document limit')
         history = {'format': 1, 'scope': 'selected-library-metadata', 'records': rows,
                    'sha256': hashlib.sha256(encoded).hexdigest()}
-        return LibraryCapture(library, asset, history, path, _stamp(before))
+        return LibraryCapture(library, asset, history, path, _stamp(before), library.retention_state(asset))

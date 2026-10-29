@@ -8,6 +8,7 @@ from orchestrator.project_media import ProjectMedia, _MediaIntake
 from orchestrator.project_media_history import capture
 from orchestrator.project_roots import ProjectLocationError
 from tests.test_project_media import setup
+from tests.waiting import HANG_S
 
 
 def source_library(tmp_path, asset):
@@ -97,8 +98,41 @@ def test_metadata_acceptance_holds_the_same_library_lock(tmp_path):
         with ThreadPoolExecutor(1) as pool:
             with selected.acceptance():
                 future=pool.submit(edit)
-                assert started.wait(5)
+                assert started.wait(HANG_S)
                 assert not done.is_set()
-            future.result(timeout=5)
+            future.result(timeout=HANG_S)
         assert done.is_set()
+    finally: locations.close()
+
+
+@pytest.mark.parametrize('change',['calibration','classification'])
+def test_failed_library_append_cannot_produce_a_mixed_history(tmp_path,monkeypatch,change):
+    locations,day,sid,stores,asset=setup(tmp_path)
+    try:
+        library,identity=source_library(tmp_path,asset)
+        def fail(line): raise OSError('simulated journal write failure')
+        with monkeypatch.context() as patch:
+            patch.setattr(library,'_append',fail)
+            with pytest.raises(OSError):
+                if change=='calibration': library.set_meta(identity,{'umPerPx':0.9})
+                else: library.looked(identity,'Plant tissue','new label',True,'test-model')
+        library.assets(fresh=True)
+        with pytest.raises(ProjectLocationError,match='retained history'):
+            ProjectMedia(stores).retain_library(sid,library,identity,request='failed-edit-001',
+                max_bytes=4096,producer={'actor':'user'})
+        assert stores.list(sid)==[]
+    finally: locations.close()
+
+
+def test_metadata_history_larger_than_producer_context_is_retained(tmp_path):
+    locations,day,sid,stores,asset=setup(tmp_path)
+    try:
+        library,identity=source_library(tmp_path,asset)
+        for n in range(80): library.set_meta(identity,{'notes':f'{n} '+('x'*590)})
+        media=ProjectMedia(stores)
+        ref=media.retain_library(sid,library,identity,request='long-history-001',
+                max_bytes=4096,producer={'actor':'user'})
+        metadata,_=media.read(ref)
+        assert len(json.dumps(metadata))>32768
+        assert len(metadata['libraryHistory']['records'])==83
     finally: locations.close()
