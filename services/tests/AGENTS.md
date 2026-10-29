@@ -645,3 +645,5 @@ model, Library collection or complete live Project portability.
 points and images, including relocation, prior saves, inactive-Project previews,
 writer ownership, corrupt archives and workspace completion recovery. It shares the
 population evidence resolver; full microscopy collection is a separate gate.
+
+The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
