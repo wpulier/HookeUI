@@ -429,6 +429,30 @@ def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
+SETTING_TOOLS = {"set_default", "use", "set_level", "set_lead", "set_research_cap", "set_objective"}
+NOTE_TOOLS = {"researcher_note", "researcher_followup"}
+
+
+def state_backed(call: Call, bench: dict) -> float | None:
+    """When the app's own state shows what a call that changes nothing on screen did (think-broad-2: "Researcher 2 got
+    the message", "Done." after set_default): a researcher's notes rising (/api/research), a setting changing (the
+    settings the studios are sent); other such calls by their result. None when the state the page saw never changed;
+    the call's end when the page kept no such state (runs from before it did)."""
+    after = call.start - NEAR_S
+    events = bench["events"]
+    if call.name in NOTE_TOOLS:
+        rows = [(e["t"], r) for e in events if e.get("e") == "researchers" for r in e.get("rows") or []
+                if r.get("source") == "api" and isinstance(r.get("notes"), int)]
+        if rows:
+            before = {r["rid"]: r["notes"] for t, r in rows if t < after}  # each researcher's notes before the call
+            return next((t for t, r in rows if t >= after and r["notes"] > before.get(r["rid"], 0)), None)
+    elif call.name in SETTING_TOOLS:
+        changes = [e for e in events if e.get("e") == "settings"]
+        if changes:
+            return next((e["t"] for e in changes if e["t"] >= after and not e.get("first") and e.get("changed")), None)
+    return call.end or call.start
+
+
 def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=(), own=(), others=()) -> list[dict]:
     """The voice's lines answering a step (what the judge numbers and the scorer reads, in the same order): the
     journal's, else the one brain's responses, without what it said on its own (events, reconnects). A think result
@@ -638,7 +662,13 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     # A claim is {"line": i, "words": "..."} (or just i): it was said when the page first showed its words.
     claims = (verdict or {}).get("claims_on_screen")
     if isinstance(claims, list):
-        confirmed = sorted(c.confirmed_at for c in calls if c.confirmed_at is not None)
+        confirmed = [c.confirmed_at for c in calls if c.confirmed_at is not None]
+        # A step whose tools change nothing on screen (a note to a researcher, a setting) has no studio report to wait
+        # for: its claim is backed by the call having succeeded before it.
+        if not any(c.screen_change for c in calls):
+            confirmed += [t for c in calls if c.ok is True and c.name not in POINTING and c.name not in (FALLBACK, THINK)
+                          and (t := state_backed(c, bench)) is not None]  # a hand-off may do anything: not by its ok
+        confirmed.sort()
         false = []
         for claim in claims:
             i, words = (claim.get("line"), claim.get("words")) if isinstance(claim, dict) else (claim, None)

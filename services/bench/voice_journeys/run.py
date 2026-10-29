@@ -127,14 +127,25 @@ def to_judge(out: Path, *, judge: bool, rejudge: bool = False) -> list[Path]:
     for folder in runs_in(out):
         kept = folder / "verdicts.json"
         verdicts = json.loads(kept.read_text()) if kept.exists() else None
-        if rejudge or verdicts is None or any(isinstance(v, dict) and v.get("error") for v in verdicts.values()):
+        if rejudge or verdicts is None or unjudged(folder):
             folders.append(folder)
     return folders
 
 
-def judged_steps(folder: Path) -> int:
+def unjudged(folder: Path, rejudge: bool = False) -> set:
+    """The steps of a run the judge must read: all when asked again or none kept, else those kept without an answer
+    (deleting a step's verdict from verdicts.json judges just that step again)."""
     bench = json.loads((folder / "bench.json").read_text())
-    return sum(1 for s in bench.get("steps") or [] if not s.get("setup") and s.get("kind") not in ("idle", "restart"))
+    ids = {s["id"] for s in bench.get("steps") or [] if not s.get("setup") and s.get("kind") not in ("idle", "restart")}
+    kept = folder / "verdicts.json"
+    verdicts = json.loads(kept.read_text()) if kept.exists() else None
+    if rejudge or verdicts is None:
+        return ids
+    return {i for i in ids if not isinstance(verdicts.get(i), dict) or verdicts[i].get("error")}
+
+
+def judged_steps(folder: Path, rejudge: bool = False) -> int:
+    return len(unjudged(folder, rejudge))
 
 
 def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = None, judge: bool = False,
@@ -161,7 +172,13 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
         if folder in pending and chosen is not None:
             from .judge import judge_run
 
-            verdicts = judge_run(bench, conv, inter, plan, checkout, name=chosen)
+            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge))
+            old = verdicts or {}
+            still = [k for k, v in old.items() if not k.startswith("_") and k not in fresh and isinstance(v, dict)
+                     and not v.get("error")]
+            if still and old.get("_judge") and old["_judge"] != chosen:  # a run judged by two judges says so
+                fresh["_judge"] = f"{old['_judge']} + {chosen}"
+            verdicts = {**old, **fresh}
             kept.write_text(json.dumps(verdicts, indent=1))
         from .judge import judged_by
 
@@ -240,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
         if judging:  # the judge's calls are paid: reserved first, refused when the budget refuses
             if not args.budget:
                 parser.error(f"{len(judging)} run(s) need the judge: pass --budget to reserve it, or --no-judge")
-            worst = round(sum(judged_steps(f) for f in judging) * COST_PER_STEP_USD, 2)
+            worst = round(sum(judged_steps(f, args.rejudge) for f in judging) * COST_PER_STEP_USD, 2)
             reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}")
         try:
             with judge_keys(args.keys):

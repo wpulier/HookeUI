@@ -1,6 +1,6 @@
 {
   "id": "part-2.5-second",
-  "about": "The Part 2.5 journey's second pass (docs/testing/part-2.5-journey.md): another order, other words and another voice, with one interruption (the talk key pressed while the voice is speaking), one tool that fails (a table that does not exist), one forced reconnect, and a switch to another Project while the researcher runs, then back. Its setup is the first pass's (run after it, on the same stack, or alone: the runner does the setup once per stack). Fields as in part-2.5.json; interrupt.afterMs = how long into the previous answer the key goes down; fault = injected before the step (MICROMIND_BENCH_FAULTS on the second stack only).",
+  "about": "The Part 2.5 journey's second pass (docs/testing/part-2.5-journey.md): another order, other words and another voice, with one interruption (the talk key pressed while the voice is speaking), one tool that fails (a table that does not exist), one forced reconnect, and a switch to another Project while the researcher runs, then back. Its setup is the first pass's (run after it, on the same stack, or alone: the runner does the setup once per stack). Fields as in part-2.5.json; interrupt.afterMs = how long after the previous answer's first audio the key goes down (it must still be speaking); fault = injected before the step (MICROMIND_BENCH_FAULTS on the second stack only).",
   "minMs": 6000,
   "quietMs": 4000,
   "voices": {"user": "Karen"},
@@ -28,7 +28,7 @@
                 "visible": "the largest nucleus marked or magnified", "marks": ["outline:", "member:", "frame", "panel:magnifier"]}},
     {"id": "how-measured", "kind": "ask", "say": "Talk me through how these were measured, in detail.",
      "expect": {"tools": ["resources", "read_result", "read_analysis", "outcomes", "recall"], "toolRequired": false}},
-    {"id": "just-the-count", "kind": "ask", "say": "Actually, just give me the count.", "interrupt": {"afterMs": 2500},
+    {"id": "just-the-count", "kind": "ask", "say": "Actually, just give me the count.", "interrupt": {"afterMs": 4500},
      "expect": {"tools": ["count", "query_population", "resources", "outcomes"], "toolRequired": false,
                 "judge": "stops the long answer and gives the count in one sentence"}},
     {"id": "numbers", "kind": "ask", "say": "Show me the numbers.",

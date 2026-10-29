@@ -14,6 +14,8 @@ import pytest
 from bench.voice_journeys import compare, run, stack
 from tests.test_voice_journeys_standard import PLAN, good
 
+NO_KEYS = Path(__file__).with_name("golden") / "__no_such_keys_file__"  # empty: no provider key, no paid judge
+
 BUDGET = """import json, sys
 from pathlib import Path
 calls = Path(__file__).with_name("calls.jsonl")
@@ -37,9 +39,15 @@ def calls(path: Path) -> list[list[str]]:
     return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
 
+def complete(judged: dict) -> dict:
+    """A verdict for every step of the synthetic run, as verdicts() writes them (a step without one is judged again)."""
+    return {sid: {"answered": True} for sid in ("outline", "table", "researcher", "status", "explain", "barge", "multi")} | judged
+
+
 def kept_run(out: Path, verdicts=True) -> None:
     """A run folder as run.py leaves it: the player's state, the judge's verdicts and the stack's logs."""
     bench, conv, inter, judged = good()
+    judged = complete(judged)
     (out / "run-1").mkdir(parents=True)
     (out / "run-1" / "bench.json").write_text(json.dumps(bench))
     if verdicts:
@@ -64,13 +72,13 @@ def test_worst_case_counts_spoken_steps_researchers_setup_and_judge():
 def test_a_paid_run_needs_a_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(run.stacks, "up", lambda *_: pytest.fail("started without a budget"))
     with pytest.raises(SystemExit) as stopped:
-        run.main(["--voice", "gpt-live-1", "--out", str(tmp_path / "out"), "--budget", ""])
+        run.main(["--keys", str(NO_KEYS), "--voice", "gpt-live-1", "--out", str(tmp_path / "out"), "--budget", ""])
     assert stopped.value.code == 2
 
 
 def test_gpt_live_has_no_hold_to_talk(tmp_path):
     with pytest.raises(SystemExit) as stopped:
-        run.main(["--voice", "gpt-live-1", "--talk", "hold", "--out", str(tmp_path / "out"), "--budget", "x"])
+        run.main(["--keys", str(NO_KEYS), "--voice", "gpt-live-1", "--talk", "hold", "--out", str(tmp_path / "out"), "--budget", "x"])
     assert stopped.value.code == 2
 
 
@@ -78,7 +86,7 @@ def test_a_refused_reservation_starts_nothing(tmp_path, monkeypatch):
     script, log = budget(tmp_path, limit=1.0)
     monkeypatch.setattr(run.stacks, "up", lambda *_: pytest.fail("started after the budget refused"))
     with pytest.raises(SystemExit) as stopped:
-        run.main(["--voice", "gpt-realtime-2.1", "--plan", "part-2.5", "--out", str(tmp_path / "out"), "--budget", script])
+        run.main(["--keys", str(NO_KEYS), "--voice", "gpt-realtime-2.1", "--plan", "part-2.5", "--out", str(tmp_path / "out"), "--budget", script])
     assert stopped.value.code == 3
     assert [c[0] for c in calls(log)] == ["reserve"]
 
@@ -102,7 +110,7 @@ def test_a_run_reserves_first_and_settles_from_what_the_stack_recorded(tmp_path,
         bench, conv, inter, judged = good()
         (out_ / name).mkdir(parents=True, exist_ok=True)
         (out_ / name / "bench.json").write_text(json.dumps(bench))
-        (out_ / name / "verdicts.json").write_text(json.dumps(judged))
+        (out_ / name / "verdicts.json").write_text(json.dumps(complete(judged)))
         logs = out_ / "home" / "logs"
         logs.mkdir(parents=True, exist_ok=True)
         (logs / "conversation.jsonl").write_text("\n".join(json.dumps(c) for c in conv))
@@ -112,7 +120,7 @@ def test_a_run_reserves_first_and_settles_from_what_the_stack_recorded(tmp_path,
     monkeypatch.setattr(run, "spent", lambda port, inter: 1.25)
     plan_file = tmp_path / "plan.json"
     plan_file.write_text(json.dumps({**PLAN, "id": "synthetic", "steps": PLAN["steps"]}))
-    code = run.main(["--voice", "gpt-realtime-2.1", "--plan", str(plan_file), "--out", str(out), "--budget", script,
+    code = run.main(["--keys", str(NO_KEYS), "--voice", "gpt-realtime-2.1", "--plan", str(plan_file), "--out", str(out), "--budget", script,
                      "--reps", "1"])
     assert code == 0  # the synthetic run meets the standard
     assert seen[0][:4] == ("up", "gpt-realtime-2.1", "hold", True)
@@ -131,7 +139,7 @@ def test_a_run_that_fails_settles_at_the_worst_case(tmp_path, monkeypatch):
     monkeypatch.setattr(run.stacks, "up", lambda a: {"ok": False})
     monkeypatch.setattr(run.stacks, "down", lambda a: None)
     with pytest.raises(SystemExit):
-        run.main(["--voice", "gpt-live-1", "--plan", "smoke", "--out", str(tmp_path / "out"), "--budget", script])
+        run.main(["--keys", str(NO_KEYS), "--voice", "gpt-live-1", "--plan", "smoke", "--out", str(tmp_path / "out"), "--budget", script])
     reserve, settle = calls(log)
     assert settle[:3] == ["settle", "res-1", reserve[2]] and "worst case" in settle[3:]
 
@@ -142,7 +150,7 @@ def test_score_only_rescores_kept_runs_without_starting_anything(tmp_path, monke
     plan_file = tmp_path / "plan.json"
     plan_file.write_text(json.dumps({**PLAN, "id": "synthetic"}))
     monkeypatch.setattr(run.stacks, "up", lambda *_: pytest.fail("score-only started a stack"))
-    assert run.main(["--score-only", "--plan", str(plan_file), "--out", str(out)]) == 0
+    assert run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)]) == 0
     result = json.loads((out / "result.json").read_text())
     assert result["meets"] and result["about"]["audioFrom"] == "in the page"
     assert "Standard met: yes" in (out / "scoreboard.md").read_text()
@@ -381,8 +389,8 @@ def test_a_rescore_judges_again_only_what_the_judge_could_not_answer_and_says_wh
     plan_file = tmp_path / "plan.json"
     plan_file.write_text(json.dumps(plan))
     with pytest.raises(SystemExit):  # judging is paid: no budget, no judge
-        run.main(["--score-only", "--plan", str(plan_file), "--out", str(out)])
-    run.main(["--score-only", "--plan", str(plan_file), "--out", str(out), "--budget", script])
+        run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out), "--budget", script])
     kept = json.loads((out / "run-1" / "verdicts.json").read_text())
     assert kept["_judge"] == "claude-opus-5-5" and kept["outline"]["partner_quality"] == 3
     result = json.loads((out / "result.json").read_text())
@@ -390,7 +398,7 @@ def test_a_rescore_judges_again_only_what_the_judge_could_not_answer_and_says_wh
     assert "Judged by claude-opus-5-5" in (out / "scoreboard.md").read_text()
     assert [c[0] for c in calls(log)] == ["reserve", "settle"]
     fake.prompts.clear()
-    run.main(["--score-only", "--plan", str(plan_file), "--out", str(out)])  # kept and answered: nothing judged, no budget
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])  # kept and answered: nothing judged, no budget
     assert fake.prompts == []
 
 
@@ -416,3 +424,41 @@ def test_the_run_test_then_the_golden_test_pass_in_one_process(tmp_path):
                            "tests/test_golden.py::test_prompts_and_wires_are_unchanged"],
                           cwd=services, capture_output=True, text=True, timeout=280)
     assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-2000:]
+
+
+def test_the_judge_is_told_when_the_user_interrupted_an_answer_on_purpose():
+    """think-broad-2: the long answer cut by the plan's barge-in was judged "not answered: cuts off"."""
+    import asyncio
+
+    from bench.voice_journeys.judge import verdicts
+
+    bench, conv, inter, _ = good()
+    model = FakeJudge(data={"answered": True})
+    asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
+    explain = next(p for p in model.prompts if 'The user said: "explain"' in p)
+    assert "interrupted this answer on purpose about 2.4 s in" in explain  # the barge step's key-down, 44.0 - 41.6
+    assert all("interrupted this answer" not in p for p in model.prompts if p is not explain)
+
+
+def test_only_the_steps_without_an_answer_are_judged_again(tmp_path, monkeypatch):
+    """Delete one step's verdict (or let the judge fail on it): only that step is judged again, and a run whose steps
+    two judges read says both."""
+    out = tmp_path / "out"
+    kept_run(out)
+    kept = json.loads((out / "run-1" / "verdicts.json").read_text())
+    del kept["explain"]
+    (out / "run-1" / "verdicts.json").write_text(json.dumps({**kept, "_judge": "gpt-6.1-sol"}))
+    from bench.voice_journeys import judge
+
+    fake = FakeJudge(data={"answered": True, "partner_quality": 2})
+    monkeypatch.setattr(judge, "choose", lambda name="auto", tried=None: ("gemini-3.8-flash", fake))
+    monkeypatch.setattr(judge, "achoose", lambda name="auto", tried=None: _async(("gemini-3.8-flash", fake)))
+    assert run.judged_steps(out / "run-1") == 1
+    script, log = budget(tmp_path, limit=100.0)
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps({**PLAN, "id": "synthetic"}))
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out), "--budget", script])
+    assert len(fake.prompts) == 1 and 'The user said: "explain"' in fake.prompts[0]
+    after = json.loads((out / "run-1" / "verdicts.json").read_text())
+    assert after["_judge"] == "gpt-6.1-sol + gemini-3.8-flash" and after["explain"]["partner_quality"] == 2
+    assert calls(log)[0][2] == f"{1 * judge.COST_PER_STEP_USD:.2f}"  # one step's worst case reserved

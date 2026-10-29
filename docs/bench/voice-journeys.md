@@ -150,7 +150,7 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Right tool first | The first acting call in the step is in `expect.tools`. Every step. |
 | `do_in_hooke` share | The fallback hand-off ("no tool for this") over the one brain's own acting calls. Under 5%. GPT-Live has none: not applicable. |
 | `think` share (reported) | `think`, the frontier mind behind the voice, is the intended route for hard and multi-step work, not a fallback: it is the right tool on the first-try line wherever a step lists it, and the wrong one where it does not (a quick step such as "switch back to the main tab"). Its share is reported by kind of step, with the steps that used it where not expected, never capped. A think call returns at once; its task (`partner-think`, with the frontier mind's own tool calls inside) is done at `doneT`, confirmed on screen when one of those calls was, and its result, said later (`partner-think-said`, then a `think` response), is the asking step's outcome wherever it falls. |
-| False "done" | The judge names each claim that something is on screen or done, with its words. It is false when the page showed those words before any studio confirmation (0.3 s race allowed). 0. Without the judge: not measured. |
+| False "done" | The judge names each claim that something is on screen or done, with its words. It is false when the page showed those words before any studio confirmation (0.3 s race allowed). In a step whose tools change nothing on screen (a note to a researcher, a setting), no studio report can come: there the claim is backed by the app's own state (the researcher's notes rising in `/api/research`, a setting changing in what the studios are sent), else, for runs without that state, by the call's success. A hand-off (`think`, `do_in_hooke`) never backs a claim by its own success. 0. Without the judge: not measured. |
 | One researcher | Researchers the orchestrator lists as created in the step (else the successful `start_researcher` calls) equal `expect.researchers`; ≤ 2 s from release to its creation. |
 | Status | The researcher numbers said ("researcher 2", "researcher two") are exactly the one the plan's researcher step started (its number from the orchestrator, else its card's "Researcher N"). When that step started none, the status step is not checked (that failure is counted once, there). |
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
@@ -172,6 +172,11 @@ is kept with each run's verdicts (`_judge`), shown on the scoreboard ("Judged by
 judge passed over and why. `compare.py` warns when runs were judged by different judges: the judged lines are not
 comparable then. A re-score judges again only runs with no verdicts or with a step the judge could not answer
 (`--rejudge` for all); that is paid, so it needs `--budget` and reserves the judged steps' worst case first.
+
+**A planned interruption.** The key goes down `interrupt.afterMs` (4.5 s) after the previous answer's first audio,
+while it still speaks. The judge is told the cut was the user's on purpose: the cut answer is judged on what it said
+before it, and stopping at once and giving what was asked next are judged on the interrupting request. A re-score
+judges again only the steps without an answer: delete one step's verdict from `verdicts.json` to judge just that step.
 
 **Overall: partner quality.** The judge also gives every step a `partner_quality` from 0 to 3: did the reply feel like a
 sharp, dynamic colleague? That means specific to what is on screen and in the Project, pointing at what it talks about,
