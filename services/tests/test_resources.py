@@ -524,3 +524,30 @@ def test_http_read_badge_accepts_digest_verified_immutable_result_without_intege
     entries = client.get('/api/resources').json()['entries']
     entry = next(row for row in entries if row['id'] == result['id'])
     assert [read['at'] for read in entry['readBy']] == [10]
+
+
+def test_retained_image_comparison_identity_survives_resource_reopen(tmp_path):
+    from types import SimpleNamespace
+    from orchestrator.capture import Capture
+    from orchestrator.evidence import evidence_of
+    from tests.test_evidence import population
+    built = app_at(tmp_path).state.app
+    store = evidence_of(built.hub)
+    import hashlib
+    native = cv2.imencode('.png', np.full((120, 160), 120, np.uint8))[1].tobytes()
+    image = {'asset': 'fixture-a', 'session': built.day.sid, 'sha256': hashlib.sha256(native).hexdigest(),
+             'pixelSha256': 'b'*64, 'width': 160, 'height': 120, 'channels': 1,
+             'dtype': 'uint8', 'axes': 'YX', 'units': 'pixels'}
+    p = population(store, Capture(-2, jpeg(), SimpleNamespace(width=160, height=120), native=native, source_image=image), thread=built.day.active_id)
+    p.day, p.session = built.day.day, built.day.sid
+    p.view['sourceImage'] = image
+    store.add(p)
+    key = built.hub.resources.get(p.id).source['comparisonInput']
+    assert key
+    # The historical resource reader resolves the saved manifest, not the current capture counter.
+    from tests.test_evidence import saved
+    store.schedule_save(p)
+    saved(p)
+    assert p.status == "saved", p.status_why
+    historical = built.hub.resources._historical_capture(p.id, built.day.sid)
+    assert historical[0].source['comparisonInput'] == key

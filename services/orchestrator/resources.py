@@ -24,6 +24,8 @@ and files, read-only.
 """
 from __future__ import annotations
 
+from .retained_input import comparison_input_key
+
 import hashlib
 import copy
 import heapq
@@ -1547,6 +1549,7 @@ class Index:
             float(view.get('at') or record.get('madeAt') or 0),state='saved',thread=record.get('thread'),
             version=record.get('revision',0) if population else None,
             source={'frame':record.get('capture'),'seq':view.get('seq'),'boot':view.get('boot') or None,
+                    **({'comparisonInput': comparison_input_key(record.get('capture'), view)} if population else {}),
                     **({'sourceImage': view['sourceImage']} if view.get('sourceImage') else {})},
             media='raw' if view.get('sourceImage') else None,
             pictures=[f'/api/resources/{eid}/picture?day={day}'],values=values,
@@ -2028,6 +2031,7 @@ class Index:
                 made_by={k: v for k, v in (p.made_by or {}).items() if k in ("operation", "implementation", "policy", "origin", "execution", "for", "actor")},
                 run=single_run([(p.made_by or {}).get("execution")]),
                 source={"frame": p.capture_id, "seq": p.view.get("seq"), "boot": p.view.get("boot") or None,
+                        "comparisonInput": comparison_input_key(p.capture_id, p.view),
                         **({"sourceImage": p.view["sourceImage"]} if p.view.get("sourceImage") else {})},
                 media="raw" if p.view.get("sourceImage") else None,
                 pictures=[f"/api/resources/{p.id}/picture?day={day}"], date=p.day,

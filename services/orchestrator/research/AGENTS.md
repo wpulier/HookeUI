@@ -1,5 +1,9 @@
 # Researchers
 
+Retained capture digests exclude the derived `source.comparisonInput` UI hint, including
+legacy whole-document receipts. Original source, pixel, revision and measurement facts
+remain checked; adding comparison discovery metadata cannot invalidate older findings.
+
 Part of the working context the root `AGENTS.md` maps. "Above" and "below" may mean parts it lists in
 other files.
 

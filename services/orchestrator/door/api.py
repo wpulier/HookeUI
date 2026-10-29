@@ -83,8 +83,9 @@ async def listing(built) -> list[dict]:
     from .listing import describe_all, gather
     gathered = gather(built)
     from .project_actions import descriptors
+    from .studies import descriptors as study_descriptors
     build = build_identity()
-    return await asyncio.to_thread(describe_all, gathered, build) + descriptors(build)
+    return await asyncio.to_thread(describe_all, gathered, build) + descriptors(build) + study_descriptors(build)
 
 
 async def _listed(built) -> list[dict]:
@@ -284,9 +285,8 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 from .. import agent_runnable
                 if not agent_runnable.door_resource('workflow.write'):
                     raise Refused(403, 'action-not-admitted', 'Workflow admission is unavailable.', next='discover available tools')
-                if (not {'study', 'session', 'workflow', 'revision', 'inputs'} <= set(args)
-                        or set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings'}):
-                    raise ValueError('A workflow operation needs its Study, Project, frozen definition and exact inputs')
+                from .schema import check
+                check(args, 'workflow-admission')
                 access(built).require(args['session'], c.actor, write=True)
                 access(built).require_workflow(args['session'], args['workflow'])
                 record, made = await service(built).start_workflow(**args, request=key, actor=c.actor, label=c.label)

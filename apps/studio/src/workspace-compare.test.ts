@@ -2,12 +2,12 @@
 import {afterEach,expect,test,vi} from 'vitest';
 import {comparisonCandidates,zoomComparison,publishComparisonTable,CompareDrawQueue} from './workspace-compare';
 const saved={resource:{day:'p',id:'e1',version:4,picture:null},title:'Original',zoom:1,pan:[.5,.5]};
-const entry={kind:'population',day:'p',id:'e1',version:4,title:'Original',source:{frame:10,seq:3,boot:'one'},madeBy:{implementation:'segment-a'}};
+const entry={kind:'population',day:'p',id:'e1',version:4,title:'Original',source:{frame:10,seq:3,boot:'one',comparisonInput:'input-one'},madeBy:{implementation:'segment-a'}};
 test('comparison choices retain exact source revision/producer and exclude other captures or Projects',()=>{
- const rows=[entry,{...entry,id:'e2',version:2,madeBy:{implementation:'segment-b'}},{...entry,id:'e3',source:{...entry.source,boot:'two'}},{...entry,id:'e4',day:'q'},{...entry,id:'e5',source:{...entry.source,seq:4}},{...entry,id:'e6',madeBy:{}},{...entry,id:'e7',state:'unavailable'}];
+ const rows=[entry,{...entry,id:'e2',version:2,madeBy:{implementation:'segment-b'}},{...entry,id:'e3',source:{...entry.source,boot:'two',comparisonInput:'input-two'}},{...entry,id:'e4',day:'q'},{...entry,id:'e5',source:{...entry.source,seq:4,comparisonInput:'input-three'}},{...entry,id:'e6',madeBy:{}},{...entry,id:'e7',state:'unavailable'}];
  expect(comparisonCandidates(rows,saved)).toEqual([
- {resource:saved.resource,title:'Original',implementation:'segment-a',capture:10},
- {resource:{day:'p',id:'e2',version:2,picture:null},title:'Original',implementation:'segment-b',capture:10}]);
+ {resource:saved.resource,title:'Original',implementation:'segment-a',inputKey:'input-one'},
+ {resource:{day:'p',id:'e2',version:2,picture:null},title:'Original',implementation:'segment-b',inputKey:'input-one'}]);
  expect(()=>comparisonCandidates(rows,{...saved,resource:{...saved.resource,version:3}})).toThrow('revision');
 });
 test('synchronized zoom retains the selected image coordinate and bounded aspect ratio',()=>{
@@ -39,4 +39,12 @@ test('comparison redraw keeps one latest viewport per frame and cancels old owne
  callbacks.get(1)!(0);expect(draw).toHaveBeenCalledExactlyOnceWith(source,{x:3,y:4,width:50,height:40});
  queue.push(source,{x:9,y:8,width:20,height:16});const late=callbacks.get(2)!;queue.cancel();late(0);
  expect(cancel).toHaveBeenCalledWith(2);expect(draw).toHaveBeenCalledOnce();expect(queue.pending(source)).toBeNull();
+});
+
+test('saved input identity admits independently captured results and refuses colliding frame numbers',()=>{
+ const rows=[entry,{...entry,id:'e2',source:{...entry.source,frame:-3}},
+ {...entry,id:'e3',source:{frame:10,comparisonInput:'other-image'}},
+ {...entry,id:'e4',source:{frame:10}}];
+ expect(comparisonCandidates(rows,saved).map(c=>c.resource.id)).toEqual(['e1','e2']);
+ expect(()=>comparisonCandidates([{...entry,source:{frame:10}}],saved)).toThrow('unavailable');
 });

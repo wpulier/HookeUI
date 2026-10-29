@@ -1098,3 +1098,9 @@ the scientific worker retains its memory guard.
 
 Scientific matrix worker failure notes put the final exception before their bounded traceback tail, so the
 workflow's compact retained note preserves an actionable cause. Full worker logs are not claimed as retained.
+
+Retained comparison input identity comes from `retained_input.comparison_input_key`, shared by
+resource discovery and comparison-table validation. Imported images use their exact source descriptor,
+including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.
+Camera results require capture, sequence, boot and process run. Unknown source identity refuses comparison.
+Existing table snapshots remain readable; new publication/update revalidates inputs without rewriting evidence.

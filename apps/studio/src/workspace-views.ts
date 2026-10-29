@@ -1117,7 +1117,7 @@ private revision=0;private generation=0;private revealSequence=0;
  async createComparison(selections:import('./workspace-compare').CompareSelection[],owner=this.tabOwner()):Promise<void>{
   if(!this.ownsTabChoice(owner)||this.busy())throw new Error('Return to the original Project before comparing.');
   if(selections.length<2||selections.length>3||new Set(selections.map(s=>s.resource.id)).size!==selections.length||
-   selections.some(s=>s.resource.day!==owner.session||!s.capture||s.capture!==selections[0].capture))throw new Error('Choose two or three retained results from the same captured input.');
+   selections.some(s=>s.resource.day!==owner.session||!s.inputKey||s.inputKey!==selections[0].inputKey))throw new Error('Choose two or three retained results from the same captured input.');
   const blocked=studyArtifacts().blockReason(this.session);if(blocked)throw new Error(blocked);
   const id=await this.addView('Compare methods',false);
   if(!id||!this.ownsTabChoice(owner)||this.busy())throw new Error('The comparison Tab could not be created. Check its saved arrangement.');
