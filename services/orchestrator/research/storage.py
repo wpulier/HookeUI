@@ -75,8 +75,15 @@ class ResearchStorage:
 
     def records(self, date, session=None):
         for owner, root in self.roots(session):
-            parent = self._directory(root / date) if owner else root / date
-            for path in sorted(parent.glob('*/session.json')):
+            scope = (owner or session or '', date, '')
+            try:
+                parent = self._directory(root / date) if owner else root / date
+                paths = sorted(parent.glob('*/session.json'))
+                self.unavailable.pop(scope, None)
+            except (OSError, ValueError) as error:
+                self.unavailable[scope] = str(error)
+                continue
+            for path in paths:
                 key = (owner or session or '', date, path.parent.name)
                 if owner:
                     try:

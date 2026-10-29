@@ -892,9 +892,10 @@ class ResearchManager:
             if (session.renumbered or interrupted_jobs) and not self.storage.portable(session.sitting):
                 self._save(session)  # a number given once (an old duplicate) is kept from now on
             self.sessions[session.rid] = session
-        self._loaded.add(sid)
         self._top[sid] = max([self._top.get(sid, 0)] + [s.n for s in self.sessions.values() if s.sitting == sid]
                              + self._numbers_on_disk(sid))
+        if not any(key[0] == sid for key in self.storage.unavailable):
+            self._loaded.add(sid)
 
     def _dates_of(self, sid: str) -> list[str]:
         """The calendar dates a session touched, whose folders hold its researchers: the store's for the one open
@@ -1175,9 +1176,10 @@ class ResearchManager:
         if current is not None and current.day == date:
             candidates.append(current)
         self.storage.check_identities(candidates)
+        if any((not scope_day or scope_day == date) and (not scope_rid or scope_rid == rid)
+               for _, scope_day, scope_rid in self.storage.unavailable):
+            raise ProjectLocationError("This unscoped research identity is unavailable; inspect its Project diagnostics")
         if not candidates:
-            if any(key[1:] == (date, rid) for key in self.storage.unavailable):
-                raise ProjectLocationError("This retained researcher is unavailable; inspect its Project diagnostics")
             return self.root  # compatible historical files without a session record
         return self.directory(candidates[0]).parent.parent
 

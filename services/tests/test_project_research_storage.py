@@ -207,11 +207,56 @@ def test_offline_project_and_pending_peer_do_not_hide_healthy_research(tmp_path)
         reader=ResearchManager(FakeHub(),root=manager.root,today=lambda:DATE,session=lambda:DATE,store=day)
         reader._load_session(sid)
         assert reader.get(good.rid).result==good.result
-        assert reader.file_root(DATE,good.rid)==manager.directory(good).parent.parent
+        # The legacy URL has no Project identity: an offline origin could contain
+        # the same researcher ID. Scoped records remain readable, but do not guess
+        # an unscoped file's owner while that ambiguity is unresolved.
+        with pytest.raises(ProjectLocationError,match='unavailable'): reader.file_root(DATE,good.rid)
         unavailable=reader.list_wire()['unavailable']
         assert any(row['session']==offline_sid for row in unavailable)
         assert any(row['rid']==bad.rid for row in unavailable)
         with pytest.raises(ProjectLocationError,match='unavailable'): reader.file_root(DATE,bad.rid)
+    finally: locations.close()
+
+
+def test_pending_recovery_reloads_without_restarting_manager(tmp_path):
+    locations, day, sid, manager = setup(tmp_path)
+    try:
+        good=session(sid); manager._save(good)
+        pending=session(sid,'r999'); manager._save(pending)
+        marker=manager.directory(pending)/'.publication-pending'; marker.write_text('incomplete')
+        manager._loaded.discard(sid)
+        manager._load_session(sid)
+        assert manager.get(good.rid) is not None and manager.get(pending.rid) is None
+        assert sid not in manager._loaded
+        marker.unlink()  # simulated explicit recovery, not automatic replay
+        manager._load_session(sid)
+        assert manager.get(pending.rid) is not None and sid in manager._loaded
+    finally: locations.close()
+
+
+def test_pending_collision_refuses_healthy_foreign_file(tmp_path):
+    locations, day, sid, manager = setup(tmp_path)
+    try:
+        first=session(sid); manager._save(first)
+        (manager.directory(first)/'.publication-pending').write_text('incomplete')
+        other_sid=day.new('Other Project'); other=session(other_sid); manager._save(other)
+        with pytest.raises(ProjectLocationError,match='unavailable'): manager.file_root(DATE,first.rid)
+    finally: locations.close()
+
+
+def test_replaced_date_does_not_hide_healthy_scoped_records(tmp_path):
+    locations, day, sid, manager=setup(tmp_path)
+    try:
+        good=session(sid); manager._save(good)
+        other_sid=day.new('Other Project'); other=session(other_sid,'r999'); manager._save(other)
+        assert len(manager.read_day(DATE,False))==2
+        parent=manager.directory(other).parent
+        parent.rename(parent.with_name('preserved-date')); parent.mkdir()
+        found=manager.read_day(DATE,False)
+        assert [item.rid for item in found]==[good.rid]
+        assert any(row['session']==other_sid and row['day']==DATE and not row['rid']
+                   for row in manager.storage.diagnostics())
+        assert manager.storage.read(manager.directory(good)/'session.json')['rid']==good.rid
     finally: locations.close()
 
 
