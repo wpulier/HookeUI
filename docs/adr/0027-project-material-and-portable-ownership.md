@@ -159,3 +159,7 @@ If final directory syncing and restoration of the pending marker both fail, all
 readers in that host hide the uncertain snapshot. That fallback is process-local;
 recovery across host loss in this double-failure case is not qualified. It remains
 an explicit gate before live activation or complete-portability claims.
+
+### Staged volume and registration storage
+
+Volume copies, inspections, job outputs and previous metadata states route through the captured owner. Existing registration state and output-acceptance semantics remain authoritative. Equal local job IDs are scoped by Project for cancellation and publication visibility. Host installations remain external dependencies. This adapter alone does not qualify collection, imported execution recovery or live portable activation.

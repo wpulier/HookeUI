@@ -328,3 +328,5 @@ accepted measurements. Legacy tracks keep their current layout.
 Opt-in portable bookmarks resolve the captured Project before decoding and again before publication. Records and their pictures are retained under artifacts/bookmarks; reads and Record capture use that same owner after a UI switch. Pictures carry their retained digest. Legacy bookmark paths remain unchanged.
 
 Staged portable snapshots retain annotated and clean images under their captured Project. The index resolves the same owner after relocation. Publication retains a pending marker until durable completion; incomplete captures are never accepted results. Library/source reassociation remains unqualified and live portable activation stays off.
+
+Staged portable volume storage retains metadata snapshots before replacements. These are history, not independently accepted findings. Restart reconciliation only changes jobs in writable owner Projects; another host’s lease leaves its running records untouched. Complete collection and live App activation remain unqualified.

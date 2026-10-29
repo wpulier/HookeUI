@@ -49,6 +49,9 @@ from gpu_worker import manifests as catalog
 from gpu_worker import model_files
 
 from . import envs, job_outputs, jobs
+from .project_registration_files import RegistrationFiles
+from .project_roots import ProjectLocationError
+from .scientific_projects import InvalidProject
 
 ENTRY = "brainreg"  # the job entry a volume is registered with (catalog/models/brainreg)
 ATLAS = "allen-mouse-25um"
@@ -128,18 +131,19 @@ class Registrations:
                  said: Callable[[dict], None] = lambda record: None) -> None:
         self.root = Path(root) if root is not None else None
         self.store = store  # the session store (day/store.py)
+        self.files = RegistrationFiles(self.root, store) if self.root is not None else None
         self.today = today or (lambda: time.strftime("%Y-%m-%d"))
         self.said = said  # told of every change of a job's state (App: Activity, the studio), from any thread
         self.post: Callable[[Callable[[], None]], None] = lambda fn: fn()  # to the event loop (App.start sets it)
         self._lock = threading.Lock()
         self._given: dict[str, int] = {"v": 0, "j": 0}
-        self._stop: dict[str, bool] = {}
-        self._threads: dict[str, threading.Thread] = {}
+        self._stop: dict[tuple[str, str], bool] = {}
+        self._threads: dict[tuple[str, str], threading.Thread] = {}
         self._stopping = False  # the app is stopping: a job it ends is interrupted, not cancelled
         # Readers see the prior state until publication is accepted. Rejected terminal metadata stays for this
         # process: a concurrent reader may already hold provisional done bytes even after disk correction finishes.
         # No image/volume bytes are retained. A failure that cannot be saved explicitly says so in its record.
-        self._settling: dict[tuple[str, str], dict] = {}
+        self._settling: dict[tuple[str, str, str], dict] = {}
 
     # --- where things are -------------------------------------------------------------------------------------------
     def running(self) -> bool:
@@ -153,13 +157,13 @@ class Registrations:
     def _new_id(self, prefix: str, session: str) -> tuple[str, Path]:
         from .day.ids import next_number, owner
 
-        folder = self.root / self.today()
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = self.files.date_folder(session, self.today(), write=True)
         used = [int(m.group(1)) for p in folder.glob(f"{prefix}*") if (m := re.fullmatch(prefix + r"(\d+)", p.name))]
         self._given[prefix] = next_number(owner(self.store, session), prefix, max([self._given[prefix], *used]), folder.name)
         rid = f"{prefix}{self._given[prefix]}"
         d = folder / rid
         d.mkdir()
+        self.files.folder({'session': session, 'date': folder.name, 'id': rid})
         return rid, d
 
     def records(self, prefix: str, session: str | None = None, dates=None) -> list[dict]:
@@ -167,20 +171,22 @@ class Registrations:
         if self.root is None:
             return []
         session = session or self.session()
-        dates = list(dates) if dates is not None else (sorted(p.name for p in self.root.iterdir() if p.is_dir())
-                                                        if self.root.is_dir() else [])
+        root = self.files.root_for(session)
+        dates = list(dates) if dates is not None else (sorted(p.name for p in root.iterdir() if p.is_dir() and re.fullmatch(r'\d{4}-\d{2}-\d{2}', p.name))
+                                                        if root.is_dir() else [])
         out = []
         for date in dates:
-            for d in sorted((self.root / date).glob(f"{prefix}*")) if (self.root / date).is_dir() else ():
+            folder = self.files.date_folder(session, date)
+            for d in sorted(folder.glob(f"{prefix}*")) if folder.is_dir() else ():
                 try:
-                    record = json.loads((d / "record.json").read_text())
+                    record = self.files.read(session, date, d.name)
                 except (OSError, ValueError):
                     continue
                 if record.get("session") == session:
                     out.append(record)
-        visible = {(r["date"], r["id"]): r for r in out}
+        visible = {(r["session"], r["date"], r["id"]): r for r in out}
         for key, record in self._settling.copy().items():
-            if record.get("session") == session and record["id"].startswith(prefix) and key[0] in dates:
+            if record.get("session") == session and record["id"].startswith(prefix) and key[1] in dates:
                 visible[key] = copy.deepcopy(record)
         return list(visible.values())
 
@@ -188,10 +194,10 @@ class Registrations:
         return next((r for r in self.records(rid[0], session) if r.get("id") == rid), None)
 
     def folder(self, record: dict) -> Path:
-        return self.root / record["date"] / record["id"]
+        return self.files.folder(record)
 
     def _write(self, record: dict, check: Callable[[], None] = lambda: None) -> dict:
-        _atomic(self.folder(record) / "record.json", json.dumps(record, indent=1).encode(), check)
+        self.files.write(record, check, _atomic)
         return record
 
     def _journal(self, kind: str, record: dict) -> None:
@@ -412,7 +418,7 @@ class Registrations:
                 self._write(record)
                 self._journal("job", record)
                 self.said(record)
-                request = {"input": str(self.root / volume["date"] / vid / volume["file"]),
+                request = {"input": str(self.folder(volume) / volume["file"]),
                            "series": facts["series"]["value"] or 0, "channel": facts["channel"]["value"],
                            "time": facts["time"]["value"], "voxel_um": facts["voxel_um"]["value"],
                            "orientation": facts["orientation"]["value"], "free_cpus": 2,
@@ -484,7 +490,7 @@ class Registrations:
                 self._write(record)
                 self._journal("job", record)
                 self.said(record)
-                request = {"input": str(self.root / volume["date"] / vid / volume["file"]),
+                request = {"input": str(self.folder(volume) / volume["file"]),
                            "series": facts["series"]["value"] or 0, "channel": facts["channel"]["value"],
                            "time": facts["time"]["value"], "voxel_um": facts["voxel_um"]["value"],
                            "orientation": facts["orientation"]["value"], "operation": i.operation}
@@ -506,19 +512,20 @@ class Registrations:
         owner = generation_leases.use(installed.folder)
         owner.__enter__()
         jid = record["id"]
+        key = record["session"], jid
         def run():
             try:
                 self._run(record, request, installed)
             finally:
                 owner.__exit__(None, None, None)
-        self._stop[jid] = False
+        self._stop[key] = False
         thread_ = threading.Thread(target=run, name=f"job-{jid}", daemon=True)
-        self._threads[jid] = thread_
+        self._threads[key] = thread_
         try:
             thread_.start()
         except BaseException:
-            self._threads.pop(jid, None)
-            self._stop.pop(jid, None)
+            self._threads.pop(key, None)
+            self._stop.pop(key, None)
             owner.__exit__(None, None, None)
             raise
 
@@ -560,20 +567,20 @@ class Registrations:
         from .thumbnails import background_priority
 
         background_priority()  # never takes the live view's time
-        d = self.folder(record)
         record.update(state="running", started=round(time.time(), 3))
         t0 = time.monotonic()
         bound = None
         try:
+            d = self.files.folder(record, write=True)
             # This caller owns preparation through durable acceptance. jobs.run inherits the same original
             # deadline/cancellation; returning from the adapter does not begin a fresh publication allowance.
-            with jobs.job_bound(installed.m, stop=lambda: self._stop.get(record["id"], False)) as bound:
+            with jobs.job_bound(installed.m, stop=lambda: self._stop.get((record["session"], record["id"]), False)) as bound:
                 self._write(record)
                 self.said(record)
                 accept = ({"accept": lambda result, files: jobs.accept_kind(installed.m, result, files)}
                           if record.get("kindOf") else {})
                 result = jobs.run(installed.m, request, d / "out", folder=installed.folder, entry=installed.entry,
-                                  stop=lambda: self._stop.get(record["id"], False),
+                                  stop=lambda: self._stop.get((record["session"], record["id"]), False),
                                   started=lambda pid: (record.update(pid=pid), self._write(record)), **accept)
                 outputs = _outputs(result, "out")
                 if record.get("kindOf"):
@@ -584,7 +591,7 @@ class Registrations:
                                    says=result.get("says", ""), picture=result.get("picture"))
         except jobs.Cancelled:
             outcome = {"state": "cancelled"}
-        except (jobs.Failed, job_outputs.Invalid, OSError) as exc:
+        except (jobs.Failed, job_outputs.Invalid, ProjectLocationError, InvalidProject, OSError) as exc:
             outcome = dict(state="failed", error=str(exc))
         try:
             record["resources"] = json.loads(self._read_output(record, "out/resources.json", max_bytes=1 << 20))
@@ -598,23 +605,23 @@ class Registrations:
         Readers retain running while terminal bytes are staged/replaced and checked against the original bound.
         Cancel/stop serialize with this transition; async callers perform all these waits on a worker thread.
         """
-        key = record["date"], record["id"]
+        key = record["session"], record["date"], record["id"]
         with self._lock:
             self._settling[key] = dict(record)
-            if self._stop.get(record["id"], False) or outcome["state"] == "cancelled":
+            if self._stop.get((record["session"], record["id"]), False) or outcome["state"] == "cancelled":
                 outcome = self._cancelled()
             final = self._terminal(record, outcome, started)
             try:
                 if final["state"] != "done":
                     self._failed_resources(final)
                 self._write(final, bound.check if final["state"] == "done" else lambda: None)
-            except (jobs.Failed, OSError) as exc:
+            except (jobs.Failed, job_outputs.Invalid, ProjectLocationError, InvalidProject, OSError) as exc:
                 outcome = self._cancelled() if isinstance(exc, jobs.Cancelled) else dict(state="failed", error=str(exc))
                 final = self._terminal(record, outcome, started)
                 self._failed_resources(final)
                 try:
                     self._write(final)  # one best-effort failure record; never retry scientific publication
-                except OSError as storage:
+                except (job_outputs.Invalid, ProjectLocationError, InvalidProject, OSError) as storage:
                     final["persistence"] = {
                         "saved": False, "error": str(storage),
                         "warning": "The terminal outcome could not be saved. It is visible only in this app process; "
@@ -627,7 +634,7 @@ class Registrations:
                 self._settling[key] = copy.deepcopy(final)
             else:
                 self._settling.pop(key, None)
-            self._stop.pop(record["id"], None)
+            self._stop.pop((record["session"], record["id"]), None)
         self.said(record)
 
     def _cancelled(self):
@@ -645,9 +652,9 @@ class Registrations:
 
     def _failed_resources(self, final):
         try:
-            with job_outputs.Folder(self.folder(final) / "out") as files:
+            with job_outputs.Folder(self.files.folder(final, write=True) / "out") as files:
                 files.write("resources.json", json.dumps(final["resources"], indent=1).encode())
-        except (job_outputs.Invalid, OSError) as exc:
+        except (job_outputs.Invalid, ProjectLocationError, OSError) as exc:
             final["resources"]["persistenceError"] = str(exc)
 
     def _regions(self, record: dict, output: dict | None) -> list[dict]:
@@ -670,7 +677,8 @@ class Registrations:
                 raise CantDo(f"there is no job {jid} in this session")
             if record["state"] not in ("queued", "running"):
                 raise CantDo(f"{jid} is {record['state']}, not running")
-            self._stop[jid] = True
+            self.files.root_for(record["session"], write=True)
+            self._stop[(record["session"], jid)] = True
             return record
 
     def again(self, jid: str, *, by: str = "you", session: str | None = None) -> dict:
@@ -690,7 +698,7 @@ class Registrations:
         if volume is None:
             changed.append(f"its volume {record['volume']['id']} is no longer in this session")
         else:
-            path = self.root / volume["date"] / volume["id"] / volume["file"]
+            path = self.folder(volume) / volume["file"]
             if not path.is_file() or _sha256(path) != record["volume"]["sha256"]:
                 changed.append(f"{record['volume']['name']}'s file is not the one it ran on (its sha256 differs)")
         if record.get("kindOf"):
@@ -772,25 +780,22 @@ class Registrations:
     def interrupted(self) -> list[dict]:
         """At start: a job that was running when the app stopped is interrupted, said, never resumed by itself."""
         out = []
-        if self.root is None or not self.root.is_dir():
+        if self.files is None:
             return out
-        for path in self.root.glob("*/j*/record.json"):
-            try:
-                record = json.loads(path.read_text())
-            except (OSError, ValueError):
-                continue
+        for record in self.files.recoverable_jobs():
             if record.get("state") in ("queued", "running"):
+                self.files.root_for(record["session"], write=True)
                 pid = record.pop("pid", None)
-                if pid and jobs.ours(pid, path.parent):  # the app ended without stopping it (a crash): it ends now
+                if pid and jobs.ours(pid, self.folder(record)):
                     jobs.end(pid)
                 record.update(state="interrupted", says=INTERRUPTED)
-                _atomic(path, json.dumps(record, indent=1).encode())
+                self._write(record)
                 out.append(record)
         return out
 
     def _read_output(self, record, name, *, expected=None, max_bytes=None):
         # Anchor at the store: date/id/out (or inspect) are walked without following directory aliases too.
-        with job_outputs.Folder(self.root) as folder:
+        with job_outputs.Folder(self.files.root_for(record["session"])) as folder:
             return folder.read(f"{record['date']}/{record['id']}/{name}", expected=expected, max_bytes=max_bytes)
 
     def picture(self, rid: str, session: str | None = None, *, max_bytes: int | None = None) -> bytes | None:
