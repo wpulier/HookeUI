@@ -87,3 +87,20 @@ gone, or a capability with no parts fails the test. Each family says in a line w
   runner (an explicit choice, raw, origin `headless`) and result store, and checks that the output is what the
   capability declares. An implementation whose adapter runs in its own process (Fiji, python-env:
   `kinds.Backend.own_process`) needs no GPU worker to be available.
+
+## The agent contract's Project view: `project-state`
+
+`contract/agent/` holds the shared JSON schemas every door answer is checked against (`door/schema.py`, which lists them
+in `NAMES` and needs no dependency, so the hosted side can use the same files). `project-state.schema.json` is
+`project.state`, version `project-state/1` (its `contract` field; a change that is not additive is a new version): the
+Project as every reader sees it, built by `orchestrator/project_state.py` and described in
+`docs/architecture/session-index.md`. It is a scoped, read-only projection, never a store or an instruction source:
+the Project's identity (`project-reference`) and each source's revision, `observedAt` with an explicit consistency
+statement (the reads are not atomic), data items each with an exact reference (kind, id, revision, a Project document's
+digest), its source and whether its words are trusted, and its maker, in pages with a cursor bound to the revisions;
+researchers running first, then finished, then stopped (labelled); Studies; agents' operations; the saved Tabs; the
+app's model choices (only for the Project open now); and the studio's state, `unavailable` when no studio reports this
+Project, never empty. The door checks every `project.state` answer against it before returning it; `project.read`'s
+output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
+contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed
+cache.

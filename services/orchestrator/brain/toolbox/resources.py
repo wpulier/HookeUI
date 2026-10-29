@@ -121,7 +121,16 @@ def add_resource_tools(registry: Registry, services) -> None:
         if args.get("inspect"):
             raise ToolFailed("inspection requires an exact saved resource ID", next="read resources to resolve it first")
         if not kind and not query:
-            return await asyncio.to_thread(index.summary_text)
+            # "What data do we have?": the Project's one view (project_state.py), the Assistant reading as its owner:
+            # each table, measurement, outline layer, import, researcher's findings and Study result with its exact
+            # reference, source and maker, not a count and the newest of each kind.
+            from ... import project_state
+
+            sid = index.session()  # the Project open now, pinned before any await
+            state = await project_state.state_of(hub).read(sid, project_state.OWNER)
+            could = await asyncio.to_thread(index.could_make)
+            require_current(ctx, services.day)
+            return project_state.text(state, could)
         found = await asyncio.to_thread(index.list, kind, None, query)
         thread = str(args.get("thread") or "")
         if thread:

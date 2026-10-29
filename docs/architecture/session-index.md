@@ -13,10 +13,12 @@ other files.
   - the scale's calibrations, datasets and recordings.
 - **It reads each store where it is,** and never copies it.
 - **Every reader reads it the same way:**
-  - the brain, through the `resources` tool (`what data do we have?` gets the summary; `id=` gets one entry in full);
+  - the brain, through the `resources` tool (`what data do we have?` gets the Project's one view, below; `id=` gets one
+    entry in full);
   - researchers, through their read-only `session` tool, at `/for-researchers/api/resources…` (`server.main` sets
     `ResearchManager.resources_url` to it): the same entries as they read before ticket 66, with no Data fields, and a
-    researcher's sources, tables, charts and other work only when it asks for that kind;
+    researcher's sources, tables, charts and other work only when it asks for that kind. Its `summary` also carries
+    `project`: the first 12 data items, the researchers and the Studies of the one view;
   - the studio and programs, through `GET /api/resources`, `/summary`, `/{id}`, `/{id}/picture` and `/{id}/masks.npz`.
   - Made in this session's cards, through `/{id}/thumbnail` (`orchestrator/thumbnails.py`): every product's small picture,
     made from what it keeps (cell outlines on their captured view with the cells drawn, motion with its tracks, a
@@ -24,6 +26,44 @@ other files.
     time on a background-priority thread (ffmpeg as a background process), kept in memory only by the version the
     studio asks for; none (the kind's icon) when there is nothing to make one from. A source's (a Record video, a
     snapshot, a clearer picture) is the library's, `GET /api/library/{id}/thumbnail`.
+- **The Project's one view: `project.state`** (`orchestrator/project_state.py`; its contract is
+  `contract/agent/project-state.schema.json`, `contract/AGENTS.md`). Project context lived in four places (the journal,
+  this index, the scientific ProjectStore with its Studies, the studio's own storage) and was read three ways; on
+  28 Oct the Assistant answered "only the original image, no measurements" beside a measurements table and three
+  researchers' findings, and called the running Researcher 3 cancelled. Every reader now shares one projection:
+  - **What it is:** a scoped, read-only projection of existing records, never a store. It reads this index (one pass:
+    `Index.one_pass`), the researchers (`Index.researchers_of`), each Study through `research/efforts.summary` (the read
+    under `Studies.list`, from the index's own scan of the ProjectStore; `Studies.read` is not used, as it can settle
+    receipts), the door's operations (in memory; the door's own reads are not listed as work), the saved Tab arrangement
+    (`workspace_layout`, read, never migrated) and the studio's latest report. Nothing is written and nothing is kept on
+    disk; it is never an instruction source.
+  - **What it carries:** the Project's identity (as `project.read` names it) and the revision of each source it was built
+    from; `observedAt` and a consistency statement (the reads are not atomic); data, newest first, each item with its
+    exact reference (kind, id, revision; a Project document's digest), category (table, measurement, outline layer,
+    import, researcher's findings, Study result, workflow result, analysis, note, other), source store and whether its
+    words are trusted, its maker (`resources.maker_of`, "not recorded" when the record cannot tell) and model; a page
+    of at most 50 with a cursor bound to the revisions (a changed Project refuses an old cursor: pages never mix two
+    states); researchers in one order, `project_state.ordered` (running first with its step, then finished, then
+    stopped, labelled "stopped before it finished; not running"; newest first in each); Studies; agents' operations;
+    the saved Tabs; the app's model choices (role -> model, from `options.Settings`, only for the Project open now:
+    never inferred for another); and the studio's state.
+  - **The studio's state** comes only from its latest report (`screen.latest`): the Tab open, the windows of this
+    Project and the one in front (`screen.frontmost`). With no studio reporting it is `unavailable` ("no-studio"),
+    never empty; a studio showing another Project, or a report that does not say which, is `unavailable` too, and the
+    other Project is never named.
+  - **Permissions first, then the cache:** the in-app Assistant, the studio and the app's researchers read as the owner
+    (`project_state.OWNER`); an outside agent reads by the door's registry (`door/projects.py`: creator or an explicit
+    grant), checked before anything is read. The cache is one entry per actor and Project, keyed on every source's
+    revision and the role, so no owner's projection is served to a contributor, and a revoked grant is refused while
+    its projection is still cached. The revisions are read from the stores on every call (several change in memory
+    without a write), so the cache saves the projection's building, never a read.
+  - **Untrusted facts are kept, labelled:** a researcher's, an imported file's or an agent's words stay in the
+    projection with `source.trusted: false`; the brain's text puts them only inside one `untrusted.block`.
+  - **Readers:** the brain's `resources` with no id, kind or query (`project_state.text`: each item's line, the
+    researchers, Studies, agents' work and the studio, then what could be made); `research_status` with no researcher
+    (the running one first, else the one last spoken of in the conversation: the newest turn filed about it, `refs.rid`;
+    then the rest in the one order); the voice roster (`brain/context.py` `_roster`, the first 4 in the one order, so a
+    stopped researcher is last or left out); the researchers' `session` summary; the door's `project.state`.
 - **Pulled, never pushed into a prompt.** Entries lead with a plain title ("Motion · 18:10"); the id is one step away.
   The brain's `resources` tool lists, and its summary counts, every kind but a researcher's sources, tables, charts,
   lessons, videos and pictures (`produces.ASKED_FOR_ONLY`): those are many entries of the researcher's own words, so

@@ -839,11 +839,23 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
                             headers={"Cache-Control": "no-store"})
         return resources
 
-    def _summary():
+    def _summary(researcher: bool):
         async def resources_summary(day: str | None = None) -> JSONResponse:
             if not _day_ok(day):
                 return JSONResponse({"error": "day is a session id"}, status_code=400)
             summary = await asyncio.to_thread(built.hub.resources.summary, day)
+            if researcher:
+                # A researcher's summary also names the Project's data, its researchers and its Studies, as every reader
+                # sees them (project_state.py; the app's own researcher reads as the owner, in its own session only).
+                from . import project_state
+
+                try:
+                    state = await project_state.state_of(built.hub).read(day or built.hub.resources.session(),
+                                                                         project_state.OWNER, limit=12)
+                    summary["project"] = {k: state[k] for k in ("project", "observedAt", "consistency", "data",
+                                                                "researchers", "studies", "untrusted")}
+                except (project_state.NoProject, ValueError) as exc:
+                    summary["project"] = {"unavailable": str(exc)}
             return JSONResponse(summary, headers={"Cache-Control": "no-store"})
         return resources_summary
 
@@ -860,7 +872,7 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     RESEARCHER_VIEW = "/for-researchers"
     for prefix, researcher in (("", False), (RESEARCHER_VIEW, True)):
         app.add_api_route(f"{prefix}/api/resources", _listing(researcher), methods=["GET"])
-        app.add_api_route(f"{prefix}/api/resources/summary", _summary(), methods=["GET"])
+        app.add_api_route(f"{prefix}/api/resources/summary", _summary(researcher), methods=["GET"])
         app.add_api_route(f"{prefix}/api/resources/{{eid}}", _resource(researcher), methods=["GET"])
 
     async def _read_resource(eid: str, day: str | None, offset: int | None, revision: str | None,

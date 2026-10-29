@@ -139,6 +139,7 @@ DOOR_RESOURCES = {
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
     'project.read': 'reads the exact authorized Project and retained corpus index',
+    'project.state': 'reads the authorized Project as every reader sees it: data with exact references, researchers, Studies, the studio',
     'project.import': 'retains one explicitly supplied local file in an authorized Project',
     'artifact.read': 'reads an exact authorized retained revision, with bounded source text',
     'study.read': 'reads questions, results, failures and original authors in an authorized Project',
