@@ -9,7 +9,13 @@ import type { StudyResource } from './workspace-study-model';
 import { kindWords, matchesSearch } from './workspace-data-card';
 import { daysAgo, monthDay } from './sessions';
 
-export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other';
+export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' | 'files' | 'model' | 'study' | 'history';
+export interface ProjectMaterial {
+  kind: string; origin: 'imported' | 'generated' | 'authored' | 'unknown'; input: boolean;
+  section: DataRole; category: string; record: boolean; run?: string;
+  uses?: {study: string; revision: number; digest: string}[];
+  format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
+}
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
 export interface DataMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent'; id?: string; name: string }
 /** A write-up's form, newest first (S4): its presentation ("Presentation") and each findings version ("Findings v2"). */
@@ -18,6 +24,7 @@ export interface DataForm { label: string; version?: number; outputId?: string; 
 export interface SourceValues { url?: string; site?: string; title?: string; authors?: string; licence?: string; credit?: string; picture?: string }
 /** An index entry with Data's fields (the wire contract of ticket 66); every one is optional, so an older index reads. */
 export interface DataEntry extends StudyResource {
+  material?: ProjectMaterial;
   role?: DataRole | null;
   maker?: DataMaker | null;
   run?: string | null;
@@ -29,12 +36,12 @@ export interface DataEntry extends StudyResource {
 
 /** Data's sections, in order (the words Data shows). */
 export const ROLE_SECTIONS: readonly (readonly [DataRole, string])[] = [
-  ['acquired', 'Pictures and recordings'], ['analysis', 'Analyses'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['other', 'Other'],
+  ['acquired', 'Pictures and recordings'], ['files', 'Files and folders'], ['model', 'Models'], ['analysis', 'Analyses'], ['study', 'Studies'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['history', 'Workflow history'], ['other', 'Files'],
 ];
 
 /** A section's heading as Data shows it ("Write-ups"): Help and every message that points into Data say it this way. */
 export function sectionWords(role: DataRole): string {
-  return ROLE_SECTIONS.find(([r]) => r === role)?.[1] ?? 'Other';
+  return ROLE_SECTIONS.find(([r]) => r === role)?.[1] ?? 'Files';
 }
 
 /** The section an entry is listed in: the server's role (S1), or null for a kind Data does not list. An index from before
@@ -66,6 +73,7 @@ export interface DataRow {
 /** Which of a run's entries its row opens: its outlines before its table, a table before an answer. */
 const OPENS_FIRST = ['population', 'named-outline', 'individual', 'tracks', 'dataset-table', 'analysis', 'graph', 'finding-table', 'finding-chart'];
 function opensFirst(entry: DataEntry): number {
+  if (entry.material?.kind === 'workflow' && !entry.material.run) return -1;
   const at = OPENS_FIRST.indexOf(entry.kind);
   if (at >= 0) return at;
   return entry.kind === 'result' && entry.table === true ? OPENS_FIRST.length : OPENS_FIRST.length + 1;
@@ -285,7 +293,7 @@ export const seenKey = (entry: { id: string; version?: number | null }) => `${en
 /** The keys a row is seen by: each of its parts. An input and a source are never marked New, nor counted on Data's
  * badge (a researcher reads many sources; the inputs are yours). */
 export function rowSeenKeys(row: DataRow): string[] {
-  if (row.role === 'source' || !row.entry || row.entry.kind === 'asset') return [];
+  if (row.role === 'history' || row.entry?.material?.origin === 'imported' || row.role === 'source' || !row.entry || row.entry.kind === 'asset') return [];
   return row.parts.map(seenKey);
 }
 export function rowIsNew(row: DataRow, seen: ReadonlySet<string>): boolean {

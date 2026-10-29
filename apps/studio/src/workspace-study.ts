@@ -1,3 +1,4 @@
+import { projectInputs, materialFacts } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -1459,6 +1460,7 @@ function importScientificSource(): void {
 /** Inputs (the drawer): the live camera and this Project's pictures and recordings as rows of the shared anatomy
  * (workspace-feel step 4), each opening its preview; ⋯ holds Open in Tab and its Results. The ways to bring an input in
  * are the drawer header's ⋯ (`inputsMore`), as Data's header has them. */
+let inputQuery = '';
 function renderInputs(): void {
   const owner=workspaceViews.tabOwner();
   const list=el('div','study-specimens');
@@ -1477,9 +1479,31 @@ function renderInputs(): void {
     wrap.classList.add('study-input');row.classList.toggle('active',asset.id===snapshot.onStage);if(asset.id===snapshot.onStage)row.setAttribute('aria-current','true');
     list.append(wrap);
   }
-  drawerBody.append(list);
-  if (!snapshot.sources.length) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No pictures or videos in this Project yet. Scientific files and saved results are in Data. Use the Inputs menu to import material, or try the guided microscopy example.'));
+  const material = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+  const controls = el('div', 'project-input-controls');
+  const search = el('input', 'mm-control'); search.type = 'search'; search.placeholder = 'Search Project material';
+  search.setAttribute('aria-label', 'Search Project material'); search.value = inputQuery;
+  const materialList = el('div', 'project-input-material');
+  const drawMaterial = () => {
+    materialList.replaceChildren();
+    const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+    for (const entry of selected) {
+      const actions = entryActions(entry);
+      const open = () => { if (!inputOwnerCurrent(owner)) return;
+        if (entry.material?.kind === 'assignment') void openStudy(entry.id);
+        else actions.open(); };
+      const {wrap} = dataRow(el('span', 'mm-row-icon', entry.material?.kind === 'assignment' ? '◇' : '▤'),
+        entry.title, materialFacts(entry), 'Preview retained material', open,
+        () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
+      materialList.append(wrap);
+    }
+    if (inputQuery && !selected.length) materialList.append(el('p', 'study-muted', 'No matching material.'));
+  };
+  search.addEventListener('input', () => { inputQuery = search.value; drawMaterial(); });
+  controls.append(button('Add material', () => { if (inputOwnerCurrent(owner)) importScientificSource(); }, 'study-primary'), search);
+  drawerBody.append(controls, materialList, list); drawMaterial();
+  if (!snapshot.sources.length && !material.length && !inputQuery) {
+    const empty=el('div','mm-drawer-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
     empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
     empty.append(example);drawerBody.append(empty);
@@ -1492,7 +1516,7 @@ function refreshLiveCameraStatus(): void {
   // Green only while the camera is truly live (the Tab row's specimen control says so), never for "live" with no picture.
   const card = liveCameraStatus.closest<HTMLElement>('.study-live-card');
   if (card) card.dataset.camera = String(document.getElementById('source')?.dataset.state === 'live');
-  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen · pictures and videos only' : status;
+  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen' : status;
   if (liveCameraStatus.textContent !== text) liveCameraStatus.textContent = text;
 }
 function showPreview(asset: AssetMeta,owner=workspaceViews.tabOwner()): void {
@@ -1580,6 +1604,7 @@ async function refreshResults(): Promise<void> {
     resultsFailed = false;
     madeMemo.clear();
     if (dataOpen) renderResults();
+    if (drawerOpen && section === 'inputs') { drawerBody.replaceChildren(); renderInputs(); }
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
   } catch (error) { if (dataOpen && generation === refreshGeneration) { resultsFailed = true; dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults())); } }
@@ -1648,7 +1673,7 @@ function dataRowView(row:DataRow):DataRowView{
 /** One kept thing's open (in the reader), ⋯, tooltip and drag. */
 function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:string;drag:(wrap:HTMLElement)=>void}{
     // A row opens on the right of the Tab you are on, in the reader (ticket 66): nothing moves you to another Tab.
-    const open=()=>openInReader(entry as ReaderEntry);
+    const open=()=>{ if (entry.material?.kind === 'assignment') void openStudy(entry.id); else openInReader(entry as ReaderEntry); };
     const places=workspaceViews.places(entry.id,entry.version??0),source=sourceOf(entry),owner=workspaceViews.tabOwner();
     // Its maker by display name (the model's one name, a researcher's name), never a raw key.
     const maker=madeByWords(entry,entry.kind==='research'?bridge.researchers().find(item=>item.rid===entry.id)?.name??null:null,

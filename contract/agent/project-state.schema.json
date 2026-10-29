@@ -112,6 +112,7 @@
       "additionalProperties": false,
       "properties": {
         "ref": {"$ref": "#/$defs/ref"},
+        "material": {"$ref": "project-material.schema.json"},
         "category": {"enum": ["table", "measurement", "outline-layer", "import", "finding", "study-result", "workflow",
                               "analysis", "note", "other"]},
         "title": {"type": "string"},

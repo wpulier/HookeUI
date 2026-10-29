@@ -1,0 +1,17 @@
+/** Inputs is a view of the shared inventory, never a second membership store. */
+import type { DataEntry } from './data-roles';
+
+export function projectInputs(entries: readonly DataEntry[], query = ''): DataEntry[] {
+  const needle = query.trim().toLocaleLowerCase();
+  return entries.filter(entry => entry.material?.input && (!needle ||
+    [entry.title, entry.summary, entry.material.kind, entry.material.format].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle)));
+}
+
+export function materialFacts(entry: DataEntry): string {
+  const material = entry.material;
+  if (!material) return '';
+  const size = material.bytes === undefined ? '' : material.bytes < 1024 ? `${material.bytes} B` :
+    material.bytes < 1024 ** 2 ? `${(material.bytes / 1024).toFixed(1)} KB` : `${(material.bytes / 1024 ** 2).toFixed(1)} MB`;
+  return [material.kind === 'assignment' ? 'Study assignment' : material.kind === 'folder' ? 'Folder' : 'File',
+    material.format, material.shape?.join(' × '), size, `Revision ${entry.version ?? 1}`].filter(Boolean).join(' · ');
+}
