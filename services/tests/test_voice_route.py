@@ -334,3 +334,52 @@ def test_every_talk_session_shares_the_brains_record_of_what_was_said(monkeypatc
     assert [kw.get("said") for kw in made] == [said, said]
     assert all(getattr(s, "requests", None) is not None for s in FakeSession.made[-2:])
     assert all(getattr(s, "spoken", None) is None for s in FakeSession.made[-2:])
+
+
+def test_every_one_brain_talk_session_is_handed_the_brains_one_bus(monkeypatch):
+    """Step 4b: the one brain's results owed until heard live on the brain's one bus (events.bus_of), not on a Talk
+    session, so a result still owed when Talk ends (or one landing after) is said by the next session."""
+    from orchestrator.brain.narrator import Said
+    from orchestrator.voice.events import Bus
+
+    made = []
+
+    class Realtime(FakeSession):
+        def __init__(self, config, talk="hold", **kw):
+            super().__init__(config, link="webrtc")
+            self.talk = talk
+            made.append(kw)
+
+        def seed_brief(self, text, revision):
+            pass
+
+    class FakePartner:
+        def __init__(self, hub, brain, dialogue, **kw):
+            self.tools = SimpleNamespace(specs=lambda: [])
+            self.lines = SimpleNamespace(close=lambda: None, voice=None)
+
+        def bind(self, session):
+            self.session = session
+
+        async def brief(self):
+            return "Project Leaf", "rev-1"
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(route, "RealtimeSession", Realtime)
+    monkeypatch.setattr(route, "Partner", FakePartner)
+    monkeypatch.setattr(route, "partner_prompt", lambda brain: "prompt", raising=False)
+    said = Said()
+    brain = SimpleNamespace(agent=SimpleNamespace(log=lambda r: None), voice=None, voice_notes=[], sight=None, said=said,
+                            voice_recap=lambda: "", moment=lambda: None, registry=SimpleNamespace(tools={}))
+    app = FastAPI()
+    route.add_voice_route(app, SimpleNamespace(settings=Settings(), latest_info=None), brain, dialogue=None)
+    for _ in range(2):
+        with TestClient(app).websocket_connect("/ws/voice?model=gpt-realtime-2.1&link=webrtc",
+                                               headers={"origin": "http://127.0.0.1:8770"}) as ws:
+            ws.send_text(json.dumps({"type": "offer", "sdp": "v=0 offer"}))
+            assert json.loads(ws.receive_text())["kind"] == "answer"
+    assert len(made) == 2 and isinstance(made[0]["bus"], Bus)
+    assert made[0]["bus"] is made[1]["bus"] is brain.partner_bus, "one bus for every Talk session"
+    assert made[0]["said"] is made[1]["said"] is said

@@ -3,6 +3,7 @@ spec, section 4.5), against the fake sideband of test_voice_partner."""
 import asyncio
 import json
 import time
+from types import SimpleNamespace
 
 from orchestrator.brain.narrator import Line, Narrator, Said
 from orchestrator.voice import events, openai_realtime
@@ -322,3 +323,68 @@ def test_the_bus_routes_kinds_folds_the_same_thing_and_forgets_what_is_stale():
     now[0] += events.STALE_S + 1
     dropped = [e for e, _ in bus.prune()]
     assert view in dropped and view.state == "dropped" and bus.result_for("j1").state == "pending"
+
+
+# --- the brain's one bus, across Talk sessions (step 4b) -----------------------------------------------------------
+def test_a_result_that_lands_after_talk_ended_is_said_by_the_next_session_on_the_brains_bus():
+    """A think job keeps working when Talk ends; its result lands on the session that started it, closed now. On the
+    brain's one bus (events.bus_of) it is still owed, and the next Talk session words and says it, once."""
+    from orchestrator.voice.events import bus_of
+
+    async def go():
+        brain = SimpleNamespace()
+        first, sb1, _ = await session_on(bus_of(brain))
+        await first.close()
+        await first.deliver("t1", facts={"done": True, "say": "Two size groups."}, say="Two size groups.", points=[],
+                            receipt="verified")
+        event = bus_of(brain).result_for("t1")
+        assert event is not None and event.state == "pending", "owed on the brain's bus, not lost with the session"
+        second, sb2, _ = await session_on(bus_of(brain))
+        prep = await until_async(lambda: next((r for r in creates(sb2) if r.get("conversation") == "none"), None))
+        assert "Two size groups." in given(prep) and "receipt is verified" in given(prep)
+        sb2.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "It found two size groups."})
+        await done(sb2, "resp_1")
+        said = await until_async(lambda: next((r for r in creates(sb2) if r["metadata"]["cause"] == "think"), None))
+        assert "It found two size groups." in given(said)
+        assert not creates(sb1), "the session that ended says nothing"
+        await second.close()
+    asyncio.run(go())
+
+
+def test_a_results_words_follow_its_receipt_and_never_say_done_unless_verified(monkeypatch):
+    """deliver: a background result's receipt (hands.py) goes with its facts; its wording is told how to say it, and
+    if the voice's own wording does not come back, the receipt's words are said, never "done"."""
+    monkeypatch.setattr(openai_realtime, "PREP_WAIT_S", 0.2)
+
+    async def go():
+        session, sb, _ = await session_on()
+        await session.deliver("photo-1", facts={"tool": "reference_photo", "result": "uncertain"},
+                              say="The picture was found, but the studio is not showing it.", points=[],
+                              what="reference_photo", receipt="uncertain")
+        prep = await until_async(lambda: next((r for r in creates(sb) if r.get("conversation") == "none"), None))
+        assert openai_realtime.RECEIPT_RULES["uncertain"] in prep["instructions"]
+        assert "never say it is done" in prep["instructions"]
+        await done(sb, "resp_1")  # no words came back in time
+        said = await until_async(lambda: next((r for r in creates(sb) if r["metadata"]["cause"] == "think"), None))
+        assert "the studio is not showing it" in given(said) and "done" not in given(said).split("in your own voice:")[1]
+        await session.close()
+    asyncio.run(go())
+
+
+def test_a_result_retired_after_two_cuts_is_one_activity_line(monkeypatch):
+    """session.on_retired (Partner.retired): the result is not said a third time, and one Activity line says so, so the
+    user can find it and ask."""
+    from orchestrator.voice.partner import Partner
+    from tests.test_voice_partner import partner_session
+
+    async def go():
+        t = await partner_session(monkeypatch)
+        lines = []
+        monkeypatch.setattr("orchestrator.activity.activity", lambda hub, kind, text, **kw: lines.append((kind, text, kw)))
+        assert t.session.on_retired == t.partner.retired
+        event, _ = t.session.bus.publish("job-result", '{"done": true}', ref="t9")
+        Partner.retired(t.partner, event)
+        assert len(lines) == 1 and lines[0][0] == "command" and lines[0][1].startswith("Assistant: not said again")
+        assert "a task's result" in lines[0][1] and lines[0][2]["details"]["ids"]["ref"] == "t9"
+        assert any(r.get("kind") == "partner-retired" for r in t.logged)
+    asyncio.run(go())

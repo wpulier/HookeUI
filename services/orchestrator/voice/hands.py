@@ -169,6 +169,8 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         aid = _target_of(args.get("asset"))
         return Intent("open", tool, args, target="panel:live", caption="Putting it on stage", check="record",
                       ids=[aid] if aid else [])
+    if tool == "reference_photo" and args.get("show") is False:  # the lookup alone: kept with the Project, no window
+        return Intent("make", tool, args, caption="Finding a picture", ui=False, check="record")
     if tool == "reference_photo":  # long work that ends in a window: checked in the report when it lands
         return Intent("open", tool, args, target="panel:workspace", caption="Finding a picture", check="record",
                       background=True)

@@ -7,9 +7,10 @@ the Project open (each kept line knows its Project: `Activity.project_of`):
   when the partner needs them ("what did I just do?", "what ran on this?", "close that" after the user's own click);
   each line with its receipt when it is one of the partner's own actions (verified, failed, uncertain, running);
 - **the user's own actions as silent context** (`UserActions`): a line the user made by hand (a click, a studio
-  command, a researcher started from the panel) is told to the voice as context, coalesced (one note for a burst),
-  never spoken, with the ids of what it touched (`outline:o3`, `window:w-2`, `researcher:4`), which also go into the
-  pointing history Hands resolves "that one" from. On by default; `MICROMIND_PARTNER_USER_EVENTS=0` turns it off.
+  command, a researcher started from the panel) is published on the voice's bus as a `user-action` event as it is
+  filed, with the ids of what it touched (`outline:o3`, `window:w-2`, `researcher:4`), which also go into the pointing
+  history Hands resolves "that one" from. The bus coalesces a burst into one note (its `user-action` kind, events.py)
+  and never speaks it. On by default; `MICROMIND_PARTNER_USER_EVENTS=0` turns it off.
 """
 from __future__ import annotations
 
@@ -21,7 +22,6 @@ import time
 from typing import Any, Awaitable, Callable
 
 READ_MAX = 20  # lines one read returns
-COALESCE_S = 1.2  # the user's actions within this of each other are one note
 KINDS = ("request", "click", "command", "setting", "model", "research")
 ASSISTANT = "Assistant:"  # the partner's own actions (hands.py) are not the user's
 PARTNER_CHANNEL = "voice"  # a researcher the partner started; any other was started by the user (the panel, a Study)
@@ -116,17 +116,15 @@ def targets_of(line: dict, researcher: Any = None) -> list[str]:
 
 
 class UserActions:
-    """The user's own actions, coalesced, told to the voice as silent context (never spoken), with their ids; each one's
-    ids also go to `point` (Hands' pointing history), newest first."""
+    """The user's own actions, each told to the voice as silent context as it is filed (`tell`: the bus, which
+    coalesces a burst), with their ids; each one's ids also go to `point` (Hands' pointing history), newest first."""
 
     def __init__(self, tell: Callable[[str], Awaitable[None]], *, sink=None, point: Callable[[list[str]], None] | None = None,
-                 researcher: Callable[[str], Any] | None = None, project: Callable[[], str | None] | None = None,
-                 clock: Callable[[], float] = time.monotonic) -> None:
-        self.tell, self.clock = tell, clock
+                 researcher: Callable[[str], Any] | None = None, project: Callable[[], str | None] | None = None) -> None:
+        self.tell = tell
         self.sink, self.point, self.researcher, self.project = sink, point, researcher, project
-        self.pending: list[str] = []
         self.seen: set[str] = set()
-        self._flush: asyncio.Task | None = None
+        self._told: set[asyncio.Task] = set()
 
     @staticmethod
     def enabled() -> bool:
@@ -166,14 +164,9 @@ class UserActions:
         text = str(line.get("text") or "")[:200]
         if session is not None:
             text = f"{text} (they started it)"
-        self.pending.append(text + (f" [{', '.join(targets)}]" if targets else ""))
-        if self._flush is None or self._flush.done():
-            with contextlib.suppress(RuntimeError):
-                self._flush = asyncio.get_running_loop().create_task(self._later())
-
-    async def _later(self) -> None:
-        await asyncio.sleep(COALESCE_S)
-        lines, self.pending = self.pending[-6:], []
-        if lines:
-            await self.tell("The user, by hand, just now (context only, not their words; say nothing about it unless "
-                            "asked; the ids in brackets are what each touched): " + "; ".join(lines))
+        note = ("The user, by hand (not their words; say nothing about it unless asked): " + text
+                + (f" [touched: {', '.join(targets)}]" if targets else ""))
+        with contextlib.suppress(RuntimeError):  # no running loop: nothing to tell it on
+            task = asyncio.get_running_loop().create_task(self.tell(note))
+            self._told.add(task)
+            task.add_done_callback(self._told.discard)

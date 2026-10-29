@@ -335,3 +335,14 @@ class Bus:
                 e.asking = False
         self.owner = owner
         return cut
+
+
+def bus_of(keeper) -> Bus:
+    """The one bus kept on `keeper` (the brain), made on first use. Each Talk session is handed it, so what is owed is
+    still owed when Talk is pressed again, and a result that lands after a session ended is said by the next."""
+    found = getattr(keeper, "partner_bus", None)
+    if not isinstance(found, Bus):
+        found = Bus()
+        with contextlib.suppress(AttributeError):
+            keeper.partner_bus = found
+    return found

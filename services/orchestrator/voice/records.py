@@ -8,7 +8,7 @@ compared with what was asked, never the tool's words or the model's:
 | cancel_researcher | the record says cancelled; until then `running` ("cancelling"), never "cancelled" before it does |
 | researcher_note, researcher_followup, revise_work | recorded on that researcher (its notes, its kept question, its new run) |
 | run_capability, workflow | the run's record exists: running, then done with what it saved, or failed with its reason |
-| set_default, set_research_cap | the setting reads back changed |
+| set_default, set_research_cap | the setting reads back changed, or already reads what was asked ("already the default") |
 | use | the choice is on this request's later steps only; nothing has been done with it yet |
 | new_project, switch_session | the Project open is a new one and the studio shows it; "already in" and "nothing opened" are not done |
 | add_asset | the Project's stage holds that asset |
@@ -147,7 +147,7 @@ class Records:
         if tool == "workflow":
             return self._workflow(result, run)
         if intent.kind == "setting":
-            return self._setting(before)
+            return self._setting(intent, before)
         if tool == "use":
             return {"result": "verified" if ok else "running",
                     "said": "Chosen for this request only (not from now on): the steps after it in this turn use it; "
@@ -319,14 +319,23 @@ class Records:
         return {"result": "uncertain", "error": f"the workflow run is {status}",
                 "said": f"Not sure how the workflow run ended: it is {status}."}
 
-    def _setting(self, before: dict) -> dict:
+    def _setting(self, intent, before: dict) -> dict:
         from .. import activity
 
         was, now = before.get("settings") or {}, self._settings()
         changed = [(k, was.get(k), v) for k, v in now.items() if k in was and was[k] != v]
         if not changed:
-            return {"result": "failed", "error": "the setting did not change (it may already be that)",
-                    "said": "Nothing changed: the setting already reads that way, or it was not taken."}
+            # Nothing changed: verified when the setting the call names already reads what it asked for.
+            asked = _asked_setting(intent)
+            if asked is not None and asked[0] in now and now[asked[0]] == asked[1]:
+                key, value = asked
+                with contextlib.suppress(Exception):
+                    title, _menu = activity.setting_title(key)
+                    return {"result": "verified", "said": f"Already the default: {title.lower()} is "
+                                                          f"{activity.setting_value(key, value)}."}
+                return {"result": "verified", "said": f"Already the default: {key} is {value}."}
+            return {"result": "failed", "error": "the setting did not change, and it does not read what was asked",
+                    "said": "Nothing changed: the setting does not read what was asked, so it was not taken."}
         key, _, value = changed[0]
         with contextlib.suppress(Exception):
             title, _menu = activity.setting_title(key)
@@ -433,6 +442,28 @@ class Records:
             if isinstance(kind, dict) and kind.get("runner") == "cloud":
                 return f"{kind.get('name') or want} runs in the cloud and is paid per use"
         return None
+
+
+def _asked_setting(intent) -> tuple[str, Any] | None:
+    """The setting a set_default call names and the value it asks for, resolved as the tool resolves them (a setting by
+    its option, an operation by the implementation's option); None when that cannot be told."""
+    if intent.tool != "set_default":
+        return None
+    args = intent.args or {}
+    role = str(args.get("operation") or "").strip().lower()
+    with contextlib.suppress(Exception):
+        from .. import names
+
+        if role in names.SETTINGS:
+            meaning = names.option(role, args.get("implementation"))
+            return (role, meaning.id) if meaning is not None else None
+        from ..operations import OPERATIONS
+
+        op = OPERATIONS[role]
+        meaning = names.resolve(op.id, args.get("implementation"))
+        if meaning is not None and op.selected_by:
+            return op.selected_by, op.impl(meaning.id).option
+    return None
 
 
 def _status_of(values: Any) -> tuple[str | None, dict | None]:

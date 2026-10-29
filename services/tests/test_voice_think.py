@@ -542,3 +542,76 @@ def test_a_result_cut_before_a_word_was_heard_is_said_again_when_quiet(monkeypat
         assert "Cellpose found the most." in again[0]["response"]["input"][0]["content"][0]["text"]
         assert len([e for e in creates(t) if e["response"].get("conversation") == "none"]) == 1
     asyncio.run(go())
+
+
+def photo_tools(gate, shown):
+    """A native workspace's reference photo: the lookup keeps the picture with the Project (its resource), and
+    `present` opens it, confirmed by the studio (its own receipt, ToolRun.outcome)."""
+    from orchestrator.brain.registry import CURRENT_RUN
+
+    async def photo(ctx, args):
+        assert args.get("show") is False, "the lookup alone: no window"
+        await gate.wait()
+        CURRENT_RUN.get().resource = {"day": "2026-10-29.1", "id": "r12", "kind": "result"}
+        return "retained a reference photo of a dividing nucleus: a real photo from Wikimedia Commons, not this slide"
+
+    async def present(ctx, args):
+        shown.append(args)
+        CURRENT_RUN.get().outcome = {"status": "confirmed"}
+        return "opened the picture in window w-5e1f-a2"
+    return {"reference_photo": photo, "present": present}
+
+
+def test_a_reference_photo_is_looked_up_without_the_ui_lease_and_shown_as_a_ui_action_of_its_own(monkeypatch):
+    """Step 4b: the lookup (about 20 s) held the lease and the screen lock throughout, so other UI actions waited and a
+    takeover could not keep a window from appearing afterwards. Now the lookup is background work (no lease, no cue),
+    and only opening its window takes the lease, with its own receipt, which the voice says."""
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+    gate, shown = asyncio.Event(), []
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(), tools=photo_tools(gate, shown))
+        t.partner.tools.client = object()  # a bound studio: a native workspace
+        spec = next(s for s in t.session.config.tools if s.name == "reference_photo")
+        started = await spec.handler({"subject": "a dividing nucleus", "beside": True})
+        assert started["started"] is True
+        await until_async(lambda: [r for r in t.ran if r[0] == "reference_photo"])
+        await asyncio.sleep(0.1)
+        assert not [m for m in t.studio if m["type"] in ("control", "drive")], "no lease while it is looked up"
+        assert not t.partner.tools._screen.locked(), "nor the screen lock"
+        gate.set()
+        await until_async(lambda: shown)
+        assert shown[0]["do"] == "open" and shown[0]["source"] == {"day": "2026-10-29.1", "id": "r12", "version": None,
+                                                                    "picture": 0}
+        control = [m for m in t.studio if m["type"] == "control"]
+        assert control and control[0]["owner"] == "partner", "the window is opened under a lease of its own"
+        assert [m for m in t.studio if m["type"] == "drive"], "with its cue"
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"),
+                                              None))
+        text = prep["response"]["input"][0]["content"][0]["text"]
+        assert "receipt is verified" in text and "Wikimedia Commons" in text
+        record = next(r for r in t.logged if r["kind"] == "partner-background")
+        assert record["receipt"] == "verified" and record["pointAt"] == ["window:w-5e1f-a2"]
+    asyncio.run(go())
+
+
+def test_after_a_takeover_while_it_was_looked_up_no_window_appears_without_a_fresh_look(monkeypatch):
+    """The user took over (Hands has no fresh look) while the picture was being found: it is kept with the Project,
+    and its window is not opened behind them; the voice is told so from the receipt."""
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 0.2)
+    gate, shown = asyncio.Event(), []
+
+    async def go():
+        t = await with_backend(monkeypatch, FakeBackend(), tools=photo_tools(gate, shown))
+        t.partner.tools.client = object()
+        spec = next(s for s in t.session.config.tools if s.name == "reference_photo")
+        await spec.handler({"subject": "a dividing nucleus"})
+        await until_async(lambda: [r for r in t.ran if r[0] == "reference_photo"])
+        t.partner.tools.hands.looked = False  # as a takeover leaves Hands: no fresh look until the next turn's pictures
+        gate.set()
+        prep = await until_async(lambda: next((e for e in creates(t) if e["response"].get("conversation") == "none"),
+                                              None))
+        assert not shown, "no window opened behind the user"
+        text = prep["response"]["input"][0]["content"][0]["text"]
+        assert "receipt is failed" in text and "took over" in text
+    asyncio.run(go())

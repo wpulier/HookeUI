@@ -41,6 +41,7 @@ from ..options import VOICE
 from .. import execution
 from ..prompts import LIVE_VOICE_DELEGATE, PARTNER
 from .diagnostics import VoiceDiagnostics
+from .events import bus_of
 from .base import ToolSpec, VoiceConfig, VoiceEvent
 from ..brain import context
 from ..brain.speech import SpokenRequests
@@ -147,8 +148,11 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             partner = Partner(hub, brain, dialogue, client=client, send=websocket.send_json, log=brain.agent.log)
             # MICROMIND_REALTIME_MODEL: a measured alternative of the same family (gpt-realtime-2.1-mini) for the journey
             # bench only; the option stays the one chosen.
+            # The brain's one bus (events.bus_of) and its record of what was said: what an earlier Talk still owed is
+            # said by this one, and what it said stays said.
             session = RealtimeSession(VoiceConfig(model=os.environ.get("MICROMIND_REALTIME_MODEL") or model,
-                                                  system_prompt=instructions), talk=getattr(hub.settings, "talk", "hold"))
+                                                  system_prompt=instructions), talk=getattr(hub.settings, "talk", "hold"),
+                                      bus=bus_of(brain), said=getattr(brain, "said", None))
             partner.bind(session)
             session.config.tools = partner.tools.specs()
             with contextlib.suppress(Exception):

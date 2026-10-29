@@ -504,13 +504,17 @@ def test_a_setting_reads_back_changed_and_a_project_is_open_and_shown():
         hands, _, _ = with_records({"now": report()}, settings=settings, project=lambda: where["p"])
 
         async def change():
-            settings.cells = "micro-sam"
+            settings.cells = "micro-sam-lm"  # the option "micro-sam" names (names.resolve)
             return {"ok": True}
         out = await hands.act("set_default", {"operation": "cells", "implementation": "micro-sam"}, change)
         assert out["result"] == "verified" and out["said"].startswith("Done:")
+        # The value already set: nothing changes, and it reads what was asked: verified, never a failure.
         same = await hands.act("set_default", {"operation": "cells", "implementation": "micro-sam"},
                                lambda: asyncio.sleep(0, {"ok": True}))
-        assert same["result"] == "failed" and same["said"].startswith("Nothing changed")
+        assert same["result"] == "verified" and same["said"].startswith("Already the default")
+        other = await hands.act("set_default", {"operation": "cells", "implementation": "cellpose"},
+                                lambda: asyncio.sleep(0, {"ok": True}))
+        assert other["result"] == "failed" and other["said"].startswith("Nothing changed")
         already = await hands.act("switch_session", {"session": "A"},
                                   lambda: asyncio.sleep(0, {"ok": True, "summary": 'already in the session "A"'}))
         assert already["result"] == "failed" and already["said"] == "Nothing opened: you are already in it."

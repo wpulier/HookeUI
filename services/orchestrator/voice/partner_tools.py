@@ -66,6 +66,14 @@ DISTINCT = {"distinct_from": {"type": "string", "description": (
 SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight", "find", "outline_cells", "select",
                              "zoom", "clear", "new_project", "switch_session", "reference_photo", "show_me",
                              "run_capability"})
+
+
+def changes_screen(name: str, args: dict | None = None) -> bool:
+    """Whether a call changes what is on screen (act, then look; one after another under the screen lock): a reference
+    photo kept with the Project without a window (show=false) does not."""
+    return name in SCREEN_CHANGING and not (name == "reference_photo" and (args or {}).get("show") is False)
+
+
 # One call per user turn: the same call again in the same turn returns the first one's result (one request, one
 # researcher; live 2026-10-28: two researchers from one request).
 ONCE_PER_TURN = frozenset({"start_researcher", "new_project", "switch_session", "cancel_researcher"})
@@ -349,7 +357,7 @@ class PartnerTools:
 
             token = user_stop.STOP.set(holder) if holder is not None else None
             try:
-                if name in SCREEN_CHANGING:
+                if changes_screen(name, args):
                     async with self._screen:
                         return await self._run(name, args, n, patient)
                 return await self._run(name, args, n, patient)
@@ -360,7 +368,7 @@ class PartnerTools:
 
     async def settle(self, name: str, args: dict, early: dict, pending: tuple, action_id: str | None = None) -> dict:
         """A long tool's outcome, waited for behind the voice (outcome), with its receipt checked again as it landed."""
-        result = await self.outcome(name, early, *pending)
+        result = await self.outcome(name, early, *pending, args=args)
         intent = self.intent(name, args)
         if result is early or intent is None:
             result.pop("_run", None)
@@ -399,7 +407,7 @@ class PartnerTools:
         action = getattr(getattr(run, "occurrence", None), "action_id", None)
         if patient and action and run.task is not None and not run.task.done():
             self.held.add(action)  # before anything awaits: landing now, it is filed quietly (_late), not said
-        result = await self._answer(name, run, ctx, before, landing=landing)
+        result = await self._answer(name, run, ctx, before, landing=landing, args=args)
         if action in self.held:
             result["_pending"] = (run, ctx, before, action)
         return result
@@ -417,7 +425,7 @@ class PartnerTools:
             run.task.cancel()
 
     async def _answer(self, name: str, run, ctx, before: float, *, file: bool = True,
-                      landing: bool | None = None) -> dict:
+                      landing: bool | None = None, args: dict | None = None) -> dict:
         """A run's result for the model: its receipt, filed in the chat, and, after a change on screen, a fresh look."""
         log: dict[str, Any] = {"requestId": getattr(getattr(run, "occurrence", None), "request_id", None)}
         result = self._result(run)
@@ -439,7 +447,7 @@ class PartnerTools:
             if rid:
                 log.update(rid=rid, ridT=time.time())
                 result["researcher"] = rid
-        if name in SCREEN_CHANGING and run.ok is not False:
+        if changes_screen(name, args) and run.ok is not False:
             look, facts = await self.look_after(name, before)
             result["_look"] = look
             log.update(facts)
@@ -452,7 +460,8 @@ class PartnerTools:
         result["_run"] = run  # for Hands' receipt (records.py); never sent to the model
         return result
 
-    async def outcome(self, name: str, early: dict, run, ctx, before: float, action: str) -> dict:
+    async def outcome(self, name: str, early: dict, run, ctx, before: float, action: str, *,
+                      args: dict | None = None) -> dict:
         """Behind the voice, think waits for a long tool's real outcome (a comparison of three models), up to
         THINK_TOOL_WAIT_S, and gets its result as the voice would have; past that it is told it is still running, and the
         outcome is said as one line when it lands, as any long tool's is (think-broad-1: "they're still running")."""
@@ -463,11 +472,11 @@ class PartnerTools:
         if not run.task.done():
             return early
         filed = action in self.reported  # _late filed it already, quietly, while it was held
-        if name in SCREEN_CHANGING:
+        if changes_screen(name, args):
             async with self._screen:
-                result = await self._answer(name, run, ctx, before, file=not filed)
+                result = await self._answer(name, run, ctx, before, file=not filed, args=args)
         else:
-            result = await self._answer(name, run, ctx, before, file=not filed)
+            result = await self._answer(name, run, ctx, before, file=not filed, args=args)
         result["_log"] = {**early.get("_log", {}), **result.get("_log", {}), "waited": True}
         return result
 
@@ -520,32 +529,69 @@ class PartnerTools:
                         "its result (do not say it is found or shown): it is told to you to say when it lands."}
 
     async def _background(self, name: str, args: dict, n: int, task: str) -> None:
-        """Its receipt is checked as its result lands (a reference photo: its window in the studio's report)."""
-        result = await self.run(name, args, n=n, patient=True)
-        pending = result.pop("_pending", None)
-        if pending is not None:
-            key = object()
-            self.running[key] = (name, time.monotonic(), pending[0])
-            try:
-                result = await self.settle(name, args, result, pending)
-            finally:
-                self.running.pop(key, None)
+        """Its receipt is checked as its result lands (a reference photo: its window in the studio's report), and the
+        voice says that receipt (its `said`, as its `result` allows: done only when verified)."""
+        if name == "reference_photo" and self._shows_apart():
+            result = await self._photo(args, n, task)
+        else:
+            result = await self._settled(name, args, await self.run(name, args, n=n, patient=True))
         points = list(result.get("_point") or [])
-        if name == "reference_photo" and result.get("ok"):  # its own window, named in its receipt
+        if result.get("ok") and name == "reference_photo":  # its own window, named in its receipt
             points += [f"window:{w}" for w in re.findall(r"\bin window (w-[0-9a-f-]+)", str(result.get("summary")))]
         facts = {"tool": name, "asked": args, **{k: v for k, v in result.items() if not k.startswith("_")},
                  **({"shown_confirmed": result["_log"].get("confirmed")} if "confirmed" in result.get("_log", {}) else {})}
         log = getattr(self.partner, "log", lambda record: None)
         log({"kind": "partner-background", "task": task, "name": name, "n": n, "ok": result.get("ok"),
-             "pointAt": points, "doneT": time.time()})
-        await self.said_when_landed(task, name, facts, "", points)
+             "receipt": result.get("result"), "pointAt": points, "doneT": time.time()})
+        await self.said_when_landed(task, name, facts, str(result.get("said") or ""), points,
+                                    receipt=result.get("result"))
 
-    async def said_when_landed(self, task: str, what: str, facts: dict, say: str, points: list[str]) -> None:
+    async def _settled(self, name: str, args: dict, result: dict, action_id: str | None = None) -> dict:
+        """A background call's result once it has really ended (a long run waited for behind the voice)."""
+        pending = result.pop("_pending", None)
+        if pending is None:
+            return result
+        key = object()
+        self.running[key] = (name, time.monotonic(), pending[0])
+        try:
+            return await self.settle(name, args, result, pending, action_id)
+        finally:
+            self.running.pop(key, None)
+
+    def _shows_apart(self) -> bool:
+        """A native workspace (a bound studio and `present`): a found picture opens in a window of its own."""
+        return self.client is not None and "present" in (getattr(self.brain.registry, "tools", {}) or {})
+
+    async def _photo(self, args: dict, n: int, task: str) -> dict:
+        """A reference photo in two actions: the lookup (about 20 s on the web) as background work, holding neither
+        the UI lease nor the screen lock, kept with the Project; then its window opened as a UI action of its own
+        (`present`: the lease, the cue, the checks at dispatch, its receipt from the studio's report). A takeover while
+        it was looked for leaves Hands without a fresh look, so no window appears until there is one."""
+        look = {k: v for k, v in args.items() if k != "beside"}
+        found = await self._settled("reference_photo", {**look, "show": False},
+                                    await self.run("reference_photo", {**look, "show": False}, n=n, patient=True,
+                                                   action_id=f"{task}:find"), f"{task}:find")
+        kept = found.get("resource") if isinstance(found.get("resource"), dict) else None
+        if found.get("ok") is not True or not kept or not kept.get("id"):
+            return found  # not found, failed, or kept without a window: its own receipt says which
+        opening: dict[str, Any] = {"do": "open", "source": {"day": kept.get("day"), "id": kept["id"], "version": None,
+                                                            "picture": 0}}
+        top = (self.hands.facts().get("top") if self.hands is not None else None) if args.get("beside") is True else None
+        if top:  # beside the window in front, as reference_photo's own beside places it
+            opening["relation"] = {"kind": "beside", "reference": {"instanceId": top}}
+        shown = await self._settled("present", opening, await self.run("present", opening, n=n, patient=True,
+                                                                      action_id=f"{task}:show"), f"{task}:show")
+        shown["found"] = found.get("summary")
+        return shown
+
+    async def said_when_landed(self, task: str, what: str, facts: dict, say: str, points: list[str], *,
+                               kind: str | None = None, receipt: str | None = None) -> None:
         """A result from behind the voice (think, a slow tool), said once: RealtimeSession prepares and says it with its
-        marks; any other partner session (Gemini 3.8 Live) says it as the one proactive line every session says."""
+        marks, following its receipt; any other partner session (Gemini 3.8 Live) says it as the one proactive line
+        every session says."""
         session = self.partner.session
         if hasattr(session, "deliver"):
-            await session.deliver(task, facts=facts, say=say, points=points, what=what)
+            await session.deliver(task, facts=facts, say=say, points=points, what=what, kind=kind, receipt=receipt)
         else:
             text = json.dumps({"tool": what, "task": task, **facts}, ensure_ascii=False, default=str)
             await self.partner.happened(f"{what}-done", text, ref=task, mark=points[0] if points else None)

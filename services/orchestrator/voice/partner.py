@@ -40,6 +40,10 @@ SCREEN_CHARS = 1000  # the screen now as text, at most
 NOTICE_TAG_S = 120.0  # a researcher's finish is matched to the narrator's lines naming it within this long
 BRIEF_CHARS = 3000
 REATTACH_AGAIN_S = 10.0
+RETIRED_WORDS = {"researcher-done": "a researcher's finding", "researcher-failed": "a researcher stopping",
+                 "job-result": "a task's result", "job-failed": "a task that did not work",
+                 "job-question": "a task's question for you", "tool-done": "a tool's result",
+                 "capability-done": "a capability's result", "notice": "a notice"}
 STORM_S, STORM_RECONNECTS = 60.0, 3  # more than this many reconnects in this long: Talk ends, and says so  # a reattached sideband dropping again within this: the call is gone, so a new one
 
 
@@ -90,14 +94,15 @@ class Partner:
         session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
         session.heard = self.heard
+        session.on_retired = self.retired
         if knowing.UserActions.enabled():  # the user's own actions as silent context, and what "that" can be
             from .. import activity
 
             found = activity.sink(self.hub)
             if found is not None:
-                async def tell(text: str) -> None:
+                async def tell(text: str) -> None:  # silent context on the bus, a burst coalesced into one note
                     if self.session is not None and not self.session.closed:
-                        await self.session.add(text_item("system", text))
+                        await self.session.inject(text, respond=False, source="user-action")
                 research = getattr(getattr(self.brain, "services", None), "research", None)
                 hands = self.tools.hands
                 self._user_actions = knowing.UserActions(
@@ -508,26 +513,33 @@ class Partner:
 
     # --- lines nobody asked for --------------------------------------------------------------------
     async def happened(self, event: str, text: str, *, ref: str | None = None, mark: str | None = None,
-                       delivery: str = "idle", marks: list[dict] | None = None, frame: dict | None = None) -> None:
-        """Something happened: said when nobody is talking ("idle"); told silently ("context"); or said as soon as the
-        user is not talking, the voice's own words stopped for it ("interrupt"). The watcher's rules (view_watch.py)."""
+                       delivery: str | None = None, marks: list[dict] | None = None, frame: dict | None = None) -> None:
+        """Something happened, on the bus (voice/events.py), by the route its publisher gives (`delivery`: the watcher's
+        rules, view_watch.py) or else its kind's: said when nobody is talking ("idle"), told silently ("context": a
+        capability turned on), or said as soon as the user's own turn is answered ("interrupt": the bus stops the voice's
+        own unprompted words for it, never the user's answer)."""
         if self.session is None or self.session.closed:
-            return
-        if delivery == "context":
-            inject = getattr(self.session, "inject", None)
-            if inject is not None:
-                await inject(text, respond=False, source=event)
             return
         drawn = marks or ([{"target": mark, "style": "box"}] if mark else [])
         before = None
         if drawn:
             async def before() -> None:
                 await self.marks(drawn, frame=frame, timeout=0.5)
-        busy = getattr(self.session, "user_busy", lambda: True)
-        if delivery == "interrupt" and self.session.speaking() and not busy():
-            await self.session.stop_speaking()
         await self.session.proactive(text, event=event, ref=ref, before=before,
-                                     mark=mark or (drawn[0]["target"] if drawn else None))
+                                     mark=mark or (drawn[0]["target"] if drawn else None),
+                                     **({"route": delivery} if delivery is not None else {}))
+
+    def retired(self, event) -> None:
+        """A result cut off twice is not said a third time (the bus retired it): one Activity line says so, so the user
+        can find it and ask, as Hands files its own actions."""
+        from .. import activity
+
+        what = RETIRED_WORDS.get(event.kind, event.kind.replace("-", " "))
+        with contextlib.suppress(Exception):
+            activity.activity(self.hub, "command", f"Assistant: not said again after you cut it off twice: {what}",
+                              id=f"command:retired-{event.id}",
+                              details={"ids": {"event": event.id, "kind": event.kind, "ref": event.ref}})
+        self.log({"kind": "partner-retired", "eventId": event.id, "event": event.kind, "ref": event.ref})
 
     def tag_notice(self, text: str) -> dict | None:
         """A narrator line is about a researcher that finished lately only when its own facts name that researcher

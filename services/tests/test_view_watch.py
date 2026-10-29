@@ -404,10 +404,10 @@ class Session:
     async def inject(self, text, *, respond=False, source="app", facts=None):
         self.calls.append(("inject", respond, source))
 
-    async def proactive(self, text, *, event, ref=None, before=None, mark=None):
-        if before is not None:
+    async def proactive(self, text, *, event, ref=None, before=None, mark=None, route=None):
+        if before is not None and route != "context":
             await before()
-        self.calls.append(("proactive", event, ref, mark))
+        self.calls.append(("proactive", event, ref, mark, route))
 
 
 def partner_with(session):
@@ -423,26 +423,27 @@ def partner_with(session):
     return partner
 
 
-def test_the_partner_tells_context_silently_says_idle_lines_and_an_interrupt_stops_only_its_own_words():
+def test_the_partner_puts_each_watcher_event_on_the_bus_by_its_rule():
+    """Partner.happened passes the watcher's rule as the event's route; the bus (voice/events.py) tells context silently,
+    says idle lines in a pause and stops only the voice's own unprompted words for an interrupt
+    (test_voice_events.py), so the partner never stops the voice itself."""
     from orchestrator.voice.partner import Partner
 
     async def go():
         quiet = Session()
         p = partner_with(quiet)
         await Partner.happened(p, "slide-moved", "{}", ref="v1", delivery="context")
-        assert quiet.calls == [("inject", False, "slide-moved")]
+        assert quiet.calls == [("proactive", "slide-moved", "v1", None, "context")]
         mark = [{"target": "frame", "region": [0.1, 0.1, 0.2, 0.2], "style": "box"}]
         frame = {"id": 9, "crop": [0, 0, 9, 9]}
-        await Partner.happened(p, "population-changed", "{}", ref="v2", marks=mark, frame=frame)
-        assert quiet.calls[-1] == ("proactive", "population-changed", "v2", "frame") and p.drawn == [(mark, frame)]
+        await Partner.happened(p, "population-changed", "{}", ref="v2", marks=mark, frame=frame, delivery="idle")
+        assert quiet.calls[-1] == ("proactive", "population-changed", "v2", "frame", "idle") and p.drawn == [(mark, frame)]
         speaking = Session(speaking=True)
         p = partner_with(speaking)
         await Partner.happened(p, "cell-divided", "{}", ref="v3", delivery="interrupt")
-        assert speaking.calls[0] == ("stop",) and speaking.calls[1][0] == "proactive"
-        over_user = Session(speaking=True, busy=True)
-        p = partner_with(over_user)
-        await Partner.happened(p, "cell-divided", "{}", ref="v4", delivery="interrupt")
-        assert ("stop",) not in over_user.calls  # never over the user: it waits for quiet like any line
+        assert speaking.calls == [("proactive", "cell-divided", "v3", None, "interrupt")], "the bus stops it, not this"
+        await Partner.happened(p, "capability-on", "Cellpose is on", ref="j1")  # no rule given: its kind's (context)
+        assert speaking.calls[-1] == ("proactive", "capability-on", "j1", None, None)
     asyncio.run(go())
 
 

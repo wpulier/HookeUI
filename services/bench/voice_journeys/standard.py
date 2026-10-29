@@ -373,8 +373,11 @@ def thinks(inter: list[dict]) -> dict[str, dict]:
     """think's tasks by the call that started them (claude/p25-think): the call returns at once; partner-think says how
     the frontier mind's work ended (its own tool calls inside, doneT); partner-think-said when its result was handed
     to the voice; the voice's next "think" response says it, often during a later step. callId -> the task."""
-    said = {r.get("task"): r.get("responseCreatedT") for r in inter if r.get("kind") == "partner-think-said"
-            and isinstance(r.get("responseCreatedT"), (int, float))}
+    sayings: dict = {}  # task -> when each response saying it was asked for, the first first (a cut one comes back)
+    for r in inter:
+        if r.get("kind") == "partner-think-said" and isinstance(r.get("responseCreatedT"), (int, float)):
+            sayings.setdefault(r.get("task"), []).append(r["responseCreatedT"])
+    said = {task: min(times) for task, times in sayings.items()}
     ends = audio_ends(inter)
     spoken = sorted((r["firstAudioT"], response_end(r, ends) or r["firstAudioT"] + 10) for r in inter
                     if r.get("kind") == "partner-response" and r.get("cause") == "think"
@@ -391,7 +394,10 @@ def thinks(inter: list[dict]) -> dict[str, dict]:
             continue
         at = said.get(r.get("task"))
         span = next(((a, b) for a, b in spoken if at is not None and a >= at - NEAR_S), None)
+        spans = list(dict.fromkeys(found for t in sorted(sayings.get(r.get("task")) or [])
+                                   if (found := next(((a, b) for a, b in spoken if a >= t - NEAR_S), None))))
         out[call_id] = {"task": r.get("task"), "n": r.get("n"), "ok": r.get("ok"), "doneT": r.get("doneT"),
+                        "spans": spans,
                         "tools": [t for t in r.get("tools") or [] if isinstance(t, dict)], "error": r.get("error"),
                         "refused": r.get("refused"), "saidT": at, "span": span,
                         "background": r.get("kind") == "partner-background", "confirmed": r.get("confirmed")}
@@ -465,6 +471,31 @@ def turn_number(bench_events: list[dict], start: float, end: float):
         if e.get("e") == "ws-out" and m.get("type") == "talk" and m.get("down") and start - 0.5 <= e["t"] < end:
             return m.get("n")
     return None
+
+
+def resaid_spans(inter: list[dict]) -> list[tuple[float, float]]:
+    """The responses that brought back a result the user had cut off ("as I started to say…"): its partner-proactive or
+    partner-think-said record says `again` (times it was cut before). The response carrying it is the one whose
+    `events` name it, else the first of its cause to start after it was asked for. Its line is the same outcome said
+    once more, not a second one: every outcome is counted once."""
+    again = [r for r in inter if r.get("kind") in ("partner-proactive", "partner-think-said")
+             and (r.get("again") or 0) > 0 and isinstance(r.get("responseCreatedT"), (int, float))]
+    if not again:
+        return []
+    ends = audio_ends(inter)
+    responses = sorted((r for r in inter if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "think")
+                        and isinstance(r.get("firstAudioT"), (int, float))), key=lambda r: r["firstAudioT"])
+    out = []
+    for a in again:
+        cause = "think" if a["kind"] == "partner-think-said" else "proactive"
+        found = next((r for r in responses if a.get("eventId") and a["eventId"] in (r.get("events") or [])), None)
+        if found is None:
+            found = next((r for r in responses if r.get("cause") == cause
+                          and r["firstAudioT"] >= a["responseCreatedT"] - NEAR_S), None)
+        if found is not None:
+            end = response_end(found, ends)
+            out.append((found["firstAudioT"] - NEAR_S, end if end is not None else found["firstAudioT"] + 10))
+    return out
 
 
 def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
@@ -543,8 +574,8 @@ def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[fl
     source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
     calls = with_thinks(calls, tasks or {}) if calls else card_calls(conv, start, end)
     mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
-    own = [t["span"] for cid, t in (tasks or {}).items() if cid in mine and t["span"]]
-    others = [t["span"] for cid, t in (tasks or {}).items() if cid not in mine and t["span"]]
+    own = [x for cid, t in (tasks or {}).items() if cid in mine for x in (t.get("spans") or [t["span"]]) if x]
+    others = [x for cid, t in (tasks or {}).items() if cid not in mine for x in (t.get("spans") or [t["span"]]) if x]
     return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)
 
 
@@ -580,8 +611,10 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     release = released(step)
     n, calls, source, lines = step_view(bench, conv, inter, window, unprompted, bench.get("_thinks"))
     grown = bench.get("_fragments") or {}
+    resaid = bench.get("_resaid") or []
     for l in lines:
         l["growth"] = grown.get(l["id"], [])
+        l["again"] = any(a <= l["first"] <= b for a, b in resaid)
     acting = [c for c in calls if c.name not in POINTING]
     tools = expect.get("tools")  # acceptable first acting tools; [] = none expected
     row: dict = {"id": step["id"], "kind": step.get("kind"), "say": step.get("say"), "n": n, "toolSource": source,
@@ -688,9 +721,12 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         outcome_lines = [l for l in lines if grew_after(l, anchor - NEAR_S) is not None]
         if any(c.confirmed_at is not None and c.screen_change for c in acting):
             fail("a request that cannot succeed changed the screen")
-    # Said once: the lines with words after the confirmation (scored from the record, never by the judge).
+    # Said once: the lines with words after the confirmation (scored from the record, never by the judge). A line that
+    # brings back a result the user cut off is that outcome again, not another one (resaid_spans).
     if expect.get("visible") or expect.get("outcome"):
-        row["outcomesSaid"] = len(outcome_lines) if visible_at is not None or expect.get("fails") else None
+        firsts = [l for l in outcome_lines if not l.get("again")]
+        said_lines = len(firsts) if firsts else min(len(outcome_lines), 1)
+        row["outcomesSaid"] = said_lines if visible_at is not None or expect.get("fails") else None
         if row["outcomesSaid"] is not None and row["outcomesSaid"] != 1:
             fail(f"outcome said {row['outcomesSaid']} times")
     else:
@@ -848,10 +884,15 @@ def proactive(inter: list[dict], segments, busy, researchers: dict | None = None
     was sent, after any wait for quiet."""
     out, seen = [], {}
     for r in inter:
-        if r.get("kind") != "partner-proactive":
-            continue
+        if r.get("kind") != "partner-proactive" or (r.get("again") and any(
+                o["event"] == r.get("event") and o["ref"] == r.get("ref") for o in out)):
+            continue  # a re-said event's record is its first one's line, timed by that one
         key = f"{r.get('event')}|{r.get('ref')}"
-        seen[key] = seen.get(key, 0) + (1 if r.get("responseCreatedT") else 0)
+        # A first saying counts; one that brings back what the user cut off (again) is the same line once more.
+        first = bool(r.get("responseCreatedT")) and not r.get("again")
+        seen[key] = seen.get(key, 0) + (1 if first else 0)
+        if r.get("responseCreatedT") and r.get("again") and not seen[key]:
+            seen[key] = 1
         event_t = r.get("eventT") if isinstance(r.get("eventT"), (int, float)) else r.get("t")
         finished = ((researchers or {}).get(str(r.get("ref"))) or {}).get("finished")
         if str(r.get("event", "")).startswith("researcher") and isinstance(finished, (int, float)) \
@@ -911,7 +952,11 @@ def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[st
     footage is switched before it starts, so the cut that brings it is not counted in it). An event raised in a watch
     step that expects some (nobody talks there) must be said; elsewhere one may wait out a user who keeps talking."""
     events = [r for r in inter if r.get("kind") == "watch-event" and isinstance(r.get("eventT"), (int, float))]
-    lines = {str(r.get("ref")): r for r in inter if r.get("kind") == "partner-proactive" and r.get("responseCreatedT")}
+    lines: dict[str, dict] = {}
+    for r in inter:  # its first saying times it; one folded into another (merged) was said by that one's line
+        if r.get("kind") == "partner-proactive" and r.get("responseCreatedT"):
+            for ref in [r.get("ref"), *(r.get("merged") or [])]:
+                lines.setdefault(str(ref), r)
     spans = [(s["id"], s["start"], s["end"] if isinstance(s.get("end"), (int, float)) else s["start"]) for s in steps
              if (expects.get(s["id"]) or {}).get("watch") and isinstance(s.get("start"), (int, float))]
     said = []
@@ -1031,6 +1076,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     bench["_fragments"] = fragments(bench)
     bench["_heard"] = heard_cues(bench, inter)
     bench["_thinks"] = thinks(inter)
+    bench["_resaid"] = resaid_spans(inter)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
         # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
@@ -1048,7 +1094,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
             by_step[step["id"]] = numbers
             started_numbers += numbers[-1:]
         rows.append(row)
-    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard"):
+    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard", "_resaid"):
         bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),

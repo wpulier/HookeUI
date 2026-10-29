@@ -981,3 +981,50 @@ def test_with_watch_quiet_a_slide_move_told_silently_is_no_said_line_but_a_misse
     assert "Watch: an event said when idle" not in lines and result(lines, "Watch: false alarms per hour") == "pass"
     lines = board(*watched(raised=False), plan=WATCH_PLAN)[2]
     assert result(lines, "Watch: an event said when idle") == "FAIL"
+
+
+def test_an_event_cut_off_and_brought_back_is_one_line():
+    """voice/events.py: a result the user cut off comes back once ("as I started to say…"); its second record says
+    `again`, and it is the same line, not a second one. Two first sayings still fail (test_event_said_twice_fails)."""
+    bench, conv, inter, verdicts = good()
+    first = [r for r in inter if r.get("kind") == "partner-proactive"][0]
+    first["eventId"] = "ev-1"
+    inter.append({**first, "t": T0 + 75, "responseCreatedT": T0 + 75.0, "eventT": T0 + 75.0, "again": 1})
+    inter.append({"kind": "partner-response", "t": T0 + 77, "cause": "proactive", "firstAudioT": T0 + 75.3,
+                  "audioEndT": T0 + 76.5, "events": ["ev-1"], "transcript": "As I started to say, two size groups."})
+    bench["events"] += audio(75.3, 76.5)
+    run, _, lines = board(bench, conv, inter, verdicts)
+    assert [e["lines"] for e in run["proactive"]] == [1], "one event, one line"
+    assert result(lines, "Never over the user, one line, pointing") == "pass"
+
+
+def test_a_think_result_cut_off_and_brought_back_is_said_once():
+    """A think result whose first saying the user cut off and that came back in the next pause: two lines, one
+    outcome. The line that brought it back is matched by the events its response carried."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if not (r.get("kind") == "partner-tool" and r.get("n") == 7)]
+    inter += [{**tool(7, "think", 57.3, 57.4), "callId": "c-think"},
+              {"kind": "partner-think", "task": "t1", "callId": "c-think", "n": 7, "ok": True, "doneT": T0 + 59.0,
+               "tools": [{"name": "outline_cells", "ok": True, "confirmed": True},
+                         {"name": "measure", "ok": True, "confirmed": True}]},
+              {"kind": "partner-think-said", "task": "t1", "n": 7, "eventId": "ev-t1", "responseCreatedT": T0 + 59.5,
+               "again": 0},
+              {"kind": "partner-response", "responseId": "th1", "cause": "think", "firstAudioT": T0 + 59.8,
+               "audioEndT": T0 + 60.3, "events": ["ev-t1"], "transcript": "Done: 42 nuclei"},
+              {"kind": "partner-think-said", "task": "t1", "n": 7, "eventId": "ev-t1", "responseCreatedT": T0 + 61.0,
+               "again": 1},
+              {"kind": "partner-response", "responseId": "th2", "cause": "think", "firstAudioT": T0 + 61.2,
+               "audioEndT": T0 + 63.0, "events": ["ev-t1"],
+               "transcript": "As I started to say, the median area is 210 square microns."}]
+    conv = [c for c in conv if c["lineId"] not in ("L10", "L11", "L12")]
+    conv += [line("L12a", 59.8, "Done: 42 nuclei"),
+             line("L12b", 61.2, "As I started to say, the median area is 210 square microns.")]
+    bench["events"] = [e for e in bench["events"] if not (e.get("e") == "audio" and ms(57.4) <= e["t"] <= ms(63.1))]
+    bench["events"] += audio(59.8, 60.3) + audio(61.2, 63.0)
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][6]["expect"]["tools"] = ["outline_cells", "measure", "think"]
+    verdicts["multi"] = {"claims_on_screen": [], "answered": True}
+    run, _, lines = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["multi"]
+    assert row["outcomesSaid"] == 1, row
+    assert not [f for f in row["failures"] if "outcome said" in f]

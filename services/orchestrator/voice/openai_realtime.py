@@ -89,6 +89,13 @@ CLOSE_STEP_S = 2.0
 AUDIO_TOKEN_S = 0.05  # one assistant audio token is 50 ms of speech (OpenAI's realtime pricing notes)
 ACK_TOKENS = 60  # "On it." is a few words
 PREP_WAIT_S = 4.0  # think's result prepared out of band at most this long, else the backend's own words
+# A result's words follow its receipt (voice/hands.py): "done" is Hooke's verified receipt, never the voice's judgement.
+RECEIPT_RULES = {
+    "verified": "Hooke verified it: you may say it is done.",
+    "failed": "It failed: say it was not done, and why, from its words.",
+    "uncertain": "Hooke could not check all of it: never say it is done; say what is not known, from its words.",
+    "running": "It is still under way: never say it is done or found; say what is under way, from its words.",
+}
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
 # this soon after it still stops the voice (the studio mutes its audio element at once too).
 AUDIBLE_AFTER_DONE_S = 20.0
@@ -843,17 +850,24 @@ class RealtimeSession(VoiceSession):
         return found
 
     async def deliver(self, task: str, *, facts: dict, say: str, points: list[str],
-                      prepared: str | None = None, what: str = "think") -> Event | None:
+                      prepared: str | None = None, what: str = "think", kind: str | None = None,
+                      receipt: str | None = None) -> Event | None:
         """A job's result (think, a slow tool), owed until heard: worded once by the voice itself, out of band, then said
         in a pause with marks on what it names as its words start (`_consume`). A second delivery of the same task adds
-        nothing: it is said once."""
-        if self.closed or self.bus.result_for(task) is not None:
+        nothing: it is said once. `kind`: job-result, job-failed or job-question (a job's question for the user); by
+        default from the facts. `receipt`: how Hooke checked it (verified, failed, uncertain, running), which its words
+        follow: done is said only for verified. Published even when this session has ended: the bus is the brain's, and
+        the session saying its events now (its owner) says it."""
+        if self.bus.result_for(task) is not None:
             return None
-        kind = "job-failed" if isinstance(facts, dict) and facts.get("ok") is False else "job-result"
+        if kind is None:
+            kind = "job-failed" if isinstance(facts, dict) and facts.get("ok") is False else "job-result"
         found, _ = self.bus.publish(kind, json.dumps(facts, ensure_ascii=False, default=str)[:4000], ref=task,
                                     points=points, data={"task": task, "facts": facts, "say": say, "prepared": prepared,
-                                                         "what": what})
-        self._consume()
+                                                         "what": what, "receipt": receipt})
+        owner = self.bus.owner
+        if owner is not None and not getattr(owner, "closed", True) and hasattr(owner, "_consume"):
+            owner._consume()
         return found
 
     async def tell_progress(self, task: str, working: Callable[[], bool], what: str = "think",
@@ -969,7 +983,8 @@ class RealtimeSession(VoiceSession):
         try:
             for event in batch:
                 if event.data.get("task") and event.data.get("prepared") is None:
-                    words = await self.prepare(event.data["task"], self._facts_text(event), event.data.get("say") or "")
+                    words = await self.prepare(event.data["task"], self._facts_text(event), event.data.get("say") or "",
+                                               receipt=event.data.get("receipt"), kind=event.kind)
                     if words is None:  # the user's turn took its place: worded in the next pause
                         self.bus.released(batch)
                         return
@@ -1153,23 +1168,33 @@ class RealtimeSession(VoiceSession):
         with contextlib.suppress(Exception):
             await self.add(item)
 
-    async def prepare(self, task: str, facts_text: str, say: str) -> str | None:
-        """The words for a job's result, written out of band by the voice itself (its conversation untouched); the
-        backend's own words when that does not come back in PREP_WAIT_S. None when the user's turn took its place (a
-        key press dropped or cancelled it): it is worded again in the next pause."""
+    async def prepare(self, task: str, facts_text: str, say: str, *, receipt: str | None = None,
+                      kind: str = "job-result") -> str | None:
+        """The words for a job's result, written out of band by the voice itself (its conversation untouched), following
+        its receipt (RECEIPT_RULES: done only when Hooke verified it) or, for a job's question, asking it; the receipt's
+        own words (`say`) when that does not come back in PREP_WAIT_S. None when the user's turn took its place (a key
+        press dropped or cancelled it): it is worded again in the next pause."""
         future = asyncio.get_running_loop().create_future()
         self._prepared[task] = future
 
         def dropped(why: str) -> None:
             if not future.done():
                 future.set_result(None)
+        if kind == "job-question":
+            rule = ("Write the one short question you will ask the user for this task, from its question (a permission's "
+                    "ask with what it costs). Nothing has been done about it yet: never say it is done.")
+        else:
+            rule = ("Write the one or two short sentences you will say to the user about this result: what was done or "
+                    "found, or what failed and the next step to try. Plain words, no ids, nothing it did not check. Say "
+                    "a refusal as a refusal.")
+            if receipt in RECEIPT_RULES:
+                rule += " " + RECEIPT_RULES[receipt]
         self.respond("prep", n=self.n, dropped=dropped, conversation="none", output_modalities=["text"],
                      tool_choice="none", max_output_tokens=300, metadata={"task": task},
-                     input=[text_item("system", "Result of a task you handed to Hooke's frontier mind (facts, not the "
-                                                "user's words):\n" + facts_text + (f"\nIts own wording: {say}" if say else ""))],
-                     instructions="Write the one or two short sentences you will say to the user about this result: "
-                                  "what was done or found, or what failed and the next step to try. Plain words, no "
-                                  "ids, nothing it did not check. Say a refusal as a refusal.")
+                     input=[text_item("system", "Result of a task you handed on (facts, not the user's words):\n"
+                                      + facts_text + (f"\nHooke checked it: its receipt is {receipt}." if receipt else "")
+                                      + (f"\nIts own words: {say}" if say else ""))],
+                     instructions=rule)
         try:
             text = await asyncio.wait_for(future, PREP_WAIT_S)
         except asyncio.TimeoutError:
@@ -1178,7 +1203,9 @@ class RealtimeSession(VoiceSession):
             self._prepared.pop(task, None)
         if text is None:
             return None
-        return (text or say or "It is done; I could not word the result.").strip()
+        # Never a claim of its own: the receipt's words, else a line that says only that there is news.
+        return (text or say or ("It's done." if receipt == "verified" else "I have news on that task; ask me and I'll "
+                                                                            "say what it found.")).strip()
 
     async def _watch(self) -> None:
         """Every WATCH_EVERY_S: the bus consumed (`_consume`); a session near the limit renewed while idle (asked of
@@ -1238,7 +1265,7 @@ class RealtimeSession(VoiceSession):
             meta = response.get("metadata") or (self._requested or {})
             self._response, self._requested = rid, None
             self._causes[rid] = {"cause": meta.get("cause") or "unknown", "n": int(meta.get("n") or self.n),
-                                 "createdT": self.wall(), "task": meta.get("task")}
+                                 "createdT": self.wall(), "task": meta.get("task"), "events": meta.get("events")}
             if meta.get("events"):
                 self._carry(rid, str(meta["events"]))
         elif kind == "output_audio_buffer.started" or (kind == "response.output_audio.delta" and self.link != "webrtc"):
@@ -1407,7 +1434,9 @@ class RealtimeSession(VoiceSession):
         self._log({"kind": "partner-response", "responseId": rid, "n": cause["n"], "cause": cause["cause"],
                    "firstAudioT": first,
                    "audioEndT": self.wall() if self.link != "webrtc" else None,  # WebRTC: partner-audio says it
-                   "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts})
+                   "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts,
+                   # the bus's events it said (the bench counts an outcome brought back after a cut once)
+                   **({"events": [i for i in str(cause["events"]).split(",") if i]} if cause.get("events") else {})})
         for item in response.get("output") or []:
             if item.get("type") == "function_call":
                 self._call(rid, item.get("call_id") or "", item.get("name") or "", item.get("arguments"),

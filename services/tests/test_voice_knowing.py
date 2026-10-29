@@ -42,7 +42,6 @@ def test_the_users_own_actions_are_on_by_default_and_the_switch_still_turns_them
 
 def test_the_users_own_actions_carry_their_ids_feed_the_pointing_history_and_include_researchers_they_started():
     async def go():
-        knowing.COALESCE_S, was = 0.01, knowing.COALESCE_S
         hub, _ = hub_with_activity("p1")
         told, pointed = [], []
         mine = SimpleNamespace(rid="r4", n=4, origin={"channel": "chat"})
@@ -58,19 +57,35 @@ def test_the_users_own_actions_carry_their_ids_feed_the_pointing_history_and_inc
         hub.activities.add("command", "Assistant: highlighting: done")  # the partner's own: not the user's
         hub.activities.add("research", "Researcher 4 started: stomata density", state="running", rid="r4")
         hub.activities.add("research", "Researcher 5 started: the table", state="running", rid="r5")
-        await asyncio.sleep(0.1)
-        assert len(told) == 1, "one note for a burst"
-        note = told[0]
-        assert "[outline:o7]" in note and "[window:w-12]" in note and "researcher:4" in note
+        await asyncio.sleep(0.05)
+        assert len(told) == 3, "each of the user's own, told as it is filed (the bus coalesces a burst)"
+        note = "\n".join(told)
+        assert "outline:o7" in told[0] and "window:w-12" in told[1] and "researcher:4" in told[2]
         assert "Researcher 5" not in note and "Assistant" not in note
         assert ["outline:o7"] in pointed and ["window:w-12"] in pointed and ["researcher:4"] in pointed
-        knowing.COALESCE_S = was
+    asyncio.run(go())
+
+
+def test_the_users_own_actions_reach_the_voice_as_one_silent_note_on_its_bus():
+    """Partner.bind publishes them through inject(source="user-action"): a burst within the kind's window is one system
+    item, and nothing is said."""
+    from tests.test_voice_events import session_on
+
+    async def go():
+        session, sb, _ = await session_on()
+        for text in ("The user, by hand: You clicked [touched: outline:o7]",
+                     "The user, by hand: You opened a window [touched: window:w-12]"):
+            await session.inject(text, respond=False, source="user-action")
+        await asyncio.sleep(1.6)  # past the kind's window (events.KINDS["user-action"].window_s)
+        notes = [i for i in sb.items() if i.get("role") == "system" and "outline:o7" in i["content"][0]["text"]]
+        assert len(notes) == 1 and "window:w-12" in notes[0]["content"][0]["text"], "one note for the burst"
+        assert not [e for e in sb.sent if e["type"] == "response.create"], "never said"
+        await session.close()
     asyncio.run(go())
 
 
 def test_another_projects_lines_are_not_told_as_the_users_actions_here():
     async def go():
-        knowing.COALESCE_S, was = 0.01, knowing.COALESCE_S
         hub, day = hub_with_activity("p1")
         told = []
 
@@ -81,7 +96,6 @@ def test_another_projects_lines_are_not_told_as_the_users_actions_here():
         hub.activities.add("command", "You selected stoma")
         await asyncio.sleep(0.05)
         assert told == []
-        knowing.COALESCE_S = was
     asyncio.run(go())
 
 
