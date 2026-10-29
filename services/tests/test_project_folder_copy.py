@@ -139,3 +139,40 @@ def test_symlink_and_nested_destination_refuse(tmp_path):
     (root.path / 'inputs/linked').symlink_to(tmp_path / 'outside')
     with pytest.raises(ProjectLocationError, match='linked'): copy_snapshot(root, tmp_path / 'Refused')
     assert not (tmp_path / 'Refused').exists()
+
+
+@pytest.mark.parametrize('failure', ['sync', 'unlink'])
+def test_final_publication_failure_stays_incomplete_after_restart(tmp_path, monkeypatch, failure):
+    from pathlib import Path
+    from orchestrator.scientific_projects import ProjectStore
+    root, *_ = setup(tmp_path)
+    target = tmp_path / 'Incomplete'
+    sync, unlink = ProjectStore._sync_directory, Path.unlink
+    def fail_sync(folder):
+        if failure == 'sync' and folder == target and (target / SNAPSHOT).exists():
+            raise OSError('final directory sync failed')
+        return sync(folder)
+    def fail_unlink(path, *args, **kwargs):
+        if failure == 'unlink' and path == target / COPY_INTENT:
+            raise OSError('completion publication failed')
+        return unlink(path, *args, **kwargs)
+    monkeypatch.setattr(ProjectStore, '_sync_directory', fail_sync)
+    monkeypatch.setattr(Path, 'unlink', fail_unlink)
+    with pytest.raises(OSError): copy_snapshot(root, target)
+    assert (target / COPY_INTENT).is_file()
+    with pytest.raises(ProjectLocationError, match='incomplete'): ProjectRoot.open(target)
+    assert (target / 'inputs/material.bin').read_bytes() == b'original imported bytes'
+
+
+def test_no_post_publication_disk_work_can_turn_success_into_failure(tmp_path, monkeypatch):
+    from orchestrator.scientific_projects import ProjectStore
+    root, *_ = setup(tmp_path)
+    target = tmp_path / 'Complete'
+    sync = ProjectStore._sync_directory
+    def checked_sync(folder):
+        if target.exists() and (target / SNAPSHOT).exists():
+            assert (target / COPY_INTENT).exists(), 'completion must be the last publication action'
+        return sync(folder)
+    monkeypatch.setattr(ProjectStore, '_sync_directory', checked_sync)
+    copied = copy_snapshot(root, target)
+    assert verify_snapshot(copied.path)['files'] > 0
