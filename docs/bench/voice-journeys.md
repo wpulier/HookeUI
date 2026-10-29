@@ -85,7 +85,8 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 |---|---|
 | `part-2.5` | The journey's steps 1–8 and 10 in Will's words, voice Samantha, plus one multi-step request ("Outline the nuclei, then put their measurements in a new tab called Sizes."). Step 8 restarts the orchestrator on the same home and reloads the page, then checks that the Project, its Measurements Tab and the researcher are there. An idle wait before it lets a researcher finish, so its event can be told. Step 9 (a connected agent) is a person's step. |
 | `part-2.5-second` | The second pass: another order, other words, voice Karen. It adds one interruption (the key pressed 2.5 s into the voice's answer), one request that cannot succeed (a table that does not exist), one forced reconnect (`fault: close-provider`) and a switch to another Project while the researcher runs, then back. |
-| `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. An idle wait at the end lets the last researcher finish and its event be told. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
+| `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. Nobody talks while the slide is moved once (the watcher must raise it; with the default WATCH quiet it is told silently). An idle wait at the end lets the last researcher finish and its event be told, and counts the watcher's false alarms. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
+| `part-2.5-watch` | The watcher (`orchestrator/view_watch.py`) with WATCH chatty, the plan's own `settings`: "keep an eye on the slide with me", then nobody talks while the slide is moved once (a panning clip the stack makes from the still: held 14 s, moved over 2 s, held), "what just changed?", then 5 minutes where nothing happens. Worst case about $1.30 for the one brain; a run cost $0.39-0.46. |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
@@ -121,7 +122,10 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
     (`{"from": "two-researchers", "index": 0}`: "the size one");
   - `multi`: several steps, held to 8 s;
   - `fails`: the request cannot succeed, so the failure is its outcome;
-  - `judge`: what a good answer does, for the judge.
+  - `judge`: what a good answer does, for the judge;
+  - `watch` (idle steps): the watcher's events that must be raised within the step (`["slide-moved"]`), or `[]` for a
+    steady stretch where every event is a false alarm. A step's `footage` is switched before it starts, so the cut
+    that brings it is not counted in it.
 
 ## The gates, and what is reported
 
@@ -175,6 +179,8 @@ Everything is on one clock (epoch seconds). Three logs are joined:
 | Marks | Shown minus the start of the speech it sits in: ≤ 200 ms. The target matches `expect.marks` and resolved (`marks-shown`). For page targets (tabs, researchers, windows, documents), it follows its target (the mark's rect over the target's, IoU ≥ 0.8). It clears ≤ 2 s after the speech ends. Outline and frame marks follow by construction: the studio resolves them every frame. |
 | Drive | The spec's Drive line (hooke-web `part-2.5-live-partner-spec.md`, section 1; claude/p25-best, `docs/architecture/on-screen.md` "Hands"): every action shown with a cue before its effect (`partner-drive` shown within 0.5 s of sending), each takeover's delay from the studio's input to the server knowing (`partner-takeover` `atServer − atStudio`) ≤ 150 ms, and no action after a takeover planned on an older control version (`partner-hands`). Actions verified and cues the page saw without a `drive-end` are details within the line. A run with no takeover leaves it not measured: `part-2.5-broad`'s `take-over` step has the bench move the mouse at the partner's first cue (`"takeover"` in the plan; the step is scored on stopping). Not applicable to GPT-Live. |
 | Events | `partner-proactive`: the event to its first audio ≤ 2 s; never while the key is held or within 1.5 s of release; one line per event; pointing at its card. |
+| Watch: an event said when idle | Only in plans with watch steps, when something was to be said or an expected event never came. Each `watch-event` the watcher told the voice to say (rule idle or interrupt), from its `eventT` (the frame at which it was established) to the first audio of its `partner-proactive` line: ≤ 2 s, never over the user, none missed, none raised in its watch step and left unsaid. One brain only. |
+| Watch: false alarms per hour | Every `watch-event` raised in a steady watch step (`expect.watch: []`), per hour of those steps: ≤ 1 an hour, provisional until Will accepts a rate. The watcher is the app's, so this applies to every voice. |
 | Reconnect | `partner-reconnect` `ms` (the bench fault closes the provider's call): ≤ 2 s. |
 | Live view | Frames per second and delay p90 while the journey runs, against the 10 s before Talk (else the setup's): at least 90% of the frame rate, no more than 50 ms added delay. Only seconds with a source on the stage count, and a freeze with a source on it fails; a run with nothing on the stage says "not measured: no live view on the stage". |
 | Robustness | Runs with no failed step. A step fails on any of the above, no answer, or a missing restart check. |
@@ -210,6 +216,54 @@ answer. The Overall line (the spec, section 1) needs a mean of at least 2.5 and 
 applicable to this voice" for it. Barge-in applies to both voices (GPT-Live's open microphone is interrupted by
 speaking over it; the second pass has the interruption). "Not applicable" is not a pass: a voice without a feature the
 standard asks for does not meet it.
+
+## The watcher on footage
+
+`bench/watch_bench.py` runs the watcher (`orchestrator/view_watch.py`) with no voice, no model and no cost: every frame
+goes through the hub's own per-frame analysis (the eyepiece disc, the slide's motion and epoch, sharpness and light, the
+disc's edge, JPEG at the bridge's quality) and the coach, on the footage's own clock. Its synthetic footage is the
+bundled example as a brightfield-like slide through an eyepiece, with what a hand-held phone adds: sensor noise,
+sub-pixel shake, a jolt every 25 s, the focus breathing (sharpness swinging 13% median, 15% p90 within a second, near the
+June 14 footage's 6%, 15% and 29%) and light flicker. `--video` runs it over a recording and lists its events.
+
+Measured 2026-10-29 (30 fps, `--minutes 60`):
+
+| Scenario | Truth | Raised | After it happened |
+|---|---|---|---|
+| pan (most of the eyepiece, then still) | one slide-moved | one | 0.73 s (settled 0.6 s, then the tracker's steady frames) |
+| cut (continuity lost, then still) | one slide-moved | one | 1.87 s (still 1.2 s first, for a rejoin) |
+| defocus (a blur that stays) | one focus-drifted | one | 2.97 s (under 60% for 3 s) |
+| light halved | nothing | nothing | |
+| knob turned and left blurred | nothing | nothing (one focus-drifted without the coach's sweep) | |
+| steady, 60 minutes | nothing | **0 false alarms** | |
+
+The watcher's own cost on the frame path over that hour: p50 8.4 µs, p99 36.6 µs, at most 2.3 ms once in 108,000
+frames. Again on the final code (the rest and same-picture rules): 0 false alarms in the hour, the other scenarios
+unchanged, cost p50 10.4 µs and p99 42.8 µs (one frame of 108,000 took 16.9 ms on a loaded machine, with nice 10).
+The stack's panning clip (`stack.panning_clip`) gives one slide-moved, 0.8 s after its move ends, and four
+plays of the noisy loop none.
+
+**Real footage** (the June 14 leaf epidermis recording, 3m43s at 1280 x 720, iPhone on the eyepiece, read from the assets
+store): the slide is moved around for the first 40 s, then left (a 46 px nudge at 147-152 s). The watcher raised 7
+slide-moved: 6 after real moves (10.2, 16.9, 24.3, 25.7, 34.0 and 39.1 s, each after 230-520 px of travel, seen in the
+frames and the motion trace) and 1 false, at 152.4 s: an 80 px adjustment just after the 39.1 s move and the nudge 108 s
+later added up past a third of the radius. Since then a place the view rests at for `REST_S` (3 s) is the field's, so
+a later nudge is measured from there: the clip gives the 6 real moves and **0 false alarms** (0 an hour, from 3.7
+minutes, 3 of them still) and no focus-drifted. Frame cost p50 16 µs, p99 42 µs.
+
+**With the voice** (`part-2.5-watch`, `gpt-realtime-2.1`, hold, one run each, 2026-10-29):
+- **The first run** (load 14-22 on 14 cores, frame analysis at p50 up to 2.9 s, event-loop stalls of about 1 s in other
+  code): the cut and the pan were heard 1.8 s and 1.2 s after their events, two later events 8.4 s and 2.2 s during the
+  stalls, and one false alarm on the steady stretch (continuity lost on the unchanged still: "the slide moved again").
+  Since then a cut whose picture matches the field's last still one is no move (`same_place`).
+- **The final code** (load 4-6): "Watch: an event said when idle" passes, p50 1.40 s and max 1.45 s from the event to
+  the first audio heard (n 3: two cuts to other footage and the pan), never over the user, none missed or unsaid;
+  "Watch: false alarms per hour" passes, 0 in 5.1 minutes. It said each one in its own words ("The slide moved about
+  one field of view toward the left."). Asked "what just changed?" 25 s after saying that, it described the new view
+  and not the move (the judge: not answered, partner quality 1; the first run's answer said the pattern had shifted
+  left). The run's live view line failed narrowly (24 vs 27 fps): the hub's frame analysis
+  slowed from p50 14 / p90 20 ms to 21 / 67 ms after the cut to the steady still and stayed so, in the analysis thread,
+  where the watcher does not run (fps 28 while the pan was watched).
 
 ## Read the scoreboard
 

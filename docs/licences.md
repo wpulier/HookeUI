@@ -116,6 +116,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | row_provenance | `off` | `off` |
 | orb_every | `1` | `1` |
 | library_looks | `off` | `off` |
+| watch | `quiet` | `quiet` |
 
 ## Python dependency groups
 

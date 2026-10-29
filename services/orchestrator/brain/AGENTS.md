@@ -30,6 +30,17 @@ other files.
   - A Tab tool (show_measurements, tabs, present) that fails while the studio has not yet shown the open Project's
     Tabs waits for them (`LANDING_WAIT_S`, its progress line saying so) and is tried once more. If they never show,
     that is said plainly (`partner_tools.py`; tests/test_voice_follows_project.py).
+- **Lines nobody asked for (the one brain's proactive events)** all go through `Partner.happened(event, text, ref=,
+  delivery=, marks=, frame=)` → `RealtimeSession.proactive`: a researcher finished or failed, a long tool done, a
+  capability turned on, and the watcher's events (`orchestrator/view_watch.py`: the slide settled on a new place, the
+  focus drifted, counted cells no longer where they were counted; a division is an interface with no detector yet).
+  The text is facts as JSON (what was measured, when it happened, the ids to point at), never words to read out: the
+  voice model decides how to say them, in one sentence. Each kind of the watcher's events has one delivery rule per
+  WATCH choice (`view_watch.DELIVERY`, the one table): "context" (a silent system item), "idle" (said when no key is
+  held, nothing is said and nobody spoke for 1.5 s) or "interrupt" (the voice's own words stopped for it, never the
+  user's); the user's quieter or "let me find things" makes them all context. Detector state is never pushed into the
+  prompt every turn: only events, and only by their rule (a standing note would be an option that must beat "model
+  alone"). GPT-Live has no `happened`, so it gets none of them; every watcher event is still logged (`watch-event`).
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

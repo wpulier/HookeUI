@@ -1370,7 +1370,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key' | 'think';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key' | 'think' | 'watch';
 
 export interface ModelOption {
   id: string;
@@ -1407,6 +1407,7 @@ export interface Settings {
   talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
   talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
   think?: string; // the frontier mind behind the one-brain voice: "claude-opus-5-5" | "gpt-6.1-sol" (options.py THINK)
+  watch?: string; // what the watcher says unasked: "quiet" | "chatty" | "off" (options.py WATCH; view_watch.py)
   taught?: string; // matching the labels the user teaches: "on" | "off"
   lesson_check?: string; // lessons' steps checked for needing the picture (research_worker/lesson_check.py)
   seen?: string; // telling naming the outline named earlier today most like it (orchestrator/seen.py): "on" | "off"

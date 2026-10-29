@@ -1,0 +1,21 @@
+{
+  "id": "part-2.5-watch",
+  "about": "The watcher (orchestrator/view_watch.py; the live partner's item 4: no live model speaks up from video on its own, so Hooke watches). On the bundled nuclei sample played as the camera, with WATCH chatty so a move of the slide is said: the slide moved once and left (a panning clip the stack makes from the still: held 14 s, moved over 2 s, held), then a steady stretch where nothing happens. Measured: seconds from each event the watcher raises to the voice's first audio (the standard: at most 2 s when nobody is talking, never over the user, none missed), whether the voice knows what changed when asked, and false alarms per hour on the steady stretch (every event raised there). Each footage switch is itself a cut the watcher may say; it happens before its step starts and is not counted in it. The synthetic counterpart, with no voice and no cost: bench/watch_bench.py (docs/bench/watch.md).",
+  "minMs": 6000,
+  "quietMs": 4000,
+  "voices": {"user": "Samantha"},
+  "settings": {"watch": "chatty"},
+  "camera": {"still": "assets/examples/human_mitosis.png", "footage": "human_mitosis-noise.mp4", "pan": true},
+  "steps": [
+    {"id": "keep-an-eye", "kind": "ask", "say": "Hi. Just keep an eye on the slide with me for a bit.",
+     "expect": {"tools": [], "toolRequired": false,
+                "judge": "a few words at most; no tool, nothing on screen"}},
+    {"id": "watch-pan", "kind": "idle", "footage": "human_mitosis-pan.mp4", "settle": 6, "wait": 25,
+     "expect": {"watch": ["slide-moved"]}},
+    {"id": "what-changed", "kind": "ask", "say": "What just changed?",
+     "expect": {"tools": ["look_hard"], "toolRequired": false,
+                "judge": "says the slide was moved to a new place a few seconds ago (how far if it says), from what the app measured, and what the new view shows; never that nothing changed"}},
+    {"id": "watch-steady", "kind": "idle", "footage": "human_mitosis-noise.mp4", "settle": 8, "wait": 300,
+     "expect": {"watch": [], "silent": true}}
+  ]
+}
