@@ -110,6 +110,11 @@ closure is not verified. It is not exposed as Collect Project or complete export
 legacy assets, shared captures and external dependencies still require their
 collector and inclusion review. No accepted research is rewritten or replayed.
 
+Copy intent is synced before retained-looking files are created. Final directory
+syncs finish before completion is published; a failed sync or marker removal leaves
+the destination incomplete across restart. No fallible storage read or sync follows
+marker removal. A crash may conservatively restore the incomplete marker.
+
 ## Numeric snapshot routing checkpoint
 
 Dataset tables and derived analyses/graphs retain their existing versioned snapshot
@@ -155,10 +160,11 @@ Legacy snapshots keep their existing format and location. Library identity mappi
 shared captures and remaining dependencies still block live activation and complete
 collection; this adapter alone is not the full portability journey.
 
-If final directory syncing and restoration of the pending marker both fail, all
-readers in that host hide the uncertain snapshot. That fallback is process-local;
-recovery across host loss in this double-failure case is not qualified. It remains
-an explicit gate before live activation or complete-portability claims.
+Snapshot publication durably retains its pending marker before writing output.
+All required syncing finishes before the final acceptance action removes the marker.
+Failures preserve uncertainty across host restart without relying on process-local
+state or a second recovery write. A crash may conservatively restore a pending
+marker; explicit reconciliation is still required, never automatic replay.
 
 ### Staged volume and registration storage
 
@@ -190,3 +196,17 @@ refuse until host-local spending, worker lifetime, source acquisitions and full
 collection are qualified. Existing legacy Projects keep their working researcher
 paths. Global descriptions/shared acquisitions, dependency closure and live App
 activation remain open; no complete portable Project claim follows from this slice.
+### Selected Library media retention
+
+The staged `ProjectMedia` adapter copies an admitted image or recording through the
+existing immutable file intake. Its exact reference includes the Project origin,
+document revision and digest; a coincident `a1` in another host's Library cannot
+resolve it. Known Library metadata is retained at that revision. Changed originals
+require a new admission, and deleting the original does not remove accepted bytes.
+The shared inventory uses the declared media kind and preserves generated origin
+when a snapshot is selected as input. Reading retained chunks needs no media decoder.
+
+This adapter does not remap live Library aliases, collect Library edit history,
+materialize playback files or collect Record datasets. Record parts refuse until
+whole-dataset inclusion is reviewed. Live portable activation and complete mixed
+Project collection remain off pending those integrations.

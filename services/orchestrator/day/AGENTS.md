@@ -339,3 +339,10 @@ all bytes for explicit reconciliation. Removing that marker is the final accepta
 action; a crash may conservatively restore uncertainty. Background identity lifecycle
 binding and reconciliation UI remain open gates: the staged adapter explicitly
 refuses event-loop use, rather than blocking live frames or silently claiming a save.
+
+`project_media.ProjectMedia` retains selected Library images/recordings with the
+existing FileIntake transaction and exact origin/revision/hash references. It copies
+bytes, retains known metadata, and refuses changed sources, event-loop work and
+individual Record parts. Readers use retained chunks rather than host Library IDs.
+Library alias/playback integration and complete capture/history collection remain
+unqualified; live portable activation stays off.

@@ -17,9 +17,6 @@ from .scientific_projects import ProjectStore
 NAME = re.compile(r'snapshot-\d{6}-(?:[0-9a-f]{12}-)?f\d+')
 MAX_META = 16 << 20
 MAX_PICTURE = 128 << 20
-# A tool writer and the Index are different instances in the same host. Keep
-# uncertain publication hidden from every reader until explicit recovery.
-_UNCERTAIN = set()
 
 
 class Snapshots:
@@ -67,7 +64,9 @@ class Snapshots:
                for suffix in ('.json', '.png', '.pending')):
             raise ProjectLocationError('Snapshot identity already exists; preserve it and take a new snapshot')
         ProjectStore._write(pending, b'Snapshot publication incomplete.\n', immutable=True)
-        _UNCERTAIN.add(folder / name)
+        # Make the uncertainty durable before writing any accepted-looking bytes.
+        ProjectStore._sync_directory(folder)
+        ProjectStore._sync_directory(folder.parent)
         images = {f'{name}.png': picture}
         if clean is not None:
             clean_folder = folder / 'clean'
@@ -82,21 +81,21 @@ class Snapshots:
         record = {**facts, 'files': {key: hashlib.sha256(data).hexdigest() for key, data in images.items()}}
         ProjectStore._write(folder / f'{name}.json', json.dumps(record, indent=1, default=float).encode(), immutable=True)
         self.folder(session, date, write=True)
+        if clean is not None:
+            ProjectStore._sync_directory(folder / 'clean')
+        ProjectStore._sync_directory(folder)
         ProjectStore._sync_directory(folder.parent)
+        self.folder(session, date, write=True)
+        # Last fallible action: failure leaves the durable marker. A crash may
+        # conservatively restore it, but cannot expose a failed publication.
         pending.unlink()
-        try:
-            ProjectStore._sync_directory(folder)
-        except OSError:
-            ProjectStore._write(pending, b'Snapshot completion uncertain.\n')
-            raise
-        _UNCERTAIN.discard(folder / name)
         return folder
 
     def read(self, session, date, name):
         if not NAME.fullmatch(name):
             raise ProjectLocationError('Invalid snapshot identity')
         folder = self.folder(session, date)
-        if folder / name in _UNCERTAIN or (folder / f'{name}.pending').exists():
+        if (folder / f'{name}.pending').exists() or (folder / f'{name}.pending').is_symlink():
             return None
         record = folder / f'{name}.json'
         if not record.exists() and not record.is_symlink():
@@ -109,6 +108,9 @@ class Snapshots:
             allowed = {f'{name}.png', f'clean/{name}.png'}
             if not isinstance(files, dict) or f'{name}.png' not in files or not set(files) <= allowed:
                 raise ProjectLocationError('Snapshot has no retained picture identities')
+        self.folder(session, date)
+        if (folder / f'{name}.pending').exists() or (folder / f'{name}.pending').is_symlink():
+            return None
         return facts
 
     def picture(self, session, date, name, *, clean=False, max_bytes=None):
