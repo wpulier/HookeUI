@@ -427,3 +427,13 @@ body[data-workspace-study='true'] .study-retained-conversation .study-ask-status
 .project-research-titlebar h3 { margin: 0; }
 .project-research-titlebar .mm-primary { flex-shrink: 0; }
 @media (max-width: 720px) { .project-research-titlebar { align-items: flex-start; flex-direction: column; gap: 12px; } }
+
+/* Sources support the ongoing effort rather than displacing its purpose and outcome. */
+.project-research-material { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px 16px; padding:16px 0; border-top:1px solid var(--mm-line); }
+.project-research-material h3 { margin:0; font:600 14px/1.4 var(--mm-sans); color:var(--mm-text); }
+.project-research-material p.project-research-caption { grid-column:1; margin:0; line-height:1.5; }
+.project-research-material > button { grid-column:2; grid-row:1 / 3; }
+@media (max-width:600px) {
+  .project-research-material { grid-template-columns:minmax(0,1fr); }
+  .project-research-material > button { grid-column:1; grid-row:auto; justify-self:start; margin-top:6px; }
+}
