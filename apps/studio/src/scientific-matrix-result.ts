@@ -12,7 +12,7 @@ function summaryValue(value: unknown): HTMLElement {
   const text = typeof value === 'string' ? value : simple || shortArray ? JSON.stringify(value) : '';
   if ((simple || shortArray) && text.length <= 180) return node('span', text);
   const details = node('details'); details.className = 'scientific-result-value';
-  const description = Array.isArray(value) ? `${value.length.toLocaleString()} items`
+  const description = Array.isArray(value) ? `${value.length.toLocaleString()} ${value.length === 1 ? 'item' : 'items'}`
     : object(value) ? `${Object.keys(value).length.toLocaleString()} ${Object.keys(value).length === 1 ? 'field' : 'fields'}`
     : `${String(value).length.toLocaleString()} characters`;
   details.append(node('summary', `View ${description}`));
