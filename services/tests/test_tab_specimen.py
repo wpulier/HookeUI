@@ -46,8 +46,8 @@ class SpecimenStudio(TableStudio):
 
     async def tabs_reply(self, message):
         action = message['action']
-        if action['action'] == 'create':  # a new Tab opens with its specimen floating small in its corner
-            self.specimens[f'tab-{len(self.tabs)}'] = copy.deepcopy(SHOWN['float'])
+        if action['action'] == 'create':  # a new Tab opens as a canvas for data, with no specimen (Will, 29 Oct)
+            self.specimens[f'tab-{len(self.tabs)}'] = copy.deepcopy(SHOWN['hide'])
         if action['action'] != 'specimen':
             return await super().tabs_reply(message)
         if action['tab'] == 'main' and action['specimen'] == 'hide':

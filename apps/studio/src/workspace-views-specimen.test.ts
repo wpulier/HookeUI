@@ -112,15 +112,13 @@ function agent(work={visible:true,rect:null as number[]|null},active='w'){
  return {current,view,stage};
 }
 
-test('a new Tab opens with the specimen floating small in its corner, made by "+" or by the Assistant alike',async()=>{
+test('a new Tab opens as a canvas for data, with no specimen, made by "+" or by the Assistant alike (Will, 29 Oct)',async()=>{
  const t=agent();Object.assign(t.current,{activate:vi.fn(async()=>true),opts:{notice:vi.fn(),captureInput:()=>null}});
  const result=await t.current.agentCommand('p',{action:'create',title:'Reference'});
  expect(result.ok).toBe(true);
  const made=t.current.layout.views[2];
- expect(made.specimen).toEqual({visible:true,rect:floatingSpecimen(1200,800)});
- const [x,y,w,h]=made.specimen.rect;
- expect(w).toBeLessThanOrEqual(320);expect(h).toBeLessThan(800/2);expect(x).toBeLessThan(1200/2);expect(y+h).toBeLessThanOrEqual(800); // small, in the lower-left corner
- expect(result.tabs.find((tab:{id:string})=>tab.id===made.id).specimen).toBe('float');
+ expect(made.specimen).toEqual({visible:false,rect:null});
+ expect(result.tabs.find((tab:{id:string})=>tab.id===made.id).specimen).toBe('hidden');
  // A run's result Tab draws on the specimen: it is made with its specimen filling, as before.
  const id=await Reflect.get(WorkspaceViews.prototype,'addView').call(t.current,'Results',false,{visible:true,rect:null});
  expect(t.current.layout.views.find((v:{id:string})=>v.id===id).specimen).toEqual({visible:true,rect:null});
