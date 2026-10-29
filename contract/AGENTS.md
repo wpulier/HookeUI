@@ -87,3 +87,9 @@ gone, or a capability with no parts fails the test. Each family says in a line w
   runner (an explicit choice, raw, origin `headless`) and result store, and checks that the output is what the
   capability declares. An implementation whose adapter runs in its own process (Fiji, python-env:
   `kinds.Backend.own_process`) needs no GPU worker to be available.
+
+`agent/study-question` and `agent/study-answer` describe retained correspondence: original
+actor, selected contributor, exact Study basis and exact answer evidence. No schema field
+implies execution readiness, verified scientific accuracy or human review. Local conversation
+routes enforce these schemas. Hosted services without this path must remain explicitly
+unavailable rather than inventing a different meaning or launching a provider.

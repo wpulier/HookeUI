@@ -342,3 +342,19 @@ body.studio-shell .session-home[data-project-research='true'] .home-title { marg
 .study-ask-status { margin: 0 0 8px; color: var(--mm-text-2); font: 400 12px/1.5 var(--mm-sans); }
 .study-ask-setup { margin-bottom: 10px; border: 1px solid var(--mm-line-strong); border-radius: 7px; padding: 6px 10px; background: var(--mm-ctl-fill); color: var(--mm-text); font: 500 12px var(--mm-sans); cursor: pointer; }
 .study-ask-setup[hidden] { display: none; }
+
+/* A retained conversation belongs to its Study, beside its evidence. */
+.study-conversation { min-width:0; padding:12px 16px 16px; border-top:1px solid var(--line); }
+.study-conversation-log { max-height:340px; overflow:auto; overscroll-behavior:contain; }
+.study-question { padding:16px 0; border-bottom:1px solid var(--line); }
+.study-question small,.study-answer-limits { color:var(--muted); font-size:12px; }
+.study-question-words { font-weight:600; margin:6px 0 18px; }
+.study-answer-words { white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.55; font-size:14px; }
+.study-answer-author { font-size:12px; }
+.study-answer-evidence { margin:12px 0; font-size:12px; }
+.study-answer-evidence button { display:block; margin:6px 0; }
+.study-answer-waiting { color:var(--muted); font-size:13px; }
+.study-conversation-controls { display:flex; align-items:center; gap:12px; margin:8px 0; }
+.study-conversation-controls p { flex:1; }
+.study-conversation-controls button { font-size:12px; }
+.study-question-recipient { color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:5px 8px; min-width:0; max-width:100%; }

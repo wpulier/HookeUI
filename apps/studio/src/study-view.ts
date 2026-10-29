@@ -8,6 +8,7 @@ import { researchIcon } from './research-workspace';
 /** A saved Study is never an instruction to launch. Only its explicit Start action dispatches work. */
 export interface StudyActions {
   localWorkflows?: boolean;
+  conversation?: HTMLElement;
   control(action: 'pause' | 'continue' | 'stop'): void | Promise<unknown>;
   start?(fields: StudyStart): Promise<unknown>;
   readiness?(): Promise<StudyProvider[]>;
@@ -18,9 +19,8 @@ export interface StudyActions {
   finding?(request: string, statement: string, tasks: string[]): Promise<unknown>;
   /** Open a file the researcher made, kept at its exact revision, in the workspace (the same route as Study job results). */
   openFile?(ref: { id: string; revision: number }, name: string): Promise<unknown>;
-  /** Open the Stage bar's Assistant beside the write-up (a Study takes no messages of its own). */
-  /** Asks the Stage bar's Assistant these words over the write-up (its panel opens after admission): a Study
-   * takes no messages of its own. False when they were not sent (the words then stay in the field). */
+  /** Asks the Stage bar's Assistant these words over the write-up (its panel opens after admission): legacy surfaces
+   * can use this handoff when no retained conversation is supplied. False when they were not sent (the words then stay in the field). */
   ask?(text: string): boolean | void;
   askBlocked?(): string | null;
   setupAssistant?(): void;
@@ -574,7 +574,8 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   centre.append(centreHead, centreBody);
   // A Study takes no messages of its own: its composer (the shared one, without + or a model chip) asks the Stage bar's
   // Assistant, which opens beside the write-up and can act on this Study.
-  if (actions.ask) {
+  if (actions.conversation) centre.append(actions.conversation);
+  else if (actions.ask) {
     const dock = node('div', 'rcomp');
     const compose = new Composer(null, { label: 'Ask the Assistant about this study', placeholder: 'Ask the Assistant about this study' });
     compose.root.classList.add('study-ask-composer');

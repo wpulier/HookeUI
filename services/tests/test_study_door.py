@@ -81,3 +81,52 @@ def test_connected_agent_discovers_exact_workflow_inputs_and_frozen_definition(t
         client.post(f"/api/agent-connections/{connection['connection']['id']}/disconnect",json={},headers=STUDIO)
         assert client.get(route,headers=headers).status_code==401
         assert client.get(path,headers=headers).status_code==401
+
+
+def test_study_question_ui_to_connected_agent_roundtrip_enforces_grants(tmp_path):
+    from orchestrator.research.effort_api import register
+    store=ProjectStore(tmp_path/'projects')
+    session='2026-10-28'
+    built=SimpleNamespace(paths=SimpleNamespace(home=tmp_path),
+        hub=SimpleNamespace(clients=set(),resources=SimpleNamespace(projects=store)),
+        day=SimpleNamespace(sid=session,elsewhere=lambda _:SimpleNamespace(local_only=True)))
+    app=FastAPI();api.register(app,built,studio_origin,HEADER);register(app,built,studio_origin,HEADER)
+    with TestClient(app,base_url=BASE) as client:
+        a=connect(client,label='Lead');b=connect(client,label='Reviewer',secret='second-client-secret-0001')
+        h1,h2=bearer(a['token']),bearer(b['token']);aa='agent:'+a['connection']['id'];bb='agent:'+b['connection']['id']
+        access(built).remember(session,aa);access(built).grant(session,bb,'contribute',authority='development')
+        fields={'session':session,'requestKey':'new-study','title':'Study','objective':'Read actual evidence','criteria':'Cite exact revisions','budgetUsd':0,'inputs':[]}
+        study=client.post('/api/agent/v1/studies',json=fields,headers=h1).json()['study']
+        sid=study['id'];local=f'/api/research-efforts/{sid}/questions';door=f'/api/agent/v1/studies/{sid}/questions'
+        studio={**STUDIO,HEADER:'research-effort'}
+        options=client.get(local,params={'session':session},headers=studio)
+        assert options.status_code==200,options.text
+        assert len(options.json()['recipients'])==2
+        basis={key:study[key] for key in ('id','session','revision','digest')}
+        body={'session':session,'request':'question-ui','question':'what does it mean?','basis':basis,'recipient':bb}
+        assert client.post(local,json=body).status_code==403
+        asked=client.post(local,json=body,headers=studio)
+        assert asked.status_code==200,asked.text
+        question=asked.json()['question'];qid=question['id'];schema.check(question,'study-question')
+        assert client.post(local,json=body,headers=studio).json()['question']==question
+        context=client.get(door+'/'+qid,params={'session':session},headers=h2).json()
+        assert context['study']['objective']=='Read actual evidence'
+        assert context['study']['revision']==basis['revision']
+        answer={'session':session,'statement':'Explanation based on the saved protocol.', 'evidence':[basis],'limitations':'No experiments yet.'}
+        assert client.post(door+'/'+qid+'/answer',json=answer,headers=h1).status_code==400
+        assert client.post(door+'/'+qid+'/answer',json={**answer,'by':aa},headers=h2).status_code==400
+        access(built).grant(session,bb,'read',authority='development')
+        assert client.post(door+'/'+qid+'/answer',json=answer,headers=h2).status_code==403
+        access(built).grant(session,bb,'contribute',authority='development')
+        got=client.post(door+'/'+qid+'/answer',json=answer,headers=h2)
+        assert got.status_code==200,got.text
+        assert got.json()['question']['answer']['by']==bb
+        schema.check(got.json()['question'],'study-question')
+        assert client.post(door+'/'+qid+'/answer',json=answer,headers=h2).json()==got.json()
+        assert client.get(local,params={'session':session},headers=studio).json()['questions']==[got.json()['question']]
+        assert client.get(door,params={'session':'2026-10-27'},headers=h2).status_code==403
+        client.post(f"/api/agent-connections/{b['connection']['id']}/disconnect",json={},headers=STUDIO)
+        assert client.get(door,params={'session':session},headers=h2).status_code==401
+        assert len(client.get(local,params={'session':session},headers=studio).json()['recipients'])==1
+        built.day.sid='2026-10-27'
+        assert client.post(local,json={**body,'request':'changed-project'},headers=studio).status_code==409

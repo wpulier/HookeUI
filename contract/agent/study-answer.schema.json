@@ -1,0 +1,46 @@
+{
+  "$id": "hooke:agent/study-answer",
+  "type": "object",
+  "required": [
+    "statement",
+    "evidence",
+    "limitations",
+    "by",
+    "byLabel",
+    "at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16000
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "$ref": "artifact-reference.schema.json"
+      }
+    },
+    "limitations": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "byLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "at": {
+      "type": "number",
+      "minimum": 0
+    }
+  }
+}

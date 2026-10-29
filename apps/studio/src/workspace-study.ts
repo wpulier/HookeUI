@@ -24,6 +24,7 @@ import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
 import { RunPills } from './strip-sources';
 import { StudyRefused, controlStudy, createStudy, listStudies, readStudy, studyName, studyNeeds, studySpending, taskCounts, type Effort, type StudyProvider, type StudyInput, studyInputDescription, studyState, studyInputs, studyReadiness, startStudy, collectStudyTask, recoverStudyTask, studyEvidence, reviewStudyTask, retainStudyFinding } from './research-efforts';
+import { studyConversation } from './study-conversation';
 import { renderStudy, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import { ADOPT_WAIT_MS, adoptedResearcher, beginStart, draftLine, notStartedWords, settleStart, type DraftStart } from './researcher-draft';
 import { mountScientificStaging } from './research-scientific';
@@ -963,6 +964,13 @@ async function openStudy(id:string):Promise<void>{
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The Project or Study view changed. Return to the original Study.');
     const next=await work();if(current()&&currentStudyPage===page&&!researchStage.hidden)draw(next);
   };
+  const conversation=studyConversation(study,{
+    current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
+    open:async(ref,title)=>{
+      if(!current()||currentStudyPage!==page||researchStage.hidden||ref.session!==session)throw new Error('Return to the originating Study.');
+      await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
+    },
+  });
   const draw=(next:Effort)=>{
     if(!current())return;openStudyNow=next;retireStudyStaging?.();
     // One way to open what this Study kept (a job's result or a researcher's file): its exact saved revision, in the
@@ -974,7 +982,9 @@ async function openStudy(id:string):Promise<void>{
       if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
       if(ownsView())closeResearchStage();
     };
+    conversation.update(next);
     renderStudy(page,next,{
+      conversation:conversation.root,
       localWorkflows:true,
       readiness:async()=>{const latest=await studyReadiness(session,fetch,next.id);if(!current()||currentStudyPage!==page)throw new Error('Return to the original Study.');providers=latest;return latest;},
       control:action=>apply(()=>controlStudy(next.id,session,action)),
@@ -1008,10 +1018,11 @@ async function openStudy(id:string):Promise<void>{
     researchStudyKey='';renderResearchStudy();
   };
   if(location.hash.startsWith('#research/'))bridge.navigate('#');
-  openResearchStage(page);draw(study);clearInterval(studyTimer);
+  openResearchStage(page);draw(study);void conversation.refresh();clearInterval(studyTimer);
   // Only local retained state is read. Provider collection is a separate explicit action.
   studyTimer=window.setInterval(()=>{
     if(!current()||researchStage.hidden||currentStudyPage!==page){clearInterval(studyTimer);return;}
+    void conversation.refresh();
     if(page.dataset.pending||page.querySelector('[data-pending]')||page.querySelector('[data-draft]')||page.dataset.draft||page.dataset.reviewOpen||page.contains(document.activeElement))return;
     void readStudy(id,session).then(next=>{if(current()&&currentStudyPage===page&&!page.dataset.pending&&!page.querySelector('[data-pending]')&&!page.querySelector('[data-draft]')&&!page.dataset.draft&&!page.dataset.reviewOpen&&!page.contains(document.activeElement)&&(next.revision!==openStudyNow?.revision||next.stopPending!==openStudyNow?.stopPending))draw(next);}).catch(()=>{});
   },4000);

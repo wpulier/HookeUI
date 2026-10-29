@@ -1847,3 +1847,12 @@ chat bubble or opening another panel. Study readiness is shown beside its field 
 draft; setup is an explicit Models action. Ready sends say where the answer will appear and open the Assistant only
 after the ordinary send succeeds. A generic planner failure never establishes that a key is missing. Connected-agent
 authorization is separate from Assistant model readiness; test both unavailable and real configured-answer journeys.
+
+`study-conversation.ts` provides the retained Study question path. A person chooses a connected
+Project contributor, saves a question against the visible Study revision, and reads the attributed
+answer inline. It uses the same Composer and exact-result opening surface. Connection authorization
+is not liveness: queued questions say waiting and offer a copyable handoff. Polling reads retained
+state only, preserves drafts and focus, and stops when its originating Project/Study is no longer
+current. Lost-reply retries preserve the request identity and captured context. Answers retain
+limitations and evidence and never become reviewed findings automatically. The ordinary Assistant
+remains available separately; no Gemini dependency or subscribed-CLI launch is added to this path.
