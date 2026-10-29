@@ -155,3 +155,59 @@ other files.
   is asked to go on: "done" is said from the picture, not from the tool's own success. The record of the call says
   whether a report came (`confirmed`, `reportT`).
 
+
+## Hands: the partner's drive (spec step 1, section 4.2)
+
+The one-brain partner acts in Hooke through Hooke's own operations (the registry's tools: `present`, `tabs`,
+`show_measurements`, `highlight`, `select`, `zoom`, `clear`, `outline_cells`, `find`), never through pixels. Hands
+(`voice/hands.py`) wraps each such call, for the voice and for `think`'s backend alike, with what a live partner needs:
+a typed intent with a resolved target, a visible cue, a verified outcome and takeover.
+
+- **Typed intents.** Each call is one intent: `open` (window, Tab, table, asset), `close`, `focus` (a Tab),
+  `highlight`, `select`, `zoom`, `outline`, `present`, typed from the tool and its arguments (`hands.INTENTS`). The
+  voice keeps the tool names it already picks right (29 of 30 on the broad journey); the intent is Hands' record.
+- **The target by id.** A target the screen now shows (the report's ids and Tab titles) or the conversation pointed at
+  (marks and `pointed_at`, newest first) is used as given. A target given as nothing the screen or the pointing
+  history knows is filled from them when one candidate of its kind is there, and asked about in one short question
+  when two or more are (`{"result": "ask", "candidates": [...]}`), never guessed.
+- **A visible cue first.** Before the effect the server takes control and sends the cue over `/ws/voice`:
+  - `{type:"control", version, owner:"partner"}` before the first cue of a turn's intents, and
+    `{type:"control", version, owner:"user"}` when they are done. `version` is an integer that only rises; the studio
+    ignores a cue with a lower version than the last control it saw.
+  - `{type:"drive", id, version, intent:{kind, target, caption, style?}, frame?}`: the target in the marks grammar
+    (above) plus `control:<css id>`; `caption` 2-4 words ("Opening the table"); `style` `ring` for things on the picture
+    (`outline:`, `member:`, `population:`, `frame`), `cursor` for windows, Tabs and controls, chosen by that rule when
+    missing; `frame`, `region` and `polygon` as in marks. The studio moves its partner cursor there (about 300 ms,
+    eased, never the Mac pointer) or rings the target, and answers `{type:"drive-shown", id, ok, rect?, why?}` when it
+    arrives, or at once with `ok:false` and why (the marks' why values). The server runs the intent after drive-shown,
+    waiting at most `CUE_WAIT_S` (0.5 s); a cue not shown never blocks the action and is logged.
+  - `{type:"drive-end", id, outcome:"verified"|"failed"|"uncertain"|"running"}`: the cursor settles and fades, with a
+    tick for verified and a cross for failed.
+- **Bound and re-checked.** An intent is bound to the control version and the screen revision (the report's `seq`) it
+  was planned against, and is checked again just before its effect (after the cue, after a permission wait): the
+  version must be the same, and its target still on screen where it needs one. Otherwise nothing runs and the result
+  is "the screen changed; look again".
+- **Takeover.** While the owner is the partner, the studio sends `{type:"takeover", version, why:"mouse"|"escape"|"talk",
+  at}` in the same task as the user's input (real pointer movement over the window of at least 3 px, Escape, the talk
+  key or button; on top of talk-down). The server raises the version, sets the one cancel signal every await of the
+  running intent races against (the cue wait, the effect, the verifier, `think`'s tool calls), drains at most
+  `DRAIN_S` (1 s), drops what was queued, and answers `{type:"control", version, owner:"user", ack:true, at}` (its
+  receive time, ms) so input to "the server knows" is measured. An effect cut off mid-way is **uncertain**, never done
+  or silently dropped; one that finished within the drain is verified as usual. Control comes back to the partner only
+  with a fresh look (the next turn's pictures, or `look_after`).
+- **Verified by the app.** The result is `verified | failed(reason) | uncertain | running`, decided from the tool's own
+  run (its Activity row reaching done or failed; the report-confirmed tools fail when the studio does not show the
+  change) and the studio's report showing the expected state, compared with what was asked (`hands.expected`): the Tab
+  in front for `focus`, the id gone for `close`, the outline ids drawn (`legacy.drawn`) or the members emphasised for
+  `highlight`, the selection for `select`, the magnifier's outline for `zoom`, the layer and its members
+  (`legacy.members`) for `outline`, the table or document window for `open`. A report that cannot show the state
+  (an older studio) leaves only a report newer than the change: that is `verified` only with the tool's own report
+  check, otherwise `uncertain`. The voice says exactly the result; "done" is never its own judgement.
+- **Permission.** Reversible actions in Hooke need none. An intent that spends (a paid cloud model) or deletes asks once,
+  by voice, with the cost said (`{"result": "permission", "ask": ..., "approval": id}`); the approval is bound to the
+  intent and expires after 2 minutes, and the intent is re-checked after it.
+- **Activity.** Each intent files one Activity line (kind `command`, "Assistant: <caption>"), running, then done or
+  failed with its result, so the user sees the partner's actions beside their own.
+- **The report's additions** (all optional and bounded; `workspace_observation._legacy`): `workspace.tabs` (the
+  Project's open Tabs in strip order, at most 24, exactly one in front), `legacy.drawn` on the outlines item (the
+  outlines drawn on the live view, at most 60, with their kind) and `legacy.members` on a layer (`{count, drawn}`).
