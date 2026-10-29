@@ -18,6 +18,7 @@ import contextlib
 import json
 import os
 import time
+from types import SimpleNamespace
 from typing import Any
 
 from .base import ToolSpec
@@ -52,6 +53,11 @@ THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long t
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
 MARKS_WAIT_S = 1.0  # the studio's marks-shown, at most
+# A Tab tool called while the studio is landing the Project just opened (a voice switch_session or new_project) waits
+# this long for the studio's report to show that Project's Tabs, then is tried once more (bench think-broad-1).
+LANDING_WAIT_S = 5.0
+TAB_TOOLS = frozenset({"show_measurements", "tabs", "present"})
+LANDING_WORDS = "waiting for the studio to finish opening this Project's Tabs, then trying once more"
 STYLES = ("box", "point", "underline")
 
 MARK = {
@@ -209,25 +215,44 @@ class PartnerTools:
         before = self._reported_at()
         key = object()
         self.running[key] = (name, time.monotonic(), None)  # from its start: the runner waits its inline time first
+        landing = None
         try:
             run, ctx = await self._start(name, args, words)
             self.running[key] = (name, self.running[key][1], run)
             if run.ok is None and run.task is not None:
                 await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
+            if run.ok is False and name in TAB_TOOLS and self.project_shown() is False:
+                # Called while the studio lands the Project just opened: its Tabs are not showing yet. Said as waiting
+                # (the progress line's facts), then tried once more when they show; never failed for a studio a moment
+                # behind, and never retried twice.
+                self.running[key] = (name, self.running[key][1], SimpleNamespace(progress=LANDING_WORDS))
+                landing = await self.project_landed()
+                if landing:
+                    run, ctx = await self._start(name, args, words)
+                    self.running[key] = (name, self.running[key][1], run)
+                    if run.ok is None and run.task is not None:
+                        await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
         finally:
             self.running.pop(key, None)
         action = getattr(getattr(run, "occurrence", None), "action_id", None)
         if patient and action and run.task is not None and not run.task.done():
             self.held.add(action)  # before anything awaits: landing now, it is filed quietly (_late), not said
-        result = await self._answer(name, run, ctx, before)
+        result = await self._answer(name, run, ctx, before, landing=landing)
         if action in self.held:
             result["_pending"] = (run, ctx, before, action)
         return result
 
-    async def _answer(self, name: str, run, ctx, before: float, *, file: bool = True) -> dict:
+    async def _answer(self, name: str, run, ctx, before: float, *, file: bool = True,
+                      landing: bool | None = None) -> dict:
         """A run's result for the model: its receipt, filed in the chat, and, after a change on screen, a fresh look."""
         log: dict[str, Any] = {"requestId": getattr(getattr(run, "occurrence", None), "request_id", None)}
         result = self._result(run)
+        if landing is not None:
+            log["landing"] = "landed, tried again" if landing else "not landed"
+        if landing is False:
+            result["summary"] = ("not done: the studio is still opening this Project's Tabs (it has not shown them for "
+                                 f"{LANDING_WAIT_S:.0f} s)")
+            result["next"] = "ask again in a moment"
         if name == "models_in_use":  # the app's own list leaves out the voice answering: this one
             result["this_voice"] = (f"{self.voice_label()}: the voice the user hears, which also sees the camera and "
                                     "Hooke's window and acts with Hooke's tools")
@@ -270,6 +295,35 @@ class PartnerTools:
             result = await self._answer(name, run, ctx, before, file=not filed)
         result["_log"] = {**early.get("_log", {}), **result.get("_log", {}), "waited": True}
         return result
+
+    def project_shown(self) -> bool | None:
+        """Whether the bound studio's latest report shows the open Project's Tab strip (data_reader._strip); None when
+        there is no bound studio report to read (nothing to wait for)."""
+        from ..data_reader import _strip
+        from ..resources import resources_of
+
+        screen = getattr(self.hub, "screen", None)
+        if self.client is None or screen is None:
+            return None
+        try:
+            observation = screen.observation(self.client)
+        except Exception:
+            return None
+        if observation is None:
+            return None
+        return _strip(observation, resources_of(self.hub).session()) is not None
+
+    async def project_landed(self) -> bool:
+        """The studio's report showing the open Project's Tabs, within LANDING_WAIT_S (it is asked for one at once)."""
+        screen = getattr(self.hub, "screen", None)
+        with contextlib.suppress(Exception):
+            screen.broadcast({"type": "screen-ask"})
+        deadline = time.monotonic() + LANDING_WAIT_S
+        while time.monotonic() < deadline:
+            if self.project_shown():
+                return True
+            await asyncio.sleep(0.05)
+        return bool(self.project_shown())
 
     def voice_label(self) -> str:
         from ..options import VOICE

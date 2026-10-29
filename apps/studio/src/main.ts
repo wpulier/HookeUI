@@ -85,7 +85,7 @@ import { ResultFocus } from './result-focus';
 import { SessionsModel, sessionName } from './sessions';
 import { SessionMenu } from './session-menu';
 import { SideBar, type SideSection } from './sidebar';
-import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, StageGate, startMayLand, viewOnOpen, type Landing, type StartLook } from './session-view';
+import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, StageGate, startMayLand, switchBlock, viewOnOpen, type Landing, type StartLook } from './session-view';
 import { addFiles, isAssetFeed, joinedSince, liveState, plainError, SourcesModel, SourcesSection, stageOf, type SourceRow, type SourcesState } from './sources';
 import { assetFor, isOwnFootage, libraryUrl, readLibrary } from './asset-library';
 import { SessionHome } from './session-home';
@@ -1186,6 +1186,7 @@ function handleMessage(message: ServerMessage): void {
       chat.apply(message); // the chat shows the active conversation
       break;
     case 'session-cleared': // the shared View dispatcher retired old overlay identities; Made in this session is another's
+      marks.clear(); // what the voice pointed at belonged to the Project left
       madeToday.sessionChanged();
       measurementsPage.sessionChanged();
       connectionStart.cleared();
@@ -3646,13 +3647,10 @@ export function workspaceStudyBridge() {
       onStage, heard: sourcesModel.state != null, selection: view.selected ? { id: view.selected, label: view.labelOf(view.selected) || view.selected } : null,
       frame: onStage && onStage !== 'live' ? null : view.header ? { id: view.header.id, boot: view.header.boot, w: view.header.w, h: view.header.h } : null, held: viewHeld };
   };
-  const switchBlockReason = (): string | null => {
-    if (!connected) return 'Reconnect before switching projects.';
-    const documentBlock=studyArtifacts().blockReason(sessionsModel.current);if(documentBlock)return documentBlock;
-    if (isRecording() || stopping || recorder.state !== 'idle') return 'Stop the recording before switching projects.';
-    if (voice.state !== 'off') return 'End voice before switching projects.';
-    return null;
-  };
+  // Never Talk: both voices follow the open Project (session-view.ts switchBlock).
+  const switchBlockReason = (): string | null => switchBlock({ connected,
+    documentBlock: studyArtifacts().blockReason(sessionsModel.current),
+    recording: isRecording() || stopping || recorder.state !== 'idle', talk: voice.state });
   const waitFor = async (check: () => boolean, message: string, timeout = 25_000) => {
     const deadline = performance.now() + timeout;
     while (!check()) {

@@ -86,6 +86,7 @@ class Partner:
         session.history = self.history
         session.tag_notice = self.tag_notice
         session.happened = self.happened  # the app's own events (App.turned_on) reach it through brain.voice
+        session.project_changed = self.project_changed  # another Project opened (App._session_event)
         session.running_facts = self.tools.running_facts
         session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
                                                                  timeout=1.0))
@@ -406,6 +407,14 @@ class Partner:
             with contextlib.suppress(Exception):
                 text = self.brain.voice_recap()[:BRIEF_CHARS]
         return text, hashlib.sha256(text.encode()).hexdigest()[:16]
+
+    async def project_changed(self) -> None:
+        """Another Project is open (a voice switch_session or new_project, or the user's own switch, which Talk no
+        longer holds back): what it pointed at in the Project left is cleared, and the brief is the new Project's now,
+        not at the next key press. The voice's binding is the studio connection, not a Project, so its tools already
+        act in the Project open; the recap that says which one is App._session_event's."""
+        await self.clear_marks()
+        await self.refresh_brief()
 
     async def refresh_brief(self) -> None:
         text, revision = await self.brief()
