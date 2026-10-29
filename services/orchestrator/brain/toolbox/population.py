@@ -77,7 +77,7 @@ def add_population_tools(registry: Registry, services) -> None:
     registry.add(Tool(
         "query_population",
         "Facts about a population of segmented things (outline_cells, automatic masks, find-all matches): the "
-        "count, per column the median and middle half, coverage, the members by measured ranges, sorted, the "
+        "count, per column the mean, median and middle half, coverage, the members by measured ranges, sorted, the "
         "first few, outliers of a column, or those worth a second look (review). Columns: area, perimeter, "
         "length, width, elongation, roundness, solidity, intensity, score, group (once grouped). It never segments: with no "
         "population it says so. Query this source when asked to check a saved count or measurement, even if "

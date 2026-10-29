@@ -125,6 +125,9 @@ def test_members_are_chosen_by_what_was_measured(world):
     words = summary(population, ["areaPx", "elongation"])
     assert words.startswith("6 instances") and "median" in words and "no scale, so no µm" in words
     assert "units: lengths in px, areas in px²" in words  # area is not a length, including the overall unit line
+    # The mean is a fact beside the median, so "the average" is answered with it (think-broad-2, just-average).
+    areas = [population.value(m.id, "areaPx") for m in population.live()]
+    assert f"areaPx: mean {sum(areas) / len(areas):.4g}, median " in words
     assert resolve(world, "", None) is population  # the one shown
     assert isinstance(review(population), list)
 

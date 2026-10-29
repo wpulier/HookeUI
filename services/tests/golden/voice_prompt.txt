@@ -59,7 +59,7 @@ Magnifier: magnify, hold, compare side by side, check the focus
 - close the magnifier: its panel, else the live magnification window in front (other w- windows close with present close)
 Measuring: count, measure sizes, set the objective and the scale
 - count the outlined objects with a label (if none are outlined yet, it outlines them first by looking)
-- facts about a population of segmented things (outline_cells, automatic masks, find-all matches): the count, per column the median and middle half, coverage, the members by measured ranges, sorted, the first few, outliers of a column, or those worth a second look (review)
+- facts about a population of segmented things (outline_cells, automatic masks, find-all matches): the count, per column the mean, median and middle half, coverage, the members by measured ranges, sorted, the first few, outliers of a column, or those worth a second look (review)
 - only when the user says segmented cells are wrong ("that's not a cell", "these two are one"): remove, merge or undo the last correction, as a new revision
 - group segmented cells by look ("group these by look"); group+name: the user names one ("those are platelets")
 - how the look groups differ (sizes, measured medians, examples); names: MedSigLIP's names as data

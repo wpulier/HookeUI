@@ -2304,14 +2304,17 @@ def row_words(population: Population, member: Member, columns: list[str], plain:
 
 
 def summary(population: Population, columns: list[str]) -> str:
-    """Count, and per column the median and the middle half, with what they rest on."""
+    """Count, and per column the mean, the median and the middle half, with what they rest on. Each is a fact: which one
+    answers a question ("the average" is the mean) is the reader's to judge (just-average, think-broad-2: the median was
+    said as the average when only the median was here)."""
     live = population.live()
     out = [population.count_words() + ("" if population.revision else " (revision 0)")]  # a corrected one says its revision
     for column in columns:
         values = np.array([v for v in (value(population, m, column) for m in live) if isinstance(v, (int, float))], float)
         if len(values):
             q1, med, q3 = np.percentile(values, [25, 50, 75])
-            out.append(f"{column}: median {med:.4g}, middle half {q1:.4g}-{q3:.4g} {UNITS.get(column, '')} (n {len(values)})")
+            out.append(f"{column}: mean {float(np.mean(values)):.4g}, median {med:.4g}, middle half {q1:.4g}-{q3:.4g} "
+                       f"{UNITS.get(column, '')} (n {len(values)})")
     cov = (population.columns.get("measure") or {}).get("coverage")
     if cov is not None:
         region = "original image" if population.view.get("sourceImage") else "eyepiece disc"
