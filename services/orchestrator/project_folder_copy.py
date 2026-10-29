@@ -39,8 +39,9 @@ class Member:
     stamp: tuple
 
 
-def _members(root, check):
+def _members(root, check, directories=None):
     found = []
+    directories = [] if directories is None else directories
     def visit(path):
         check()
         info = path.lstat()
@@ -48,6 +49,9 @@ def _members(root, check):
         if relative in EXCLUDED or re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/\.write\.lock', relative):
             return
         if stat.S_ISDIR(info.st_mode):
+            directories.append(relative)
+            if len(directories) > MAX_FILES:
+                raise ProjectLocationError('This Project folder exceeds the supported directory count')
             for child in sorted(path.iterdir()):
                 visit(child)
         elif stat.S_ISREG(info.st_mode):
@@ -106,7 +110,8 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
         raise ProjectLocationError('Choose a snapshot destination outside the source Project')
     with writer(root):
         verify_owner(root)
-        members = _members(root.path, check)
+        directories = []
+        members = _members(root.path, check, directories)
         required = sum(item.size for item in members) + MAX_MANIFEST + HEADROOM
         if shutil.disk_usage(parent).free < required:
             raise ProjectLocationError(f'Project copying needs {required} free bytes; no copy was started')
@@ -116,9 +121,9 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
         ProjectStore._write(intent, b'Copy incomplete. Preserve the original Project.\n')
         ProjectStore._sync_directory(parent)
         entries = []
-        # Empty standard sections must survive too.
-        for part in PARTS:
-            (destination / part).mkdir()
+        # Empty retained folders are part of the storage layout too.
+        for directory in directories:
+            (destination / directory).mkdir(parents=True, exist_ok=True)
         for member in members:
             check()
             target = destination / member.name
@@ -129,18 +134,24 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
             if _stream(target, check=check) != (size, digest):
                 raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
             entries.append({'path': member.name, 'bytes': size, 'sha256': digest})
-        if _members(root.path, check) != members:
+        current_directories = []
+        if _members(root.path, check, current_directories) != members or current_directories != directories:
             raise ProjectLocationError('Project membership changed during copying; preserve the incomplete copy and retry')
         # Detect writes after an individual member was copied, before sealing.
         for member, entry in zip(members, entries):
             if _stream(root.path / member.name, member.stamp, check=check)[1] != entry['sha256']:
                 raise ProjectLocationError('Project content changed before the snapshot was sealed')
         manifest = {'format': 'hooke-project-folder-snapshot-v1', 'origin': root.origin,
-                    'scope': 'project-folder', 'externalDependencies': 'not-verified', 'entries': entries}
+                    'scope': 'project-folder', 'externalDependencies': 'not-verified',
+                    'directories': directories, 'entries': entries}
         body = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
         if len(body) > MAX_MANIFEST:
             raise ProjectLocationError('Project snapshot manifest exceeds its supported size')
         ProjectStore._write(destination / SNAPSHOT, body, immutable=True)
+        # Shared readers use these new empty inodes even on read-only media.
+        # Never carry an original writer's lock inode or acquisition state.
+        for section in ('history/sessions', 'artifacts/records'):
+            ProjectStore._write(destination / section / '.bundle-visibility.lock', b'')
         for folder in sorted((p for p in destination.rglob('*') if p.is_dir()), reverse=True):
             ProjectStore._sync_directory(folder)
         ProjectStore._sync_directory(destination)
@@ -158,12 +169,16 @@ def verify_snapshot(location: Path, *, check=lambda: None):
         value = json.loads(raw)
     except (ValueError, RecursionError) as error:
         raise ProjectLocationError('Project snapshot manifest is unreadable') from error
-    if (type(value) is not dict or set(value) != {'format', 'origin', 'scope', 'externalDependencies', 'entries'}
+    if (type(value) is not dict or set(value) != {'format', 'origin', 'scope', 'externalDependencies', 'directories', 'entries'}
             or value['format'] != 'hooke-project-folder-snapshot-v1' or value['origin'] != root.origin
             or value['scope'] != 'project-folder' or value['externalDependencies'] != 'not-verified'
-            or type(value['entries']) is not list or len(value['entries']) > MAX_FILES):
+            or type(value['entries']) is not list or len(value['entries']) > MAX_FILES
+            or type(value['directories']) is not list or len(value['directories']) > MAX_FILES):
         raise ProjectLocationError('Unsupported Project snapshot manifest')
-    actual = {member.name: member for member in _members(root.path, check)}
+    directories = []
+    actual = {member.name: member for member in _members(root.path, check, directories)}
+    if value['directories'] != directories:
+        raise ProjectLocationError('Project snapshot directory membership does not match its manifest')
     if len(value['entries']) != len(actual):
         raise ProjectLocationError('Project snapshot membership does not match its manifest')
     seen = set()

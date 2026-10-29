@@ -61,6 +61,24 @@ def test_active_writer_refuses_copy_without_creating_destination(tmp_path):
     assert not (tmp_path / 'Refused').exists()
 
 
+def test_fresh_project_empty_storage_and_read_only_media(tmp_path):
+    prefs = Prefs(tmp_path / 'host')
+    root = create(tmp_path / 'Projects', 'Empty', session='2026-10-29', host_preferences=prefs)
+    (root.path / 'inputs/empty').mkdir()
+    copied = copy_snapshot(root, tmp_path / 'Copy')
+    assert document_root(copied).is_dir()
+    assert (copied.path / 'inputs/empty').is_dir()
+    paths = [copied.path, *copied.path.rglob('*')]
+    modes = {p: p.stat().st_mode & 0o777 for p in paths}
+    try:
+        for path in paths: path.chmod(0o500 if path.is_dir() else 0o400)
+        assert verify_snapshot(copied.path)['files'] > 0
+        assert ProjectRepository(copied).documents() == ([], [])
+        assert ProjectRepository(copied).events()
+    finally:
+        for path, mode in modes.items(): path.chmod(mode)
+
+
 def test_insufficient_disk_refuses_before_destination(tmp_path, monkeypatch):
     root, *_ = setup(tmp_path)
     monkeypatch.setattr('orchestrator.project_folder_copy.shutil.disk_usage', lambda _: SimpleNamespace(free=0))
