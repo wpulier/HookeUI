@@ -87,6 +87,16 @@ afterEach(() => {
 });
 
 describe('actual Connection request and current-frame positive controls', () => {
+  test('an action before connection is refused clearly and never replayed on reconnect', async () => {
+    const { connection, first } = connectionWorld();
+    await expect(connection.request('scores', {})).rejects.toThrow('This action was not sent. Wait for the workspace to reconnect, then try again.');
+    expect(first.sent).toEqual([]);
+    first.opened(); await microtasks(); expect(first.sent).toEqual([]);
+    const retried = connection.request('scores', {});
+    await first.text({type:'result',for:'scores',requestId:lastRequest(first),ok:true});
+    await expect(retried).resolves.toMatchObject({ok:true});
+  });
+
   test('ordinary matching result and server rejection still settle through the public request method', async () => {
     const { connection, first, messages } = connectionWorld(); first.opened();
     expect(first.url).toBe('wss://synthetic.invalid/ws'); expect(first.binaryType).toBe('arraybuffer');
