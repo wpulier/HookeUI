@@ -358,9 +358,9 @@ class App:
                                    session=lambda: day.sid, store=day)
         day.listeners.append(research.session_event)
         research.log = agent.log  # lesson checks, stalls and claims checks (W6-3, W6-4)
-        # Each run's conversation with its model, round by round: a performance log beside the interaction log
-        # (logs/transcripts/<day>/<rid>.jsonl, docs/saves.md), pruned with the other dated logs.
-        research.transcripts = paths.logs / "transcripts"
+        # Research traces explain retained work and survive performance-log pruning (ADR 0027).
+        # Existing logs/transcripts remain readable in place until explicit collection.
+        research.transcripts = paths.research / "transcripts"
         presenter = Presenter(hub, research, outcomes=day.outcomes_of, prefs=(day.prefs.get, day.set_pref))  # how the user did on lesson steps (quiz.py)
         subjects = SubjectTracker(day, conversation, hub.scene, hub.broadcast)
         subjects.held = lambda: hub.view_held  # the studio covers the live view: a look in flight is not the subject
@@ -597,7 +597,7 @@ class App:
             name, date = str(entry["pictures"][0]), str(entry.get("day") or "")
             optics = {"objective": float(scale.objective)} if scale.asset is None and scale.objective else (
                 {k: v for k, v in (scale.asset or {}).items() if k != "id"})
-            library.register(f"result:{date}/{entry['id']}/0", results.root / date / name, title=str(entry.get("title") or "Clearer picture"),
+            library.register(f"result:{date}/{entry['id']}/0", results.folder_for(date, entry.get("session")) / name, title=str(entry.get("title") or "Clearer picture"),
                              at=float(entry.get("at") or time.time()), origin=entry.get("session"), optics=optics)
 
         results.on_saved.append(clearer_saved)

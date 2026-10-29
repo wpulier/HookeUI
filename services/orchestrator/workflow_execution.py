@@ -219,7 +219,8 @@ class ScientificSteps:
         else:raise InvalidProject('This step has no scientific execution adapter')
         doc=saved.document
         doc['state']['workflowOutput']={'run':claim['run'],'attempt':claim['attempt'],'inputs':claim['inputs'],'node':node}
-        saved=self.store.save(saved.id,saved.session,doc,expected_revision=saved.revision)
+        saved=self.store.save(saved.id,saved.session,doc,expected_revision=saved.revision,
+                              transaction=token({'workflowOutput':claim['attempt'],'run':claim['run'],'base':identity(saved)}))
         return {'status':'completed','output':identity(saved)}
 
     def compare(self,claim,sources):

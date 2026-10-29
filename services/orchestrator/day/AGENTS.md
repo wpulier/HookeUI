@@ -18,7 +18,8 @@ establish ownership across a Project switch.
   - **Portable ownership:** new journal creation records one durable `session-origin` UUID before its first event.
     Equal date IDs or equal event timestamps in independent profiles do not establish the same Project. The origin
     remains in the journal, not a second registry. Opening or exporting a legacy journal never invents an origin.
-    `day/ownership.py` reads bounded owner envelopes (16 MiB journal, 64 KiB line); imported scientific work retains
+    `day/ownership.py` reads bounded transfer owner envelopes (16 MiB journal, 64 KiB line);
+    ordinary retained-folder ownership streams the journal without these export ceilings, under the same publication guard; imported scientific work retains
     the original origin and an explicit `session-imported` event with name/local-only metadata. This is a partial
     work import, not restoration of absent conversations, assets or workspace layout. Re-export preserves that origin.
     Import refuses a same-ID Project with a different or unavailable origin, including the initial same-day Project
@@ -293,3 +294,19 @@ through the same journal/namespace ownership machinery without switching the liv
 store or resume preference. The new store is cached for background filing. Connector
 ownership is recorded separately by its authorized action; a failed registration
 never silently resumes or recreates an interrupted admission.
+
+`SessionStore` and `Catalogue` accept a host `ProjectLocations` resolver. When supplied,
+new journals live in their own Project folder; old journals remain in place. Reads,
+switches and background filing resolve the captured session, never the active UI's
+folder. The resolver retains writer leases until host shutdown, and missing locations
+refuse instead of creating replacement journals. Host preferences stay in the legacy
+host directory. Registry format 2 also retains the compatible session handle so an
+offline folder's handle cannot be allocated again. It carries no research or grants.
+This seam is not enabled in App.build until scientific and legacy artifact routing
+is qualified; it is not a claim of complete portable creation or collection.
+
+An unavailable registered folder stays in the Project list with `storageUnavailable`;
+healthy Projects can still be found and read. It is excluded from last-used resume.
+Global legacy result-ID allocation refuses while any registered journal is unavailable,
+because treating its IDs as zero could reuse IDs in shared day storage. A failed
+post-lock ownership check releases the lease without caching trusted ownership.

@@ -2259,6 +2259,9 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .scientific-file-import [role=status] { padding: 12px 14px; border-radius: 9px; background: var(--mm-bg); }
 .scientific-import-actions, .scientific-reader-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .scientific-import-actions button { min-height: 40px; padding: 10px 16px; }
+.scientific-import-results { display: grid; gap: 8px; margin: 0; padding-left: 24px; max-height: 220px; overflow: auto; }
+.scientific-import-results:empty { display: none; }
+.scientific-import-results button { min-height: 36px; padding: 8px 12px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 .scientific-file-import [hidden] { display: none !important; }
 .scientific-source-readers { margin: 18px 0; padding: 16px; border: 1px solid var(--mm-line-strong); border-radius: 10px; }
 .scientific-source-readers h3, .scientific-source-readers h4 { margin: 0 0 10px; }
@@ -2267,6 +2270,10 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .scientific-reader-choices code { overflow-wrap: anywhere; font-size: 11px; }
 .scientific-reader-choices details { margin-top: 12px; color: var(--mm-text-2); }
 .scientific-source-download { display: inline-block; margin: 8px 0; }
+.scientific-text-preview { margin: 20px 0; min-width: 0; }
+.scientific-text-preview p { color: var(--mm-muted); font-size: 13px; }
+.scientific-text-preview pre { box-sizing: border-box; max-height: 52vh; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 18px; border: 1px solid var(--mm-line-strong); border-radius: 10px; font-size: 13px; line-height: 1.6; text-align: left; }
+.scientific-text-navigation { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) { .scientific-file-import { padding: 20px; } }
 /* A Library field's save (library-page.ts fields): Saving…, Saved, or Not saved with the reason and Try again. */
 .lib-field-status { display: block; margin-top: 4px; font: 400 var(--mm-11, 11px)/1.4 var(--mm-sans); color: var(--mm-text-3); }
@@ -2283,3 +2290,21 @@ body.studio-shell .sidebar-toggle[data-flash='true'] { animation: sidebar-flash 
 .setup-progress-name { color: var(--mm-text); font-weight: 600; }
 .setup-progress-says, .setup-progress-amount, .setup-progress-where { color: var(--mm-text-2); overflow-wrap: anywhere; }
 .setup-progress-open { flex: none; }
+
+/* Retained files put their content before optional processing and provenance. */
+.scientific-source-inspector { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 20px; text-align: left; }
+.scientific-source-inspector > header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.scientific-source-inspector > header > div { flex: 1 1 220px; min-width: 0; }
+.scientific-source-inspector h3 { margin: 0 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+.scientific-source-inspector p { margin: 0; color: var(--mm-text-2); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.scientific-source-inspector .scientific-source-download { flex: none; margin: 0; padding: 8px 12px; border: 1px solid var(--mm-line-strong); border-radius: 8px; color: var(--mm-text); text-decoration: none; font-size: 13px; }
+.scientific-source-inspector .scientific-text-preview { margin: 0; }
+.scientific-source-inspector .scientific-text-preview > div:not([hidden]) { display: flex; flex-direction: column; gap: 10px; }
+.scientific-source-inspector .scientific-text-preview pre { margin: 0; max-height: 58vh; background: var(--mm-control); }
+.scientific-source-inspector button { padding: 8px 12px; border: 1px solid var(--mm-line-strong); border-radius: 8px; background: var(--mm-control); color: var(--mm-text); font: inherit; font-size: 13px; cursor: pointer; }
+.scientific-source-inspector button:disabled { opacity: .45; cursor: default; }
+.scientific-source-inspector :is(button,a,summary,pre):focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 3px; }
+.scientific-source-inspector > details { padding-top: 14px; border-top: 1px solid var(--mm-line-strong); font-size: 13px; }
+.scientific-source-inspector summary { cursor: pointer; color: var(--mm-text-2); }
+.scientific-source-inspector code { display: block; margin-top: 10px; overflow-wrap: anywhere; font-size: 12px; }
+@media (max-width: 600px) { .scientific-source-inspector { padding: 14px; gap: 14px; } }

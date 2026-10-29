@@ -1,5 +1,9 @@
 # One brain
 
+Retained `read_analysis` resolves its captured Project's numeric storage, matching
+ordinary UI and index reads. It reads accepted numbers and never reruns an evaluator
+to recover a saved result. Existing request/Project admission rules still apply.
+
 Part of the working context the root `AGENTS.md` maps. "Above" and "below" may mean parts it lists in
 other files.
 

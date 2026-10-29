@@ -202,3 +202,7 @@ This is correspondence within Project evidence, not a new execution ledger. Savi
 it does not launch a subscribed CLI or claim an agent is online. Independent agents
 or orchestrators pick it up through the supported interface. The Study shows waiting
 until a response is actually retained, and shows replies inline with evidence.
+
+## Portable Project ownership amendment — 2026-10-29
+
+ADR 0027 defines durable Project folders and one shared material inventory. Location never grants authority: moving a Project retains its origin; opening an imported independent copy requires local owner-established access. Historical attribution remains history, not a connection identity. The existing read/contribute checks and default-deny action declarations apply to collection, opening and export. Partial scientific bundles do not establish complete Project portability.

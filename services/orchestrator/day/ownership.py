@@ -84,7 +84,18 @@ def snapshot(root, sid):
         return _snapshot(root, sid)
 
 
-def _snapshot(root, sid):
+def retained_owner(root, sid):
+    """Read journal ownership for ordinary retained work, without export envelope ceilings.
+
+    Stream events so cumulative history does not need to fit a transfer bundle.
+    The visibility guard still prevents observing a half-published import.
+    """
+    from ..scientific_import_transaction import reading
+    with reading(root):
+        return _snapshot(root, sid, transfer=False)
+
+
+def _snapshot(root, sid, *, transfer=True):
     if not is_sid(sid):
         raise ValueError('Invalid Project owner session')
     folder = Path(root) / sid
@@ -100,9 +111,9 @@ def _snapshot(root, sid):
         import stat
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError('Project owner journal must be a regular file')
-        while raw := stream.readline(MAX_LINE + 1):
+        while raw := stream.readline(MAX_LINE + 1 if transfer else -1):
             used += len(raw)
-            if len(raw) > MAX_LINE or used > MAX_JOURNAL:
+            if transfer and (len(raw) > MAX_LINE or used > MAX_JOURNAL):
                 raise ValueError('Project owner journal exceeds the transfer allowance')
             if not raw.endswith(b'\n'):
                 break  # ordinary concurrent append may have an incomplete final line

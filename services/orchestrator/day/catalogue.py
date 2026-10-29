@@ -19,7 +19,7 @@ import json
 import re
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from . import sid as sids
@@ -132,6 +132,7 @@ class Info:
     # snapshot), so the index and the library know whose it is (resources.py `_made`, app.py `origin_of`).
     claims: dict[tuple[str, str], str] = field(default_factory=dict)
     ids: dict[tuple[str, str], int] = field(default_factory=dict)  # (day, prefix) -> the highest number given
+    unavailable: str | None = None  # retained locator exists, but its research cannot currently be read
 
     @property
     def label(self) -> str:
@@ -162,6 +163,8 @@ class Info:
                "specimens": list(self.specimens)}
         if self.picture:
             row["thumb"] = f"/api/library/{self.picture}/thumbnail"  # the library's own small picture (thumbnails.py)
+        if self.unavailable is not None:
+            row['storageUnavailable'] = self.unavailable
         return row
 
 
@@ -170,18 +173,21 @@ class _Read:
     """Where reading a journal got to: its file's identity and the offset of the first byte not yet folded."""
     info: Info
     inode: int = 0
+    device: int = 0
+    path: str = ''
     offset: int = 0
     size: int = 0
     mtime: float = 0.0
 
 
 class Catalogue:
-    def __init__(self, root: Path | str | None = None) -> None:
+    def __init__(self, root: Path | str | None = None, *, locations=None) -> None:
         if root is None:
             from ..paths import Paths
 
             root = Paths.from_env().sessions
         self.root = Path(root)
+        self.locations = locations
         self._reads: dict[str, _Read] = {}
         self._lock = threading.Lock()
 
@@ -192,33 +198,52 @@ class Catalogue:
         try:
             names = [p.name for p in self.root.iterdir() if p.name != ARCHIVE and p.is_dir()]
         except OSError:
-            return []
-        return [n for n in names if sids.is_sid(n) and (self.root / n / sids.JOURNAL).is_file()]
+            names = []
+        legacy = {n for n in names if sids.is_sid(n) and (self.root / n / sids.JOURNAL).is_file()}
+        return sorted(legacy | (set(self.locations.handles()) if self.locations is not None else set()))
 
     def _refresh(self, sid: str) -> Info | None:
         from ..scientific_import_transaction import reading
-        with reading(self.root):
-            return self._read_journal(sid)
+        if self.locations is not None:
+            from ..project_roots import ProjectLocationError
+            try:
+                root = self.locations.root_for(sid)
+            except (ProjectLocationError, OSError) as error:
+                if sid not in self.locations.handles():
+                    raise
+                prior = self._reads.get(sid)
+                return replace(prior.info if prior else Info(sid), unavailable=str(error))
+        else:
+            root = self.root
+        with reading(root):
+            return self._read_journal(sid, root)
 
-    def _read_journal(self, sid):
+    def _read_journal(self, sid, root=None):
         from ..scientific_import_transaction import require_visible
-        require_visible(self.root)
-        path = self.root / sid / sids.JOURNAL
+        root = self.root if root is None else root
+        require_visible(root)
+        path = root / sid / sids.JOURNAL
         try:
             stat = path.stat()
-        except OSError:
+        except OSError as error:
+            if self.locations is not None and sid in self.locations.handles():
+                prior = self._reads.get(sid)
+                return replace(prior.info if prior else Info(sid), unavailable=f'Project journal is unavailable: {error}')
             self._reads.pop(sid, None)
             return None
         read = self._reads.get(sid)
-        if read is None or read.inode != stat.st_ino or stat.st_size < read.offset:
-            read = self._reads[sid] = _Read(Info(sid), inode=stat.st_ino)  # new, replaced or shrunk: from the start
+        if (read is None or read.inode != stat.st_ino or read.device != stat.st_dev
+                or read.path != str(path) or stat.st_size < read.offset):
+            read = self._reads[sid] = _Read(Info(sid), inode=stat.st_ino, device=stat.st_dev, path=str(path))
         if stat.st_size == read.size and stat.st_mtime == read.mtime:
             return read.info
         try:
             with path.open("rb") as f:
                 f.seek(read.offset)
                 chunk = f.read()
-        except OSError:
+        except OSError as error:
+            if self.locations is not None and sid in self.locations.handles():
+                return replace(read.info, unavailable=f'Project journal is unreadable: {error}')
             return read.info
         end = chunk.rfind(b"\n") + 1  # whole lines only: a line still being written is read next time
         for line in chunk[:end].splitlines():
@@ -319,14 +344,18 @@ class Catalogue:
 
     def last_used(self) -> Info | None:
         """The session the user last made a request in; with no request anywhere, the most recently active."""
-        infos = self.list()
+        infos = [info for info in self.list() if info.unavailable is None]
         asked = [i for i in infos if i.last_user]
         return max(asked, key=lambda i: i.last_user) if asked else (infos[0] if infos else None)
 
     def used(self, day: str, prefix: str) -> int:
         """The highest number of an id with `prefix` that any session gave on calendar `day` (0: none): a new id on
         that day takes a higher one, so two sessions never share an id in one day's folder (day/ids.py)."""
-        return max((i.ids.get((day, prefix), 0) for i in self.list()), default=0)
+        infos = self.list()
+        if any(i.unavailable is not None for i in infos):
+            from ..project_roots import ProjectLocationError
+            raise ProjectLocationError('A Project is unavailable; reconnect it before allocating shared legacy result IDs')
+        return max((i.ids.get((day, prefix), 0) for i in infos), default=0)
 
     def find(self, ref: str, *, current: str | None = None, now: float | None = None) -> list[Info]:
         """The sessions `ref` may mean, best first ([] when none): its id; "previous" (the most recent other than

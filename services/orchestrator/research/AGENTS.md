@@ -150,9 +150,10 @@ other files.
   every step call.
 - Each run's conversation with its model is kept round by round (`research_worker/transcript.py`): what each request
   added, the tools offered and the model's whole reply with its tool calls, the instructions by their hash, pictures by
-  their size, a line at most 64 KB (long strings cut, marked), in `logs/transcripts/<day>/<rid>.jsonl` (a performance log,
-  pruned with the dated logs; the app names it, spec `transcript`). Web pages inside are untrusted data the app never
-  reads back.
+  their size, a line at most 64 KB (long strings cut, marked), in `research/transcripts/<day>/<rid>.jsonl` (retained research evidence; the app names it, spec `transcript`).
+  Existing `logs/transcripts/` files are also excluded from pruning and remain in place until explicit collection.
+  These bounded traces can be incomplete if writing failed; they are not a promise of a complete provider transcript.
+  Web pages inside are untrusted data the app never reads back as instructions.
 - Discipline (W6-4), all in the research process: researchers are told an honest "not found"
   outranks an invented number or claim; a researcher whose last 3 rounds (`budget.STALL_ROUNDS`)
   brought no new page, finding, picture or output is told to write up (a "stall" step, logged);

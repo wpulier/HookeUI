@@ -39,6 +39,7 @@ def retry_cleanup():
 
 class FileIntake:
     def __init__(self,store,session,request,*,name,size,max_bytes,retained_source=None,producer=None):
+        store = store.for_session(session, write=True)
         _identity(session,'session')
         files._name(name)
         if (type(request) is not str or not REQUEST.fullmatch(request)

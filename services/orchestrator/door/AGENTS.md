@@ -205,3 +205,10 @@ Both resources are deliberately declared in agent_runnable; authorization and re
 are checked on every call. Questions never launch agents or grant new access. Polling agents
 use their own runtime and subscription; the UI never reports them running merely because
 a question waits. Shared schemas: study-question and study-answer.
+
+`material.organize` is a default-deny declared Project contribution. It takes an exact
+artifact reference, a group (`role`, up to 80 characters), `input` boolean and expected membership revision (0 when absent). The
+server derives the organizing actor from the connection, checks contribute authority
+at admission and publication, and publishes a separate membership record, preserving source bytes, producing context and every
+historical revision. Historical Study pins can be organized without advancing the source head. The shared Studio endpoint invokes the same metadata service;
+request identity and revision conflict checks prevent duplicate or stale acceptance.

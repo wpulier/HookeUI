@@ -300,10 +300,13 @@ class InboxWorker:
     """A stand-in GPU worker behind a real GpuClient: the real Inbox orders its queue, each op takes
     `op_s`, and it says when it starts each call, as gpu_worker/worker.py does."""
 
-    def __init__(self, client, op_s=0.02):
+    def __init__(self, client, op_s=0.02, release=None):
         from gpu_worker.inbox import Inbox
 
         self.client, self.op_s, self.inbox, self.ran = client, op_s, Inbox({"ping", "segment"}), []
+        self.release = release
+        self.started = []
+        self.refused = []
         client._conn = SimpleNamespace(send=self.inbox.put)
 
     async def serve(self):
@@ -317,9 +320,13 @@ class InboxWorker:
                 continue
             refused = self.inbox.refusal(req)
             if refused is not None:
+                self.refused.append(req["id"])
                 self.client._replied(refused)
                 continue
             self.client._replied({"id": req["id"], "started": True})
+            self.started.append(req["id"])
+            if self.release is not None:
+                await self.release.wait()
             await asyncio.sleep(self.op_s)
             self.ran.append(req["id"])
             self.client._replied({"id": req["id"], "ok": True, "polygons": [], "ms": self.op_s * 1000})
@@ -353,20 +360,32 @@ def test_the_app_outlining_fifteen_things_never_refuses_a_click_and_the_click_go
 
 def test_a_call_given_up_before_the_worker_starts_it_never_runs():
     from orchestrator.gpu_client import GpuClient
+    from tests.waiting import HANG_S, until_async
 
     async def go():
         client = GpuClient("micromind-gpu-heavy")
         client._loop = asyncio.get_running_loop()
-        worker = InboxWorker(client, op_s=0.05)
-        serving = asyncio.ensure_future(worker.serve())
-        first = asyncio.ensure_future(client.call("cells", timeout=5.0, priority="background", model="cellpose-sam"))
-        second = asyncio.ensure_future(client.call("embed", timeout=5.0, priority="background"))
-        await asyncio.sleep(0.01)
-        second.cancel()  # its request was called off while it waited behind the cell run
-        await first
-        await asyncio.sleep(0.1)
-        serving.cancel()
-        return worker
+        release = asyncio.Event()
+        worker = InboxWorker(client, op_s=0, release=release)
+        serving = asyncio.create_task(worker.serve())
+        first = asyncio.create_task(client.call("cells", timeout=HANG_S, priority="background", model="cellpose-sam"))
+        second = asyncio.create_task(client.call("embed", timeout=HANG_S, priority="background"))
+        try:
+            # Hold the running first call until cancellation of the queued call is observed.
+            # A sleep cannot establish this ordering when CI stalls the event loop.
+            await until_async(lambda: worker.started == [1] and 2 in client._pending)
+            second.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await second
+            release.set()
+            await first
+            await until_async(lambda: worker.refused == [2])
+            return worker
+        finally:
+            release.set()
+            for task in (first, second, serving):
+                task.cancel()
+            await asyncio.gather(first, second, serving, return_exceptions=True)
 
     worker = run(go())
     assert worker.ran == [1]  # the cancelled call was dropped from the queue, never run

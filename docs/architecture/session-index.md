@@ -228,3 +228,24 @@ Display and exports must carry the warning; the method column is not an inferred
 Imported source documents expose the intake publisher’s retained `sourceImport` actor
 and operation as Data’s `madeBy`. Older documents without recorded provenance stay
 unattributed; the active connection never becomes the inferred author.
+
+Project material metadata comes from `project_material.describe`: declared document kinds and accepted output summary formats, never titles. Both resource wires and project.state carry that same projection. Metadata listing does not claim to have verified all payload bytes or qualified a reader. Unknown imports remain Files; matrix result formats distinguish retained response models from analysis output. Workflow attempts carry the original run ID for grouping.
+
+Material organization is an accepted exact-reference membership record, published by
+`project_material_edit.organize` from Studio or the declared `material.organize`
+agent action. It records the role/group, input selection, organizing actor and exact
+basis. The input’s scientific head does not change, including for a historical Study pin.
+Scientific kind, producing provenance, original bytes and historical revisions
+remain unchanged. Runtime/resource checks and revision conflicts stay with ProjectStore.
+Study-pinned dependencies remain Inputs even when a later revision is not selected.
+Group names are human/agent-supplied context, never inferred scientific classifications.
+
+## Portable result storage adapter
+
+Results resolve their original Project before retaining values or image bytes.
+The optional ProjectLocations resolver stores the existing date layout under that
+Project's artifacts/results; legacy Projects keep paths.results. Background writes
+capture the original session, pending saves are scoped to their store, and saved
+reads follow the journal owner after relocation. Changed/missing result folders
+refuse rather than recreating evidence. App activation still waits for the other
+legacy asset/research stores; this adapter does not certify complete collection.

@@ -73,7 +73,7 @@ def add_datatable_tools(registry, services):
                 if type(args.get('version')) is not int or args['version'] < 1:
                     raise DataTableRefused('choose an exact accepted result version')
                 record = derived.version(args['id'], args['version'])
-                value = await asyncio.to_thread(read_accepted, derived.root, record, owner.session, record['kind'])
+                value = await asyncio.to_thread(lambda: read_accepted(derived.root_for(owner.session), record, owner.session, record['kind']))
                 owner.check(tables.app)
                 result = await asyncio.to_thread(page, value, offset=args.get('offset', 0), digest=args.get('digest'))
                 owner.check(tables.app)

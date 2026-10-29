@@ -294,8 +294,8 @@ def kept_result(host: ResourceHost, result: str, session: str, *, timeout: float
     if entry.get("pictures"):
         name = entry["pictures"][0]
         deadline = time.monotonic() + timeout
-        results.wait_for_picture(entry["day"], name, cancelled=None)
-        path = results.root / entry["day"] / name
+        results.wait_for_picture(entry["day"], name, cancelled=None, session=session)
+        path = results.folder_for(entry["day"], session) / name
         while not path.is_file() and time.monotonic() < deadline:
             time.sleep(.02)
         picture = path.read_bytes()

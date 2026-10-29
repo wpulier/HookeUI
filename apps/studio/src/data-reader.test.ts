@@ -238,7 +238,7 @@ describe('the reader on screen', () => {
 describe('the workspace opens Data in the reader', () => {
   const study = readFileSync(new URL('./workspace-study.ts', import.meta.url), 'utf8');
   it('opens a Data row (and an input) in the reader on the Tab you are on, never moving you to another Tab', () => {
-    expect(study).toContain('const open=()=>openInReader(entry as ReaderEntry);');
+    expect(study).toContain("if (entry.material?.kind === 'assignment') void openStudy(entry.id); else openInReader(entry as ReaderEntry);");
     expect(study).toContain('()=>openInReader(inputEntry(asset))');
     expect(study).toContain("{label:'How it was made',title:'Who made it, from what and with what, in the reader on the right',act:()=>openInReader(entry as ReaderEntry,'how')}");
   });

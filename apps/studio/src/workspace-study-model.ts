@@ -36,7 +36,7 @@ export interface StudyRun {
   interrupted?: boolean;
 }
 export interface StudyResource extends ResourceEntry {
-  source?: ResourceEntry['source'] & { sourceImage?: { asset?: string; [key: string]: unknown } };
+  source?: ResourceEntry['source'] & { sha256?: string; sourceImage?: { asset?: string; [key: string]: unknown } };
   madeBy?: ResourceEntry['madeBy'] & { execution?: string; operation?: string; policy?: string; origin?: string };
 }
 export type ResultGroup = 'artifacts' | 'answers' | 'records';

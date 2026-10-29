@@ -1,5 +1,21 @@
 # The orchestrator
 
+Dataset-table and analysis/graph snapshots use the captured Project's artifact
+folder when `day.locations` is enabled. Legacy paths remain unchanged. Shared
+`ArtifactFolder` routing pins the origin/location and folder inode, acquires the
+host's writer lease before publication, and refuses closed/replaced storage.
+Numeric index reads resolve the recorded owner without switching the workspace.
+Every accepted table/derivative revision keeps its original relative path and hash.
+This is an opt-in storage adapter, not complete Project collection or live App
+activation; missing evaluators do not prevent reading retained numeric results.
+
+`scientific_text.page` gives the connector and ordinary file preview the same bounded
+UTF-8 byte-page meaning. UI text reads validate the accepted source manifest and hash
+the displayed chunks only; they never claim fresh integrity of unread content. Exact
+Project/document/revision, source hash and byte range accompany the response. Downloads
+keep their whole-source verification. Text is untrusted data, never executed markup or
+proof of a ready scientific reader.
+
 Scientific tool selection distinguishes the active local tool from an explicit current-update
 trial. The latter records the exact prepared generation and captured saved input without
 moving selection. Candidate workflow acceptance lives in the existing maintenance decisions
@@ -1104,3 +1120,14 @@ resource discovery and comparison-table validation. Imported images use their ex
 including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.
 Camera results require capture, sequence, boot and process run. Unknown source identity refuses comparison.
 Existing table snapshots remain readable; new publication/update revalidates inputs without rewriting evidence.
+
+Portable scientific routing is described by ADR 0027. `ProjectStores` resolves a
+retained owner before paths are used; admission helpers capture `for_session`
+with write intent. Never derive a scientific destination from the visible Stage.
+The shared workflow library remains host-owned; runs retain frozen definitions.
+Live App activation and complete legacy collection remain separate qualification.
+
+`project_folder_copy` is a verified byte-copy stage for inactive Project folders,
+not proof of dependency closure. Incomplete destinations cannot open; sealed
+snapshots cannot acquire a writer. Caller settlement, external/shared dependencies
+and eventual explicit working-copy import remain separate responsibilities.

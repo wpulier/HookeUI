@@ -4,8 +4,9 @@ import { nativeFolderBridge, chooseNativeFolder, isNativeFolder, uploadNativeFol
 import { renderedMovieDescription, validMovieFile } from './scientific-movie';
 import { StudioSheet } from './sheet';
 import { sourceReaders } from './scientific-readers';
+import { ScientificFileBatch, type SavedSource } from './scientific-file-batch';
+import { textPreview } from './scientific-text-preview';
 
-type SavedSource = { id: string; session: string; revision: number; title: string };
 type Sample = { capability: string; reader: string; id: string; name: string; sha256: string; size: number; licence: string; readerReason: string; canOpen: boolean; reason: string };
 type Options = { session: string; title: string; open(source: SavedSource): Promise<void | (() => void)>; saved(): void };
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -47,31 +48,36 @@ export class ScientificFileImport {
   private recovery: {name:string;size:number;kind:SourceKind} | null = null;
   private controller: AbortController | null = null;
   private saved: SavedSource | null = null;
+  private batch: ScientificFileBatch | null = null;
+  private readonly batchResults = node('ol');
 
   private readonly options: Options;
   constructor(options: Options) {
     this.options=options;
     this.content.className = 'scientific-file-import';
+    this.batchResults.className='scientific-import-results';
     const destination = node('p', `Destination: ${options.title}`); destination.className = 'scientific-import-destination';
     this.content.append(destination, node('p', 'Keep the original file in this Project, then choose a reader to open its scientific contents.'));
     const sourceType = node('label', 'Source type');
-    for (const [value, text] of [['file', 'File'], ['directory', 'Folder'], ['stack', 'Stack of files'], ['url', 'Web address'], ['sample', 'Sample data']]) { const option = node('option', text); option.value = value; this.mode.append(option); }
+    for (const [value, text] of [['file', 'File'], ['files', 'Separate files'], ['directory', 'Folder'], ['stack', 'Stack of files'], ['url', 'Web address'], ['sample', 'Sample data']]) { const option = node('option', text); option.value = value; this.mode.append(option); }
     this.mode.value = 'file'; sourceType.append(this.mode);
     const bridge = nativeFolderBridge();
     this.nativePicker.hidden = true;
     this.mode.addEventListener('change', () => {
+      this.batch=null; this.batchResults.replaceChildren();
       this.releaseFolder(); this.picker.value = ''; this.selected = null; this.folder = null; this.saved = null; this.openButton.hidden = true; this.start.disabled = true;
       const url = this.mode.value === 'url', samples = this.mode.value === 'sample'; label.hidden = url || samples; this.remote.hidden = !url; this.axisLabel.hidden = this.mode.value !== 'stack'; this.samples.hidden = !samples;
       if (samples) { this.start.hidden = true; void this.listSamples(); return; }
       this.start.hidden = false;
       if (url) { this.identity = crypto.randomUUID(); this.start.disabled = !this.validAddress(); this.status.textContent = 'Paste the https address of one scientific file. Hooke downloads its exact bytes; nothing is converted.'; return; }
       if (this.mode.value === 'directory') this.picker.setAttribute('webkitdirectory', ''); else this.picker.removeAttribute('webkitdirectory');
-      this.picker.multiple = this.mode.value === 'directory' || this.mode.value === 'stack';
+      this.picker.multiple = ['directory','stack','files'].includes(this.mode.value);
       this.nativePicker.hidden = this.mode.value !== 'directory' || !bridge;
       this.picker.hidden = !this.nativePicker.hidden;
       this.picker.setAttribute('aria-label', this.mode.value === 'directory' ? 'Scientific source folder' : 'Scientific source file');
       this.status.textContent = this.mode.value === 'directory' ? 'Choose a folder. All selected files and their relative names will be retained together.'
-        : this.mode.value === 'stack' ? 'Choose two or more files of one type. They are stacked in name order (2 before 10) along the new axis you name.' : 'Choose an original scientific file.';
+        : this.mode.value === 'stack' ? 'Choose two or more files of one type. They are stacked in name order (2 before 10) along the new axis you name.'
+        : this.mode.value === 'files' ? 'Choose files to keep separately in this Project. They are not combined or extracted.' : 'Choose an original scientific file.';
     });
     const label = node('label', 'Choose source');
     const addressLabel = node('label', 'Web address'), digestLabel = node('label', 'Expected SHA-256 (optional)');
@@ -98,9 +104,18 @@ export class ScientificFileImport {
     this.stop.hidden = true; this.openButton.hidden = true; this.start.disabled = true;
     this.picker.addEventListener('change', () => this.picked(Array.from(this.picker.files ?? [])));
     this.picked = (files: File[]) => {
-      if (this.controller || this.recovery) return;
+      if (this.controller || this.recovery || this.batch?.needsRecovery) return;
       this.releaseFolder(); this.folder = null;
+      this.batch=null; this.batchResults.replaceChildren();
       this.selected = files[0] ?? null; this.identity = crypto.randomUUID(); this.saved = null; this.openButton.hidden = true;
+      if(this.mode.value==='files'){
+        try{
+          this.batch=new ScientificFileBatch(this.options.session,files); this.selected=null;
+          this.start.disabled=false; this.start.textContent=`Save ${files.length} files`;
+          this.status.textContent=`${files.length} separate files · ${files.reduce((sum,file)=>sum+file.size,0).toLocaleString()} bytes. Each keeps its own original bytes and saved reference.`;
+        }catch(error){this.start.disabled=true;this.selected=null;this.status.textContent=String(error instanceof Error?error.message:error);}
+        return;
+      }
       if (this.mode.value === 'stack') {
         try { const chosen = selectedStack(files); this.folder = chosen; this.start.disabled = false; this.start.textContent = 'Save source to Project';
           this.status.textContent = `${chosen.count} files · ${chosen.size.toLocaleString()} bytes, stacked in this order: ${chosen.order.slice(0, 5).join(', ')}${chosen.count > 5 ? ', …' : ''}. Original bytes are retained.`; }
@@ -153,7 +168,7 @@ export class ScientificFileImport {
       const folder = Array.from(data.items ?? []).some(item => item.kind === 'file' && (item as DataTransferItem & { webkitGetAsEntry?: () => { isDirectory: boolean } | null }).webkitGetAsEntry?.()?.isDirectory === true);
       this.accept({ files: Array.from(data.files ?? []), uri: data.getData('text/uri-list') || '', folder });
     });
-    this.content.append(sourceType, label, this.axisLabel, this.remote, this.samples, limits, this.progress, this.status, actions, background);
+    this.content.append(sourceType, label, this.axisLabel, this.remote, this.samples, limits, this.progress, this.status, this.batchResults, actions, background);
   }
   private validAddress(): boolean {
     const digest = this.digest.value.trim();
@@ -162,21 +177,48 @@ export class ScientificFileImport {
   show(): void { this.sheet.open(this.content); }
   /** A drop onto the sheet fills the same choice the controls would: never uploads by itself. */
   accept(drop: { files: File[]; uri: string; folder: boolean }): void {
-    if (this.recovery) { this.status.textContent='Check the original import outcome before choosing another source.'; return; }
+    if (this.recovery || this.batch?.needsRecovery) { this.status.textContent='Check the original import outcome before choosing another source.'; return; }
     if (this.controller || this.choosing) { this.status.textContent = 'Wait for the current import to finish, or stop it, before dropping another source.'; return; }
     const choose = (mode: string) => { this.mode.value = mode; this.mode.dispatchEvent(new Event('change')); };
     if (drop.folder) { this.status.textContent = 'Dropped folders are not read here, because the browser leaves out hidden metadata such as .zattrs. Choose Folder and select it instead.'; return; }
     if (drop.files.length > 1) {
-      choose('stack'); this.picker.value = ''; this.picked(drop.files);
-      if (this.folder) this.status.textContent += ' Dropped as a stack; choose File to keep only one.'; return;
+      choose('files'); this.picker.value = ''; this.picked(drop.files); return;
     }
     if (drop.files.length === 1) { choose('file'); this.picker.value = ''; this.picked(drop.files); return; }
     const uri = drop.uri.split(/\r?\n/).map(line => line.trim()).find(line => line && !line.startsWith('#')) ?? '';
     if (uri) { choose('url'); this.address.value = uri; this.address.dispatchEvent(new Event('input')); return; }
-    this.status.textContent = 'Drop a file, several files of one type, or a link to a file.';
+    this.status.textContent = 'Drop one or more files, or a link to a file.';
   }
-  finished(): boolean { return this.saved !== null; }
+  finished(): boolean { return this.saved !== null || this.batch?.completed === true; }
+  private async runBatch():Promise<void>{
+    const batch=this.batch;
+    if(!batch||batch.completed||this.controller)return;
+    const controller=new AbortController();this.controller=controller;
+    this.mode.disabled=this.picker.disabled=this.start.disabled=true;
+    this.stop.hidden=false;this.progress.hidden=false;
+    try{
+      await batch.run(controller.signal,(index,done,total)=>{
+        this.progress.max=total;this.progress.value=done;
+        this.status.textContent=`File ${index+1} of ${batch.items.length}: ${batch.items[index].file.name} · ${done.toLocaleString()} of ${total.toLocaleString()} bytes`;
+      },source=>{
+        const row=node('li'),open=node('button',`Open ${source.title}`);
+        open.addEventListener('click',()=>{void this.options.open(source).then(afterClose=>{this.sheet.close();afterClose?.();})
+          .catch(error=>{this.status.textContent=String(error instanceof Error?error.message:error);});});
+        row.append(open);this.batchResults.append(row);this.options.saved();
+      });
+      this.status.textContent=`${batch.count} files saved in ${this.options.title}. Each is retained separately. Reader readiness has not been established.`;
+    }catch(error){
+      this.status.textContent=`${batch.count} of ${batch.items.length} files saved. ${batch.needsRecovery
+        ? 'Check the interrupted file’s outcome before continuing.'
+        : controller.signal.aborted ? 'Import stopped. Continue to finish the remaining files.' : String(error instanceof Error?error.message:error)}`;
+    }finally{
+      this.controller=null;this.mode.disabled=this.picker.disabled=batch.needsRecovery;
+      this.start.disabled=batch.completed;this.start.textContent=batch.completed?'Files saved':batch.needsRecovery?'Check import outcome':'Continue importing';
+      this.stop.hidden=true;this.progress.hidden=true;
+    }
+  }
   private async run(): Promise<void> {
+    if(this.batch)return this.runBatch();
     if (this.mode.value === 'url') return this.download();
     const file = this.folder ?? this.selected ?? this.recovery;
     if (!file || this.controller || this.choosing || (!this.recovery && this.folder && !isNativeFolder(this.folder) && file.size > MAX_BYTES)
@@ -290,17 +332,25 @@ export function showScientificSource(root: HTMLElement, state: unknown, referenc
     throw new Error('The saved source metadata is invalid. Keep its original revision and retry.');
   const movie = renderedMovieDescription(root, object(state) ? state.movieExport : undefined);
   if (movie && !validMovieFile(source, {id:reference.id,session:reference.day}, resources)) throw new Error('The rendered movie has an incomplete retained file reference. Keep the saved document and check its storage.');
-  root.append(node('h3', source.name), node('p', `${Number(source.size).toLocaleString()} bytes · ${movie ? 'rendered movie saved' : computed ? 'computed result saved' : 'original source saved'}`));
-  const receipt = object(state) ? state.sourceRemote : null;
-  if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
-    root.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}. Web content is kept as exact bytes and never run.`));
-  if (!movie && !computed) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed to inspect, edit or process this source.'));
+  const inspector = node('section'); inspector.className = 'scientific-source-inspector';
+  const header = node('header'), identity = node('div');
+  identity.append(node('h3', source.name), node('p', `Revision ${reference.version} · ${Number(source.size).toLocaleString()} bytes · ${movie ? 'Rendered movie' : computed ? 'Computed result' : 'Retained original'}`));
   const download = node('a', movie ? 'Download rendered movie' : computed ? 'Download result file' : 'Download original file');
   download.href = `/api/scientific-files/${encodeURIComponent(reference.id)}?${new URLSearchParams({ session: reference.day, revision: String(reference.version) })}`;
   download.download = source.name; download.className = 'scientific-source-download';
-  const detail = node('details'); detail.append(node('summary', 'Content identity'), node('code', source.sha256));
-  if(openReader && !movie)sourceReaders(root,reference,openReader);
-  root.append(download, detail);
+  header.append(identity, download); inspector.append(header);
+  const receipt = object(state) ? state.sourceRemote : null;
+  if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
+    inspector.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}.`));
+  if (!movie) inspector.append(textPreview(reference, source.sha256, Number(source.size)));
+  if (openReader && !movie) {
+    const readers = node('details'); readers.className = 'scientific-source-readers';
+    readers.append(node('summary', 'Open with a scientific reader'));
+    sourceReaders(readers, reference, openReader); inspector.append(readers);
+  }
+  const detail = node('details'); detail.className = 'scientific-source-identity';
+  detail.append(node('summary', 'Content identity'), node('code', source.sha256));
+  inspector.append(detail); root.append(inspector);
 }
 
 

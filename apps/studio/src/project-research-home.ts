@@ -8,6 +8,7 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')
   const item=document.createElement(tag);item.textContent=text;item.className=className;return item;
 };
 type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void};
+export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string};
 export class ProjectResearchHome {
   readonly root=node('section');
   private session='';private signature='';private opening=0;
@@ -17,15 +18,16 @@ export class ProjectResearchHome {
     this.root.className='project-research-home';this.root.setAttribute('aria-label','Research in this Project');
     this.root.hidden=true;host.append(this.root);
   }
-  update(session:string,studies:readonly Effort[],error='',activity:Record<string,ActivitySnapshot>={},researchers:readonly ResearchSession[]=[]):void{
+  update(session:string,studies:readonly Effort[],error='',activity:Record<string,ActivitySnapshot>={},researchers:readonly ResearchSession[]=[],material:ProjectMaterialSummary={count:0,groups:[]}):void{
     const owned=studies.filter(s=>s.session===session);
     const local=todaysResearch(researchers,session);
-    const signature=JSON.stringify([session,owned,error,activity,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
+    const signature=JSON.stringify([session,owned,error,activity,material,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
     const disclosures=new Map(Array.from(this.root.querySelectorAll('details')).map(d=>[d.dataset.disclosure,d.open]));
     const focus=(document.activeElement as HTMLElement|null)?.dataset.researchFocus;
     const same=this.session===session;if(!same){disclosures.clear();this.opening++;}
     this.signature=signature;this.session=session;const opening=this.opening;
-    this.root.hidden=!owned.length;this.host.dataset.projectResearch=String(owned.length>0);this.root.replaceChildren();if(!owned.length)return;
+    const populated=!!(owned.length||local.length||material.count);
+    this.root.hidden=!populated;this.host.dataset.projectResearch=String(populated);this.root.replaceChildren();if(!populated)return;
     const action=(label:string,key:string,run:()=>void,cls='quiet')=>{
       const b=node('button',label,cls);b.type='button';b.dataset.researchFocus=key;
       b.addEventListener('click',()=>{if(this.opening===opening&&this.actions.current()===session)run();});return b;
@@ -38,14 +40,23 @@ export class ProjectResearchHome {
     const experiments=owned.reduce((n,s)=>n+Object.keys(s.experiments??{}).length+Object.values(s.tasks??{}).filter(t=>t.specification?.provider!=='scientific-gcp-grant').length,0);
     const start=owned.map(s=>s.createdAt).filter((t):t is number=>typeof t==='number'&&Number.isFinite(t)&&t>0).sort((a,b)=>a-b)[0];
     const intro=node('header','','project-research-intro');
-    intro.append(node('h2','Research overview'),node('p',start?`First effort created ${researchDate(start)}`:'Creation time not recorded','project-research-caption'));
+    intro.append(node('h2',owned.length||local.length?'Research overview':'Your Project material'),node('p',start?`First effort created ${researchDate(start)}`:owned.length?'Creation time not recorded':'Keep your sources together, then build on them.','project-research-caption'));
     this.root.append(intro);
     if(error){const notice=node('p',`Showing saved history. ${error}`,'project-research-notice');notice.setAttribute('role','status');this.root.append(notice);}
+    if(material.error){const notice=node('p',material.error,'project-research-notice');notice.setAttribute('role','status');this.root.append(notice);}
     const stats=node('div','','project-research-stats');
     for(const [label,count] of [['Studies',owned.length],['Agents contributed',agentCount],['Experiments',experiments],['Findings',owned.reduce((n,s)=>n+s.findings.length,0)]] as const){
       const item=node('div','','project-research-stat');item.append(node('strong',String(count)),node('span',label));stats.append(item);
     }
-    this.root.append(stats);
+    if(owned.length||local.length)this.root.append(stats);
+    if(material.count){
+      const materials=node('article','','project-research-summary');
+      materials.append(node('h3',`${material.count} Project ${material.count===1?'input':'inputs'}`),
+        node('p',material.groups.length?material.groups.join(' · '):'Retained files and selected research inputs','project-research-caption'),
+        action('Browse inputs','material',this.actions.inputs,'mm-primary'));
+      if(!owned.length)materials.append(node('p','No Study yet. Explore your material or start a research effort from Researchers.','project-research-caption'));
+      this.root.append(materials);
+    }
     if(team.length){const people=details('Contributors & origins','team','project-research-team');
       for(const c of team){const row=node('div','','project-research-person');
         const who=node('div');who.append(node('strong',c.label),node('span',c.origin));

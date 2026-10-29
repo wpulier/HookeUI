@@ -4,8 +4,11 @@ not running-status or scientific acceptance. Existing Data and Inputs remain the
 to inspect material or choose a camera. Opening starts nothing. Project switches clear
 old summaries immediately; late reads and stale buttons cannot act on another Project.
 The Assistant retains its same connected-agent entry and current-Project setup prompt.
-The Inputs drawer's empty message describes its picture/video list only; it directs
-scientific-file and saved-result users to Data without claiming their Project is empty.
+Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
+Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
+at the captured Project/document revision. Markup is literal text; previewing neither
+runs a reader nor qualifies scientific interpretation. Failed pages preserve the
+previous text and retry the same range. The original-byte download remains available.
 
 The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
@@ -1999,3 +2002,35 @@ Send. A pending question exposes a copyable handoff in that question, not a perm
 page-wide instruction; connection authorization still does not claim a running agent.
 
 Main's research overview aggregates every retained Study in its Project. A Study is an effort, not an actor or an output. Creation dates come from the first retained revision; authorship is grouped by stable identity, never by label. The overview reads existing workflow evidence with bounded fan-out; interrupted, unstarted and failed-refresh states never imply running work. Study lifecycle stays separate from execution. Contributor origins, unanswered questions, reports and dated admissions remain inspectable, and report language is not accepted as a finding. Same-Project refresh preserves disclosures/focus; Project-opening guards still protect stale actions. Existing Hooke researcher records appear separately, with their observed state and model, without inventing external-agent liveness.
+
+Inputs and Data's material menu includes Organize material. A shared sheet records
+an explicit group and input choice against the captured Project/revision. Closing it
+keeps the draft; lost replies retry the same request. Inputs groups/searches these
+server-recorded roles. Generated artifacts retain generated origin; Study dependencies
+remain visible independently of the checkbox for a later revision. This controls
+organization, not scientific reinterpretation or a file conversion.
+
+Inputs keeps Add material and search in a padded toolbar with full-height controls.
+Retained material names stay on one line; the complete title and material facts
+remain in the row tooltip and its full title in the accessible name. Role headings
+use the same inset as the toolbar; grouping never changes accepted content.
+
+Dropping several files chooses separate retained materials, never an inferred
+scientific stack. Stack remains an explicit import mode. Separate files use the
+existing bounded file transactions sequentially, pinned to the sheet's Project;
+each keeps its own request identity and receipt. Stop preserves accepted files,
+retry skips them, and uncertain acceptance must be recovered before replacing
+the selection. The sheet retains progress and opens each exact saved source.
+Folder-drop refusal still directs users to the complete native folder chooser
+so hidden scientific metadata is not silently omitted.
+
+Main uses the same retained Inputs projection even before a Study exists, showing material and a route to inspect it instead of camera onboarding. Project changes clear that projection; failed refreshes qualify retained counts. The Project menu preserves catalogue source counts (including scientific files) when live session updates report only camera/library sources; newer catalogue counts can decrease as well as increase.
+
+Retained file inspection keeps revision/size and download together, then literal
+text preview. Scientific-reader setup and content hashes are secondary disclosures.
+It uses the original exact revision and existing reader admission; the layout does
+not infer a file's scientific meaning or treat plain text as a qualified reader.
+
+A reader Tab retains one exact item. Opening a different Data/Input item or an
+internal source link from it goes to that item's retained Tab (reusing it when
+already open), rather than replacing the visible file under the previous title.

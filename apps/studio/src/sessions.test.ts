@@ -189,6 +189,18 @@ describe('the one source both views read', () => {
     expect(rows[0]).toMatchObject({ name: 'Leaf', counts: { made: 4, researchers: 1, conversations: 2 } });
   });
 
+  test('live camera-source counts cannot erase the catalogue scientific inputs', () => {
+    const { m } = model();
+    const counts = {sources: 31, made: 4, researchers: 0, conversations: 1};
+    m.applyList(list('a', [row('a', {counts})]));
+    m.applySession(state('a', {counts: {...counts, sources: 0, made: 5}}));
+    expect(m.rows()[0].counts).toMatchObject({sources: 31, made: 5});
+    m.applyList(list('a', [row('a', {counts: {...counts, sources: 32}})]));
+    expect(m.rows()[0].counts.sources).toBe(32);
+    m.applyList(list('a', [row('a', {counts: {...counts, sources: 0}})]));
+    expect(m.rows()[0].counts.sources).toBe(0);
+  });
+
   test('offline: nothing waits, and it says to reconnect', () => {
     const { m } = model(false);
     m.applySession(state('a'));
