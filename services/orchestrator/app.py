@@ -401,6 +401,30 @@ class App:
                       log=agent.log)
         hub.on_frame.append(coach.frame)
         hub.coach = coach
+        # The watcher (view_watch.py): what happens in the view (the slide settling on a new place, the focus drifting,
+        # counted cells no longer where they were), noticed unasked from what the hub already measures, each kind told to
+        # the one-brain voice by its rule (option WATCH); GPT-Live has no lines of this kind. Every event is logged.
+        from .view_watch import ViewWatch
+
+        def watch_told(event, rule: str) -> str:
+            happened = getattr(getattr(brain, "voice", None), "happened", None) if brain is not None else None
+            if not callable(happened):
+                return "no voice"
+            task = asyncio.get_running_loop().create_task(happened(
+                event.kind, event.text(), ref=event.id, delivery=rule, marks=event.marks(), frame=event.frame_ref()))
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())  # a closed voice says nothing; never raised
+            return "voice"
+
+        def um_per_px():
+            reading = hub.scale_reading()
+            return reading.um_per_px if reading is not None else None
+
+        view_watch = ViewWatch(hub, deliver=watch_told, quiet=lambda: hub.settings.quieter or hub.settings.user_leads,
+                               sweep=lambda: None if coach.sweeping_since is None else ("phone" if coach.phone else "knob"),
+                               um_per_px=um_per_px, log=agent.log,
+                               schedule=lambda read: asyncio.get_running_loop().call_soon(read))
+        hub.on_frame.append(view_watch.frame)  # after the coach's: its sweep for this frame is known
+        hub.view_watch = view_watch
         # The frames of the last turn of the focus knob, for a focus stack (sweep.py, enhance.py).
         sweep = SweepBuffer(hub.source.get)
         hub.on_frame.append(sweep.frame)

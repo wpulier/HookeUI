@@ -450,14 +450,25 @@ class Partner:
             self.reconnecting = self._spawn(self.reconnect(self.fault or reason))
 
     # --- lines nobody asked for --------------------------------------------------------------------
-    async def happened(self, event: str, text: str, *, ref: str | None = None, mark: str | None = None) -> None:
+    async def happened(self, event: str, text: str, *, ref: str | None = None, mark: str | None = None,
+                       delivery: str = "idle", marks: list[dict] | None = None, frame: dict | None = None) -> None:
+        """Something happened: said when nobody is talking ("idle"); told silently ("context"); or said as soon as the
+        user is not talking, the voice's own words stopped for it ("interrupt"). The watcher's rules (view_watch.py)."""
         if self.session is None or self.session.closed:
             return
+        if delivery == "context":
+            await self.session.inject(text, respond=False, source=event)
+            return
+        drawn = marks or ([{"target": mark, "style": "box"}] if mark else [])
         before = None
-        if mark:
+        if drawn:
             async def before() -> None:
-                await self.marks([{"target": mark, "style": "box"}], timeout=0.5)
-        await self.session.proactive(text, event=event, ref=ref, before=before, mark=mark)
+                await self.marks(drawn, frame=frame, timeout=0.5)
+        busy = getattr(self.session, "user_busy", lambda: True)
+        if delivery == "interrupt" and self.session.speaking() and not busy():
+            await self.session.stop_speaking()
+        await self.session.proactive(text, event=event, ref=ref, before=before,
+                                     mark=mark or (drawn[0]["target"] if drawn else None))
 
     def tag_notice(self, text: str) -> dict | None:
         """A narrator line is about the researcher that just finished only when its own facts name that researcher

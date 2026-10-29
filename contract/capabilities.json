@@ -2345,6 +2345,30 @@
       ]
     },
     {
+      "id": "speaks-up",
+      "family": "conversation",
+      "actor": "auto",
+      "title": "Speaks up when things change",
+      "what": "Says when the slide moves, focus drifts or counted cells change",
+      "how": {
+        "process": "orchestrator.view_watch"
+      },
+      "roles": [
+        "watch",
+        "voice"
+      ],
+      "needs": {
+        "voice": "gpt-realtime-2.1"
+      },
+      "parts": [
+        "view-watch",
+        "slide-tracker",
+        "frame-quality",
+        "coach",
+        "population-layer"
+      ]
+    },
+    {
       "id": "hands",
       "family": "conversation",
       "actor": "auto",
@@ -4563,6 +4587,13 @@
       "hint": "Control+Option, or Right Option with VoiceOver on"
     },
     {
+      "id": "watch",
+      "kind": "policy",
+      "title": "Speaking up",
+      "purpose": "What it says unasked when the view changes",
+      "hint": "quiet: focus and counted cells; chatty: the slide's moves too; or off"
+    },
+    {
       "id": "fixed:voice-words",
       "kind": "model",
       "title": "Your spoken words",
@@ -5063,6 +5094,13 @@
       "kind": "app",
       "purpose": "Checks again and again, and says when it happens",
       "source": "services/orchestrator/watcher.py"
+    },
+    {
+      "id": "view-watch",
+      "title": "Noticing changes",
+      "kind": "algorithm",
+      "purpose": "Notices slide moves, focus drift and counted cells changing",
+      "source": "services/orchestrator/view_watch.py"
     },
     {
       "id": "slidemap",
