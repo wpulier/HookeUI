@@ -714,6 +714,12 @@ def _voice_workspace(snapshot) -> list[str]:
         interaction["focus"] = {"role": "none", "editable": False}
     if interaction:
         lines.insert(0, "Workspace interaction: " + encode(interaction))
+    from ..workspace_observation import front
+
+    shown = {key: value for key, value in front(wire).items()
+             if value is not None and key in ("tab", "window", "studioVisible", "studioFocused")}
+    if shown:
+        lines.append("Workspace front: " + encode(shown))  # the Tab and window in front, the studio in view (observed)
     return lines
 
 
@@ -722,10 +728,18 @@ def _voice_windows(snapshot) -> list[str]:
 
     The voice talks about windows; it never operates their controls, so their control
     addresses stay optional detail (`_voice_workspace`)."""
+    from ..workspace_observation import front
+
     wire = snapshot.observation.wire()
     sources = {source["key"]: source for source in wire["sources"]}
     items = sorted(wire["items"], key=lambda i: (not i.get("visible"), not i["id"].startswith("w-")))
     lines = []
+    # Which Tab of the Project is in front and the window highest on it, as the report shows them (on-screen.md); the
+    # studio out of view is said, since nothing on it is then on the user's display.
+    shown = front(wire)
+    if shown["tabTitle"] or shown["studioVisible"] is False:
+        lines.append((f'Tab "{inline(shown["tabTitle"], 80)}" of this Project' if shown["tabTitle"] else "This Project")
+                     + (", the studio not in view" if shown["studioVisible"] is False else ""))
     for item in items[:8]:
         source = sources.get(item.get("sourceKey")) or {}
         identity = source.get("identity") or {}
@@ -739,6 +753,8 @@ def _voice_windows(snapshot) -> list[str]:
             line += ", closed"
         elif not item.get("visible"):
             line += ", not visible"
+        elif item["id"] == shown["window"]:
+            line += ", in front"
         lines.append(line)
     if len(wire["items"]) > 8:
         lines.append(f"{len(wire['items']) - 8} more windows; unknown here.")
@@ -1043,11 +1059,15 @@ def selected_as_asked(hub, when_asked) -> str | None:
 
 
 def _roster(research, n: int = 4) -> str:
-    """The latest researchers in a line: who made what, and whether it is ready."""
+    """Researchers in a line, in the Project view's one order (project_state.ordered: running first, then finished,
+    then stopped; newest first in each), at most `n`, so a stopped one comes last or not at all: who made what, and
+    whether it is ready."""
     if research is None:
         return ""
+    from ..project_state import ordered
+
     rows = []
-    for s in research.researchers()[-n:]:
+    for s in ordered(research.researchers())[:n]:
         title = inline((s.result or {}).get("title") or s.label or s.brief, 60)
         open_ = next((q for q in getattr(s, "requests", None) or [] if q.get("status") == "asked"), None)
         asking = f", asking the user for {inline(open_.get('what'), 80)} ({open_['id']})" if open_ else ""

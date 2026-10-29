@@ -28,6 +28,9 @@ RULES = [
                "more are said to be unchecked."),
     ("propose_correction", "If the evidence says the app's label is wrong, call propose_correction (only a proposal; "
                            "the user decides)."),
+    ("animate_measurements", "A chart or an animation of measurements or other saved data is drawn by the app from that "
+                             "table (make_chart, animate_measurements: name the entry and its rows, the app copies the "
+                             "values). A generated video is a different thing, made only when that is your deliverable."),
     (None, "Never claim more than the picture shows: the specimen is usually unstained and blurry."),
     (None, "finish.limitations says, in plain words, what you could not settle from what you saw and found (a missing "
            "view, scale or stain, a source that disagrees); finish.next_questions, what is worth asking next. Leave them "
@@ -77,7 +80,9 @@ Name the exact evidence revisions and sources used. State missing data explicitl
 The short finish.summary and details are previews of this record.""",
     "video": """Deliverable: a short video that explains it, made from the user's photo. Look up what
 happens first if needed, then call make_video once with a clear description of the motion
-to show (it starts from the photo; it is shown as a generated illustration). Then finish.""",
+to show (it starts from the photo; it is shown as a generated illustration). Then finish. If the brief
+asks to animate measurements or other saved data rather than for a generated video, animate that table
+instead (animate_measurements) and say why in the summary.""",
     "lesson": """Deliverable: an interactive mini-lesson. Research the facts first, then call
 make_lesson once with a title, the key ideas in order, one interactive idea and the quiz
 questions (usually three), each with its answer and a short hint. When you have the student's

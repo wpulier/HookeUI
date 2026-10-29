@@ -258,7 +258,7 @@ def main() -> None:
     marks = json.loads(Path(args.marks).read_text())
     marks = marks.get("marks", marks) if isinstance(marks, dict) else marks
     if marks and isinstance(marks[0], list):  # compact [id, start, end]: the rest from the steps
-        steps = {s["id"]: s for s in json.loads((Path(__file__).parent / "steps.json").read_text())["steps"]}
+        steps = {s["id"]: s for s in json.loads((Path(__file__).parent / "plans" / "demo-2026-10-11.json").read_text())["steps"]}
         marks = [{"id": i, "kind": steps[i]["kind"], "say": steps[i]["say"], "start": a, "end": b} for i, a, b in marks]
     for m in marks:  # the player keeps epoch milliseconds
         if m["start"] > 1e11:

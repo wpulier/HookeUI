@@ -3,9 +3,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModelsPage, integrationWords, type ModelsPageCommands } from './modelspage';
 import { fire, settleMicrotasks, TestElement } from './workspace-windows.test-support';
-import { action, chipState, downloadTime, needsSheet, sheetFacts, fijiFilter, grouped, isOn, liveNote, mark, neededDownloads, needsWords, problemGroups, summary, usedForWords, whereWords, channelWords } from './modelspage';
+import { action, chipState, downloadTime, needsSheet, sheetFacts, fijiFilter, grouped, isOn, liveNote, mark, neededDownloads, needsWords, problemGroups, summary, useForJob, usedForWords, whereWords, channelWords } from './modelspage';
 import { keyTiles } from './keystrip';
-import type { CapabilitiesWire, KeyFacts, ModelRow } from './protocol';
+import type { CapabilitiesWire, KeyFacts, ModelRow, Role } from './protocol';
 
 const row = (over: Partial<ModelRow> = {}): ModelRow => ({
   id: 'edgetam', name: 'EdgeTAM', runs: 'this-mac', where: 'on this Mac', what: 'Outlines what you click', kind: 'model',
@@ -38,6 +38,19 @@ describe('the groups', () => {
     expect(g.available.map((r) => r.id)).toEqual(['dinov3-small']); // nothing you chose needs it: need setup or checks
     // The summary counts the sections Models and Tools By model share (run-spec.ts modelSection).
     expect(summary([gemini, row(), optional])).toBe('1 needs you · 1 ready · 1 can be set up');
+  });
+});
+
+describe('on is not chosen (capability_shelf.on_words; live 2026-10-28: "I just enabled BioCLIP 2")', () => {
+  const bioclip = row({ id: 'bioclip-2', name: 'BioCLIP 2', usedFor: [{ role: 'embed', title: 'Look-alikes', option: 'bioclip-2', options: [], current: false, fixed: false }],
+    setups: [{ role: 'model:bioclip-2', title: 'BioCLIP 2', option: 'bioclip-2', plan: null, recheck: false, canTry: false, recipe: 'r0' },
+      { role: 'embed', title: 'Look-alikes', option: 'bioclip-2', current: 'dinov3-small', plan: null, recheck: false, canTry: true, recipe: 'r1' }] });
+  const embed = (status: string): Role => ({ id: 'embed', kind: 'model', title: 'Look-alikes', purpose: '', current: 'dinov3-small',
+    options: [{ id: 'dinov3-small', label: 'DINOv3 small', note: '', available: status === 'ready', readiness: { status, word: '', steps: [] } as never }] } as unknown as Role);
+  it('offers the job now only when its own choice cannot run', () => {
+    expect(useForJob(bioclip, [embed('needs-setup')])).toEqual({ role: 'embed', option: 'bioclip-2', title: 'Look-alikes', current: 'dinov3-small',
+      recipe: 'r1', says: 'Look-alikes uses DINOv3 small, which can’t run here. Use BioCLIP 2 for Look-alikes now?' });
+    expect(useForJob(bioclip, [embed('ready')])).toBeNull(); // it stays on, not chosen: the job keeps its model
   });
 });
 

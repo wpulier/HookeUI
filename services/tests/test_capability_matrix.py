@@ -179,6 +179,7 @@ PLANS: dict[str, Plan] = {
     "new-thread": Plan("new topic", [("new_thread", {"title": "leaf"})]),
     "switch-thread": Plan("back to the previous one", [("switch_thread", {"thread": "t1"})], before=[("new_thread", {"title": "leaf"})]),
     "new-session": Plan("start a new session", [("new_session", {"name": "kidney section"})]),
+    "new-project": Plan("create a new project called experiment", [("new_project", {"name": "experiment"})]),
     # The library (brain/toolbox/library.py): looking touches no session; putting one on stage is the `source` command,
     # here refused for an asset the stand-in world has none of, saying why.
     "find-assets": Plan("which recordings of rotifers do I have?", [("assets", {"words": "rotifer"})]),
@@ -232,6 +233,7 @@ PLANS: dict[str, Plan] = {
     # The Models page in words (brain/toolbox/catalog.py): in this rig every model on this Mac counts as downloaded, so
     # nothing is offered and the yes is refused saying so; no studio answers open-page, so the card is refused too.
     "ask-about-models": Plan("what do I need to set up?", [("models", {})]),
+    "models-in-use": Plan("what models are powering you right now?", [("models_in_use", {})]),
     "get-model": Plan("yes, download it", [("get_model", {"model": "all", "asked_with": "yes, download it"})],
                       before=[("models", {})], expect="refused: not offered just now"),
     "open-model-card": Plan("add my OpenAI key", [("open_models", {"model": "OpenAI key"})],
@@ -245,8 +247,9 @@ PLANS: dict[str, Plan] = {
                                 [("describe_capability", {"capability": "stand-in-describer"})], setup=("kind",)),
     "turn-on-capability-agent": Plan("turn on Find every cell", [("turn_on", {"job": "Find every cell",
                                                                                "asked_with": "turn on Find every cell"})]),
+    # No studio here: it is not shown, and where it is saved is said (table_window.py; never a page taken as shown).
     "show-measurements": Plan("show me the cell measurements as a table", [("show_measurements", {})], setup=("cells",),
-                              expect="refused: did not say it shows"),
+                              expect="refused: saved in Data"),
     "which-models": Plan("which models can do this?", [("capabilities", {"operation": "{use_as}"})], names_model=True, reach="listed"),
     "use-for-request": Plan("use SAM 2.1 for this one", [("use", {"operation": "outline", "implementation": "SAM 2.1 tiny",
                                                                   "by": "user"})]),
@@ -278,6 +281,12 @@ PLANS: dict[str, Plan] = {
     "research-motion": Plan("have a researcher measure how fast these swim", [("start_researcher", {
         "brief": "measure how fast these swim", "effort": "quick",
         "asked_with": "have a researcher measure how fast these swim"})], not_on_path={"researcher:research": RUN_ENGINE}),
+    # A chart or an animation of a kept table: a research researcher's own tools (measurement_charts.py), never a video.
+    "research-chart": Plan("have a researcher chart the nucleus areas", [("start_researcher", {
+        "brief": "chart the nucleus areas", "effort": "quick", "asked_with": "have a researcher chart the nucleus areas"})]),
+    "research-animation": Plan("have a researcher animate the measurements table", [("start_researcher", {
+        "brief": "animate the measurements table", "effort": "quick",
+        "asked_with": "have a researcher animate the measurements table"})]),
 }
 
 

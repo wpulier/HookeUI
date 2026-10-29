@@ -10,7 +10,17 @@ other files.
   research, narration, view), and chat and voice both have it (the voice prompt lists the
   registry's tools). `toolbox.build(Services)` is the one way the tool list is made (the app,
   tests and benches; a tool is there only when what it acts on exists; ADR 0003); a tool fails
-  with `ToolFailed` (an `orchestrator/tools.ToolError` is one). GPT-Live is the only voice model.
+  with `ToolFailed` (an `orchestrator/tools.ToolError` is one).
+- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
+  each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
+  lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
+  camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
+  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands the
+  brain only what no tool covers (`do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
+  taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
+  change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
+  pause. Both write the same journal lines and conversation turns; neither replaces the other
+  (docs/architecture/seeing-and-acting.md "The one-brain loop").
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.
@@ -31,9 +41,42 @@ other files.
   a delegation done, so the app keeps each request's state). Live 2026-10-11, without it, a still-running step was
   said twice ("Still pulling that photo. Still at it.") and a failed photo, left as silent context, became an
   improvised "I found the photo, it's on your screen".
+  - **One identity per request:** a spoken request's id is its ticket's admission (`request.admission.request_id`).
+    It travels with every hand-off of it (`SpokenRequests.request_for(delegation_id)`), its findings (`requestId`), the
+    narrator's lines (`Line.request_id`) and each step's late result (`Line.outcomes`: `action:<action id>`; a model's
+    own late answer about it is `answer:action:<action id>`). What the voice has said is kept by those identities in
+    one record, `narrator.Said` (`Brain.said`, shared by every Talk session through `voice/route.py`), so an answer or
+    outcome is said once whichever path reports it: the hand-off's findings, the voice handing the same request over
+    again, a replayed delegation, a raw late result already said, or a new Talk session. Never by comparing words.
+    An identity is marked said only once it was said (ADR 0006: silence is worse than saying it twice): the
+    narrator marks it when the voice is heard starting to say it, a hand-off when its send returned; what was only told
+    (a request the app did without a hand-off, `speech.outcome_line`, failures included), a send that failed, or one
+    whose Talk session closed first, is not said, so the hand-off or the next session says it. A raw result said before
+    never silences the model's own late answer (it is said); a model answer arriving while its step's raw facts still
+    wait in the narrator's queue is said in their place (live 2026-10-28: one outline's outcome said three times).
   - **Acknowledged, once:** by the voice itself. A question's answer is said as soon as the brain has written it
-    (`Brain.turn(draft=)`, never a claim that something is done); a request to act's early answer is told to the voice,
-    not said (`SpokenRequests._answer`; the user's decision, 2026-10-11: "Sure", the card, then "There it is").
+    (`Brain.turn(draft=)`); a draft offered with steps still to run (`claims.Draft.pending`) is said with those steps
+    named as not done yet, so only what it says of them waits for their outcome, which the model judges (live
+    2026-10-28: "I've brought up the measurements table" before any tool ran), and its answer is never held back. A
+    request to act's early answer is told, not said (`SpokenRequests._answer`; the user's decision, 2026-10-11:
+    "Sure", the card, then "There it is").
+  - **Spoken and facts apart:** `openai_live.split_findings` says apart what the voice is asked to say (`spoken`,
+    commentary) and what only the model should know (`facts`, thinking on the delegation): steps still running, and
+    "nothing was outlined", a fact only for a request that asked for outlines (its look's `targets`, or a step that
+    `produces.py` says makes them) and got none; then the voice says it once, with the next useful thing to try. A
+    failed step's own `next` goes with its "Could not". Live 2026-10-28, "Nothing's outlined" was said after a table, a
+    researcher, a status and a tab request.
+  - **Not over the user:** a hand-off's findings wait while the user's words are still coming
+    (`OpenAILiveSession._hold_for_user`, at most `HOLD_FOR_USER_S`), and a failure from the narrator waits only on the
+    same time-bounded `user_talking`; what the user says meanwhile never turns them into silent context. The route gives
+    the session its spoken requests for identity only (`session.requests`), not as `spoken`, so the narrator's
+    `newest` check stays off for late results, as before Part 2.5 (any later words, a cough or a "thanks", counted as
+    newer). GPT-Live's
+    own turn-taking has no settings (OpenAI's Live reference and guides, checked 2026-10-28: no `turn_detection`, VAD,
+    `eagerness` or `interrupt_response` for `gpt-live-1`; the module docstring of `voice/openai_live.py` quotes them);
+    yielding is shaped only by the prompt's Interruption section, which follows OpenAI's prompting guide ("Keep
+    listening while the user pauses to think"). The app's `QUIET_TURN_END_S` and `SPEECH_PEAK` stay as they were: they
+    decide only captions, `interrupted` and idleness.
   - **Still working:** findings with nothing but steps running go as thinking on the delegation, said or not before
     (`openai_live.only_in_progress`).
   - **A wait:** a late step whose progress changes (a model loading, the studio out of view:
@@ -396,9 +439,17 @@ a model never supplies the workspace UUID as authority. Legacy explicit-session 
 only when they match that same captured owner. This changes no native admission, publication or
 cross-Project guard, and does not turn a view attachment into an implicit measurement request.
 
-`show_measurements` reads the captured Project/revision through the shared asynchronous `read_table` path before
-opening its pinned Measurements URL. Statistics and lazy scientific imports stay in that worker path. A changed
-request or Project refuses; success still requires the originating Studio’s visible confirmation.
+`show_measurements` reads the captured Project/revision through the shared asynchronous `read_table` path, then opens
+that exact table in the window the user's Open in Measurements opens, on the Tab in front or on the Tab `tab` names
+(made when none has that title, brought forward, fitted): one action, done only when the originating Studio's screen
+report shows the window there, in front, its rows drawn (`table_window.py`; docs/architecture/on-screen.md "One surface
+per thing"). Its answer keeps saved, computed, displayed, in front and accepted apart, and one that is not shown says
+where the table is saved. Statistics and lazy scientific imports stay in that worker path. A changed request or
+Project refuses. A studio without the Project workspace is shown the Measurements page as before.
+
+A Project is started by `new_project` ("create a new project called experiment", "start a new session"); `new_session`
+is its earlier name, kept with its words so saved workflows and tool ids run. A Tab is an arrangement inside this
+Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`).
 
 `make_table`, `edit_table`, `analyze` and `make_graph` use the ordinary DataTables and TableDerivatives services.
 The original Asked Project, generation and conversation own writes; request cancellation is checked at the shared

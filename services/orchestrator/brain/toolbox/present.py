@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
+from ...screen import REPORT_NEXT
 from ...workspace_observation import ObservationError
 
 COLOURS = {"pink": "#f979e8", "yellow": "#ffdc64", "cyan": "#38c3f7", "green": "#22c55e", "white": "#ffffff",
@@ -20,6 +21,16 @@ MAGNIFIER_MIN_W = 160  # the studio's narrowest magnifier (magnifier.ts resizeTo
 # How long a window change waits for a studio in the background to be in view again, within its request's life
 # (ticket.MAX_TICKET_S): after it, the change was sent and applied but is said not confirmed, never "could not".
 BACKGROUND_WAIT_S = 300.0
+# A look at the screen that did not happen says only that, and that it says nothing about what the user sees (live
+# 2026-10-28: a capture past its deadline became "I can't see your screen ... try refreshing", then "quit and reopen the
+# app"); the windows the studio reports still say what is shown.
+LOOK_NEXT = "ask again in a moment"
+
+
+def _unlooked(error) -> str:
+    """A capture refused by the report path, in words that claim nothing about the user's screen."""
+    return (f"no picture of the workspace was taken: the studio's latest report could not be used for one ({error.code}); "
+            "this says nothing about what the user sees")
 OPACITY_WORDS = {"faint": 0.25, "fade": 0.35, "faded": 0.35, "dim": 0.35, "dimmed": 0.35, "half": 0.5, "full": 1.0,
                  "solid": 1.0}
 
@@ -164,7 +175,7 @@ def _original_screen(screen, ctx, target=None):
     try:
         screen.request_report(scope["snapshot"], scope["client"], request_id=scope["request_id"], target=target)
     except ObservationError as exc:
-        raise ToolFailed(str(exc), next="check the originating studio, then ask again") from None
+        raise ToolFailed(str(exc), next=REPORT_NEXT) from None
     return scope
 
 
@@ -183,7 +194,7 @@ async def _original_layer_ready(services, screen, ctx, scope, pid, kind, *, show
     try:
         report = screen.request_report(**scope, target=pid)
     except ObservationError as exc:
-        raise ToolFailed(str(exc), next="check the originating studio, then ask again") from None
+        raise ToolFailed(str(exc), next=REPORT_NEXT) from None
     row = next((row for row in report["items"] if row["id"] == pid), None)
     request = tickets.current()
     identifier = pid.split(":", 1)[1]
@@ -198,7 +209,7 @@ async def _original_layer_ready(services, screen, ctx, scope, pid, kind, *, show
     # successful producer from this same original request can wait for its root.
     if not screen._structural_item(row) and not produced and not shown_here:
         raise ToolFailed("original studio has not represented this structural target",
-                         next="check the originating studio, then ask again")
+                         next=REPORT_NEXT)
     layer = track_layer_of(services.hub) if kind == "tracks" else layer_of(services.hub)
 
     def guard():
@@ -214,7 +225,7 @@ async def _original_layer_ready(services, screen, ctx, scope, pid, kind, *, show
     try:
         await screen.request_item_ready(**scope, target=pid, guard=guard)
     except ObservationError as exc:
-        raise ToolFailed(str(exc), next="check the originating studio, then ask again") from None
+        raise ToolFailed(str(exc), next=REPORT_NEXT) from None
 
 
 async def act(services, args: dict, by: str | None = None, ctx=None) -> str:
@@ -295,7 +306,8 @@ async def act(services, args: dict, by: str | None = None, ctx=None) -> str:
     if kind in ("population", "tracks") and verb not in ("show", "hide"):
         await _original_layer_ready(services, screen, ctx, scope, pid, kind)
     if current_report() is None:
-        raise ToolFailed("no studio is showing the view now, so nothing on screen can change", next="open the studio")
+        raise ToolFailed("no studio is showing the view now, so nothing on screen can change",
+                         next=REPORT_NEXT)
     if by is None:
         request = tickets.current()
         by = f"request:{request.id}" if request is not None else "brain"
@@ -674,7 +686,7 @@ async def act(services, args: dict, by: str | None = None, ctx=None) -> str:
         if undo is not None:
             undo()  # only this still-owned style/target; never a later change
         if isinstance(exc, ObservationError):
-            raise ToolFailed(str(exc), next="check the originating studio, then ask again") from None
+            raise ToolFailed(str(exc), next=REPORT_NEXT) from None
         raise
     if applied:
         if showings_of(hub).noted(change, screen) == "late":  # confirmed after its showing was stopped: put back
@@ -782,7 +794,7 @@ async def _on_their_view(services, layer, population, *, revision=None) -> tuple
     magnifier = getattr(services, "magnifier", None)
     if magnifier is None:
         if population.view.get("sourceImage"):
-            raise ToolFailed("the retained image viewer is unavailable", next="reopen the studio")
+            raise ToolFailed("the retained image viewer is unavailable", next="open it from Data instead")
         return f"; none of the {total} is in place on the live view now" + (f" ({why})" if why else ""), None
     from ...population import captured_picture
     from ...screen import picture_shown
@@ -1771,7 +1783,7 @@ async def _native_present(services, ctx, args):
                 return False  # sent and applied by the studio, not a failure: it shows once the studio is in view
             if result["status"] != "confirmed":
                 raise ToolFailed((result.get("error") or {}).get("reason") or "the display could not be verified",
-                                 next=(result.get("error") or {}).get("next") or "check the originating studio, then ask again")
+                                 next=(result.get("error") or {}).get("next") or REPORT_NEXT)
             raw = screen.observation(ctx.client).wire()
             acks = {r["presentationId"]: r for r in raw["commandResults"] if r["commandId"] == committed.command_id}
             observations = []
@@ -1807,7 +1819,7 @@ async def _native_present(services, ctx, args):
                     facet["row"].update(status="failed", confirmation=copy.deepcopy(receipts[-1]), error=dict(error))
                     bind_goal(facet)
                 run.outcome = {**receipts[-1], "failure": error, "receipts": list(receipts)}
-                raise ToolFailed(error["reason"], next=error.get("next") or "check the originating studio, then ask again")
+                raise ToolFailed(error["reason"], next=error.get("next") or REPORT_NEXT)
             if geometry_op and not any(row["predicate"] == "rect" for row in expected):
                 receipts[-1] = {**result, "status": "unobserved", "failure": {
                     "code": "DISPLAY_UNVERIFIED", "reason": "this operation's exact observed predicate is not installed"}}
@@ -2072,7 +2084,8 @@ def add_present_tools(registry: Registry, services) -> None:
         screen = screen_of(hub)
         scoped = ctx.client is not None or ctx.request_snapshot is not None
         if not scoped and not screen.showing():
-            raise ToolFailed("no studio is showing the view now", next="open the studio")
+            raise ToolFailed("no studio is showing the view now, so no picture of the screen was taken; this says "
+                             "nothing about what the user sees", next=LOOK_NEXT)
         if ctx.admission is None or ctx.admission.used >= MAX_CALLS:
             raise ToolFailed("no answer capacity remains to inspect workspace pixels", next="ask again in a new request")
         ctx.admission.reserve_final()  # acquisition must leave an admitted interpretation opportunity
@@ -2105,7 +2118,7 @@ def add_present_tools(registry: Registry, services) -> None:
                     image = await screen.look(snapshot=ctx.request_snapshot, client=ctx.client,
                                               request_id=ctx.admission.request_id, targets=(), memory=captures(hub).memory)
                 except ObservationError as error:
-                    raise ToolFailed(f"{error.code}: {error}", next="check the originating studio, then ask again") from None
+                    raise ToolFailed(_unlooked(error), next=LOOK_NEXT) from None
                 require_current(ctx, getattr(services, "day", None))
                 if image is not original.images[0]:
                     raise ToolFailed("the reused workspace input differs from its original producer", next=None)  # no next: a different input cannot replace the original acquisition
@@ -2120,13 +2133,13 @@ def add_present_tools(registry: Registry, services) -> None:
                                           request_id=ctx.admission.request_id, targets=(), memory=captures(hub).memory)
                 require_current(ctx, getattr(services, "day", None))
                 if image is None:
-                    raise ToolFailed("the originating studio did not deliver workspace pixels before the capture deadline",
-                                     next="ask again in a moment")
+                    raise ToolFailed("the picture of the workspace did not arrive in time, so it was not looked at; this "
+                                     "says nothing about what the user sees", next=LOOK_NEXT)
                 _keep_screen_picture(services, image.jpeg)
                 run.images.append(image)
                 attached = True
             except ObservationError as error:
-                raise ToolFailed(f"{error.code}: {error}", next="check the originating studio, then ask again") from None
+                raise ToolFailed(_unlooked(error), next=LOOK_NEXT) from None
             finally:
                 if not attached:
                     for index, slot in enumerate(ctx.inspection_slots):
@@ -2141,7 +2154,8 @@ def add_present_tools(registry: Registry, services) -> None:
         try:
             jpeg = await screen.look()
             if not jpeg:
-                raise ToolFailed("the studio did not send a picture of the screen", next="ask again in a moment")
+                raise ToolFailed("the picture of the workspace did not arrive in time, so it was not looked at; this "
+                                 "says nothing about what the user sees", next=LOOK_NEXT)
             if len(jpeg) > limit:
                 raise ToolFailed("the workspace picture exceeds its size limit",
                                  next="use a smaller studio viewport, then ask again")

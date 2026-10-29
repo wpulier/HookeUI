@@ -116,6 +116,13 @@ export interface Health {
 export interface ModelsHealth {
   fallbacks: { role: string; default: string; used: string; times: number; why: string; agoS: number }[];
   providers: Record<string, Partial<Record<'ok' | 'cut-off' | 'rate-limit' | 'auth' | 'server' | 'connection' | 'failed', number>>>;
+  inUse?: ModelInUse[]; // who's doing each job now (orchestrator/models_in_use.py), the same rows the agent's models_in_use reads
+}
+
+/** One job and the model doing it now: where it runs, its calls' typical time lately, and where to change it. */
+export interface ModelInUse {
+  role: string; title: string; model: string; runs: string; where: string; setting: string | null; how?: string; note?: string;
+  speed: { p50Ms: number; calls: number } | null; speedWords: string; change: string;
 }
 
 /** How the computer is doing (orchestrator/machine.py), sampled every 5 s; any field may be
@@ -727,6 +734,9 @@ export type ServerMessage =
   | { type: 'presentation-admitted'; requestId: string; executionRequestId: string; client: WorkspaceReady['client']; appRunId: string }
   | { type: 'workspace-tabs'; id:string; session:string; action:Record<string,unknown>; workspacePin:{client:Record<string,unknown>;id:string;rootId:string;kind:string;lifetimeGeneration:string|number;sourceGeneration:number} }
   | { type: 'open-page'; id: string; page: string } // the agent opens a page (open_models): answered by page-opened
+  // The Assistant's measurements table in the window Open in Measurements opens, on the Tab named (agent-table.ts;
+  // orchestrator/table_window.py): answered by table-window-result, done once the screen report shows it.
+  | import('./agent-table').TableWindowRequest
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
   // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
@@ -1360,7 +1370,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key';
 
 export interface ModelOption {
   id: string;
@@ -1394,6 +1404,8 @@ export interface Settings {
   outline_check?: string;
   track?: string;
   voicelink?: string;
+  talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
+  talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
   taught?: string; // matching the labels the user teaches: "on" | "off"
   lesson_check?: string; // lessons' steps checked for needing the picture (research_worker/lesson_check.py)
   seen?: string; // telling naming the outline named earlier today most like it (orchestrator/seen.py): "on" | "off"
@@ -1401,7 +1413,7 @@ export interface Settings {
   closeup?: string; // close-ups when naming a click: "single" | "naming" | "naming+answers" (orchestrator/agent.py)
   dust?: string; // telling the models where dust on the optics is: "tell" | "filter" | "off" (orchestrator/dust.py)
   embed?: string; // the picture model of your labels and "seen before today": "dinov2-small" | "bioclip-2" (gpu_worker/embed.py)
-  admit?: string; // how an explicit request for big research is recognised: "quote" | "keywords" (research/policy.py)
+  admit?: string; // how an explicit request for big research is recognised: "quote" (research/policy.py)
   zeroshot?: string; // MedSigLIP's zero-shot names told to naming a click: "off" | "medsiglip-subject" | "medsiglip-always" (orchestrator/zeroshot.py)
   outcome_lines?: string; // how each model has done here, pushed into the brain's prompt: "off" (looked up) | "on" (orchestrator/outcomes.py, K3)
   session_context?: string; // the index entries the conversation names, pushed capped: "off" (pulled) | "on" (brain/context.py, K3)
@@ -1418,6 +1430,35 @@ export interface Frame {
   header: FrameHeader;
   bitmap: ImageBitmap;
 }
+
+// The one-brain voice's own messages on /ws/voice (voice.ts), beside its {type:"voice"} events (the partner contract,
+// services/orchestrator/voice/openai_realtime.py). Server -> studio:
+/** Act, then look: the window as it is now, answered within 1.5 s or the server goes on without it. */
+export interface SnapshotRequest { type: 'snapshot-request'; id: string; maxSide?: number }
+/** A camera frame the model saw: its id and the eyepiece crop of it (source px) its normalised frame marks are in. */
+export interface MarkFrameRef { id: number; crop: [number, number, number, number] }
+/** One thing to point at, by Hooke's own id (marks.ts parseTarget), or a place in the camera frame the model saw
+ * (`target: "frame"` with `region` [x, y, w, h] or `polygon` [[x, y], ...], normalised 0-1). */
+export interface MarkSpec { target: string; style?: 'box' | 'point' | 'underline'; label?: string;
+  region?: [number, number, number, number]; polygon?: [number, number][] }
+/** Point while speaking: kept while the voice speaks and cleared about 1.5 s after (`speech-end`), or after `until` ms. */
+export interface MarksMessage { type: 'marks'; id: string; marks: MarkSpec[]; until?: 'speech-end' | number; frame?: MarkFrameRef }
+export interface MarksClear { type: 'marks-clear'; id?: string }
+/** The call ended (its 60-minute limit, a provider error): answer with a fresh offer on the same socket. */
+export interface Reoffer { type: 'reoffer'; id: string; why?: string }
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer'];
+/** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
+export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
+// Studio -> server.
+export type PartnerCommand =
+  | { type: 'talk'; down: boolean; n: number } // the talk key or button pressed (true) or released (false)
+  | { type: 'talk'; cancel: true; n: number } // Escape (or a tap, or a chord) while held: no answer
+  | { type: 'snapshot'; id: string; jpeg: string; w: number; h: number; at: number; how: 'tab-share' | 'composed' }
+  | { type: 'snapshot'; id: string; error: string }
+  | { type: 'marks-shown'; id: string; resolved: MarkResolution[] }
+  | { type: 'offer'; sdp: string; id: string } // a server's reoffer id, or the studio's own rc-<n> after a dropped connection
+  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number }; // the voice's measured output, as it changes
 
 const MAGIC = 'MMF1';
 
@@ -1457,6 +1498,7 @@ export type ClientCommand =
   | { type: 'model-download'; model: string } // a model's pinned files into the models folder (downloads.py)
   | { type: 'model-reveal'; model: string } // its folder in the Finder (the Models page); '' the models folder itself
   | { type:'workspace-tabs-result';id:string;session:string;workspacePin:Record<string,unknown>;result:Record<string,unknown> }
+  | { type:'table-window-result';id:string;session:string;workspacePin:Record<string,unknown>;result:import('./agent-table').TableWindowResult }
   | { type: 'page-opened'; id: string; page: string; shown: boolean; visible: boolean } // the answer to open-page
   | { type: 'model-turn-on'; model: string; trial?: string } // one entry's Turn it on (an added link, a new one); trial: Set up for comparison's picture
   | { type: 'model-publish-prepare'; model: string; destination?: 'review' | 'community' }

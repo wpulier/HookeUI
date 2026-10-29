@@ -133,7 +133,7 @@ export class View {
   outlinesOpacity = 1;
   private objects: SceneObject[] = [];
   private firstSeen = new Map<string, number>();
-  private offsets = new Map<number, Point>(); // frame id -> offset, for mapping candidates
+  private offsets = new Map<number, [number, number, number]>(); // frame id -> offset and motion epoch, for mapping candidates and marks
   private candidates: { frameId: number; items: Candidate[] } | null = null;
   cornerNotes: { x: number; y: number; w: number; h: number }[] = [];
   private placement: Placement = { scale: 1, ox: 0, oy: 0 };
@@ -242,7 +242,7 @@ export class View {
     // Fresh means a frame arrived recently. A still picture is the normal state of a microscope
     // (a slide at rest), so how long it has not changed (`still`) is logged, never dimmed.
     this.frameAt = performance.now();
-    this.offsets.set(frame.header.id, [frame.header.dx, frame.header.dy]);
+    this.offsets.set(frame.header.id, [frame.header.dx, frame.header.dy, frame.header.epoch]);
     this.recentSpeeds.push(frame.header.speed ?? 0);
     if (this.recentSpeeds.length > SPEED_WINDOW) this.recentSpeeds.shift();
     if (this.offsets.size > 300) {
@@ -541,6 +541,47 @@ export class View {
     const xs = pts.map((q) => ox + (q[0] + sx) * scale);
     const ys = pts.map((q) => oy + (q[1] + sy) * scale);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+
+  /** Whether the scene has the outline `id` at all (drawn or not). */
+  hasObject(id: string): boolean {
+    return this.objects.some((o) => o.id === id);
+  }
+
+  /** A shown population member's bounding box on the canvas now (CSS px), or why it is not drawn: its population is
+   * not the one shown, it is not verified in place on this frame, or there is no such member. */
+  memberCanvasBox(population: string, member: string): [number, number, number, number] | 'not-found' | 'hidden' | 'out-of-view' {
+    const h = this.header;
+    const pop = this.population;
+    if (!h || !pop || pop.id !== population) return this.populations.has(population) ? 'hidden' : 'not-found';
+    if (!pop.members.some((m) => m.id === member)) return 'not-found';
+    const { members, matrix: [a, b, c, d, e, f] } = drawable(pop, this.layer, h);
+    const m = members.find((m) => m.id === member);
+    if (!m || memberLook(m, this.layer?.style).hidden) return 'out-of-view';
+    const p = this.placement;
+    const pts = m.polygons.flat().map(([x, y]) => [p.ox + (a * x + b * y + c) * p.scale, p.oy + (d * x + e * y + f) * p.scale]);
+    if (!pts.length) return 'out-of-view';
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  }
+
+  /** The slide's place (dx, dy, motion epoch) when frame `id` was shown, or the frame shown now's without an id; null
+   * when that frame is too old to know. A mark anchored to it moves with the specimen from there. */
+  frameOffset(id?: number): [number, number, number] | null {
+    const h = this.header;
+    if (!h) return null;
+    if (id === undefined || id === h.id) return [h.dx, h.dy, h.epoch];
+    return this.offsets.get(id) ?? null;
+  }
+
+  /** Points in a camera frame's own pixels on the canvas now (CSS px), moved with the slide since `anchor` (frameOffset);
+   * null without a picture, while the slide is not tracked, or after a re-find (another motion epoch). */
+  sourcePointsOnCanvas(points: Point[], anchor: [number, number, number]): Point[] | null {
+    const h = this.header;
+    if (!h || h.tracked === false || anchor[2] !== h.epoch) return null;
+    const sx = h.dx - anchor[0], sy = h.dy - anchor[1];
+    const { scale, ox, oy } = this.placement;
+    return points.map(([x, y]) => [ox + (x + sx) * scale, oy + (y + sy) * scale]);
   }
 
   /** Where an object's centre is on screen now (client px), or null. */

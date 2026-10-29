@@ -93,3 +93,43 @@ actor, selected contributor, exact Study basis and exact answer evidence. No sch
 implies execution readiness, verified scientific accuracy or human review. Local conversation
 routes enforce these schemas. Hosted services without this path must remain explicitly
 unavailable rather than inventing a different meaning or launching a provider.
+
+- **Who's powering what** (`orchestrator/models_in_use.py`, Part 2.5; live 2026-10-28 the voice said "Gemini and GPT"):
+  one row per job (the brain, which is the Seeing model answering by the Acting method; the voice; seeing; the running
+  look; quick decisions; pointing; outlining; cells; look-alikes; researching; presentation; pictures; video) with its
+  model's one name, cloud or this Mac (`runs`), the typical time of that model's calls here in the last ten minutes
+  (`research_worker/api_usage.latency`: a cloud call by its API name in `attempt`, an operation's run by
+  "<setting>:<option>" in `operations.Runner`; none is "no calls in the last 10 minutes", never a stale number) and where
+  to change it (the Models menu's job, and by asking when `set_default` can). Read from `options.GROUPS` and the settings
+  through `to_wire` (a list, never the work in progress's reads), so it is cheap enough for every health poll. The
+  agent's `models_in_use` tool says it in words; the performance meter's panel shows the same rows ("Doing each job
+  now", `/api/health` `models.inUse`).
+- **On is not chosen** (`orchestrator/capability_shelf.py`, `catalog_view.py`; live 2026-10-28: "I just enabled BioCLIP
+  2" was answered "I've set BioCLIP 2 as the model"): turning a capability on prepares it and offers it; the job's model
+  (the setting) changes only when someone chooses it (`use` for one request, `set_default` or the setup sheet's Use for
+  from now on). Every word the agent reads says the two apart: the shelf's line ("chosen (its model): DINOv2 small; also
+  on, not chosen: BioCLIP 2"), a model's uses ("Look-alikes (not chosen: the job uses another model)") and what Turn on
+  says once it is on (`on_words`: "BioCLIP 2 is on for Spot look-alikes, not chosen: it still uses DINOv2 small. Use it
+  for one request, or make it the default?"). When the job's own choice can't run, the first option on is offered to use
+  now: the card's `offerUse`, and the setup sheet of an entry turned on from its own card ("Use it for Look-alikes",
+  `modelspage.ts` `useForJob`, through `capability-select`).
+
+## The agent contract's Project view: `project-state`
+
+`contract/agent/` holds the shared JSON schemas every door answer is checked against (`door/schema.py`, which lists them
+in `NAMES` and needs no dependency, so the hosted side can use the same files). `project-state.schema.json` is
+`project.state`, version `project-state/1` (its `contract` field; a change that is not additive is a new version): the
+Project as every reader sees it, built by `orchestrator/project_state.py` and described in
+`docs/architecture/session-index.md`. It is a scoped, read-only projection, never a store or an instruction source:
+the Project's identity (`project-reference`) and each source's revision, `observedAt` with an explicit consistency
+statement (the reads are not atomic), its `stage` (what it has on stage and its specimen, from its journal), data items
+each with an exact reference (kind, id, revision, a Project document's digest), its source and whether its words are
+trusted, and its maker, in pages with a cursor bound to the data's revisions only (the index's and the Studies' as the
+role reads them: the studio's repeated reports and a researcher's next step never break a cursor);
+researchers running first, then finished, then stopped (labelled); Studies; agents' operations; the saved Tabs; the
+app's model choices (only for the Project open now); and the studio's state, `unavailable` when no studio reports this
+Project, never empty; its revision holds no time. A field added
+to it is additive within `project-state/1`, as `stage` was. The door checks every `project.state` answer against it before returning it; `project.read`'s
+output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
+contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed
+cache.

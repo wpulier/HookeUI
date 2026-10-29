@@ -9529,6 +9529,68 @@
     },
     "settle": 4.0
    }
+  },
+  {
+   "id": "chat-a-new-project-is-not-a-tab",
+   "about": "Part 2.5, voice log 2026-10-28 (lines 96-100): 'create a new project ... call it experiment' made a Tab called Experiment, then a Project too. A new Project is new_project (new_session is its earlier name, kept); a Tab is an arrangement inside this Project (tabs create). One Project, named, its conversation fresh.",
+   "slide": [
+    {
+     "name": "stoma",
+     "box": [
+      600,
+      300,
+      680,
+      380
+     ]
+    }
+   ],
+   "board": {},
+   "events": [
+    {
+     "at": 0.0,
+     "type": "create a new project and call it experiment"
+    }
+   ],
+   "vision": [
+    {
+     "when": "new project",
+     "reply": {
+      "answer": "Starting a new project called experiment.",
+      "targets": [],
+      "actions": [
+       {
+        "tool": "new_project",
+        "args": {
+         "name": "experiment"
+        }
+       }
+      ]
+     }
+    }
+   ],
+   "expect": {
+    "board": [
+     {
+      "session": "new"
+     },
+     {
+      "session_named": "experiment"
+     },
+     {
+      "conversations": 1
+     }
+    ],
+    "queried": {
+     "new_project": [
+      "started a new Project \"experiment\""
+     ]
+    },
+    "never_told": [
+     "new tab",
+     "Tab called"
+    ],
+    "settle": 4.0
+   }
   }
  ]
 }

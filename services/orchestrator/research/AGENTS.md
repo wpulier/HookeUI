@@ -13,7 +13,10 @@ other files.
   (the lesson scrolls to it; the voice hears the question, only the brain sees the answer),
   and `researcher_followup` asks a researcher about its own work. Researchers can be named the
   way people do ("the quiz", "the one on screen", "the joint one"). View notes list the
-  latest researchers, so the voice knows what exists and hands anything about it over.
+  researchers running first, then finished, then stopped (`project_state.ordered`; at most 4, so a stopped one is last or
+  left out), so the voice knows what exists and hands anything about it over. `research_status` with no researcher named
+  leads with the running one, else the one last spoken of in the conversation (its newest turn filed about one, `refs.rid`),
+  then lists the rest in that order (`docs/architecture/session-index.md`, "The Project's one view").
 - A live quiz on the slide (`orchestrator/quiz.py`, CONTEXT.md "Step kind", "Outcome"): a lesson
   step may be a plain question, a *find* step ("find a guard cell on your slide and click it",
   `target`) or an *evidence* step (what would confirm or refute the app's name for an outline);
@@ -32,7 +35,17 @@ other files.
   own process (`services/research_worker/`, managed by `services/orchestrator/research/`).
   Effort sets their usual time, spend and tools (`research_worker/budget.py`): instant 15 s / $0.08, describe 25 s /
   $0.08 (descriptions only, instant pool), quick 75 s / $0.25, standard 6 min / $1, deep 18 min / $5. A lesson can be made
-  from quick up, a video from standard (the 2026-10-11 demo: a short lesson at quick was refused for want of the tool).
+  from quick up, a video from standard (the 2026-10-11 demo: a short lesson at quick was refused for want of the tool);
+  a chart or animation of a saved table from quick up (below).
+  - **One request, one researcher** (Part 2.5; live 2026-10-28, "create a researcher that looks at the data on the
+    table ... creates an animation of it", split by a pause, made two): `start_researcher` admits one researcher per
+    request, by its identity (the action occurrence's `request_id`, kept in the researcher's `origin`), never its
+    words. The same request answered again (its hand-off after hands started one, a completion round, a retry, a
+    replay) gets the researcher already started back, with its run reference, and nothing new starts; starts listed in
+    one answer of the request (`Steps.occurrences`: "make two researchers, one on X, the other on Y") are each their
+    own. The tool no longer says "always start a new one": words that add to what the user just asked a researcher for
+    go to that one (`researcher_note`), which the model judges from Researchers (it is listed queued, starting or
+    running) and the conversation; a new one starts when they ask for another or for separate work.
   - **Its model's key, first** (the 0.4.0 release candidate): `ResearchManager.start` refuses at once when the model
     researchers use has no key (`engine_key_refusal`): the model is the one the research process runs (its override
     `MICROMIND_RESEARCH_ENGINE`, else the research setting; `research_worker/engines.make_engine`), and a key is there
@@ -153,6 +166,22 @@ other files.
   model with no picture answers each quiz step and the steps it gets right are logged (default
   "check"); "rewrite" sends them back once, with the photo, to need it (the bench found it does
   not beat the lesson as written: `bench/lesson_check_bench.py`).
+- **Charts and animations of saved data** (`research_worker/measurement_charts.py`; Part 2.5): from quick up a researcher
+  has `make_chart` and `animate_measurements` (budget `CHART_TOOLS`), offered only when it can read the session's index
+  and never for a follow-up answer, a new version or a description. It names a table the session kept (an entry's id,
+  and the `page.revision` its read gave, or none for as it is now), the rows (a JSON pointer under `/detail/`, a
+  measurements table's `/detail/members`) and the number in each row (`/extras/areaPx`), with an optional label, group,
+  order and kind (one bar per row, or a histogram). The worker reads the whole entry itself, page by page off the model's
+  rounds, checks it against the revision, and copies the values: a row with no number is left out and counted, never
+  imputed. The chart is drawn on this Mac by the app (Pillow; no model, provider or money); the animation builds that
+  chart row by row in the chosen order and ends on the whole chart, an animated PNG every browser plays as a picture.
+  Each is kept as one of its outputs with `derived` (its exact source id, revision, kind) and its values in `content`:
+  media `derived`, said "Drawn by the app from a saved table" or "An animation ... not a video of the specimen", in Data
+  as "Researcher N's chart/animation" whose picture reopens, and its table is among what it was made from. When the
+  animation can't be drawn here, the chart is made instead and that is said. A generated video stays its own deliverable
+  (`make_video`, Veo), made only when it is asked for by name; one that fails says the model and the provider's own status
+  on the researcher's card ("The video model was unavailable (Veo 3.1 Fast, HTTP 404, NOT_FOUND: ...)"), and its model
+  is told it can animate a table instead. `tests/test_researcher_outputs.py` reproduces the 2026-10-28 request.
 - Out of time or money after making something, a researcher keeps its work: status "partial",
   a result described from its outputs, restored and shown like "done". A URL that failed is
   not fetched again by the same researcher.
@@ -171,7 +200,7 @@ other files.
   - `list` by kind or query;
   - `read` an entry in full by id;
   - `picture`.
-  - **How it reads:** the app's own `GET /api/resources…` on this machine, at `ResearchManager.resources_url`, which `server.main` sets once it knows its port, to the researchers' view (`/for-researchers/api/resources…`; ticket 66): the entries as they were before Data's fields, and a researcher's sources, tables, charts and other work only when it lists that kind, so nothing new reaches its listing by default (`docs/architecture/session-index.md`). It never goes through the web path, and is scoped to the researcher's day.
+  - **How it reads:** the app's own `GET /api/resources…` on this machine, at `ResearchManager.resources_url`, which `server.main` sets once it knows its port, to the researchers' view (`/for-researchers/api/resources…`; ticket 66): the entries as they were before Data's fields, and a researcher's sources, tables, charts and other work only when it lists that kind, so nothing new reaches its listing by default (`docs/architecture/session-index.md`). It never goes through the web path, and is scoped to the researcher's day. Its `summary` also carries `project`, the first page of the Project's one view (`project_state.py`: its stage, its data with exact references and makers, its researchers, its Studies), only for a session a researcher of this app is working in (`ResearchManager.working`), else `{unavailable}`; a view that cannot be read never fails the summary.
   - **What the model gets:** the results are data inside `<session source="app" untrusted="true">`.
   - **Pictures:** fetched only on `picture`, as JPEG.
   - **The stall rule:** an entry read in full counts as progress.
@@ -270,8 +299,11 @@ other files.
   proposal (`p1`) the user can say yes to (start_researcher `confirms`), which starts exactly it. The app checks
   the quote is in what the user said in the last 30 s (`quoted`; by voice, what they were heard saying or
   typed in that half minute, never a hand-off's own text: `Conversation.heard`); the same quote marks research the
-  user asked for, whose result is spoken. "keywords": the EXPLICIT word lists, as before 2026-10-06
-  (they refused "show me step by step how it works"). `admit` runs
+  user asked for, whose result is spoken. No word list decides which deliverable a request wants or admits one: the
+  "keywords" option (the EXPLICIT word lists, as before 2026-10-06) is gone (2026-10-29; it refused "show me step by step
+  how it works", and its `animat\w*` matched "create an animation" of a measurements table to a Veo video, live
+  2026-10-28). The model picks the deliverable from the ones and the tools it is shown; a record retained under
+  "keywords" is checked by the quote. `admit` runs
   inside `ResearchManager.start` and `followup`, so "continue" and a new version of a video are
   held to it too and no path skips it; the tool refuses otherwise, and the answer says so.
   Which researcher a request means is `research/desk.py`; a follow-up answer or a new version
@@ -407,3 +439,15 @@ Request retries do not duplicate questions, and different answers cannot overwri
 The current UI keeps this conversation inline, separately from reviewed findings. The
 connector recipient operates externally: no subprocess launcher, provider billing or new
 workflow attempt ledger is implied by saving a question.
+
+### One saved workflow from every entrance
+
+`tests/test_workflow_entrances.py` qualifies the integrated WorkflowService across the entrances (Part 2.5): one saved
+definition on one retained input, run from the brain's `workflow` tool, the studio's `POST /api/workflows/command`, a
+researcher's hands (`run` operation `workflow`) and the door (`operations` tool `workflow`, through its Study), is the
+same frozen definition (id, revision, digest), the same exact input and the same result by the same real steps, every
+run in the one history the studio lists, each attributed to its actor. The brain, the studio and a researcher name a
+run by the caller's request identity, so the same request from any of them is the same run; the door's runs are its
+own (scoped to its Study and actor; its retry is the same run). Not shared yet: a workflow saved in the studio or by the
+Assistant is not listed or runnable from the door, which reaches only the workflows created or duplicated through the
+door for that Project (`door/projects.py` `require_workflow`; duplicating needs that association too).

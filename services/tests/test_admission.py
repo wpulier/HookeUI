@@ -67,36 +67,37 @@ def test_the_model_quotes_the_request_and_the_app_checks_the_quote():
         admit("continue", words="go on", effort="standard", deliverable="lesson")
 
 
-def test_with_keywords_a_new_researcher_keeps_its_selected_compatible_effort():
+def test_a_new_researcher_keeps_its_selected_compatible_effort():
     with pytest.raises(ResearchRefused, match="effort is one of"):  # a choice is refused, never replaced
-        admit("start", words="what is this?", effort="describe", deliverable="research", mode="keywords")
+        admit("start", words="what is this?", effort="describe", deliverable="research")
     assert "describe" not in CHOOSABLE and "revise" not in CHOOSABLE  # the app's own efforts are never offered
-    report = admit("start", words="write me a report on it", effort="quick", deliverable="report", mode="keywords")
-    assert (report.effort, report.deliverable) == ("quick", "research")
-    assert admit("start", words="draw it", effort="quick", deliverable="image", mode="keywords").effort == "quick"
-    assert admit("start", words="make me a lesson", effort="standard", deliverable="lesson", mode="keywords").effort == "standard"
+    assert admit("start", words="draw it", effort="quick", deliverable="image").effort == "quick"
+    assert admit("start", words="make me a lesson", effort="standard", deliverable="lesson", asked_with="make me a lesson").effort == "standard"
     with pytest.raises(ResearchRefused, match="deliverable is one of"):
-        admit("start", words="find out", effort="quick", deliverable="hologram", mode="keywords")
-    with pytest.raises(ResearchRefused, match="explicitly"):
-        admit("start", words="tell me about it", effort="quick", deliverable="video", mode="keywords")
-    with pytest.raises(ResearchRefused, match="explicitly"):
-        admit("start", words="look into it", effort="deep", deliverable="research", mode="keywords")
+        admit("start", words="find out", effort="quick", deliverable="hologram")
+    with pytest.raises(ResearchRefused, match="asked_with"):
+        admit("start", words="look into it", effort="deep", deliverable="research")
 
 
-def test_with_keywords_asked_and_explicit_read_the_same_words():
-    # "find out" was said a moment before; the piece that starts it only says "do it"
-    assert admit("start", words="find out what the dark spots are. do it", effort="quick", mode="keywords").asked
-    assert not admit("start", words="", effort="quick", mode="keywords").asked  # the brain started it on its own
+def test_a_record_admitted_under_the_old_keyword_list_is_checked_as_a_quote():
+    """The keyword list (option ADMIT "keywords") is gone (2026-10-29): it decided for the model by word, matching
+    "animation" to a video. A retained record that still says "keywords" (a mission's authority) is checked by the
+    quote, never by a word list."""
+    with pytest.raises(ResearchRefused, match="asked_with"):
+        admit("continue", words="make me a video of it", effort="standard", deliverable="video", mode="keywords")
+    said = "make me a video of it"
+    assert admit("continue", words=said, effort="standard", deliverable="video", asked_with=said, mode="keywords").deliverable == "video"
+    assert admit("start", words="find out what the dark spots are. do it", effort="quick", asked_with="find out what the dark spots are",
+                 mode="keywords").asked
 
 
-def test_with_keywords_every_kind_of_run_again_is_admitted_in_one_place():
+def test_every_kind_of_run_again_is_admitted_in_one_place():
     assert admit("answer").effort == "quick"
-    assert admit("revise", words="make question 2 easier", target_kind="lesson", mode="keywords").effort == "revise"
-    with pytest.raises(ResearchRefused, match="explicitly"):
-        admit("revise", words="make it brighter", target_kind="video", mode="keywords")
-    assert admit("revise", words="redo the video brighter", target_kind="video", mode="keywords").effort == "standard"
-    with pytest.raises(ResearchRefused, match="explicitly"):
-        admit("continue", words="go on", effort="standard", deliverable="lesson", mode="keywords")
+    assert admit("revise", words="make question 2 easier", target_kind="lesson").effort == "revise"
+    with pytest.raises(ResearchRefused, match="asked_with"):
+        admit("revise", words="make it brighter", target_kind="video")
+    with pytest.raises(ResearchRefused, match="asked_with"):
+        admit("continue", words="go on", effort="standard", deliverable="lesson")
 
 
 def manager_with(tmp_path, cap=None):

@@ -29,9 +29,8 @@ were made ("Started / Planned / Starting / Asked to start <its name>", its state
 cell of its phase or a tick once accepted, never coloured dots or words; its problems, recovery and actions such as
 Check for results and Review beneath), then Your move (each decision in words with its one action), then New
 experiment and the composer card (researcher tiles, brief, what it works from with the copy and tool steps, both
-amounts, Start naming its hold). A Study takes no messages of its own, so its composer (the shared one, no + or model
-chip, "Ask the Assistant about this study") opens the Stage bar's Assistant over the write-up and sends the words
-through the Assistant's composer (`actions.ask(text)`). On the right the write-up on a
+amounts, Start naming its hold). A Study retains its questions and replies inline, with its shared composer selecting an authorized connected contributor.
+The Stage bar still opens the ordinary Assistant separately; saving a Study question never opens that side panel. On the right the write-up on a
 paper page (the question as its title, Judged by as its byline, What we know with each finding's experiments, and Add a
 finding), under a status pill with the Study's state. The allowance is said once, in its Tab's
 Stage bar (`studyAllowanceWords`: "$0.32 · $0.25 held of $1.00", spent, held and left in its tooltip); spent and held
@@ -376,7 +375,10 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   the capture's own scale, sortable, medians and middle halves with mean ± SD under them, Download CSV. Every summary
   number (n, median, quartiles, min, max, mean, SD, SEM, the mean's 95% CI) is the server's, from
   `orchestrator/stats.py` (pure, deterministic code; never a model, never recomputed in the studio). From Made (Table),
-  the cells' and tracks' controls (Table), Actions and the agent (`show_measurements`).
+  the cells' and tracks' controls (Table) and Actions. The agent's `show_measurements` opens the window the Data row's
+  Open in Measurements opens (`agent-table.ts`, a `table-window` message, on the Tab it names, fitted), done once the
+  screen report shows it (docs/architecture/on-screen.md "One surface per thing"); a studio without the workspace keeps
+  this page.
 - **The empty stage** (`session-home.ts`) is one box under the session's name, "What will you look at?": side by side,
   Open a picture or video (dropped anywhere on the stage, or chosen: it joins your assets and this session) and the live
   camera (its state, Use live camera for a new session, Connect a camera and Reconnect when it has no picture); under
@@ -402,8 +404,11 @@ is loading: the live view is slowed"; live 2026-10-11 it blamed WindowServer), a
 logged whenever a reading crosses one of the contract's lines. Timing results (fps, click p95, the sim's
 timing checks) mean little while it is red for the computer's sake.
 
-Its panel also says which models really ran in the last ten minutes ("Models", `/api/health` `models`), so a
-slower run is never taken for a regression of a model that did not run (live 2026-10-11):
+Its panel lists who is doing each job now ("Doing each job now", `perf.ts` `inUseRows`, `/api/health` `models.inUse`
+from `orchestrator/models_in_use.py`, the rows the agent's `models_in_use` reads): the job, its model, cloud or this Mac and
+its calls' typical time lately; hovering a row says where to change it. It also says which models really ran in the last
+ten minutes ("Models", `/api/health` `models`), so a slower run is never taken for a regression of a model that did not
+run (live 2026-10-11):
 - **Defaults:** "The default models ran", or each exception with how often and why (`orchestrator/fallbacks.py`).
   Each is noted where it is decided: the operation runner, when an implementation's fallback produced the result,
   and the fast pass, when the full look answered instead.
@@ -433,7 +438,10 @@ Try/input/comparison paths; when the entry serves a task in the workspace its pr
 <specimen>"), which closes the sheet and opens that task's run page with it chosen (opened by a run page's step, the
 task of that page, which `doStep` hands over through `openModels(…, { task })` and `ModelsPage.openedFrom` just before
 it navigates, when the model serves it; otherwise its first task), unless the job's current choice can't run, when
-Use <name> (choose it for the job) stays the primary (step 8 below). Escape closes the sheet alone (its default
+Use <name> (choose it for the job) stays the primary (step 8 below). An entry turned on from its own card is on, not
+chosen: when a job it serves can't run its own choice, the first such job is offered it ("Look-alikes uses DINOv3 small,
+which can't run here. Use BioCLIP 2 for Look-alikes now?", `useForJob`; `capability-select`), and otherwise the jobs keep
+their models (contract/AGENTS.md "On is not chosen"). Escape closes the sheet alone (its default
 prevented, so the Models dialog's cancel never follows) and focus goes back to the press that opened it.
 
 Actions and card Try share workspace admission and owned execution. Their origins bind the initiating Project,
@@ -999,6 +1007,76 @@ Only audible output clears the no-response watchdog, and speaking tracks audible
 buffers separately from continuous silence. Researcher cards link to their owning
 Project's Activity and explicitly say No recent update after 30 seconds without a
 reported step; that is an observation, not a claim that work stopped.
+
+### Hold to talk and marks (the one-brain voice, Part 2.5)
+
+The one-brain voice (`gpt-realtime-2.1`, `voice.ts` `PARTNER_VOICE`) hears, sees and acts in one model; GPT-Live keeps
+everything above. It talks over WebRTC only, whatever the saved Voice link. Its own messages share `/ws/voice`
+(`protocol.ts` `PartnerMessage` and `PartnerCommand`; the server is `services/orchestrator/voice/`).
+
+- **Hold to talk** (`talk.ts` `TalkHold`): when the session says `talk: "hold"` (before connecting: the Voice is the one
+  brain and TALK is not `open`), each turn is held. The talk key is a Behaviour setting (`talk_key`): Control+Option
+  (the default; it is VoiceOver's modifier, so with VoiceOver on choose Right Option) or Right Option held alone.
+  Keys are read on the window in the capture phase, so the hold works while a text field has focus. Auto-repeat is
+  ignored. Escape while held drops the turn and closes nothing else. Another key pressed during the hold (a VoiceOver
+  command, Option+e) is a chord and cancels it. A tap shorter than 250 ms cancels too, which stops the voice without
+  asking anything. Losing the window counts as a release. Holding Talk (pointer down to up) does the same as the key.
+  In hold mode a click on Talk only connects, End Talk (`.voice-session-end`) ends the conversation, and Mute is hidden.
+  With Talk off, the key connects it only once held alone for 300 ms (`ARM_MS`; `TalkTurns`), so a VoiceOver command
+  never opens the microphone or a paid call, and a chord or Escape after that drops the connection the key started.
+  The Talk button, an explicit press, connects at once. The turn starts if the key is still held once Talk is live. While a
+  turn is held, Talk has `data-holding` and a listening ring (`.talk-hold-ring`, `marks.css`) shows at the bottom of
+  the window, its halo following the microphone level.
+- **A turn**: pressing sends `{type:"talk",down:true,n}` and the window as it is at that press
+  (`{type:"snapshot",id:"talk-<n>"}`, `partner.ts` `windowSnapshot`; its pictures are copied in the press's task). Releasing sends `down:false`; Escape, a tap or a
+  chord sends `cancel:true`. The microphone track is on only while a turn is held, and for 300 ms after a release
+  (`MIC_TAIL_MS`) so the last word still reaches the model before the server commits.
+- **Barge-in**: every press mutes the voice's audio element at once, in the same task as the key, and clears the
+  marks; the server cancels the reply. The audio comes back at the later of the release and 400 ms after the press
+  (`BARGE_MIN_MS`). Talk has `data-output="muted"` meanwhile. Muted output never counts as Speaking.
+- **The window snapshot** is a granted tab share's newest frame (`WorkspaceSession.shareSnapshot`), else
+  `captureWindow` (`screen.ts`), at most 1280 px. It never holds up the live view. The pictures are copied with
+  `createImageBitmap` in the asking task, the text is read in later tasks of at most `SLICE_MS` (6 ms) each, and the
+  paint and JPEG encode run in `capture-worker.ts` (`window-paint.ts`, the bitmaps moved, not copied). A browser whose
+  workers have no canvas paints here in the same short steps (`paintInSteps`). Measured in Chromium with
+  `capture.fixture.html` (a full-window canvas redrawn every frame, a 200-row table): the worst single task is 3 ms
+  over 10 captures including the first, and frame gaps match idle. Encoding on the main thread had cost 4-7 ms
+  warm and 12-32 ms on a page's first capture. A composed window fills each window and panel with its background,
+  in paint order (z-index, then page order), and draws its pictures inside it. It writes each frame's title (its
+  title bar, else its heading, with its `data-screen-title`), the Tab names, the table rows in view cell by cell
+  (60 rows, 12 cells at most) and headings, as text at their places. Text reading stops after 70 ms of it.
+  `snapshot-request` (act, then look) is answered the same way, as soon as it is encoded. A capture that fails says so
+  (`error`) instead of leaving the server to wait. Images from another origin are drawn as their outline.
+- **A dropped connection** (a Wi-Fi drop: the peer `failed`, or `disconnected` for 3 s) is offered again, not ended:
+  status "Reconnecting…", a new peer on the same microphone track and audio element sends
+  `{type:"offer",sdp,id:"rc-<n>"}`, again every 3.5 s while none answers and connects. The answer is applied only when
+  its `data.id` names the offer waiting (a late answer to an older one never lands on the newer). After 10 s Talk
+  ends with a plain message and a Talk again button (`.voice-session-retry`).
+- **The voice's speaking** goes to the server as it changes: `{type:"voice-phase",phase:"speaking"|"listening",at}`,
+  the studio's own measure of the output (its sideband may not hear the output buffer).
+- **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
+  the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
+  `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`
+  (`View.objectCanvasBox`, only while `objectInView`), `member:<population>:<member>` (`View.memberCanvasBox`, the
+  shown population's verified members), `window:<presentationId>`, `document:<placementId>`, `tab:<id or exact
+  title>` (two Tabs of that title are ambiguous), `researcher:<number or rid>` (the Researchers board row, else its
+  card, else its chat card; numbers within this Project), and `panel:<name>` (`SCREEN_PANELS`, `live`,
+  `workspace-tabs`). The last is `frame` with a normalised `region` or `polygon` of the eyepiece crop the model saw:
+  the message's `frame: {id, crop}`, else `fovCrop` of the frame now. It is mapped through the same
+  source-to-canvas transform as the outlines and moves with the slide from that frame (`View.frameOffset`,
+  `sourcePointsOnCanvas`). It is not placed after a re-find, or once it leaves the eyepiece.
+  Every target is found again each animation frame, so a mark follows its outline or window, and one that goes out
+  of view is not drawn until it is back. A mark is a dashed, slightly rough rounded box (or the polygon), an arrow
+  coming in from the side with room, or an underline, in `--mm-accent` over a dark casing. It draws in over 320 ms
+  and fades over 220 ms; with reduced motion it simply appears and goes. Its roughness is fixed per mark, so it
+  never wobbles. Each mark is a `<g class="voice-mark">` with `data-mark-id`, `data-target`, `data-style` and
+  `data-rect` (its target's rect now, for the bench). A new set replaces the last. Marks stay while the voice speaks
+  and go 1.5 s after it stops (`until: "speech-end"`), or after `until` ms. A set the voice never speaks over goes
+  after 8 s, and nothing stays past 60 s. `marks-clear`, a press, and the end of Talk clear them too.
+  `marks.fixture.html` shows every style over plain elements (fixture only).
+- **A renewed call** (`{type:"reoffer",id}`, the 60-minute limit or a provider error): a new peer connection on the
+  same microphone track and audio element sends `{type:"offer",sdp,id}`. The old connection is ignored from then and
+  closed once the new answer is applied, so the conversation and Talk's state carry on.
 
 When the selected camera has no picture, the live canvas retires its previous frame.
 Retained result windows remain visible and unchanged. The empty-camera visibility

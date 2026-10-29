@@ -1,0 +1,12 @@
+id = "gpt-4o-mini-transcribe"
+name = "GPT-4o mini Transcribe"
+runs = "cloud"
+version = "gpt-4o-mini-transcribe"
+licence = ["openai-api"]
+kind = "cloud-model"
+what = "Writes down what you say to the one-brain voice, for the chat"
+runner = "cloud"
+service = "openai"
+source = { url = "https://platform.openai.com/docs/models" }
+needs_to_run = ["key:OPENAI_API_KEY"]
+credit = { authors = "OpenAI", link = "https://platform.openai.com/docs/models" }

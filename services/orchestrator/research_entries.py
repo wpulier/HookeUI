@@ -236,20 +236,25 @@ def entries(s, day: str, *, root: Path | None) -> list:
         counts[kind] = counts.get(kind, 0) + 1
         what = media.of_output(o)
         line_words = media.VIDEO_LINE if kind == "video" else media.LINES.get(what, "")  # a video says it is one
+        derived = o.get("derived") if isinstance(o.get("derived"), dict) else None
+        word = WORDS[kind]
+        if derived is not None:  # a chart or animation drawn from a kept table: said as that, with its source
+            word = "animation" if derived.get("animated") else "chart"
+            line_words = media.ANIMATION_LINE if derived.get("animated") else media.CHART_LINE
         content = o.get("content") if isinstance(o.get("content"), dict) else None
         shown = _words((content or {}).get("title") or o.get("caption"), 200)
         at = _made_at(s, o)
         path = o.get("path") if isinstance(o.get("path"), str) else None
         has_file = kind == "figure" and _file(root, s, path) is not None
         out.append(Entry(
-            eid, kind, f"{name}'s {WORDS[kind]}" + (f" {counts[kind]}" if counts[kind] > 1 else ""), day,
+            eid, kind, f"{name}'s {word}" + (f" {counts[kind]}" if counts[kind] > 1 else ""), day,
             at if at is not None else finished, summary=line_words, state="done",
             thread=(getattr(s, "origin", None) or {}).get("thread"), version=o.get("version") if isinstance(o.get("version"), int) else None,
             made_by=made_by, media=what, untrusted=True, date=date, shown=shown,
             source={"researcher": rid, "outputId": o["id"], "line": line[0]["id"], **({"url": f"{base}/{path}"} if path else {})},
             pictures=[f"/api/resources/{eid}/picture?day={day}"] if has_file else [],
             values=content,
-            detail=(lambda shown=shown, kind=kind, words=line_words: f"A {WORDS[kind]} the researcher made: {shown}. {words}")))
+            detail=(lambda shown=shown, word=word, words=line_words: f"A {word} the researcher made: {shown}. {words}")))
     version = _version(s)
     for part, rows in (("table", result.get("tables")), ("chart", result.get("charts"))):
         for n, item in enumerate(rows or [], 1):
@@ -307,13 +312,16 @@ def video_file(s, part: str, root: Path | None):
 
 def made_from(s) -> list[str]:
     """The session entries its findings rest on, as it recorded them: the evidence its result cites (checked against
-    the index before it was announced), its findings' session sources, and what its hands had the app make (`ran`)."""
+    the index before it was announced), its findings' session sources, what its hands had the app make (`ran`), and the
+    tables its charts and animations were drawn from (an output's `derived` source)."""
     result = getattr(s, "result", None) or {}
     ids = [*(result.get("evidence") or [])]
     for finding in getattr(s, "findings", None) or []:
         if isinstance(finding, dict):
             ids += [x for x in finding.get("sources") or [] if isinstance(x, str) and not x.startswith("http")]
     ids += [r.get("id") for r in getattr(s, "ran", None) or [] if isinstance(r, dict)]
+    ids += [((o.get("derived") or {}).get("source") or {}).get("id") for o in getattr(s, "outputs", None) or []
+            if isinstance(o, dict) and isinstance(o.get("derived"), dict)]
     out = []
     for value in ids:
         if not isinstance(value, str):

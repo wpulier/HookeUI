@@ -1,7 +1,9 @@
-"""Tools on the session and its conversations: start a session or a conversation, go back to one, recall what was said.
+"""Tools on the session and its conversations: start a Project or a conversation, go back to one, recall what was said.
 
-A session is the project (ADR 0017): its conversations, memory and work. Only the user starts one or goes back to one;
-a new topic is a conversation in the same session."""
+A session is the Project (ADR 0017; CONTEXT.md "Project"): its conversations, memory, Data and Tabs. Only the user starts
+one or goes back to one; a new topic is a conversation in the same Project, and a Tab is an arrangement inside it (the
+tabs tool). `new_project` starts one; `new_session` is its earlier name, kept so saved workflows and tool ids still run
+(voice log 2026-10-28: "create a new project ... call it experiment" made a Tab called Experiment)."""
 from __future__ import annotations
 
 import asyncio
@@ -64,21 +66,28 @@ def add_thread_tools(registry: Registry, services) -> None:
         if request is not None:
             request.asked = ctx.asked
 
-    async def new_session(ctx: ToolContext, args: dict) -> str:
-        left = day.label
-        day.new(str(args.get("name") or ""), by="user")
-        moved(ctx)
-        named = f' "{inline(day.name, 80)}"' if day.name else ""
-        return (f"started a new session{named}, with one empty conversation; the live view started fresh. The session "
-                f'left ("{inline(left, 80)}") is kept with its conversations and work and can be opened again')
+    def starting(word: str, kept: str):
+        async def start(ctx: ToolContext, args: dict) -> str:
+            left = day.label
+            day.new(str(args.get("name") or ""), by="user")
+            moved(ctx)
+            named = f' "{inline(day.name, 80)}"' if day.name else ""
+            return (f"started a new {word}{named}, with one empty conversation; the live view started fresh. The {word} "
+                    f'left ("{inline(left, 80)}") is kept with its {kept} and can be opened again')
+        return start
 
-    registry.add(Tool("new_session", "Start a new session (a new project, with its own conversations, memory and work) "
-                      "only when the user asks for a new session in so many words; a new topic or starting fresh is "
-                      "new_thread, in this session. When it is unclear, start a conversation with new_thread and say "
-                      "that a new session is theirs to ask for. The live view starts fresh; the session left is kept "
+    named = schema({"name": {"type": "string", "description": "its name, when the user gives one"}})
+    registry.add(Tool("new_project", "Start a new Project when the user asks for a new project or a new session "
+                      "(\"create a new project called experiment\", \"start a new session\"): its own conversations, "
+                      "memory, Data and Tabs. A new Tab inside this Project is the tabs tool's create, and a new topic or "
+                      "starting fresh is new_thread, in this Project. The live view starts fresh; the Project left is kept "
                       "and can be opened again. Never on your own.",
-                      schema({"name": {"type": "string", "description": "its name, when the user gives one"}}), new_session,
-                      inline_ms=300, family="conversation"))
+                      named, starting("Project", "conversations, Data and Tabs"), inline_ms=300,
+                      family="conversation"))
+    # The earlier name, as it was (its words too), so saved workflows, the studio's session command and tool ids run.
+    registry.add(Tool("new_session", "Start a new Project as new_project does (its earlier name, kept so saved "
+                      "workflows run); use new_project.", named,
+                      starting("session", "conversations and work"), inline_ms=300, family="conversation"))
 
     async def switch_session(ctx: ToolContext, args: dict) -> str:
         ref = str(args.get("session") or "").strip()

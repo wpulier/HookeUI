@@ -38,6 +38,7 @@ import threading
 import time
 import weakref
 from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
@@ -1339,6 +1340,24 @@ class Index:
             if outer:
                 local.pass_ = None
 
+    @contextmanager
+    def one_pass(self):
+        """Reads inside share one reading of each store: a reader that needs several views of one moment (project_state:
+        the entries and the researchers) reads each store once, as one collect's nested reads do."""
+        local = self._local
+        if getattr(local, "pass_", None) is not None:
+            yield
+            return
+        local.pass_ = {"researchers": {}, "collects": {}}
+        try:
+            yield
+        finally:
+            local.pass_ = None
+
+    def researchers_of(self, sid: str) -> list:
+        """Every researcher of session `sid` (`_researchers`): shared with a collect inside one pass."""
+        return self._researchers(sid)
+
     def _collect(self, day: str, kinds, discover_tables: bool) -> tuple[list[Entry], list[str]]:
         out: list[Entry] = []
         unreadable: list[str] = []
@@ -1791,7 +1810,10 @@ class Index:
             lines = ["What has been made in this session:"]
             for k in s["kinds"]:
                 newest = k["newest"]
-                lines.append(f"- {k['name']}: {k['count']} (newest: {newest['title']} ({newest['id']})"
+                # A saved Project document's title is its maker's (an imported file's name, an agent's): data, said by
+                # the Project's view only inside its untrusted wrapper (project_state.text), never here.
+                title = newest["title"] if k["kind"] != "project" else "a saved document, titled in its own words"
+                lines.append(f"- {k['name']}: {k['count']} (newest: {title} ({newest['id']})"
                              + (f", {newest['summary']}" if newest["summary"] else "")
                              + (f"; {newest['placement']}" if newest.get("placement") else "") + ")")
         if s["running"]:

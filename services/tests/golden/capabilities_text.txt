@@ -186,20 +186,22 @@ Talking with it (Asking by text or voice, and how it answers):
 - I: Which model did better: How each model has done on this specimen (say "which model did better on this smear today?")
 - You: Type a question: Ask anything about the view; models: Seeing: Gemini 3.8 Flash (cloud), a setting; Quick decisions: off; when EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
 - You: Look deeper: One press on a card: the app chooses how to look closer; models: Seeing: Gemini 3.8 Flash (cloud), a setting; Quick decisions: off; Researching: GPT-6.1 Sol + web search (cloud), a setting; when EdgeTAM or SAM 2.1 finds nothing that fits a box the answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
-- You: Talk to it: Speak; it answers and acts by voice; models: Talking: GPT-Live (OpenAI) in the cloud, a setting; Quick decisions: off; Voice link: Direct (WebRTC), a behaviour setting, uses OpenAI API; Point as it answers: Point at once with Gemini 3.5 Flash, a behaviour setting, uses Google Gemini API; when EdgeTAM or SAM 2.1 finds nothing that fits a box the spoken answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
+- You: Talk to it: Speak; it answers and acts by voice; models: Talking: GPT-Live (OpenAI) in the cloud, a setting; Your spoken words: GPT-4o mini Transcribe (cloud), fixed in the code; Quick decisions: off; Voice link: Direct (WebRTC), a behaviour setting, uses OpenAI API; Point as it answers: Point at once with Gemini 3.5 Flash, a behaviour setting, uses Google Gemini API; when EdgeTAM or SAM 2.1 finds nothing that fits a box the spoken answer points at, and fal is available: SAM 3.1 on fal outlines what fills the box (Outlining: EdgeTAM (on this Mac), a setting)
 - I, in the background: Acts as it hears: Does what you said as soon as it is heard; models: Quick decisions: off; Point as it answers: Point at once with Gemini 3.5 Flash, a behaviour setting, uses Google Gemini API; NOT AVAILABLE here: off in the settings (Quick decisions)
 - I, in the background: Says results later: Says finished results at the next pause
 - I: Name the specimen: Uses your name for the specimen from now on (say "this is onion skin")
 - I: New conversation: Starts a new conversation (say "new topic")
 - You: Conversation menu: Start, rename or go back to a conversation
 - I: Back to a conversation: Goes back to an earlier conversation (say "back to the blood smear")
-- I: New session: Starts a new session, a project with its own conversations (say "start a new session")
+- I: New Project: Starts a new Project with its own conversations, Data and Tabs (say "create a new project called experiment")
+- I: New session: New Project's earlier name, kept so saved workflows run (say "start a new session")
 - You: Sessions: Start, name or go back to a session
 - I: Back to a session: Goes back to an earlier session, its conversations and work (say "go back to yesterday's leaf session")
 - I: Let you find things: Stops pointing things out until you ask (say "let me find it myself")
 - I: Explain simpler or deeper: Changes how things are explained (say "explain it more simply")
 - I: Suggest what next: Offers something worth looking at next (say "what should I look at next?")
 - I: Say what models need: Which models run here, why not, and how to turn on (say "what do I need to set up?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Say what powers it: Each job's model now, where it runs, its speed (say "what models are powering you right now?")
 - I: Download on your yes: Starts a model's download it offered, once you say yes (say "yes, download it"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Open a model's card: Opens the Models page at a model, its Add key there (say "add my OpenAI key"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Read its capabilities: Reads this list, as you see it (say "what can you do?")
@@ -217,6 +219,8 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - My researchers: Outline cells for itself: Segments the view now or a kept one, never on screen (say "have a researcher measure how much these cells vary"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
 - My researchers: Clearer picture for itself: Averages or picks real frames for its reading, never on screen (say "have a researcher take the clearest picture of the clip it held"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - My researchers: Motion for itself: Measures what moves in the live view, never on screen (say "have a researcher measure how fast these swim"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Chart saved measurements: Draws a chart from a saved table's own values (say "have a researcher chart the nucleus areas"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Animate saved measurements: Animates a saved table row by row, not a generated video (say "have a researcher animate the measurements table"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: Start a researcher: Starts background research on what you asked; models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: Schedule camera clips: Keeps scheduled camera clips and records failed or missed captures (say "capture ten five-second clips every thirty seconds")
 - I: How is it going: Says how the researchers are doing (say "how is the researcher doing?")

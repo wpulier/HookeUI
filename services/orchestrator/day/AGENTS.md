@@ -37,8 +37,8 @@ establish ownership across a Project switch.
     or transaction refusal propagates, never becomes memory-only success. An interrupted owner import reports retryable
     unavailability, never an empty catalogue; startup recovers its transaction before SessionStore resumes.
   - **Starting:** a new session starts only when the user asks: + New session in the session title's menu, or
-    by voice or chat (`new_session`, only when they ask for a session in so many words; "new topic" is a
-    conversation). Midnight does nothing.
+    by voice or chat (`new_project`, when they ask for a new project or session; `new_session` is its earlier name,
+    kept; "new topic" is a conversation, and a new Tab is an arrangement inside this Project). Midnight does nothing.
   - **The suggestion** (`day/subject.py` `_maybe_suggest`): the app may suggest a new session and never starts one.
     It suggests one when three things hold together:
     - the running look has confirmed a different specimen (two looks);
@@ -70,6 +70,12 @@ establish ownership across a Project switch.
       `tests/test_population_reopen.py` checks it through the real app, journals and evidence.
   - **Opening is using it:** an `opened` line is written in its journal, so its last use is now and today becomes one
     of its days (the title's menu lists sessions by when each began, so opening one only marks its row).
+  - **One view of it for every reader** (`orchestrator/project_state.py`, `project.state`): the Assistant's "what data
+    do we have?" and "how is our researcher doing?", the voice roster, a researcher's session summary and a connected
+    agent read the same projection of this journal, the session index, the researchers, the ProjectStore's Studies,
+    the door's operations, the saved Tabs (`workspace_layout`, read, never migrated) and the studio's latest report.
+    It writes nothing and keeps nothing on disk; its studio part is `unavailable` when no studio reports this session.
+    Described in `docs/architecture/session-index.md` ("The Project's one view").
   - **The view follows the session** (`apps/studio/src/session-view.ts` decides, from `session-cleared`'s `why` and the
     session's sources, ADR 0022):
     - **new:** the empty stage (`session-home.ts`, mode `choose`): the live camera (its state and Use live camera), add a

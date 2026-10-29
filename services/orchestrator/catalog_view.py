@@ -826,8 +826,10 @@ def _norm(text: str) -> str:
 
 
 def uses_words(row: dict) -> str:
-    return " · ".join(f"{u['title']} ({'in use' if u['fixed'] else 'your choice'})" if u["current"] else u["title"]
-                      for u in row.get("usedFor", []))
+    """The jobs it can do, each said as chosen or not: a model that is on (ready here) is not the job's model until it is
+    chosen (live 2026-10-28: "I just enabled BioCLIP 2" was taken for "it is the model for comparing")."""
+    return " · ".join(f"{u['title']} ({'in use' if u['fixed'] else 'your choice'})" if u["current"]
+                      else f"{u['title']} (not chosen: the job uses another model)" for u in row.get("usedFor", []))
 
 
 def job_of(row: dict) -> str:

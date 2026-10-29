@@ -181,9 +181,8 @@ def test_big_deliverables_need_an_explicit_request():
     assert explicit_refusal("tell me about it", "quick", "video", "tell me about it as a video")
     assert explicit_refusal("make me a short video of how it opens", "quick", "video", "make me a short video") is None
     assert explicit_refusal("look into it", "quick", "research") is None
-    # The keyword rule (option ADMIT "keywords"), as before.
-    assert explicit_refusal("tell me about it", "quick", "video", mode="keywords")
-    assert explicit_refusal("make me a short video of how it opens", "quick", "video", mode="keywords") is None
+    # No word list decides (the keyword rule is gone): a word naming the format is not the user's quoted request.
+    assert explicit_refusal("make me a short video of how it opens", "quick", "video", mode="keywords")
 
 
 def run_in_process(tmp_path, effort: Effort, script: dict):
@@ -520,3 +519,70 @@ def test_research_takes_the_requests_own_steps_before_what_was_pointed_at_when_a
         return WhenAsked(1000.0, made["pore"].id, 999.0), None, (made["stoma"].id,)
 
     assert _research_object(tmp_path / "r3", outlined) == made["stoma"].id
+
+
+def test_one_request_starts_one_researcher_however_often_it_is_answered(tmp_path, fake_engine):
+    """Live 2026-10-28: "create a researcher that looks at the data on the table ... creates an animation of it" made two
+    researchers. One request (its admission's identity) admits one researcher: answered again (its hand-off after hands
+    started it, a completion round, a retry or a replay), the same researcher is the answer and no other starts."""
+    from orchestrator.brain.registry import Steps
+
+    async def go():
+        hub = FakeHub()
+        manager = ResearchManager(hub, root=tmp_path)
+        registry = research_tools(hub, manager)
+        words = "create a researcher that looks at the data on the table"
+        ctx = ToolContext("voice", 0, None, words, "d1")
+        ctx.step = 1
+        first = registry.start("start_researcher", {"brief": words, "effort": "quick", "asked_with": words}, ctx)
+        await first.task
+        ctx.steps, ctx.step = Steps(), 1  # another answer of the same request
+        again = registry.start("start_researcher", {"brief": words + " and creates an animation of it",
+                                                    "effort": "quick", "asked_with": words}, ctx)
+        await again.task
+        sessions = list(manager.sessions.values())
+        manager.stop()
+        return first, again, sessions
+
+    first, again, sessions = asyncio.run(go())
+    assert first.ok and again.ok and len(sessions) == 1
+    assert "Researcher 1" in again.summary and "no other" in again.summary
+    assert again.outputs and again.outputs[0]["resource"]["researcherId"] == sessions[0].rid
+
+
+def test_a_request_that_asks_for_two_researchers_gets_two(tmp_path, fake_engine):
+    """"Make two researchers, one on the sizes, the other on the shapes": one answer lists two starts, and both start."""
+    async def go():
+        hub = FakeHub()
+        manager = ResearchManager(hub, root=tmp_path)
+        registry = research_tools(hub, manager)
+        words = "make two researchers, one on the sizes, the other on the shapes"
+        ctx = ToolContext("chat", 3, None, words)
+        runs = []
+        for step, brief in ((1, "the nuclei's sizes"), (2, "the nuclei's shapes")):
+            ctx.step = step
+            runs.append(registry.start("start_researcher", {"brief": brief, "effort": "quick", "asked_with": words}, ctx))
+        for run in runs:
+            await run.task
+        # a new request is new work: a third starts
+        later = ToolContext("chat", 4, None, "and another on their brightness")
+        later.step = 1
+        third = registry.start("start_researcher", {"brief": "their brightness", "effort": "quick",
+                                                    "asked_with": "another on their brightness"}, later)
+        await third.task
+        sessions = list(manager.sessions.values())
+        manager.stop()
+        return runs, third, sessions
+
+    runs, third, sessions = asyncio.run(go())
+    assert all(r.ok for r in runs) and third.ok and len(sessions) == 3
+    assert {s.brief for s in sessions} == {"the nuclei's sizes", "the nuclei's shapes", "their brightness"}
+
+
+def test_start_researcher_says_a_follow_up_steers_the_one_just_started(tmp_path):
+    """The model judges whether the user's next words add to the researcher it just started (Researchers lists it,
+    starting or running) or ask for another; the tool no longer tells it to always start a new one."""
+    hub = FakeHub()
+    words = research_tools(hub, ResearchManager(hub, root=tmp_path)).tools["start_researcher"].description
+    assert "always start a new one" not in words
+    assert "researcher_note" in words and "just started" in words and "same answer" in words

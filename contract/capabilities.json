@@ -2307,6 +2307,9 @@
       "roles": [
         "voice",
         "voicelink",
+        "talk",
+        "talk_key",
+        "fixed:voice-words",
         "fast",
         "speculate",
         "reflex",
@@ -2438,11 +2441,25 @@
       ]
     },
     {
+      "id": "new-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "New Project",
+      "what": "Starts a new Project with its own conversations, Data and Tabs",
+      "how": {
+        "tool": "new_project",
+        "say": "create a new project called experiment"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
       "id": "new-session",
       "family": "conversation",
       "actor": "agent",
       "title": "New session",
-      "what": "Starts a new session, a project with its own conversations",
+      "what": "New Project's earlier name, kept so saved workflows run",
       "how": {
         "tool": "new_session",
         "say": "start a new session"
@@ -2730,6 +2747,50 @@
         "slide-tracker",
         "runner",
         "motion-tracks"
+      ]
+    },
+    {
+      "id": "research-chart",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Chart saved measurements",
+      "what": "Draws a chart from a saved table's own values",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher chart the nucleus areas"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_researcher_outputs.py"
+      ],
+      "parts": [
+        "research-worker",
+        "measurement-charts",
+        "resources"
+      ]
+    },
+    {
+      "id": "research-animation",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Animate saved measurements",
+      "what": "Animates a saved table row by row, not a generated video",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher animate the measurements table"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_researcher_outputs.py"
+      ],
+      "parts": [
+        "research-worker",
+        "measurement-charts",
+        "resources"
       ]
     },
     {
@@ -3924,6 +3985,24 @@
       ]
     },
     {
+      "id": "models-in-use",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Say what powers it",
+      "what": "Each job's model now, where it runs, its speed",
+      "how": {
+        "tool": "models_in_use",
+        "say": "what models are powering you right now?"
+      },
+      "parts": [
+        "settings",
+        "catalogue"
+      ],
+      "evidence": [
+        "services/tests/test_models_in_use.py"
+      ]
+    },
+    {
       "id": "get-model",
       "family": "conversation",
       "actor": "agent",
@@ -4286,8 +4365,8 @@
       "id": "voice",
       "kind": "model",
       "title": "Talking",
-      "purpose": "Hears you and speaks, handing requests to the brain",
-      "hint": "it hands what you ask to the same mind you type to"
+      "purpose": "Hears you and speaks; acts itself or hands requests to the brain",
+      "hint": "GPT-Live hands what you ask to the same mind you type to; the one brain sees and acts"
     },
     {
       "id": "research",
@@ -4468,6 +4547,32 @@
       "title": "Voice link",
       "purpose": "How the voice reaches OpenAI",
       "hint": "through the app, or directly (WebRTC)"
+    },
+    {
+      "id": "talk",
+      "kind": "method",
+      "title": "Turn taking",
+      "purpose": "How the one-brain voice knows you spoke",
+      "hint": "hold a key or the Talk button, or an open mic (headphones)"
+    },
+    {
+      "id": "talk_key",
+      "kind": "policy",
+      "title": "Talk key",
+      "purpose": "The key you hold to talk",
+      "hint": "Control+Option, or Right Option with VoiceOver on"
+    },
+    {
+      "id": "fixed:voice-words",
+      "kind": "model",
+      "title": "Your spoken words",
+      "label": "GPT-4o mini Transcribe",
+      "purpose": "Writes down what you say to the one-brain voice",
+      "source": "orchestrator.voice.openai_realtime:TRANSCRIBE_MODEL",
+      "model": "gpt-4o-mini-transcribe",
+      "uses": [
+        "openai-api"
+      ]
     },
     {
       "id": "lesson_check",
@@ -5343,6 +5448,13 @@
       "kind": "app",
       "purpose": "Runs the app's operations a researcher asks for, off screen",
       "source": "services/orchestrator/research/hands.py"
+    },
+    {
+      "id": "measurement-charts",
+      "title": "Charts of saved tables",
+      "kind": "app",
+      "purpose": "Draws a chart or animation from a saved table's own values",
+      "source": "services/research_worker/measurement_charts.py"
     },
     {
       "id": "library",

@@ -598,7 +598,8 @@ class FakeEngine:
     {searches, sources} (a deep run's plan); request [{what, why, seconds}] (evidence asked of the user);
     session [{action, id, ...}] (reads of the session's index,
     each entry read is cited in its summary with its title and when it was made, and in finish.evidence);
-    evidence [ids] and session_claims [{point, evidence}] (passed to finish as they are); claims [{point, source}] with pages {url: text}
+    charts [{tool: make_chart or animate_measurements, ...its arguments}] (a chart or an animation of a session table, after
+    the reads); evidence [ids] and session_claims [{point, evidence}] (passed to finish as they are); claims [{point, source}] with pages {url: text}
     (the claims check reads these, nothing is fetched); lesson_check {right: [step ids answered
     without the picture], rewrite: the edited lesson}; idle N (rounds after its work that find nothing). Notes from
     the user (inbox) are read at the start and halfway, and repeated in its summary.
@@ -667,6 +668,8 @@ class FakeEngine:
             if entry:
                 cited.append((str(entry.get("id")),
                               f"{entry.get('id')} ({entry.get('title')}, made {entry.get('time') or entry.get('at')})"))
+        for chart in script.get("charts") or []:
+            await r.call_tool(str(chart.get("tool") or "make_chart"), {k: v for k, v in chart.items() if k != "tool"})
         await asyncio.sleep(seconds / 2)
         r.take_notes()
         if script.get("fail"):

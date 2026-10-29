@@ -316,6 +316,28 @@ def test_new_session_by_the_tool_opens_one_named_as_asked(tmp_path):
     assert "the live view started fresh" in done["summary"] and first in [s.id for s in built.day.catalogue.list()]
 
 
+def test_a_new_project_is_new_project_and_never_a_tab_with_new_session_kept_as_its_alias(tmp_path):
+    """Voice log 2026-10-28: "create a new project ... call it experiment" made a Tab called Experiment, because
+    new_session was "only ... in so many words" and tabs said "this Project's Tabs". new_project starts the Project;
+    new_session stays, the same, so saved workflows and tool ids run; tabs is a Tab inside this Project."""
+    from orchestrator.brain.loop import MOVES
+
+    built = build(tmp_path)
+    tools = built.brain.registry.tools
+    first = built.day.sid
+    done = asyncio.run(run_tool(built, "new_project", {"name": "Experiment"}))
+    assert done["ok"] and built.day.sid != first and built.day.name == "Experiment"
+    assert done["summary"].startswith('started a new Project "Experiment"')
+    again = asyncio.run(run_tool(built, "new_session", {"name": "Kidney section"}))  # the alias, as it was
+    assert again["ok"] and built.day.name == "Kidney section" and again["summary"].startswith('started a new session')
+    assert tools["new_session"].params == tools["new_project"].params
+    assert {"new_project", "new_session"} <= set(MOVES)  # the request goes on in the Project it opened
+    assert "new project" in tools["new_project"].description and "tabs" in tools["new_project"].description
+    assert "in so many words" not in tools["new_project"].description + tools["new_session"].description
+    assert tools["tabs"].description.startswith("List the Tabs inside this Project (a Tab arranges this Project’s "
+                                                "windows; a new Project is new_project)")
+
+
 def test_a_session_is_named_from_what_the_user_names_never_over_their_own_name(tmp_path):
     built = build(tmp_path)
     built.hub.scene.context["specimen"] = "onion epidermis"  # what is in view at the first request
