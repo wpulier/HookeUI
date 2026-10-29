@@ -1167,7 +1167,7 @@ interface ScreenNode { el: Element; rect: Box }
 export interface ScreenLayout {
   frames: (ScreenNode & { title: string; background: string; z: number })[];
   pictures: (ScreenNode & { frame: number | null; opacity: number })[];
-  text: { text: string; rect: Box; kind: 'title' | 'tab' | 'cell' | 'header' | 'heading' | 'row' }[];
+  text: { text: string; rect: Box; kind: 'title' | 'tab' | 'cell' | 'header' | 'heading' | 'row'; selected?: boolean }[];
 }
 
 const shown = (el: Element, view: [number, number]): Box | null => {
@@ -1182,7 +1182,7 @@ const words = (value: string | null | undefined, max = 120) => (value ?? '').rep
 
 /** A frame's title: a window's own title bar, else its heading, else what it is called. */
 export function frameTitle(el: Element): string {
-  const own = el.querySelector('.workspace-window-title, .workspace-tab-label, [id$="-title"], h1, h2, h3, header');
+  const own = el.querySelector('.workspace-window-title, [id$="-title"], h1, h2, h3, header');
   const title = words(own?.textContent, 80);
   const name = (el as HTMLElement).dataset?.screenTitle ?? el.getAttribute('aria-label') ?? '';
   return title && name && title !== name ? `${name}: ${title}` : title || words(name, 80);
@@ -1216,7 +1216,8 @@ export function screenLayout(root: ParentNode, view: [number, number], budgetMs 
   for (const tab of Array.from(root.querySelectorAll('.workspace-tab-label'))) {
     if (over()) break;
     const rect = shown(tab, view);
-    if (rect) text.push({ text: words(tab.textContent, 40), rect, kind: 'tab' });
+    // The Tab in front is drawn as selected, so "which Tab" is in the picture too.
+    if (rect) text.push({ text: words(tab.textContent, 40), rect, kind: 'tab', selected: !!tab.closest('[aria-selected="true"]') });
   }
   // Tables (the Measurements table, a researcher's tables): the header and the rows in view, cell by cell.
   let rows = 0;
@@ -1288,7 +1289,7 @@ export function composeWindow(root: HTMLElement = document.body, { quality = 0.7
     ctx.font = `${t.kind === 'title' || t.kind === 'header' || t.kind === 'heading' ? 600 : 400} ${size}px system-ui, sans-serif`;
     const y = t.kind === 'title' ? t.rect.top + 11 : t.rect.top + Math.min(t.rect.height, 24) / 2;
     const width = Math.min(ctx.measureText(t.text).width, Math.max(8, t.rect.width - 8));
-    ctx.fillStyle = 'rgba(16, 18, 24, 0.82)';
+    ctx.fillStyle = t.selected ? 'rgba(47, 111, 214, 0.95)' : 'rgba(16, 18, 24, 0.82)';
     ctx.fillRect(t.rect.left + 2, y - size / 2 - 2, width + 8, size + 4);
     ctx.fillStyle = t.kind === 'title' ? '#ffffff' : '#e7ecf7';
     ctx.fillText(t.text, t.rect.left + 6, y, Math.max(8, t.rect.width - 8));

@@ -111,8 +111,9 @@ export class VoiceClient {
   private playing = new Set<AudioBufferSourceNode>();
   private audible = new Set<AudioBufferSourceNode>();
   private playAt = 0;
-  /** How this session hears you (its model announcement): "hold" (hold to talk), "open", or null (GPT-Live). */
-  talkMode: 'hold' | 'open' | null = null;
+  /** How this session hears you (its model announcement): "hold" (hold to talk), "open", or null (GPT-Live); undefined
+   * until the session has announced its model. */
+  talkMode: 'hold' | 'open' | null | undefined = undefined;
   /** The partner's own messages (snapshot requests, marks): main.ts answers them. */
   onPartner: ((message: PartnerMessage) => void) | null = null;
   /** The voice's audio silenced (true) by a press, or heard again (false). */
@@ -147,7 +148,7 @@ export class VoiceClient {
     const attempt = ++this.connectionAttempt;
     this.providerReady = false; this.captured = false; this.mediaConnected = false;
     this.stageSent.clear(); this.pendingStages.clear();
-    this.talkMode = null; this.micOpen = false;
+    this.talkMode = undefined; this.micOpen = false;
     this.setState('connecting');
     try {
       // Both contexts are created inside the click that started the conversation, so the

@@ -1712,8 +1712,8 @@ let talkKeySetting: TalkKey = 'control-option';
 /** Whether Talk is held for each turn: the session's own word once it has said it, else the settings. */
 function holdToTalk(): boolean {
   if (voice.state === 'live' || voice.state === 'connecting') {
-    if (voice.talkMode) return voice.talkMode === 'hold';
-    if (voice.state === 'live') return false; // a live voice that holds no turns (GPT-Live)
+    if (voice.talkMode !== undefined) return voice.talkMode === 'hold'; // GPT-Live announces none: a toggle
+    if (voice.state === 'live') return false;
   }
   return voiceSetting === PARTNER_VOICE && talkSetting !== 'open';
 }

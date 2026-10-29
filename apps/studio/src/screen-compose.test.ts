@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { frameTitle, SCREEN_FRAMES, screenLayout } from './screen';
 
 interface Fake { tag: string; rect: [number, number, number, number]; z?: number; bg?: string; hidden?: boolean; text?: string;
-  title?: Fake; screenTitle?: string; label?: string; classes?: string[]; holder?: Fake; rows?: Fake[]; cells?: Fake[]; marks?: boolean }
+  title?: Fake; screenTitle?: string; label?: string; classes?: string[]; holder?: Fake; rows?: Fake[]; cells?: Fake[]; marks?: boolean;
+  selected?: boolean }
 const styles = new Map<object, { backgroundColor: string; zIndex: string; visibility: string; display: string; opacity: string }>();
 function el(f: Fake): Element {
   const node = {
@@ -20,6 +21,7 @@ function el(f: Fake): Element {
       if (selector === '#voice-marks') return f.marks ? {} : null;
       if (selector === SCREEN_FRAMES) return f.holder ? el(f.holder) : null;
       if (selector === 'table') return null;
+      if (selector === '[aria-selected="true"]') return f.selected ? {} : null;
       return null;
     },
     querySelector: () => (f.title ? el(f.title) : null),
@@ -61,8 +63,9 @@ test('the table rows in view are written cell by cell; rows scrolled away are no
 });
 
 test('Tab names are written where they are; text stops at its time budget', () => {
-  const tabs = ['Live', 'Measurements', 'Notes'].map((t, i): Fake => ({ tag: 'span', rect: [i * 100, 40, 90, 24], text: t }));
-  expect(screenLayout(root({ '.workspace-tab-label': tabs }), [1440, 900]).text.map(t => t.text)).toEqual(['Live', 'Measurements', 'Notes']);
+  const tabs = ['Live', 'Measurements', 'Notes'].map((t, i): Fake => ({ tag: 'span', rect: [i * 100, 40, 90, 24], text: t, selected: i === 1 }));
+  expect(screenLayout(root({ '.workspace-tab-label': tabs }), [1440, 900]).text.map(t => [t.text, t.selected])).toEqual(
+    [['Live', false], ['Measurements', true], ['Notes', false]]); // the Tab in front is drawn as selected
   let clock = 0;
   const slow = screenLayout(root({ '.workspace-tab-label': tabs }), [1440, 900], 70, () => (clock += 40));
   expect(slow.text.length).toBeLessThan(3);
