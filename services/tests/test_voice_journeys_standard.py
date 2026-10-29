@@ -420,3 +420,29 @@ def test_markdown_names_the_failed_steps():
     text = standard.markdown({"about": {"voice": "gpt-realtime-2.1", "talk": "hold", "plan": "synthetic"},
                               "summary": summary, "scoreboard": scoreboard(summary), "runs": [run]})
     assert "Standard met: no" in text and "outcome said 2 times" in text and "| Feel | Release to first audio |" in text
+
+
+def test_a_request_that_cannot_succeed_is_said_once_and_changes_nothing():
+    """"Open the table called Growth curves": the failing call is the outcome, said once after it, nothing shown."""
+    bench, conv, inter, verdicts = good()
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][4]["expect"] = {"tools": ["show_measurements", "present"], "toolRequired": False, "fails": True,
+                                  "outcome": True}
+    inter.append(tool(5, "show_measurements", 41.8, 41.9, ok=False, error="no table called Growth curves"))
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["explain"]
+    assert row["outcomesSaid"] == 1 and not row["failures"]
+    conv.append(line("L8b", 43.0, "There's no table called Growth curves."))
+    run, _, _ = board(bench, conv, inter, verdicts, plan)
+    assert "outcome said 2 times" in {r["id"]: r for r in run["steps"]}["explain"]["failures"]
+
+
+def test_an_idle_wait_has_no_first_audio_and_needs_no_answer():
+    bench, conv, inter, verdicts = good()
+    bench["steps"].append({"id": "idle", "kind": "idle", "say": "", "start": ms(65), "end": ms(78), "idle": True})
+    plan = copy.deepcopy(PLAN)
+    plan["steps"].append({"id": "idle", "expect": {"silent": True}})
+    run, _, lines = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["idle"]
+    assert row["firstAudioS"] is None and row["failures"] == [] and row["lines"] == []  # the event's line is no step's
+    assert result(lines, "Event spoken when idle") == "pass"

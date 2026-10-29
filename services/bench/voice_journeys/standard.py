@@ -342,8 +342,10 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
                  "tools": [c.name for c in calls], "lines": [l["text"] for l in lines], "failures": []}
     fail = row["failures"].append
 
-    # Feel: release to first audio, heard in the page (else the server's own record of it).
-    first = first_on_after(segments, release, end)
+    # Feel: release to first audio, heard in the page (else the server's own record of it). A step without words (an
+    # idle wait, the restart) has no release.
+    spoken_step = step.get("kind") not in ("idle", "restart")
+    first = first_on_after(segments, release, end) if spoken_step else None
     row["firstAudioS"] = round(first - release, 3) if first is not None else None
 
     # Barge-in: the key down while the voice was audible, to silence (and staying silent while held).
@@ -406,10 +408,18 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     if visible_at is not None and spoken_at is None:
         fail("the outcome was not said")
 
+    # A request that cannot succeed: its outcome is the failure, said after the call that failed (else after release).
+    if expect.get("fails") and visible_at is None:
+        failed = [c for c in acting if c.ok is False]
+        anchor = (failed[0].end or failed[0].start) if failed else release
+        outcome_lines = [l for l in lines if l["first"] >= anchor - NEAR_S]
+        if any(c.confirmed_at is not None and c.screen_change for c in acting):
+            fail("a request that cannot succeed changed the screen")
     # Said once: lines after the confirmation (the judge's count when it ran).
     if expect.get("visible") or expect.get("outcome"):
         said = (verdict or {}).get("outcome_mentions")
-        row["outcomesSaid"] = said if isinstance(said, int) else (len(outcome_lines) if visible_at is not None else None)
+        counted = len(outcome_lines) if visible_at is not None or expect.get("fails") else None
+        row["outcomesSaid"] = said if isinstance(said, int) else counted
         if row["outcomesSaid"] is not None and row["outcomesSaid"] != 1:
             fail(f"outcome said {row['outcomesSaid']} times")
     else:
@@ -469,7 +479,7 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         for e in checks:
             if not e.get("ok"):
                 fail(f"after restart: {e['name']} missing ({e.get('detail', '')})")
-    if not lines and not step.get("restart") and not expect.get("silent"):
+    if not lines and spoken_step and not expect.get("silent"):
         fail("no answer")
     if verdict and verdict.get("answered") is False:
         fail(f"not answered: {verdict.get('why', '')}")
@@ -604,7 +614,15 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     expects = {s["id"]: s.get("expect") or {} for s in plan.get("steps") or []}
     wins = windows(steps)
     end = wins[-1][1] if wins else 0
-    segments = audio_segments(bench["events"], end) or server_segments(inter)
+    # What was heard: in the page; else the one brain's own audio records; else (GPT-Live heard acoustically) each
+    # spoken line's first words, as an instant.
+    heard_from = "page"
+    segments = audio_segments(bench["events"], end)
+    if not segments:
+        segments, heard_from = server_segments(inter), "server"
+    if not segments:
+        segments = [(l["first"], l["first"]) for l in voice_lines(conv, wins[0][0] if wins else 0, end)]
+        heard_from = "transcripts"
     rows = []
     unprompted = unprompted_spans(inter)
     started_numbers: list[int] = []  # the researchers this run started, by their board number
@@ -630,8 +648,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
             "proactive": proactive(inter, segments, busy), "reconnects": reconnects(inter, bench),
-            "liveView": live_view(bench), "error": bench.get("error"), "audioFrom": "page" if
-            audio_segments(bench["events"], end) else "server"}
+            "liveView": live_view(bench), "error": bench.get("error"), "audioFrom": heard_from}
 
 
 def summarise(runs: list[dict]) -> dict:

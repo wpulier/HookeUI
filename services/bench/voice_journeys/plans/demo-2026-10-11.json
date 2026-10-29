@@ -1,4 +1,5 @@
 {
+  "id": "demo-2026-10-11",
   "about": "The 2026-10-11 demo's spoken journey, replayed through the real GPT-Live on test footage (docs/bench/voice-journeys.md). One Talk session, about 10 minutes. kind: view (a question the eyes should answer), plural (many of a thing), act, close, photo, side (said to an audience: never a request), typed (asked in the chat after the session). The steps with a \"from\" replay failures from the live voice session of 2026-10-28 (Part 2.5): each names what it checks; \"[[slnc N]]\" in \"say\" is a pause of N ms in the recorded words (macOS say), so a request arrives in two pieces; status asks about work in progress; a short \"wait\" starts the next step while the voice is still answering.",
   "voices": {
     "user": "Samantha",

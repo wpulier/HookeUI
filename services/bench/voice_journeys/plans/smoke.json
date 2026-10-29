@@ -1,0 +1,15 @@
+{
+  "id": "smoke",
+  "about": "Two spoken steps on the bundled nuclei sample played as the camera (a still image), no setup: a quick, cheap check that the harness drives a voice end to end (Talk, the words, first audio, a tool, the scorer). Fields as in part-2.5.json.",
+  "minMs": 5000,
+  "quietMs": 4000,
+  "voices": {"user": "Samantha"},
+  "camera": {"still": "assets/examples/human_mitosis.png"},
+  "steps": [
+    {"id": "looking", "kind": "view", "say": "What am I looking at?",
+     "expect": {"tools": ["look_hard", "look_at_screen", "inspect_camera", "name_specimen", "resources", "outcomes"],
+                "toolRequired": false, "judge": "describes stained nuclei"}},
+    {"id": "outline", "kind": "act", "say": "Outline the nuclei.",
+     "expect": {"tools": ["outline_cells", "count", "find"], "visible": "nuclei outlined", "outcome": true}}
+  ]
+}
