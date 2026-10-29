@@ -16,3 +16,20 @@ it('renders saved numerical evidence, exact export and same-Project input links 
  const buttons=root.querySelectorAll('button');expect(buttons).toHaveLength(1);fire(buttons[0],'click');
  expect(open).toHaveBeenCalledWith({id:'input',version:3,title:'effects'});
 });
+
+it('keeps large nested records collapsed and reveals exact text only on request',()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const root=new TestElement('section');
+ const genes=Array.from({length:200},(_,i)=>`GENE_${i}`);
+ const state={sourceFile:{format:1,name:'model.npz',size:42,sha256:'b'.repeat(64)},matrixOperation:{format:1,capability:'response-fit',
+ output:{summary:{missingNormalization:{genes},contextWeighting:'equal-total-weight'}},inputs:{}}};
+ showMatrixResult(root as unknown as HTMLElement,state,{id:'result',day:'project',version:2},[],vi.fn());
+ expect(root.textContent).toContain('Missing normalization');
+ expect(root.textContent).toContain('View 1 field');
+ expect(root.textContent).not.toContain('GENE_199');
+ const detail=root.querySelectorAll('details').find(d=>d.className==='scientific-result-value')!;
+ (detail as unknown as HTMLDetailsElement).open=true;fire(detail,'toggle');
+ expect(detail.textContent).toContain('GENE_199');
+ fire(detail,'toggle');expect(detail.querySelectorAll('pre')).toHaveLength(1);
+ expect(root.querySelectorAll('table')).toHaveLength(0);
+});

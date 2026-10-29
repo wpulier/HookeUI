@@ -14,14 +14,39 @@
 .agent-connect-actions button:disabled,.agent-connections-settings button:disabled {opacity:.6;cursor:wait;}
 .agent-connect-actions button:focus-visible,.agent-connections-settings button:focus-visible {outline:2px solid var(--accent,#a9c9ff);outline-offset:3px;}
 
-.agent-connections-settings {padding:16px;border:1px solid #ffffff22;border-radius:12px;margin-bottom:20px;}
-.agent-connections-settings h3 {margin:0 0 8px;}
-.agent-connections-settings p {max-width:65ch;line-height:1.5;}
-.agent-connections-settings .agent-none {color:var(--muted,#aaa);font-size:13px;}
-.agent-connections-settings ul {list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px;}
-.agent-connections-settings li {display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;}
-.agent-connections-settings .agent-name {font-weight:600;}
-.agent-connections-settings .agent-when {color:var(--muted,#aaa);font-size:13px;margin-right:auto;}
+/* Compact connection list; permissions expand inside their owning row. */
+.agent-connections-settings {padding:16px 0;margin-bottom:12px;container-type:inline-size;color:var(--mm-text);}
+.agent-connections-header {display:flex;align-items:start;justify-content:space-between;gap:16px;}
+.agent-connections-settings h3 {margin:5px 0 0;font-size:15px;font-weight:600;}
+.agent-connections-settings p {margin:6px 0;line-height:1.5;font-size:12px;}
+.agent-connections-settings .agent-connections-intro,.agent-connections-settings .agent-none {color:var(--mm-text-2);}
+.agent-connections-settings ul {list-style:none;margin:16px 0 0;padding:0;}
+.agent-connections-settings li {display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;padding:16px 0;border-top:1px solid var(--mm-line);}
+.agent-identity {display:grid;gap:4px;min-width:0;align-content:center;}
+.agent-connections-settings .agent-name {font-size:13px;font-weight:600;overflow-wrap:anywhere;}
+.agent-connections-settings .agent-when {color:var(--mm-text-2);font-size:12px;}
+.agent-row-actions {display:flex;align-items:center;gap:8px;}
+.agent-connections-settings button {font-size:12px;min-height:32px;padding:6px 10px;border:1px solid var(--mm-line-strong);border-radius:7px;background:var(--mm-ctl-fill);color:var(--mm-text);}
+.agent-connections-settings .agent-disconnect {border-color:transparent;background:transparent;color:var(--mm-text-2);}
+.agent-connections-settings .agent-disconnect:hover {background:var(--mm-ctl-fill);color:var(--mm-text);}
+.agent-connections-settings li>[role=status],.agent-access-slot {grid-column:1/-1;min-width:0;}
+.agent-connections-settings [role=status]:empty {display:none;}
+.agent-connections-settings [hidden] {display:none!important;}
+.agent-connections-about {border-top:1px solid var(--mm-line);padding-top:12px;font-size:12px;color:var(--mm-text-2);}
+.agent-connections-settings summary {cursor:pointer;line-height:1.5;}
+.agent-connections-settings .agent-setup-control {max-width:260px;}
+.agent-project-access {box-sizing:border-box;min-width:0;margin:2px 0 0;padding:14px;border:1px solid var(--mm-line);border-radius:8px;background:var(--mm-bg);}
+.agent-project-access legend {font-size:12px;font-weight:600;padding:0 6px;}
+.agent-access-fields {display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:12px;margin:12px 0;}
+.agent-access-fields label {display:grid;gap:6px;font-size:12px;color:var(--mm-text-2);}
+.agent-access-fields select {box-sizing:border-box;width:100%;min-width:0;min-height:34px;font:inherit;color:var(--mm-text);background:var(--mm-ctl-fill);border:1px solid var(--mm-line-strong);border-radius:6px;padding:6px 8px;text-overflow:ellipsis;}
+.agent-project-access details {font-size:12px;color:var(--mm-text-2);margin:10px 0 14px;}
+@container (max-width:480px) {
+  .agent-connections-header {flex-wrap:wrap;gap:8px;}
+  .agent-connections-settings li {grid-template-columns:minmax(0,1fr);}
+  .agent-row-actions {justify-content:flex-start;}
+  .agent-access-fields {grid-template-columns:minmax(0,1fr);}
+}
 
 .agent-project-entry {margin:12px 20px;padding:12px 14px;border:1px solid var(--mm-border,#ffffff22);border-radius:16px;font-size:13px;}
 .agent-project-entry p {margin:0 0 8px;line-height:1.4;overflow-wrap:anywhere;}

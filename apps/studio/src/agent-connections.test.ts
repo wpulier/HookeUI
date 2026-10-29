@@ -123,6 +123,24 @@ describe('Settings → Connected agents', () => {
     expect(settings.textContent).not.toContain('fetch hookeui.org');
   });
 
+  it('collapses and reopens Project access without losing its form or reloading membership', async () => {
+    const live = { id: 'ac_1', label: 'Claude Code', kind: 'claude-code', at: 1_700_000_000, revokedAt: null };
+    const { connections, calls } = rig([
+      { ok: true, body: { pending: [], connections: [live] } },
+      { ok: true, body: { editable: true, projects: [{session:'p1',name:'Research',by:'agent:other',grants:{}}] } },
+    ]);
+    const settings = new TestElement('section'); connections.mountSettings(settings as unknown as HTMLElement);
+    await vi.waitFor(() => expect(buttons(settings)).toHaveLength(3));
+    const access = buttons(settings).find(b => b.textContent === 'Project access')!;
+    access.onclick();
+    await vi.waitFor(() => expect(settings.querySelectorAll('select')).toHaveLength(2));
+    const role = settings.querySelectorAll('select')[1] as unknown as HTMLSelectElement; role.value = 'read';
+    access.onclick(); access.onclick();
+    expect(role.value).toBe('read');
+    expect(settings.querySelectorAll('fieldset')).toHaveLength(1);
+    expect(calls).toHaveLength(2);
+  });
+
   it('shows only a hookeui.org page as the one to follow, and the time each agent connected', () => {
     expect(parseAgentConnections({ pending: [], connections: [], playbook: 'https://hookeui.org/get-started-beta.md' }).playbook)
       .toBe('https://hookeui.org/get-started-beta.md');

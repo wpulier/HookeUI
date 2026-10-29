@@ -278,15 +278,26 @@ export class AgentConnections {
     if (!section) return;
     const heading = document.createElement('h3'); heading.textContent = 'Connected agents';
     const intro = document.createElement('p');
-    intro.textContent = 'Agents and orchestrators connected through Hooke’s supported interface. Each has its own identity and Project access. Connected means authorized here, not currently running. Client compatibility must be checked; a model name alone is not a connection.';
+    intro.className = 'agent-connections-intro';
+    intro.textContent = 'Connect your agent, then choose the Projects it can use.';
+    const header = document.createElement('div'); header.className = 'agent-connections-header';
+    header.append(heading, this.setupControl());
+    const about = document.createElement('details'); about.className = 'agent-connections-about';
+    const aboutTitle = document.createElement('summary'); aboutTitle.textContent = 'About connections';
+    const aboutText = document.createElement('p');
+    aboutText.textContent = 'Connected means authorized in this copy of Hooke, not currently running. Each connection keeps its own identity and Project access. Agents and orchestrators need a compatible client; a model name alone is not a connection.';
+    about.append(aboutTitle, aboutText);
     const live = this.state.connections.filter(c => c.revokedAt === null);
     const list = document.createElement('ul');
     for (const c of live) {
       const li = document.createElement('li');
+      const identity = document.createElement('div'); identity.className = 'agent-identity';
+      const actions = document.createElement('div'); actions.className = 'agent-row-actions';
       const name = document.createElement('span'); name.className = 'agent-name'; name.textContent = c.label;
       const when = document.createElement('span'); when.className = 'agent-when'; when.textContent = connectionWords(c);
       const status = document.createElement('span'); status.setAttribute('role', 'status');
       const end = document.createElement('button'); end.type = 'button'; end.textContent = 'Disconnect';
+      end.className = 'agent-disconnect';
       end.setAttribute('aria-label', `Disconnect ${c.label}`);
       end.onclick = async () => {
         end.disabled = true; status.textContent = '';
@@ -301,13 +312,22 @@ export class AgentConnections {
       };
       const projects = document.createElement('button'); projects.type = 'button'; projects.textContent = 'Project access';
       projects.setAttribute('aria-label', `Project access for ${c.label}`);
-      projects.onclick = () => { projects.disabled = true; void mountProjectAccess(li, c, this.request); };
-      li.append(name, when, projects, end, status);
+      const access = document.createElement('div'); access.className = 'agent-access-slot'; access.hidden = true;
+      access.id = `agent-access-${c.id}`;
+      projects.setAttribute('aria-controls', access.id); projects.setAttribute('aria-expanded', 'false');
+      let mounted = false;
+      projects.onclick = () => {
+        access.hidden = !access.hidden;
+        projects.setAttribute('aria-expanded', String(!access.hidden));
+        if (!mounted) { mounted = true; void mountProjectAccess(access, c, this.request); }
+      };
+      identity.append(name, when); actions.append(projects, end);
+      li.append(identity, actions, status, access);
       list.append(li);
     }
     const none = document.createElement('p'); none.className = 'agent-none';
     none.textContent = !this.loaded ? 'Reading connected agents…' : 'No agent is connected. Use Copy setup prompt to connect one to this copy of Hooke.';
-    section.replaceChildren(heading, intro, this.setupControl(), live.length ? list : none);
+    section.replaceChildren(header, intro, live.length ? list : none, about);
   }
 }
 

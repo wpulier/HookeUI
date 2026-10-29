@@ -1815,3 +1815,11 @@ person as creator and the connection as reader/contributor without changing the 
 Retained comparison choices use the resource index's canonical comparison input key, not temporary
 frame numbers. Independently captured runs of an unchanged imported image can share a Compare Tab;
 unknown inputs and unrelated Project/revision/method entries remain excluded. Opening never reruns a model.
+
+Connected-agent settings use compact identity/action rows with a reversible Project-access
+expander. Its form retains the owner confirmation and exact connection/Project scope;
+copying setup remains a separate action. Connection explanations and permission details
+stay available in disclosures, without dominating the list.
+Retained matrix summaries use label/value rows with bounded column widths. Large arrays,
+objects and text expand into a scrollable exact metadata view on demand; opening a result
+never reruns computation. Download and exact input/revision links remain available.
