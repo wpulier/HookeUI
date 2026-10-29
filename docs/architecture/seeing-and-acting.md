@@ -663,3 +663,39 @@ the first transcript 308 ms, `output_audio_buffer.started` **448 ms**, `response
 `response.done` 1466 ms, `output_audio_buffer.stopped` 6300 ms (the browser received 44,647 bytes of audio): the answer
 plays for seconds after `response.done`, which is why only the buffer's events (and the studio's voice-phase) say when
 it is audible. Not measured without the studio: whether `RELEASE_TAIL_S` keeps the last word.
+
+### Tuning against the journey bench (2026-10-29)
+
+Measured over real WebRTC calls (a headless Chrome peer) and the part-2.5 journey, then kept:
+- **Reasoning effort `minimal`:** response.create to the first server audio 0.82 s median vs 1.10 s at `low`, with the
+  partner's prompt, tools, brief and pictures; with spoken input, a tool round's preamble 0.74 s vs 3.10 s.
+- **Perception sent while the key is held:** the note at once, the camera and the window as each is ready
+  (`RealtimeSession.early`); release sends only commit and response.create. The API prepares items as they arrive:
+  0.74 s vs 1.33 s with the same pictures sent at release. A tap or Escape deletes them again.
+- **Pictures at full detail** (`auto`): at `low` the model took a new layer of outlines for "hidden behind the tabs
+  panel". Sent during the hold, their cost is small.
+- **Speak first, briefly:** every reply starts with a few words before any tool (a tool called in silence cost 2-3 s
+  to the first audio); one or two sentences by default (the judge's one-or-two-sentence line went from 0.5 to 1.0).
+- **Pointing without a round trip:** a mark before speaking cost a silent response (3.5 s of silence). The app points
+  at a tool's result itself (`population:<id>`); the model marks only when asked, after speaking.
+- **Progress lines** say what is still running and for how long (`partner_tools.running_facts`), at most two a round,
+  capped at 100 tokens, asked for so they start as the current words end (their length from response.done's audio
+  tokens, 50 ms each) rather than after a silence.
+- **The release tail is 0.05 s:** committing 0.12 s before the words' end lost none of them.
+- **A Project named exactly that opens** (`day/catalogue.find`): "Open the Nuclei project" no longer matches every
+  session that saw nuclei.
+- **A reconnect storm ends Talk:** more than 3 reconnects in 60 s stop it with a plain message (the mini model's
+  sideband dropped every few seconds: 14 calls in a minute).
+
+Measured and not kept: `gpt-realtime-2.1-mini` (slower to first audio, 1 of 2 right tools, its sideband dropping);
+a cache warm-up response at the start (no gain on the first turn); shorter tool descriptions (within noise).
+
+**Where release to first audio goes** (quiet machine): commit 0.05 s, model to server audio 0.6-1.2 s (p50 ~0.85),
+playout 0.15-0.2 s (WebRTC jitter buffer 100-137 ms, then the words' onset). About 1.05-1.1 s p50 release to heard:
+the standard's 0.8 s is below what this model gives here.
+
+**The outline step** is Cellpose-SAM on the camera's frame: on the bench's 1280 x 720 frame 5.8-6.4 s warm (the app's
+own path adds about 0.2 s), 10-35 s when the machine is loaded by other work. micro-sam (light microscopy), measured on
+the same frame: 0.65 s, 308 outlines against Cellpose's 343, 298 of Cellpose's matched one to one at IoU >= 0.5 (mean
+IoU 0.78): an option for the user to choose; the default is unchanged.
+

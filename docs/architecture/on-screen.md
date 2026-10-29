@@ -136,7 +136,9 @@ other files.
 
 - **Marks point by Hooke's own ids** (`mark`, `voice/partner_tools.py`; drawn by the studio's overlay). The server
   sends `{type:"marks", id:"mk-<n>", marks:[{target, style, label?, region?, polygon?}], until:"speech-end", frame?}`
-  over `/ws/voice`; targets are `outline:<id>`, `member:<population>:<member>`, `window:<presentationId>`,
+  over `/ws/voice`; targets are `outline:<id>`, `population:<id>` (or `layer:<id>`: a whole layer of cell outlines, as
+  the box around its members drawn now, worked out once per layer and placed each frame), `member:<population>:<member>`,
+  `window:<presentationId>`,
   `document:<placementId>`, `tab:<id or exact title>`, `researcher:<number or id>`, `panel:<name>`, or `frame` with a
   region or polygon in 0-1 of the camera picture the model saw (the message then carries `frame:{id, crop}`, that
   picture's frame and its crop in source pixels, so the studio maps it as it maps outlines and it follows the slide).
@@ -144,6 +146,10 @@ other files.
   1.5 s after, and answers `{type:"marks-shown", id, resolved:[{target, ok, rect?, why?}]}`. **What it answered is what
   the tool says** (shown, and not shown with why); no answer within 1 s is "not shown", never claimed. `marks-clear` goes
   out at a barge-in.
+- **The app points at what a tool just showed** (a layer of cell outlines, an outline): the tool's result names it
+  (`pointed_at`), and the mark is drawn as the answer about it starts to be heard (the first `output_audio_buffer.started`
+  of the response after the tool round), with no round trip through the model's `mark`. The model calls `mark` only when
+  the user asks where or which, after speaking.
 - **Act, then look:** a tool that changes the screen (`partner_tools.SCREEN_CHANGING`) is followed by a report newer than
   the change (`Screen.until`) and a window picture (`snapshot-request` → `snapshot`), and the model reads both before it
   is asked to go on: "done" is said from the picture, not from the tool's own success. The record of the call says
