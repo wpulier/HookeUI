@@ -1862,8 +1862,14 @@ function readerEntryOf(ref: { id: string; day: string; version: number | null })
  * drawer's place (‹ Data brings the list back). The Assistant steps aside (× brings it back if it was showing); a page
  * docked on the right parks, as it does when the Assistant opens. One layout write (press). */
 function openInReader(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): void {
-  // On a reader Tab the whole Tab is the reader: the item shows there (its saved item comes back with the Tab).
-  if (document.body.dataset.readerTab === 'true' && researchStage.hidden) { tabReader.show(entry, view); renderReaderLabel(); return; }
+  // A retained reader Tab owns one exact item. A different input gets its own
+  // retained Tab so the label, visible content and restored reference stay aligned.
+  if (document.body.dataset.readerTab === 'true' && researchStage.hidden) {
+    const current = tabReader.current();
+    if (current && sameItem(current, entry)) { tabReader.show(entry, view); renderReaderLabel(); }
+    else void openReaderTab(entry, view);
+    return;
+  }
   // On a researcher's Tab its own reader is on the right (ticket 66 D3): the item shows there, and the Tab stays.
   if (researchPageInFront() && showInResearchReader(entry, view)) { markReaderRow(); return; }
   const fromData = dataOpen;
@@ -2017,7 +2023,7 @@ function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
     open: (ref) => {
       const entry = readerEntryOf({ id: ref.id, day: ref.day ?? snapshot.session, version: null });
       if (!entry) { actionError(new Error('That is not in this Project’s Data any more.')); return; }
-      if (mode === 'tab') tabReader.show(entry, 'thing'); else openInReader(entry);
+      openInReader(entry);
     },
     changed: () => { markReaderRow(); if (mode === 'tab') renderReaderLabel(); },
   };
@@ -2059,10 +2065,14 @@ provideResearchReader({
   },
 });
 /** Open in new Tab: the item in a Tab of its own, the same reader full width. */
-async function openReaderTab(entry: ReaderEntry): Promise<void> {
+async function openReaderTab(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): Promise<void> {
   // Its Tab is named as the reader names it (a researcher's report by its findings' title once read).
   const shown = reader.current(), title = shown && sameItem(shown, entry) ? reader.title() : readerTitle(entry.title, entry.kind);
-  try { await workspaceViews.openReaderTab({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title }); }
+  try {
+    const opened = await workspaceViews.openReaderTab({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title });
+    const current = tabReader.current();
+    if (opened && view === 'how' && current && sameItem(current, entry)) tabReader.show(entry, view);
+  }
   catch (error) { actionError(error); }
 }
 /** Every route the item's Data row had, by name, in the reader's ⋯ (nothing is removed: the kind's full tool opens as

@@ -1966,3 +1966,12 @@ Folder-drop refusal still directs users to the complete native folder chooser
 so hidden scientific metadata is not silently omitted.
 
 Main uses the same retained Inputs projection even before a Study exists, showing material and a route to inspect it instead of camera onboarding. Project changes clear that projection; failed refreshes qualify retained counts. The Project menu preserves catalogue source counts (including scientific files) when live session updates report only camera/library sources; newer catalogue counts can decrease as well as increase.
+
+Retained file inspection keeps revision/size and download together, then literal
+text preview. Scientific-reader setup and content hashes are secondary disclosures.
+It uses the original exact revision and existing reader admission; the layout does
+not infer a file's scientific meaning or treat plain text as a qualified reader.
+
+A reader Tab retains one exact item. Opening a different Data/Input item or an
+internal source link from it goes to that item's retained Tab (reusing it when
+already open), rather than replacing the visible file under the previous title.

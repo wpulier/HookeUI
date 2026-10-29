@@ -332,18 +332,25 @@ export function showScientificSource(root: HTMLElement, state: unknown, referenc
     throw new Error('The saved source metadata is invalid. Keep its original revision and retry.');
   const movie = renderedMovieDescription(root, object(state) ? state.movieExport : undefined);
   if (movie && !validMovieFile(source, {id:reference.id,session:reference.day}, resources)) throw new Error('The rendered movie has an incomplete retained file reference. Keep the saved document and check its storage.');
-  root.append(node('h3', source.name), node('p', `${Number(source.size).toLocaleString()} bytes · ${movie ? 'rendered movie saved' : computed ? 'computed result saved' : 'original source saved'}`));
-  const receipt = object(state) ? state.sourceRemote : null;
-  if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
-    root.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}. Web content is kept as exact bytes and never run.`));
-  if (!movie && !computed) root.append(node('p', 'These original bytes are retained. A compatible reader integration is still needed for scientific inspection or processing. You can preview text without a reader.'));
+  const inspector = node('section'); inspector.className = 'scientific-source-inspector';
+  const header = node('header'), identity = node('div');
+  identity.append(node('h3', source.name), node('p', `Revision ${reference.version} · ${Number(source.size).toLocaleString()} bytes · ${movie ? 'Rendered movie' : computed ? 'Computed result' : 'Retained original'}`));
   const download = node('a', movie ? 'Download rendered movie' : computed ? 'Download result file' : 'Download original file');
   download.href = `/api/scientific-files/${encodeURIComponent(reference.id)}?${new URLSearchParams({ session: reference.day, revision: String(reference.version) })}`;
   download.download = source.name; download.className = 'scientific-source-download';
-  const detail = node('details'); detail.append(node('summary', 'Content identity'), node('code', source.sha256));
-  if(openReader && !movie)sourceReaders(root,reference,openReader);
-  root.append(download, detail);
-  if (!movie) root.append(textPreview(reference, source.sha256, Number(source.size)));
+  header.append(identity, download); inspector.append(header);
+  const receipt = object(state) ? state.sourceRemote : null;
+  if (object(receipt) && typeof receipt.url === 'string' && typeof receipt.final === 'string' && typeof receipt.retrieved === 'string')
+    inspector.append(node('p', `Downloaded from ${receipt.url}${receipt.final !== receipt.url ? ` (served by ${receipt.final})` : ''} on ${receipt.retrieved}.`));
+  if (!movie) inspector.append(textPreview(reference, source.sha256, Number(source.size)));
+  if (openReader && !movie) {
+    const readers = node('details'); readers.className = 'scientific-source-readers';
+    readers.append(node('summary', 'Open with a scientific reader'));
+    sourceReaders(readers, reference, openReader); inspector.append(readers);
+  }
+  const detail = node('details'); detail.className = 'scientific-source-identity';
+  detail.append(node('summary', 'Content identity'), node('code', source.sha256));
+  inspector.append(detail); root.append(inspector);
 }
 
 
