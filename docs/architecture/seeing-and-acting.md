@@ -621,4 +621,9 @@ and `arguments`), `rate_limits.updated`. A held turn adds `input_audio_buffer.cl
 `input_audio_buffer.committed`, `conversation.item.input_audio_transcription.delta`/`.completed`. Client-chosen item
 ids (`hk_…`, at most 32 characters) and `response.metadata` (`cause`, `n`) came back as sent. Over WebRTC,
 `response.output_audio.done` comes while the browser still plays the answer: only `output_audio_buffer.started` /
-`stopped` / `cleared` say when it is audible.
+`stopped` / `cleared` say when it is audible. A second run confirmed the rest the partner relies on: a mid-session `session.update` of
+`tools` takes effect (its `session.updated` lists them); a refused step's `error` echoes our `event_id`
+(`item_delete_invalid_item_id`, `response_cancel_not_active`), which is how a best-effort step's refusal is logged and
+not said; and a proactive `response.create` with `instructions`, `tool_choice: "none"` and `metadata` spoke one
+sentence from a system item of facts ("Researcher 3 finished and reported finding two size groups."), its first audio
+**692 ms** after asking. Both runs cost $0.04 at list price.
