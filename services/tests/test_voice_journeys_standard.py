@@ -462,3 +462,11 @@ def test_a_claim_is_timed_by_when_its_words_were_said():
     bench["events"][-1]["t"] = ms(2.35)  # the same words 0.35 s before the report at 2.7 s
     run, _, lines = board(bench, conv, inter, verdicts)
     assert {r["id"]: r for r in run["steps"]}["outline"]["falseDone"] == 1 and result(lines, 'False "done"') == "FAIL"
+
+
+def test_server_audio_spans_end_at_partner_audio():
+    """Over WebRTC partner-response is logged at response.done; its audio's end is its own partner-audio record."""
+    inter = [{"kind": "partner-response", "responseId": "r1", "firstAudioT": 10.0, "audioEndT": 10.5},
+             {"kind": "partner-audio", "responseId": "r1", "audioEndT": 14.0, "how": "stopped"},
+             {"kind": "partner-response", "responseId": "r2", "firstAudioT": 20.0, "audioEndT": None}]
+    assert standard.server_segments(inter) == [(10.0, 14.0), (20.0, 20.0)]

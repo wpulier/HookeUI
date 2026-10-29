@@ -174,13 +174,26 @@ def audio_segments(events: list[dict], until: float | None = None) -> list[tuple
     return out
 
 
+def audio_ends(inter: list[dict]) -> dict[str, float]:
+    """When each response's audio ended (partner-audio: over WebRTC the output buffer stops or is cleared after
+    response.done, so partner-response's own audioEndT is only when the text finished)."""
+    return {r["responseId"]: r["audioEndT"] for r in inter if r.get("kind") == "partner-audio"
+            and r.get("responseId") and isinstance(r.get("audioEndT"), (int, float))}
+
+
+def response_end(r: dict, ends: dict[str, float]) -> float | None:
+    end = ends.get(r.get("responseId")) if r.get("responseId") else None
+    return end if end is not None else r.get("audioEndT") if isinstance(r.get("audioEndT"), (int, float)) else None
+
+
 def server_segments(inter: list[dict]) -> list[tuple[float, float]]:
-    """The same from the server's partner-response records (acoustic replay of the packaged app has no page to hear)."""
-    out = []
+    """The same from the server's records (acoustic replay of the packaged app has no page to hear): each response
+    from output_audio_buffer.started to its audio's end."""
+    ends, out = audio_ends(inter), []
     for r in inter:
         if r.get("kind") == "partner-response" and isinstance(r.get("firstAudioT"), (int, float)):
-            end = r.get("audioEndT") if isinstance(r.get("audioEndT"), (int, float)) else r["firstAudioT"]
-            out.append((r["firstAudioT"], max(end, r["firstAudioT"])))
+            end = response_end(r, ends)
+            out.append((r["firstAudioT"], max(end if end is not None else r["firstAudioT"], r["firstAudioT"])))
     return sorted(out)
 
 
@@ -342,12 +355,12 @@ def turn_number(bench_events: list[dict], start: float, end: float):
 
 def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
     """When the one brain spoke on its own (a proactive event, a reconnect line): those lines belong to no step."""
-    out = []
+    ends, out = audio_ends(inter), []
     for r in inter:
         if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "reconnect") \
                 and isinstance(r.get("firstAudioT"), (int, float)):
-            end = r.get("audioEndT") if isinstance(r.get("audioEndT"), (int, float)) else r["firstAudioT"] + 10
-            out.append((r["firstAudioT"] - NEAR_S, end))
+            end = response_end(r, ends)
+            out.append((r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10))
     return out
 
 
