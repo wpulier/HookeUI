@@ -713,6 +713,11 @@ def test_outlining_rings_the_whole_picture_and_hookes_record_decides_when_the_re
         drive = next(m for m in studio.sent if m["type"] == "drive")
         assert drive["intent"]["target"] == "frame" and drive["intent"]["region"] == list(hands_mod.WHOLE_PICTURE)
         assert out["result"] == "verified" and out["said"] == "Done: 12 outlined."
+        # The studio names the layer by its presentation, not the population, and carries no counts: no failure.
+        screen["now"]["items"].append({"id": "layer:pr-1", "open": True, "view": {"legacy": {}}})
+        shown = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
+            0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))
+        assert shown["result"] == "verified" and shown["said"] == "Done: 12 outlined."
         store.clear()
         none = await hands.act("outline_cells", {}, lambda: asyncio.sleep(
             0, {"ok": True, "outputs": [{"kind": "population", "id": "e5"}]}))

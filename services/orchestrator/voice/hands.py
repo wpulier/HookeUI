@@ -357,14 +357,15 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
         return bool(magnifier.get("open", True)) and magnifier["shows"] == ids[0]
     if intent.kind == "outline":
         # The layer it made, with its members counted: a layer on screen without counts shows nothing of how many.
+        # The studio names a population's layer by its presentation (population.ts: layer:<presentation id>), which
+        # need not be the population's id, so a made population missing from the keys is no sign it failed; Hooke's
+        # record of it decides (Hands.verify, _outlined).
         made = _output_ids(result, "population")
         layers = facts["layers"]
         if not layers:
             return None
-        if made:
-            layer = layers.get(made[0])
-            if layer is None:
-                return False
+        layer = layers.get(made[0]) if made else None
+        if layer is not None:
             members = layer.get("members")
             return None if members is None else members.get("count", 0) > 0
         counted = [layer["members"] for layer in layers.values() if layer.get("members")]
@@ -842,6 +843,7 @@ class Hands:
             receipt = (getattr(run, "outcome", None) or {}) if run is not None else {}
             status = receipt.get("status") if isinstance(receipt, dict) else None
             shows = expected(intent, facts, result)
+            outlined = self._outlined(result) if intent.kind == "outline" else 0
             if status in ("failed", "timed_out"):
                 result["result"] = "failed"
                 why = (receipt.get("failure") or receipt.get("error") or {}) if isinstance(receipt, dict) else {}
@@ -852,12 +854,11 @@ class Hands:
             elif shows is False:
                 result["result"] = "failed"
                 result["error"] = "the studio does not show it: " + (result.get("summary") or "not on screen")
-            elif shows is None and intent.kind == "outline" and self._outlined(result):
-                # The report cannot tell (no counted layer in it), but Hooke's own record of what it made can: the
-                # population the run saved, with its members (smoke run, 29 Oct: Cellpose outlined, said "not sure").
-                count = self._outlined(result)
+            elif shows is None and outlined:
+                # The report cannot tell (it carries no member counts), but Hooke's own record of what it made can: the
+                # population the run saved, with its members (smoke runs, 29 Oct: Cellpose outlined, said "not sure").
                 result["result"] = "verified"
-                result["said"] = f"Done: {count} outlined."
+                result["said"] = f"Done: {outlined} outlined."
                 result.setdefault("_hands", {})["checkedBy"] = "record"
             else:
                 result["result"] = "uncertain"
