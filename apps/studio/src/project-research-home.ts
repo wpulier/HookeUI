@@ -21,6 +21,8 @@ export class ProjectResearchHome {
     const owned = studies.filter(study => study.session === session);
     const signature = JSON.stringify([session, owned, error]);
     if (signature === this.signature) return;
+    const disclosures = new Map(Array.from(this.root.querySelectorAll('details')).map(item => [item.dataset.disclosure, {open: item.open, focused: item.querySelector('summary') === document.activeElement}]));
+    if (this.session !== session) disclosures.clear();
     this.signature = signature;
     if (this.session !== session) this.opening++;
     this.session = session;
@@ -45,6 +47,7 @@ export class ProjectResearchHome {
       header.append(state);
       card.append(header, node('h3', studyName(study)));
       const question = node('details', '', 'project-research-question');
+      question.dataset.disclosure = JSON.stringify([study.id, 'question']);
       question.append(node('summary', 'Question & success criteria'), node('p', study.objective));
       if (study.criteria) question.append(node('p', study.criteria, 'project-research-criteria'));
       card.append(question);
@@ -62,6 +65,7 @@ export class ProjectResearchHome {
       const latest = study.claims?.at(-1);
       if (latest) {
         const report = node('details', '', 'project-research-report');
+        report.dataset.disclosure = JSON.stringify([study.id, 'report', latest.request]);
         const summary = node('summary');
         const meta = node('span', '', 'project-research-report-meta');
         meta.append(node('span', 'Latest report'), node('span', latest.byLabel || 'Author not recorded'));
@@ -86,5 +90,11 @@ export class ProjectResearchHome {
     const inputs = action('Add material', this.actions.inputs);
     inputs.title = 'Open Inputs to import material or choose a camera.';
     choices.append(data, inputs); this.root.append(choices);
+    for (const item of this.root.querySelectorAll('details')) {
+      const previous = disclosures.get(item.dataset.disclosure);
+      if (!previous) continue;
+      item.open = previous.open;
+      if (previous.focused) item.querySelector('summary')?.focus();
+    }
   }
 }

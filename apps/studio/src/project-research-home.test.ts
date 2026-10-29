@@ -44,10 +44,10 @@ test('unchanged polling preserves the action node and a failed refresh qualifies
   home.update('p1',[]);expect(root.hidden).toBe(true);
 });
 
-test('latest attributed report remains distinct from accepted findings and exposes its limitations', () => {
+test('latest attributed report remains distinct from findings and exposes its limitations', () => {
   const {home,root} = setup(); const value = study();
   value.claims!.push({request:'new',statement:'<script>untrusted</script> New result',byLabel:'Codex',evidence:[],dependsOn:[],limitations:'No independent validation'});
-  value.findings.push({request:'finding',statement:'Reviewed finding',tasks:[]});
+  value.findings.push({request:'finding',statement:'Retained finding',tasks:[]});
   home.update('p1',[value]);
   expect(root.textContent).toContain('2Reports'); expect(root.textContent).toContain('1Findings');
   expect(root.textContent).toContain('No independent validation');
@@ -61,4 +61,18 @@ test('a study with no report offers an honest empty state and retains its questi
   expect(root.textContent).toContain('Reports will appear here as the work develops.');
   expect(root.textContent).toContain('Measured error');
   expect(root.textContent).not.toContain('Latest report');
+});
+
+test('same-Project updates preserve disclosures, but a new report or Project starts closed', () => {
+  const {home,root} = setup(); home.update('p1',[study()]);
+  const details = () => root.querySelectorAll('details') as unknown as HTMLDetailsElement[];
+  details().forEach(item => { item.open = true; });
+  const changed = study(); changed.revision++;
+  home.update('p1',[changed], 'Refreshing');
+  expect(details().map(item => item.open)).toEqual([true,true]);
+  changed.claims!.push({request:'replacement',statement:'Next result',byLabel:'Codex',evidence:[],dependsOn:[]});
+  home.update('p1',[changed]);
+  expect(details()[0].open).toBe(true); expect(details()[1].open).not.toBe(true);
+  home.update('p2',[study('p2')]);
+  expect(details().some(item => item.open)).toBe(false);
 });
