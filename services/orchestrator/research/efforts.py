@@ -90,7 +90,15 @@ class Efforts:
         return saved
 
     def list(self, session):
-        return [summary(s) for s in self.store.list(session) if s.document['kind'] == KIND]
+        rows = []
+        for saved in self.store.list(session):
+            if saved.document['kind'] != KIND:
+                continue
+            # Creation is the first retained revision, not the current revision's
+            # modification time or a guess based on its Project name.
+            first = self.store.read(saved.id, session, revision=1)
+            rows.append({**summary(saved), 'createdAt': first.at, 'updatedAt': saved.at})
+        return rows
 
     def _change(self, effort, session, change):
         # Compare-and-save admits concurrent tools against the same durable cap.

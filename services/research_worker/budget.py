@@ -28,7 +28,8 @@ PRICES = {
     "google_search": 0.014,   # Gemini, per query beyond the monthly free tier (counted as paid)
     "veo-3.1-fast": 0.10,     # per second at 720p
     "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
-    "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations (research_worker/presentation.py)
+    "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations and vision; fast mode is twice this (vision.py)
+    "gemini-4-argon": {"in": 4.00, "out": 20.00},  # vision; $2/$10 until 2026-11-30, priced at the list price after it
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
     # out, and audio and pictures in and audio out, per million tokens.
     "gpt-realtime-2.1": {"in": 4.00, "out": 24.00, "audio_in": 32.00, "audio_out": 64.00, "image_in": 5.00},

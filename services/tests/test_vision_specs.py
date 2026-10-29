@@ -34,3 +34,63 @@ def test_every_fast_pass_option_is_a_vision_option():
     from orchestrator.options import BRAIN_FAST, VISION
 
     assert all(o == "off" or o in VISION for o in BRAIN_FAST)
+
+
+def test_claude_specs_set_effort_and_fast_mode(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    opus = make_vision("anthropic:claude-opus-5-5@low")
+    assert (opus.model, opus.effort, opus.fast) == ("claude-opus-5-5", "low", False)
+    fast = make_vision("anthropic:claude-opus-5-5@low+fast")
+    assert (fast.effort, fast.fast) == ("low", True)
+    assert make_vision("anthropic:claude-opus-5-5@default").effort is None
+
+
+def _claude_replying(monkeypatch, reply: dict, status: int = 200):
+    import asyncio
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    vision = make_vision("anthropic:claude-opus-5-5@low+fast")
+    sent = {}
+
+    class Response:
+        is_error = status >= 400
+        status_code = status
+        text = ""
+
+        def json(self):
+            return reply
+
+    class Client:
+        async def post(self, path, json):
+            sent.update(path=path, body=json)
+            return Response()
+
+    async def ready():
+        return Client()
+
+    vision._ready = ready
+    return asyncio.run(vision.ask([b"\xff\xd8\xff"], "Where? JSON {\"answer\": \"...\"}")), sent
+
+
+def test_claude_answers_are_read_and_fast_mode_and_fallbacks_are_asked_for(monkeypatch):
+    result, sent = _claude_replying(monkeypatch, {
+        "model": "claude-opus-5-5", "stop_reason": "end_turn", "usage": {"input_tokens": 1000, "output_tokens": 50},
+        "content": [{"type": "thinking", "thinking": ""}, {"type": "text", "text": '{"answer": "a stoma"}'}]})
+    assert result.data == {"answer": "a stoma"} and not result.error
+    assert result.usage == {"input": 1000, "output": 50}
+    body = sent["body"]
+    assert sent["path"] == "/v1/messages" and body["speed"] == "fast" and body["fallbacks"] == "default"
+    assert body["output_config"] == {"effort": "low"} and body["messages"][0]["content"][0]["type"] == "image"
+
+
+def test_a_claude_refusal_is_said_as_a_refusal_never_read_as_an_answer(monkeypatch):
+    result, _ = _claude_replying(monkeypatch, {
+        "model": "claude-opus-5-5", "stop_reason": "refusal", "stop_details": {"type": "refusal", "category": "bio"},
+        "usage": {"input_tokens": 1000, "output_tokens": 0}, "content": []})
+    assert result.data is None and "refused" in result.error and "bio" in result.error
+
+
+def test_a_claude_api_error_says_anthropics_reason(monkeypatch):
+    result, _ = _claude_replying(monkeypatch, {"type": "error", "error": {
+        "type": "invalid_request_error", "message": "Your credit balance is too low to access the Anthropic API."}}, 400)
+    assert result.data is None and result.error.startswith("RuntimeError: Anthropic 400: Your credit balance is too low")

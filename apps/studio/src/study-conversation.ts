@@ -32,10 +32,16 @@ export function studyConversation(initial:Effort, options:{
   const select=node('select','study-question-recipient');select.setAttribute('aria-label','Ask connected agent');
   const compose=new Composer(null,{label:'Ask about this study',placeholder:'Ask about this study'});
   compose.send.setAttribute('aria-label','Send Study question');
-  compose.chips.hidden=false;compose.chips.append(node('span','','Ask'),select);
-  const refreshButton=node('button','study-quiet','Refresh replies');refreshButton.type='button';
-  const controls=node('div','study-conversation-controls');controls.append(status,refreshButton);
-  root.append(log,controls,compose.root);
+  const recipientLabel=node('label','study-recipient-control');
+  recipientLabel.append(node('span','study-recipient-label','Reply with'),select);
+  compose.actions.prepend(recipientLabel);
+  const refreshButton=node('button','study-quiet study-replies-refresh','Refresh');refreshButton.type='button';
+  refreshButton.setAttribute('aria-label','Refresh replies');refreshButton.title='Check for saved replies';
+  const heading=node('header','study-discussion-heading');
+  const title=node('div','study-discussion-title');title.append(node('h3','','Discussion'),node('span','','Questions, answers and evidence, kept with this Study'));
+  heading.append(title,refreshButton);
+  const controls=node('div','study-conversation-controls');controls.append(status);
+  root.append(heading,log,compose.root,controls);
   function ready(){compose.send.disabled=!compose.field.value.trim()||sending||!loaded||!select.value||!options.current();select.disabled=sending;compose.field.readOnly=sending;}
   select.addEventListener('change',ready);compose.field.addEventListener('input',()=>{if(compose.field.value)root.dataset.draft='true';else delete root.dataset.draft;ready();});compose.field.addEventListener('focus',ready);
   function render(rows:StudyQuestion[]){
@@ -46,26 +52,31 @@ export function studyConversation(initial:Effort, options:{
       const existing=[...log.children].find(el=>(el as HTMLElement).dataset.questionId===question.id) as HTMLElement|undefined;
       if(existing?.dataset.signature===rowSignature)continue;
       const card=node('article','study-question');card.dataset.questionId=question.id;card.dataset.signature=rowSignature;
-      card.append(node('small','',question.byLabel),node('p','study-question-words',question.question));
+      const prompt=node('div','study-question-prompt');
+      prompt.append(node('small','study-question-author',question.byLabel),node('p','study-question-words',question.question));card.append(prompt);
       if(question.answer){
         const answer=question.answer;
         card.append(node('strong','study-answer-author',answer.byLabel),node('p','study-answer-words',answer.statement));
-        if(answer.limitations)card.append(node('p','study-answer-limits',answer.limitations));
+
         const evidence=node('details','study-answer-evidence');evidence.append(node('summary','',`Evidence · ${answer.evidence.length}`));
         for(const [index,ref] of answer.evidence.entries()){
           const link=node('button','study-quiet',`Evidence ${index+1} · revision ${ref.revision}`);link.type='button';link.title=ref.id;
           link.addEventListener('click',()=>{void options.open(ref,'Answer evidence').catch(error=>{status.textContent=String(error.message||error);});});evidence.append(link);
         }
-        card.append(evidence,node('small','study-answer-status','Agent answer · not a reviewed finding'));
+        const notes=node('div','study-answer-notes');notes.append(evidence);
+        if(answer.limitations){const limits=node('details','study-answer-limits');limits.append(node('summary','','Scope & limitations'),node('p','',answer.limitations));notes.append(limits);}
+        card.append(notes,node('small','study-answer-status','Agent answer · not a reviewed finding'));
       }else{
-        card.append(node('p','study-answer-waiting',`Waiting for ${question.recipient.label} to respond.`));
+        const handoff=node('div','study-answer-handoff');
+        handoff.append(node('strong','study-answer-waiting',`Ready for ${question.recipient.label}`),node('p','','Copy this handoff into your agent’s session. Its answer will appear here.'));
         const copy=node('button','study-quiet','Copy question for agent');copy.type='button';
         copy.addEventListener('click',()=>{const prompt=`Use your existing Hooke connection to answer question ${question.id} in Study ${study.id}, Project ${study.session}. Read its pinned context through GET studies/${study.id}/questions/${question.id}?session=${study.session}, inspect the cited retained evidence, then publish an answer through POST studies/${study.id}/questions/${question.id}/answer. Use your own connection identity. Report limitations; do not launch experiments or submit anything.`;
-          void (options.copy??(text=>navigator.clipboard.writeText(text)))(prompt).then(()=>{status.textContent='Question instructions copied.';}).catch(()=>{status.textContent='Could not copy. The saved question remains in this Study.';});});card.append(copy);
+          void (options.copy??(text=>navigator.clipboard.writeText(text)))(prompt).then(()=>{status.textContent='Question instructions copied.';}).catch(()=>{status.textContent='Could not copy. The saved question remains in this Study.';});});handoff.append(copy);card.append(handoff);
       }
       if(existing){existing.replaceChildren(...card.children);existing.dataset.signature=rowSignature;}else log.append(card);
     }
-    if(follow)log.scrollTop=log.scrollHeight;
+    // A long reply opens at its question/author, not halfway through its closing paragraph.
+    if(follow)log.scrollTop=(log.lastElementChild as HTMLElement|null)?.offsetTop??0;
   }
   async function refresh(){
     if(reading||!options.current())return;reading=true;
@@ -76,7 +87,7 @@ export function studyConversation(initial:Effort, options:{
       const recipientSignature=JSON.stringify(value.recipients);
       if(select.dataset.options!==recipientSignature){const placeholder=node('option','','Choose an agent');placeholder.value='';select.replaceChildren(placeholder);for(const recipient of value.recipients){const option=node('option','',recipient.label);option.value=recipient.actor;select.append(option);}select.value=value.recipients.some(r=>r.actor===chosen)?chosen:'';select.dataset.options=recipientSignature;}
       basis=value.basis;loaded=true;render(value.questions);
-      if(!sending)status.textContent=sendError||(value.recipients.length?'Replies stay here. Your agent must pick up the saved question.':'No connected contributor has access to this Project. Manage access in Settings → Connected agents.');
+      if(!sending)status.textContent=sendError||(value.recipients.length?'Questions use this Study’s saved context.':'No connected contributor has access to this Project. Manage access in Settings → Connected agents.');
     }catch(error){if(options.current())status.textContent=error instanceof Error?error.message:String(error);}
     finally{reading=false;ready();}
   }
@@ -89,7 +100,7 @@ export function studyConversation(initial:Effort, options:{
   });
   async function responseAfterSave(captured:NonNullable<typeof retry>){
     try{await response(await fetcher(url(study),{method:'POST',headers,body:JSON.stringify(captured.body)}));
-      if(!options.current())return;compose.set('');delete root.dataset.draft;retry=null;status.textContent='Question saved. Waiting for your agent.';
+      if(!options.current())return;compose.set('');delete root.dataset.draft;retry=null;status.textContent='Question saved. Copy its handoff to your agent.';
     }catch(error){if(options.current()){sendError=`${error instanceof Error?error.message:String(error)} Retry keeps the same question identity.`;status.textContent=sendError;}}
     finally{sending=false;delete root.dataset.pending;ready();void refresh();}
   }

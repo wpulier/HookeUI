@@ -451,3 +451,5 @@ run by the caller's request identity, so the same request from any of them is th
 own (scoped to its Study and actor; its retry is the same run). Not shared yet: a workflow saved in the studio or by the
 Assistant is not listed or runnable from the door, which reaches only the workflows created or duplicated through the
 door for that Project (`door/projects.py` `require_workflow`; duplicating needs that association too).
+
+Study listings expose `createdAt` from revision 1 and `updatedAt` from the current retained revision. These are saved-document timestamps, not inferred execution start/end times. Legacy missing initiators remain unknown. Reads never add a revision or start work.

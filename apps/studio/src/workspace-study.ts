@@ -1,3 +1,4 @@
+import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
 import {configureDataTableDocuments} from './datatable-presentation';
@@ -441,7 +442,9 @@ const researcherBrowser=el('section','study-researcher-browser');
 // Researchers list (researchers-board.ts), after its researchers.
 /** This Project's studies as last read (All Tabs ⌄ and the Researchers list); null when this build has none. */
 let knownStudies:Effort[]=[];
+let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  openResearcher: id => openResearcher(id),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
@@ -451,11 +454,16 @@ let studyReadGeneration = 0;
 async function refreshStudies():Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
   const current = () => snapshot.session === session && generation === studyReadGeneration;
-  if(!session){studiesAvailable=false;knownStudies=[];renderBoard();return;}
+  if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
   try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
   studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
+  renderBoard();
+  const activity=await readProjectActivity(knownStudies);
+  if(!current())return;
+  projectActivity=activity;
+  knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
   renderBoard();
 }
 /** A Study's lit cell: needs you (an experiment to review or check), Stop requested, working, or quiet. */
@@ -498,7 +506,7 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
-  projectResearchHome.update(snapshot.session, knownStudies, studiesNote);
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers());
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
