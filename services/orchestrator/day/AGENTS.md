@@ -37,8 +37,8 @@ establish ownership across a Project switch.
     or transaction refusal propagates, never becomes memory-only success. An interrupted owner import reports retryable
     unavailability, never an empty catalogue; startup recovers its transaction before SessionStore resumes.
   - **Starting:** a new session starts only when the user asks: + New session in the session title's menu, or
-    by voice or chat (`new_session`, only when they ask for a session in so many words; "new topic" is a
-    conversation). Midnight does nothing.
+    by voice or chat (`new_project`, when they ask for a new project or session; `new_session` is its earlier name,
+    kept; "new topic" is a conversation, and a new Tab is an arrangement inside this Project). Midnight does nothing.
   - **The suggestion** (`day/subject.py` `_maybe_suggest`): the app may suggest a new session and never starts one.
     It suggests one when three things hold together:
     - the running look has confirmed a different specimen (two looks);

@@ -9,6 +9,7 @@ import uuid
 
 from .brain.registry import ToolFailed
 from .brain.toolbox.resources import require_current
+from .workspace_observation import front
 
 
 _PIN_FIELDS = ("id", "rootId", "kind", "lifetimeGeneration", "sourceGeneration")
@@ -90,6 +91,12 @@ class WorkspaceTabs:
             current()
             if not reply.get('ok'):
                 raise ToolFailed(str(reply.get('error') or 'the Tab action was not confirmed'), next='check the workspace before retrying')
+            if action == 'list':
+                # What is in front, as the studio's latest report shows it (workspace_observation.front): the Tab and its
+                # title, the window highest on it, and whether the studio itself is in view. Observed, never inferred.
+                observed = screen.observation(ctx.client)
+                if observed is not None:
+                    reply = {**reply, 'front': front(observed.wire())}
             return reply
         except TimeoutError:
             raise ToolFailed('the original Studio did not confirm the Tab action', next='inspect its saved Tabs before retrying') from None

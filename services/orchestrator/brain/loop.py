@@ -33,7 +33,7 @@ from .dispatch import PLANNER_OUTPUT_TOKENS, Refused as CallRefused, answer_phas
 
 MAX_TARGETS = 15
 # Tools that take the user to another conversation or session: the request and its answer are filed where they end up.
-MOVES = ("switch_thread", "switch_session", "new_session")
+MOVES = ("switch_thread", "switch_session", "new_project", "new_session")
 PLANNER_TIMEOUT_S = 15.0  # bounded room for complete plans; entered cancellations stay spent
 # Why this task's last quick decision did not come, when the network refused it (a ContextVar: concurrent requests
 # never read each other's). The no-picture path says it instead of "did not answer".

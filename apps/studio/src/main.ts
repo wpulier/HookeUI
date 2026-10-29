@@ -6,6 +6,7 @@ import {documentSurfaces} from './workspace-document-surfaces';
 import { bridgeAddress } from './bridge-address';
 import { artifactPresentation, openStudyCapture, openStudyComparison, openStudyMasks, openStudyTable, openStudyText } from './workspace-study-content';
 import { studyArtifacts } from './workspace-study-artifacts';
+import { openTableWindow } from './agent-table';
 import { openStudyScientific } from './scientific-document';
 import { SetupNote } from './setup-note';
 import { SetupProgress } from './setup-progress';
@@ -1412,6 +1413,13 @@ function handleMessage(message: ServerMessage): void {
       void (detail.result??Promise.resolve({ok:false,error:'The Project workspace is not open.'})).then(result=>{
         connection.send({type:'workspace-tabs-result',id:message.id,session:message.session,workspacePin:message.workspacePin,result});
       });
+      break;
+    }
+    case 'table-window': { // the Assistant's measurements table, in the window Open in Measurements opens (agent-table.ts)
+      const result = openTableWindow(message, { current: () => reporter.matchesStructuralPin(message.workspacePin) });
+      connection.send({ type: 'table-window-result', id: message.id, session: message.session, workspacePin: message.workspacePin, result });
+      reporter.askNow(); // done is the report showing it there (table_window.py)
+      if (document.hidden) reportWorkspace(performance.now());
       break;
     }
     case 'reader': // the Assistant opens (or closes) a Data item in the reader on this Tab (ticket 66, D6; data_reader.py)
@@ -3022,8 +3030,10 @@ function studioSurfaces(): StudioSurfaceCollection {
   const tabSurfaces:StudioSurfaceCollection['surfaces']=tabStrip?[{id:'workspace-tabs',root:tabStrip,read:()=>{
     const project=document.body.dataset.workspaceProject,tab=document.body.dataset.activeWorkspaceView;
     const open=!!project&&!!tab&&!document.body.dataset.workspaceOpening,rect=rectOf(tabStrip.getBoundingClientRect());
+    // The Tab in front by its title as its button shows it (workspace-views.ts workTab), so "in Tab Measurements" is said.
+    const tabTitle=tab?document.getElementById(`work-tab-${tab}`)?.querySelector('.workspace-tab-label')?.textContent?.trim().slice(0,80):undefined;
     return {kind:'panel',open,visible:surfaceVisible(tabStrip,open,true,rect),rect,z:null,space:'workspace',
-      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab}}:{})},
+      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{})}}:{})},
       contentKey:tabStrip.dataset.opening??null,controls:[]};
   }}]:[];
   return { surfaces: [...tabSurfaces,...documentSurfaces(),...current.map((item) => {

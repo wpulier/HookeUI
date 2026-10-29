@@ -44,6 +44,39 @@ other files.
   - **Emphasising:** "keep the five largest and fade the rest" emphasises a selection.
   - **A verb a kind does not take fails with the reason and what it takes.** The live view is only dimmed, never hidden.
   - **`set_style` stays** the outlines' own colour and style.
+- **One surface per thing: the measurements table** (Part 2.5; `orchestrator/table_window.py`,
+  `apps/studio/src/agent-table.ts`). `show_measurements` opens the table in the window a person's Open in Measurements
+  opens (`openStudyTable`), never a `#measurements` page (voice log 2026-10-28: that page's `page-opened` answer was
+  taken as shown while the Tab held no table, and the Assistant said the table was up when it was not). The studio is
+  sent `table-window` (the table's exact day, id and revision, the Tab, the Tab strip's pin), opens it with that code on
+  that Tab and answers with the window's placement (`table-window-result`). It is done only once the report shows that
+  window (`document:<placement>`, representation `table`) in that Project and Tab with that revision, its rows drawn
+  (`state` rendered), shown, its Tab in front, and no window covering half of it or more.
+  - **One action with a Tab named** ("put the table in a new tab called Measurements"): `tab` finds the Tab by its id or
+    title, or makes it, and puts it in front through the tabs broker (`workspace_tabs.py`, the person's own Tab
+    gestures); the window is then fitted to the Tab with its own Expand. It is never a `tabs create` the model has to
+    follow with the table (the log's empty Measurements Tab, said to hold it).
+  - **Separate facts:** every answer ends with saved (in Data as its id, at its revision), computed (its rows),
+    displayed, in front and accepted (not asked): one is never said for another.
+  - **A slow report:** the tool waits past its inline wait (`TABLE_WAIT_S` of the studio's time in view), so the answer
+    says it is being done and the outcome is said when it comes, as any late step.
+  - **A studio in the background:** waited for as present's changes are ("waiting for the studio to be in view"; only
+    its time in view counts, at most `BACKGROUND_WAIT_S`), then "placed ... not shown yet: the studio was not in view
+    when it last reported", said only because the report observed it, and never a failure.
+  - **Not shown in time, or refused:** said with what the report showed (the Tab open without it, its rows still
+    loading, behind the window named) and where the table is saved ("saved in Data as e3, where its row's Open in
+    Measurements opens it"); never done, never "reopen". Rows that could not be read there are a failure.
+  - A studio without the Project workspace (no Tab strip: an older studio, a test's fixture) is shown the Measurements
+    page as before, and a Tab named there is refused. A capability's table output (`kinds.py`) opens the same way.
+- **What is in front** (`workspace_observation.front`): the Tab strip reports the Tab in front with its title
+  (`workspace.tabTitle`); in front is that Tab, the highest open window on it, and whether the studio was in view and
+  focused when it reported, each unknown when unreported and never inferred for another Project or Tab. `tabs list`
+  returns it as `front`; the voice's window lines start `Tab "<title>" of this Project` (", the studio not in view" when
+  observed) and mark the front window ", in front", and its Window detail has a `Workspace front` line.
+- **A failure on the report path says what did not happen** (`screen.REPORT_NEXT`): not confirmed on screen yet, saved
+  work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
+  open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen
+  that did not happen says no picture was taken and that this says nothing about what the user sees.
 - **Done means the screen shows it** (ADR 0006 extended to the screen). A change is sent with an id. It is
   done only once a report says it was applied and shows it; otherwise it failed, and that is said. Live 2026-10-11,
   10 of the user's own window changes were refused in under 35 ms; their causes:

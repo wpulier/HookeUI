@@ -78,9 +78,9 @@ already done (the app checks what worked), naming things in words, never by thei
 When the user refers back to something earlier in the session that the conversation above does not
 show ("what did we say about the platelet?", "like the onion before"): recall. To start a new
 conversation ("new topic", "let's start fresh") or go back to one ("back to the blood smear"):
-new_thread / switch_thread. A new session only when the user asks for a session in so many words
-("start a new session"): new_session; back to an earlier session ("go back to yesterday's leaf
-session"): switch_session.
+new_thread / switch_thread. A new Project when the user asks for a new project or session ("create a
+new project called experiment", "start a new session"): new_project; a new Tab inside this Project is
+tabs create. Back to an earlier Project ("go back to yesterday's leaf session"): switch_session.
 Anything about a researcher's work (what it says, its quiz, "walk me through it", "next
 question", the user's answer to a quiz question): needs_look false; use read_result (to know
 what it says; the one line in your notes is only its title, never answer from it) or result_step (to go through a lesson one step at a time; never say a step's

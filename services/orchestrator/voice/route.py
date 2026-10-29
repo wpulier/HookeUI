@@ -93,7 +93,7 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
                 client = workspace_transport.voice_client(binding['connectionGrant'])
             except Exception:
                 await websocket.send_json({'type': 'voice', 'kind': 'error', 'data': {
-                    'message': 'This voice connection has no active workspace. Reconnect to the studio, then start Talk again.'}})
+                    'message': 'Talk could not join this Project’s window yet. Wait for the Project to finish opening, then press Talk again.'}})
                 await websocket.close(code=1008)
                 return
         spoken_requests = (SpokenRequests(brain, dialogue, client=client) if client is not None

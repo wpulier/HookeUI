@@ -396,9 +396,17 @@ a model never supplies the workspace UUID as authority. Legacy explicit-session 
 only when they match that same captured owner. This changes no native admission, publication or
 cross-Project guard, and does not turn a view attachment into an implicit measurement request.
 
-`show_measurements` reads the captured Project/revision through the shared asynchronous `read_table` path before
-opening its pinned Measurements URL. Statistics and lazy scientific imports stay in that worker path. A changed
-request or Project refuses; success still requires the originating Studio’s visible confirmation.
+`show_measurements` reads the captured Project/revision through the shared asynchronous `read_table` path, then opens
+that exact table in the window the user's Open in Measurements opens, on the Tab in front or on the Tab `tab` names
+(made when none has that title, brought forward, fitted): one action, done only when the originating Studio's screen
+report shows the window there, in front, its rows drawn (`table_window.py`; docs/architecture/on-screen.md "One surface
+per thing"). Its answer keeps saved, computed, displayed, in front and accepted apart, and one that is not shown says
+where the table is saved. Statistics and lazy scientific imports stay in that worker path. A changed request or
+Project refuses. A studio without the Project workspace is shown the Measurements page as before.
+
+A Project is started by `new_project` ("create a new project called experiment", "start a new session"); `new_session`
+is its earlier name, kept with its words so saved workflows and tool ids run. A Tab is an arrangement inside this
+Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`).
 
 `make_table`, `edit_table`, `analyze` and `make_graph` use the ordinary DataTables and TableDerivatives services.
 The original Asked Project, generation and conversation own writes; request cancellation is checked at the shared
