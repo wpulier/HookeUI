@@ -304,6 +304,58 @@ other files.
   from `movement.py`, below or above a value the model sets, two checks in a row), by something
   new appearing in a still view (`quality.StillChange`), or by a yes/no question the vision
   model answers every 15 s. At most 3 at once, 15 minutes at most; running out of time is said.
+- **The watcher** (`orchestrator/view_watch.py`, option WATCH; the live partner's item 4): what happens in the view,
+  noticed without being asked. No live model speaks up from video on its own (OpenAI's nor Gemini's), so this is
+  Hooke's own, as ADK's streaming tool `monitor_video_stream` yields only when what it measures changes.
+  - **On the camera path, newest frame only:** a listener on every published frame (`Hub.on_frame`, after the coach's)
+    that reads the numbers the hub already measured (offset, epoch, steady, the disc, sharpness stats): nothing
+    decoded, copied, queued or awaited, a late frame simply the newest. The counted population is read once a second,
+    after the frame's publish (`call_soon`), from the layer's own member checks. Its cost on the frame path: p50 8 µs,
+    p99 37 µs a frame over a synthetic hour (`bench/watch_bench.py`; one frame of 108,000 took 2.3 ms), against a
+    33 ms frame; the population's reading 0.1 ms for 500 members, once a second.
+  - **Events, on the settled view only,** each a measured change, never a name or a verdict:
+    - **slide-moved:** the view settled (Sight's `SETTLE_S`) more than Sight's `MOVED_FRACTION` of the eyepiece's
+      radius from where it last rested (still for `REST_S`, 3 s: a later nudge is measured from there; shorter stops in
+      one repositioning add up), or after continuity was lost once the tracker had `CUT_SETTLE_S` (1.2 s) to rejoin; a
+      rejoin while standing still (an epoch going back to an old number) is the same place, not a move, and so is a
+      cut whose picture still matches the field's last still one (the hub's 64 px thumbnail, at least the re-find
+      score 0.8, `watch-skip` logged: a starved feed lost continuity on a still picture in the voice bench).
+      Facts: how far (fields of view, px, µm with a scale) and which way the picture moved.
+    - **focus-drifted:** on a field with texture (`quality.MIN_PEAK`), the sharpness over the contrast squared (a
+      change of light is not one of focus) stayed under 60% of the sharpest this field looked since it settled for 3 s,
+      while nobody turned the knob (the coach's sweep); after a turn of the knob the field's sharpest starts again (the
+      user chose that focus), and the eyepiece disc changing size is said as the phone's lens.
+    - **population-changed:** on a still, sharp view, members of the population shown (the counted cells) inside the
+      eyepiece that were in place and are no longer where they were counted (their own pixels checked and not there),
+      at least 3 and 15% of those in place, on 3 readings in a row; with the counts, any back in place and the median
+      area in place before and now. A move of the slide or a blur is a new baseline, never a change; a cell that
+      appeared is not counted until the cells are found again.
+    - **cell-divided:** an interface (`ViewWatch.divided`) with no detector: following keeps one outline per thing and
+      linking keeps links one to one, so `status()` says "not available".
+  - **Each event carries** `eventT` (the frame at which it was established), `sinceT` (when its condition began), the
+    frame and what the voice can point at (`frame` with a region of its camera picture, `population:<id>`,
+    `member:<population>:<member>`, `outline:<id>`), drawn as it is said.
+  - **One delivery rule per kind** (`view_watch.DELIVERY`, by WATCH; "quiet" the default):
+
+    | Event | quiet | chatty |
+    | --- | --- | --- |
+    | slide-moved | context | idle |
+    | focus-drifted | idle | idle |
+    | population-changed | idle | idle |
+    | cell-divided | interrupt | interrupt |
+
+    "context" is told to the voice silently; "idle" is one sentence when nobody is talking; "interrupt" stops the
+    voice's own words for it, never the user's. "Off" watches nothing. The user's quieter or "let me find things"
+    makes every rule context. A kind is told at most once in its gap (`GAP_S`: a slide move 10 s, focus 60 s,
+    counted cells 20 s). Only the one-brain voice gets them (`Partner.happened`); every event is logged
+    (`watch-event`, delivered or not).
+  - **Measured** (`docs/bench/voice-journeys.md`, "The watcher on footage"): on synthetic eyepiece footage through the
+    hub's own analysis, a pan, a cut and a defocus each raised one event (0.7 s, 1.9 s and 3.0 s after it happened),
+    a halved light and a turn of the knob none, and a steady hour none (0 false alarms in 60 minutes); on the real June 14
+    leaf recording (3m43s) the 6 real moves of the slide and no false alarm (one, a nudge after a long rest, before
+    `REST_S`). The journey
+    bench's watch lines (`plans/part-2.5-watch.json`, the broad journey): event to speech at most 2 s when nobody is
+    talking, and false alarms per hour.
 - Outcomes (`orchestrator/outcomes.py`, tool `outcomes`, K3): how each way of doing something has gone on this
   specimen, from the executions and only unambiguous signals (the user's corrections of their members, blind
   votes of the outline trials that compared them, won or lost only for a letter winner, ties and "none good" apart,
@@ -606,7 +658,9 @@ this voice has no hops to fall between.
   text's digest (never a prefix: the narrator's lines share a long preamble); a mark on the researcher's card is drawn
   as it is said, and a narrator line is the researcher's only when its own facts carry its `researchId`. A researcher's
   own words (its one-liner) are inside the untrusted wrapper. Waiting more than a minute, it stays in the conversation
-  unsaid.
+  unsaid. The watcher's events (above) come the same way with their own rule (`happened(delivery=)`): "context" is a
+  silent system item, "idle" this line, "interrupt" this line after stopping the voice's own speech when the user is
+  not talking; their marks (a region of the camera picture with its frame, or a population) are drawn as it is said.
 - **One conversation:** the user's words (`conversation.item.input_audio_transcription.completed`) and the voice's
   (`response.output_audio_transcript.delta`, one line per response) are filed with `SpokenRequests`' caption lines, as
   GPT-Live's are; they never reach its hands. Typed chat while talking (the brain's voice notes, which GPT-Live reads

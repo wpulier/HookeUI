@@ -652,7 +652,6 @@ def test_an_idle_wait_or_a_restart_is_nobody_talking():
     assert [round(a, 1) for a, _ in spans] == [10.0, 60.0]  # the idle wait and the restart are not the user talking
 
 
-
 def test_partner_quality_is_reported_on_the_overall_line_never_a_gate():
     """Will, 2026-10-29: the bar is a sharp, dynamic colleague (HeyClicky), not only timings. The judge's 0-3 per step
     is reported as its mean and the steps under 2; the standard is met or not on its own lines."""
@@ -675,7 +674,6 @@ def test_a_status_step_can_name_the_researcher_the_user_named():
     run, _, _ = board(bench, conv, inter, verdicts, plan)
     row = {r["id"]: r for r in run["steps"]}["status"]
     assert row["statusExpected"] == 1 and row["statusRight"] is False  # it said researcher 2
-
 
 
 def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
@@ -850,3 +848,73 @@ def test_a_takeover_step_is_scored_on_stopping():
     assert "no takeover reached the server" in row(inter)["failures"]
     taken = [{"kind": "partner-takeover", "t": T0 + 42.2, "why": "mouse", "version": 5, "atStudio": T0 + 42.1, "atServer": T0 + 42.18}]
     assert row(inter + taken)["takeover"] == [0.08] and not row(inter + taken)["failures"]
+
+
+# --- the watcher (orchestrator/view_watch.py) ------------------------------------------------------------------------
+WATCH_PLAN = {**PLAN, "steps": PLAN["steps"] + [{"id": "watch-pan", "expect": {"watch": ["slide-moved"]}},
+                                                {"id": "watch-steady", "expect": {"watch": []}}]}
+
+
+def watched(spoken_at=1.4, false_alarms=0, raised=True):
+    """good() with two idle watch steps after it: the slide moved (one event said) and ten steady minutes."""
+    bench, conv, inter, verdicts = good()
+    bench["steps"] += [{"id": "watch-pan", "kind": "idle", "say": "", "start": ms(100), "end": ms(125), "idle": True},
+                       {"id": "watch-steady", "kind": "idle", "say": "", "start": ms(130), "end": ms(730), "idle": True}]
+    if raised:
+        inter += [{"kind": "watch-event", "t": T0 + 110, "event": "slide-moved", "id": "v1", "eventT": T0 + 110.0,
+                   "sinceT": T0 + 109.4, "delivery": "idle", "to": "voice", "pointAt": ["frame"]},
+                  {"kind": "partner-proactive", "t": T0 + 110.1, "event": "slide-moved", "ref": "v1",
+                   "eventT": T0 + 110.05, "userBusy": False, "responseCreatedT": T0 + 110.1, "markTarget": "frame"}]
+        bench["events"] += audio(110 + spoken_at, 112.8)
+    for k in range(false_alarms):
+        inter.append({"kind": "watch-event", "t": T0 + 200 + k, "event": "focus-drifted", "id": f"f{k}",
+                      "eventT": T0 + 200.0 + 30 * k, "delivery": "context", "to": "voice"})
+    return bench, conv, inter, verdicts
+
+
+def test_the_watch_lines_pass_when_the_event_is_said_within_two_seconds_and_nothing_else_is_raised():
+    run, summary, lines = board(*watched(), plan=WATCH_PLAN)
+    assert result(lines, "Watch: an event said when idle") == "pass"
+    assert result(lines, "Watch: false alarms per hour") == "pass"
+    assert summary["watch"]["spokenMax"] == pytest.approx(1.4) and summary["watch"]["steadyMinutes"] == 10.0
+    assert summary["watch"]["falsePerHour"] == 0.0
+
+
+def test_a_watch_event_said_late_unsaid_or_missed_fails():
+    assert result(board(*watched(spoken_at=2.6), plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    bench, conv, inter, verdicts = watched()
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    assert result(board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    _, summary, lines = board(*watched(raised=False), plan=WATCH_PLAN)
+    assert summary["watch"]["missed"] == ["watch-pan: slide-moved"]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"
+
+
+def test_events_on_a_steady_stretch_are_false_alarms_per_hour():
+    _, summary, lines = board(*watched(false_alarms=2), plan=WATCH_PLAN)
+    assert summary["watch"]["falseAlarms"] == 2 and summary["watch"]["falsePerHour"] == pytest.approx(12.0)
+    assert result(lines, "Watch: false alarms per hour") == "FAIL"
+
+
+def test_a_plan_without_watch_steps_has_no_watch_lines_and_gpt_live_is_not_measured_on_saying_them():
+    lines = board(*good())[2]
+    assert not [name for name in lines if name.startswith("Watch:")]
+    bench, conv, inter, verdicts = watched()
+    bench["voice"] = "gpt-live-1"
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN, voice="gpt-live-1")[2]
+    assert result(lines, "Watch: an event said when idle") == "not applicable to this voice"
+    assert result(lines, "Watch: false alarms per hour") == "pass"  # the watcher is the app's, whichever voice
+
+
+def test_with_watch_quiet_a_slide_move_told_silently_is_no_said_line_but_a_missed_one_still_fails():
+    """part-2.5-broad runs with the default WATCH quiet: the slide's move is told silently (the judge asks what changed);
+    the said line appears only when something was to be said, or an expected event was never raised."""
+    bench, conv, inter, verdicts = watched()
+    for r in inter:
+        if r.get("kind") == "watch-event":
+            r["delivery"] = "context"
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2]
+    assert "Watch: an event said when idle" not in lines and result(lines, "Watch: false alarms per hour") == "pass"
+    lines = board(*watched(raised=False), plan=WATCH_PLAN)[2]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"

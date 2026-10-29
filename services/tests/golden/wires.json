@@ -412,6 +412,7 @@
   "vision": "gemini-3.8-flash",
   "voice": "gpt-live-1",
   "voicelink": "webrtc",
+  "watch": "quiet",
   "zeroshot": "off"
  },
  "slidemap": {

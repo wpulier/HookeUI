@@ -79,6 +79,23 @@ def noisy_loop(still: Path, folder: Path) -> Path:
     return out
 
 
+# The watcher's slide move (plans with camera.pan; orchestrator/view_watch.py): the still held for PAN_HOLD_S, panned
+# by PAN_PX of its 512 px over PAN_S (most of the view: the bridge fits it to the frame's height), then held again.
+PAN_HOLD_S, PAN_S, PAN_PX, PAN_CLIP_S = 14, 2, 192, 90
+
+
+def panning_clip(still: Path, folder: Path) -> Path:
+    """The still as a slide that is moved once and left (the watcher's "slide-moved"), with the noisy loop's
+    sensor-like noise; held long enough after the move that a watch step never reaches its loop. Made once per stack."""
+    out = folder / f"{still.stem}-pan.mp4"
+    if not out.exists():
+        x = f"min({PAN_PX}\\,max(0\\,(t-{PAN_HOLD_S})*{PAN_PX / PAN_S:g}))"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25", "-i", str(still),
+                        "-t", str(PAN_CLIP_S), "-vf", f"crop=320:320:{x}:96,scale=512:512,noise=alls=3:allf=t+u,"
+                        "format=yuv420p", "-c:v", "libx264", "-crf", "23", "-r", "25", str(out)], check=True)
+    return out
+
+
 def healthy(url: str, seconds: float) -> bool:
     end = time.monotonic() + seconds
     while time.monotonic() < end:
@@ -92,9 +109,10 @@ def healthy(url: str, seconds: float) -> bool:
     return False
 
 
-def settings_for(args: argparse.Namespace) -> str:
-    """This arm's settings: --settings JSON, with --voice and --talk on top."""
-    settings = json.loads(args.settings) if args.settings else {}
+def settings_for(args: argparse.Namespace, plan: dict | None = None) -> str:
+    """This arm's settings: the plan's own (part-2.5-watch: {"watch": "chatty"}), then --settings JSON, with --voice and
+    --talk on top."""
+    settings = {**((plan or {}).get("settings") or {}), **(json.loads(args.settings) if args.settings else {})}
     if args.voice:
         settings["voice"] = args.voice
     if args.talk:
@@ -141,6 +159,8 @@ def up(args: argparse.Namespace) -> dict:
     if camera.get("still"):  # a still image as the camera (the bundled example), with sensor-like noise: no store needed
         footage = out / "footage"
         first = noisy_loop(checkout / camera["still"], footage)
+        if camera.get("pan"):
+            panning_clip(checkout / camera["still"], footage)
     else:
         first, footage = ASSETS / "footage" / plan["steps"][0]["footage"], ASSETS / "footage"
     bridge = subprocess.Popen(
@@ -155,7 +175,7 @@ def up(args: argparse.Namespace) -> dict:
     env = {"MICROMIND_EDITION": "research", "MICROMIND_HOME": str(out / "home"),
            "MICROMIND_RECORDINGS_DIR": str(out / "recordings"), "MICROMIND_DATASETS_DIR": str(out / "datasets"),
            "MICROMIND_KEYS_FILE": str(Path(args.keys)), "MICROMIND_KEYCHAIN": "off", "CAMERA_NO_PHONE": "1"}
-    settings = settings_for(args)
+    settings = settings_for(args, plan)
     if settings:
         env["MICROMIND_SETTINGS"] = settings  # this arm's settings (app.py), e.g. {"voice": "gpt-realtime-2.1"}
     if args.faults:
