@@ -1,6 +1,7 @@
 /** Project orientation from retained Studies and observed original executions. */
 import type {ResearchSession} from './protocol';
 import {isWorking} from './research-state';
+import {todaysResearch} from './shelf';
 import {studyName, studyState, type Effort} from './research-efforts';
 import {contributors, actorOrigin, history, researchDate, studyActivity, type ActivitySnapshot} from './project-research-history';
 const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{
@@ -18,7 +19,7 @@ export class ProjectResearchHome {
   }
   update(session:string,studies:readonly Effort[],error='',activity:Record<string,ActivitySnapshot>={},researchers:readonly ResearchSession[]=[]):void{
     const owned=studies.filter(s=>s.session===session);
-    const local=researchers.filter(r=>r.day===session&&r.purpose==='research');
+    const local=todaysResearch(researchers,session);
     const signature=JSON.stringify([session,owned,error,activity,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
     const disclosures=new Map(Array.from(this.root.querySelectorAll('details')).map(d=>[d.dataset.disclosure,d.open]));
     const focus=(document.activeElement as HTMLElement|null)?.dataset.researchFocus;
@@ -60,18 +61,21 @@ export class ProjectResearchHome {
     }
     for(const s of owned){
       const open=()=>this.actions.openStudy(s.id),key=`study:${s.id}`;
-      const observed=studyActivity(s,error?{operations:activity[s.id]?.operations??[],error}:activity[s.id]);
+      const receipt=error?{operations:activity[s.id]?.operations??[],error}:activity[s.id];
+      const observed=studyActivity(s,receipt);
       const card=node('article','','project-research-summary'),heading=node('div','','project-research-heading');
       heading.append(node('span','Study · research effort','project-research-eyebrow'));
       const lifecycle=node('span',s.status==='active'?'Open for research':studyState(s),'project-research-state');lifecycle.title='Study lifecycle, separate from current execution.';heading.append(lifecycle);
-      card.append(heading,node('h3',studyName(s)));
+      const titlebar=node('div','','project-research-titlebar');
+      titlebar.append(node('h3',studyName(s)),action('Open Study',key+':open',open,'mm-primary'));
+      card.append(heading,titlebar);
       const origin=s.createdBy?`${s.createdBy.byLabel} · ${actorOrigin(s.createdBy.by)}`:'Initiator not recorded';
       card.append(node('p',`Created ${researchDate(s.createdAt)} · ${origin}`,'project-research-origin'));
       const question=details('Question & success criteria',key+':question','project-research-question');
       question.append(node('p',s.objective));if(s.criteria)question.append(node('p',s.criteria,'project-research-criteria'));card.append(question);
       const now=node('div','','project-research-now');now.dataset.activity=observed.unavailable?'unknown':observed.counts.running?'running':'idle';
       now.append(node('span','Now','project-research-eyebrow'),node('strong',observed.title));
-      const parts=[observed.counts.finished?`${observed.counts.finished} finished`:'',observed.counts.failed?`${observed.counts.failed} failed attempts retained`:'',observed.pending?`${observed.pending} unanswered questions`:''].filter(Boolean);
+      const parts=[observed.counts.finished?`${observed.counts.finished} finished`:'',observed.counts.failed?`${observed.counts.failed} failed experiments retained`:'',observed.pending?`${observed.pending} unanswered questions`:''].filter(Boolean);
       now.append(node('p',observed.unavailable?'Open the Study to inspect original executions.':parts.join(' · ')||'Ready for the next experiment.','project-research-caption'));card.append(now);
       const latest=[...(s.claims??[])].sort((a,b)=>(a.at??0)-(b.at??0)).at(-1);
       if(latest){const report=details('',key+':report:'+latest.request,'project-research-report');const summary=report.querySelector('summary')!;
@@ -81,12 +85,12 @@ export class ProjectResearchHome {
         report.append(node('p','Researcher report · not an accepted finding','project-research-caption'));card.append(report);
       }else card.append(node('p','Reports will appear here as the work develops.','project-research-empty'));
       const timeline=details('Research history',key+':history','project-research-history');
-      const events=history(s,activity[s.id]);const list=node('ol');
+      const events=history(s,receipt);const list=node('ol');
       for(const event of events){const row=node('li');row.append(node('time',researchDate(event.at)),node('strong',event.title),node('span',`${event.actor} · ${event.detail}`));
-        if(event.run)row.append(action('Inspect experiment',key+':event:'+event.id,open));list.append(row);}
+        if(event.run)row.append(action('View in Study',key+':event:'+event.id,open));list.append(row);}
       timeline.append(list);if(!events.length)timeline.append(node('p','No dated history recorded yet.'));
       const footer=node('div','','project-research-study-footer');
-      footer.append(node('span',`${s.inputs.length} inputs · ${s.claims?.length??0} reports`,'project-research-caption'),action('Open Study',key+':open',open,'mm-primary'));
+      footer.append(node('span',`${s.inputs.length} inputs · ${s.claims?.length??0} reports`,'project-research-caption'));
       card.append(timeline,footer);this.root.append(card);
     }
     const choices=node('div','','project-research-actions');choices.append(action('Project data','data',this.actions.data),action('Add material','inputs',this.actions.inputs));this.root.append(choices);

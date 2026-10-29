@@ -4,7 +4,7 @@ export type ResearchOperation = {
   id:string; project:string; by?:string; byLabel:string; at?:number; state:string;
   workflow?:{id:string;session:string;status:string;definition?:{name:string};executionObservation?:{state:string;reason:string}};
 };
-export type ActivitySnapshot = {operations:ResearchOperation[]; error?:string};
+export type ActivitySnapshot = {operations:ResearchOperation[]; study?:Effort; error?:string};
 export type Contributor = {id:string; label:string; origin:string; experiments:number; reports:number; replies:number};
 export type HistoryEvent = {id:string; at?:number; title:string; detail:string; actor:string; study:string; run?:string};
 export function actorOrigin(id:string):string {
@@ -56,7 +56,8 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
     else if(['review','waiting','planned'].includes(phase))counts.waiting++;
     else if(phase==='unknown')counts.check++;
     else if(phase==='failed')counts.failed++;
-    else counts.finished++;
+    else if(['finished','completed','cancelled'].includes(phase))counts.finished++;
+    else counts.check++;
   }
   const missing=ids.size-operations.length;
   const pending=(study.questions??[]).filter(q=>!q.answer).length;
@@ -70,7 +71,7 @@ export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
   const out:HistoryEvent[]=[];
   const add=(e:Omit<HistoryEvent,'study'>)=>out.push({...e,study:study.id});
   if(study.createdAt)add({id:'created',at:study.createdAt,title:'Research effort created',detail:study.title||study.objective,actor:study.createdBy?.byLabel||'Initiator not recorded'});
-  for(const op of studyActivity(study,snapshot).operations)add({id:op.id,at:op.at,title:op.workflow?.definition?.name||'Workflow experiment',detail:`Admitted then · ${snapshot?.error?'last recorded state': 'current state'}: ${op.workflow?.status||op.state}`,actor:op.byLabel,run:op.workflow?.id});
+  for(const op of studyActivity(study,snapshot).operations)add({id:op.id,at:op.at,title:op.workflow?.definition?.name||'Workflow experiment',detail:`Admitted then · ${snapshot?.error?'last recorded state': 'current state'}: ${operationPhase(op)==='check'?'needs checking':operationPhase(op)}${op.workflow?.executionObservation?.reason?` — ${op.workflow.executionObservation.reason}`:''}`,actor:op.byLabel,run:op.workflow?.id});
   for(const c of study.claims??[])add({id:c.request,at:c.at,title:c.statement,detail:'Researcher report · not an accepted finding',actor:c.byLabel});
   for(const c of study.claimChanges??[])add({id:`challenge:${c.claim}:${c.at}`,at:c.at,title:c.reason,detail:'Report challenged',actor:c.byLabel});
   for(const q of study.questions??[]){
@@ -83,15 +84,15 @@ export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
 export async function readProjectActivity(studies:readonly Effort[],fetcher:typeof fetch=fetch):Promise<Record<string,ActivitySnapshot>>{
   const result:Record<string,ActivitySnapshot>={};let index=0;
   const next=async()=>{while(index<studies.length){const s=studies[index++];
-    if(!Object.keys(s.experiments??{}).length){result[s.id]={operations:[]};continue;}
+    if(!Object.keys(s.experiments??{}).length&&!Object.keys(s.tasks??{}).length){result[s.id]={operations:[]};continue;}
     try{const r=await fetcher(`/api/research-efforts/${encodeURIComponent(s.id)}/workflows?session=${encodeURIComponent(s.session)}`,{cache:'no-store'});
       if(!r.ok)throw new Error('Original execution receipts could not be refreshed.');
       const body=await r.json();if(body.ok!==true||!Array.isArray(body.operations)||body.study?.id!==s.id||body.study?.session!==s.session)throw new Error('Execution receipts did not match this Study.');
-      result[s.id]={operations:body.operations};
+      result[s.id]={operations:body.operations,study:body.study};
     }catch(error){result[s.id]={operations:[],error:error instanceof Error?error.message:String(error)};}
   }};
   await Promise.all(Array.from({length:Math.min(3,studies.length)},()=>next()));return result;
 }
 export function researchDate(at?:number):string {
-  return typeof at==='number'&&Number.isFinite(at)&&at>0?new Date(at*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'Time not recorded';
+  return typeof at==='number'&&Number.isFinite(at)&&at>0?new Date(at*1000).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}):'Time not recorded';
 }

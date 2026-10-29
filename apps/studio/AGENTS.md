@@ -1913,11 +1913,7 @@ Retained matrix summaries use label/value rows with bounded column widths. Large
 objects and text expand into a scrollable exact metadata view on demand; opening a result
 never reruns computation. Download and exact input/revision links remain available.
 
-The retained Project overview presents each Study's saved title and status, expandable question/criteria,
-separate input/experiment/report/finding counts, and the latest appended attributed researcher report.
-Reports are not accepted findings; full statements and limitations remain expandable. Contributor labels
-describe prior authorship, not live presence. Stats navigate to existing Project Data or the retained Study
-tab, never start work. Project-opening guards and unchanged-refresh focus preservation remain in force.
+
 
 Study Ask and the main Assistant consult the same selected-model readiness and pending-request state before
 sending. A missing model, disconnected workspace or pending answer keeps the question in place without creating a

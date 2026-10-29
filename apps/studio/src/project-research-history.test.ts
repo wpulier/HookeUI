@@ -37,3 +37,21 @@ test('activity reader refuses mismatched evidence and keeps individual failures 
  expect(result.s.error).toContain('did not match');expect(result.second.error).toBe('Offline');
  expect(fetcher).toHaveBeenCalledTimes(2);
 });
+
+test('local-only Studies reconcile original researcher receipts and return refreshed Study state',async()=>{
+ const s=study();s.experiments={};s.tasks={local:{status:'running',reservedMicrousd:0,chargedMicrousd:null,execution:{provider:'local-researcher',id:'r1'}}};
+ const completed={...s,tasks:{local:{...s.tasks.local,status:'completed'}}};
+ const fetcher=vi.fn().mockResolvedValue({ok:true,json:async()=>({ok:true,study:completed,operations:[]})});
+ const result=await readProjectActivity([s],fetcher);expect(fetcher).toHaveBeenCalledOnce();
+ expect(result.s.study?.tasks.local.status).toBe('completed');
+ expect(studyActivity(result.s.study!,result.s).title).toBe('No experiments running');
+});
+
+test('history qualifies interrupted, unstarted and stale receipts instead of repeating stored running',()=>{
+ const r=op();r.state='running';r.workflow!.status='running';
+ r.workflow!.executionObservation={state:'interrupted',reason:'Worker stopped'};
+ expect(history(study(),{operations:[r]})[0].detail).toContain('needs checking — Worker stopped');
+ expect(history(study(),{operations:[r],error:'Offline'})[0].detail).toContain('last recorded state');
+ r.workflow!.executionObservation={state:'unstarted',reason:'Not dispatched'};
+ expect(history(study(),{operations:[r]})[0].detail).toContain('waiting — Not dispatched');
+});

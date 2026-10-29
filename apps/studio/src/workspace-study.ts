@@ -462,7 +462,9 @@ async function refreshStudies():Promise<void>{
   renderBoard();
   const activity=await readProjectActivity(knownStudies);
   if(!current())return;
-  projectActivity=activity;renderBoard();
+  projectActivity=activity;
+  knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
+  renderBoard();
 }
 /** A Study's lit cell: needs you (an experiment to review or check), Stop requested, working, or quiet. */
 function studyCell(study:Effort):{cell:LitCellState;label:string}{

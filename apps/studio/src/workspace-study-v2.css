@@ -422,3 +422,8 @@ body[data-workspace-study='true'] .study-retained-conversation .study-ask-status
   .project-research-intro { display: grid; }
   .project-research-summary h3 { font-size: 21px; }
 }
+
+.project-research-titlebar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.project-research-titlebar h3 { margin: 0; }
+.project-research-titlebar .mm-primary { flex-shrink: 0; }
+@media (max-width: 720px) { .project-research-titlebar { align-items: flex-start; flex-direction: column; gap: 12px; } }

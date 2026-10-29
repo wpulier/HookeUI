@@ -79,3 +79,20 @@ test('same-Project updates preserve disclosures, but a new report or Project sta
   home.update('p2',[study('p2')]);
   expect(details().some(item => item.open)).toBe(false);
 });
+
+test('Main includes only this Projects researchers and preserves their identities across same-day Projects',()=>{
+ const {home,root}=setup();
+ const researchers=[
+  {rid:'r1',day:'shared-day',sitting:'p1',purpose:'research',name:'Here',brief:'Our question',status:'done',engine:'test',created:10},
+  {rid:'r2',day:'p1',sitting:'p2',purpose:'research',name:'Elsewhere',brief:'Other question',status:'running',engine:'test',created:20},
+ ] as import('./protocol').ResearchSession[];
+ home.update('p1',[study()],'',{},researchers);
+ expect(root.textContent).toContain('Here');expect(root.textContent).not.toContain('Elsewhere');
+ expect(root.textContent).toContain('0 Hooke researchers working');expect(root.textContent).toContain('3Agents contributed');
+});
+test('Main aggregates all owned Studies without counting another Projects effort',()=>{
+ const {home,root}=setup();const a=study(),b=study();b.id='s2';b.title='Second question';
+ home.update('p1',[a,b,study('other')]);
+ expect(root.textContent).toContain('2Studies');expect(root.textContent).toContain('2Agents contributed');
+ expect(root.textContent).toContain('2Experiments');expect(root.textContent).toContain('Second question');
+});
