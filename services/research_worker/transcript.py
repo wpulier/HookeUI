@@ -1,8 +1,8 @@
 """A run's conversation with its model, kept round by round (the demo of 2026-10-11: Researcher 3 never called `run`,
 and why could not be read, since nothing kept what the model was offered and said).
 
-One line per round in the file the app names (spec "transcript": logs/transcripts/<day>/<rid>.jsonl, a performance
-log, docs/saves.md; none in tests): what that round's request added (the brief and pictures at first, then the tool
+One line per round in the file the app names (spec "transcript": research/transcripts/<day>/<rid>.jsonl, retained
+research evidence, docs/saves.md; none unless a path is supplied): what that round's request added (the brief and pictures at first, then the tool
 results, the user's notes and what the app told it), the tools it was offered and how it was asked to choose, and the
 model's whole reply with its tool calls and usage. The instructions, sent every round, are kept only as their hash and
 length; pictures only as their size. Web pages and tool results inside are untrusted data, kept as they came and never

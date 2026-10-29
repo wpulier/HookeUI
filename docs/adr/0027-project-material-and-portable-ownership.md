@@ -26,3 +26,18 @@ Migration is explicit: inventory, space estimate, settle work, copy, verify, reo
 The finish line includes mixed microscopy/matrix restoration with exact historical hashes, conversations, Studies, results and layout; interrupted copies, changed/missing links, insufficient disk, unavailable runtimes and conflicting writers must be recoverable. Missing software may block reruns, never reading retained evidence. Partial scientific bundles remain explicitly partial.
 
 ADR 0026 grants apply unchanged to saved-input work. New door actions are deliberate default-deny declarations. Importing or moving a Project never widens authority. Shared contract schemas apply locally and hosted; unsupported hosted storage operations refuse explicitly.
+
+## Foundation implementation checkpoint
+
+`project_roots.py` supplies versioned layout validation, origin/location pointers and
+an advisory writer lease for later storage adapters. It is not wired into live
+Project creation and does not certify dependency completeness or migrate existing
+Projects. The registry is host-local and never carries grants. Metadata reads
+refuse links/nonregular files; unknown formats and conflicting locations preserve
+existing files. Filesystem locking is required; remote/sync filesystems remain
+unqualified.
+
+New research transcripts are retained under `research/transcripts/`; legacy
+`logs/transcripts/` is excluded from performance pruning. Both locations must be
+considered during explicit collection. These are bounded traces, potentially
+incomplete after write failure, not complete provider transcripts.
