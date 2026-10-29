@@ -166,7 +166,34 @@ def add_research_tools(registry: Registry, services) -> None:
                         request_id=ctx.admission.request_id if ctx.admission is not None else ctx.request_id,
                         voice_owner=ctx.voice_owner if ctx.channel == "voice" else None)
 
+    def started_for_this_request(ctx: ToolContext):
+        """The researcher this request already started, when this start is the same request answered again (its hand-off
+        after hands started one, a completion round, a retry, a replay): one request admits one researcher, by its
+        identity (the action occurrence's request), never its words (live 2026-10-28: two from one request). Starts
+        listed in one answer of the request are each their own (the user asked for two)."""
+        run = CURRENT_RUN.get()
+        occurrence = run.occurrence if run is not None else None
+        if occurrence is None:
+            return None
+        steps = run.step[1] if run.step else None
+        this_answer = {o.action_id for o in (getattr(steps, "occurrences", None) or {}).values()}
+        for session in manager.sessions.values():
+            started = session.origin or {}
+            if (session.purpose == "research" and started.get("request_id") == occurrence.request_id
+                    and (started.get("action_id") == occurrence.action_id or started.get("action_id") not in this_answer)):
+                return session
+        return None
+
     async def start_researcher(ctx: ToolContext, args: dict) -> str:
+        again = started_for_this_request(ctx)
+        if again is not None:
+            try:
+                record_output(ctx, {"kind": "resource", "resource": manager.attempt_ref(again)})
+            except ResearchRefused:
+                pass  # its run is not retained to wait on: the receipt below still names it
+            making = MAKING.get(again.deliverable or "", "a research note")
+            return (f"{again.name} was already started for this request ({making}, {again.status}); no other researcher "
+                    f"was started; when ready its work is in Researchers and Data")
         authorized_words = recent_request(services, ctx)
         if args.get("confirms"):
             # The user's yes to a proposal the app made (below): exactly that proposal starts, in its conversation.
@@ -261,8 +288,11 @@ def add_research_tools(registry: Registry, services) -> None:
         "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, "
         "or producing a requested report, illustration, video or lesson while conversation continues. "
         "For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup "
-        "does not itself call for a report. Use your own tools for ordinary live questions and actions. When the user "
-        "asks for a researcher, always start a new one. effort: "
+        "does not itself call for a report. Use your own tools for ordinary live questions and actions. One request "
+        "starts one researcher; when the user asks for more than one, list each start in the same answer. When the "
+        "user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, "
+        "starting or running, from their previous words), pass them to that one with researcher_note instead of "
+        "starting another; start a new one when they ask for another researcher or separate work. effort: "
         + _effort_words() + ". No clock cuts its work off (it is told to write up, and asks the user before going past an "
         "hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion "
         "measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. "
@@ -351,17 +381,43 @@ def add_research_tools(registry: Registry, services) -> None:
                 raise ToolFailed(str(exc), next=getattr(exc, "next", None)) from exc  # next: passed on
             record_output(ctx, {"kind": "resource", "resource": ref})
             return block(f"{session.name}, original run {attempt.number}: done. " + str((outcome.get("result") or {}).get("summary") or ""))
-        if args.get("researcher"):
-            s, _attempt, _ref = bound_researcher(ctx, args["researcher"], manager, desk)
+        def one(s) -> str:
             text = s.line()
             if s.result:  # its summary whole: read_result reads the rest of its work
                 text += f". Summary: {s.result.get('summary', '')}"
             if s.outputs:
                 kinds = {"html": "lesson", "video": "video", "image": "picture"}
                 text += " (made: " + ", ".join(kinds.get(o.get("kind"), "result") for o in s.outputs) + ")"
-            return block(text)
-        lines = manager.lines(limit=None)  # every one of this session's, not the brain's capped roster
-        return block(lines) if lines else "no researchers yet"
+            return text
+
+        if args.get("researcher"):
+            s, _attempt, _ref = bound_researcher(ctx, args["researcher"], manager, desk)
+            return block(one(s))
+        # None named: every one of this session's, in the Project view's one order (project_state.ordered: running
+        # first, then finished, then stopped), led by the one this is about: the running one(s), else the one last
+        # spoken of in this conversation (a turn filed about it: its refs' rid), else the newest that was not stopped.
+        from ...project_state import GROUP_SAYS, group_of, ordered
+
+        research = ordered(manager.researchers())
+        if not research:
+            return "no researchers yet"
+        focus = [s for s in research if group_of(s.status) == "running"]
+        lead = "Running now"
+        if not focus:
+            ids = {s.rid: s for s in research}
+            thread = getattr(services.day, "active", None) if services.day is not None else None
+            spoken = next((ids[t.refs["rid"]] for t in reversed((getattr(thread, "turns", None) or [])[-60:])
+                           if isinstance(getattr(t, "refs", None), dict) and t.refs.get("rid") in ids), None)
+            lead = "None running; the one last spoken of" if spoken is not None else "None running; the newest"
+            focus = [spoken or next((s for s in research if group_of(s.status) != "cancelled"), research[0])]
+        def said(s, line: str) -> str:
+            return line + (f" ({GROUP_SAYS['cancelled']})" if group_of(s.status) == "cancelled" else "")
+
+        rest = [s for s in research if all(s is not f for f in focus)]
+        text = f"{lead}:\n" + "\n".join(said(s, one(s)) for s in focus)
+        if rest:
+            text += "\nThe others, running first, then finished, then stopped:\n" + "\n".join(said(s, s.line()) for s in rest)
+        return block(text)
 
     registry.add(Tool("research_status", "How the researchers are doing, or one researcher's result. "
                       "wait=true waits for the explicitly selected original run while conversation continues; "

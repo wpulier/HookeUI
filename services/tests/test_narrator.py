@@ -407,3 +407,91 @@ def test_a_line_that_no_longer_holds_when_spoken_is_told_not_said():
                  provenance='model', still=lambda: True)
     narrator, chats, queued = run(voice, [holds])
     assert voice.injected[0]['kwargs']['respond'] is True
+
+
+def test_one_outcome_is_said_once_and_a_model_answer_waiting_with_its_facts_is_the_one_said():
+    """Live 2026-10-28 (one outline said three times): a late step's raw facts and the model's own answer about the
+    same step are one outcome (its identity, Line.outcomes). Both queued while the voice was busy: the answer is said,
+    the facts told. Once one of them was said (narrator.Said), the other is told."""
+    voice = FakeVoice(speaking=True)
+    facts = Line('{"outline_cells": "341 nuclei"}', delegation_id='d1', notify=True, request_id='r1', action_id='a1',
+                 outcomes=frozenset({'action:a1'}))
+    answer = Line('I have outlined 341 nuclei.', delegation_id='d1', provenance='model', request_id='r1',
+                  action_id='a1', outcomes=frozenset({'action:a1'}))
+
+    async def quiet_later(v, narrator, queued):
+        await asyncio.sleep(0.1)
+        v.speaking = False
+
+    narrator, chats, _ = run(voice, [facts, answer], during=quiet_later)
+    respond = [sent for sent in voice.injected if sent['kwargs'].get('respond')]
+    assert [sent['text'] for sent in respond] == ['I have outlined 341 nuclei.']
+    from orchestrator.brain.narrator import Said
+
+    said = Said()
+    voice = FakeVoice()
+    voice.said = said
+    narrator, chats, _ = run(voice, [facts])
+    narrator, chats, _ = run(voice, [answer])
+    assert [sent['kwargs'].get('respond') for sent in voice.injected] == [True, False]
+
+
+def test_an_outcome_is_marked_said_only_once_the_voice_has_said_it():
+    """Review of Part 2.5 PR 1 (defects 1 and 5): a line told silently, a line whose send failed and a line the voice
+    never started saying claim nothing, so the hand-off's findings or a new Talk session still say the outcome
+    (ADR 0006: silence is worse than saying something twice)."""
+    from orchestrator.brain.narrator import Said
+
+    told = Line('{"select": "failed"}', delivery='interrupt', delegation_id='d1', request_id='r1',
+                outcomes=frozenset({'answer:r1', 'action:a1'}))  # notify False: told, not asked to be said
+    for voice in (FakeVoice(), FakeVoice(speaks_on=()), FakeVoice(error=RuntimeError('socket closed'))):
+        voice.said = Said()
+        line = told if voice.speaks_on == ("any",) and voice.error is None else replace_notify(told)
+        run(voice, [line], seconds=0.8)
+        assert 'action:a1' not in voice.said and 'answer:r1' not in voice.said
+    spoken = FakeVoice()
+    spoken.said = Said()
+    run(spoken, [replace_notify(told)], seconds=0.8)
+    assert 'action:a1' in spoken.said  # said, confirmed: now it is said
+
+
+def replace_notify(line):
+    from dataclasses import replace
+
+    return replace(line, notify=True)
+
+
+def test_a_model_answer_is_said_even_when_the_raw_result_of_its_step_was():
+    """Review defect 2: the raw late result and the model's own late answer about the same step have their own
+    identities; a raw receipt that was said never silences the model's answer."""
+    from orchestrator.brain.narrator import Said
+
+    said = Said()
+    raw = Line('{"outline_cells": "341 nuclei"}', delegation_id='d1', notify=True, request_id='r1', action_id='a1',
+               outcomes=frozenset({'action:a1'}))
+    answer = Line('I have outlined 341 nuclei.', delegation_id='d1', provenance='model', request_id='r1',
+                  action_id='a1', outcomes=frozenset({'answer:action:a1'}))
+    responds = []
+    for line in (raw, answer, raw):  # the same raw result again at the end: told
+        voice = FakeVoice()
+        voice.said = said
+        run(voice, [line], seconds=0.8)
+        responds += [sent['kwargs'].get('respond') for sent in voice.injected]
+    assert responds == [True, True, False]
+
+
+def test_a_failure_waits_only_while_the_users_words_are_still_coming():
+    """Review defect 6: user_speaking stays true until the model speaks or delegates; a failure waits only on the
+    time-bounded user_talking, not up to MAX_WAIT_S."""
+    voice = FakeVoice(speaking=True)
+    voice.user_speaking = lambda: True  # words heard, the model has not answered yet
+    voice.user_talking = lambda: False  # ...but none for a while
+    line = Line('Explicitly canned failure: the slide moved.', delivery='interrupt', delegation_id='d1')
+    seen = {}
+
+    async def soon(v, narrator, queued):
+        await asyncio.sleep(0.2)
+        seen['sent'] = len(v.injected)
+
+    run(voice, [line], during=soon)
+    assert seen['sent'] == 1

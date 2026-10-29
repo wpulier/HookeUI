@@ -13,7 +13,10 @@ other files.
   (the lesson scrolls to it; the voice hears the question, only the brain sees the answer),
   and `researcher_followup` asks a researcher about its own work. Researchers can be named the
   way people do ("the quiz", "the one on screen", "the joint one"). View notes list the
-  latest researchers, so the voice knows what exists and hands anything about it over.
+  researchers running first, then finished, then stopped (`project_state.ordered`; at most 4, so a stopped one is last or
+  left out), so the voice knows what exists and hands anything about it over. `research_status` with no researcher named
+  leads with the running one, else the one last spoken of in the conversation (its newest turn filed about one, `refs.rid`),
+  then lists the rest in that order (`docs/architecture/session-index.md`, "The Project's one view").
 - A live quiz on the slide (`orchestrator/quiz.py`, CONTEXT.md "Step kind", "Outcome"): a lesson
   step may be a plain question, a *find* step ("find a guard cell on your slide and click it",
   `target`) or an *evidence* step (what would confirm or refute the app's name for an outline);
@@ -34,6 +37,15 @@ other files.
   $0.08 (descriptions only, instant pool), quick 75 s / $0.25, standard 6 min / $1, deep 18 min / $5. A lesson can be made
   from quick up, a video from standard (the 2026-10-11 demo: a short lesson at quick was refused for want of the tool);
   a chart or animation of a saved table from quick up (below).
+  - **One request, one researcher** (Part 2.5; live 2026-10-28, "create a researcher that looks at the data on the
+    table ... creates an animation of it", split by a pause, made two): `start_researcher` admits one researcher per
+    request, by its identity (the action occurrence's `request_id`, kept in the researcher's `origin`), never its
+    words. The same request answered again (its hand-off after hands started one, a completion round, a retry, a
+    replay) gets the researcher already started back, with its run reference, and nothing new starts; starts listed in
+    one answer of the request (`Steps.occurrences`: "make two researchers, one on X, the other on Y") are each their
+    own. The tool no longer says "always start a new one": words that add to what the user just asked a researcher for
+    go to that one (`researcher_note`), which the model judges from Researchers (it is listed queued, starting or
+    running) and the conversation; a new one starts when they ask for another or for separate work.
   - **Its model's key, first** (the 0.4.0 release candidate): `ResearchManager.start` refuses at once when the model
     researchers use has no key (`engine_key_refusal`): the model is the one the research process runs (its override
     `MICROMIND_RESEARCH_ENGINE`, else the research setting; `research_worker/engines.make_engine`), and a key is there
@@ -188,7 +200,7 @@ other files.
   - `list` by kind or query;
   - `read` an entry in full by id;
   - `picture`.
-  - **How it reads:** the app's own `GET /api/resources…` on this machine, at `ResearchManager.resources_url`, which `server.main` sets once it knows its port, to the researchers' view (`/for-researchers/api/resources…`; ticket 66): the entries as they were before Data's fields, and a researcher's sources, tables, charts and other work only when it lists that kind, so nothing new reaches its listing by default (`docs/architecture/session-index.md`). It never goes through the web path, and is scoped to the researcher's day.
+  - **How it reads:** the app's own `GET /api/resources…` on this machine, at `ResearchManager.resources_url`, which `server.main` sets once it knows its port, to the researchers' view (`/for-researchers/api/resources…`; ticket 66): the entries as they were before Data's fields, and a researcher's sources, tables, charts and other work only when it lists that kind, so nothing new reaches its listing by default (`docs/architecture/session-index.md`). It never goes through the web path, and is scoped to the researcher's day. Its `summary` also carries `project`, the first page of the Project's one view (`project_state.py`: its stage, its data with exact references and makers, its researchers, its Studies), only for a session a researcher of this app is working in (`ResearchManager.working`), else `{unavailable}`; a view that cannot be read never fails the summary.
   - **What the model gets:** the results are data inside `<session source="app" untrusted="true">`.
   - **Pictures:** fetched only on `picture`, as JPEG.
   - **The stall rule:** an entry read in full counts as progress.

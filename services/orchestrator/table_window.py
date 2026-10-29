@@ -108,12 +108,12 @@ def window_in(report: dict | None, placement: str | None, ref: dict, project: st
     when the studio named one."""
     for item in (report or {}).get("items") or []:
         doc = item.get("document") or {}
-        resource = doc.get("resource") or {}
+        shows = doc.get("resource") or {}  # what the window shows (not named *source: the capture guard)
         if (str(item.get("id") or "").startswith("document:") and item.get("open", True)
                 and (placement is None or item["id"] == f"document:{placement}")
                 and doc.get("representation") == "table" and doc.get("project") == project and doc.get("tab") == tab
-                and resource.get("day") == ref["day"] and resource.get("id") == ref["id"]
-                and (resource.get("version") or 0) == ref["version"]):
+                and shows.get("day") == ref["day"] and shows.get("id") == ref["id"]
+                and (shows.get("version") or 0) == ref["version"]):
             return item
     return None
 

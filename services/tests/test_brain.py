@@ -1257,3 +1257,20 @@ def test_a_request_whose_steps_ran_never_ends_with_no_words(failure):
     [kept] = [r for r in agent.logged if r.get("kind") == "override" and r.get("rule") == "answer-recheck"]
     assert kept["kept"] is True and kept["unchecked"] == []
     assert kept["reason"] == ("unsupported-input" if failure == "unsupported-input" else "timeout")
+
+
+def test_a_draft_says_which_steps_it_still_waits_on():
+    """Live 2026-10-28: "I've brought up the measurements table" was said before the table was brought up. The draft is
+    offered with the steps it waits on (claims.Draft.pending), so the voice treats it as a plan, never an outcome."""
+    drafts = []
+
+    async def say(text):
+        drafts.append(text)
+
+    brain, _, _ = make([{
+        "answer": "I've selected the stoma for you.",
+        "targets": [{"box_2d": [1, 2, 3, 4], "label": "stoma", "confidence": 0.8}],
+        "actions": [{"tool": "select", "args": {"object": "target 1"}}],
+    }])
+    run(brain.turn("what's that oval?", "voice", draft=say))
+    assert drafts == ["I've selected the stoma for you."] and drafts[0].pending == ("select",)

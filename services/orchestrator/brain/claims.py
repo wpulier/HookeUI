@@ -5,7 +5,7 @@ new look, and **failed** when it did not work; a failure is always said. The voi
 silently as soon as hands has acted (`hands_note`), so it never says "done" for a step still in
 progress (live session 2026-10-04: told "cleared 2 outlines", it said "Done" while the highlight
 had missed). The findings of a hand-off list the steps still in progress too
-(voice/openai_live.findings_text), and when one lands after the voice has replied, the app says
+(voice/openai_live.split_findings, as facts for the model), and when one lands after the voice has replied, the app says
 so (announcer.Announcer.late_tool).
 """
 from __future__ import annotations
@@ -19,6 +19,21 @@ from .registry import ToolRun
 from ..untrusted import block
 
 DOING = "not done yet: if you speak about it, say it is being done, never that it is done"
+
+
+class Draft(str):
+    """A model's answer offered before its steps have run (Brain.turn's `draft`), with the steps it still waits on
+    (`pending`: tool names, in its plan's order). With any, it is a plan, never an outcome: the voice is told it and
+    says only its own acknowledgement, and the answer is said with the outcome (voice/openai_live; live 2026-10-28:
+    "I've brought up the measurements table" was said before any tool had run). A str, so a caller that only wants
+    the words keeps them."""
+
+    pending: tuple[str, ...] = ()
+
+    def __new__(cls, text: str, pending=()):
+        draft = super().__new__(cls, text)
+        draft.pending = tuple(pending)
+        return draft
 
 
 def camera_input_limit(required: bool, images) -> str:

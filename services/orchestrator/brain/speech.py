@@ -68,11 +68,34 @@ class Heard:
     conversation_turn: object = None  # timed Live transcript filed before its answer can arrive
 
 
-def findings(brain, result: dict) -> dict:
-    """A brain turn as the findings GPT-Live is given (voice/openai_live.findings_text)."""
+def findings(brain, result: dict, request=None) -> dict:
+    """A brain turn as the findings GPT-Live is given (voice/openai_live.split_findings), with the identity of the
+    spoken request it answers (`requestId`, its ticket's admission), so what is said of it is said once."""
     scene = brain.hub.scene.objects
-    labels = [scene[i].label or "an unnamed outline" for i in result["objectIds"] if i in scene]
-    return {"answer": result["answer"], "outlined": labels, "actions": result["actions"], "model": result["model"]}
+    ids = [i for i in result["objectIds"] if i in scene]
+    found = {"answer": result["answer"], "outlined": [scene[i].label or "an unnamed outline" for i in ids],
+             "outlinedIds": ids, "targets": result.get("targets", 0), "actions": result["actions"],
+             "model": result["model"]}
+    rid = _request_id(request)
+    if rid:
+        found["requestId"] = rid
+    return found
+
+
+def _request_id(request) -> str | None:
+    admission = getattr(request, "admission", None)
+    return getattr(admission, "request_id", None)
+
+
+def outcome_line(found: dict, voice_owner, **how) -> Line:
+    """The narrator's line for a spoken request's outcome the app reports without a hand-off (or before it): what the
+    voice should say of it (split_findings' spoken part), with the identities of the request and of the outcomes it
+    reports, so whichever path says it first says it once (narrator.Said)."""
+    from ..voice.openai_live import split_findings
+
+    split = split_findings(found)
+    return Line(split.spoken, "requested", request_id=found.get("requestId"), outcomes=split.outcomes,
+                voice_owner=voice_owner, **how)
 
 
 REFILE_S = 2.0  # a line still growing is filed again whole at most this often: a crash keeps nearly all of it
@@ -208,6 +231,7 @@ class SpokenRequests:
         if voice is not None:
             with contextlib.suppress(Exception):
                 voice.spoken = self  # what the narrator asks before speaking a late outcome (newest)
+                voice.requests = self  # which request a delegation is (voice/openai_live)
 
     def newest(self, request_id: str | None) -> bool:
         """Whether the request (by its admission id) is still the user's latest: no later words heard since that are
@@ -221,6 +245,13 @@ class SpokenRequests:
 
     def _closed(self) -> bool:
         return self.voice is None or self.voice.closed
+
+    def request_for(self, delegation_id: str | None) -> str | None:
+        """The spoken request a delegation was matched to (its admission's id), None when none was: the identity the
+        voice says each request's answer and outcome once by (voice/openai_live)."""
+        if not delegation_id:
+            return None
+        return next((_request_id(r) for r in reversed(self.requests) if delegation_id in r.delegations), None)
 
     @property
     def _hands_requests(self) -> dict:
@@ -473,9 +504,7 @@ class SpokenRequests:
                 return
             self._file_turn(request, turn)
             if brain.narrator is not None and voice_owner is not None:
-                from ..voice.openai_live import findings_text
-
-                brain.narrator.offer(Line(findings_text(findings(brain, turn)), "requested", voice_owner=voice_owner))
+                brain.narrator.offer(outcome_line(findings(brain, turn, request), voice_owner))
             return
         if lean:
             return  # the reflex pointed already, beside hands
@@ -502,12 +531,9 @@ class SpokenRequests:
             return
         self._file_turn(request, turn)
         if brain.narrator is not None and voice_owner is not None:
-            from ..voice.openai_live import findings_text
-
-            found = findings(brain, turn)
+            found = findings(brain, turn, request)
             failed = any(a.get("ok") is False for a in found["actions"])
-            brain.narrator.offer(Line(findings_text(found), "requested", delivery="interrupt" if failed else "when_idle",
-                                     voice_owner=voice_owner))
+            brain.narrator.offer(outcome_line(found, voice_owner, delivery="interrupt" if failed else "when_idle"))
 
     async def _look_closer(self, request, result: dict) -> None:
         """Finish the closer look for a question the voice answered alone: its outlines are drawn, and the voice is
@@ -529,7 +555,7 @@ class SpokenRequests:
             return
         from ..voice.openai_live import findings_text
 
-        found = findings_text(findings(brain, turn))
+        found = findings_text(findings(brain, turn, request))
         if not found:
             return
         said = (self.reply_line.text or (self.reply_line.last or ("", "", None))[1] or "").strip()
@@ -545,7 +571,8 @@ class SpokenRequests:
         brain.agent.log({"kind": "look-closer", "question": text, "adds": more, "say": say, "model": model})
         if more:
             brain.narrator.offer(Line(f"Tell the user briefly, in your own words, what your closer look added: {inline(say, 300)}",
-                                      "requested", provenance="model", voice_owner=voice_owner,
+                                      "requested", provenance="model", voice_owner=voice_owner, request_id=request_id,
+                                      outcomes=frozenset({f"closer:{request_id}"}) if request_id else frozenset(),
                                       still=lambda: self.newest(request_id)))
         else:  # nothing new: told, never said
             brain.narrator.offer(Line(f'Your closer look at "{inline(text, 200)}" found: {inline(found, 900)}',
@@ -993,7 +1020,7 @@ class SpokenRequests:
                               **request.work.get("answered", {"handsUsed": False, "reused": None, "earlyLook": False,
                                                               "handsWaitMs": 0}),
                               "turnMs": round((self.clock() - bound_at) * 1000)})
-        found = findings(self.brain, result)
+        found = findings(self.brain, result, request)
         if superseded or request.superseded_by is not None:
             found["superseded"] = True  # corrected since: its outcome is not spoken as the current answer
         elif request.admission is not None and not self.newest(request.admission.request_id):
