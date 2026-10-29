@@ -21,7 +21,7 @@ document.documentElement.dataset.buildDigest = __MICROMIND_BUILD__.sourceDigest 
 import { itemSpace } from './spaces';
 import type { WorkspaceViewport } from './workspace-runtime';
 import { livePlacementObject } from './window-placement';
-import { composeScreen, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
+import { composeScreen, composeWindow, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
 import './style.css';
 import { assertNever, Connection, type CapabilitiesWire, type AssetMeta, type SessionCleared, type SessionState, type DatasetState, type DayState, type ArenaState, type ClientCommand, type Health, type Reveal, type Scores, type ServerMessage, type Settings, type TopProgram, type ToolRun, type Trial } from './protocol';
 import { BoxDrag, frameBox } from './boxdrag';
@@ -69,7 +69,11 @@ import { configureStarterModels, noteCapabilities } from './starter-models';
 import { listVolumes } from './volumespanel';
 import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
-import { VoiceClient, type VoiceEvent, type VoiceState } from './voice';
+import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
+import { TalkHold, talkKey, talkKeyWords, type TalkKey } from './talk';
+import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
+import './marks.css';
+import type { PartnerMessage } from './protocol';
 import { opensWorkForUser, ShowingBar } from './showing';
 import { StudioShell, navigateStudio, workspaceConnectionNotice } from './studio-shell';
 import './studio-shell.css';
@@ -969,9 +973,20 @@ const voiceActivity = Object.assign(document.createElement('button'), {type: 'bu
 voiceActivity.onclick = () => showActivity(true);
 voiceControls.append(voiceStatus, voiceMute, voiceActivity);
 talkButton.closest('form')!.prepend(voiceControls);
-const voice = new VoiceClient(handleVoice, renderVoiceState, (level) =>
-  talkButton.style.setProperty('--level', Math.min(1, level * 4).toFixed(2)),
-);
+const voiceEnd = Object.assign(document.createElement('button'), {type: 'button', className: 'voice-session-end', textContent: 'End Talk', hidden: true});
+voiceEnd.onclick = () => voice.stop();
+voiceControls.append(voiceEnd);
+// Hold to talk's listening ring (marks.css): shown only while the key or Talk is held, wherever the Assistant is.
+const holdRing = Object.assign(document.createElement('div'), {className: 'talk-hold-ring', hidden: true});
+holdRing.setAttribute('role', 'status');
+holdRing.append(Object.assign(document.createElement('span'), {className: 'talk-hold-dot'}),
+  Object.assign(document.createElement('span'), {className: 'talk-hold-words', textContent: 'Listening'}));
+document.body.append(holdRing);
+const voice = new VoiceClient(handleVoice, renderVoiceState, (level) => {
+  const value = Math.min(1, level * 4).toFixed(2);
+  talkButton.style.setProperty('--level', value);
+  holdRing.style.setProperty('--level', value);
+});
 
 // The chat: the conversation open now, typed and spoken (chatlog.ts). Its Activity is the side bar's Activity.
 const activityNavigation = new ActivityNavigation({
@@ -1273,7 +1288,12 @@ function handleMessage(message: ServerMessage): void {
       break;
     case 'settings':
       view.outlineStyle = message.settings.style ?? 'classic';
-      voice.link = message.settings.voicelink === 'webrtc' ? 'webrtc' : 'relay';
+      // The one-brain voice talks over WebRTC only; its TALK and talk key decide how Talk is held (talk.ts).
+      voiceSetting = message.settings.voice ?? '';
+      talkSetting = message.settings.talk === 'open' ? 'open' : 'hold';
+      talkKeySetting = talkKey(message.settings.talk_key);
+      voice.link = message.settings.voicelink === 'webrtc' || voiceSetting === PARTNER_VOICE ? 'webrtc' : 'relay';
+      renderTalk();
       view.outlineColor = OUTLINE_COLORS[message.settings.outlineColor ?? 'pink'] ?? OUTLINE_COLORS.pink;
       outlineColourName = message.settings.outlineColor ?? 'pink';
       break;
@@ -1664,34 +1684,201 @@ document.addEventListener('keydown', (event) => {
   if (index >= 0 && index < trial.arms.length) setSolo(view.solo === trial.arms[index].letter ? null : trial.arms[index].letter);
 });
 
-talkButton.addEventListener('click', () => {
+// Talk: a click starts and ends the conversation (GPT-Live, and the one brain with an open mic); with the one brain
+// in hold mode the conversation stays connected and each turn is held (TalkHold below), so a click only connects.
+talkButton.addEventListener('click', (event) => {
+  if (holdToTalk()) {
+    // Held by the pointer (TalkHold); a keyboard press connects, and End Talk ends.
+    if (event.detail === 0 && (voice.state === 'off' || voice.state === 'error')) startTalk();
+    return;
+  }
   if (voice.state === 'live' || voice.state === 'connecting') {
     voice.stop();
     return;
   }
+  startTalk();
+});
+
+function startTalk(): void {
   if (!workspaceSession || !workspaceReady) { showHint('Reconnect to the studio before starting Talk.'); return; }
   if (scientificAskSelection()) { showHint('Talk uses the Stage. Remove the saved attachment before starting Talk.'); return; }
   void voice.start(workspaceSession.voiceTarget());
+}
+
+// --- The one-brain voice (PARTNER_VOICE): hold to talk, its window snapshots and its marks (talk.ts, marks.ts). ---
+let voiceSetting = '';
+let talkSetting: 'hold' | 'open' = 'hold';
+let talkKeySetting: TalkKey = 'control-option';
+/** Whether Talk is held for each turn: the session's own word once it has said it, else the settings. */
+function holdToTalk(): boolean {
+  if (voice.state === 'live' || voice.state === 'connecting') {
+    if (voice.talkMode) return voice.talkMode === 'hold';
+    if (voice.state === 'live') return false; // a live voice that holds no turns (GPT-Live)
+  }
+  return voiceSetting === PARTNER_VOICE && talkSetting !== 'open';
+}
+let talkTurn = 0;
+let turnOpen = false; // a turn is being said now (talk down sent, not yet released)
+let holdPending = false; // held while Talk connects: the turn starts if it is still held once live
+const talkHold = new TalkHold({
+  enabled: holdToTalk,
+  key: () => talkKeySetting,
+  press: () => {
+    if (voice.state === 'live') beginTurn();
+    else {
+      holdPending = true;
+      if (voice.state === 'off' || voice.state === 'error') startTalk();
+      renderTalk();
+    }
+  },
+  release: () => endTurn(false),
+  cancel: () => endTurn(true),
 });
+talkHold.attach(window, document);
+talkHold.attachButton(talkButton);
+
+function beginTurn(): void {
+  holdPending = false;
+  turnOpen = true;
+  const n = ++talkTurn;
+  marks.clear(); // barge-in: what it pointed at goes with what it was saying
+  voice.talkDown(n);
+  renderTalk();
+  // What the window looks like as the user starts to speak, sent with the turn (amendment 1).
+  void sendSnapshot(`talk-${n}`, 1280);
+}
+
+function endTurn(cancel: boolean): void {
+  holdPending = false;
+  if (turnOpen) {
+    turnOpen = false;
+    if (cancel) voice.talkCancel(talkTurn); else voice.talkUp(talkTurn);
+  }
+  renderTalk();
+}
+
+/** The window now for the voice: a granted tab share's frame, else the window composed (screen.ts). */
+async function sendSnapshot(id: string, maxSide: number): Promise<void> {
+  const side = Math.max(256, Math.min(1280, Number.isFinite(maxSide) ? maxSide : 1280));
+  try {
+    const at = Date.now();
+    const shared = workspaceSession?.shareSnapshot(side) ?? null;
+    const picture = shared ?? composeWindow(document.body, { maxSide: side });
+    if (!picture.jpeg) throw new Error('nothing to draw');
+    voice.send({ type: 'snapshot', id, jpeg: picture.jpeg, w: picture.w, h: picture.h, at, how: shared ? 'tab-share' : 'composed' });
+  } catch (error) {
+    voice.send({ type: 'snapshot', id, error: `The window could not be captured: ${error instanceof Error ? error.message : String(error)}`.slice(0, 200) });
+  }
+}
+
+const marksPainter = new SvgMarksPainter(document);
+const canvasRect = (box: [number, number, number, number]): [number, number, number, number] => {
+  const r = view.canvas.getBoundingClientRect();
+  return [r.left + box[0], r.top + box[1], box[2] - box[0], box[3] - box[1]];
+};
+const liveShown = () => { const r = view.canvas.getBoundingClientRect(); return r.width > 2 && r.height > 2 && !view.canvas.closest('[hidden]'); };
+const markHooks: MarkHooks = {
+  doc: document as unknown as MarkDocument,
+  viewport: () => [innerWidth, innerHeight],
+  outline: (id) => {
+    if (!view.hasObject(id)) return { why: 'not-found' };
+    if (!liveShown()) return { why: 'hidden' };
+    const box = view.objectInView(id) ? view.objectCanvasBox(id) : null;
+    return box ? { rect: canvasRect(box) } : { why: 'out-of-view' };
+  },
+  member: (population, member) => {
+    if (!liveShown()) return { why: 'hidden' };
+    const box = view.memberCanvasBox(population, member);
+    return typeof box === 'string' ? { why: box } : { rect: canvasRect(box) };
+  },
+  anchor: (ref) => {
+    const h = view.header;
+    if (!h) return null;
+    // The frame the model saw; one too old to place is taken as the frame shown now.
+    const offset = view.frameOffset(ref?.id) ?? view.frameOffset();
+    return offset ? { crop: ref?.crop ?? fovCrop(h.fov, h.w, h.h), offset } : null;
+  },
+  frame: (points, anchor) => {
+    if (!liveShown()) return { why: 'hidden' };
+    const placed = view.sourcePointsOnCanvas(points, anchor.offset);
+    if (!placed) return { why: 'out-of-view' };
+    // Moved out of the eyepiece: not drawn over the dark around it.
+    const disc = view.discOnCanvas();
+    const cx = placed.reduce((a, p) => a + p[0], 0) / placed.length, cy = placed.reduce((a, p) => a + p[1], 0) / placed.length;
+    if (disc && Math.hypot(cx - disc[0], cy - disc[1]) > disc[2]) return { why: 'out-of-view' };
+    const r = view.canvas.getBoundingClientRect();
+    return placed.map(([x, y]) => [r.left + x, r.top + y]);
+  },
+  panel: (name) => panelPlace(name),
+  researcherRids: (n) => {
+    const numbered = [...research.sessions.values()].filter((s) => s.n === n && s.purpose === 'research');
+    const here = numbered.filter((s) => !sitting || s.sitting === sitting);
+    return (here.length ? here : numbered).map((s) => s.rid);
+  },
+};
+const marks = new Marks({ hooks: markHooks, paint: (drawn, now) => marksPainter.paint(drawn, now), frame: (fn) => requestAnimationFrame(fn) });
+
+/** A panel by its screen-report name (SCREEN_PANELS, the live view, the Tab row). */
+function panelPlace(name: string): Place {
+  if (name === 'live') return liveShown() ? { rect: canvasRect([0, 0, view.canvas.getBoundingClientRect().width, view.canvas.getBoundingClientRect().height]) } : { why: 'hidden' };
+  if (name === 'workspace-tabs') return elementPlace(document.getElementById('workspace-tabs-strip') as unknown as MarkElement | null, [innerWidth, innerHeight]);
+  const entry = SCREEN_PANELS.find(([id]) => id === name);
+  if (!entry) return { why: 'not-found' };
+  const [, panel, root] = entry;
+  if (!panel.isOpen() || panel.isVisible?.() === false) return { why: 'hidden' };
+  const r = panel.footprint() ?? document.getElementById(root)?.getBoundingClientRect() ?? null;
+  return r && r.right - r.left > 2 && r.bottom - r.top > 2 ? { rect: [r.left, r.top, r.right - r.left, r.bottom - r.top] } : { why: 'hidden' };
+}
+
+/** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear. */
+voice.onPartner = (message: PartnerMessage) => {
+  if (message.type === 'snapshot-request') void sendSnapshot(String(message.id), Number(message.maxSide ?? 1280));
+  else if (message.type === 'marks') voice.send({ type: 'marks-shown', id: String(message.id), resolved: marks.show(message) });
+  else if (message.type === 'marks-clear') marks.clear(message.id);
+};
+voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
 // connecting): the composer's row keeps the Assistant's model named in full beside it (hooke-words, 2026-10-25).
+// Held turns say what holding does instead: Hold to talk, Listening while held.
 function talkLabelText(state: VoiceState): string {
+  if (holdToTalk() && state !== 'off' && state !== 'error') return turnOpen ? 'Listening' : state === 'connecting' ? 'Connecting' : 'Hold to talk';
   if (state === 'live') return 'End Talk';
   if (state === 'connecting') return 'Cancel';
   return 'Talk';
 }
 
+/** The parts of Talk that depend on how it is held: its word, its name, End Talk and Mute, the listening ring. */
+function renderTalk(): void {
+  const state = voice.state, hold = holdToTalk(), keyWords = talkKeyWords(talkKeySetting);
+  talkLabel.textContent = talkLabelText(state);
+  if (hold) {
+    talkButton.setAttribute('aria-label', `Hold to talk (or hold ${keyWords})`);
+    talkButton.title = state === 'off' || state === 'error' ? `Talk about the view: click to connect, then hold Talk or ${keyWords} while you speak`
+      : `Hold to talk, or hold ${keyWords}; Escape while holding drops it`;
+  } else {
+    if (state === 'connecting') talkButton.setAttribute('aria-label', 'Cancel Talk'); else talkButton.removeAttribute('aria-label');
+    talkButton.title = state === 'live' || state === 'connecting' ? 'End Talk (delegated work continues)' : 'Talk about the view (uses the microphone)';
+  }
+  voiceEnd.hidden = !hold || (state !== 'live' && state !== 'connecting');
+  voiceMute.hidden = state !== 'live' || hold; // held turns: the microphone is on only while held
+  const holding = !!talkHold.held && (turnOpen || holdPending);
+  if (holding) talkButton.dataset.holding = ''; else delete talkButton.dataset.holding;
+  holdRing.hidden = !holding;
+  holdRing.dataset.state = turnOpen ? 'listening' : 'connecting';
+  holdRing.lastElementChild!.textContent = turnOpen ? 'Listening' : 'Connecting… keep holding';
+}
+
 function renderVoiceState(state: VoiceState, detail?: string): void {
   talkButton.setAttribute('aria-pressed', String(state === 'live'));
   talkButton.dataset.state = state;
-  talkLabel.textContent = talkLabelText(state);
-  if (state === 'connecting') talkButton.setAttribute('aria-label', 'Cancel Talk'); else talkButton.removeAttribute('aria-label');
   voiceControls.hidden = state === 'off';
-  voiceMute.hidden = state !== 'live';
   voiceStatus.textContent = state === 'connecting' ? detail ?? 'Connecting microphone and voice provider…'
-    : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : voice.muted ? 'Microphone muted' : 'Listening';
-  talkButton.title = state === 'live' || state === 'connecting' ? 'End Talk (delegated work continues)' : 'Talk about the view (uses the microphone)';
+    : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
+  if (state === 'live' && holdPending && talkHold.held && voice.talkMode === 'hold') beginTurn();
+  if (state !== 'live') { holdPending = holdPending && state === 'connecting'; turnOpen = false; }
+  if (state === 'off' || state === 'error') marks.clear();
+  renderTalk();
   if (state === 'error' && detail) chat.system(detail);
   if (state !== 'live') {
     setVoiceWorking(false);
@@ -1700,14 +1887,21 @@ function renderVoiceState(state: VoiceState, detail?: string): void {
   }
 }
 
+/** The status while turns are held: what to do now. */
+function holdWords(): string {
+  return turnOpen ? 'Listening · let go to send, Escape to drop it' : `Hold ${talkKeyWords(talkKeySetting)} or Talk, and speak`;
+}
+
 function handleVoice(event: VoiceEvent): void {
   switch (event.kind) {
     case 'status': {
       const phase = String(event.data?.phase ?? '');
       const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting audio…'};
-      voiceStatus.textContent = (words[phase] ?? 'Voice needs attention') +
+      const hold = holdToTalk();
+      voiceStatus.textContent = hold && (phase === 'listening' || turnOpen) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
         (voice.muted && phase !== 'muted' ? ' · microphone muted' : '');
-      if (phase === 'listening') showStateHint('voice', 'Listening. Ask about the view or your work.');
+      if (phase === 'listening') showStateHint('voice', hold ? `Hold ${talkKeyWords(talkKeySetting)}, or hold Talk, and ask about the view or your work.` : 'Listening. Ask about the view or your work.');
+      marks.phase(phase); // marks stay while it speaks and go a moment after
       break;
     }
     case 'diagnostic': {
@@ -1722,6 +1916,7 @@ function handleVoice(event: VoiceEvent): void {
     }
     case 'model':
       showStateHint('voice', `Connecting to ${String(event.data?.label ?? 'the voice model')}…`);
+      renderTalk(); // the session said how it hears you (hold or open)
       break;
     case 'input_transcript': // interim transcripts replace each other until the final one
       if (!event.data?.journaled) chat.voice.heard(event.text, !!event.data?.interim);

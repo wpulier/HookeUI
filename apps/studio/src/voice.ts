@@ -4,7 +4,19 @@
 // resampler, so speech reaches the model's transcription without aliasing. Speech back: "MMA1" + 16-bit mono
 // PCM at 24 kHz, played gap-free and flushed the moment the model is interrupted. The model
 // sees the eyepiece through the orchestrator, not through the browser.
-import { studioSocketURL } from './protocol';
+//
+// The one-brain voice (PARTNER_VOICE, WebRTC only) adds its own messages on the same socket (protocol.ts
+// PartnerMessage): hold to talk (talkDown/talkUp/talkCancel; the microphone is on only while held, and a little after
+// so the last word reaches the model), barge-in (pressing while it speaks silences its audio element at once), the
+// window snapshots and marks it asks for (handed to `onPartner`), and a fresh offer when its call has to be renewed.
+import { PARTNER_MESSAGES, studioSocketURL, type PartnerCommand, type PartnerMessage } from './protocol';
+
+/** The voice that hears, sees and acts in one model (options.py VOICE "gpt-realtime-2.1"). */
+export const PARTNER_VOICE = 'gpt-realtime-2.1';
+/** After release the microphone stays on this long: the last word is still in flight when the server commits. */
+export const MIC_TAIL_MS = 300;
+/** A barge-in keeps the voice silent at least this long, so the cancelled reply's last audio is never heard. */
+export const BARGE_MIN_MS = 400;
 
 export interface VoiceEvent {
   type: 'voice';
@@ -99,6 +111,18 @@ export class VoiceClient {
   private playing = new Set<AudioBufferSourceNode>();
   private audible = new Set<AudioBufferSourceNode>();
   private playAt = 0;
+  /** How this session hears you (its model announcement): "hold" (hold to talk), "open", or null (GPT-Live). */
+  talkMode: 'hold' | 'open' | null = null;
+  /** The partner's own messages (snapshot requests, marks): main.ts answers them. */
+  onPartner: ((message: PartnerMessage) => void) | null = null;
+  /** The voice's audio silenced (true) by a press, or heard again (false). */
+  onOutput: ((muted: boolean) => void) | null = null;
+  outputMuted = false;
+  private outputMutedAt = 0;
+  private unmuteTimer: ReturnType<typeof setTimeout> | null = null;
+  private micOpen = false;
+  private micTimer: ReturnType<typeof setTimeout> | null = null;
+  private nextPeer: RTCPeerConnection | null = null;
   private readonly onEvent: (event: VoiceEvent) => void;
   private readonly onState: (state: VoiceState, detail?: string) => void;
   private readonly onLevel: (level: number) => void;
@@ -123,6 +147,7 @@ export class VoiceClient {
     const attempt = ++this.connectionAttempt;
     this.providerReady = false; this.captured = false; this.mediaConnected = false;
     this.stageSent.clear(); this.pendingStages.clear();
+    this.talkMode = null; this.micOpen = false;
     this.setState('connecting');
     try {
       // Both contexts are created inside the click that started the conversation, so the
@@ -201,46 +226,15 @@ export class VoiceClient {
     const params = new URLSearchParams(Object.entries(queryTarget).filter(([, v]) => v) as [string, string][]);
     params.set('rate', String(INPUT_RATE));
     try {
-      let offer: RTCSessionDescriptionInit | null = null;
-      if (this.link === 'webrtc' && this.mic) {
+      let offer: { sdp: string } | null = null;
+      // The one-brain voice talks over WebRTC only (the server refuses the relay for it).
+      if ((this.link === 'webrtc' || resolved.model === PARTNER_VOICE) && this.mic) {
         // OpenAI's browser flow (voice-webrtc guide): the microphone on a track, a data channel named
         // "oai-events", and the offer exchanged through the app, which holds the API key.
-        const peer = new RTCPeerConnection();
-        this.peer = peer;
-        this.mic.getTracks().forEach((track) => peer.addTrack(track, this.mic as MediaStream));
-        peer.createDataChannel('oai-events');
-        peer.onconnectionstatechange = () => {
-          if (attempt !== this.connectionAttempt) return;
-          this.mediaConnected = peer.connectionState === 'connected';
-          if (this.disconnectTimer !== null) clearTimeout(this.disconnectTimer);
-          this.disconnectTimer = null;
-          if (this.mediaConnected) { this.maybeReady(); return; }
-          if (peer.connectionState === 'failed') this.fail('Voice audio disconnected. Your conversation is kept. Start Talk again to reconnect.');
-          else if (peer.connectionState === 'disconnected') {
-            this.phase('reconnecting');
-            this.disconnectTimer = setTimeout(() => {
-              if (attempt === this.connectionAttempt && !this.mediaConnected) this.fail('Voice audio could not reconnect. Start Talk again.');
-            }, 8_000);
-          }
-        };
-        const remote = new Audio();
-        remote.autoplay = true;
-        this.remote = remote;
-        peer.ontrack = (event) => {
-          if (attempt !== this.connectionAttempt) return;
-          const stream = new MediaStream([event.track]);
-          remote.srcObject = stream;
-          this.monitorOutput(stream);
-          void remote.play().then(() => { if (attempt === this.connectionAttempt) this.report('playback'); }).catch(() => { if (attempt === this.connectionAttempt) this.report('playback-blocked'); });
-        };
-        offer = await peer.createOffer();
-        if (attempt !== this.connectionAttempt) return;
-        await peer.setLocalDescription(offer);
-        if (attempt !== this.connectionAttempt) return;
-        await waitForIce(peer);
-        if (attempt !== this.connectionAttempt) return;
-        offer = peer.localDescription;
-        if (!offer?.sdp) throw new Error('Missing voice offer');
+        const made = await this.offerPeer(attempt);
+        if (!made || attempt !== this.connectionAttempt) return;
+        this.peer = made.peer;
+        offer = { sdp: made.sdp };
         params.set('link', 'webrtc');
       }
       const socket = new WebSocket(studioSocketURL('/ws/voice', params.toString()));
@@ -263,11 +257,26 @@ export class VoiceClient {
             this.fail(String(message.data?.message || 'Voice failed. Check Activity and provider access, then start Talk again.'));
             return;
           }
-          if (message.kind === 'answer' && this.peer) {
-            void this.peer.setRemoteDescription({ type: 'answer', sdp: String(message.data?.sdp ?? '') }).catch(() => {
+          const partner = message as unknown as PartnerMessage;
+          if (PARTNER_MESSAGES.includes(partner.type)) {
+            if (partner.type === 'reoffer') void this.reoffer(partner.id, attempt);
+            else this.onPartner?.(partner);
+            return;
+          }
+          if (message.kind === 'answer' && (this.nextPeer || this.peer)) {
+            // A renewed call's answer goes to its new connection, which then takes over from the old one.
+            const peer = (this.nextPeer ?? this.peer)!, renewing = peer === this.nextPeer;
+            void peer.setRemoteDescription({ type: 'answer', sdp: String(message.data?.sdp ?? '') }).then(() => {
+              if (renewing && attempt === this.connectionAttempt && this.nextPeer === peer) this.takeOver(peer);
+            }).catch(() => {
               if (attempt === this.connectionAttempt) this.fail('Voice audio negotiation failed. Start Talk again to reconnect.');
             });
             return;
+          }
+          if (message.kind === 'model') {
+            const talk = message.data?.talk;
+            this.talkMode = talk === 'hold' ? 'hold' : talk === 'open' ? 'open' : null;
+            this.applyMic();
           }
           if (message.kind === 'ready') { this.providerReady = true; this.maybeReady(); }
           if (message.kind === 'input_transcript') {
@@ -301,6 +310,143 @@ export class VoiceClient {
     } catch {
       if (attempt === this.connectionAttempt) this.fail('Voice could not establish audio. Check microphone and connection access, then start Talk again.');
     }
+  }
+
+  /** A new peer connection for the call, its microphone track and audio element shared with any before it. */
+  private async offerPeer(attempt: number): Promise<{ peer: RTCPeerConnection; sdp: string } | null> {
+    const mic = this.mic;
+    if (!mic) return null;
+    const peer = new RTCPeerConnection();
+    mic.getTracks().forEach((track) => peer.addTrack(track, mic));
+    peer.createDataChannel('oai-events');
+    peer.onconnectionstatechange = () => {
+      // Only the connection in use speaks for the call: a renewed one's old connection may fail on its way out.
+      if (attempt !== this.connectionAttempt || peer !== this.peer) return;
+      this.mediaConnected = peer.connectionState === 'connected';
+      if (this.disconnectTimer !== null) clearTimeout(this.disconnectTimer);
+      this.disconnectTimer = null;
+      if (this.mediaConnected) {
+        if (this.state === 'live') this.phase(this.muted ? 'muted' : 'listening'); // back after a reconnect
+        this.maybeReady(); return;
+      }
+      if (this.nextPeer) return; // being renewed: the new connection takes over
+      if (peer.connectionState === 'failed') this.fail('Voice audio disconnected. Your conversation is kept. Start Talk again to reconnect.');
+      else if (peer.connectionState === 'disconnected') {
+        this.phase('reconnecting');
+        this.disconnectTimer = setTimeout(() => {
+          if (attempt === this.connectionAttempt && !this.mediaConnected && !this.nextPeer) this.fail('Voice audio could not reconnect. Start Talk again.');
+        }, 8_000);
+      }
+    };
+    if (!this.remote) { this.remote = new Audio(); this.remote.autoplay = true; this.remote.muted = this.outputMuted; }
+    const remote = this.remote;
+    peer.ontrack = (event) => {
+      if (attempt !== this.connectionAttempt || (peer !== this.peer && peer !== this.nextPeer)) return;
+      const stream = new MediaStream([event.track]);
+      remote.srcObject = stream;
+      this.monitorOutput(stream);
+      void remote.play().then(() => { if (attempt === this.connectionAttempt) this.report('playback'); }).catch(() => { if (attempt === this.connectionAttempt) this.report('playback-blocked'); });
+    };
+    const offer = await peer.createOffer();
+    if (attempt !== this.connectionAttempt) { peer.close(); return null; }
+    await peer.setLocalDescription(offer);
+    if (attempt !== this.connectionAttempt) { peer.close(); return null; }
+    await waitForIce(peer);
+    if (attempt !== this.connectionAttempt) { peer.close(); return null; }
+    const sdp = peer.localDescription?.sdp;
+    if (!sdp) throw new Error('Missing voice offer');
+    return { peer, sdp };
+  }
+
+  /** The server renews the call (its 60-minute limit, a provider error): a fresh offer on the same socket, the same
+   * microphone and audio element; the old connection closes once the new answer is applied (takeOver). */
+  private async reoffer(id: string, attempt: number): Promise<void> {
+    if (!this.peer || !this.mic || this.nextPeer) return;
+    if (this.disconnectTimer !== null) { clearTimeout(this.disconnectTimer); this.disconnectTimer = null; }
+    try {
+      const made = await this.offerPeer(attempt);
+      if (!made || attempt !== this.connectionAttempt) return;
+      this.nextPeer = made.peer;
+      this.send({ type: 'offer', sdp: made.sdp, id: String(id) });
+    } catch {
+      if (attempt === this.connectionAttempt) this.fail('Voice could not renew its audio connection. Start Talk again to reconnect.');
+    }
+  }
+
+  private takeOver(peer: RTCPeerConnection): void {
+    const old = this.peer;
+    this.peer = peer; this.nextPeer = null;
+    if (old && old !== peer) { old.onconnectionstatechange = null; old.ontrack = null; old.close(); }
+    this.mediaConnected = peer.connectionState === 'connected';
+    if (this.mediaConnected && this.state === 'live') this.phase(this.muted ? 'muted' : 'listening');
+  }
+
+  /** One of the partner's messages to the server (talk, snapshot, marks-shown, offer); false when not connected. */
+  send(command: PartnerCommand): boolean {
+    if (this.socket?.readyState !== WebSocket.OPEN) return false;
+    this.socket.send(JSON.stringify(command));
+    return true;
+  }
+
+  /** The talk key or button pressed: the microphone opens, the voice falls silent (barge-in), the turn starts. */
+  talkDown(n: number): void {
+    this.muteOutput();
+    if (this.micTimer !== null) { clearTimeout(this.micTimer); this.micTimer = null; }
+    this.micOpen = true; this.applyMic();
+    this.send({ type: 'talk', down: true, n });
+  }
+
+  /** Released: the turn goes to the model; the microphone closes a moment later (MIC_TAIL_MS). */
+  talkUp(n: number): void {
+    this.send({ type: 'talk', down: false, n });
+    this.closeMicSoon(MIC_TAIL_MS);
+    this.restoreOutputSoon();
+  }
+
+  /** Dropped (Escape, a tap, a chord): no answer, the microphone closes at once. */
+  talkCancel(n: number): void {
+    this.send({ type: 'talk', cancel: true, n });
+    this.closeMicSoon(0);
+    this.restoreOutputSoon();
+  }
+
+  private closeMicSoon(ms: number): void {
+    if (this.micTimer !== null) clearTimeout(this.micTimer);
+    const close = () => { this.micTimer = null; this.micOpen = false; this.applyMic(); };
+    if (ms <= 0) { this.micTimer = null; close(); } else this.micTimer = setTimeout(close, ms);
+  }
+
+  /** In hold mode the microphone is on only while held; otherwise as muted says. */
+  private applyMic(): void {
+    const on = !this.muted && (this.talkMode !== 'hold' || this.micOpen);
+    this.mic?.getAudioTracks().forEach((track) => (track.enabled = on));
+  }
+
+  /** Silence the voice now (its audio element muted, queued relay audio dropped): heard again by restoreOutputSoon. */
+  private muteOutput(): void {
+    if (this.unmuteTimer !== null) { clearTimeout(this.unmuteTimer); this.unmuteTimer = null; }
+    if (!this.outputMuted) this.outputMutedAt = performance.now();
+    this.outputMuted = true;
+    if (this.remote) this.remote.muted = true;
+    this.flush();
+    if (this.outputSpeaking) { this.outputSpeaking = false; this.phase(this.muted ? 'muted' : 'listening'); }
+    this.onOutput?.(true);
+  }
+
+  private restoreOutputSoon(): void {
+    if (!this.outputMuted) return;
+    if (this.unmuteTimer !== null) clearTimeout(this.unmuteTimer);
+    const wait = Math.max(0, this.outputMutedAt + BARGE_MIN_MS - performance.now());
+    this.unmuteTimer = setTimeout(() => this.restoreOutput(), wait);
+  }
+
+  private restoreOutput(): void {
+    if (this.unmuteTimer !== null) clearTimeout(this.unmuteTimer);
+    this.unmuteTimer = null;
+    if (!this.outputMuted) return;
+    this.outputMuted = false;
+    if (this.remote) this.remote.muted = false;
+    this.onOutput?.(false);
   }
 
   private maybeReady(): void {
@@ -348,7 +494,7 @@ export class VoiceClient {
   setMuted(muted: boolean): void {
     this.muted = muted;
     this.phase(muted ? 'muted' : 'listening');
-    this.mic?.getAudioTracks().forEach((track) => (track.enabled = !muted));
+    this.applyMic();
     // The session is told (session.input_audio.mute), not just sent nothing.
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify({ type: 'mute', muted }));
   }
@@ -357,6 +503,7 @@ export class VoiceClient {
     const attempt = this.connectionAttempt;
     const speaker = this.speaker;
     if (!speaker || data.byteLength < 6 || data.byteLength % 2 !== 0 || String.fromCharCode(...new Uint8Array(data, 0, 4)) !== AUDIO_MAGIC) return;
+    if (this.outputMuted) return; // a barge-in: what was still coming of the cancelled reply is not played
     if (speaker.state !== 'running') { this.report('playback-blocked'); return; }
     const pcm = new Int16Array(data.slice(4));
     // Live sends silence continuously. Receiving a packet is not speech.
@@ -410,7 +557,7 @@ export class VoiceClient {
     const samples = new Float32Array(analyser.fftSize);
     this.mediaTimer = setInterval(() => {
       analyser.getFloatTimeDomainData(samples);
-      const audible = samples.some(sample => Math.abs(sample) >= 0.012);
+      const audible = !this.outputMuted && samples.some(sample => Math.abs(sample) >= 0.012);
       if (audible) { this.outputLastHeard = performance.now(); this.clearResponseTimer(); }
       const speaking = audible || performance.now() - this.outputLastHeard < 350;
       if (speaking !== this.outputSpeaking) {
@@ -442,6 +589,13 @@ export class VoiceClient {
     this.flush();
     this.peer?.close();
     this.peer = null;
+    this.nextPeer?.close();
+    this.nextPeer = null;
+    if (this.micTimer !== null) clearTimeout(this.micTimer);
+    this.micTimer = null; this.micOpen = false;
+    if (this.unmuteTimer !== null) clearTimeout(this.unmuteTimer);
+    this.unmuteTimer = null;
+    if (this.outputMuted) { this.outputMuted = false; this.onOutput?.(false); }
     if (this.remote) this.remote.srcObject = null;
     this.remote = null;
     this.mic?.getTracks().forEach((track) => track.stop());

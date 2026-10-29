@@ -791,6 +791,25 @@ export class WorkspaceSession {
     this.sharingState(code);
   }
   stopWorkspaceSharing(): void { this.releaseTab('share-required'); }
+  /** The granted tab share's newest frame, at most `maxSide` px (the one-brain voice's window snapshot); null without a
+   * live share, so the caller composes the window instead (composeWindow). */
+  shareSnapshot(maxSide = 1280, quality = 0.8): { jpeg: string; w: number; h: number } | null {
+    const tab = this.tab;
+    if (!tab || this.disposed || !this.pair || tab.track.readyState !== 'live' || !tab.track.enabled || tab.track.muted
+      || tab.video.srcObject !== tab.stream || tab.video.readyState < 2) return null;
+    const width = tab.video.videoWidth, height = tab.video.videoHeight;
+    if (!width || !height) return null;
+    const k = Math.min(1, maxSide / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * k)); canvas.height = Math.max(1, Math.round(height * k));
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(tab.video, 0, 0, canvas.width, canvas.height);
+    const jpeg = canvas.toDataURL('image/jpeg', quality).split(',', 2)[1] ?? '';
+    const size = { w: canvas.width, h: canvas.height };
+    canvas.width = 0; canvas.height = 0;
+    return jpeg ? { jpeg, ...size } : null;
+  }
   /** Must be called directly by the user's share click, before transient activation ends. */
   async shareWorkspaceTab(): Promise<void> {
     this.releaseTab('share-required');
@@ -1131,46 +1150,151 @@ export class WorkspaceSession {
   dispose(): void { if (this.disposed) return; this.disposed = true; this.retire(); }
 }
 
-/** A picture of the workspace as composed now: the live view and every open panel's own pictures at
- * their places, each other panel as its outline and title. JPEG, base64 (look_at_screen). */
+/** A picture of the workspace as composed now (look_at_screen): composeWindow's JPEG, base64. */
 export function composeScreen(root: HTMLElement = document.body, quality = 0.7): string {
-  const w = innerWidth;
-  const h = innerHeight;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return '';
-  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#111';
-  ctx.fillRect(0, 0, w, h);
-  const visible = (el: Element) => {
-    const r = el.getBoundingClientRect();
+  return composeWindow(root, { quality }).jpeg;
+}
+
+/** The windows and panels composeWindow draws: each is a frame of its own, filled with its background, with its
+ * pictures inside it and its title on its bar. */
+export const SCREEN_FRAMES = '[data-screen-title], section.workspace-window, #study-artifacts > [data-placement-id], #workspace-tabs-strip, #session-rail';
+const SCREEN_TEXT_MS = 70; // text (titles, Tab names, table rows) stops being drawn past this, so a snapshot stays under ~100 ms
+
+type Box = { left: number; top: number; width: number; height: number };
+interface ScreenNode { el: Element; rect: Box }
+/** What composeWindow draws, gathered from the page (screenLayout): frames in paint order, pictures with the frame
+ * they are in, and text lines at their places. Plain data, so it is tested without a browser. */
+export interface ScreenLayout {
+  frames: (ScreenNode & { title: string; background: string; z: number })[];
+  pictures: (ScreenNode & { frame: number | null; opacity: number })[];
+  text: { text: string; rect: Box; kind: 'title' | 'tab' | 'cell' | 'header' | 'heading' | 'row' }[];
+}
+
+const shown = (el: Element, view: [number, number]): Box | null => {
+  const r = el.getBoundingClientRect();
+  if (r.width <= 4 || r.height <= 4 || r.right <= 0 || r.bottom <= 0 || r.left >= view[0] || r.top >= view[1]) return null;
+  if ((el as HTMLElement).closest?.('[hidden], [data-workspace-hidden="true"]')) return null;
+  const style = getComputedStyle(el);
+  if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return null;
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+};
+const words = (value: string | null | undefined, max = 120) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+
+/** A frame's title: a window's own title bar, else its heading, else what it is called. */
+export function frameTitle(el: Element): string {
+  const own = el.querySelector('.workspace-window-title, .workspace-tab-label, [id$="-title"], h1, h2, h3, header');
+  const title = words(own?.textContent, 80);
+  const name = (el as HTMLElement).dataset?.screenTitle ?? el.getAttribute('aria-label') ?? '';
+  return title && name && title !== name ? `${name}: ${title}` : title || words(name, 80);
+}
+
+/** The page as composeWindow draws it, in the viewport `view` (CSS px). */
+export function screenLayout(root: ParentNode, view: [number, number], budgetMs = SCREEN_TEXT_MS, now: () => number = () => performance.now()): ScreenLayout {
+  const started = now();
+  const frames: ScreenLayout['frames'] = [];
+  for (const el of Array.from(root.querySelectorAll(SCREEN_FRAMES))) {
+    const rect = shown(el, view);
+    if (!rect) continue;
     const style = getComputedStyle(el);
-    return r.width > 4 && r.height > 4 && style.visibility !== 'hidden' && style.display !== 'none' && !(el as HTMLElement).closest('[hidden]');
-  };
+    frames.push({ el, rect, title: frameTitle(el), background: style.backgroundColor, z: Number(style.zIndex) || 0 });
+  }
+  // Paint order: by z-index, then page order (a later sibling covers an earlier one).
+  const order = frames.map((f, i) => ({ f, i })).sort((a, b) => a.f.z - b.f.z || a.i - b.i).map(x => x.f);
+  frames.splice(0, frames.length, ...order);
+  const pictures: ScreenLayout['pictures'] = [];
   for (const el of Array.from(root.querySelectorAll('canvas, img, video'))) {
-    if (!visible(el)) continue;
-    const r = el.getBoundingClientRect();
+    if ((el as HTMLElement).closest?.('#voice-marks')) continue;
+    const rect = shown(el, view);
+    if (!rect) continue;
+    const holder = (el as HTMLElement).closest?.(SCREEN_FRAMES);
+    const at = holder ? frames.findIndex(f => f.el === holder) : -1;
+    pictures.push({ el, rect, frame: at < 0 ? null : at, opacity: Number(getComputedStyle(el).opacity || 1) });
+  }
+  const text: ScreenLayout['text'] = [];
+  const over = () => now() - started > budgetMs;
+  for (const f of frames) if (f.title) text.push({ text: f.title, rect: { left: f.rect.left, top: f.rect.top, width: f.rect.width, height: 20 }, kind: 'title' });
+  for (const tab of Array.from(root.querySelectorAll('.workspace-tab-label'))) {
+    if (over()) break;
+    const rect = shown(tab, view);
+    if (rect) text.push({ text: words(tab.textContent, 40), rect, kind: 'tab' });
+  }
+  // Tables (the Measurements table, a researcher's tables): the header and the rows in view, cell by cell.
+  let rows = 0;
+  for (const table of Array.from(root.querySelectorAll('table'))) {
+    if (over() || rows >= 60) break;
+    if (!shown(table, view)) continue;
+    for (const row of Array.from((table as HTMLTableElement).rows ?? [])) {
+      if (over() || rows >= 60) break;
+      const rect = shown(row, view);
+      if (!rect) continue;
+      rows++;
+      for (const cell of Array.from(row.cells ?? []).slice(0, 12)) {
+        const box = shown(cell, view);
+        const value = words(cell.textContent, 40);
+        if (box && value) text.push({ text: value, rect: box, kind: cell.tagName === 'TH' ? 'header' : 'cell' });
+      }
+    }
+  }
+  for (const heading of Array.from(root.querySelectorAll('h1, h2, h3, .mm-row-title'))) {
+    if (over() || text.length > 400) break;
+    if (heading.closest('table')) continue;
+    const rect = shown(heading, view);
+    const value = words(heading.textContent, 80);
+    if (rect && value && !text.some(t => t.text === value && Math.abs(t.rect.top - rect.top) < 24)) text.push({ text: value, rect, kind: heading.classList.contains('mm-row-title') ? 'row' : 'heading' });
+  }
+  return { frames, pictures, text };
+}
+
+/** A picture of the window as composed now, for a model to read: the live view and every picture at its place, each
+ * window and panel filled, outlined and titled, and the text that says what they are (Tab names, table rows in view,
+ * headings) written where it is. At most `maxSide` px; JPEG, base64. */
+export function composeWindow(root: HTMLElement = document.body, { quality = 0.7, maxSide = 1280 } = {}): { jpeg: string; w: number; h: number } {
+  const view: [number, number] = [innerWidth, innerHeight];
+  const k = Math.min(1, maxSide / Math.max(view[0], view[1], 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(view[0] * k));
+  canvas.height = Math.max(1, Math.round(view[1] * k));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { jpeg: '', w: 0, h: 0 };
+  ctx.scale(k, k);
+  ctx.fillStyle = getComputedStyle(document.body).backgroundColor || '#111';
+  ctx.fillRect(0, 0, view[0], view[1]);
+  const layout = screenLayout(root, view);
+  const draw = (p: ScreenLayout['pictures'][number]) => {
     try {
-      ctx.globalAlpha = Number(getComputedStyle(el).opacity || 1);
-      ctx.drawImage(el as CanvasImageSource, r.left, r.top, r.width, r.height);
+      ctx.globalAlpha = p.opacity;
+      ctx.drawImage(p.el as CanvasImageSource, p.rect.left, p.rect.top, p.rect.width, p.rect.height);
     } catch {
       // a picture from elsewhere that cannot be read back: its place is drawn instead
       ctx.globalAlpha = 1;
       ctx.strokeStyle = '#888';
-      ctx.strokeRect(r.left, r.top, r.width, r.height);
+      ctx.strokeRect(p.rect.left, p.rect.top, p.rect.width, p.rect.height);
     }
-  }
-  ctx.globalAlpha = 1;
-  ctx.font = '13px system-ui, sans-serif';
-  for (const el of Array.from(root.querySelectorAll('[data-screen-title]'))) {
-    if (!visible(el)) continue;
-    const r = el.getBoundingClientRect();
+    ctx.globalAlpha = 1;
+  };
+  // Pictures in no window (the live view) first, then each window over them with its own pictures.
+  layout.pictures.filter(p => p.frame === null).forEach(draw);
+  layout.frames.forEach((f, i) => {
+    const bg = f.background;
+    if (bg && bg !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(bg)) { ctx.fillStyle = bg; ctx.fillRect(f.rect.left, f.rect.top, f.rect.width, f.rect.height); }
+    layout.pictures.filter(p => p.frame === i).forEach(draw);
     ctx.strokeStyle = '#cfd6e6';
     ctx.lineWidth = 1;
-    ctx.strokeRect(r.left + 0.5, r.top + 0.5, r.width - 1, r.height - 1);
-    ctx.fillStyle = '#cfd6e6';
-    ctx.fillText((el as HTMLElement).dataset.screenTitle ?? '', r.left + 6, r.top + 16);
+    ctx.strokeRect(f.rect.left + 0.5, f.rect.top + 0.5, f.rect.width - 1, f.rect.height - 1);
+  });
+  ctx.textBaseline = 'middle';
+  for (const t of layout.text) {
+    const size = t.kind === 'title' || t.kind === 'heading' ? 13 : 12;
+    ctx.font = `${t.kind === 'title' || t.kind === 'header' || t.kind === 'heading' ? 600 : 400} ${size}px system-ui, sans-serif`;
+    const y = t.kind === 'title' ? t.rect.top + 11 : t.rect.top + Math.min(t.rect.height, 24) / 2;
+    const width = Math.min(ctx.measureText(t.text).width, Math.max(8, t.rect.width - 8));
+    ctx.fillStyle = 'rgba(16, 18, 24, 0.82)';
+    ctx.fillRect(t.rect.left + 2, y - size / 2 - 2, width + 8, size + 4);
+    ctx.fillStyle = t.kind === 'title' ? '#ffffff' : '#e7ecf7';
+    ctx.fillText(t.text, t.rect.left + 6, y, Math.max(8, t.rect.width - 8));
   }
-  return canvas.toDataURL('image/jpeg', quality).split(',', 2)[1] ?? '';
+  const jpeg = canvas.toDataURL('image/jpeg', quality).split(',', 2)[1] ?? '';
+  const size = { w: canvas.width, h: canvas.height };
+  canvas.width = 0; canvas.height = 0;
+  return { jpeg, ...size };
 }
