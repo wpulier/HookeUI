@@ -19,9 +19,9 @@ def register(app, built, studio_origin, header):
     async def listing(study: str, session: str, request: Request):
         try:
             owner(request, session)
-            questions = await _owned(for_app(built).rows, study, session)
+            snapshot = await _owned(for_app(built).snapshot, study, session)
             available = await _owned(recipients, built, session)
-            return JSONResponse({'ok': True, 'questions': questions, 'recipients': available}, headers={'Cache-Control':'no-store'})
+            return JSONResponse({'ok': True, **snapshot, 'recipients': available}, headers={'Cache-Control':'no-store'})
         except (ValueError, OSError) as error:
             return _error(error)
 

@@ -9,7 +9,7 @@ from .efforts import KEY, fingerprint, summary, text
 from .studies import service
 from ..door.projects import access
 from ..door.schema import check
-from ..scientific_comparisons import exact
+from ..scientific_comparisons import exact, identity
 from ..scientific_projects import Conflict, InvalidProject
 
 
@@ -33,8 +33,12 @@ class Questions:
         self.studies = studies
         self.efforts = studies.efforts
 
+    def snapshot(self, study, session):
+        saved = self.efforts.read(study, session)
+        return {'questions': summary(saved).get('questions', []), 'basis': identity(saved)}
+
     def rows(self, study, session):
-        return summary(self.efforts.read(study, session)).get('questions', [])
+        return self.snapshot(study, session)['questions']
 
     def ask(self, study, session, *, request, question, basis, recipient, actor, label):
         text(request, 'Question request', 128)
@@ -54,8 +58,8 @@ class Questions:
             rows = state.setdefault('questions', [])
             old = next((q for q in rows if q['id'] == row['id']), None)
             if old:
-                fields = ('request', 'question', 'basis', 'recipient', 'by')
-                if any(old[k] != row[k] for k in fields):
+                fields = ('request', 'question', 'basis', 'by')
+                if any(old[k] != row[k] for k in fields) or old['recipient']['actor'] != row['recipient']['actor']:
                     raise Conflict('This question request already belongs to other words or context')
                 return False
             if len(rows) >= 128:

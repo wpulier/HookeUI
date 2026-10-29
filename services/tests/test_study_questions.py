@@ -13,6 +13,7 @@ def test_question_pins_substantive_context_and_answer_survives_reopen(tmp_path):
                   recipient={'actor':B,'label':'Second researcher'}, actor='studio', label='You')
     first = q.ask(study.id, 's1', **fields)
     assert q.ask(study.id, 's1', **fields) == first
+    assert q.ask(study.id, 's1', **{**fields,'recipient':{'actor':B,'label':'Renamed'}}) == first
     # New conclusions cannot silently change the question's captured context.
     s.publish(study.id, 's1', request='later', statement='Later finding', evidence=[{'artifact':identity(image),'relation':'supports'}], depends_on=[],
               actor=A, label='First researcher')

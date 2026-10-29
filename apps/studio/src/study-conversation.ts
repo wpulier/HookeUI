@@ -7,7 +7,7 @@ export interface StudyQuestion {
   id:string; question:string; basis:Reference; recipient:Recipient; byLabel:string;
   answer:null|{statement:string; limitations:string; evidence:Reference[]; byLabel:string; by:string};
 }
-export interface QuestionState { questions:StudyQuestion[]; recipients:Recipient[] }
+export interface QuestionState { basis:Reference; questions:StudyQuestion[]; recipients:Recipient[] }
 const headers={'Content-Type':'application/json','X-MicroscopeMind':'research-effort'};
 async function response(reply:Response) {
   const value=await reply.json();
@@ -23,6 +23,7 @@ export function studyConversation(initial:Effort, options:{
   fetcher?:typeof fetch; copy?:(text:string)=>Promise<void>;
 }) {
   let study=initial, sending=false, reading=false, signature='', loaded=false, sendError='';
+  let basis:Reference={id:initial.id,session:initial.session,revision:initial.revision,digest:initial.digest};
   let retry:{text:string;recipient:string;body:Record<string,unknown>}|null=null;
   const fetcher=options.fetcher??fetch;
   const root=node('section','study-conversation');root.setAttribute('aria-label','Study conversation');
@@ -36,13 +37,15 @@ export function studyConversation(initial:Effort, options:{
   const controls=node('div','study-conversation-controls');controls.append(status,refreshButton);
   root.append(log,controls,compose.root);
   function ready(){compose.send.disabled=sending||!loaded||!select.value||!options.current();select.disabled=sending;compose.field.readOnly=sending;}
-  compose.field.addEventListener('input',ready);compose.field.addEventListener('focus',ready);
+  select.addEventListener('change',ready);compose.field.addEventListener('input',ready);compose.field.addEventListener('focus',ready);
   function render(rows:StudyQuestion[]){
     const next=JSON.stringify(rows);if(next===signature)return;signature=next;
     const follow=log.scrollHeight-log.scrollTop-log.clientHeight<40;
-    log.replaceChildren();
     for(const question of rows){
-      const card=node('article','study-question');card.dataset.questionId=question.id;
+      const rowSignature=JSON.stringify(question);
+      const existing=[...log.children].find(el=>(el as HTMLElement).dataset.questionId===question.id) as HTMLElement|undefined;
+      if(existing?.dataset.signature===rowSignature)continue;
+      const card=node('article','study-question');card.dataset.questionId=question.id;card.dataset.signature=rowSignature;
       card.append(node('small','',question.byLabel),node('p','study-question-words',question.question));
       if(question.answer){
         const answer=question.answer;
@@ -60,7 +63,7 @@ export function studyConversation(initial:Effort, options:{
         copy.addEventListener('click',()=>{const prompt=`Use your existing Hooke connection to answer question ${question.id} in Study ${study.id}, Project ${study.session}. Read its pinned context through GET studies/${study.id}/questions/${question.id}?session=${study.session}, inspect the cited retained evidence, then publish an answer through POST studies/${study.id}/questions/${question.id}/answer. Use your own connection identity. Report limitations; do not launch experiments or submit anything.`;
           void (options.copy??(text=>navigator.clipboard.writeText(text)))(prompt).then(()=>{status.textContent='Question instructions copied.';}).catch(()=>{status.textContent='Could not copy. The saved question remains in this Study.';});});card.append(copy);
       }
-      log.append(card);
+      if(existing){existing.replaceChildren(...card.children);existing.dataset.signature=rowSignature;}else log.append(card);
     }
     if(follow)log.scrollTop=log.scrollHeight;
   }
@@ -71,8 +74,8 @@ export function studyConversation(initial:Effort, options:{
       if(!options.current())return;
       const chosen=select.value;
       const recipientSignature=JSON.stringify(value.recipients);
-      if(select.dataset.options!==recipientSignature){select.replaceChildren();for(const recipient of value.recipients){const option=node('option','',recipient.label);option.value=recipient.actor;select.append(option);}if(value.recipients.some(r=>r.actor===chosen))select.value=chosen;select.dataset.options=recipientSignature;}
-      loaded=true;render(value.questions);
+      if(select.dataset.options!==recipientSignature){const placeholder=node('option','','Choose an agent');placeholder.value='';select.replaceChildren(placeholder);for(const recipient of value.recipients){const option=node('option','',recipient.label);option.value=recipient.actor;select.append(option);}select.value=value.recipients.some(r=>r.actor===chosen)?chosen:'';select.dataset.options=recipientSignature;}
+      basis=value.basis;loaded=true;render(value.questions);
       if(!sending)status.textContent=sendError||(value.recipients.length?'Replies stay here. Your agent must pick up the saved question.':'No connected contributor has access to this Project. Manage access in Settings → Connected agents.');
     }catch(error){if(options.current())status.textContent=error instanceof Error?error.message:String(error);}
     finally{reading=false;ready();}
@@ -80,7 +83,7 @@ export function studyConversation(initial:Effort, options:{
   refreshButton.addEventListener('click',()=>void refresh());
   compose.root.addEventListener('submit',event=>{
     event.preventDefault();const text=compose.field.value.trim();if(!text||sending||!select.value||!loaded||!options.current())return;
-    if(!retry||retry.text!==text||retry.recipient!==select.value)retry={text,recipient:select.value,body:{session:study.session,request:crypto.randomUUID(),question:text,basis:{id:study.id,session:study.session,revision:study.revision,digest:study.digest},recipient:select.value}};
+    if(!retry||retry.text!==text||retry.recipient!==select.value)retry={text,recipient:select.value,body:{session:study.session,request:crypto.randomUUID(),question:text,basis,recipient:select.value}};
     const captured=retry;sendError='';sending=true;root.dataset.pending='true';ready();status.textContent='Saving your question…';
     void responseAfterSave(captured);
   });
