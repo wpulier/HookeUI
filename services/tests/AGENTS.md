@@ -1,3 +1,5 @@
+Owner relocation tests exercise moved working folders, unchanged grants/history, both-copy writer exclusion, unknown origins and malformed choices. The synthetic dialog test retains the explicit choice after refusal. These are distinct from an actual browser relocation journey.
+
 test_project_open_command uses synthetic retained Projects with real stores to qualify owner-only registration without navigation or grants, stale requests and disabled-host refusal. project-open.test.ts checks synthetic dialog retries, close/navigation races and delegation to normal unsaved-work navigation. These tests do not establish native chooser or full collection acceptance.
 
 `test_project_source_preflight.py` uses synthetic journals and copied media over the
@@ -833,3 +835,8 @@ metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and
 recomputed outer seals. This is storage evidence, not provider or complete-collection
 acceptance.
+
+Moved-folder resume regression reaches SessionStore.resume with its remembered
+location absent, checks an available fallback and offline listing, then explicitly
+relocates/reopens without shadow storage or replay. The red trace and actual
+isolated browser startup are recorded separately from synthetic checks.

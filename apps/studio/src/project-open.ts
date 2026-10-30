@@ -4,7 +4,7 @@ import {nativeFolderBridge} from './scientific-folder-native';
 export interface OpenedProject {session: string; origin: string; name: string; location: string}
 interface Actions {
   current: () => boolean;
-  open: (path: string) => Promise<OpenedProject>;
+  open: (path: string, useLocation: boolean) => Promise<OpenedProject>;
   navigate: (session: string) => Promise<boolean>;
 }
 const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = '', cls = '') => {
@@ -27,7 +27,12 @@ export function showOpenProject(actions: Actions): HTMLDialogElement {
   const status = node('p', '', 'project-folder-status'); status.setAttribute('role', 'status');
   const submit = node('button', 'Open Project', 'study-primary'); submit.type = 'submit';
   const footer = node('footer'); footer.append(submit);
-  form.append(label, node('p', 'Choose the folder containing project.json. Existing evidence and authorship stay with the Project; agent access is set up separately.', 'project-folder-name'), status, footer);
+  const recovery = node('details'), recoveryLabel = node('label', '', 'project-open-relocate');
+  const useLocation = node('input'); useLocation.type = 'checkbox'; useLocation.checked = false;
+  recoveryLabel.append(useLocation, node('span', 'Use this location'));
+  recovery.append(node('summary', 'Moved this Project?'), recoveryLabel,
+    node('p', 'Update this Mac’s saved location for the same Project. Close its other Hooke host first. The original folder is kept.', 'project-folder-name'));
+  form.append(label, node('p', 'Choose the folder containing project.json. Existing evidence and authorship stay with the Project; agent access is set up separately.', 'project-folder-name'), recovery, status, footer);
   dialog.append(header, form); document.body.append(dialog);
   let closed = false, busy = false, choosing = false;
   if (choose && native) {
@@ -49,10 +54,10 @@ export function showOpenProject(actions: Actions): HTMLDialogElement {
     if (busy || choosing || closed) return;
     if (!actions.current()) { status.textContent = 'Your workspace changed. Close this dialog and open the folder again.'; return; }
     const path = input.value.trim(); if (!path) { input.focus(); return; }
-    busy = true; submit.disabled = true; input.disabled = true;
+    busy = true; submit.disabled = true; input.disabled = true; useLocation.disabled = true;
     status.textContent = 'Verifying retained evidence…';
     try {
-      const project = await actions.open(path);
+      const project = await actions.open(path, useLocation.checked);
       if (closed) return;
       if (!actions.current()) { status.textContent = `${project.name} is now in All Projects. Your current workspace was left as it is.`; return; }
       // Dismiss before existing unsaved-work/recovery dialogs need the foreground.
@@ -60,7 +65,7 @@ export function showOpenProject(actions: Actions): HTMLDialogElement {
       await actions.navigate(project.session);
     } catch (error) {
       if (!closed) status.textContent = error instanceof Error ? error.message : 'The Project could not be opened. Keep the original folder and try again.';
-    } finally { busy = false; submit.disabled = false; input.disabled = false; }
+    } finally { busy = false; submit.disabled = false; input.disabled = false; useLocation.disabled = false; }
   });
   dialog.addEventListener('close', () => { closed = true; if (choosing && native) void native.postMessage({op: 'cancel'}).catch(() => undefined); dialog.remove(); if (opener?.isConnected) opener.focus(); }, {once: true});
   dialog.showModal(); input.focus(); return dialog;

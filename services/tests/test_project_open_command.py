@@ -10,6 +10,83 @@ from orchestrator.paths import Paths
 from orchestrator.tools import ToolError
 from orchestrator.agent_runnable import door_resource, runnable, OWNER_STORAGE_ACTIONS
 from tests.test_project_owner_open import source
+from tests.test_project_launch import relocated
+
+
+def test_owner_relocation_keeps_identity_history_and_existing_grants(tmp_path):
+    paths, parent, root, moved, before = relocated(tmp_path)
+    access = ProjectAccess(paths.home)
+    access.remember(root.session, 'agent:ac_' + 'a' * 24)
+    grants = access.path.read_bytes()
+    locations = configured_locations(paths, str(parent))
+    day = SessionStore(paths.sessions, session='2001-01-01', locations=locations)
+    app = SimpleNamespace(day=day, paths=paths)
+    message = {'session': day.sid, 'path': str(moved)}
+    try:
+        registry = locations.registry.path.read_bytes()
+        with pytest.raises(ToolError, match='Use this location'):
+            asyncio.run(COMMANDS['project-open-folder'](app, None, message))
+        assert locations.registry.path.read_bytes() == registry
+        result = asyncio.run(COMMANDS['project-open-folder'](app, None, {**message, 'useLocation': True}))
+        assert result['project']['origin'] == root.origin
+        assert locations.project(root.session).path == moved
+        assert day.sid == '2001-01-01'
+        assert access.path.read_bytes() == grants
+        assert (moved / 'history/sessions' / root.session / 'journal.jsonl').read_bytes() == before
+    finally:
+        locations.close()
+
+
+@pytest.mark.parametrize('locked', ['original', 'selected'])
+def test_relocation_refuses_either_active_copy_and_keeps_locator(tmp_path, locked):
+    import shutil
+    from orchestrator.project_roots import ProjectRoot, writer
+    paths, parent, root, moved, _ = relocated(tmp_path)
+    shutil.copytree(moved, root.path)
+    locations = configured_locations(paths, str(parent))
+    before = locations.registry.path.read_bytes()
+    try:
+        selected = root if locked == 'original' else ProjectRoot.open(moved)
+        with writer(selected), pytest.raises(ValueError, match='Another Hooke host'):
+            register_owner_folder(paths, locations, str(moved), use_location=True)
+        assert locations.registry.path.read_bytes() == before
+    finally:
+        locations.close()
+
+
+def test_relocation_never_reinterprets_unknown_origin_as_authorized(tmp_path):
+    root, moved, _, _ = source(tmp_path)
+    paths = Paths.under(tmp_path / 'receiving-host')
+    locations = configured_locations(paths, str(tmp_path / 'Projects'))
+    try:
+        with pytest.raises(ValueError, match='not registered here'):
+            register_owner_folder(paths, locations, str(moved), use_location=True)
+        for value in ('true', 1, None):
+            with pytest.raises(ValueError, match='explicitly'):
+                register_owner_folder(paths, locations, str(moved), use_location=value)
+        assert not locations.registry.path.exists()
+        assert ProjectAccess(paths.home).rows() == {}
+    finally:
+        locations.close()
+
+
+def test_missing_old_path_does_not_erase_a_host_held_writer(tmp_path):
+    import shutil
+    paths, parent, root, moved, _ = relocated(tmp_path)
+    moved.rename(root.path)
+    locations = configured_locations(paths, str(parent))
+    try:
+        locations.writable(root.session)
+        # A cross-volume move can leave an independent copy while the old lease
+        # inode survives at a different location. No accepted files are deleted.
+        shutil.copytree(root.path, moved)
+        root.path.rename(tmp_path / 'Original still held by host')
+        before = locations.registry.path.read_bytes()
+        with pytest.raises(ValueError, match='still owns the original'):
+            register_owner_folder(paths, locations, str(moved), use_location=True)
+        assert locations.registry.path.read_bytes() == before
+    finally:
+        locations.close()
 
 
 def test_owner_command_registers_without_navigation_or_inherited_access(tmp_path):

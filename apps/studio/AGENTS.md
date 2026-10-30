@@ -1,3 +1,5 @@
+Open Project keeps moved-folder recovery in a disclosure. “Use this location” is opt-in and sent to the same owner command; errors preserve the path and choice. It does not grant access or bypass normal unsaved-work navigation.
+
 Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.
 
 Open Project folder in the Project menu accepts a local folder path. Registration and navigation are separate: the ordinary Project switch checks unsaved work, and closing/changing workspace during verification prevents late navigation. Failed registration preserves the typed path. Native picker and read-only/copy choices remain separate qualification gates.
