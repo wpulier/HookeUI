@@ -585,7 +585,7 @@ async def live_in_sight(hub, ctx) -> str:
     try:
         await broker.run(ctx, {"action": "switch", "tab": HOME})
     except ToolFailed as exc:
-        return f"; {hid}, and Main could not be brought to the front ({exc.said()})"
+        return f"; {tab} hides the live view; Main could not be brought to the front: {exc.said()}"
     loop = asyncio.get_running_loop()
     deadline, ask = loop.time() + SWITCH_WAIT_S, loop.time()
     while True:
@@ -593,7 +593,7 @@ async def live_in_sight(hub, ctx) -> str:
         if now.get("tab") == HOME:
             return f'; on Tab "Main", brought to the front ({hid})'
         if loop.time() >= deadline:
-            return f"; {hid}: Main was asked to the front, but the studio does not show it there yet"
+            return f"; {tab} hides the live view: Main was asked to the front, but the screen does not show it there yet"
         if loop.time() - ask >= ASK_EVERY_S:
             client.offer(json.dumps({"type": "screen-ask"}))
             ask = loop.time()
