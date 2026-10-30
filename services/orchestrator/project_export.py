@@ -43,6 +43,10 @@ def export(day, session, operation, *, acknowledge_incomplete, check=lambda: Non
     parent.mkdir(exist_ok=True)
     if not stat.S_ISDIR(parent.stat(follow_symlinks=False).st_mode):
         raise ProjectLocationError('The export destination is not a regular folder')
+    from .scientific_projects import ProjectStore
+    # Persist the new Exports entry, including a retry after an earlier sync
+    # failure. Syncing Exports itself does not make it reachable after a crash.
+    ProjectStore._sync_directory(parent.parent)
     destination = parent / f'{root.origin}—{operation}'
     check()
     if not destination.exists():
@@ -91,7 +95,6 @@ def reveal_path(day, session, receipt):
     expected = parent / f'{root.origin}—{operation}'
     if str(expected) != receipt.get('location') or ProjectRoot.open(expected).origin != root.origin:
         raise ProjectLocationError('The export folder changed; preserve the original copy')
-    from .project_folder_copy import MAX_MANIFEST
     if _stream(expected / SNAPSHOT, max_bytes=MAX_MANIFEST)[1] != receipt.get('manifestSha256'):
         raise ProjectLocationError('The export manifest changed; preserve the original copy')
     return expected

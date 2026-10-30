@@ -23,14 +23,23 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   let readEpoch = 0;
   let requestKey = `project-export-${crypto.randomUUID()}`, operation = '';
   const storageKey = `hooke.project-export.${origin}`;
-  try { operation = localStorage.getItem(storageKey) ?? ''; } catch { /* optional presentation state */ }
+  const pendingKey = `${storageKey}.pending`;
+  let pending = '';
+  try {
+    operation = localStorage.getItem(storageKey) ?? '';
+    pending = localStorage.getItem(pendingKey) ?? '';
+    if (pending) requestKey = pending;
+  } catch { /* optional presentation state */ }
   const active = () => !disposed && current();
   const button = (label: string, fn: () => Promise<void> | void, primary = false) => {
     const b = node('button', label, primary ? 'study-primary' : 'study-quiet'); b.type = 'button';
     b.addEventListener('click', () => { if (active() && !busy) void fn(); }); controls.append(b); return b;
   };
   const showError = (error: unknown) => { status.textContent = error instanceof Error ? error.message : String(error); };
-  const remember = (id: string) => { operation = id; try { localStorage.setItem(storageKey, id); } catch { /* optional */ } };
+  const remember = (id: string) => {
+    operation = id;
+    try { localStorage.setItem(storageKey, id); localStorage.removeItem(pendingKey); } catch { /* optional */ }
+  };
   const render = (row: ExportOperation) => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
@@ -80,8 +89,16 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   };
   const start = async () => {
     if (!active() || busy) return;
+    // Save admission identity before sending. A lost reply followed by closing the
+    // panel must recover the same operation, not create a second snapshot.
+    try { localStorage.setItem(pendingKey, requestKey); }
+    catch { status.textContent = 'Export recovery cannot be saved in this browser. Enable local storage and retry.'; return; }
     busy = true; readEpoch++; status.textContent = 'Admitting the export…'; controls.replaceChildren();
-    try { render(await actions.start(requestKey)); }
+    try {
+      const result = await actions.start(requestKey);
+      // Keep the locator even if navigation closed this view during admission.
+      remember(result.id); render(result);
+    }
     catch (error) { if (active()) { showError(error); button('Retry this export', start); } }
     finally { busy = false; }
   };
@@ -98,7 +115,11 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
     } catch (error) { if (active()) { showError(error); button('Retry preparation', prepare); } }
     finally { busy = false; }
   };
-  if (operation) void poll();
+  if (pending) {
+    status.textContent = 'The previous export reply was not received. Check that same request before making another copy.';
+    button('Recover export', start, true);
+  }
+  else if (operation) void poll();
   else { content.append(node('p', 'Create an immutable copy of the files saved in this Project folder.')); button('Review export', prepare); }
   return {element, dispose() { disposed = true; if (timer) clearTimeout(timer); }};
 }

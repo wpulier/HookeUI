@@ -7,7 +7,7 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 function setup() {
   vi.stubGlobal('document', syntheticDOM().document);
   const saved = new Map<string, string>();
-  vi.stubGlobal('localStorage', {getItem: (key: string) => saved.get(key), setItem: (key: string, value: string) => saved.set(key, value)});
+  vi.stubGlobal('localStorage', {getItem: (key: string) => saved.get(key), setItem: (key: string, value: string) => saved.set(key, value), removeItem: (key: string) => saved.delete(key)});
   const actions: ExportActions = {
     prepare: vi.fn(async () => ({files: 12, bytes: 4096, requiredFreeBytes: 100000,
       collection: {state: 'unverified', reason: 'Keep the original Project.'}})),
@@ -53,6 +53,23 @@ test('retains verified output and its incompleteness rather than offering collec
   click(view.element, 'Reveal copy');
   await vi.waitFor(() => expect(actions.reveal).toHaveBeenCalledWith('export-1'));
   view.dispose();
+});
+
+test('lost admission reply survives closing the panel and takes precedence over an older export', async () => {
+  const {actions, saved} = setup();
+  vi.mocked(actions.start).mockRejectedValueOnce(new Error('Reply lost'));
+  const view = projectExport(actions, () => true, 'origin'); click(view.element, 'Review export');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Export this partial copy'));
+  click(view.element, 'Export this partial copy');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Reply lost'));
+  view.dispose(); saved.set('hooke.project-export.origin', 'old-export');
+  const reopened = projectExport(actions, () => true, 'origin');
+  expect(actions.read).not.toHaveBeenCalled();
+  click(reopened.element, 'Recover export');
+  await vi.waitFor(() => expect(reopened.element.textContent).toContain('Export admitted'));
+  expect(vi.mocked(actions.start).mock.calls[0][0]).toBe(vi.mocked(actions.start).mock.calls[1][0]);
+  expect(saved.has('hooke.project-export.origin.pending')).toBe(false);
+  reopened.dispose();
 });
 
 test('late polling cannot undo an observed stop and disposal never cancels admitted work', async () => {

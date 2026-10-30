@@ -21,7 +21,7 @@ from tests.test_agent_door import connect, bearer, BASE, HEADER, window_key
 from tests.test_agent_projects import run, STUDIO
 from tests.test_agent_operations import settle
 from tests.test_project_locations import setup
-from tests.waiting import until_async
+from tests.waiting import until_async, HANG_S
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def test_cancelled_export_waits_for_worker_and_keeps_a_publication_that_won():
     stops = []
     def work():
         started.set()
-        assert release.wait(60)
+        assert release.wait(HANG_S)
         return {'publication': 'already-complete'}
     async def scenario():
         task = asyncio.create_task(owned_export(work, stopped=lambda: stops.append(True)))
@@ -168,5 +168,24 @@ def test_cancelled_export_waits_for_worker_and_keeps_a_publication_that_won():
             await until_async(lambda: len(stops) == 2)
             assert not task.done()
         finally: release.set()
-        assert await task == {'publication': 'already-complete'}
+        assert await asyncio.wait_for(task, HANG_S) == {'publication': 'already-complete'}
     asyncio.run(scenario())
+
+
+def test_export_parent_sync_failure_cannot_publish_a_copy(tmp_path, monkeypatch):
+    day, locations = setup(tmp_path)
+    try:
+        sid = day.new('Research')
+        real_sync = ProjectStore._sync_directory
+        def fail_parent(path):
+            if Path(path) == locations.parent:
+                raise OSError('injected Projects parent sync failure')
+            return real_sync(path)
+        monkeypatch.setattr(ProjectStore, '_sync_directory', fail_parent)
+        with pytest.raises(OSError, match='injected'):
+            export(day, sid, 'op_' + 'e' * 24, acknowledge_incomplete=True)
+        assert not list((locations.parent / 'Exports').iterdir())
+        monkeypatch.setattr(ProjectStore, '_sync_directory', real_sync)
+        receipt = export(day, sid, 'op_' + 'e' * 24, acknowledge_incomplete=True)
+        assert Path(receipt['location']).is_dir()
+    finally: locations.close()
