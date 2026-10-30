@@ -175,8 +175,8 @@ def _inspected(material, document, reference, inspections):
     return material
 
 
-def _workflow_authors(entries):
-    """Project protected output lineage to its recorded run author; never infer from titles."""
+def _workflow_authors(entries, store):
+    """Project protected output lineage to its producing attempt, never a later run controller."""
     rows = {(e.day, e.id): e for e in entries if e.kind == 'project' and isinstance(e.values, dict)}
     labels = {}
     for entry in rows.values():
@@ -200,8 +200,26 @@ def _workflow_authors(entries):
         run = rows.get((entry.day, run_id))
         if not run or run.values.get('kind') != 'scientific-workflow-run':
             continue
-        state = run.values.get('state', {}).get('workflowRun', {})
-        actor = state.get('actor') if isinstance(state, dict) else None
+        attempt_ref = marker.get('attempt')
+        if not isinstance(attempt_ref, dict) or attempt_ref.get('session') != entry.day:
+            continue
+        attempt = rows.get((entry.day, attempt_ref.get('id')))
+        if (attempt and attempt.version == attempt_ref.get('revision')
+                and attempt.source.get('sha256') == attempt_ref.get('digest')):
+            document = attempt.values
+        elif store is not None:
+            try:
+                from .scientific_comparisons import exact
+                document = exact(store, attempt_ref, entry.day).document
+            except (ValueError, OSError, KeyError):
+                continue
+        else:
+            continue
+        state = document.get('state', {}).get('workflowAttempt', {})
+        if document.get('kind') != 'scientific-workflow-attempt' or state.get('run') != run_id:
+            continue
+        actor = state.get('actor')
+
         if not valid_actor(actor):
             continue
         entry.made_by = {'actor': 'you' if actor == 'studio' else actor, 'workflow': run_id}
@@ -214,7 +232,7 @@ def attach_usage(entries, store=None) -> list[str]:
     """Join exact Study inputs. Bad memberships never hide unrelated material."""
     import re
     materials, problems = {}, []
-    _workflow_authors(entries)
+    _workflow_authors(entries, store)
     inspections = _inspections(entries)
     for entry in entries:
         if entry.kind == 'project' and isinstance(entry.values, dict):

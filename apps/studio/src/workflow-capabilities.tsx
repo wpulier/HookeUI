@@ -45,7 +45,7 @@ export function openMaterialCapability(setup:MaterialSetup,currentSession:()=>st
  dialog.setAttribute('aria-label','Experiment setup');
  const close=document.createElement('button');close.textContent='Close';close.type='button';close.addEventListener('click',()=>dialog.close());
  const content=document.createElement('div');dialog.append(close,content);document.body.append(dialog);
- let alive=true;const current=()=>alive?currentSession():'';
+ let alive=true;const current=()=>alive&&dialog.open?currentSession():'';
  const root=createRoot(content);root.render(<ManualCapabilities session={setup.material.input.session} currentSession={current} setup={setup} started={run=>{if(!alive||current()!==setup.material.input.session)return;dialog.close();started(run);}}/>);
  dialog.addEventListener('close',()=>{alive=false;root.unmount();dialog.remove();},{once:true});dialog.showModal();
 }
