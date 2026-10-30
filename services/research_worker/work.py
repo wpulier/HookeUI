@@ -11,7 +11,7 @@ import re
 
 from orchestrator.untrusted import block, inline
 
-from .budget import CELL_FINDERS
+from .budget import CELL_FINDERS, CLASSIFIERS, MAX_CLASSIFIERS
 
 LESSON = """Write one self-contained HTML page: an interactive mini-lesson for a curious student
 who is looking at this through a microscope right now.
@@ -440,9 +440,22 @@ SCHEMAS: dict[str, dict] = {
                        "labels selection from a session entry: read its title, revision, digest and scientificView.inputs "
                        "first; never guess a resource or resolve ambiguous titles arbitrarily. It saves a typed objects "
                        "table in that Project through the same operation as Tools, without segmentation or camera input. "
-                       "Use it only when the user's research request authorizes measuring saved work.",
+                       "Use it only when the user's research request authorizes measuring saved work. classify has "
+                       f"two to {MAX_CLASSIFIERS} classifying models (models, by id) each name the same cells of a "
+                       "population (input: its id, e.g. e3 from the session tool; else the cells on screen) from the "
+                       "same classes (classes: as the user named them; else the specimen's list, else in their own "
+                       "words), each run recorded by the app, and keeps their comparison as one session entry (a "
+                       "result with its table): each model's counts per class, every pair's agreement and kappa, the "
+                       "cells all named alike, time and cost. Read that entry and compare the models from its numbers; "
+                       "agreement is not accuracy.",
         "parameters": {"type": "object", "properties": {
-            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects", "workflow"]},
+            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects", "workflow",
+                                                     "classify"]},
+            "models": {"type": "array", "maxItems": MAX_CLASSIFIERS, "items": {"type": "string", "enum": list(CLASSIFIERS)},
+                       "description": "classify only: the models, by id (" + "; ".join(
+                           f"{k} = {v}" for k, v in CLASSIFIERS.items()) + ")"},
+            "classes": {"type": "array", "maxItems": 24, "items": {"type": "string"},
+                        "description": "classify only: the classes to name each cell from, as the user said them"},
             "params": {"type":"object","description":"operation workflow: Study actions: study-list(), study-create(request,title,objective,criteria,budgetUsd,inputs), study-read(study), study-evidence(study,reference), study-claim(study,request,statement,evidence,dependsOn,limitations), study-run(study,request,workflow,revision,inputs[,bindings]). Read actual evidence before claims. Other command action capabilities(), capability(capability,generation,inputs,parameters,request), list(query), inspect(workflow,revision), status(run), create(name,graph,request), capture(source,revision,name,request), or start/validate(workflow,revision,inputs[,bindings,request]). Inputs are exact retained references. Preserve request identity. Never approve reviews or launch paid researcher nodes."},
             "selection": {"type": "object", "additionalProperties": False,
                 "description": "measure_saved_objects only: exact accepted labels from the session entry; no other input fields",

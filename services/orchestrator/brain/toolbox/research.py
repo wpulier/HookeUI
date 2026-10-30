@@ -20,7 +20,8 @@ def _hands_words() -> str:
     """What a researcher's hands run (research/hands.py, budget.RUN_OPERATIONS), in a few words, for
     start_researcher's description (kind (c): a request that needs them gets a researcher that has them)."""
     words = {"workflow": "run saved scientific workflows", "segment": "segment every cell", "enhance": "make a clearer picture", "motion": "measure what moves",
-             "measure_saved_objects": "measure saved labels"}
+             "measure_saved_objects": "measure saved labels",
+             "classify": "classify cells with several models and compare them"}
     said = [words.get(op, op) for op in RUN_OPERATIONS]
     return said[0] if len(said) == 1 else ", ".join(said[:-1]) + " or " + said[-1]
 

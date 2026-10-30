@@ -25,6 +25,14 @@ from . import calibrated_area
 
 FACTORS = ("boundary-definition", "algorithm", "settings", "version")
 FORMAT = "hooke-method-comparison-v1"
+# Arms A to F (Part 2.5, W5: a workflow's comparison step takes up to six models; a record of two or three reads as before).
+ARM_IDS = "abcdef"
+MIN_ARMS, MAX_ARMS = 2, len(ARM_IDS)
+
+
+def arm_words() -> str:
+    """The arms a comparison takes, in words, for its refusals."""
+    return f"compare {MIN_ARMS} to {MAX_ARMS} arms, A, B and up to {ARM_IDS[-1].upper()}"
 
 
 class Invalid(ValueError):
@@ -33,8 +41,8 @@ class Invalid(ValueError):
 
 def summarize(source: dict, calibration: dict | None, arms: list[dict], axes: tuple[str, ...] = ("y", "x")) -> dict:
     """`source`: the frozen input {id, revision, digest}; `arms`: [{id, factor, says, mask (bool array), corrections}]."""
-    if not 2 <= len(arms) <= 3 or [a.get("id") for a in arms] != list("abc"[:len(arms)]):
-        raise Invalid("compare two or three arms, A, B and optionally C")
+    if not MIN_ARMS <= len(arms) <= MAX_ARMS or [a.get("id") for a in arms] != list(ARM_IDS[:len(arms)]):
+        raise Invalid(arm_words())
     if not all(source.get(k) for k in ("id", "revision", "digest")):
         raise Invalid("freeze the source first: its id, revision and digest")
     shapes = {np.asarray(a["mask"]).shape for a in arms}

@@ -11,7 +11,7 @@ import math
 
 from env_worker.scientific_calibration import same_calibration
 from . import admission, scientific_provenance
-from .method_comparison import FACTORS
+from .method_comparison import ARM_IDS, FACTORS, MAX_ARMS, MIN_ARMS
 from .scientific_projects import InvalidProject, _json
 
 FORMAT = 'hooke-method-evidence-v1'
@@ -253,9 +253,9 @@ def _unsuccessful(store, arm, source, session):
 def prepare(store, session, source, arms, actor):
     actor = _words(actor, 'The declaring actor', 128)
     source, descriptor = _native(store, source, session)
-    if (type(arms) is not list or not 2 <= len(arms) <= 3 or any(type(arm) is not dict for arm in arms)
-            or [arm.get('id') for arm in arms] != list('abc'[:len(arms)])):
-        raise InvalidProject('Compare two or three declared arms, A, B and optionally C')
+    if (type(arms) is not list or not MIN_ARMS <= len(arms) <= MAX_ARMS or any(type(arm) is not dict for arm in arms)
+            or [arm.get('id') for arm in arms] != list(ARM_IDS[:len(arms)])):
+        raise InvalidProject(f'Compare {MIN_ARMS} to {MAX_ARMS} declared arms, A, B and up to {ARM_IDS[-1].upper()}')
     rows = []
     runtimes = store.read(source['id'], session, revision=source['revision']).document['runtimes']
     for arm in arms:

@@ -2806,6 +2806,9 @@ class ResearchManager:
                                              **({'run_id': message.get('runId')}
                                                 if message.get('operation') in ('measure_saved_objects','workflow') else {}),
                                              **({'params':message.get('params')} if message.get('operation')=='workflow' else {}),
+                                             # classify's models and classes (model_comparison.py), checked by hands
+                                             **({"models": message.get("models"), "classes": message.get("classes")}
+                                                if message.get("operation") == "classify" else {}),
                                              # one the catalog added, with its parameters (the one door, kinds.py)
                                              **({"capability": str(message["capability"])[:120],
                                                  "params": message.get("params") if isinstance(message.get("params"), dict)
@@ -2940,6 +2943,7 @@ def _door() -> dict:
         from ..operations import OPERATIONS
 
         out["cellFinders"] = {i.id: i.label for i in OPERATIONS["cells"].implementations}
+        out["classifiers"] = {i.id: i.label for i in OPERATIONS["classify"].implementations}
     except Exception:  # noqa: BLE001
         pass
     return out

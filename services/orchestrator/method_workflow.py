@@ -21,7 +21,7 @@ MAX_MASK_BYTES = 64 << 20
 
 def descriptor():
     return {'id': OPERATION, 'title': 'Compare retained methods', 'implementation':'builtin', 'preparation':'none',
-            'input':'exact-native-source-and-two-or-three-arms', 'output':'retained-method-comparison',
+            'input':'exact-native-source-and-two-to-six-arms', 'output':'retained-method-comparison',
             'workingBytes':WORKING_BYTES, 'maskBytes':MAX_MASK_BYTES,
             'method':'Foreground is every nonzero label. Compare area/volume and disagreement against A; never rank accuracy.'}
 

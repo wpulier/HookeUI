@@ -259,6 +259,15 @@ YOUR_LABEL = Operation(
           note="within one model's looks; a label only from that model's measured floor, none where it has none"),),
     output=("values",),
 )
+# Classifying (Part 2.5, W5; orchestrator/classify.py): each member named from a list of classes by one model, so the
+# names of several models for the same cells can be compared from their runs (model_comparison.py). Every vision option
+# is an implementation (its id and name), then MedSigLIP on this Mac; no setting picks one: a request names its models.
+from .classify import implementations as _classifiers  # noqa: E402 - it builds on _model, defined above
+
+CLASSIFY = Operation(
+    "classify", "Name each member from a list of classes", "labels/1", None, _classifiers(),
+    output=("labels",),
+)
 # The operations and their adapters change while the app runs (entries proven or withdrawn: kinds.register, on the loop
 # and in capability_runs' thread; your models turned on or off: mine.register, in App.sync_mine's thread) while readers
 # anywhere iterate them (catalogue through option_not_installed, kinds.register itself, label_of, names). So neither is
@@ -351,7 +360,7 @@ class Registry(MutableMapping):
 
 
 OPERATIONS: Registry = Registry((op.id, op) for op in (OUTLINE, CELLS, FIND_LIKE, TRACK, MOTION, LINK, LOOKS, GROUPS, LIGHT,
-                                                        NAMES, YOUR_LABEL))
+                                                        NAMES, YOUR_LABEL, CLASSIFY))
 
 
 @dataclass
@@ -1796,3 +1805,12 @@ def _enrichments() -> None:
 
 
 _enrichments()
+
+
+def _classifying() -> None:
+    from . import classify
+
+    classify.register()  # its adapters (Part 2.5, W5)
+
+
+_classifying()

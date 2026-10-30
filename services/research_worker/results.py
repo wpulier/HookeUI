@@ -191,7 +191,8 @@ def content_line(content: dict | None) -> str:
     return ""
 
 
-OPERATION_NOUNS = {"motion": "motion measurement", "segment": "cell segmentation", "enhance": "clearer picture"}
+OPERATION_NOUNS = {"motion": "motion measurement", "segment": "cell segmentation", "enhance": "clearer picture",
+                   "classify": "classifier comparison"}
 
 
 def partial_result(brief: str, label: str, outputs: list[dict], status: str, *, findings: list[dict] = (),

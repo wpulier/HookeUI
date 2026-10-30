@@ -569,6 +569,14 @@ class Researcher:
         finders = snap.get("cellFinders") if isinstance(snap.get("cellFinders"), dict) and snap.get("cellFinders") else CELL_FINDERS
         return capabilities, finders
 
+    def classifiers(self) -> dict:
+        """Every model classify can name, as the app said as this run started (its static list for an older app)."""
+        from .budget import CLASSIFIERS
+
+        snap = (getattr(self, "spec", None) or {}).get("snapshot") or {}
+        given = snap.get("classifiers")
+        return given if isinstance(given, dict) and given else CLASSIFIERS
+
     def run_schema(self, schema: dict) -> dict:
         """run, with the capabilities on here as one more operation (each its key, with its parameters) and the cell
         finders the app has now."""
@@ -578,6 +586,11 @@ class Researcher:
         capabilities, finders = self.door()
         props = schema["parameters"]["properties"]
         props["implementation"]["enum"] = list(finders)
+        if "models" in props:
+            classifiers = self.classifiers()
+            props["models"]["items"]["enum"] = list(classifiers)
+            props["models"]["description"] = "classify only: the models, by id (" + "; ".join(
+                f"{k} = {v}" for k, v in classifiers.items()) + ")"
         props["implementation"]["description"] = ("segment only: the cell finder, by id (" + "; ".join(
             f"{k} = {v}" for k, v in finders.items()) + "); the app's default if not given. Motion is measured one way "
             "(spots followed frame to frame)")
@@ -733,6 +746,18 @@ class Researcher:
         fresh = args.get("fresh", False)
         if not isinstance(fresh, bool) or (fresh and operation != "motion"):
             return {"error": "fresh is a boolean for motion's upcoming camera interval"}, None
+        models, classes = args.get("models"), args.get("classes")
+        if operation == "classify":
+            from .budget import MAX_CLASSIFIERS
+
+            known = self.classifiers()
+            if (not isinstance(models, list) or not 2 <= len(models) <= MAX_CLASSIFIERS
+                    or any(not isinstance(m, str) or m not in known for m in models)):
+                return {"error": f"models are two to {MAX_CLASSIFIERS} of: {', '.join(known)}"}, None
+            if classes is not None and (not isinstance(classes, list) or any(not isinstance(c, str) for c in classes)):
+                return {"error": "classes are a list of names"}, None
+        elif models is not None or classes is not None:
+            return {"error": "models and classes belong only to classify"}, None
         limit = operation_limit(self.effort.name)
         if self.runs >= limit:
             return {"error": f"at most {limit} operations in one run: work from what they made"}, None
@@ -777,6 +802,8 @@ class Researcher:
                                    **({"selection": selection} if selection is not None else {}),
                                    **({'runId': self.spec.get('run_id')} if operation in ('measure_saved_objects','workflow') else {}),
                                    **({'params':args['params']} if operation=='workflow' else {}),
+                                   **({"models": list(models), **({"classes": list(classes)} if classes else {})}
+                                      if operation == "classify" else {}),
                                    **({"fresh": True} if fresh else {}))
         if reply.get("ok"):
             self.runs += 1  # a refusal ("another researcher's operation is running") uses none of its runs

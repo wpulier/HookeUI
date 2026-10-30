@@ -88,7 +88,7 @@ RESULT_TITLES = {
     "track_motion": "Motion", "measure": "Measurement", "count": "Count", "contrast": "Comparison",
     "compare": "Side by side", "enhance": "Clearer picture", "what_happened": "What happened",
     "where_is": "Where it is", "focus_check": "Focus check", "dissect": "Parts", "watch": "Watch",
-    "reference_photo": "Reference photo", "show_web": "From the web",
+    "reference_photo": "Reference photo", "show_web": "From the web", "compare_models": "Model comparison",
 }
 
 # A researcher's deliverable in plain words (an entry's title uses only the app's words).

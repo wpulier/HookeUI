@@ -153,6 +153,13 @@ def result_table(rid: str, entry: dict, values: dict) -> dict | None:
     producer = (values or {}).get("producer") or {}
     if not producer.get("sha256") or kept_table_digest(values) != producer["sha256"]:
         return None
+    if producer.get("implementation") == "model-comparison":  # the app's own comparison of runs (model_comparison.py)
+        from .model_comparison import NOT_ACCURACY
+
+        compared = (values.get("comparison") or {}).get("arms") or ()
+        return _given_table(rid, entry.get("title") or rid, columns_in, rows_in,
+                            f"Hooke's comparison of {len(compared)} models' runs on the same input, a row per model, "
+                            f"from each run's own record. {NOT_ACCURACY}")
     made = f"{producer.get('implementation') or values.get('capability')} ({producer.get('version') or 'its version'})"
     frame = values.get("_frame")
     note = (f"Points as {made} gave them, in pixels of frame {frame.get('seq') or frame.get('capture')} "
