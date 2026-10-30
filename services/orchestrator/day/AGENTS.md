@@ -385,3 +385,10 @@ bytes and a recovery receipt. It refuses active portable writers, changed bytes,
 additional events/files and ambiguous owners. It does not merge origins, alter
 portable evidence or grants, and is never invoked automatically. An interrupted
 recovery preserves its prepared receipt and bytes for explicit inspection.
+
+Staged owner startup can select an existing working folder with `--open-project`
+(or `HOOKE_OPEN_PROJECT`). It verifies retained ownership/history before registering
+an unknown origin and points only host preferences at the chosen Project. Colliding
+legacy/portable handles and pre-existing agent permission rows refuse. No historical
+actor receives access. Known-location replacement still uses explicit relocation;
+immutable exports must first become an explicitly restored working copy.
