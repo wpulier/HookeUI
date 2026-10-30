@@ -440,3 +440,31 @@ def test_the_brains_own_answer_is_not_told_a_skip_it_put_right_as_a_problem():
     failed_find = ToolRun("find", {}, ok=False, summary="nothing there could be outlined")
     skipped = ToolRun("zoom", {}, ok=False, summary="step 2 skipped: dependency 1 did not succeed")
     assert unresolved([failed_find, skipped]) == [failed_find, skipped]
+
+
+def test_the_kept_step_whose_outcome_holds_is_said_done_with_the_researchers_result(monkeypatch):
+    """will-research "graphic-tab" run 1: Researcher 1's result was said with its kept step "did not work" and the
+    skipped switch ("though one earlier tab-switch step failed"), then "explain that" repeated it (the last result said).
+    The step's outcome held: it is said done, with nothing of the skipped step, and pointed at where the picture is."""
+    async def go():
+        t, shown, research, asked = await with_research(monkeypatch)
+
+        async def turn(text, channel, **kw):
+            asked.append((text, kw.get("said")))
+            if len(asked) == 1:
+                return {"answer": "Researcher 2 is making the graphic.", "actions": [started_researcher("R2")]}
+            return {"answer": "I created the Graphic Tab and placed Researcher 2's stoma illustration there in front.",
+                    "actions": GRAPHIC_TAB}
+        t.brain.turn = turn
+        await t.partner.tools.do_in_hooke({"request": GRAPHIC, "label": "A stoma graphic", "then": PLACE})
+        t.session._last_user_at = 0.0
+        landed(research)
+        follow = await until_async(lambda: [r for r in rows(shown) if r.get("after") == "Researcher 2"
+                                            and r["state"] != "working"])
+        assert follow[-1]["state"] == "done"
+        await until_async(lambda: t.sb.responses == 1)
+        result = next(s for s in said_items(t) if '"researcher": "Researcher 2"' in s)
+        assert '"status": "done"' in result and "skipped" not in result and '"failed"' not in result
+        said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
+        assert said["markTarget"] == "window:w-4225a2fd", "pointing at the picture it placed"
+    asyncio.run(go())
