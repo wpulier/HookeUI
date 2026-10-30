@@ -1,3 +1,5 @@
+Owner `project-open-folder` registers a selected working folder through project_launch.register_owner_folder off the event loop. It does not navigate, import access or replay work. Studio uses its ordinary unsaved-work navigation afterward; late completion never changes the workspace. This path-bearing owner command is excluded from the agent door.
+
 # The orchestrator
 
 Owner commands `project-storage` and `project-reveal` capture the current Project

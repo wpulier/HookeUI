@@ -1,7 +1,7 @@
 import { recoverChunkTransfer, uploadChunks, type UploadOptions } from './scientific-chunk-upload';
 import type { Folder } from './scientific-folder';
 
-type Bridge = { postMessage(message: { op: 'choose' | 'read' | 'release' | 'cancel'; token?: string; offset?: number }): Promise<unknown> };
+type Bridge = { postMessage(message: { op: 'choose-project' | 'choose' | 'read' | 'release' | 'cancel'; token?: string; offset?: number }): Promise<unknown> };
 export type NativeFolder = { name: string; size: number; count: number; bytes: number;
   read(offset: number): Promise<Uint8Array<ArrayBuffer>>; release(): Promise<void> };
 export const isNativeFolder = (folder: Folder | NativeFolder): folder is NativeFolder => 'read' in folder;

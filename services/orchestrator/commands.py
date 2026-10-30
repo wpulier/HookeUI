@@ -3156,6 +3156,24 @@ async def sessions_reveal(app, client, msg) -> dict:
     return {"ok": True, "path": str(folder)}
 
 
+@command('project-open-folder')
+async def project_open_folder(app, client, msg) -> dict:
+    """Owner-selected working folder; never exposed through the agent door."""
+    from .project_launch import register_owner_folder
+    day, generation = app.day, app.day.generation
+    if msg.get('session') != day.sid:
+        raise tools.ToolError('The Project changed.', next='open the folder again from the current Project')
+    try:
+        root = await asyncio.to_thread(register_owner_folder, app.paths, day.locations, msg.get('path'))
+    except (OSError, ValueError) as error:
+        raise tools.ToolError(str(error), next='keep the original folder and choose an available working Project') from error
+    # Registration is durable even if navigation changed while verification ran.
+    # The UI decides whether it can leave its current edits; no stage moves here.
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin,
+            'name': root.name, 'location': str(root.path)},
+            'current': app.day is day and day.current(generation)}
+
+
 @command('project-storage')
 async def project_storage(app, client, msg) -> dict:
     """The owner's current-Project inspector shares the connector's location facts."""
