@@ -115,6 +115,8 @@ class WorkflowService:
         def fields(*names):
             if set(b)!=set(names):raise InvalidProject('Use only the declared workflow command fields')
         if action=='capability':
+            study=b.pop('study',None)
+            if study is not None and actor!='studio':raise InvalidProject('Connected agents use Study workflow admission')
             fields('session','capability','generation','inputs','parameters','request')
             self.owner(b['session'])
             from .matrix_capability_runs import descriptor, parameters
@@ -134,6 +136,11 @@ class WorkflowService:
             # A single manual invocation is still one ordinary frozen workflow run.
             await asyncio.to_thread(w.bindings,graph,bindings,b['session'])
             definition=await asyncio.to_thread(w.create,declared.get('name',b['capability']),graph,token({'manual':b['request']})[:32],actor=actor,action='capability')
+            if study is not None:
+                from .research.studies import for_workspace
+                operation, _ = await for_workspace(self.hub,self.day).start_workflow(study,b['session'],request=b['request'],
+                    workflow=definition.id,revision=definition.revision,inputs=[b['inputs'][ports[0]]],bindings=bindings,actor=actor,label='You')
+                return {'run':operation['workflow'],'operation':operation}
             return await self.command({'action':'start','workflow':definition.id,'revision':definition.revision,'session':b['session'],
                 'inputs':[b['inputs'][ports[0]]],'bindings':bindings,'request':b['request']},actor=actor)
         if action=='create':

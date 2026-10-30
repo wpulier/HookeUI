@@ -196,3 +196,41 @@ def test_transformed_inspection_never_describes_reciprocal_as_count_depth(tmp_pa
     _, summary = engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)
     assert summary['rowTotals']['median'] == -.5
     assert 'meanReciprocal' not in summary['rowTotals'] and 'libraryDepth' not in summary
+
+@pytest.mark.parametrize('representation', ['dense', 'sparse'])
+def test_inspection_retains_only_first_ten_by_ten_preview(tmp_path, representation, monkeypatch):
+    anndata = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    values = np.arange(240, dtype=np.float32).reshape(20, 12)
+    data = anndata.AnnData(values if representation == 'dense' else sparse.csr_matrix(values),
+        obs=pd.DataFrame({'batch': ['a'] * 20, 'missing': [np.nan] * 20}, index=[f'o{i}' for i in range(20)]),
+        var=pd.DataFrame({'label': ['x'] * 12}, index=[f'v{i}' for i in range(12)]))
+    source = tmp_path / 'preview.h5ad'; data.write_h5ad(source)
+    original = sparse.csr_matrix.toarray
+    def bounded(self, *args, **kwargs):
+        assert self.shape[0] <= 10 and self.shape[1] <= 10
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(sparse.csr_matrix, 'toarray', bounded)
+    path, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'result'), lambda: None)
+    preview = summary['preview']
+    assert preview['selection'] == 'first-observations-and-variables'
+    assert preview['observations'] == [f'o{i}' for i in range(10)]
+    assert preview['variables'] == [f'v{i}' for i in range(10)]
+    assert preview['values'] == values[:10, :10].tolist()
+    assert preview['observationAnnotations'][1]['values'] == [None] * 10
+    assert summary['shape'] == [20, 12]
+    assert json.loads(path.read_text())['preview'] == preview
+
+
+@pytest.mark.parametrize('representation', ['dense', 'sparse'])
+def test_inspection_preview_keeps_large_integer_values_exact(tmp_path, representation):
+    anndata = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    values = np.asarray([[9007199254740993, 7]], dtype=np.uint64)
+    data = anndata.AnnData(values if representation == 'dense' else sparse.csr_matrix(values),
+        obs=pd.DataFrame({'identifier': np.asarray([9007199254740993], dtype=np.uint64)}, index=['one']),
+        var=pd.DataFrame(index=['a', 'b']))
+    source = tmp_path / 'large.h5ad'; data.write_h5ad(source)
+    _, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    preview = summary['preview']
+    assert preview['values'] == [['9007199254740993', 7]]
+    assert preview['observationAnnotations'][0]['values'] == ['9007199254740993']
+    assert preview['integerEncoding'] == 'unsafe-as-decimal-string'

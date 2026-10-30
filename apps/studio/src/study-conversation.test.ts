@@ -65,3 +65,13 @@ test('recipient selection alone does not enable an empty question; successful sa
   c.field.value='Explain';fire(c.field,'input',{});expect(c.root.dataset.draft).toBe('true');expect(send.disabled).toBe(false);
   fire(c.form,'submit',{});await vi.waitFor(()=>expect(c.field.value).toBe(''));expect(c.root.dataset.draft).toBeUndefined();expect(send.disabled).toBe(true);
 });
+
+test('a material question retains its exact attachment beside Study context',async()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);const posts:Record<string,unknown>[]=[];
+ const ref={...basis,id:'p'+'e'.repeat(32),revision:2};
+ const fetcher=vi.fn(async(_url,init)=>{if(init?.method==='POST'){posts.push(JSON.parse(String(init.body)));return json({ok:true});}return json({ok:true,basis,questions:[],recipients:[recipient]});}) as unknown as typeof fetch;
+ const c=studyConversation(study,{fetcher,current:()=>true,open:async()=>{},material:{reference:ref,title:'Control matrix'}});
+ const root=c.root as unknown as TestElement;await c.refresh();root.querySelector('select')!.value=recipient.actor;root.querySelector('textarea')!.value='What is inside?';
+ fire(root.querySelector('form')!,'submit',{});await vi.waitFor(()=>expect(posts).toHaveLength(1));
+ expect(posts[0].materials).toEqual([ref]);expect(posts[0].basis).toEqual(basis);expect(root.textContent).toContain('Control matrix · revision 2');
+});

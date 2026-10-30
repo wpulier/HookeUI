@@ -2029,3 +2029,10 @@ Matrix inspection links are distinct compact rows. Author and save time come onl
 Project folder export completion offers a separate working-copy restoration after space/scope review. Its tracked operation survives closing the panel and keeps its request identity after a lost reply. Completion exposes the location without navigating or replaying work; opening remains the normal owner Project action.
 
 Project folder offers whole recorded-dataset inclusion only for a portable Project. The owner chooses a completed host recording, reviews size, shared scope and capture warnings, then confirms the whole dataset. Progress survives panel closure via the retained operation; retries keep their request identity. Navigation fences stale UI without retargeting admitted work. Inputs/Data use the ordinary retained recorded-dataset artifact.
+
+Project inventory and Study refreshes coalesce while their same-Project read is pending.
+Navigation cancels the old browser read; refresh events do not invalidate an arriving
+answer. A ten-second notice offers Retry, and a thirty-second read timeout keeps
+already loaded material. Retry repeats reads only, never scientific operations.
+
+Material overviews promote exact retained inspection facts and bounded previews above file details. Material questions pin their attachment beside the Study revision; experiment setup uses the same catalog form as Tools and admits through Study/WorkflowService only after Run. A historical selection never silently becomes the latest input. Open analysis windows is the private-window manager, not research activity. The Project-title folder control opens the existing folder inspector.

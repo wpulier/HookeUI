@@ -1,3 +1,4 @@
+import {materialSummary,inspectionFacts} from './material-overview';
 // The Data reader (ticket 66, D1; the mock's open-yours, open-research, open-how, open-tab, open-narrow and open-light
 // frames): one place where anything in Data opens, on the right of the Tab you are on, looking the same for every kind.
 // Its header says what it is (the kind's mark, or the lit cell while it is being written), its title and count, who made
@@ -322,6 +323,8 @@ export const readerMark = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset'>)
 /** What the reader needs from the workspace (workspace-study.ts gives it). */
 export interface ReaderDeps {
   /** Metadata already present in this Project's index; never substitutes for an exact report read. */
+  materialAction?(entry:ReaderEntry,action:'inspect'|'experiment'|'ask'):void;
+  openStudy?(id:string):void;
   retainedEntry?(ref: {id: string; day: string; version: number}): ReaderEntry | null;
   researchers(): { rid: string; name: string; day?: string; status?: string }[];
   working(rid: string): boolean;
@@ -900,19 +903,26 @@ export class DataReader {
               && candidate.version === report.revision && candidate.source?.sha256 === report.digest ? candidate : null;
             return {report, caption: retained ? byLine(retained, makerOf(retained, this.deps.researchers()), '') : ''};
           });
-          const next = JSON.stringify([latest.material?.inspection, latest.material?.shape, reports]);
+          const next = JSON.stringify([latest.material, reports]);
           if (next === signature) return;
           signature = next;
-          const previous = body.querySelector<HTMLDetailsElement>('.rd-material-inspection');
-          const wasOpen = previous?.open ?? false;
+          const previous = body.querySelector<HTMLElement>('.rd-material-inspection');
           previous?.remove();
           const inspection = latest.material?.inspection;
+          const details=el('section','rd-material-inspection');
+          if(latest.material)details.append(materialSummary(latest.material));
+          const actions=el('div','material-actions');
+          if(this.deps.materialAction){
+            for(const [label,action] of [[inspection?'Inspect again':'Inspect','inspect'],['Use in an experiment','experiment'],['Ask about this material','ask']] as const){
+              if(action==='inspect'&&latest.material?.kind!=='matrix')continue;
+              const b=button(label,()=>{if(!signal.aborted)this.deps.materialAction?.(latest,action);});actions.append(b);
+            }
+          }
+          details.append(actions);
+          const uses=latest.material?.uses?.filter(use=>use.study&&use.revision===ref.version&&use.digest===latest.source?.sha256)??[];
+          for(const use of uses){const b=button(use.studyTitle?`Study · ${use.studyTitle}`:'Open Study',()=>{if(!signal.aborted)this.deps.openStudy?.(use.study!);});b.className='material-study-link';b.title='Open the linked Study';details.append(b);}
           if (inspection) {
-            const details = el('details', 'rd-material-inspection');
-            details.open = wasOpen;
-            details.append(el('summary', '', inspection.status === 'conflicting' ? 'Inspection reports disagree' : 'Recorded matrix inspection'));
-            if (inspection.status === 'reported' && latest.material?.shape)
-              details.append(el('p', 'rd-note', `${latest.material.shape.map(n => n.toLocaleString()).join(' × ')} · AnnData. Dimensions come from the retained inspection report.`));
+            details.append(el('h3','','Retained inspections'));
             for (const [index, {report, caption}] of reports.entries()) {
               if (report.session !== ref.day) continue;
               const button = el('button', 'rd-inspection-link');
@@ -926,11 +936,14 @@ export class DataReader {
               button.addEventListener('click', () => { void open({id: report.id, version: report.revision, digest: report.digest, title: 'Matrix inspection'}).catch(error => {
                 if (!signal.aborted) details.append(el('p', 'rd-note', error instanceof Error ? error.message : 'The retained inspection could not be opened.'));
               }); });
-              details.append(button);
+              const reportCard=el('article','material-inspection-report');reportCard.append(button);
+              const facts=inspection.facts?.find(f=>f.report.id===report.id&&f.report.session===report.session&&f.report.revision===report.revision&&f.report.digest===report.digest);
+              if(facts)reportCard.append(inspectionFacts(facts));
+              details.append(reportCard);
             }
             if (inspection.total > inspection.reports.length) details.append(el('p', 'rd-note', `Showing ${inspection.reports.length} of ${inspection.total} retained inspections. All reported shapes were compared.`));
-            body.append(details);
           }
+          body.prepend(details);
         };
         this.refreshMaterial(current);
         this.drawHead();
