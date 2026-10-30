@@ -86,8 +86,10 @@ def add_scene_tools(registry: Registry, services) -> None:
         original = bool(population.view.get("sourceImage"))
         return (f"{population.title} ({population.id}): {population.count_words()}, measured; "
                 + ("kept on the original image; open the saved result in Made" if shown and not drawn_on_stage(hub, population)
-                   else "the layer is on the picture on the Stage; they are drawn once that picture is checked" if shown and original
-                   else "the layer is on; each is drawn once its own pixels are checked" if shown
+                   # What the user sees, not how each outline is placed (will-display, 29 Oct: "142 verified outlines
+                   # displayed from 168 detected", from "each is drawn once its own pixels are checked").
+                   else "the layer is on the picture on the Stage" if shown and original
+                   else "the layer is on the live view" if shown
                    else "kept, not shown (the request was superseded)"))
 
     async def name_outline(ctx: ToolContext, args: dict) -> str:

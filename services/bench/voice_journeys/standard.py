@@ -464,6 +464,14 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
                 call.summary = str(step.get("summary") or call.summary)
                 if step.get("ok") is True and call.confirmed_at is None and not _unseen(step):
                     call.confirmed_at = at
+                if call.name == "start_researcher" and step.get("ok") is True and call.rid is None:
+                    # Its researcher, from the step's research-run output (as a chat-action card's, below).
+                    refs = [o.get("resource") for o in step.get("outputs") or [] if isinstance(o, dict)]
+                    call.rid = next((r.get("researcherId") for r in refs if isinstance(r, dict) and r.get("researcherId")),
+                                    None)
+                    call.rid_at = at if call.rid else None
+                    named = re.search(r"\bResearcher (\d+)\b", str(step.get("summary") or ""))
+                    call.number = int(named.group(1)) if named else None
                 call.end = at
             continue
         if r.get("type") != "chat-action" or not isinstance(at, (int, float)) or not start <= at < end:
