@@ -374,6 +374,7 @@ export class DataReader {
   private ticking = false;
   private clockTimer: ReturnType<typeof setInterval> | null = null;
   /** What the header says once the thing has loaded (a researcher's title, a table's count). */
+  private refreshMaterial: ((entry: ReaderEntry) => void) | null = null;
   private loaded: { title?: string; count?: string; kind?: string; live?: boolean } = {};
   readonly mode: 'side' | 'tab' | 'research';
   private readonly deps: ReaderDeps;
@@ -435,12 +436,19 @@ export class DataReader {
       this.session = null; this.detail = null; this.loaded = {}; this.picturePending = false; this.pictureError = '';
       this.view = view; this.drawHead(); this.drawBody();
     } else if (view !== this.view) { this.view = view; this.drawHead(); this.drawBody(); }
-    else this.drawHead();
+    else { this.refreshMaterial?.(entry); this.drawHead(); }
     this.deps.changed?.();
   }
   /** Redraws the header from the newest facts (a Tab it is on, the picture's layer), keeping the body. */
-  refresh(entry?: ReaderEntry): void { if (!this.entry) return; if (entry && sameItem(entry, this.entry)) this.entry = { ...entry, asset: entry.asset ?? this.entry.asset }; this.drawHead(); }
+  refresh(entry?: ReaderEntry): void {
+    if (!this.entry) return;
+    const before = this.kindLine();
+    if (entry && sameItem(entry, this.entry)) this.entry = { ...entry, asset: entry.asset ?? this.entry.asset };
+    this.refreshMaterial?.(this.entry); this.drawHead();
+    if (before !== this.kindLine()) this.deps.changed?.();
+  }
   clear(): void {
+    this.refreshMaterial = null;
     this.controller?.abort(); this.controller = null; this.entry = null; this.session = null; this.detail = null;
     this.root.hidden = true; delete this.root.dataset.readerOpen; delete this.root.dataset.readerItem; delete this.root.dataset.displayState;
     delete this.root.dataset.readerResource; delete this.root.dataset.readerTitle; delete this.root.dataset.readerView;
@@ -448,6 +456,7 @@ export class DataReader {
   }
   /** A reader Tab whose item is gone from Data: its name and what happened, nothing else. */
   showMissing(title: string, words: string): void {
+    this.refreshMaterial = null;
     this.controller?.abort(); this.controller = null; this.entry = null; this.root.hidden = false;
     this.root.dataset.readerOpen = 'true'; this.root.dataset.displayState = 'failed'; delete this.root.dataset.readerItem; delete this.root.dataset.readerResource;
     const top = el('div', 'rd-top'), mark = el('span', 'rd-ic'); mark.append(tabMark('output', 'rd-ic-mark'));
@@ -638,6 +647,7 @@ export class DataReader {
   }
 
   private drawBody(): void {
+    this.refreshMaterial = null;
     const entry = this.entry!, signal = this.controller!.signal;
     // A researcher's own write-up on its Tab: its page (kept by research-workspace.ts, following its writing), as is.
     const page = this.view === 'thing' ? this.pageOf(entry) : null;
@@ -872,30 +882,44 @@ export class DataReader {
           ...(target.digest ? {source: {sha256: target.digest}} : {})});
       };
       this.loaded.title = typeof document.title === 'string' ? document.title : entry.title;
-      this.loaded.kind = entry.material ? kindWord(entry) : document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);
+      const current = this.entry!;
+      this.loaded.kind = current.material ? kindWord(current) : document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);
       this.drawHead();
       body.replaceChildren();
       if (document.kind === 'source-file') {
         showScientificSource(body, document.state, ref, open, document.resources);
         showRetainedMedia(body, document.state, ref, signal);
-        const inspection = entry.material?.inspection;
-        if (inspection) {
-          const details = el('details', 'rd-material-inspection');
-          details.append(el('summary', '', inspection.status === 'conflicting' ? 'Inspection reports disagree' : 'Recorded matrix inspection'));
-          if (inspection.status === 'reported' && entry.material?.shape)
-            details.append(el('p', 'rd-note', `${entry.material.shape.map(n => n.toLocaleString()).join(' × ')} · AnnData. Dimensions come from the retained inspection report.`));
-          for (const report of inspection.reports) {
-            if (report.session !== ref.day) continue;
-            const button = el('button', 'mm-control', `Open inspection · revision ${report.revision}`);
-            button.type = 'button';
-            button.addEventListener('click', () => { void open({id: report.id, version: report.revision, digest: report.digest, title: 'Matrix inspection'}).catch(error => {
-              if (!signal.aborted) details.append(el('p', 'rd-note', error instanceof Error ? error.message : 'The retained inspection could not be opened.'));
-            }); });
-            details.append(button);
+        let signature: string | undefined;
+        this.refreshMaterial = (latest) => {
+          this.loaded.kind = latest.material ? kindWord(latest) : 'File';
+          const next = JSON.stringify([latest.material?.inspection, latest.material?.shape]);
+          if (next === signature) return;
+          signature = next;
+          const previous = body.querySelector<HTMLDetailsElement>('.rd-material-inspection');
+          const wasOpen = previous?.open ?? false;
+          previous?.remove();
+          const inspection = latest.material?.inspection;
+          if (inspection) {
+            const details = el('details', 'rd-material-inspection');
+            details.open = wasOpen;
+            details.append(el('summary', '', inspection.status === 'conflicting' ? 'Inspection reports disagree' : 'Recorded matrix inspection'));
+            if (inspection.status === 'reported' && latest.material?.shape)
+              details.append(el('p', 'rd-note', `${latest.material.shape.map(n => n.toLocaleString()).join(' × ')} · AnnData. Dimensions come from the retained inspection report.`));
+            for (const report of inspection.reports) {
+              if (report.session !== ref.day) continue;
+              const button = el('button', 'mm-control', `Open inspection · revision ${report.revision}`);
+              button.type = 'button';
+              button.addEventListener('click', () => { void open({id: report.id, version: report.revision, digest: report.digest, title: 'Matrix inspection'}).catch(error => {
+                if (!signal.aborted) details.append(el('p', 'rd-note', error instanceof Error ? error.message : 'The retained inspection could not be opened.'));
+              }); });
+              details.append(button);
+            }
+            if (inspection.total > inspection.reports.length) details.append(el('p', 'rd-note', `Showing ${inspection.reports.length} of ${inspection.total} retained inspections. All reported shapes were compared.`));
+            body.append(details);
           }
-          if (inspection.total > inspection.reports.length) details.append(el('p', 'rd-note', `Showing ${inspection.reports.length} of ${inspection.total} retained inspections. All reported shapes were compared.`));
-          body.append(details);
-        }
+        };
+        this.refreshMaterial(current);
+        this.drawHead();
         return;
       }
       if (document.kind === 'source-directory') { showScientificFolder(body, document.state, ref, open); return; }
