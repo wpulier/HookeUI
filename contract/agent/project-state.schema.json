@@ -270,6 +270,27 @@
         "visible": {"type": "boolean"},
         "activeTab": {"type": ["string", "null"]},
         "windows": {"type": "array", "maxItems": 40, "items": {"$ref": "#/$defs/window"}},
+        "tabs": {"type": "array", "maxItems": 24,
+                 "description": "The Project's open Tabs as the studio's Tab strip reports them, in strip order: each Tab's kind, whether it is in front, where its specimen (the live view) is, and what it holds by kind. Present only when the report lists them.",
+                 "items": {"type": "object", "required": ["id", "title", "front"], "additionalProperties": false,
+                           "properties": {
+                             "id": {"type": "string"},
+                             "title": {"type": "string"},
+                             "front": {"type": "boolean"},
+                             "kind": {"enum": ["work", "output", "compare", "reader"]},
+                             "specimen": {"enum": ["fill", "float", "hidden"]},
+                             "holds": {"type": "object", "additionalProperties": false, "properties": {
+                                         "table": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "outlines": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "tracks": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "image": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "reference": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "document": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "graph": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "video": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "web-page": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "magnifier": {"type": "integer", "minimum": 1, "maximum": 999},
+                                         "note": {"type": "integer", "minimum": 1, "maximum": 999}}}}}},
         "front": {"type": ["object", "null"], "required": ["id", "title", "kind"], "additionalProperties": false,
                   "properties": {"id": {"type": "string"}, "title": {"type": "string"}, "kind": {"type": "string"}}}
       }

@@ -543,3 +543,28 @@ def test_hookes_own_work_on_a_hand_off_is_a_job_numbered_with_the_others_in_the_
     assert f"#3 Hooke's work ({handed.id}): running" in said
     only = project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
     assert "Jobs (researchers and Hooke's own work, numbered together" in only
+
+
+def test_the_ui_state_says_each_open_tabs_specimen_and_what_it_holds(tmp_path):
+    """The live partner spec 4.8, horizontal 2 (one truth for what is on screen), as Codex agreed on the board
+    (2026-10-30): an agent reading project.state sees the open Tabs as the Tab strip reports them, each Tab's specimen
+    and what it holds by kind, so "which Tab has the measurements?" is answered from what each holds, never a title. A
+    Tab the report garbles is left out, never the rest; a kind it does not know is not said."""
+    from orchestrator.screen import screen_of
+
+    built = app_at(tmp_path).state.app
+    sid = built.day.sid
+    screen_of(built.hub).report({"visible": True, "items": [
+        {"id": "workspace-tabs", "kind": "panel", "workspace": {"project": sid, "tab": "t2", "tabs": [
+            {"id": "main", "title": "Main", "front": False, "kind": "work", "specimen": {"state": "float"},
+             "holds": {"table": 1, "magnifier": 1}},
+            {"id": "t2", "title": "Cell results", "front": True, "kind": "output", "specimen": {"state": "hidden"},
+             "holds": {"outlines": 1, "sparkle": 4}},
+            {"title": "no id"}, "garbled"]}}]}, client=object())
+    state = owner_state(built)
+    schema.check(state, "project-state")
+    assert state["ui"]["tabs"] == [
+        {"id": "main", "title": "Main", "front": False, "kind": "work", "specimen": "float",
+         "holds": {"table": 1, "magnifier": 1}},
+        {"id": "t2", "title": "Cell results", "front": True, "kind": "output", "specimen": "hidden",
+         "holds": {"outlines": 1}}]

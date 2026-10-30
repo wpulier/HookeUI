@@ -132,7 +132,8 @@ trusted, and its maker, in pages with a cursor bound to the data's revisions onl
 role reads them: the studio's repeated reports and a researcher's next step never break a cursor);
 researchers running first, then finished, then stopped (labelled); Studies; agents' operations; the saved Tabs; the
 app's model choices (only for the Project open now); and the studio's state, `unavailable` when no studio reports this
-Project, never empty; its revision holds no time. A field added
+Project, never empty (with its open Tabs as the Tab strip reports them: each Tab's kind, whether it is in front, its
+specimen and what it holds by kind); its revision holds no time. A field added
 to it is additive within `project-state/1`, as `stage` was. The door checks every `project.state` answer against it before returning it; `project.read`'s
 output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
 contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed

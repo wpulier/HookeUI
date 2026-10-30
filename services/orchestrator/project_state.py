@@ -305,12 +305,42 @@ def ui_of(screen, project: str, now: float | None = None) -> dict:
     front = frontmost(mine)
     observed = float(report.get("at") or 0.0)
     now = time.time() if now is None else now
-    return {"state": "reported", "says": "What the studio's latest report says of this Project.",
-            "observedAt": observed, "ageMs": round(max(0.0, now - observed) * 1000, 1),
-            "visible": report.get("visible") is not False,
-            "activeTab": shown.get("tab") if isinstance(shown.get("tab"), str) else None, "windows": windows,
-            "front": ({"id": str(front.get("id"))[:120], "title": inline(front.get("title"), 120),
-                       "kind": str(front.get("kind") or "")} if front is not None else None)}
+    out = {"state": "reported", "says": "What the studio's latest report says of this Project.",
+           "observedAt": observed, "ageMs": round(max(0.0, now - observed) * 1000, 1),
+           "visible": report.get("visible") is not False,
+           "activeTab": shown.get("tab") if isinstance(shown.get("tab"), str) else None, "windows": windows,
+           "front": ({"id": str(front.get("id"))[:120], "title": inline(front.get("title"), 120),
+                      "kind": str(front.get("kind") or "")} if front is not None else None)}
+    tabs = open_tabs(shown.get("tabs"))
+    if tabs:
+        out["tabs"] = tabs
+    return out
+
+
+def open_tabs(reported) -> list[dict]:
+    """The Project's open Tabs as its Tab strip reports them (the live partner spec 4.8, horizontal 2: one truth for
+    what is on screen): each Tab's kind, whether it is in front, where its specimen is (filling it, floating, hidden)
+    and what it holds by kind, so "which Tab has the measurements?" is answered from what each holds, never its title.
+    Lenient: a Tab the report garbles is left out, never the rest (the finalisation plan's rule 4)."""
+    from .untrusted import inline
+    from .workspace_observation import ITEM_KINDS, SPECIMEN_STATES, TAB_KINDS, _holds
+
+    rows = []
+    for t in reported if isinstance(reported, list) else ():
+        if not isinstance(t, dict) or not isinstance(t.get("id"), str) or not t["id"]:
+            continue
+        row = {"id": t["id"][:120], "title": inline(t.get("title"), 120), "front": t.get("front") is True}
+        if t.get("kind") in TAB_KINDS:
+            row["kind"] = t["kind"]
+        specimen = t.get("specimen")
+        state = specimen.get("state") if isinstance(specimen, dict) else specimen
+        if state in SPECIMEN_STATES:
+            row["specimen"] = state
+        holds = {k: n for k, n in _holds(t.get("holds")).items() if k in ITEM_KINDS}
+        if holds:
+            row["holds"] = holds
+        rows.append(row)
+    return rows[:TABS_MAX]
 
 
 def stage_of(store, entries) -> dict:
