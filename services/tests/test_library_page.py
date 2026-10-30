@@ -71,6 +71,37 @@ def test_examples_are_filed_by_one_look_per_specimen_and_wait_in_turn(tmp_path):
     assert "rotifer" not in [a.specimen for a in library.unlooked() if a.group == "example"]
 
 
+def test_the_examples_show_every_specimen_before_a_second_clip_of_any(tmp_path):
+    """1,506 of the 1,566 public examples are clips of one specimen (Gram-stained bacteria), all newer than the rest.
+    Newest first, a person opening Examples saw a screen of those, and the tardigrade, the hydra or the paramecium only
+    past item 1,500. Each specimen's newest clip comes first, then the other clips newest first; a search too."""
+    import os
+
+    manifest = store_with(tmp_path)
+    corpus = tmp_path / "corpus.json"
+    corpus.write_text(json.dumps({"items": [{"id": "bac", "specimen": "Gram-stained bacteria"},
+                                            {"id": "tar", "specimen": "tardigrade"}, {"id": "hyd", "specimen": "hydra"}]}))
+    folder = tmp_path / "assets" / "footage" / "corpus"
+    folder.mkdir()
+    names = ["corpus-tar.mp4", "corpus-hyd.mp4", "corpus-bac.mp4"] + [f"corpus-bac-{n}.mp4" for n in range(1, 5)]
+    for n, name in enumerate(names):  # the bacteria newest, as in the real corpus
+        (folder / name).write_bytes(b"\x00")
+        os.utime(folder / name, (1_000 + n, 1_000 + n))
+    library = Library(tmp_path / "library.jsonl", footage=tmp_path / "assets" / "footage", manifest=manifest,
+                      corpus=corpus, datasets=tmp_path / "datasets", snapshots=tmp_path / "snapshots",
+                      origin_of=lambda kind, ident, at: None)
+
+    shown = [a.specimen for a in library.search(scope="example")]
+    every = len(set(shown))  # these three and the example that comes with the app
+    assert {"Gram-stained bacteria", "hydra", "tardigrade"} <= set(shown[:every]) and len(set(shown[:every])) == every
+    assert shown[0] == "Gram-stained bacteria"  # newest first among the firsts
+    assert shown[every:] == ["Gram-stained bacteria"] * 4
+    assert [a.title_now() for a in library.search(scope="example")][0] == "Gram-stained bacteria (5)"
+    searched = [a.specimen for a in library.search("corpus", scope="example")]  # every corpus clip's file name
+    assert sorted(searched[:3]) == ["Gram-stained bacteria", "hydra", "tardigrade"]
+    assert searched[3:] == ["Gram-stained bacteria"] * 4
+
+
 def test_yours_holds_the_examples_a_session_used(tmp_path):
     library = with_examples(tmp_path)
     smear = next(a for a in library.search(scope="example") if a.specimen == "blood smear")

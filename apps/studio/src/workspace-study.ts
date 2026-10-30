@@ -134,6 +134,7 @@ const controlDeck:ControlDeck=configureControlDeck(profileReply.profile,{
 const tabStorageKey = `${storageKey}:tabs`;
 let tabs = readTabs(sessionStorage.getItem(tabStorageKey)??localStorage.getItem(tabStorageKey));
 let switching = false;
+const PROJECT_OPENING = 'A project is opening. Please wait.';
 let initialized = false;
 // One layout write per press (b041): a rail, drawer, Data window or Assistant press changes the state, and the layout
 // is written once at its end (`press`). It ran 1 to 5 times per press, each run re-styling the page.
@@ -1153,7 +1154,7 @@ async function rememberSession(): Promise<void> {
 function persistTabs(): void { if(tabs) sessionStorage.setItem(tabStorageKey,JSON.stringify(tabs)); renderTabs(); }
 async function changeSession(id?: string, restoring = false): Promise<boolean> {
   if(!restoring && id===tabs?.active && id===snapshot.session) { surfaces.dismiss(); return true; }
-  if(switching) { actionError('A project is opening. Please wait.'); return false; }
+  if(switching) { actionError(PROJECT_OPENING); return false; }
   if(!canLeaveStudy(()=>void changeSession(id,restoring)))return false;
   clearStudyDraftMarkers();
   const blocked=studyArtifacts().blockReason(snapshot.session)||bridge.switchBlockReason(); if(blocked){actionError(blocked);return false;}
@@ -1169,7 +1170,11 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
     else {showSection('inputs');setDataOpen(false,false);}
     await workspaceViews.load(target);
     if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout(); return true;
-  } catch(error){workspaceViews.resume();actionError(error); return false;} finally {switching=false;}
+  } catch(error){workspaceViews.resume();actionError(error); return false;} finally {
+    switching=false;
+    // The wait was true only while that Project opened: once it has, the line is out of date and goes.
+    if(notice.textContent?.startsWith(PROJECT_OPENING)) notice.replaceChildren();
+  }
 }
 async function closeSessionTab(id:string): Promise<void> {
   if(switching || !tabs)return;
