@@ -40,6 +40,9 @@ from dataclasses import dataclass, field
 
 from research_worker.budget import RUN_OPERATIONS as OPERATIONS, operation_limit
 
+# How long a researcher waits for another researcher's operation to finish before it is told to carry on without it.
+BUSY_WAIT_S = 90.0
+
 PRIORITY = "research"  # gpu_client's class for a researcher's own operations
 NEXT = "carry on without it, and say what could not be measured"  # a researcher can't click or wait on the user
 ELSEWHERE = "another session is open now: the live view and what it makes are that session's"
@@ -191,6 +194,13 @@ class Hands:
         if len(done) >= limit and not scheduled:  # a mission's slots are the app's schedule (missions.py)
             return {"ok": False, "error": f"at most {limit} operations in one run",
                     "next": "work from what the earlier ones made (the session tool reads them)"}
+        if self.busy is not None and self.busy != session.rid:
+            # Researchers started together ("have 3 researchers each compare a different model") take turns: one waits
+            # for the slot within what it said it would wait, rather than giving up at once (live 2026-10-30: the third
+            # of three wrote up "the run was blocked" 15 s in, with nothing compared).
+            deadline = time.monotonic() + max(0.0, min(BUSY_WAIT_S, (wait if wait else BUSY_WAIT_S) - 5.0))
+            while self.busy is not None and time.monotonic() < deadline:
+                await asyncio.sleep(0.25)
         if self.busy is not None:
             return {"ok": False, "error": "another researcher's operation is running (one at a time, so the live view comes first)",
                     "next": "carry on, and ask again later in this run"}
