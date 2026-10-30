@@ -26,7 +26,7 @@ def readiness(built, study, session):
             reason = str(missing)
     return {'id': 'local-researcher', 'available': reason is None, 'reason': reason,
             'controls': ['start', 'observe', 'stop'],
-            'model': os.environ.get('MICROMIND_RESEARCH_ENGINE') or getattr(built.hub.settings, 'research', None) or 'gpt-6.1-sol'}
+            'model': os.environ.get('MICROMIND_RESEARCH_ENGINE') or getattr(built.hub.settings, 'research', None) or 'claude-opus-5-5'}
 
 
 async def start(built, study, session, *, request, brief, effort):

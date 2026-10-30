@@ -81,6 +81,8 @@ BASE_TOOLS = frozenset({"web_search", "snapshot", "session", "request_evidence",
 # Charts and animations of a table the session kept, drawn by the app on this Mac from the table's own values
 # (measurement_charts.py): no model, no provider, no money; from quick up, beside the app's other operations.
 CHART_TOOLS = frozenset({"make_chart", "animate_measurements"})
+# A rendered HTML page the researcher writes itself (slides, a small interactive visual), from quick up (Will, 2026-10-30).
+PAGE_TOOLS = frozenset({"make_page"})
 EFFORTS = {
     # Spike S5: one lookup with search results is $0.04-0.05 and 9-12 s, so instant has
     # $0.08 and no image tools (an annotated image takes ~11 s, spike S4).
@@ -91,12 +93,12 @@ EFFORTS = {
     "describe": Effort("describe", 25, 0.08, "instant", BASE_TOOLS, 3, "low"),
     # The app's own operations (run, orchestrator/research/hands.py) only from quick up: they take seconds of the
     # researcher's time, never money, and an instant lookup or a description has none to spare.
-    "quick": Effort("quick", 75, 0.25, "big", BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_lesson", "run"}, 8, "low",
+    "quick": Effort("quick", 75, 0.25, "big", BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_lesson", "run"}, 8, "low",
                     max_images=3),
     "standard": Effort("standard", 360, 1.00, "big",
-                       BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"}, 16, "medium",
+                       BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"}, 16, "medium",
                        max_images=5),
-    "deep": Effort("deep", 1080, 5.00, "big", BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"},
+    "deep": Effort("deep", 1080, 5.00, "big", BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"},
                    32, "high", max_images=8),
     # A new version of one thing a researcher made (ResearchManager.followup mode "revise"): a
     # lesson is one edit call plus the page written again (the page alone is checked at $0.10,

@@ -146,6 +146,7 @@ def lesson_writer() -> str:
 
 
 LESSON_MAX_OUTPUT = 16_000
+PAGE_MAX_CHARS = 400_000  # a researcher's own HTML page (make_page): slides or a small visual, its data inline
 EDIT_MAX_OUTPUT = 8_000
 CHECK_MAX_OUTPUT = 4_000
 
@@ -505,12 +506,12 @@ class Researcher:
             # A follow-up question about finished work: answered from that work (in the brief)
             # and the web; nothing new is made, so no pictures, snapshots, videos or lessons.
             allowed = [n for n in allowed if n not in ("fetch_reference_image", "snapshot", "annotate_image", "generate_image",
-                                                       "make_video", "make_lesson", *CHART_TOOLS)]
+                                                       "make_video", "make_lesson", "make_page", *CHART_TOOLS)]
         if self.spec.get("purpose") == "description":
             # Fast, and about the kind of thing: no pictures, no snapshots (enrich.py fetches refs),
             # and no relabelling, since it never sees the specimen (it only had the label).
             allowed = [n for n in allowed if n not in ("fetch_reference_image", "snapshot", "annotate_image", "generate_image",
-                                                       "propose_correction")]
+                                                       "propose_correction", "make_page")]
         if not self.crop_jpeg and not self.frame_jpeg:
             allowed = [n for n in allowed if n != "annotate_image"]
         if self.session_index is None or self.spec.get("purpose") == "description":
@@ -1277,6 +1278,30 @@ class Researcher:
                  "excluded": series.excluded, "stats": series.stats(),
                  "note": "its last frame (the whole chart) is attached; the user sees it play with your result"},
                 await asyncio.to_thread(_as_jpeg, still))
+
+    async def tool_make_page(self, args: dict):
+        """A rendered HTML page the researcher wrote itself (slides or a small interactive visual), kept as one of its
+        outputs and served under the research files' no-network sandbox (orchestrator/research/files.py): the studio
+        shows it rendered in the researcher's Tab or the reader, never as text."""
+        kind = "presentation" if args.get("kind") == "presentation" else "visual"
+        title = whole(args.get("title") or ("Presentation" if kind == "presentation" else "Visual"), "the page's title")
+        summary = whole(args.get("summary"), "the summary")
+        html = clean_lesson(str(args.get("html") or ""))
+        if not html or "</html>" not in html.lower():
+            return {"error": "give the whole HTML document in html, from <!doctype html> to </html>"}, None
+        if len(html) > PAGE_MAX_CHARS:
+            return {"error": f"the page is {len(html):,} characters; keep it under {PAGE_MAX_CHARS:,}"}, None
+        data_from = [str(x)[:300] for x in (args.get("data_from") or []) if str(x).strip()][:20]
+        self.outputs += 1
+        rel = f"outputs/{self.outputs:02d}-{slug(kind + '-' + title)}.html"
+        (self.dir / rel).write_text(html)
+        content = {"kind": kind, "title": title, "summary": summary, "data_from": data_from}
+        what = "Presentation" if kind == "presentation" else "Interactive visual"
+        self.emit_output("html", rel, f"{what}: {title}", content, generated=True,
+                         contentKind="report" if kind == "presentation" else "visual")
+        self.step(f"Made {'a presentation' if kind == 'presentation' else 'an interactive visual'}: {title}")
+        return {"ok": True, "output": rel, "note": "kept with your work; the user opens it rendered. Now finish, naming "
+                                                   "it in your summary."}, None
 
     async def tool_make_video(self, args: dict):
         """Gemini Omni 1.1 Flash image-to-video from the photo, padded to 16:9 (research_worker/video.py; spike S6 made it

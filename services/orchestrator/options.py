@@ -280,6 +280,11 @@ DISSECT = {
 RESEARCH_ENGINE = {
     o.id: o
     for o in [
+        # The default since 2026-10-30 (Will: "claude opus 5.5 set to default with same KEY"): the Messages API with its
+        # web search and the researcher's own tools (research_worker/engines.ClaudeEngine), ANTHROPIC_API_KEY.
+        Option("claude-opus-5-5", "Claude Opus 5.5 + web search",
+               "writes whole reports, slides and small interactive visuals from the session's data; web search; $4/$20 per MTok",
+               model="claude-opus-5-5"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol + web search", "S5: searched 3/3 with real sources, 9-12 s, ~$0.04-0.05 a lookup", model="gpt-6.1-sol"),
         Option("gemini-3.8-flash", "Gemini 3.8 Flash + Google Search", "S5: 3-6 s, ~$0.002, but often answers from memory without searching", model="gemini-3.8-flash"),
     ]
@@ -1028,7 +1033,7 @@ class Settings:
     voice: str = "gpt-realtime-2.1"  # the live partner (VOICE)
     brain: str = "json-actions"
     dissect: str = "grid"
-    research: str = "gpt-6.1-sol"
+    research: str = "claude-opus-5-5"  # researchers think with Opus 5.5 (RESEARCH_ENGINE); "use GPT" picks gpt-6.1-sol
     presentation: str = 'auto'  # qualified retained-input producer; Standard layout only remains an explicit preference
     sight: str = "gemini-3.8-flash"
     fast: str = "gemini-3.8-flash"  # correctness comparison and prior timing evidence: BRAIN_FAST

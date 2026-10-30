@@ -82,7 +82,7 @@ def engine_key_refusal(setting: str | None) -> ResearchRefused | None:
     alone, Gemini as the Assistant, GPT-6.1 Sol for researchers)."""
     from ..options import RESEARCH_ENGINE
 
-    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "gpt-6.1-sol"
+    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "claude-opus-5-5"
     option = RESEARCH_ENGINE.get(name)
     if option is None or not option.needs or os.environ.get(option.needs):
         return None  # a scripted engine, one this app does not list, or its key is there
@@ -2135,7 +2135,7 @@ class ResearchManager:
         session = Session(
             rid=f"r{int(time.time()) % 100000:05d}{next(self._ids)}", n=0 if purpose == "description" else self._next_number(sitting),
             brief=brief, deliverable=deliverable, effort=effort,
-            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "gpt-6.1-sol"), purpose=purpose,
+            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "claude-opus-5-5"), purpose=purpose,
             label=label or (obj.label if obj else ""), object_id=obj.id if obj else None, origin=origin or {},
             deliver="tab" if purpose == "research" and (origin or {}).get("workspace") else None,
             day=self.today(), fake=fake, sitting=sitting, specimen=str(self.hub.scene.context.get("specimen") or "")[:80],

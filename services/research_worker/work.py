@@ -337,6 +337,23 @@ SCHEMAS: dict[str, dict] = {
         "parameters": {"type": "object", "properties": {
             "motion": {"type": "string", "description": "what moves and how, in one or two sentences"},
             "seconds": {"type": "integer", "enum": [4, 6, 8]}}, "required": ["motion"]}},
+    "make_page": {
+        "description": "Write one self-contained HTML page the user opens in the app, rendered: a short slide "
+                       "presentation of what you found (kind 'presentation'), or a small interactive or animated visual "
+                       "that explains data (kind 'visual': an SVG or canvas animation, a slider, hover details). Build it "
+                       "from what you actually read: put the real numbers from the session's records or your sources in "
+                       "the page's own script or markup, and name the entries you used in data_from. It runs in a sandbox "
+                       "with no network: inline all CSS, JavaScript and SVG, load nothing from elsewhere, no external "
+                       "fonts or libraries. Make it look finished: clear type, a dark-on-light or light-on-dark palette, "
+                       "slides that fit the window with arrow-key and click navigation and a slide counter.",
+        "parameters": {"type": "object", "properties": {
+            "kind": {"type": "string", "enum": ["presentation", "visual"]},
+            "title": {"type": "string", "maxLength": 120},
+            "summary": {"type": "string", "description": "one or two sentences: what the page shows and from what data"},
+            "data_from": {"type": "array", "items": {"type": "string"},
+                          "description": "the session entry ids (e1, d3...) or source URLs whose numbers the page uses"},
+            "html": {"type": "string", "description": "the whole document, from <!doctype html> to </html>"}},
+            "required": ["kind", "title", "summary", "html"]}},
     "make_chart": {
         "description": "Draw a chart of one numeric column of a table this session kept (a measurements table, any saved "
                        "result's rows), read whole by the app at its exact revision: its values are the table's own, never "

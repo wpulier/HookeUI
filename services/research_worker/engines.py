@@ -12,6 +12,11 @@
                     (GEMINI_THINKING). Its pages come as redirect addresses, a new one for the
                     same page in every response: kept for display, counted once per site (searched).
                     An empty or blocked answer ends the run "failed" with Gemini's reason.
+  claude-opus-5-5   the default (Will, 2026-10-30): the Messages API over httpx with Anthropic's web search
+                    (web_search_20260209) and our functions as tools (ClaudeEngine). It always thinks; its effort is the
+                    researcher's (budget.EFFORTS reasoning). Its assistant turns go back whole (thinking included) and
+                    the conversation is only appended to. Forced tool choice is refused by this model, so a write-up
+                    round offers only `finish` and says so.
   fake              scripted, for tests and the scenario harness (no network); its rounds
                     go through the same rules as the others' (_final)
 
@@ -89,7 +94,7 @@ def _bytes(value) -> tuple[int, int]:
     def walk(v) -> None:
         nonlocal total, pictures
         if isinstance(v, dict):
-            if v.get("type") == "input_image" or "inline_data" in v:
+            if v.get("type") in ("input_image", "image") or "inline_data" in v:
                 pictures += 1
                 return
             for k, x in v.items():
@@ -177,6 +182,8 @@ def _credit_refusal(exc: BaseException) -> str | None:
     refusal text a provider sends without one)."""
     if api_usage.reason_of(exc) != "no-credit":
         return None
+    if getattr(exc, "provider", None):
+        return str(exc.provider)
     module = type(exc).__module__
     return "OpenAI" if module.startswith("openai") else "Google" if module.startswith("google") else (
         "Anthropic" if module.startswith("anthropic") else "The model's provider")
@@ -351,11 +358,13 @@ def _sent(items) -> tuple[int, int]:
 def make_engine(name: str | None):
     if name == "fake":  # a scripted researcher stays scripted, whatever the environment says
         return FakeEngine()
-    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or name or "gpt-6.1-sol"
+    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or name or "claude-opus-5-5"
     if name == "fake":
         return FakeEngine()
     if name.startswith("gemini"):
         return GeminiEngine(name)
+    if name.startswith("claude"):
+        return ClaudeEngine(name)
     return SolEngine(name)
 
 
@@ -482,6 +491,167 @@ class SolEngine:
                         {"type": "input_image", "image_url": _data_url(picture), "detail": _detail(call.name)}]})
             if r.result is not None or final:
                 return  # written up, or made to and could not: the run keeps what it found (Researcher.run)
+
+
+
+class AnthropicError(Exception):
+    """A Messages API call that failed with an HTTP status: its status (for _passing) and the provider's own words (for
+    api_usage.reason_of: "credit balance is too low" is a want of credit)."""
+
+    provider = "Anthropic"
+
+    def __init__(self, status_code: int, text: str) -> None:
+        super().__init__(f"HTTP {status_code}: {text[:600]}")
+        self.status_code = status_code
+
+
+ANTHROPIC_SEARCH = {"type": "web_search_20260209", "name": "web_search"}
+# Cache writes cost 1.25x the input price, reads 0.05x (Opus 5.5: $0.20 of $4 per MTok).
+CACHE_WRITE, CACHE_READ = 1.25, 0.05
+
+
+def _claude_sent(messages: list, system: str) -> tuple[int, int]:
+    total, pictures = _bytes(messages)
+    return total + len(system), pictures
+
+
+class ClaudeEngine:
+    """Claude Opus 5.5 as a researcher: the same loop as SolEngine (keep going?, notes, _final, the budget, tools), over
+    the Messages API. Sources come from its web_search_tool_result blocks; each search is priced as OpenAI's."""
+
+    def __init__(self, model: str = "claude-opus-5-5", client=None) -> None:
+        self.model = model
+        self.over_budget = False
+        self.carried = 0
+        self.said_no_search = False
+        self._client = client
+
+    def _http(self):
+        if self._client is None:
+            import httpx
+
+            self._client = httpx.AsyncClient(base_url="https://api.anthropic.com", timeout=CALL_TIMEOUT_S, headers={
+                "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""), "anthropic-version": "2023-06-01"})
+        return self._client
+
+    def _tools(self, r: Researcher, final: bool, only: str | None, search: bool) -> list[dict]:
+        names = ["finish"] if final else [only] if only else r.tool_names()
+        tools = [{"name": n, "description": r.schema(n)["description"], "input_schema": r.schema(n)["parameters"]}
+                 for n in names]
+        if search:
+            tools.insert(0, dict(ANTHROPIC_SEARCH))
+        return tools
+
+    async def _post(self, body: dict) -> dict:
+        response = await self._http().post("/v1/messages", json=body)
+        if response.status_code >= 400:
+            raise AnthropicError(response.status_code, response.text)
+        return response.json()
+
+    async def run(self, r: Researcher) -> None:
+        system = r.system_prompt()
+        pending: list[dict] = []
+        for jpeg in r.images():
+            pending.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                        "data": base64.b64encode(jpeg).decode()}})
+        pending.append({"type": "text", "text": r.brief()})
+        r.response_id = None
+        messages: list[dict] = []
+        round_n = 0
+        while True:
+            round_n += 1
+            await r.keep_going()
+            notes = r.take_notes()
+            if notes:
+                pending.append({"type": "text", "text": r.note_message(notes)})
+            final, told = _final(r, round_n, self)
+            if told:
+                pending.append({"type": "text", "text": told})
+            if final and not told:  # this model refuses a forced tool choice: the only tool offered is finish
+                pending.append({"type": "text", "text": f"Call finish now with {FINISH_ALL}."})
+            if pending:
+                messages.append({"role": "user", "content": pending})
+                pending = []
+            if not r.budget.unlimited and r.web_search_allowed() and not self.said_no_search:
+                self.said_no_search = True
+                r.step(NO_SEARCH, "warning")
+            while True:
+                planning = not final and r.plan_due()
+                search = not final and not planning and r.web_search_allowed() and r.budget.unlimited
+                tools = self._tools(r, final, "plan" if planning else None, search)
+                try:
+                    limit = _limit(r, self.model, *_claude_sent([messages, tools], system), carried=0,
+                                   search="web_search" if search else None)
+                except OverBudget:
+                    if final:
+                        raise
+                    final, self.over_budget = True, True
+                    r.final_round = True
+                    r.step("Not enough of its budget is left for another round: writing up what it has", "warning")
+                    messages[-1]["content"].append({"type": "text", "text": f"Call finish now with {FINISH_ALL}."})
+                    continue
+                break
+            body: dict = {"model": self.model, "max_tokens": limit.out_tokens or MAX_OUTPUT_TOKENS,
+                          "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                          "messages": messages, "tools": tools, "tool_choice": {"type": "auto"},
+                          "cache_control": {"type": "ephemeral"},
+                          "output_config": {"effort": r.effort.reasoning or "low"}}
+            asked = {"round": round_n, "engine": "anthropic-messages", "model": self.model, "final": final,
+                     "tools": [t.get("name") for t in tools], "toolChoice": "auto",
+                     "sent": messages[-1:] if messages else []}
+            try:
+                reply = await _model_call(r, self.model, lambda: self._post(body),
+                                          lambda: (*_claude_sent(messages, system), "web_search" if search else None),
+                                          limit)
+            except Exception as exc:
+                r.transcribe(asked, {"error": f"{type(exc).__name__}: {exc}"[:600]}, system)
+                raise
+            r.transcribe(asked, lambda: {"id": reply.get("id"), "stop_reason": reply.get("stop_reason"),
+                                         "content": reply.get("content"), "usage": reply.get("usage")}, system)
+            r.response_id = reply.get("id")
+            u = reply.get("usage") or {}
+            tokens_in = (int(u.get("input_tokens") or 0) + CACHE_WRITE * int(u.get("cache_creation_input_tokens") or 0)
+                         + CACHE_READ * int(u.get("cache_read_input_tokens") or 0))
+            r.spend(self.model, tokens_cost(self.model, tokens_in, int(u.get("output_tokens") or 0)))
+            if reply.get("stop_reason") == "refusal":
+                category = (reply.get("stop_details") or {}).get("category") or "safety"
+                raise RunFailed(f"Claude declined this request ({category})")
+            blocks = reply.get("content") or []
+            messages.append({"role": "assistant", "content": blocks})
+            calls = []
+            for block in blocks:
+                kind = block.get("type")
+                if kind == "server_tool_use" and block.get("name") == "web_search":
+                    query = str((block.get("input") or {}).get("query") or "")
+                    r.spend("web_search", PRICES["web_search"])
+                    r.step(f"Searched the web{': ' + query if query else ''}", "search")
+                elif kind == "web_search_tool_result":
+                    content = block.get("content")
+                    for result in content if isinstance(content, list) else []:
+                        url = result.get("url") if isinstance(result, dict) else None
+                        if url:
+                            r.search_sources.append(url)
+                elif kind == "tool_use":
+                    calls.append(block)
+            if reply.get("stop_reason") == "pause_turn":
+                continue  # a long server-side search turn: sent again as it stands to let it carry on
+            if not calls:
+                await r.finish_from_text("".join(b.get("text", "") for b in blocks if b.get("type") == "text"))
+                return
+            for call in calls:
+                args = call.get("input")
+                if not isinstance(args, dict):
+                    result, picture = r.malformed_call(call.get("name"), json.dumps(args), ValueError("not an object")), None
+                else:
+                    result, picture = await r.call_tool(call.get("name"), args)
+                out: list[dict] = [{"type": "text", "text": json.dumps(result)}]
+                if picture:
+                    out.append({"type": "text", "text": f"(picture from {call.get('name')})"})
+                    out.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg",
+                                                            "data": base64.b64encode(picture).decode()}})
+                pending.append({"type": "tool_result", "tool_use_id": call.get("id"), "content": out})
+            if r.result is not None or final:
+                return
 
 
 class GeminiEngine:
