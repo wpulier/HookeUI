@@ -26,6 +26,7 @@ const bytes = (n: number) => n < 1024 ** 2 ? `${Math.ceil(n / 1024)} KiB` : `${(
 export function projectExport(actions: ExportActions, current: () => boolean, origin: string, mode: 'export' | 'restore' = 'export', restoration?: (operation: string) => ExportActions): {element: HTMLElement; dispose(): void} {
   const restore = mode === 'restore';
   let child: ReturnType<typeof projectExport> | undefined;
+  const clearChild = () => { child?.dispose(); child?.element.remove(); child = undefined; };
   const element = node('section', '', 'project-export');
   const status = node('p', '', 'project-folder-status'); status.setAttribute('role', 'status');
   const content = node('div'), controls = node('div', '', 'project-export-actions');
@@ -59,7 +60,7 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   const render = (row: ExportOperation) => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
-    child?.dispose(); child = undefined;
+    clearChild();
     operation = row.id; controls.replaceChildren(); content.replaceChildren();
     if (row.state === 'succeeded' && row.outcome?.export) {
       const result = row.outcome.export;
@@ -74,7 +75,7 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
       }, true);
       if (!restore && restoration) {
         child = projectExport(restoration(row.id), current, `${origin}.${row.id}`, 'restore');
-        content.append(child.element);
+        element.append(child.element);
       }
       button('New copy', () => { requestKey = `project-${mode}-${crypto.randomUUID()}`; void prepare(); });
       return;
@@ -128,13 +129,13 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   const prepare = async () => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
-    child?.dispose(); child = undefined;
+    clearChild();
     busy = true; readEpoch++; controls.replaceChildren(); status.textContent = 'Checking saved files and required space…';
     try {
       const plan = await actions.prepare();
       if (!active()) return;
       content.replaceChildren(node('p', `${plan.files.toLocaleString()} files · ${bytes(plan.bytes)} · needs ${bytes(plan.requiredFreeBytes)} free`), node('p', plan.collection.reason));
-      content.append(collectionReview(plan));
+      if (!restore) content.append(collectionReview(plan));
       status.textContent = restore ? 'This restores the exported files. Uncollected dependencies remain uncollected.' : 'This is a folder snapshot, not a fully collected Project.';
       button(restore ? 'Restore working copy' : 'Export this partial copy', start, true);
     } catch (error) { if (active()) { showError(error); button('Retry preparation', prepare); } }
@@ -146,5 +147,5 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   }
   else if (operation) void poll();
   else { content.append(node('p', restore ? 'Restore the verified export into a separate working folder. The original and export stay intact.' : 'Create an immutable copy of the files saved in this Project folder.')); button(restore ? 'Review restoration' : 'Review export', prepare); }
-  return {element, dispose() { disposed = true; child?.dispose(); if (timer) clearTimeout(timer); }};
+  return {element, dispose() { disposed = true; clearChild(); if (timer) clearTimeout(timer); }};
 }
