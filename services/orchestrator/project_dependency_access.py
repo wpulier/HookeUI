@@ -6,7 +6,6 @@ The exact accepted heads form the basis; new work requires a new inspection.
 from .project_record_dependencies import RecordDependencyReview
 from .project_roots import ProjectLocationError
 from .project_snapshot_integrity import MAX_DOCUMENTS, MAX_HISTORY
-from .scientific_comparisons import identity
 
 
 def unavailable(session):
@@ -21,25 +20,18 @@ def inspect(stores, session, *, check=lambda: None):
     check()
     store = stores.for_session(session)
     def heads():
-        check()
-        values, errors = store.scan(session)
-        if errors:
-            # Legacy stores may report an unreadable owner; do not leak its ID.
-            raise ProjectLocationError('Retained records are unreadable; recover them before dependency inspection')
-        if len(values) > MAX_DOCUMENTS or sum(v.revision for v in values) > MAX_HISTORY:
-            raise ProjectLocationError('Project dependency inspection exceeds its history allowance')
-        return sorted(values, key=lambda v: v.id)
-    accepted = heads()
-    basis = [identity(saved) for saved in accepted]
+        return store.head_references(session, max_documents=MAX_DOCUMENTS,
+                                     max_revisions=MAX_HISTORY, check=check)
+    basis = heads()
     review = RecordDependencyReview(store, session)
     revisions = 0
-    for head in accepted:
-        for revision in range(1, head.revision + 1):
+    for head in basis:
+        for revision in range(1, head['revision'] + 1):
             check()
-            review.inspect(store.read(head.id, session, revision=revision), check=check)
+            review.inspect(store.read(head['id'], session, revision=revision), check=check)
             revisions += 1
-    if [identity(saved) for saved in heads()] != basis:
+    if heads() != basis:
         raise ProjectLocationError('Project records changed during inspection; request a fresh dependency review')
     check()
     return {'session': session, 'availability': 'available', 'basis': basis,
-            'documents': len(accepted), 'revisions': revisions, **review.result()}
+            'documents': len(basis), 'revisions': revisions, **review.result()}

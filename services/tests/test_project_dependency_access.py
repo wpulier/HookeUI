@@ -32,16 +32,16 @@ def test_available_review_keeps_exact_heads_and_never_changes_history(tmp_path):
 def test_new_accepted_revision_refuses_a_stale_review(tmp_path, monkeypatch):
     root, _, first, _ = setup(tmp_path)
     store = ProjectStore(document_root(root))
-    original = store.scan
+    original = store.head_references
     calls = 0
-    def changed(session):
+    def changed(session, **options):
         nonlocal calls
         calls += 1
         if calls == 2:
             store.create(session, {'kind': 'note', 'title': 'New work', 'resources': [],
                                   'runtimes': [], 'state': {'text': 'Arrived during review'}})
-        return original(session)
-    monkeypatch.setattr(store, 'scan', changed)
+        return original(session, **options)
+    monkeypatch.setattr(store, 'head_references', changed)
     with pytest.raises(ProjectLocationError, match='changed during inspection'):
         inspect(store, root.session)
     assert store.read(first.id, root.session, revision=first.revision) == first
@@ -140,3 +140,38 @@ def test_cancellation_waits_for_read_worker_to_stop(project_door, monkeypatch):
         return result if result['state'] == 'cancelled' else None
     result = until(ended)
     assert exited.is_set() and 'dependencies' not in result['outcome']
+
+
+def test_head_discovery_is_bounded_and_cancellable_before_loading_bodies(tmp_path, monkeypatch):
+    root, _, first, second = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    original = store.read
+    def no_body(*args, **kwargs):
+        raise AssertionError('Head discovery must not load a document body')
+    monkeypatch.setattr(store, 'read', no_body)
+    refs = store.head_references(root.session, max_documents=2, max_revisions=3)
+    assert refs == [{'id': second.id, 'session': root.session, 'revision': second.revision, 'digest': second.digest}]
+    for limits in ({'max_documents': 0, 'max_revisions': 10}, {'max_documents': 10, 'max_revisions': 1}):
+        with pytest.raises(ValueError, match='allowance'):
+            store.head_references(root.session, **limits)
+    visited = 0
+    def stop():
+        nonlocal visited
+        visited += 1
+        if visited == 2:
+            raise RuntimeError('cancelled while enumerating')
+    with pytest.raises(RuntimeError, match='cancelled while enumerating'):
+        store.head_references(root.session, max_documents=10, max_revisions=10, check=stop)
+    assert original(first.id, root.session, revision=first.revision) == first
+
+
+def test_head_discovery_excludes_other_owners_without_reading_their_documents(tmp_path, monkeypatch):
+    from orchestrator.scientific_comparisons import identity
+    store = ProjectStore(tmp_path / 'records')
+    doc = {'kind': 'note', 'title': 'Synthetic', 'state': {}, 'resources': [], 'runtimes': []}
+    ours = store.create('2026-10-30', doc)
+    theirs = store.create('2026-10-30.1', doc)
+    # A damaged foreign body is never opened by discovery of our Project.
+    path = store.root / theirs.id / 'revisions' / (theirs.digest + '.json')
+    path.chmod(0o600); path.write_bytes(b'damaged unrelated body')
+    assert store.head_references(ours.session, max_documents=1, max_revisions=1) == [identity(ours)]
