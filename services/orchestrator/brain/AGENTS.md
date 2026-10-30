@@ -82,7 +82,11 @@ other files.
   `do_in_hooke` files a `handoff` line at once (working, titled by the voice's required `label`), `long` past
   TOOL_WAIT_S, then its state from the brain's own turn, before the act-then-look: done (an answer, no failed step),
   started (it started a researcher), uncertain (a step's receipt says its change was sent but not observed on screen:
-  `handoffs.unconfirmed`, never "failed"), failed with its reason, or settling while a late step runs. `Dialogue.flying`
+  `handoffs.unconfirmed`, never "failed"), failed with its reason, or settling while a late step runs. A refusal of the
+  brain's own call (`ToolFailed(argument=True)`: its arguments did not fit, such as an annotated picture with nothing
+  outlined) that a later call of the same tool in the turn replaced is the brain correcting itself (`handoffs.corrected`):
+  no failure, and neither it nor its words are told to the voice (live 2026-10-29: the user heard "it couldn't annotate
+  your stoma because nothing was outlined first" for an illustration that had started). `Dialogue.flying`
   holds those still running, so a replay shows one an app restart cut off as unknown. The voice is told the row shows a
   long one (`STILL_HANDED_OFF`) and, in PARTNER_ACTING_BRAIN, to say one short line for a new request only and each
   outcome once. **A later step** (`then`, `voice/followups.py`): the voice cannot act when work lands (its unasked

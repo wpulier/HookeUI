@@ -119,9 +119,9 @@ other files.
     results"; the report shows both on that Tab, in front, side by side).
   - `beside`: side by side in this Tab with what is there, the live view included: the Tab's own Arrange (`tabs
     arrange`; the report shows no window, the floating specimen included, over a quarter of another). A new Tab has no
-    live view, so "beside the live view" names Main. `instead` moves it there from the Tab it is in (`tabs move`, the
-    person's own "Move this view instead").
-  - `overlay`: drawn on the live specimen, outlines and layers only (`present` show); a table or a window is refused
+    live view, so "beside the live view" names Main.
+  - `overlay`: drawn on the live specimen, outlines and layers only (`present` show), a layer named any way the screen
+    names it (`e3`, `layer:e3`, `population:e3`, `m1`, `tracks:m1`; `placement.layer_of`); anything else is refused
     with what to do instead.
   - `window`: a floating window, in front (nothing over it in the report).
   - `replace`: in place of the window in front, which closes first.
@@ -129,8 +129,24 @@ other files.
   - `only`: the only thing open in its Tab (`tabs only` with `keep`): every other window closed through its own ×, as
     a person's click closes it, and the specimen hidden, or on Main floated small in its corner (Main always keeps
     it); the kept window fitted to the room left. Done once the report shows only it there and the specimen so.
+  - **Put X in Tab T, wherever it is now** (`placement.put`; `present` with a placement and `tab`; live 2026-10-29: a
+    researcher's graphic and a reference photo "as the main item" of a named Tab were refused, and the user was told
+    to save it first). The Tab named is found or made and brought forward, then the thing is: placed there when it is
+    open there; moved there from the Tab it is open in with `instead` (`tabs move`, the person's own Move; the model
+    decides from the user's words, "instead", "move it"), otherwise opened there too, and the answer says where else
+    it is still open; opened there from Data when not open (a table or a population as the Tab's own window, `tabs
+    add`; a video or page in its web window; a saved picture, or a researcher's picture from its exact retained output
+    as `show_result` opens it, never a copy, in a window of its own). Then it is placed (`only` keeps the window it put
+    there, by its id on screen, never the Data id it was asked by; `beside` arranges the Tab). `show_measurements`
+    takes `instead` the same way and says when the table is also still open in another Tab. Hands checks `only`
+    against the window opened (its presentation output). `tabs add` of a photo says it is placed this way; a
+    researcher's Tab lists its work by its Data id (`r3:o1`). Tests: `tests/test_placement_put.py`.
   - **Defaults by kind** (`placement.DEFAULTS`): a run's outlines as an overlay with their table beside (the table's
     default is `beside`), a reference image beside, a document in a Tab of its own, a video or web page as a window.
+  - **A window opened on a reader Tab is in front of its reader** (live 2026-10-29: a video asked for while a
+    document's own Tab was in front was "hidden behind the current document"): the reader there is the Tab's own page,
+    under the windows opened on it (`data-reader.css` lifts the Stage's windows layer over it; the report gives the
+    reader Tab's surface z 1), and the Tab holds those windows beside its one item (`tabItems`).
   - Hands checks `tabs only`/`arrange` and `present do=place` from the same report facts (`placement.only_shown`,
     `beside_shown`) and says where: "Done: only that is open in the Main Tab; the live view floats small."
 - **Web pages and videos** (`show_web`, `orchestrator/web_window.py`, `apps/studio/src/web-window.ts`). A video found on

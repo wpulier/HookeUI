@@ -318,7 +318,10 @@ other files.
   user asked for, whose result is spoken. No word list decides which deliverable a request wants or admits one: the
   "keywords" option (the EXPLICIT word lists, as before 2026-10-06) is gone (2026-10-29; it refused "show me step by step
   how it works", and its `animat\w*` matched "create an animation" of a measurements table to a Veo video, live
-  2026-10-28). The model picks the deliverable from the ones and the tools it is shown; a record retained under
+  2026-10-28). The model picks the deliverable from the ones and the tools it is shown: `image` is a made illustration
+  or diagram of a kind of thing, labelled or not, needing nothing outlined; `annotated_image` draws labels on a photo
+  of the user's own outlined thing, and with nothing outlined it is refused to the model as its call to correct
+  (`argument`), never told to the user (live 2026-10-29, "a small labeled graphic of a stoma"); a record retained under
   "keywords" is checked by the quote. `admit` runs
   inside `ResearchManager.start` and `followup`, so "continue" and a new version of a video are
   held to it too and no path skips it; the tool refuses otherwise, and the answer says so.
