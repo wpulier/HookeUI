@@ -9,7 +9,7 @@ function setup() {
   const saved = new Map<string, string>();
   vi.stubGlobal('localStorage', {getItem: (key: string) => saved.get(key), setItem: (key: string, value: string) => saved.set(key, value), removeItem: (key: string) => saved.delete(key)});
   const actions: ExportActions = {
-    prepare: vi.fn(async () => ({files: 12, bytes: 4096, requiredFreeBytes: 100000,
+    prepare: vi.fn(async (): Promise<Awaited<ReturnType<ExportActions['prepare']>>> => ({files: 12, bytes: 4096, requiredFreeBytes: 100000,
       collection: {state: 'unverified', reason: 'Keep the original Project.'}})),
     start: vi.fn(async () => ({id: 'export-1', state: 'running'})),
     read: vi.fn(async () => ({id: 'export-1', state: 'running'})),
