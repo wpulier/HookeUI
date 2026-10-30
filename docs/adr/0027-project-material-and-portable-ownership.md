@@ -504,3 +504,11 @@ to connected agents; they still need locally established Project access.
 The native shell supplies its origin-checked directory chooser; browser path entry
 uses the same owner admission. Neither entrance is snapshot restoration, read-only opening, independent-copy creation or legacy migration.
 Portable-mode activation remains an operator choice.
+
+## Historical attribution after relocation
+
+Resource makers use the label captured in an accepted agent import before any
+current host label. Reopening a Project without its old connections must preserve
+that recorded display name and stable actor ID. Reading a historical label never
+registers a connection, updates the host label cache, or grants access. Records
+without a retained label keep the existing host-label/unknown fallback.
