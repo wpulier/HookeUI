@@ -2663,6 +2663,7 @@
     "talk_key",
     "heard_cue",
     "partner_acts",
+    "partner_speaks",
     "think",
     "look_hard",
     "fixed:voice-words",
@@ -12555,6 +12556,63 @@
   },
   {
    "agentCanChange": [],
+   "current": "after-deciding",
+   "default": "after-deciding",
+   "defaultReason": null,
+   "fallbackFor": [],
+   "hint": "decides, then speaks (the default: nothing said before work is handed over), or speaks as it decides",
+   "id": "partner_speaks",
+   "kind": "policy",
+   "options": [
+    {
+     "available": true,
+     "id": "after-deciding",
+     "label": "Decides, then speaks",
+     "licence": "",
+     "models": [],
+     "note": "nothing said before work is handed over; a direct answer is said word for word once decided, one more response before its first words",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Decides, then speaks",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    },
+    {
+     "available": true,
+     "id": "as-it-decides",
+     "label": "Speaks as it decides",
+     "licence": "",
+     "models": [],
+     "note": "the soonest first words; may say what it is about to do before handing work over (judged \"preliminary narration\" on the 30 Oct journeys)",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Speaks as it decides",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    }
+   ],
+   "powers": [
+    "talk"
+   ],
+   "purpose": "Whether the voice decides silently before it speaks, or speaks as it decides",
+   "title": "When it speaks"
+  },
+  {
+   "agentCanChange": [],
    "current": "close-look",
    "default": "close-look",
    "defaultReason": null,
@@ -14485,6 +14543,7 @@
    "outline_check": "fix",
    "outline_repair": "same",
    "partner_acts": "brain",
+   "partner_speaks": "after-deciding",
    "pointing": "box",
    "presentation": "off",
    "quality": "tell",

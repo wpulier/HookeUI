@@ -163,9 +163,10 @@ class Screen:
         return self.reported_at > after
 
 
-def app(tools: dict | None = None, acts: str = "direct"):
+def app(tools: dict | None = None, acts: str = "direct", speaks: str = "after-deciding"):
     """A stand-in app. `acts`: the partner's PARTNER_ACTS; these tests are of the voice calling Hooke's tools itself
-    ("direct") unless they ask for Hooke's brain doing the work ("brain", the default in the app)."""
+    ("direct") unless they ask for Hooke's brain doing the work ("brain", the default in the app). `speaks`: its
+    PARTNER_SPEAKS, the app's default unless a test is about speaking as it decides."""
     registry = Registry()
     ran = []
     for name, reply in (tools or {}).items():
@@ -176,6 +177,7 @@ def app(tools: dict | None = None, acts: str = "direct"):
                           kind="query" if name in ("resources", "research_status") else "effect"))
     hub = SimpleNamespace(settings=Settings(), latest_info=None, scene=SimpleNamespace(objects={}), screen=Screen())
     hub.settings.partner_acts = acts
+    hub.settings.partner_speaks = speaks
     logged = []
     brain = SimpleNamespace(registry=registry, hub=hub, agent=SimpleNamespace(log=logged.append), conversation=Conversation(),
                             board=None, sight=None, services=None, voice=None, narrator=None,
@@ -184,9 +186,9 @@ def app(tools: dict | None = None, acts: str = "direct"):
     return hub, brain, ran, logged
 
 
-async def partner_session(monkeypatch, tools=None, frames=None, talk="hold", acts="direct"):
+async def partner_session(monkeypatch, tools=None, frames=None, talk="hold", acts="direct", speaks="after-deciding"):
     """A Partner bound to a RealtimeSession on a fake sideband; the studio's messages recorded in `studio`."""
-    hub, brain, ran, logged = app(tools, acts)
+    hub, brain, ran, logged = app(tools, acts, speaks)
     studio = []
     frames = frames if frames is not None else [(b"CAMERA-AT-KEY-DOWN", 41, [0, 0, 100, 100])]
     grabs = []
@@ -318,7 +320,9 @@ def test_release_commits_and_asks_for_the_answer_with_nothing_fetched_after_it(m
         assert [m for m in t.studio if m["type"] == "heard"] == [{"type": "heard", "n": 1}]
         assert any(r["kind"] == "partner-heard" and r["n"] == 1 for r in t.logged)
         create = t.sb.sent[-1]
-        assert create["response"]["metadata"] == {"cause": "turn", "n": "1"}
+        # Decided silently first (PARTNER_SPEAKS "after-deciding", the default): text alone, nothing said by it.
+        assert create["response"]["metadata"] == {"cause": "turn", "n": "1", "decide": "1"}
+        assert create["response"]["output_modalities"] == ["text"]
     asyncio.run(go())
 
 
@@ -677,8 +681,7 @@ def test_voice_turns_are_filed_in_the_shared_conversation(monkeypatch):
         await release(t, 1)
         t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
                    "transcript": "outline the biggest one"})
-        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": "Here it is."})
-        await done(t.sb, "resp_1")
+        await decided_answer(t, "Here it is.")
         roles = [(turn.role, turn.channel, turn.text) for turn in t.brain.conversation.turns]
         assert ("user", "voice", "outline the biggest one") in roles and ("assistant", "voice", "Here it is.") in roles
         assert t.partner.history()[:2] == [("user", "what is this?"), ("assistant", "Onion skin.")]
@@ -1301,7 +1304,7 @@ def test_a_mark_that_was_shown_goes_with_the_words_and_gets_no_reply_of_its_own(
     reply, "It's highlighted around the central oval…", repeating the first. Pointing sits alongside speech (HeyClicky's
     point_at_element): a mark after words that was shown asks for nothing more."""
     async def go():
-        t = await partner_session(monkeypatch)
+        t = await partner_session(monkeypatch, speaks="as-it-decides")
         await mark_round(t, "That central oval is likely a stoma.", [{"target": "outline:o1", "ok": True}])
         assert t.sb.responses == 1, "no second reply"
         assert any(r["kind"] == "partner-round-quiet" and "words" in r["why"] for r in t.logged)
@@ -1377,7 +1380,7 @@ def test_a_reply_in_two_parts_is_joined_with_a_space(monkeypatch):
     """Will's feel check: "…so it's easy to spot.That central oval…": the words of two parts of one response, either side
     of a tool call, ran together in the chat."""
     async def go():
-        t = await partner_session(monkeypatch)
+        t = await partner_session(monkeypatch, speaks="as-it-decides")
         heard = []
         t.session.on(lambda event: heard.append(event.text) if event.kind == "output_transcript" else None)
         await press(t, 1)
@@ -1643,7 +1646,7 @@ def test_after_its_lead_in_a_still_running_output_is_not_said(monkeypatch):
 
     async def go():
         gate[0] = asyncio.Event()
-        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)})
+        t = await partner_session(monkeypatch, tools={"resources": slow_resources(gate)}, speaks="as-it-decides")
         await resources_round(t)
         await until_async(lambda: any(i["type"] == "function_call_output" for i in t.sb.items()), seconds=10)
         await until_async(lambda: any(r["kind"] == "partner-round-quiet" and "lead-in" in r["why"] for r in t.logged))
@@ -1953,4 +1956,194 @@ def test_an_experiments_audit_is_said_with_the_experiments_outcome_never_on_its_
         t.partner._research_done(SimpleNamespace(purpose="research", status="done", rid="R2", name="Researcher 2",
                                                  origin={"channel": "voice"}, result=None))
         await until_async(lambda: t.sb.responses == 1)  # a researcher the user started is said as before
+    asyncio.run(go())
+
+
+# --- decide silently, then speak (option PARTNER_SPEAKS "after-deciding", the default) --------------------------------
+def message(words: str, iid: str = "msg_1") -> dict:
+    """A response's assistant message item in text, as response.done lists it."""
+    return {"type": "message", "id": iid, "role": "assistant", "content": [{"type": "output_text", "text": words}]}
+
+
+def deleted(t) -> set:
+    return {e.get("item_id") for e in t.sb.sent if e["type"] == "conversation.item.delete"}
+
+
+async def decided_answer(t, words: str, rid: str = "resp_1", say: str = "resp_2", *, calls=()):
+    """The turn's response decides in text (`words`, and any `calls`), then, when it is said, its say response plays."""
+    t.sb.emit({"type": "response.output_text.delta", "response_id": rid, "delta": words})
+    for call in calls:
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": rid, **call})
+    await done(t.sb, rid, output=[message(words)])
+    await until_async(lambda: t.sb.responses >= 2)
+    t.sb.emit({"type": "output_audio_buffer.started", "response_id": say})
+    t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": say, "delta": words})
+    await done(t.sb, say, usage={"output_token_details": {"audio_tokens": 30}})
+    t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": say})
+    await settle()
+
+
+def test_a_turn_that_hands_work_over_says_nothing_before_the_call(monkeypatch):
+    """The 30 Oct journeys on b1e2727, after three rounds of prompt rules against it: "I'm checking the current tabs to
+    find the measurement table, then I'll open it." (will-display which-tab), "Starting the experiment with both models
+    and a researcher audit." for a plan only drafted, each said 0.8-1.3 s after release, before do_in_hooke. A turn is now
+    answered in text first: its words before a call are never said nor kept as said, and the outcome is said after it."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {
+            "answer": "The measurements are in the Sizes tab; I opened it.",
+            "actions": [{"tool": "tabs", "ok": True, "summary": "Sizes selected"}]})
+        await press(t, 1)
+        await release(t, 1)
+        turn = creates_of(t)[0]["response"]
+        assert turn["output_modalities"] == ["text"] and "unless you call a tool" in turn["instructions"]
+        preamble = "I'm checking the current tabs to find the measurement table, then I'll open it."
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": preamble})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "h1",
+                   "name": "do_in_hooke", "arguments": json.dumps({"request": "open the table with the measurements",
+                                                                   "label": "The measurements"})})
+        await done(t.sb, "resp_1", output=[message(preamble)])
+        assert "msg_1" in deleted(t), "the words it wrote before the call are taken out: never said"
+        await answer_snapshots(t, lambda: t.sb.responses == 2)
+        after = creates_of(t)[1]["response"]
+        assert after["metadata"]["cause"] in ("look", "tool") and "output_modalities" not in after, "the outcome, spoken"
+        said = [turn.text for turn in t.brain.conversation.turns if turn.role == "assistant"]
+        assert not any("checking the current tabs" in s for s in said), "nothing of it reached the chat as said"
+        record = next(r for r in t.logged if r["kind"] == "partner-response" and r["responseId"] == "resp_1")
+        assert record["transcript"] == "" and record["silent"] is True and record["written"] == preamble
+        assert next(r for r in t.logged if r["kind"] == "partner-decided")["how"] == "tools"
+    asyncio.run(go())
+
+
+def test_a_direct_answer_is_said_once_exactly_with_one_assistant_message(monkeypatch):
+    """With no tool, what it decided is its answer: said at once by one audio response whose only context is those words
+    (said exactly), its written copy taken out, so the conversation holds one assistant message for it and the chat one
+    line. What deciding first adds to a direct answer's first words is that one response: here, nothing waits between
+    the decided text and asking for it."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+                   "transcript": "what is the thing in the middle?"})
+        words = "That's most likely a stoma: two guard cells around a pore."
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": words})
+        decided_at = time.monotonic()
+        await done(t.sb, "resp_1", output=[message("**" + words + "**")])
+        say = await until_async(lambda: creates_of(t)[1:] and creates_of(t)[1])
+        asked_after = time.monotonic() - decided_at
+        assert asked_after < 0.25, f"asked for at once ({asked_after * 1000:.0f} ms, the fake's settle included)"
+        response = say["response"]
+        assert response["metadata"]["cause"] == "say" and response["tool_choice"] == "none"
+        assert "output_modalities" not in response, "spoken"
+        assert response["instructions"] == openai_realtime.SAY_DECIDED
+        assert words in response["input"][0]["content"][0]["text"] and "**" not in response["input"][0]["content"][0]["text"]
+        assert "msg_1" in deleted(t), "its written copy is not kept beside the spoken one"
+        assert not [i for i in t.sb.items() if i.get("role") == "assistant"], "nothing added as said by the app itself"
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_2", "delta": words})
+        await done(t.sb, "resp_2", usage={"output_token_details": {"audio_tokens": 30}})
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_2"})
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 2, "said once"
+        said = [turn.text for turn in t.brain.conversation.turns if turn.role == "assistant"]
+        assert said == [words], "one line in the chat"
+        assert next(r for r in t.logged if r["kind"] == "partner-decided")["how"] == "said"
+    asyncio.run(go())
+
+
+def test_decided_words_with_their_marks_are_said_with_them_and_nothing_more(monkeypatch):
+    """Marks the voice sends with its words: decided words with only marks are said, the marks drawn with them, and no
+    reply of its own after them."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "That one is dividing."})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "m1",
+                   "name": "mark", "arguments": json.dumps({"targets": [{"target": "outline:o1"}]})})
+        await done(t.sb, "resp_1", output=[message("That one is dividing.")])
+        sent = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        await t.partner.command({"type": "marks-shown", "id": sent["id"], "resolved": [{"target": "outline:o1", "ok": True}]})
+        await until_async(lambda: t.sb.responses == 2)
+        assert creates_of(t)[1]["response"]["metadata"]["cause"] == "say"
+        await until_async(lambda: any(r["kind"] == "partner-round-quiet" and "words" in r["why"] for r in t.logged))
+        await asyncio.sleep(0.3)
+        assert t.sb.responses == 2, "the words, with their mark; no reply after them"
+    asyncio.run(go())
+
+
+def test_its_state_shows_while_it_decides_and_while_it_says(monkeypatch):
+    """The heard, thinking and speaking states and the presence pill: thinking while it decides and until its decided
+    words play (never idle between them), speaking while they do."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        await press(t, 1)
+        await release(t, 1)
+        assert t.session.phase() == "thinking", "its answer is being made"
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "It's onion skin."})
+        await settle()
+        assert t.session.phase() == "thinking"
+        await done(t.sb, "resp_1", output=[message("It's onion skin.")])
+        assert t.session.phase() == "thinking", "decided, its words asked for: still thinking, never idle"
+        await until_async(lambda: t.sb.responses == 2)
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await settle()
+        assert t.session.phase() == "speaking"
+        await done(t.sb, "resp_2", usage={"output_token_details": {"audio_tokens": 10}})
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_2"})
+        await settle()
+        assert t.session.phase() == "quiet"
+        states = [m["state"] for m in t.studio if m["type"] == "voice-state"]
+        assert "thinking" in states and "speaking" in states
+        between = states[states.index("thinking"):states.index("speaking")]
+        assert "idle" not in between, f"never idle between deciding and saying: {states}"
+    asyncio.run(go())
+
+
+def test_a_key_press_while_it_decides_says_nothing_of_it(monkeypatch):
+    """Barge-in: pressing talk while it decides cancels that response; nothing of it is said or kept as said."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "That looks like"})
+        await settle()
+        await press(t, 2)
+        assert "response.cancel" in t.sb.types()
+        await done(t.sb, "resp_1", output=[message("That looks like")], status="cancelled")
+        await asyncio.sleep(0.2)
+        assert t.sb.responses == 1 and "msg_1" in deleted(t)
+    asyncio.run(go())
+
+
+def test_a_typed_line_is_decided_then_said(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        await t.session.send_text("how many cells are there?")
+        await until_async(lambda: t.sb.responses == 1)
+        typed = creates_of(t)[0]["response"]
+        assert typed["metadata"]["cause"] == "typed" and typed["output_modalities"] == ["text"]
+        await decided_answer(t, "About 150 in view.")
+        assert [c["response"]["metadata"]["cause"] for c in creates_of(t)] == ["typed", "say"]
+    asyncio.run(go())
+
+
+def test_speaking_as_it_decides_is_the_other_option(monkeypatch):
+    """PARTNER_SPEAKS "as-it-decides" (options, not replacements): the turn is answered in speech at once, as before."""
+    from orchestrator.options import GROUPS, Settings
+
+    assert Settings().partner_speaks == "after-deciding"
+    assert set(GROUPS["partner_speaks"]) == {"after-deciding", "as-it-decides"}
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain", speaks="as-it-decides")
+        await press(t, 1)
+        await release(t, 1)
+        turn = creates_of(t)[0]["response"]
+        assert "output_modalities" not in turn and "decide" not in turn["metadata"]
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": "Onion skin."})
+        await done(t.sb, "resp_1")
+        assert ("assistant", "voice", "Onion skin.") in [(x.role, x.channel, x.text) for x in t.brain.conversation.turns]
+        assert t.sb.responses == 1 and not deleted(t)
     asyncio.run(go())
