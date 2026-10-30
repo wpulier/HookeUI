@@ -208,6 +208,7 @@ export interface SessionCleared {
  * the app's. `from` says where it came from: a real microscope recording, a file added here, a Record video, a snapshot
  * or a clearer picture. */
 export interface AssetMeta {
+  retained?: import('./project-media-reference').ProjectMediaReference;
   id: string; // a7: the library's own id
   kind: 'recording' | 'still';
   title: string;
@@ -236,6 +237,8 @@ export interface SourcesMessage {
   type: 'sources';
   session: string;
   onStage: string | null;
+  onStageRetained?: AssetMeta['retained'];
+  onStageAsset?: AssetMeta;
   sources: (AssetMeta & { opened: number | null; joined: boolean; position: number | null; alsoIn?: { id: string; label: string }[] })[];
   removed: string[];
 }
@@ -1585,7 +1588,8 @@ export type ClientCommand =
   // A session's sources (ADR 0022): put one on stage (`switch` false: the studio switched the feed to its test
   // footage itself, which stands for the live camera; `session`: a landing's, refused once another session is open),
   // take one out, put it back, or set an asset's own fields.
-  | { type: 'source'; open: string; at?: number; paused?: boolean; switch?: boolean; session?: string }
+  | { type: 'source'; open: string; at?: number; paused?: boolean; switch?: boolean; session?: string; retained?: AssetMeta['retained'] }
+  | { type: 'source-retain'; asset: string; session: string }
   | { type: 'source-remove'; asset: string }
   | { type: 'source-restore'; asset: string }
   | { type: 'asset-meta'; asset: string; set: Record<string, string | number | null> }
@@ -1668,6 +1672,7 @@ interface Replies {
   // A session's sources (commands.py): what is on stage now; a removal says whether it was on stage, and then what goes
   // there next (the newest other source, else "live").
   source: { onStage: string; previous: string | null; title: string };
+  'source-retain': { storage: 'legacy' | 'project'; asset: string; session: string; retained?: AssetMeta['retained']; title?: string };
   'source-remove': { removed: string; wasOnStage: boolean; next: string; title: string };
   'source-restore': { restored: string; title: string };
   'asset-trash': { trashed: string; wasOnStage: boolean; title: string };

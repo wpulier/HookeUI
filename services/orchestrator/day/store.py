@@ -159,6 +159,8 @@ class SessionStore:
         # what is on stage now ("live", an asset id, or None before anything was opened in it).
         self.sources: dict[str, float] = {}
         self.source_references: dict[str, dict] = {}
+        self.on_stage_reference: dict | None = None
+        self._source_retention_receipts: set[str] = set()
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
         # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
@@ -581,13 +583,17 @@ class SessionStore:
         if not aid:
             return
         before = set(self.removed_sources)
-        if op == "opened":
+        if op in ("opened", "retained"):
             self.sources.pop(aid, None)
             self.sources[aid] = at  # newest last
             self.removed_sources.discard(aid)
-            self.on_stage = aid
+            if op == 'opened':
+                self.on_stage = aid
+                self.on_stage_reference = dict(e['retained']) if isinstance(e.get('retained'), dict) else None
             if isinstance(e.get('retained'), dict):
                 self.source_references[aid] = dict(e['retained'])
+                if op == 'retained':
+                    self._source_retention_receipts.add(json.dumps([aid, e['retained']], sort_keys=True))
         elif op == "removed" and aid != "live":
             self.removed_sources.add(aid)
         elif op == "restored":
@@ -613,6 +619,19 @@ class SessionStore:
             reference(retained, self.sid)
         self._record({"type": "source", "asset": aid, "op": "opened", "by": by,
                       **({'retained': dict(retained)} if retained is not None else {})}, strict=retained is not None)
+
+    def retain_source(self, aid: str, retained: dict, *, session: str, by: str) -> None:
+        """Associate copied material without moving the Stage or rewriting old bindings."""
+        from ..project_stage_media import reference
+        reference(retained, session)
+        with self._filing(session) as store:
+            if store.sid != session:
+                raise ValueError('The source destination Project is unavailable')
+            receipt = json.dumps([aid, retained], sort_keys=True)
+            if receipt in store._source_retention_receipts:
+                return  # retry cannot undo a later choice or removal
+            store._record({'type': 'source', 'asset': aid, 'op': 'retained',
+                           'retained': dict(retained), 'by': by}, strict=True)
 
     def record_layer(self, eid: str | None) -> None:
         """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding

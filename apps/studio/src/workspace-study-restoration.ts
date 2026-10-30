@@ -1,4 +1,5 @@
 import {scientificViewPreferences,type ScientificViewPreferences} from './scientific-view-preferences';
+import {readProjectMediaReference, type ProjectMediaReference} from './project-media-reference';
 export interface StudyResourceReference {
   day: string;
   id: string;
@@ -24,6 +25,7 @@ export interface StudyPresentation {
   schema: 1;
   session: string;
   source: string | null;
+  retained?: ProjectMediaReference;
   position: number;
   paused: boolean;
   wholeFrame: boolean;
@@ -94,7 +96,9 @@ export function readStudyPresentation(value: unknown, session: string): StudyPre
     views.push({ resource,display:{...(scientific?{scientific}:{}),...(typeof display.background==='boolean'?{background:display.background}:{}),...(typeof display.sort==='string'?{sort:display.sort}:{}),...(display.direction==='asc'||display.direction==='desc'?{direction:display.direction}:{}),...(typeof display.reading==='number'&&Number.isFinite(display.reading)?{reading:Math.max(0,display.reading)}:{})}, ...(typeof view.placementId==='string'?{placementId:view.placementId}:{}), ...(view.coordinates==='stage'?{coordinates:'stage' as const}:{}), ...(view.geometryUnavailable===true?{geometryUnavailable:true}:{}), ...(view.presentation==='masks'||view.presentation==='table'||view.presentation==='capture'||view.presentation==='datatable'||view.presentation==='analysis'||view.presentation==='graph'?{presentation:view.presentation}:{}), title: typeof view.title === 'string' ? view.title : 'Retained result', zoom, pan,
       position: pair(view.position), size: pair(view.size) });
   }
-  return { schema: 1, session, source: typeof row.source === 'string' ? row.source : null,
+  const retained=row.retained===undefined?undefined:readProjectMediaReference(row.retained,session);
+  if(retained===null||retained&&row.source==='live')return null;
+  return { schema: 1, session, source: typeof row.source === 'string' ? row.source : null, ...(retained?{retained}:{}),
     position: Math.max(0, finite(row.position, 0)), paused: row.paused !== false, wholeFrame: row.wholeFrame === true,
     conversation: typeof row.conversation === 'string' ? row.conversation : null, draft: row.draft.slice(0, 100_000),
     reading: Math.max(0, finite(row.reading, 0)), views,

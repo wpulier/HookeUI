@@ -1,4 +1,5 @@
 import { organizeMaterial } from './material-organization';
+import {inputChangeBlockReason} from './workspace-input';
 import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
@@ -842,9 +843,9 @@ const workspaceViews:WorkspaceViews = new WorkspaceViews({
  // While a researcher's study holds the Stage, ⌘W goes back from it (never closing the hidden work Tab); any other Tab
  // command goes back first, then acts on the Tabs you can see.
  intercept:name=>{if(!researchStage.hidden&&!canLeaveStudy(()=>workspaceViews.command(name as Parameters<WorkspaceViews['command']>[0])))return true;clearStudyDraftMarkers();if(researchTabs.command(name))return true;if(researchStage.hidden)return false;closeResearchStage();return name==='close';},
- captureInput:()=>{const state=bridge.state();if(!state.ready)return null;const saved=bridge.capturePresentationSync();return saved.source?{source:saved.source,position:saved.source==='live'?0:saved.position}:null;},
+ captureInput:()=>{const state=bridge.state();if(!state.ready)return null;const saved=bridge.capturePresentationSync();return saved.source?{source:saved.source,position:saved.source==='live'?0:saved.position,...(saved.retained?{retained:saved.retained}:{})}:null;},
  selectInput:bridge.selectTabInput,
- inputBlockReason:input=>input.source===bridge.state().onStage?null:busy()?'This run keeps its captured input. You can preview Data while it finishes.':bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null,
+ inputBlockReason:input=>inputChangeBlockReason(input,{onStage:bridge.state().onStage, onStageRetained:bridge.capturePresentationSync().retained},busy(),bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null),
  // A reader Tab (Open in new Tab): the same reader, full width; its mark is its item's kind.
  reader:view=>showReaderTab(view),legacy:view=>showLegacyTab(view),openResearcher:rid=>openResearcherTab(rid),readerMark:view=>{const item=readerItem(view),entry=item?readerEntryOf({id:item.resource.id,day:item.resource.day,version:item.resource.version}):null;return entry?readerMark(entry):'output';},
  storageKey,request:bridge.request,restoreItems:bridge.restoreItems,placeItem:bridge.placeItem,frontItem:bridge.frontItem,captureItems:()=>bridge.capturePresentationSync().views,openData:()=>setDataOpen(true),notice:actionError,layoutChanged:()=>{snapshot=bridge.state();bridge.layoutChanged();renderContext();}});
@@ -856,9 +857,9 @@ window.addEventListener('workspace-run-destination',event=>{const detail=(event 
 configureWorkspaceCompare({owner:()=>workspaceViews.tabOwner(),current:owner=>workspaceViews.ownsTabChoice(owner)&&bridge.state().session===owner.session,
  state:()=>workspaceViews.comparisonState(),create:(selections,owner)=>workspaceViews.createComparison(selections,owner),
  setSync:(sync,owner)=>workspaceViews.setComparisonSync(sync,owner)});
-bridge.bindInputNavigation((source,title,project,position)=>{
+bridge.bindInputNavigation((source,title,project,position,retained)=>{
  if(project!==bridge.state().session)return Promise.reject(new Error('The Project changed. Reopen the input in its original Project.'));
- return workspaceViews.openInput({source,position},title);
+ return workspaceViews.openInput({source,position,...(retained?{retained}:{})},title);
 });
 // A Data card dropped on the Tab row opens its result there, as Open in Tab… does, once it is checked to be a result
 // of the Project still open.
@@ -1549,7 +1550,9 @@ function showPreview(asset: AssetMeta,owner=workspaceViews.tabOwner()): void {
   activePreview = asset;
   preview.replaceChildren();
   const header = el('header', 'study-panel-header'); header.append(el('h2', '', asset.title), button('×', () => surfaces.dismiss(), 'study-close'));
-  const media = asset.kind === 'recording' ? el('video') : el('img'); media.src = `/api/library/${encodeURIComponent(asset.id)}/file`;
+  const media = asset.kind === 'recording' ? el('video') : el('img');
+  const url=asset.retained?asset.thumb:`/api/library/${encodeURIComponent(asset.id)}/file`;
+  if(url)media.src=url;
   if (media instanceof HTMLVideoElement) media.controls = true; else media.alt = asset.title;
   const add = button('Open in Tab', () => { surfaces.dismiss(); void openSource(asset,owner); }, 'study-primary');
   add.disabled = busy();
@@ -1562,7 +1565,11 @@ async function openSource(asset: AssetMeta,owner=workspaceViews.tabOwner()): Pro
   if(!inputOwnerCurrent(owner)){actionError(new Error('The Project changed. Choose the input again in its intended Project.'));return;}
   if (busy()) { runStatus.textContent = 'This run keeps its captured input. You can preview other images while it finishes.'; return; }
   bridge.navigate('#');
-  try { await workspaceViews.openInput({source:asset.id,position:0},asset.title,owner); } catch (error) { actionError(error); }
+  try {
+    const admitted=await bridge.prepareInput(asset,owner.session);
+    if(!admitted.ready||!inputOwnerCurrent(owner))return;
+    await workspaceViews.openInput({source:asset.id,position:0,...(admitted.retained?{retained:admitted.retained}:{})},asset.title,owner);
+  } catch (error) { actionError(error); }
 }
 function inputOwnerCurrent(owner:ReturnType<WorkspaceViews['tabOwner']>):boolean {
  return workspaceViews.ownsTabChoice(owner)&&bridge.state().session===owner.session;

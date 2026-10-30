@@ -372,3 +372,5 @@ Legacy Library edit/trash commands refuse in portable Projects, and retained sub
 do not write into equal Library IDs. Overlay matching includes the exact retained
 reference. Ordinary portable startup remains off pending complete collection and UI
 qualification.
+
+`source-retain` is the owner Studio intake step for selected Library media. Portable Projects copy through ProjectMedia off the event loop and journal an exact `source`/`retained` association without selecting the Stage. Request retries retain the original receipt even if the source was deleted. The captured Project and actor survive a UI Project switch; no fallback may file into another Project. Existing connector file-open uses this same step after its own authorization and intake. Global Library browsing is not newly granted.

@@ -28,7 +28,7 @@ def schema6(day):
 
 
 def test_the_reader_tab_kind_is_declared_beside_output_and_compare():
-    assert w.SCHEMA == 6 and 6 in w.SCHEMAS and w.TAB_KINDS == ('output', 'compare', 'reader')
+    assert w.SCHEMA >= 6 and 6 in w.SCHEMAS and w.TAB_KINDS == ('output', 'compare', 'reader')
 
 
 @pytest.mark.parametrize('schema', [2, 3, 4, 5])

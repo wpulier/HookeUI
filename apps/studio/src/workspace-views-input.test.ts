@@ -2,7 +2,7 @@ import {CameraInputUnavailable} from './workspace-input';
 import {afterEach,expect,test,vi} from 'vitest';
 vi.mock('./workspace-study-artifacts',()=>({studyArtifacts:()=>({blockReason:()=>null})}));
 import {WorkspaceViews} from './workspace-views';
-import {mainLayout,type WorkspaceTabInput} from './workspace-views-model';
+import {mainLayout,type WorkspaceTabInput,type WorkspaceView} from './workspace-views-model';
 
 afterEach(()=>vi.unstubAllGlobals());
 function workspace(){
@@ -20,6 +20,20 @@ function workspace(){
  });
  return {current,select:(input:WorkspaceTabInput)=>{selected=input;},selected:()=>selected};
 }
+test('different retained revisions of one Library identity keep separate saved Tabs',async()=>{
+ const {current}=workspace();
+ const first={origin:'a'.repeat(32),session:'project',document:'p'+'b'.repeat(32),revision:1,digest:'c'.repeat(64)};
+ const second={...first,document:'p'+'d'.repeat(32),digest:'e'.repeat(64)};
+ await current.openInput({source:'a7',position:0,retained:first},'Original');
+ const firstTab=current.layout.active;
+ await current.openInput({source:'a7',position:0,retained:second},'Later import');
+ expect(current.layout.active).not.toBe(firstTab);
+ expect(current.layout.views.find((v:WorkspaceView)=>v.id===firstTab)?.input?.retained).toEqual(first);
+ expect(current.opts.selectInput).toHaveBeenLastCalledWith({source:'a7',position:0,retained:second},'project');
+ await current.openInput({source:'a7',position:0,retained:first},'Original');
+ expect(current.layout.active).toBe(firstTab);
+ expect(current.opts.selectInput).toHaveBeenLastCalledWith({source:'a7',position:0,retained:first},'project');
+});
 test('opening a recording preserves Main live input and reuses its saved Tab',async()=>{
  const {current,selected}=workspace();
  await current.openInput({source:'a7',position:0},'Recording');

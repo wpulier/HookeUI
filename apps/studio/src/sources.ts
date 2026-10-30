@@ -12,6 +12,7 @@
 // view over them. What is on stage, the uploads and the commands are main.ts's: they touch the camera bridge and the
 // server.
 import type { AssetMeta, SourcesMessage } from './protocol';
+import {readProjectMediaReference,sameMediaReference} from './project-media-reference';
 import { CAMERA_STEPS, PICTURE_STEPS } from './camera';
 import { clock } from './playhead';
 import { lastUsedWords } from './sessions';
@@ -24,6 +25,8 @@ export type SourceRow = SourcesMessage['sources'][number];
 export interface SourcesState {
   session: string;
   onStage: string | null;
+  onStageRetained?: AssetMeta['retained'];
+  onStageAsset?: AssetMeta;
   sources: SourceRow[];
   removed: string[];
 }
@@ -40,8 +43,14 @@ export function readSources(body: unknown): SourcesState | null {
   if (!body || typeof body !== 'object') return null;
   const b = body as Record<string, unknown>;
   if (typeof b.session !== 'string' || !b.session) return null;
+  const retained=b.onStageRetained===undefined?undefined:readProjectMediaReference(b.onStageRetained,b.session);
+  if(retained===null||retained&&b.onStage==='live')return null;
+  if(b.onStageAsset!==undefined&&(!isAsset(b.onStageAsset)||b.onStageAsset.id!==b.onStage||
+    !sameMediaReference(b.onStageAsset.retained,retained)))return null;
   return {
     session: b.session,
+    ...(retained?{onStageRetained:retained}:{}),
+    ...(isAsset(b.onStageAsset)?{onStageAsset:b.onStageAsset}:{}),
     onStage: typeof b.onStage === 'string' && b.onStage ? b.onStage : null,
     sources: Array.isArray(b.sources) ? (b.sources.filter(isAsset) as SourceRow[]) : [],
     removed: Array.isArray(b.removed) ? b.removed.filter((id): id is string => typeof id === 'string') : [],

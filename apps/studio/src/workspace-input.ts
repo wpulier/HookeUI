@@ -1,4 +1,17 @@
 /** Observed bridge absence, distinct from permission, ownership or selection failure. */
+import {sameMediaReference, type ProjectMediaReference} from './project-media-reference';
+
+export function exactInputObserved(input:{source:string;retained?:ProjectMediaReference},
+  state:{onStage:string|null;onStageRetained?:ProjectMediaReference}|null|undefined):boolean {
+  return !!state&&state.onStage===input.source&&sameMediaReference(state.onStageRetained,input.retained);
+}
+
+export function inputChangeBlockReason(input:{source:string;retained?:ProjectMediaReference},
+  state:{onStage:string|null;onStageRetained?:ProjectMediaReference}|null|undefined,
+  busy:boolean,reason:string|null):string|null {
+  return exactInputObserved(input,state)?null:busy?'This run keeps its captured input. You can preview Data while it finishes.':reason;
+}
+
 export class CameraInputUnavailable extends Error {
  constructor(){super('The camera bridge is unavailable. Saved Data and notes can still open.');this.name='CameraInputUnavailable';}
 }
