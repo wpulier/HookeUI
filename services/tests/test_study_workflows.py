@@ -184,7 +184,8 @@ def test_legacy_experiment_retry_keeps_original_execution(tmp_path):
     asyncio.run(go())
 
 
-def test_study_evidence_reads_one_inventory_without_caching_or_replaying(tmp_path, monkeypatch):
+@pytest.mark.parametrize('stopped', [False, True])
+def test_study_evidence_reads_one_inventory_without_caching_or_replaying(tmp_path, monkeypatch, stopped):
     async def go():
         studies, runner, study, image, definition = setup(tmp_path)
         runner.steps.execute = lambda claim: {'status': 'completed', 'output': identity(image)}
@@ -194,6 +195,8 @@ def test_study_evidence_reads_one_inventory_without_caching_or_replaying(tmp_pat
                 request=f'observation-{number}', workflow=definition.id, revision=1, inputs=[identity(image)])
             original.append(record['id'])
             await until_async(lambda: not runner.tasks)
+        if stopped:
+            studies.efforts.control(study.id, 's1', 'stop', actor=A)
         scans = []
         scan = studies.store.scan
         def counted(session):
@@ -205,6 +208,7 @@ def test_study_evidence_reads_one_inventory_without_caching_or_replaying(tmp_pat
         assert [r['id'] for r in result['operations']] == original
         assert all(r['state'] == 'succeeded' for r in result['operations'])
         assert not runner.tasks
+        assert not result['study']['stopPending']
         # The next read derives a new observation, never a saved completion cache.
         run = result['operations'][0]['execution']['id']
         runner.workflows.control(run, 's1', 'stop', actor=A)
