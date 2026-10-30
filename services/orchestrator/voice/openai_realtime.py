@@ -141,6 +141,14 @@ OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak f
 # its words are let go unsaid and the outcome is said after it; with none (or only marks), its words are said, exactly,
 # by one audio response (`_say_decided`). "as-it-decides" answers in speech at once, as before.
 SPEAKS_AFTER_DECIDING = "after-deciding"
+HANDED_TOOLS = frozenset({"do_in_hooke", "look_hard"})  # work that takes Hooke a while: acknowledged at once
+SPEAKS_ACKNOWLEDGES = "acknowledges"  # decides silently, then says at once that it is on work it handed over
+# The few words said at once when a turn hands work over (PARTNER_SPEAKS "acknowledges"): true from the moment the work
+# has started, never a result or a promise (Will's try-out, 30 Oct: "I like when the voice responds super fast"; deciding
+# silently left 8-13 s before any words while Hooke worked, and it felt blocking).
+ACK_HANDED = ("Say only a few words, two to six, that you are on what the user just asked, in their own words for it "
+              "(its verb and its thing): nothing about a result, what it may find, when it will be done or what comes "
+              "next, and nothing else.")
 DECIDE_RULE = ("What you write in this reply is said aloud word for word, unless you call a tool other than mark: then "
                "nothing of it is said, and the tool's outcome is said after it. Write only what you would say, in "
                "plain spoken sentences.")
@@ -335,7 +343,8 @@ class RealtimeSession(VoiceSession):
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
         # How a user's turn is answered (option PARTNER_SPEAKS, read at each turn): "after-deciding" (the default) or
         # "as-it-decides" (the partner binds it to the app's setting).
-        self.speaks: Callable[[], str] = lambda: SPEAKS_AFTER_DECIDING
+        self.speaks: Callable[[], str] = lambda: SPEAKS_ACKNOWLEDGES
+        self._acked: dict[int, bool] = {}  # turns whose handed-over work was acknowledged at once (ACK_HANDED)
         # What the hand-off a do_in_hooke call started is doing now ({"facts", "stepS"}, or None: partner_tools).
         self.handoff_doing: Callable[[str], dict | None] = lambda call_id: None
         self.handed_late: Callable[..., bool] = lambda ctx, run: False  # a hand-off keeps its late steps (partner_tools)
@@ -606,7 +615,7 @@ class RealtimeSession(VoiceSession):
         """A user's turn's response: in text alone when it decides silently first (option PARTNER_SPEAKS), so nothing
         is said before work is handed over; in speech at once otherwise."""
         try:
-            silent = self.speaks() == SPEAKS_AFTER_DECIDING
+            silent = self.speaks() in (SPEAKS_AFTER_DECIDING, SPEAKS_ACKNOWLEDGES)
         except Exception:
             silent = True
         if not silent:
@@ -1695,7 +1704,8 @@ class RealtimeSession(VoiceSession):
             # Whether the voice said words before its tools (its lead-in, "Outlining that now."): from the response's
             # own words (its transcript, its audio), since its first-audio mark is popped above and over WebRTC its
             # audio may not have started yet (Will's try-out, 29 Oct: the lead-in was never seen, so "still running" was said after it).
-            led_in = not decided and (spoke or first is not None or bool(facts.get("outAudio")))
+            led_in = (not decided and (spoke or first is not None or bool(facts.get("outAudio")))) or bool(
+                self._acked.get(cause["n"]))  # its acknowledgement said it is under way
             self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack, pointing=pointing, led_in=led_in))
 
     async def _decided(self, rid: str, cause: dict, response: dict, written: str) -> bool:
@@ -1712,6 +1722,11 @@ class RealtimeSession(VoiceSession):
         says = response.get("status") == "completed" and bool(words) and names <= {"mark"}
         if says:  # asked for first: its own context is its words, so nothing it says waits on the deletes below
             self._say_decided(cause["n"], words, rid)
+        elif response.get("status") == "completed" and names & HANDED_TOOLS and self._speaks_now() == SPEAKS_ACKNOWLEDGES:
+            # Work handed over: a few words at once that it is on it (true now), then its outcome once it lands.
+            self._acked[cause["n"]] = True
+            self.respond("ack", n=cause["n"], tool_choice="none", max_output_tokens=ACK_TOKENS,
+                         instructions=self.config.system_prompt + "\n\n" + ACK_HANDED)
         for item in response.get("output") or []:
             if item.get("type") == "message" and item.get("id"):
                 await self.delete(item["id"])
@@ -1719,6 +1734,12 @@ class RealtimeSession(VoiceSession):
                    "doneT": self.wall(), "status": response.get("status"), "calls": sorted(n for n in names if n),
                    "how": "said" if says else "tools" if names else "nothing", "words": written[:600]})
         return says
+
+    def _speaks_now(self) -> str:
+        try:
+            return self.speaks()
+        except Exception:  # an unreadable setting never stops a turn
+            return SPEAKS_ACKNOWLEDGES
 
     def _say_decided(self, n: int, words: str, decided: str) -> None:
         """A decided answer said: one audio response whose only context is those words, said as they are; its audio is

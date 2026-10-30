@@ -4763,8 +4763,8 @@
       "id": "partner_speaks",
       "kind": "policy",
       "title": "When it speaks",
-      "purpose": "Whether the voice decides silently before it speaks, or speaks as it decides",
-      "hint": "decides, then speaks (the default: nothing said before work is handed over), or speaks as it decides"
+      "purpose": "Whether the voice decides silently before it speaks, says at once that it is on work it hands over, or speaks as it decides",
+      "hint": "decides, then says it is on it (the default: a few words at once for work handed over, then its outcome), decides before it speaks, or speaks as it decides"
     },
     {
       "id": "naming_model",

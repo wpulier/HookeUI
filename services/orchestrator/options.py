@@ -191,6 +191,10 @@ PARTNER_ACTS = {
 PARTNER_SPEAKS = {
     o.id: o
     for o in [
+        Option("acknowledges", "Says it is on it at once",
+               "a direct answer said once decided; work it hands over acknowledged at once in a few words, never a "
+               "result, then its outcome (Will's try-out, 30 Oct: deciding silently left 8-13 s with no words and "
+               "felt blocking)"),
         Option("after-deciding", "Decides before it speaks",
                "nothing said before work is handed over; a direct answer is said word for word once decided, one "
                "more response before its first words"),
@@ -1047,7 +1051,7 @@ class Settings:
     talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
     heard_cue: str = "tone"  # the sign it heard you (HEARD_CUE)
     partner_acts: str = "brain"  # how the live partner gets things done in Hooke (PARTNER_ACTS)
-    partner_speaks: str = "after-deciding"  # when the live partner speaks in a turn (PARTNER_SPEAKS)
+    partner_speaks: str = "acknowledges"  # when the live partner speaks in a turn (PARTNER_SPEAKS)
     think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
     look_hard: str = "gemini-4-argon"  # the live partner's close look (LOOK_HARD)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)

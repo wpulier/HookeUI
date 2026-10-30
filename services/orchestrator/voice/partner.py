@@ -103,7 +103,7 @@ class Partner:
         session.running_facts = self.tools.running_facts
         # When it speaks in a turn (option PARTNER_SPEAKS), read at each turn so a change applies to the next one.
         session.speaks = lambda: str(getattr(getattr(self.hub, "settings", None), "partner_speaks", "")
-                                     or "after-deciding")
+                                     or "acknowledges")
         session.handoff_doing = self.tools.handoff_doing  # what a hand-off's brain is doing now (its one progress line)
         session.handed_late = self.tools.handed_late  # a hand-off's late steps, for its one outcome (announcer)
         session.heard = self.heard

@@ -2158,8 +2158,8 @@ def test_speaking_as_it_decides_is_the_other_option(monkeypatch):
     """PARTNER_SPEAKS "as-it-decides" (options, not replacements): the turn is answered in speech at once, as before."""
     from orchestrator.options import GROUPS, Settings
 
-    assert Settings().partner_speaks == "after-deciding"
-    assert set(GROUPS["partner_speaks"]) == {"after-deciding", "as-it-decides"}
+    assert Settings().partner_speaks == "acknowledges"
+    assert set(GROUPS["partner_speaks"]) == {"acknowledges", "after-deciding", "as-it-decides"}
 
     async def go():
         t = await partner_session(monkeypatch, acts="brain", speaks="as-it-decides")
@@ -2225,3 +2225,50 @@ def test_a_web_page_or_video_hooke_opened_is_pointed_at_with_its_outcome():
         {"tool": "show_web", "ok": False, "outputs": [
             {"kind": "resource", "resource": {"day": "2026-10-30", "id": "d5", "version": None}, "window": "document:p8"}]}]
     assert pointing_at(actions) == ["document:p9"], "only steps that worked"
+
+
+def test_work_handed_over_is_acknowledged_at_once_and_its_outcome_said_after(monkeypatch):
+    """Will's try-out, 30 Oct: "I like when the voice responds super fast … it used to respond immediately"; deciding
+    silently left 8-13 s with no words while Hooke worked, and it felt blocking. PARTNER_SPEAKS "acknowledges" (the
+    default): a turn that hands work over is acknowledged at once in a few words (true from the moment the work starts,
+    never a result), its decided words are still never said, and its outcome is said once when it lands."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain", speaks="acknowledges")
+        gate = asyncio.Event()
+
+        async def turn(text, channel, **kw):
+            await gate.wait()
+            return {"answer": "I outlined the organism on the right.",
+                    "actions": [{"tool": "find", "ok": True, "summary": "outlined it"}]}
+        t.brain.turn = turn
+        await press(t, 1)
+        await release(t, 1)
+        assert creates_of(t)[0]["response"]["output_modalities"] == ["text"], "it still decides silently"
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "I'll segment it now."})
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "h1",
+                   "name": "do_in_hooke", "arguments": json.dumps({"request": "segment the one on the right",
+                                                                   "label": "Segment right one"})})
+        await done(t.sb, "resp_1", output=[message("I'll segment it now.")])
+        ack = await until_async(lambda: next((e for e in creates_of(t)[1:]), None), seconds=5)
+        response = ack["response"]
+        assert response["metadata"]["cause"] == "ack", "said at once, while Hooke works"
+        assert "nothing about a result" in response["instructions"] and "output_modalities" not in response
+        assert "msg_1" in deleted(t), "the decided words are never said"
+        await done(t.sb, "resp_2")
+        gate.set()
+        await answer_snapshots(t, lambda: t.sb.responses == 3)
+        causes = [e["response"]["metadata"]["cause"] for e in creates_of(t)]
+        assert causes[:2] == ["turn", "ack"] and causes[2] in ("look", "tool") and "progress" not in causes
+    asyncio.run(go())
+
+
+def test_a_direct_answer_is_not_acknowledged_first(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain", speaks="acknowledges")
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.output_text.delta", "response_id": "resp_1", "delta": "That's an onion skin."})
+        await done(t.sb, "resp_1", output=[message("That's an onion skin.")])
+        said = await until_async(lambda: next((e for e in creates_of(t)[1:]), None), seconds=5)
+        assert said["response"]["metadata"]["cause"] == "say" and len(creates_of(t)) == 2
+    asyncio.run(go())

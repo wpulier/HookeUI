@@ -391,7 +391,7 @@
   "outline_check": "fix",
   "outline_repair": "same",
   "partner_acts": "brain",
-  "partner_speaks": "after-deciding",
+  "partner_speaks": "acknowledges",
   "pointing": "box",
   "presentation": "off",
   "quality": "tell",

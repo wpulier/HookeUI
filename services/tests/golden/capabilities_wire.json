@@ -12562,14 +12562,34 @@
   },
   {
    "agentCanChange": [],
-   "current": "after-deciding",
-   "default": "after-deciding",
+   "current": "acknowledges",
+   "default": "acknowledges",
    "defaultReason": null,
    "fallbackFor": [],
-   "hint": "decides, then speaks (the default: nothing said before work is handed over), or speaks as it decides",
+   "hint": "decides, then says it is on it (the default: a few words at once for work handed over, then its outcome), decides before it speaks, or speaks as it decides",
    "id": "partner_speaks",
    "kind": "policy",
    "options": [
+    {
+     "available": true,
+     "id": "acknowledges",
+     "label": "Says it is on it at once",
+     "licence": "",
+     "models": [],
+     "note": "a direct answer said once decided; work it hands over acknowledged at once in a few words, never a result, then its outcome (Will's try-out, 30 Oct: deciding silently left 8-13 s with no words and felt blocking)",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Says it is on it at once",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    },
     {
      "available": true,
      "id": "after-deciding",
@@ -12614,7 +12634,7 @@
    "powers": [
     "talk"
    ],
-   "purpose": "Whether the voice decides silently before it speaks, or speaks as it decides",
+   "purpose": "Whether the voice decides silently before it speaks, says at once that it is on work it hands over, or speaks as it decides",
    "title": "When it speaks"
   },
   {
@@ -14549,7 +14569,7 @@
    "outline_check": "fix",
    "outline_repair": "same",
    "partner_acts": "brain",
-   "partner_speaks": "after-deciding",
+   "partner_speaks": "acknowledges",
    "pointing": "box",
    "presentation": "off",
    "quality": "tell",
