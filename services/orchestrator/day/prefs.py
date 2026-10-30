@@ -82,7 +82,7 @@ class Prefs:
 
     def point(self, sid: str, *, strict=False) -> None:
         """Keep `sid` as the session the app is in, so a start opens it again."""
-        if self.current == sid:
+        if self.current == sid and not strict:
             return
         if not self.started:
             self._record({"type": "preferences-started", "from": None}, strict=strict)

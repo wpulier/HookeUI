@@ -160,3 +160,21 @@ def test_owner_open_refuses_failed_selection_persistence(tmp_path, monkeypatch, 
     assert Prefs(host.sessions).current == other.sid
     assert ProjectAccess(host.home).rows() == {}
     assert (moved / 'history/sessions' / root.session / 'journal.jsonl').read_bytes() == before
+
+
+def test_owner_selection_retry_reconfirms_durability_even_when_bytes_are_visible(tmp_path, monkeypatch):
+    import os
+    from orchestrator.day.prefs import Prefs
+    root, moved, _, _ = source(tmp_path)
+    host = Paths.under(tmp_path / 'new-host')
+    parent = tmp_path / 'new-projects'
+    configured_locations(host, str(parent), opening=str(moved)).close()
+    assert Prefs(host.sessions).current == root.session
+    calls = []
+    sync = os.fsync
+    def tracked(fd):
+        calls.append(fd)
+        return sync(fd)
+    monkeypatch.setattr(os, 'fsync', tracked)
+    configured_locations(host, str(parent), opening=str(moved)).close()
+    assert calls  # an earlier failed sync cannot turn a retry into a memory-only no-op
