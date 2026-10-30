@@ -644,6 +644,21 @@ id and the brain guesses the words (`brain/speech.py`), this voice has no hops t
   picture item deleted, this turn's text note (kept) and picture item (camera then window) added, then after
   `RELEASE_TAIL_S` (0.15 s, the WebRTC audio still in flight) `input_audio_buffer.commit` and `response.create` at once:
   nothing is fetched after release. A tap shorter than 0.25 s and Escape (`cancel`) ask for nothing.
+- **It decides, then speaks** (option `PARTNER_SPEAKS`, default `after-deciding`; the 30 Oct journeys on b1e2727, after
+  three rounds of prompt rules against it: "I'm checking the current tabs to find the measurement table, then I'll open
+  it.", "Starting the experiment with both models and a researcher audit." for a plan only drafted, each 0.8-1.3 s after
+  release and before `do_in_hooke`, judged "preliminary narration"). A user's turn (held, open mic or typed) is answered
+  first in text alone (`output_modalities: ["text"]`, `metadata.decide`, and `DECIDE_RULE`: what it writes is said word
+  for word unless it calls a tool other than mark). Its text deltas never reach the chat, and its `partner-response`
+  record has an empty `transcript` with the text as `written`. Then (`RealtimeSession._decided`, logged
+  `partner-decided`): with a tool other than mark called, its words are let go unsaid and the tools run as before, their
+  outcome said by the next audio response (a long hand-off keeps its one progress line); with none, or only marks, its
+  words are its answer, said at once by one audio response (`cause: "say"`, its only context those words, markdown taken
+  out, `SAY_DECIDED` as its short instructions), its marks drawn with them. Either way its written message is deleted
+  from the conversation, so the conversation holds the spoken message alone (a barge-in truncates it as any answer's),
+  and nothing that was not said. It stays "thinking" from the release until its words play. What it adds to a direct
+  answer's first words is that one response (asked for as soon as the text is done). `as-it-decides` answers in speech
+  at once, as before.
 - **One response at a time** (the review of 2026-10-29): every `response.create` (a turn, a typed line, a tool round,
   a look, a progress line, a line nobody asked for, a reconnect's line) is queued at one gate
   (`RealtimeSession._gate`), sent only when the response in progress has ended, and checked again just before it is

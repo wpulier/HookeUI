@@ -42,6 +42,7 @@ import base64
 import contextlib
 import json
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -129,9 +130,30 @@ OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak f
                "without saying that you point. "
                "With nothing on the stage, say in one sentence how to start. No greeting on its own, no list of what "
                "you can do.")
+# Decide silently first (option PARTNER_SPEAKS "after-deciding", the default): a user's turn is answered first in text
+# alone, so nothing is said before work is handed over (the 30 Oct journeys on b1e2727, three rounds of prompt rules
+# later: "I'm checking the current tabs to find the measurement table, then I'll open it.", "Starting the experiment…"
+# for a plan only drafted, each at 0.8-1.3 s, before do_in_hooke; judged "preliminary narration"). With a tool called,
+# its words are let go unsaid and the outcome is said after it; with none (or only marks), its words are said, exactly,
+# by one audio response (`_say_decided`). "as-it-decides" answers in speech at once, as before.
+SPEAKS_AFTER_DECIDING = "after-deciding"
+DECIDE_RULE = ("What you write in this reply is said aloud word for word, unless you call a tool other than mark: then "
+               "nothing of it is said, and the tool's outcome is said after it. Write only what you would say, in "
+               "plain spoken sentences.")
+# The audio response that says a decided answer: its own context (only those words), its words added to the conversation
+# as the one assistant message of that answer; short instructions, so its first audio comes as soon as it can.
+SAY_DECIDED = ("You are the user's microscope partner, speaking. Say exactly the words you are given, once, as "
+               "yourself, naturally, and nothing else.")
 # Over WebRTC a response's audio plays on after its response.done; without the buffer's "stopped" since, a key press
 # this soon after it still stops the voice (the studio mutes its audio element at once too).
 AUDIBLE_AFTER_DONE_S = 20.0
+
+
+def spoken(text: str) -> str:
+    """Written words as they are said: markdown's marks (emphasis, code, headings, list bullets) taken out, one line."""
+    text = re.sub(r"(\*\*|__|`)", "", str(text or ""))
+    text = re.sub(r"^\s{0,3}(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)", "", text, flags=re.M)
+    return " ".join(text.split())
 
 
 def best_effort() -> str:
@@ -230,7 +252,7 @@ class Ask:
 USER_CAUSES = ("turn", "typed")  # the user's own turns: first in the queue, and never dropped for waiting
 # Responses that answer the user (their turn, a tool round, the acknowledgement, a turn lost on a reconnect): one waiting
 # at the gate is the voice thinking (`phase`); a line nobody asked for waiting for quiet is not.
-ANSWER_CAUSES = ("turn", "typed", "tool", "look", "ack", "reconnect")
+ANSWER_CAUSES = ("turn", "typed", "tool", "look", "ack", "reconnect", "say")
 # Tools whose work is Hooke's, not the voice's: their wait shows as Hooke working, with the hand-off's row (presence.py).
 HANDED_TOOLS = frozenset({"do_in_hooke", "think"})
 
@@ -307,6 +329,9 @@ class RealtimeSession(VoiceSession):
         self._rounds_open = 0  # tool rounds being answered (`_finish_round`), between a call ending and the next response
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
+        # How a user's turn is answered (option PARTNER_SPEAKS, read at each turn): "after-deciding" (the default) or
+        # "as-it-decides" (the partner binds it to the app's setting).
+        self.speaks: Callable[[], str] = lambda: SPEAKS_AFTER_DECIDING
         # What the hand-off a do_in_hooke call started is doing now ({"facts", "stepS"}, or None: partner_tools).
         self.handoff_doing: Callable[[str], dict | None] = lambda call_id: None
         self.handed_late: Callable[..., bool] = lambda ctx, run: False  # a hand-off keeps its late steps (partner_tools)
@@ -573,6 +598,18 @@ class RealtimeSession(VoiceSession):
         self._phase_changed()
         return ask
 
+    def _deciding(self) -> dict:
+        """A user's turn's response: in text alone when it decides silently first (option PARTNER_SPEAKS), so nothing
+        is said before work is handed over; in speech at once otherwise."""
+        try:
+            silent = self.speaks() == SPEAKS_AFTER_DECIDING
+        except Exception:
+            silent = True
+        if not silent:
+            return {}
+        return {"output_modalities": ["text"], "metadata": {"decide": "1"},
+                "instructions": self.config.system_prompt + "\n\n" + DECIDE_RULE}
+
     def _why_not(self, ask: Ask) -> str | None:
         """Why a waiting response must not be sent now (None: it may)."""
         if ask.epoch != self._epoch:
@@ -728,7 +765,7 @@ class RealtimeSession(VoiceSession):
         """What a tool just put on screen is pointed at as the answer about it starts to be heard (no round trip
         through the model's mark tool: the bench's silent `look` response with only a mark in it, 2026-10-29)."""
         targets, self._point = self._point, []
-        if targets and self._causes.get(self._response or "", {}).get("cause") in ("look", "tool", "think"):
+        if targets and self._causes.get(self._response or "", {}).get("cause") in ("look", "tool", "think", "say"):
             with contextlib.suppress(Exception):
                 self.on_point(targets)
         elif targets:
@@ -807,7 +844,7 @@ class RealtimeSession(VoiceSession):
             self._last_user_at = self.clock()
             self.respond("turn", n=n, sent=lambda: self._log({
                 "kind": "partner-turn", "n": n, "how": "hold", "releasedT": released, "committedT": committed,
-                "responseCreatedT": self.wall(), **seen.facts}))
+                "responseCreatedT": self.wall(), **seen.facts}), **self._deciding())
             return True
         finally:
             if self._heard_n == n:  # asked for now (thinking), or lost (said, or nothing to answer)
@@ -891,7 +928,7 @@ class RealtimeSession(VoiceSession):
             self._event_log(event, "the user spoke first")
         await self.add(text_item("user", text))
         self._last_user_at = self.clock()
-        self.respond("typed")
+        self.respond("typed", **self._deciding())
 
     async def inject(self, text: str, *, respond: bool = False, delegation_id: str | None = None,
                      source: str = "app", facts: dict | None = None) -> Event | None:
@@ -1433,7 +1470,8 @@ class RealtimeSession(VoiceSession):
             meta = response.get("metadata") or (self._requested or {})
             self._response, self._requested = rid, None
             self._causes[rid] = {"cause": meta.get("cause") or "unknown", "n": int(meta.get("n") or self.n),
-                                 "createdT": self.wall(), "task": meta.get("task"), "events": meta.get("events")}
+                                 "createdT": self.wall(), "task": meta.get("task"), "events": meta.get("events"),
+                                 "decide": meta.get("decide") == "1"}
             if meta.get("events"):
                 self._carry(rid, str(meta["events"]))
             if self._unsay is not None and meta.get("cause") == "progress" and str(meta.get("n")) == str(self._unsay):
@@ -1476,9 +1514,9 @@ class RealtimeSession(VoiceSession):
         elif kind in ("response.output_audio_transcript.delta", "response.output_text.delta"):
             rid = ev.get("response_id") or self._response or ""
             delta = self._joined(rid, ev)
-            if self._causes.get(rid, {}).get("cause") == "prep":
+            if self._causes.get(rid, {}).get("cause") == "prep" or self._causes.get(rid, {}).get("decide"):
                 self._transcripts[rid] = self._transcripts.get(rid, "") + delta
-                return  # the out-of-band text the voice will say in its own words: never the chat's line
+                return  # text the voice has not said (yet): never the chat's line
             self._transcripts[rid] = self._transcripts.get(rid, "") + delta
             self._emit(VoiceEvent("output_transcript", text=delta, data={"responseId": rid}))
         elif kind == "conversation.item.input_audio_transcription.delta":
@@ -1564,7 +1602,7 @@ class RealtimeSession(VoiceSession):
         self._rounds_this_turn = 0
         self.respond("turn", n=n, sent=lambda: self._log({
             "kind": "partner-turn", "n": n, "how": "open", "releasedT": None, "committedT": committed,
-            "responseCreatedT": self.wall(), **seen.facts}))
+            "responseCreatedT": self.wall(), **seen.facts}), **self._deciding())
 
     def _spawn(self, coro) -> asyncio.Task:
         task = asyncio.ensure_future(coro)
@@ -1605,6 +1643,9 @@ class RealtimeSession(VoiceSession):
                 self._out_audio[rid] = facts["outAudio"]
         status = response.get("status")
         transcript = self._transcripts.pop(rid, "") or self._said_in(response)
+        decided = bool(cause.get("decide"))
+        if decided:  # a turn answered in text first: none of its words were said by it (`_decided`)
+            written, transcript = transcript, ""
         self._emit(VoiceEvent("usage", data={"seconds": None, "tokens": facts, "usd": usage_usd(facts, self.config.model),
                                              "responseId": rid, "cause": cause["cause"]}))
         self._emit(VoiceEvent("generation_complete", data={"responseId": rid, "status": status}))
@@ -1623,11 +1664,13 @@ class RealtimeSession(VoiceSession):
                    "audioEndT": self.wall() if self.link != "webrtc" else None,  # WebRTC: partner-audio says it
                    "cancelled": status == "cancelled", "status": status, "transcript": transcript, "usage": facts,
                    # the bus's events it said (the bench counts an outcome brought back after a cut once)
-                   **({"events": [i for i in str(cause["events"]).split(",") if i]} if cause.get("events") else {})})
+                   **({"events": [i for i in str(cause["events"]).split(",") if i]} if cause.get("events") else {}),
+                   **({"silent": True, "written": written} if decided else {})})
         for item in response.get("output") or []:
             if item.get("type") == "function_call":
                 self._call(rid, item.get("call_id") or "", item.get("name") or "", item.get("arguments"),
                            item.get("status"))
+        says = await self._decided(rid, cause, response, written) if decided else False
         if self._round.get(rid):
             # Answered even when the response was cancelled (the user spoke): their next answer reads the outputs.
             # Only marks, after the answer was spoken: pointing is done, and nothing more is said about it.
@@ -1639,6 +1682,8 @@ class RealtimeSession(VoiceSession):
             # no response of their own unless one was not shown (Will's feel check, 29 Oct: "It's highlighted around
             # the central oval…" said again after the reply had said it). Marks with no words before them go on to the
             # answer.
+            if decided:
+                spoke = says  # its words are said now, with its marks (`_decided`); before any other tool, nothing was
             quiet_round = names <= {"mark"} | self.started_tools
             ack = bool(names & self.started_tools) and quiet_round and not spoke
             pointing = names == {"mark"} and spoke
@@ -1646,8 +1691,37 @@ class RealtimeSession(VoiceSession):
             # Whether the voice said words before its tools (its lead-in, "Outlining that now."): from the response's
             # own words (its transcript, its audio), since its first-audio mark is popped above and over WebRTC its
             # audio may not have started yet (Will's try-out, 29 Oct: the lead-in was never seen, so "still running" was said after it).
-            led_in = spoke or first is not None or bool(facts.get("outAudio"))
+            led_in = not decided and (spoke or first is not None or bool(facts.get("outAudio")))
             self._spawn(self._finish_round(rid, cause["n"], go_on=go_on, ack=ack, pointing=pointing, led_in=led_in))
+
+    async def _decided(self, rid: str, cause: dict, response: dict, written: str) -> bool:
+        """A turn answered in text first (option PARTNER_SPEAKS "after-deciding"): its words were decided, not said.
+        With a tool other than mark called, they are let go unsaid (a lead-in before work is a guess at what Hooke will
+        do), and the tool's outcome is said after it as before. With none, or only marks, they are its answer: said now,
+        exactly, by one audio response (`_say_decided`), its marks drawn with them. Either way the written message is
+        taken out of the conversation, so the conversation holds one assistant message for the answer (the audio one),
+        never a text copy beside it, and nothing that was not said. Whether its words are being said."""
+        names = {item.get("name") for item in response.get("output") or [] if item.get("type") == "function_call"}
+        names |= {self._call_names.get(cid) for cid in self._round.get(rid, [])}  # each call as its arguments ended
+        names.discard(None)
+        words = spoken(written)
+        says = response.get("status") == "completed" and bool(words) and names <= {"mark"}
+        if says:  # asked for first: its own context is its words, so nothing it says waits on the deletes below
+            self._say_decided(cause["n"], words, rid)
+        for item in response.get("output") or []:
+            if item.get("type") == "message" and item.get("id"):
+                await self.delete(item["id"])
+        self._log({"kind": "partner-decided", "n": cause["n"], "responseId": rid, "createdT": cause.get("createdT"),
+                   "doneT": self.wall(), "status": response.get("status"), "calls": sorted(n for n in names if n),
+                   "how": "said" if says else "tools" if names else "nothing", "words": written[:600]})
+        return says
+
+    def _say_decided(self, n: int, words: str, decided: str) -> None:
+        """A decided answer said: one audio response whose only context is those words, said as they are; its audio is
+        the answer's one message in the conversation (a barge-in truncates it, as any answer's)."""
+        self.respond("say", n=n, tool_choice="none", metadata={"decided": decided},
+                     input=[text_item("system", "Say these words to the user now, exactly as written:\n" + words)],
+                     instructions=SAY_DECIDED)
 
     # --- tools ---------------------------------------------------------------------------------------
     def _call(self, rid: str, call_id: str, name: str, arguments, status: str | None = None) -> None:

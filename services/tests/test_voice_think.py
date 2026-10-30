@@ -37,8 +37,8 @@ class FakeBackend:
         return thinking.finish(result, self.report)
 
 
-async def with_backend(monkeypatch, backend, tools=None):
-    t = await partner_session(monkeypatch, tools=tools)
+async def with_backend(monkeypatch, backend, tools=None, speaks="after-deciding"):
+    t = await partner_session(monkeypatch, tools=tools, speaks=speaks)
     t.partner.tools.backend = lambda option: backend
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")  # the option's key is present (its value never used here)
     return t
@@ -101,7 +101,8 @@ def test_one_acknowledgement_only(monkeypatch):
     gate = asyncio.Event()
 
     async def go():
-        t = await with_backend(monkeypatch, FakeBackend(wait=gate, report={"say": "Done.", "checked": True, "done": True}))
+        t = await with_backend(monkeypatch, FakeBackend(wait=gate, report={"say": "Done.", "checked": True, "done": True}),
+                               speaks="as-it-decides")  # words before a call are said only when it speaks as it decides
         await press(t, 1)
         await release(t, 1)
         await think_call(t, spoken="On it.")

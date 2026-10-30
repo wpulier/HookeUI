@@ -2361,6 +2361,7 @@
         "talk_key",
         "heard_cue",
         "partner_acts",
+        "partner_speaks",
         "think",
         "look_hard",
         "fixed:voice-words",
@@ -4751,6 +4752,13 @@
       "title": "How it acts",
       "purpose": "Whether Hooke's brain or the voice itself does what you ask by voice",
       "hint": "Hooke's brain does it (the default), or the voice calls Hooke's tools itself"
+    },
+    {
+      "id": "partner_speaks",
+      "kind": "policy",
+      "title": "When it speaks",
+      "purpose": "Whether the voice decides silently before it speaks, or speaks as it decides",
+      "hint": "decides, then speaks (the default: nothing said before work is handed over), or speaks as it decides"
     },
     {
       "id": "naming_model",
