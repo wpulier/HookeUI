@@ -237,6 +237,11 @@ class WorkspaceTabs:
                 reply = await self._kinds(reply, owner.session, args.get('kind'))
             if action == 'only':
                 await self._close_panels(screen, ctx, args)
+            if action == 'only' and verify:
+                # What was to stay, by every name the Tabs give it (its placement, its window, the Data item it shows):
+                # the screen knows a native window by its window id, the Tab list also by its placement (will-workspace,
+                # 30 Oct: "only the image" kept it by placement, and the check said it was not shown and still open).
+                args = {**args, 'keep': aliases(reply, args['keep'])}
             if action in ('arrange', 'only') and verify:
                 placed = await self._placed(screen, ctx, args, current)
                 reply = {**reply, 'shown': placed}
@@ -411,3 +416,20 @@ def only_words(wire, tab: str, named: dict | None, *, home: bool) -> str:
     if home or state == 'float':
         return kept + '; the live view stays on it, small and floating (Main always keeps the live view)'
     return kept + ('; the live view is hidden from it' if state == 'hidden' else '')
+
+
+def aliases(reply: dict, keep: list[str]) -> list[str]:
+    """Every name the Tab list gives the items named in `keep`: its placement and its window, and a document window's
+    report id (document:<placement>). Never the Data item it shows: two windows may show one item, and keeping one is not
+    keeping both."""
+    names = set(keep)
+    for tab in (reply or {}).get('tabs') or ():
+        for item in tab.get('items') or () if isinstance(tab, dict) else ():
+            if not isinstance(item, dict):
+                continue
+            own = {item.get('placement'), item.get('window')} - {None, ''}
+            if item.get('placement'):
+                own.add(f"document:{item['placement']}")
+            if own & names:
+                names |= {str(n) for n in own}
+    return sorted(names)

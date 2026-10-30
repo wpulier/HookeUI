@@ -580,3 +580,16 @@ def test_place_takes_a_window_named_as_the_other_screen_verbs_name_one(tmp_path,
             assert run.ok is False and 'document:p1 is not outlines or tracks' in run.summary, run.summary
             assert 'name what to place' not in run.summary
     asyncio.run(go())
+
+
+def test_only_keeps_a_window_by_any_name_the_tab_list_gives_it():
+    """will-workspace, 30 Oct: "Only have the image open in that tab" kept the photo by its placement in the Tab list,
+    the screen knew its window as w-…, and the check said it was "not shown there" and "still open": both about the
+    one photo. What stays is matched by every name the Tabs give it."""
+    from orchestrator.workspace_tabs import aliases
+
+    reply = {'tabs': [{'id': 't2', 'items': [{'placement': 'b244', 'window': 'w-7', 'kind': 'reference',
+                                              'resource': {'id': 'd1'}},
+                                             {'placement': 'c9', 'window': 'w-8', 'kind': 'table'}]}]}
+    assert set(aliases(reply, ['b244'])) == {'b244', 'w-7', 'document:b244'}, 'never the Data item another window may show'
+    assert aliases(reply, ['zzz']) == ['zzz'], 'a name no item has stays as it is'
