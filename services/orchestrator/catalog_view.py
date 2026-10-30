@@ -940,11 +940,20 @@ def named_rows(rows: list[dict], about: str) -> list[dict]:
 # Said compactly, most needed first: the round that answers from a query reads at most ~1,900 characters of its text
 # (brain/claims.py answer_facts cuts a longer string, saying so), and a cut list was answered by guessing what it hid.
 STANDING = (("working", "Working here (ran or passed its check on this Mac)"),
-            ("here", "Here, not run yet (nothing to get or install)"),
-            ("setup", "Not set up here (every step each needs)"),
+            ("here", "Installed here, not run yet (nothing to get or install)"),
+            ("setup", "Can be added (where it runs; every step it needs)"),
             ("broken", "Broken here"),
             ("unavailable", "Can't run on this Mac"))
-KIND_WORDS = {"tool-function": "a tool, not a model", "tool": "a tool"}  # a model is said as nothing more
+# Models apart from tools (will-workspace "models", measure-c4acc90, all runs 2/3: a tag on the entry's line, "a tool, not
+# a model", still had Fiji's Analyze Particles answered among the models). A tool is an algorithm or a program's function
+# (the manifest's kind: tool, tool-function); a runtime or data entry is said with the tools, never as a model.
+MODEL_KINDS = ("model", "cloud-model")
+ENTRY_GROUPS = (("model", "Models"), ("tool", "Tools, not models (algorithms, Fiji functions)"))
+
+
+def entry_group(row: dict) -> str:
+    """"model" or "tool", by the manifest's kind (an entry that says none is a model, as the manifest reads it)."""
+    return "model" if (row.get("kind") or "model") in MODEL_KINDS else "tool"
 
 
 def work_kinds(rows: list[dict]) -> dict[str, str]:
@@ -1006,6 +1015,12 @@ def step_words(step: dict, entry: str = "") -> str:
     made-here step's how for this entry itself (its own Python and how many packages), are added. A key's how is left
     out (keys are the user's to add, on its card), and so is a step that sets up another entry (Fiji's)."""
     says, kind = step.get("says", ""), step.get("kind")
+    if kind == "download" and not step.get("bytes"):
+        # No bytes to get on record: its manifest gives no size, and readiness's size words floor at "1 MB" (a size
+        # never known). Said as not known, never invented (will-workspace "models", 30 Oct: sizes are part of the need).
+        bare = re.sub(r"\s*\(?\b\d+(?:\.\d+)? (?:MB|GB)\b\)?", "", says)
+        if bare != says:
+            says = f"{bare} (its size is not in its manifest)"
     if kind == "licence":
         extra = step.get("url", "")
     elif kind in ("install", "weights") and step.get("model", "") in ("", entry):
@@ -1022,14 +1037,29 @@ def _short_name(row: dict) -> str:
     return row["name"] if says_where(row["name"]) or row.get("runs") != "cloud" else f"{row['name']} (in the cloud)"
 
 
+def _cloud_key(row: dict) -> str:
+    """The key a cloud entry runs with, said by service ("your fal key"), when its card says that key is there."""
+    for f in row.get("facts", []):
+        found = re.match(r"Your (.+?) key\b", f.get("says", "")) if f.get("kind") == "key" and f.get("ok") is True else None
+        if found:
+            return f"with your {found.group(1)} key"
+    return ""
+
+
 def work_line(row: dict, asked: list[str]) -> str:
-    """One entry, compactly: its name, the kinds asked that it does, whether it is a tool, the jobs it is chosen for
-    and where it came from; every step it needs when it isn't set up; why when it is broken or can't run here."""
+    """One entry, compactly: its name, the kinds asked that it does, the jobs it is chosen for, where it came from and,
+    in the cloud, with which key; where it would run and every step it needs when it can be added; why when it is broken
+    or can't run here. Whether it is a model or a tool is its group's heading (work_words)."""
     where = standing(row)
     does = [o for o in row.get("does") or [] if o in asked] if len(asked) > 1 else []
     tags = [", ".join(does)] if does else []
-    if row.get("kind") in KIND_WORDS:
-        tags.append(KIND_WORDS[row["kind"]])
+    if where in ("working", "here") and row.get("runs") == "cloud":
+        from .names import says_where
+
+        key = _cloud_key(row)
+        cloud = [] if says_where(row["name"]) else ["in the cloud"]  # "SAM 3.1 (cloud)" says it already
+        if cloud or key:
+            tags.append(", ".join(cloud + ([key] if key else [])))
     chosen = [u["title"] for u in row.get("usedFor", []) if u.get("current") and not u.get("fixed")]
     fixed = [u["title"] for u in row.get("usedFor", []) if u.get("current") and u.get("fixed")]
     tags += [f"chosen for {', '.join(chosen)}"] * bool(chosen) + [f"in use for {', '.join(fixed)}"] * bool(fixed)
@@ -1037,12 +1067,15 @@ def work_line(row: dict, asked: list[str]) -> str:
         tags.append(next((f["says"] for f in row.get("facts", []) if f.get("kind") == "entry"), "from a channel"))
     elif row.get("mine"):
         tags.append("one of the user's own")
-    line = _short_name(row) + (f" ({'; '.join(tags)})" if tags else "")
+    # Where it runs is said once: in its name, in its tags (in the cloud), or after its name when it can be added.
+    plain = where == "setup" or any(t.startswith("in the cloud") for t in tags)
+    line = (row["name"] if plain else _short_name(row)) + (f" ({'; '.join(tags)})" if tags else "")
     if where in ("working", "here"):
         return line
     if where == "setup":
         steps = "; ".join(step_words(s, row["id"]) for s in row.get("steps") or []) or row.get("word", "")
-        line += f": {steps}" + (f" (downloading now: {row['download'].get('state')})" if row.get("download") else "")
+        runs = "in the cloud" if row.get("runs") == "cloud" else "on this Mac"
+        line += f": {runs}; {steps}" + (f" (downloading now: {row['download'].get('state')})" if row.get("download") else "")
     elif where == "broken":
         failed = [f["says"] for f in row.get("facts", []) if f.get("ok") is False]
         line += f": {row.get('word', 'Broken')}" + (f" ({'; '.join(failed)})" if failed else "")
@@ -1087,12 +1120,17 @@ def work_words(found: list[dict], asked: list[str], kinds: Mapping[str, str], *,
     what = ", ".join(asked if all(o in shared_kinds() for o in asked) else  # the tool names the app's own kinds
                      (f"{o} ({kinds[o]})" if kinds.get(o) else o for o in asked))
     head = (f"Hooke's catalog for {what}: {len(found)} entries, installed or not" + (f", and {len(fresh)} new" if fresh else "")
-            + "; nothing else in it does this. On this Mac unless it says cloud.")
+            + "; nothing else in it does this. On this Mac unless it says cloud. Answer with models and tools apart, as "
+            "grouped.")
     lines = []
-    for key, title in STANDING:
-        group = [work_line(r, asked) for r in found if standing(r) == key]
-        if group:
-            lines += [f"{title}:", *(f"- {line}" for line in group)]
+    for kind, heading in ENTRY_GROUPS:  # models, then tools, each by where it stands here
+        mine = [r for r in found if entry_group(r) == kind]
+        if mine:
+            lines.append(f"{heading}:")
+        for key, title in STANDING:
+            group = [work_line(r, asked) for r in mine if standing(r) == key]
+            if group:
+                lines += [f"{title}:", *(f"- {line}" for line in group)]
     if fresh:
         lines.append("New in the catalog, not on this Mac yet (New for you's Get it fetches it):")
         lines += [f"- {inline(n['name'], 80)}: {inline(n.get('what') or n.get('kind', ''), 160)}"

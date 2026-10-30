@@ -505,4 +505,96 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         names = ", ".join(f'"{inline(t, 60)}"' for t in also[:3])
         said += (f"; it is also still open in Tab {names} (instead moves it from there, rather than opening it here "
                  "too)")
+    _placed_on_run(entry, found, title)
     return said
+
+
+def _placed_on_run(entry, found, title: str) -> None:
+    """The saved work placed, on the step's run (`ToolRun.resource`), as a reopen keeps it (present `_open_in_reader`):
+    the request's answer then names it (its turn's `resourceIds`), so "explain that" reads that thing's own record
+    (board.last_result). will-research, 30 Oct (measure-c4acc90, runs 1 and 3): Researcher 1's picture placed in the
+    Graphic Tab left the hand-off's answer with no resourceIds, and "I don't understand that, explain that" was answered
+    with the placing step's status instead of the picture."""
+    from .brain.registry import CURRENT_RUN
+
+    run = CURRENT_RUN.get()
+    if run is None or run.resource:
+        return
+    if entry is not None:
+        rid, day = str(entry.id), str(getattr(entry, "day", "") or "")
+    else:
+        held = next(((item.get("resource") or {}) for _tab, item in found
+                     if isinstance(item.get("resource"), dict) and isinstance(item["resource"].get("id"), str)), None)
+        if not held:
+            return
+        rid, day = held["id"], str(held.get("day") or "")
+    run.resource = {"id": rid, "day": day, "title": title, "operation": "placed"}
+
+
+# --- a result drawn on the live view, in sight ---------------------------------------------------------------------------
+# will-research "classify-outline", 30 Oct (measure-c4acc90, all runs 2/3): "Outline every cell." said while the findings
+# document's Tab was in front (its specimen hidden) answered "the layer is on the live view", and the outlines stayed out
+# of sight behind the reader. A new Tab is a canvas with no specimen; Main always keeps it (Will). So a result drawn on the
+# live view (the cells' layer, a find's or a highlight's outlines) brings Main to the front when the Tab in front hides
+# the specimen, unless the request's own steps say where it goes, and its receipt says where it is shown.
+HOME = "main"  # Main: every Project has it, and it always keeps the specimen (it floats there, never hides)
+SWITCH_WAIT_S = 4.0  # the studio's report showing Main in front, after its switch was acknowledged
+ASK_EVERY_S = 0.5  # a studio in the background reports only when asked (main.ts screen-ask)
+TAB_STEPS = ("switch", "create", "specimen")  # a request's own Tab step: where the user said it goes
+
+
+def _where_named(ctx) -> bool:
+    """Whether this request's own plan says which Tab its result is seen on: a Tab step (switch, create, specimen), the
+    model's reading of the user's words ("in the Graphic Tab"). Then the Tab in front is theirs, never changed for them."""
+    steps = getattr(ctx, "steps", None)
+    planned = getattr(steps, "planned", None) or {}
+    return any(tool == "tabs" and str((args or {}).get("action") or "") in TAB_STEPS for tool, args in planned.values())
+
+
+async def live_in_sight(hub, ctx) -> str:
+    """The live view brought into sight for a result drawn on it, in a receipt's words ("" when nothing was needed): when
+    the Tab in front of the requesting studio hides its specimen, Main is brought to the front (the person's own Tab
+    gesture, through the tabs broker), done once the report shows Main in front; said with the Tab that hid it. Nothing
+    changes when the specimen shows (filling the Tab, or floating), with no Tab strip (an older studio), with no studio
+    that asked (a tool run no studio sent), or when the request's steps named the Tab."""
+    import asyncio
+    import json
+
+    from .brain.registry import ToolFailed
+    from .screen import screen_of
+    from .workspace_observation import front
+
+    broker = getattr(hub, "workspace_tabs", None)
+    client = getattr(ctx, "client", None)
+    if broker is None or client is None or getattr(ctx, "request_snapshot", None) is None:
+        return ""
+    screen = screen_of(hub)
+
+    def report() -> dict:
+        observed = screen.observation(client)
+        return observed.wire() if observed is not None else {}
+
+    shown = front(report())
+    if not shown.get("tab") or (shown.get("specimen") or {}).get("state") != "hidden" or shown.get("tab") == HOME:
+        return ""
+    title = inline(str(shown.get("tabTitle") or (tab_of(report(), shown["tab"]) or {}).get("title") or ""), 80)
+    tab = f'Tab "{title}" in front' if title else "the Tab in front"
+    if _where_named(ctx):
+        return f"; {tab} hides the live view"
+    hid = f"{tab} hid the live view"
+    try:
+        await broker.run(ctx, {"action": "switch", "tab": HOME})
+    except ToolFailed as exc:
+        return f"; {tab} hides the live view; Main could not be brought to the front: {exc.said()}"
+    loop = asyncio.get_running_loop()
+    deadline, ask = loop.time() + SWITCH_WAIT_S, loop.time()
+    while True:
+        now = front(report())
+        if now.get("tab") == HOME:
+            return f'; on Tab "Main", brought to the front ({hid})'
+        if loop.time() >= deadline:
+            return f"; {tab} hides the live view: Main was asked to the front, but the screen does not show it there yet"
+        if loop.time() - ask >= ASK_EVERY_S:
+            client.offer(json.dumps({"type": "screen-ask"}))
+            ask = loop.time()
+        await asyncio.sleep(0.05)

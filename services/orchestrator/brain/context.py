@@ -975,10 +975,13 @@ def _outlined(state, info, positions: bool, *, workspace_scoped=False, provenanc
     return rows[-20:] + away[-6:] + tail
 
 
-def _last_result_words(brain, request_snapshot=None) -> str:
+def _last_result_words(brain, request_snapshot=None, for_voice: bool = False) -> str:
     """The last thing Hooke showed or said in this conversation (board.last_result), in a line: what "that" and "it"
     mean in "explain that" (will-research, 29 Oct: the quick pass explained stomata in general instead of the
-    researcher's graphic just placed). Its record is read with resources(id="that"). Empty when there is none."""
+    researcher's graphic just placed). For the brain, the line asks for the judgment `about_last` (fast.FastDecision):
+    a request about it then carries its record (resources(id="that"), read by code, fast.reading_last_result), since
+    being told where the record was did not get it read (will-research, 30 Oct, measure-c4acc90: no tool in any run).
+    Said only while there is a last result, so no other request carries it. Empty when there is none."""
     try:
         from ..board import last_result
         from ..screen import screen_of
@@ -1002,8 +1005,12 @@ def _last_result_words(brain, request_snapshot=None) -> str:
         parts.append(f"outlines: {', '.join(found.outlines[:4])}")
     if not parts:
         return ""
-    return ('The last result the user saw or heard ("that", "it"): ' + "; ".join(parts)
-            + '. Its own record (what made it, from what, when): resources with id "that".')
+    said = 'The last result the user saw or heard ("that", "it"): ' + "; ".join(parts) + "."
+    if for_voice:
+        return said
+    return said + (' When the user\'s words are about it ("explain that", "what is it?", "I don\'t understand that"), '
+                   'add "about_last": true to your reply: its own record (what it is and shows, who made it and with '
+                   'what, from what, when) is then read for the answer.')
 
 
 def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
@@ -1083,7 +1090,7 @@ def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
         others = other_tabs_words(wire)
         if others:
             inventory += others + ".\n"
-        last = _last_result_words(brain, request_snapshot)
+        last = _last_result_words(brain, request_snapshot, for_voice=for_voice)
         if last:
             inventory += last + "\n"
         inventory += ("Resolve the original versus new reference from these exact window resource IDs, "
