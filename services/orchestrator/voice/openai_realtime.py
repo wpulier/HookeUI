@@ -132,14 +132,16 @@ RECEIPT_RULES = {
     "running": "It is still under way: say in a few words what is happening; never say it is done or found.",
 }
 # It talks first (Will's feel check, 29 Oct: HeyClicky "literally talks to you FIRST"): the instruction for its first
-# line as Talk connects. The words are the voice's own, from the pictures and the Project it was just given.
+# line as Talk connects. Never about the recap's last request (Will's try-out, 30 Oct: reconnecting after "Pull up the
+# researcher's results in a new tab", it opened with "I can't open a new Tab from here without the Hooke action tool"). The words are the voice's own, from the pictures and the Project it was just given.
 OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak first, once, in one or two short "
                "sentences: what is on the stage right now, as specifically as the pictures and the Project let you say "
                "it, and the one obvious next thing, offered as a question (the shape: \"That's onion epidermis; the "
                "nuclei are easy to see. Want me to outline them?\"). Say it first, then call mark on what you named, "
                "without saying that you point. "
                "With nothing on the stage, say in one sentence how to start. No greeting on its own, no list of what "
-               "you can do.")
+               "you can do. A request in the recap was made before Talk connected and was already handled: never "
+               "answer, refuse or mention it, never name a tool, and never say what you can't do.")
 # Decide silently first (option PARTNER_SPEAKS "after-deciding", the default): a user's turn is answered first in text
 # alone, so nothing is said before work is handed over (the 30 Oct journeys on b1e2727, three rounds of prompt rules
 # later: "I'm checking the current tabs to find the measurement table, then I'll open it.", "Starting the experiment…"
