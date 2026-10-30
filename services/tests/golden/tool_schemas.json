@@ -1880,9 +1880,23 @@
   "name": "retrieve_page",
   "params": {
    "properties": {
+    "placement": {
+     "description": "with show: where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only"
+     ],
+     "type": "string"
+    },
     "query": {
      "description": "topic or page to find when no URL is known",
      "type": "string"
+    },
+    "show": {
+     "description": "also open the page it read in a window (Wikipedia, YouTube and Vimeo open inside the app)",
+     "type": "boolean"
     },
     "url": {
      "description": "public page URL if known",
@@ -2016,7 +2030,7 @@
   }
  },
  {
-  "description": "Present layers, document windows and the magnifier. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
+  "description": "Present layers, document windows and the magnifier. do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, window, replace, close, only), done once the screen shows it. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "present",
@@ -2070,7 +2084,8 @@
       "close",
       "move",
       "resize",
-      "front"
+      "front",
+      "place"
      ],
      "type": "string"
     },
@@ -2097,6 +2112,19 @@
      "description": "legacy magnifier move/resize: asked for over the view or its object",
      "type": "boolean"
     },
+    "placement": {
+     "description": "do=place only: where it goes: new-tab: a Tab of its own (no specimen); beside: side by side in this Tab with what is there, the live view included; overlay: drawn on the live specimen (outlines and layers only); window: a floating window, in front; replace: in place of the window in front, which closes; close: closed (its Data is kept); only: the only thing open in its Tab (the rest closed, the specimen hidden; Main's floats small). Outlines (eN): overlay draws them on the live view; new-tab gives them a Tab with their capture and table",
+     "enum": [
+      "new-tab",
+      "beside",
+      "overlay",
+      "window",
+      "replace",
+      "close",
+      "only"
+     ],
+     "type": "string"
+    },
     "rect": {
      "description": "document or legacy magnifier move/resize: [x,y,width,height] workspace CSS pixels, width at least 160; native windows use their own layout fields",
      "items": {
@@ -2117,6 +2145,11 @@
     "revision": {
      "description": "population open/show only: 0 for retained original, or its current revision; no recomputation",
      "type": "integer"
+    },
+    "tab": {
+     "description": "with placement: the Tab, by title or id (default: in front)",
+     "maxLength": 80,
+     "type": "string"
     },
     "top": {
      "description": "emphasise: how many",
@@ -2177,7 +2210,7 @@
   }
  },
  {
-  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), their exact retained placements and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Each Tab also holds the specimen, the live view: it fills the Tab behind its windows, floats as a small window (a new Tab opens with it so), or is hidden there; list and the screen say which. It counts in what a Tab shows: name it when it is there, and float or hide it too for only one thing open in a Tab or everything else closed (action specimen with specimen fill, float or hide; Main\u2019s floats, never hides; done once the screen shows it). Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen.",
+  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), what each holds and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, arrange, keep only one thing, or close a named Tab. Each item has a kind (table, outlines, tracks, image, reference, document, graph, video, web-page, magnifier, note); list with kind=table gives only the Tabs holding a table: \"which Tab has the measurements?\" is answered from kinds, never titles. Researcher Tabs list what they show. Placing on a Tab: arrange puts its windows and the live view side by side (beside); only keeps just `keep` (window or placement ids) open there, closing the rest and hiding the specimen (Main\u2019s floats small); both done once the screen shows it. Closing hides an arrangement and never deletes Data. Each Tab also holds the specimen, the live view: it fills the Tab behind its windows, floats as a small window (a new Tab opens with it so), or is hidden there; list and the screen say which. It counts in what a Tab shows: name it when it is there, and float or hide it too for only one thing open in a Tab or everything else closed (action specimen with specimen fill, float or hide; Main\u2019s floats, never hides; done once the screen shows it). Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "tabs",
@@ -2192,14 +2225,49 @@
       "add",
       "move",
       "close",
-      "specimen"
+      "specimen",
+      "arrange",
+      "only"
      ],
      "type": "string"
     },
     "from": {
      "type": "string"
     },
+    "keep": {
+     "description": "only: the window or placement ids that stay open",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 8,
+     "minItems": 1,
+     "type": "array"
+    },
+    "kind": {
+     "description": "list: only the Tabs holding this kind",
+     "enum": [
+      "table",
+      "outlines",
+      "tracks",
+      "image",
+      "reference",
+      "document",
+      "graph",
+      "video",
+      "web-page",
+      "magnifier",
+      "note"
+     ],
+     "type": "string"
+    },
     "placement": {
+     "type": "string"
+    },
+    "presentation": {
+     "description": "add a population as its measurements table instead of its outlines",
+     "enum": [
+      "table"
+     ],
      "type": "string"
     },
     "resource": {
@@ -2237,6 +2305,49 @@
    "required": [
     "action"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Find a video on the web (YouTube or Vimeo) about something and open it, or open a web page or video by its link (YouTube, Vimeo, Wikipedia; other sites are said with their link): \"find a YouTube video about stomata and open it\". The video found is checked (its real title, judged against what was asked) and kept in Data. It opens in its own sandboxed window with its source and link shown; placement: window (the default, in front), beside, new-tab, only or replace. Done once the screen shows it.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "show_web",
+  "params": {
+   "properties": {
+    "placement": {
+     "description": "where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only",
+      "replace"
+     ],
+     "type": "string"
+    },
+    "tab": {
+     "description": "a Tab by title or id (made when none has it)",
+     "maxLength": 80,
+     "type": "string"
+    },
+    "title": {
+     "description": "with url: a short title for the window",
+     "maxLength": 200,
+     "type": "string"
+    },
+    "url": {
+     "description": "a YouTube, Vimeo or Wikipedia link",
+     "maxLength": 2048,
+     "type": "string"
+    },
+    "video": {
+     "description": "what the video should be about",
+     "maxLength": 600,
+     "type": "string"
+    }
+   },
+   "required": [],
    "type": "object"
   }
  },

@@ -2062,6 +2062,7 @@ async def _native_present(services, ctx, args):
 
 def add_present_tools(registry: Registry, services) -> None:
     import json
+    from ...placement import DESCRIPTION as PLACEMENT_WORDS, SCHEMA as PLACEMENT_SCHEMA
     from ...screen import TAKES, VERBS
 
     hub = services.hub
@@ -2070,7 +2071,7 @@ def add_present_tools(registry: Registry, services) -> None:
               and callable(getattr(services, "workspace_context", None)))
     native_verbs = ("open", "close", "duplicate", "split", "zoom", "pan", "move",
                     "resize", "front", "arrange", "beside", "opacity", "hide", "restore", "group", "ungroup")
-    operations = list(VERBS)
+    operations = list(VERBS) + ["place"]  # place: put `what` where `placement` says (placement.py)
     targets = {kind: list(verbs) for kind, verbs in TAKES.items()}
     for kind in ("population", "tracks"):
         targets[kind] += ["open", "close"]  # the existing show/hide aliases
@@ -2096,8 +2097,14 @@ def add_present_tools(registry: Registry, services) -> None:
                  "description": "document or legacy magnifier move/resize: [x,y,width,height] workspace CSS pixels, width at least 160; native windows use their own layout fields"},
         "over": {"type": "boolean", "description": "legacy magnifier move/resize: asked for over the view or its object"},
         "revision": {"type": "integer", "description": "population open/show only: 0 for retained original, or its current revision; no recomputation"},
+        "placement": {**PLACEMENT_SCHEMA, "description": "do=place only: " + PLACEMENT_WORDS
+                      + ". Outlines (eN): overlay draws them on the live view; new-tab gives them a Tab with their "
+                      "capture and table"},
+        "tab": {"type": "string", "maxLength": 80, "description": "with placement: the Tab, by title or id (default: in front)"},
     }
     description = ("Present layers, document windows and the magnifier" + (" or independent native windows" if native else "") + ". "
+                   "do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, "
+                   "window, replace, close, only), done once the screen shows it. "
                    "Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; "
                    "they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population "
                    "can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its "
@@ -2191,6 +2198,10 @@ def add_present_tools(registry: Registry, services) -> None:
     params["examples"] = examples
 
     async def present(ctx: ToolContext, args: dict) -> str:
+        if args.get("do") == "place" or args.get("placement") is not None:  # the one placement vocabulary (placement.py)
+            from ...placement import place
+
+            return await place(services, ctx, registry, args)
         if ("source" in args or "instance" in args or "targets" in args
                 or isinstance(args.get("what"), dict) or str(args.get("what", "")).startswith("w-")):
             if (getattr(services, "presentations", None) is None

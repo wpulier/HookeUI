@@ -775,6 +775,9 @@ export type ServerMessage =
   // The Assistant's measurements table in the window Open in Measurements opens, on the Tab named (agent-table.ts;
   // orchestrator/table_window.py): answered by table-window-result, done once the screen report shows it.
   | import('./agent-table').TableWindowRequest
+  // A web page or video from the web in a sandboxed window on the Tab named (web-window.ts; orchestrator/web_window.py):
+  // answered by web-window-result, done once the screen report shows it, its frame loaded.
+  | import('./web-window').WebWindowRequest
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
   // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
@@ -1579,6 +1582,7 @@ export type ClientCommand =
   | { type: 'model-reveal'; model: string } // its folder in the Finder (the Models page); '' the models folder itself
   | { type:'workspace-tabs-result';id:string;session:string;workspacePin:Record<string,unknown>;result:Record<string,unknown> }
   | { type:'table-window-result';id:string;session:string;workspacePin:Record<string,unknown>;result:import('./agent-table').TableWindowResult }
+  | { type:'web-window-result';id:string;session:string;workspacePin:Record<string,unknown>;result:import('./web-window').WebWindowResult }
   | { type: 'page-opened'; id: string; page: string; shown: boolean; visible: boolean } // the answer to open-page
   | { type: 'model-turn-on'; model: string; trial?: string } // one entry's Turn it on (an added link, a new one); trial: Set up for comparison's picture
   | { type: 'model-publish-prepare'; model: string; destination?: 'review' | 'community' }

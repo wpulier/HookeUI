@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import inspect
 import itertools
 import time
@@ -128,6 +129,13 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
     if tool == "present":
         verb = str(args.get("do") or "").lower()
         what = _target_of(args.get("what") or args.get("instance"))
+        placement = str(args.get("placement") or "")
+        if verb == "place":  # the placement words (placement.py): close closes, the rest open or arrange
+            kind_ = "close" if placement == "close" else "open" if placement in ("new-tab", "window") else "present"
+            caption = {"overlay": "Drawing it on the view", "beside": "Putting it beside", "new-tab": "Opening a Tab",
+                       "only": "Closing the rest", "close": "Closing it", "replace": "Swapping it in",
+                       "window": "Opening it"}.get(placement, "Placing it")
+            return Intent(kind_, tool, args, target=_window_target(what), caption=caption, ids=[what] if what else [])
         kind_ = {"open": "open", "close": "close"}.get(verb, "present")
         caption = {"open": "Opening it", "close": "Closing it"}.get(verb, f"{verb.capitalize() or 'Showing'} it")
         return Intent(kind_, tool, args, target=_window_target(what), caption=caption, ids=[what] if what else [])
@@ -138,6 +146,7 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         kind_ = {"switch": "focus", "create": "open", "close": "close"}.get(action, "present")
         caption = {"switch": "Switching Tabs", "create": "Making a Tab", "close": "Closing the Tab",
                    "rename": "Renaming the Tab", "add": "Adding it to the Tab",
+                   "arrange": "Putting them side by side", "only": "Closing the rest",
                    "specimen": SPECIMEN_CAPTIONS.get(str(args.get("specimen") or ""), "Moving the specimen"),
                    }.get(action, "Arranging Tabs")
         return Intent(kind_, tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs", caption=caption,
@@ -179,6 +188,10 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
                       ids=[aid] if aid else [])
     if tool == "reference_photo" and args.get("show") is False:  # the lookup alone: kept with the Project, no window
         return Intent("make", tool, args, caption="Finding a picture", ui=False, check="record")
+    if tool == "show_web":  # a web search (or a link) that ends in a window: checked in the report when it lands
+        return Intent("open", tool, args, target="panel:workspace",
+                      caption="Finding a video" if args.get("video") else "Opening the page", check="record",
+                      background=True)
     if tool == "reference_photo":  # long work that ends in a window: checked in the report when it lands
         return Intent("open", tool, args, target="panel:workspace", caption="Finding a picture", check="record",
                       background=True)
@@ -186,6 +199,9 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         kind_, caption = RECORDED[tool]
         return Intent(kind_, tool, args, target=_researcher_target(args) if kind_ in ("cancel", "steer") else "",
                       caption=caption, ui=False, check="record")
+    if tool == "retrieve_page" and args.get("show") is True:  # a lookup that also opens what it read in a window
+        return Intent("open", tool, args, target="panel:workspace", caption="Opening the page", check="record",
+                      background=True)
     if tool in LOOKS or kind == "query":
         return None
     if sets:  # it declares the settings it changes: they read back changed
@@ -245,7 +261,8 @@ def screen_facts(observation: dict | None) -> dict:
     the selection, the magnifier, the layers."""
     facts: dict[str, Any] = {"seq": (observation or {}).get("seq"), "tabs": [], "front": None, "windows": set(),
                              "documents": [], "top": None, "drawn": None, "emphasis": set(), "selected": [],
-                             "magnifier": None, "layers": {}, "reported": observation is not None}
+                             "magnifier": None, "layers": {}, "reported": observation is not None,
+                             "observation": observation}
     for item in _items(observation):
         legacy, iid = _legacy(item), str(item.get("id") or "")
         if iid == "workspace-tabs":
@@ -322,6 +339,21 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
             if shown is None:
                 return None
             return shown.get("state") == SPECIMEN_ASKED.get(str(intent.args.get("specimen") or ""))
+        if action in ("only", "arrange") and ids:
+            # The placement words' only and beside, as the report shows them (placement.py): the Tab in front, and
+            # only what was kept on it with the specimen hidden (Main's floating), or its windows side by side.
+            from ..placement import beside_shown, only_shown, windows_on
+
+            observation = facts.get("observation")
+            if observation is None or not _tab_is(front, ids[0]):
+                return None if observation is None else False
+            tab = front.get("id")
+            if action == "only":
+                home = tab == "main" or front.get("title") == "Main"
+                keep = [str(k).removeprefix("document:") for k in intent.args.get("keep") or []]
+                return only_shown(observation, tab, keep, home=home)[0]
+            shown = windows_on(observation, tab)
+            return beside_shown(observation, tab, [w.get("id") for w in shown])[0] if shown else True
         if action == "add":
             resource = _target_of(intent.args.get("resource"))
             if not resource or not facts["documents"]:
@@ -392,6 +424,18 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
         if facts["drawn"] is None and not facts["layers"]:
             return None
         return all(f in set(facts["drawn"] or []) or f in facts["layers"] for f in found)
+    if intent.tool == "present" and str(intent.args.get("do") or "") == "place":
+        # A placement is decided by its tool's own receipt, which read the report (placement.py); only and close are
+        # also read here.
+        placement, observation = str(intent.args.get("placement") or ""), facts.get("observation")
+        if placement == "only" and ids and observation is not None and front:
+            from ..placement import only_shown
+
+            home = front.get("id") == "main" or front.get("title") == "Main"
+            return only_shown(observation, front.get("id"), [ids[0].removeprefix("document:")], home=home)[0]
+        if placement == "close" and ids and not re.fullmatch(r"[em]\d+", ids[0]):
+            return not any(i in facts["windows"] or f"document:{i}" in facts["windows"] for i in ids)
+        return None
     if intent.tool == "present" and ids:
         shown = any(i in facts["windows"] or f"document:{i}" in facts["windows"] for i in ids)
         if intent.kind == "close":
@@ -458,7 +502,15 @@ def said(intent: Intent, result: dict, facts: dict, before: dict | None) -> str:
         return f"Done: {name} is in front" + (f" (it was {back}, for \"go back\")" if back and back != name else "") + "."
     if intent.tool == "show_measurements":
         tab = front.get("title") or front.get("id")
-        return "Done: the table is open" + (f" in {tab}" if tab else "") + "."
+        where = {"beside": ", beside what is open there", "new-tab": ", with its outlines beside it",
+                 "only": ", the only window there"}.get(str(intent.args.get("placement") or "beside"), "")
+        return "Done: the table is open" + (f" in the {tab} Tab" if tab else "") + where + "."
+    if intent.tool == "tabs" and intent.args.get("action") in ("arrange", "only"):
+        tab = front.get("title") or front.get("id") or "that Tab"
+        if intent.args.get("action") == "arrange":
+            return f"Done: everything in the {tab} Tab is side by side."
+        rest = "the live view floats small" if front.get("id") == "main" else "the live view is hidden"
+        return f"Done: only that is open in the {tab} Tab; {rest}."
     if intent.tool == "tabs" and intent.args.get("action") == "specimen":
         named = next((t for t in facts.get("tabs") or () if _tab_is(t, (intent.ids or [""])[0])), None) or {}
         where = named.get("title") or named.get("id") or "that Tab"

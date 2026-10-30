@@ -27,16 +27,21 @@ export function readerSurfaces():StudioSurface[]{
 export function documentSurfaces():StudioSurface[]{
  return [...readerSurfaces(),...windowSurfaces()];
 }
+/** A web window (web-window.ts): what it shows by its Data item, its kind (web-page or video) as its representation. */
+function webOf(root:HTMLElement):{kind:string;resource:{day:string;id:string;version:number|null}}|null{
+ if(!root.dataset.webWindow)return null;
+ try{const web=JSON.parse(root.dataset.webWindow);return web?.resource?.id?{kind:web.kind==='video'?'video':'web-page',resource:web.resource}:null;}catch{return null;}
+}
 function windowSurfaces():StudioSurface[]{
- return [...document.querySelectorAll<HTMLElement>('#study-artifacts > [data-placement-id]')].filter(root=>!root.classList.contains('workspace-window')&&(root.dataset.noteId||root.dataset.studyRetained)).sort((a,b)=>Number(b.dataset.workspaceHidden!=='true')-Number(a.dataset.workspaceHidden!=='true')).slice(0,192).map(root=>{
+ return [...document.querySelectorAll<HTMLElement>('#study-artifacts > [data-placement-id]')].filter(root=>!root.classList.contains('workspace-window')&&(root.dataset.noteId||root.dataset.studyRetained||webOf(root))).sort((a,b)=>Number(b.dataset.workspaceHidden!=='true')-Number(a.dataset.workspaceHidden!=='true')).slice(0,192).map(root=>{
   const id=`document:${root.dataset.placementId}`;
   return {id,root,read:()=>{
-   const retained=root.dataset.studyRetained?JSON.parse(root.dataset.studyRetained):null;
-   const resource=retained?.resource??{day:root.dataset.project,id:root.dataset.noteId,version:Number(root.dataset.noteVersion)||null,picture:null};
+   const retained=root.dataset.studyRetained?JSON.parse(root.dataset.studyRetained):null,web=webOf(root);
+   const resource=web?{...web.resource,picture:null}:retained?.resource??{day:root.dataset.project,id:root.dataset.noteId,version:Number(root.dataset.noteVersion)||null,picture:null};
    const open=root.dataset.dismissed!=='true',rect=rectOf(root.getBoundingClientRect());
    const scientific=scientificPresentation(root),visible=surfaceVisible(root,open,true,rect);
    const legacy:StudioSurfaceLegacy={schema:'studio-surface-v1',scope:'dom-observation',title:(root.getAttribute('aria-label')??'Document').slice(0,120),shows:resource.id,
-    document:{project:root.dataset.project!,tab:root.dataset.workspaceView!,placement:root.dataset.placementId!,resource,representation:root.dataset.noteId?'note':retained.presentation??'resource',state:root.dataset.noteId?(root.dataset.noteState==='saved'?'saved-note':'draft-note'):root.dataset.displayState??'requested',focused:root.contains(document.activeElement)}};
+    document:{project:root.dataset.project!,tab:root.dataset.workspaceView!,placement:root.dataset.placementId!,resource,representation:web?web.kind:root.dataset.noteId?'note':retained.presentation??'resource',state:root.dataset.noteId?(root.dataset.noteState==='saved'?'saved-note':'draft-note'):root.dataset.displayState??'requested',focused:root.contains(document.activeElement)}};
    if(scientific)legacy.document!.representation='scientific-review';
    return {kind:'document',open,visible,rect,z:Number(root.style.zIndex)||10,space:'workspace',legacy,...(scientific?{scientificPaint:scientific.paint,...(scientific.panelPaint===undefined?{}:{scientificPanelPaint:scientific.panelPaint})}:{}),contentKey:JSON.stringify({resource,project:root.dataset.project,tab:root.dataset.workspaceView,placement:root.dataset.placementId,representation:legacy.document!.representation}),
     controls:visible?[...root.querySelectorAll<HTMLButtonElement>('button')].map((node,index)=>({node,fact:{id:`${id}:control:${index}`,targetId:id,role:node.getAttribute('aria-label')?.startsWith('Close')?'close':'button',present:open&&surfaceVisible(node,true,true,rectOf(node.getBoundingClientRect())),enabled:!node.disabled,editable:false as const,stateRevision:null,observedValue:null}})).filter(control=>control.fact.present).slice(0,40):[]};

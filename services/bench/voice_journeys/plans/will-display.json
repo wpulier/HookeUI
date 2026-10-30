@@ -1,0 +1,114 @@
+{
+ "id": "will-display",
+ "about": "How Hooke shows what the models made, and knows where everything is (the live partner spec 4.8, horizontal 2; Will, 29 Oct: \"HOW we display in various ways the data produced by the models is critical and not an afterthought at all\"), in his words on the real June 14 leaf recording: every cell outlined, their results in a Tab of their own (the outlines on their capture and their table, like his \"Cell outlines\" Tab), the table moved beside the live view, the outlines as an overlay on the live view, which Tab has the measurements (read from what each Tab holds, never its title), a YouTube video about stomata in a window with its source said, and only the video left open in the Tab. Each place is said as the screen shows it (\"in the Cell results Tab, beside the table\"); any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "outline-all",
+   "kind": "act",
+   "say": "Outline every cell.",
+   "expect": {
+    "tools": [
+     "outline_cells"
+    ],
+    "visible": "the leaf epidermis cells outlined as a layer on the live view",
+    "outcome": true,
+    "judge": "outlines the cells on the live view and says how many, once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "results-new-tab",
+   "kind": "act",
+   "say": "Open the cell results in a new tab.",
+   "expect": {
+    "tools": [
+     "show_measurements",
+     "present",
+     "tabs"
+    ],
+    "visible": "a new Tab in front holding the cells' outlines on their capture and their measurements table side by side, with no live view in it",
+    "outcome": true,
+    "judge": "makes a new Tab holding the outlines on their capture and their table side by side, names the Tab, and says where each is; claims nothing the screen does not show"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "table-beside-live",
+   "kind": "act",
+   "say": "Now put the table beside the live view instead.",
+   "expect": {
+    "tools": [
+     "show_measurements",
+     "tabs"
+    ],
+    "visible": "the measurements table on Main beside the live view, side by side, and no longer in the results Tab",
+    "outcome": true,
+    "judge": "moves the table to the Tab with the live view and puts the two side by side, saying where it is now (on Main, beside the live view)"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "outlines-overlay",
+   "kind": "act",
+   "say": "Show the outlines as an overlay on the live view.",
+   "expect": {
+    "tools": [
+     "present"
+    ],
+    "visible": "the cells' outlines drawn on the live view",
+    "outcome": true,
+    "judge": "draws the cells' outlines on the live view (not in a window) and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "which-tab",
+   "kind": "act",
+   "say": "Which tab has the measurements? Open it.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "toolRequired": false,
+    "visible": "the Tab holding the measurements table in front",
+    "outcome": true,
+    "judge": "names the Tab that holds the table from what the Tabs hold (Main, after the move), brings it to the front (or says it already is), and never guesses from a Tab's title"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "stomata-video",
+   "kind": "act",
+   "say": "Find a YouTube video about stomata and open it.",
+   "expect": {
+    "tools": [
+     "show_web"
+    ],
+    "visible": "a YouTube video about stomata playing in a window in front, its source and link shown",
+    "outcome": true,
+    "judge": "finds a real YouTube video about stomata and opens it in a window, saying its title and that it is from YouTube; never claims a video that is not shown"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "only-video",
+   "kind": "act",
+   "say": "Only have the video open in this tab and close everything else.",
+   "expect": {
+    "tools": [
+     "tabs",
+     "present"
+    ],
+    "visible": "only the video open in the Tab; the table closed; on Main the live view small in its corner",
+    "outcome": true,
+    "judge": "leaves only the video open in the Tab, closing the rest, says plainly what is left (on Main the live view stays, small), and never asks the user to ask again"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

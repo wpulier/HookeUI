@@ -50,6 +50,7 @@ RUNNABLE: dict[str, str] = {
 
 # Not runnable, with why. Every other tool of the Assistant is declared here.
 NOT_RUNNABLE: dict[str, str] = {
+    "show_web": "changes what a window presents (a video or web page from the web)",
     "find_workflows": "use Project-scoped workflow discovery through the door",
     "workflow": "use Project-scoped workflow admission through a Study",
     "add_asset": "puts the researcher's library assets on stage; agents bring files with open",

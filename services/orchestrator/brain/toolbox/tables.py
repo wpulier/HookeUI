@@ -22,7 +22,7 @@ def _accepted(ctx, screen) -> bool:
 
 
 async def open_table(services, ctx, *, session: str, target: str, revision: int, title: str, rows: int, what: str,
-                     tab: str | None, guard) -> str:
+                     tab: str | None, guard, placement: str | None = None, instead: bool = False) -> str:
     """The measurements table of `target` on screen, said as the studio showed it (table_window.py): in its table
     window where the studio has the Project workspace; the Measurements page in a studio without it (an older studio, a
     test's fixture), as before. Refuses, saying where the table is saved, when nothing shows it."""
@@ -33,10 +33,16 @@ async def open_table(services, ctx, *, session: str, target: str, revision: int,
     screen = screen_of(hub)
     studio = reader_studio(screen, ctx, session)
     if studio is not None and getattr(services, "workspace_tabs", None) is not None:
-        from ...table_window import show
+        from ...placement import default
+        from ...table_window import place, show
 
-        return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
-                          tab=tab, guard=guard)
+        # With a Tab named and no placement, the table fills that Tab as before; otherwise it goes where it was asked,
+        # by default beside what is open (placement.py: a table goes beside).
+        if placement is None and tab:
+            return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows,
+                              what=what, tab=tab, guard=guard)
+        return await place(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
+                           tab=tab, guard=guard, placement=placement or default("table"), instead=instead)
     saved = f"it is saved in Data as {target}, where its row's Open in Measurements opens it"
     if _accepted(ctx, screen):
         raise ToolFailed(f"{what} is not shown: the studio that asked is not showing this Project's Tabs; {saved}",
@@ -114,8 +120,14 @@ def add_table_tools(registry: Registry, services) -> None:
             current()
             require_current(ctx, day)
 
+        placement = args.get("placement")
+        from ...placement import PLACEMENTS
+
+        if placement is not None and placement not in PLACEMENTS:
+            raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
         return await open_table(services, ctx, session=session, target=target, revision=revision,
-                                title=str(table['title']), rows=int(table['count']), what=what, tab=tab, guard=guard)
+                                title=str(table['title']), rows=int(table['count']), what=what, tab=tab, guard=guard,
+                                placement=placement, instead=args.get("instead") is True)
 
     registry.add(Tool(
         "show_measurements", "Open the measurements table in a table window on a Tab, the window the user's own Open in "
@@ -124,10 +136,17 @@ def add_table_tools(registry: Registry, services) -> None:
         "\"spreadsheet of the speeds\"). `of`: a population (e3) or motion item (m1), or a table a capability the catalog "
         "added made (d4); with none, the cells shown or newest, else the newest motion. `tab`: a Tab inside this Project to "
         "put it in (\"put the table in a new tab called Measurements\"): its title, or exact id from tabs list; a title no "
-        "Tab has makes that Tab. One action: the Tab is made or brought forward and the table fitted to it, in front. Done "
-        "only when the studio shows it; otherwise its answer says where the table is saved.",
+        "Tab has makes that Tab. One action: the Tab is made or brought forward and the table fitted to it, in front. "
+        "`placement`: beside (the default: side by side with what is open, the live view included; a new Tab has no "
+        "live view, so for beside the live view name tab Main), new-tab (a Tab of its own: a population's outlines on "
+        "their capture with this table beside them, \"open the cell results in a new tab\"), only, replace, window, "
+        "close. `instead`: move it from the Tab it is open in. Done only when the studio shows it; otherwise its answer "
+        "says where the table is saved.",
         schema({"of": {"type": "string", "description": "a population (e3) or motion item (m1); empty: the newest"},
                 "tab": {"type": "string", "maxLength": 80,
                         "description": "a Tab inside this Project to open it in, by title or id; made when none has it; "
-                                       "empty: the Tab in front"}}),
+                                       "empty: the Tab in front"},
+                "placement": {"type": "string", "enum": ["beside", "new-tab", "only", "replace", "window", "close"],
+                              "description": "where it goes (default beside)"},
+                "instead": {"type": "boolean", "description": "move it here from the Tab it is open in"}}),
         show_measurements, kind="effect", inline_ms=4000, family="measuring"))

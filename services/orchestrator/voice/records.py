@@ -158,6 +158,8 @@ class Records:
             return self._staged(intent, before)
         if tool == "reference_photo":
             return self._pictured(result, run, facts)
+        if tool == "show_web" or (tool == "retrieve_page" and (intent.args or {}).get("show") is True):
+            return self._webbed(result, facts)
         return self._saved(result, run)
 
     def _started(self, result: dict, run) -> dict:
@@ -394,6 +396,22 @@ class Records:
             return {"result": "verified", "said": "Done: the picture is kept with this Project (not shown)."}
         return {"result": "uncertain", "error": "Hooke has no record of the picture",
                 "said": "Not sure a picture was found: Hooke has no record of it."}
+
+    def _webbed(self, result: dict, facts: dict) -> dict:
+        """A video or web page: verified once the report shows its window (web_window.py names it in its receipt)."""
+        windows = re.findall(r"\((document:[A-Za-z0-9_-]+)\)", str(result.get("summary") or ""))
+        if result.get("ok") is None or result.get("still_working"):
+            return {"result": "running", "said": "Still finding it."}
+        if not result.get("ok"):
+            return {"result": "failed", "error": str(result.get("summary") or "")[:300],
+                    "said": "It was not opened: " + str(result.get("summary") or "")[:200]}
+        if windows and not facts.get("reported"):
+            return {"result": "uncertain", "error": "the studio sent no report to show it",
+                    "said": "I opened it but couldn't confirm it on screen."}
+        if windows and any(w in facts["windows"] for w in windows):
+            return {"result": "verified", "pointAt": windows[:1], "said": "Done: it is open in its window."}
+        return {"result": "uncertain", "error": "the studio's report does not show its window",
+                "said": "I opened it but couldn't confirm it on screen."}
 
     # --- what it costs -------------------------------------------------------------------------------------------
     async def spends(self, intent) -> str | None:

@@ -287,12 +287,13 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
     // The Tab in front's title (main.ts), at most 80 characters as a Tab title is (workspace_observation.py checks the same).
     if(value.workspace.tabTitle!==undefined&&(typeof value.workspace.tabTitle!=='string'||!value.workspace.tabTitle||value.workspace.tabTitle.length>80))throw new Error('Invalid workspace context');
     const tabs=value.workspace.tabs;
-    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>!['front,id,title','front,id,specimen,title'].includes(Object.keys(t).sort().join(','))||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80)))throw new Error('Invalid workspace Tabs');
+    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>Object.keys(t).some(k=>!['front','id','title','specimen','kind','holds'].includes(k))||!['front','id','title'].every(k=>k in t)||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80
+      ||t.kind!==undefined&&!TAB_KINDS.has(t.kind)||t.holds!==undefined&&(!t.holds||typeof t.holds!=='object'||Object.entries(t.holds).some(([k,n])=>!HOLD_KINDS.has(k)||!Number.isSafeInteger(n)||(n as number)<0||(n as number)>999)))))throw new Error('Invalid workspace Tabs');
     // A Tab's specimen (screen.ts VerifierSpecimen): its state, and its place only when floating.
     if(tabs?.some(t=>t.specimen!==undefined&&(!t.specimen||!['fill','float','hidden'].includes(t.specimen.state)||Object.keys(t.specimen).some(k=>k!=='state'&&k!=='rect')
       ||t.specimen.rect!==undefined&&(t.specimen.state!=='float'||!Array.isArray(t.specimen.rect)||t.specimen.rect.length!==4||!t.specimen.rect.every(Number.isFinite)||t.specimen.rect[2]<0||t.specimen.rect[3]<0))))throw new Error('Invalid workspace specimen');
     tabs?.forEach(t=>boundedIdentity(t.id));
-    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t,...(t.specimen?{specimen:structuredClone(t.specimen)}:{})}))}:{})};}
+    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t,...(t.specimen?{specimen:structuredClone(t.specimen)}:{}),...(t.holds?{holds:{...t.holds}}:{})}))}:{})};}
   if(value.document){
     const d=value.document;
     if(Object.keys(d).some(k=>!['project','tab','placement','resource','representation','state','focused'].includes(k)))throw new Error('Unknown document observation');
@@ -306,7 +307,12 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
 /** A Tab's specimen (the live view) as the report says it: filling the Tab behind its windows, floating as a window
  * (its place in workspace px, when laid out), or hidden from the Tab. */
 export type VerifierSpecimen = { state: 'fill' | 'float' | 'hidden'; rect?: Rect4 };
-export type VerifierTab = { id: string; title: string; front: boolean; specimen?: VerifierSpecimen };
+export type VerifierTab = { id: string; title: string; front: boolean; specimen?: VerifierSpecimen;
+  /** The Tab's kind (work, output, compare, reader) and what it holds, counted by item kind (workspace-model.ts). */
+  kind?: string; holds?: Partial<Record<string, number>> };
+/** The item kinds a Tab's `holds` may count (workspace-model.ts ITEM_KINDS; workspace_observation.ITEM_KINDS). */
+const HOLD_KINDS = new Set(['table', 'outlines', 'tracks', 'image', 'reference', 'document', 'graph', 'video', 'web-page', 'magnifier', 'note']);
+const TAB_KINDS = new Set(['work', 'output', 'compare', 'reader']);
 /** What Hands' verifier checks an intent's outcome against (the live-partner spec 4.2), kept within the bounds
  * workspace_observation._legacy accepts: the Project's open Tabs in strip order (24, titles of 80, the one in front
  * kept), the outlines drawn now (60), and the population layer's members (drawn never over count). */
@@ -318,13 +324,20 @@ export function verifierLegacy(facts: { tabs?: readonly VerifierTab[]; drawn?: r
     const kept = facts.tabs.slice(0, 24);
     if (front >= 24) kept[23] = facts.tabs[front];
     const at = front < 0 ? -1 : Math.min(front, 23);
-    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at, ...(t.specimen ? { specimen: verifierSpecimen(t.specimen) } : {}) }));
+    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at, ...(t.specimen ? { specimen: verifierSpecimen(t.specimen) } : {}),
+      ...(t.kind && TAB_KINDS.has(t.kind) ? { kind: t.kind } : {}), ...(t.holds ? { holds: verifierHolds(t.holds) } : {}) }));
   }
   if (facts.drawn) out.drawn = facts.drawn.slice(0, 60).map((d) => ({ id: d.id, kind: d.kind }));
   if (facts.members) {
     const count = Math.max(0, Math.trunc(facts.members.count)), drawn = Math.max(0, Math.min(count, Math.trunc(facts.members.drawn)));
     out.members = { count, drawn };
   }
+  return out;
+}
+/** A Tab's counts by kind within the bounds workspace_observation accepts: known kinds only, whole counts to 999. */
+function verifierHolds(holds: Partial<Record<string, number>>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [kind, n] of Object.entries(holds)) if (HOLD_KINDS.has(kind) && Number.isFinite(n) && (n ?? 0) > 0) out[kind] = Math.min(999, Math.trunc(n!));
   return out;
 }
 /** A specimen fact within the bounds workspace_observation accepts: a place only when floating, whole px. */
