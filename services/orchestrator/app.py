@@ -1942,8 +1942,9 @@ class App:
             if info.id == self.day.sid:  # the open session's, as its own wire counts it (held footage too)
                 row["counts"] = self.subjects.counts(info)
             if inputs.get(info.id):
-                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]['additional'],
-                                 "sourcesIncomplete": inputs[info.id]['incomplete']}
+                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]['additional']}
+                if inputs[info.id]['incomplete']:
+                    row["counts"]['sourcesIncomplete'] = True
             rows.append(row)
         # Where every Project is saved on this Mac, said with ~ (thesis question 12: the Projects page and Help say it).
         root = str(self.paths.sessions).replace(str(Path.home()), "~", 1)
