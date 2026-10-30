@@ -16,6 +16,8 @@ export interface ExperimentWire {
   id: string; key: string; n: number; name: string; title: string; session: string; thread: string | null;
   version: number; status: string; requestId: string | null; turnId: number | null; steps: string[]; cost: string;
   input: string; progress: string; why: string;
+  /** How long the plan should take, said as the estimate it is (experiments.py `time_words`). */
+  estimate?: string;
   outcome: { words?: string; document?: string; tab?: string; shown?: string };
   canRun: boolean; canStop: boolean; created: number; ended: number | null;
 }
@@ -46,7 +48,7 @@ export function experimentView(x: ExperimentWire): ExperimentView {
   if (x.canStop) actions.push('stop');
   if (x.status === 'done' && x.outcome.document) actions.push('open');
   return { cell, title: `${x.name} · ${x.title}`, status, steps: x.status === 'proposed' ? x.steps : [],
-           cost: x.status === 'proposed' ? x.cost : '', actions };
+           cost: x.status === 'proposed' ? [x.estimate, x.cost].filter(Boolean).join(' · ') : '', actions };
 }
 
 const stepsOf = (line: LogLine): ToolRun[] => [...line.actions, ...(line.event?.steps ?? [])];

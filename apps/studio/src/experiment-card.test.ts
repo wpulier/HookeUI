@@ -31,6 +31,9 @@ describe('what an experiment card says', () => {
       status: 'Planned · runs on your yes', actions: ['run', 'change'] });
     expect(view.steps).toHaveLength(2);
     expect(view.cost).toContain('$0.25');
+    // How long it should take, said as an estimate, before what it may cost.
+    expect(experimentView(wire({ estimate: 'About 3 min (an estimate from earlier runs here)' })).cost)
+      .toBe('About 3 min (an estimate from earlier runs here) · Nothing spent: the models run on this Mac; the audit at most $0.25');
   });
   test('a plan that expired offers nothing; a running one says its progress with Stop; a finished one opens its results', () => {
     expect(experimentView(wire({ canRun: false })).actions).toEqual([]);
