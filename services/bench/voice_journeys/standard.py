@@ -1338,10 +1338,10 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
         else:
             bench["_expectedResearcher"] = status if isinstance(status, int) and not isinstance(status, bool) else \
                 started_numbers[-1] if status and started_numbers else None
-        # A step with no words of its own (idle: waiting for an experiment, a researcher) is answered only by what Hooke
+        # A step with no words of its own that waits for an outcome (idle: an experiment, a researcher) is answered only by what Hooke
         # says on its own when that lands: those lines are its outcome (will-experiment, 30 Oct: "Experiment 1 finished
         # and its write-up is … open in its own Tab", said in the step that waited for it, was dropped as unprompted).
-        mine = () if step.get("kind") == "idle" else unprompted
+        mine = () if step.get("kind") == "idle" and (expect.get("outcome") or expect.get("visible")) else unprompted
         row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), mine)
         if expect.get("researchers"):
             numbers = row["researcherNumbers"] or sorted(board[rid] for rid in row["researcherIds"] if rid in board)

@@ -28,6 +28,7 @@
    "id": "meanwhile",
    "kind": "view",
    "say": "What's the thing in the middle?",
+   "during": true,
    "expect": {
     "tools": [
      "look_hard",

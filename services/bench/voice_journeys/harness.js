@@ -326,9 +326,11 @@
   // A hand-off's row saying "Hooke is working" is work under way too, as the user sees it: they wait for its outcome
   // before the next words (will-workspace, 29 Oct: Cellpose's outcome landed in the next step), for at most HANDOFF_MS.
   const HANDOFF_MS = 120000;
-  async function quiet(quietMs, maxMs, minMs) {
+  // `hold`: false when the next words are meant to come while Hooke still works (the next step's "during": "actually,
+  // stop that" during a search, a question asked meanwhile); the hand-off's row then never holds them back.
+  async function quiet(quietMs, maxMs, minMs, hold = true) {
     const t0 = Date.now();
-    const handing = () => !!document.querySelector('[data-role="handoff"][data-state="working"]');
+    const handing = () => hold && !!document.querySelector('[data-role="handoff"][data-state="working"]');
     // The voice about to answer (heard you, thinking: the studio's shown state) is not quiet either.
     const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing()
       || ['heard', 'thinking'].includes(document.body?.dataset.voiceState || '');
@@ -606,7 +608,7 @@
             while (Date.now() - from < limit && !satisfied(step.waitFor, startedBefore)) await sleep(1000);
             await quiet(quietMs * 2, 120000, 20000); // the kept step's hand-off runs, then its outcome is said
           }
-          await quiet(quietMs, step.waitFor ? 30000 : (step.wait ?? maxMs / 1000) * 1000, minMs);
+          await quiet(quietMs, step.waitFor ? 30000 : (step.wait ?? maxMs / 1000) * 1000, minMs, !(next && next.during));
           if (step.ensure) await ensure(step);
           await stageSpecimen(plan, base, step.id);
         }

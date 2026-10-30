@@ -75,6 +75,7 @@
    "id": "stop-video",
    "kind": "act",
    "say": "Actually, stop that.",
+   "during": true,
    "expect": {
     "tools": [
      "stop_work"
