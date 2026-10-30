@@ -5,6 +5,13 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_project_operation_storage` uses synthetic work through real operation stores
+and Project folders: admission-before-work, relocation to a new host, attribution,
+unchanged read-only receipts, duplicate-history refusal, no replay and uncertain
+sync retries retaining one admission ID. It imports no credentials or grants. These
+tests do not establish full Project collection, real connected-agent restoration or
+read-only application UX.
+
 `test_project_folder_commands` qualifies the owner folder inspector against the
 shared connector storage projection: captured-generation reads, missing-location
 refusal and host-resolved Finder targets. `project-folder.test.ts` covers stale

@@ -419,3 +419,18 @@ This is relocation recovery, not new-Project import, independent-copy creation o
 collection. Unknown origins refuse; no grants, accepted history or preference
 selection are imported or rewritten. The host's existing last-opened Project resumes
 normally after the locator is repaired, and existing execution recovery rules apply.
+
+### Project-owned connector operation records
+
+New operation admissions in routed Projects use `history/operations` as their one
+authoritative record location. The existing operation service still owns admission,
+retry keys, cancellation and observation of workflow executions; storage routing
+does not create another execution system. Capture the Project origin at admission
+and refuse a changed or unwritable location rather than falling back to host storage.
+Old host-local receipts remain where they are until explicit collection.
+
+Loading a Project's saved operations never launches work or imports connections or
+grants. Duplicate operation IDs or request identities across locations are conflicts,
+not a choice to overwrite either history. A second host may read saved records but
+may reconcile or change them only with the Project's writer lease. Unfinished direct
+operations recover as interrupted; workflow references remain owned by WorkflowService.
