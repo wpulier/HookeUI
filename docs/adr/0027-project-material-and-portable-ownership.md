@@ -395,3 +395,7 @@ mutate accepted source facts or an unrelated local asset. A separate reviewed
 revision-editing path remains required. This staged integration does not yet qualify
 complete source collection, automatic imported-source selection, or the ordinary
 portable browser journey; normal portable activation remains off.
+
+## Explicit material intake
+
+The ordinary owner Add material path and already-authorized connector file-open share selected-media retention before Stage selection. A `retained` journal event binds exact bytes to the captured Project without moving the active source. Reopening resolves that binding and never consults a mutable original. The shared `project-media-reference` schema includes the durable Project origin, legacy host handle, document revision and digest. This adds no outside-agent Library access, and whole Record inclusion remains separately reviewed. Ordinary portable activation and complete collection remain gated on their unfinished acceptance journeys.

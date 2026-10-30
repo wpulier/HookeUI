@@ -1,0 +1,14 @@
+{
+  "$id": "hooke:agent/project-media-reference",
+  "title": "Exact retained media scoped to its durable Project origin",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["origin", "session", "document", "revision", "digest"],
+  "properties": {
+    "origin": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+    "session": {"type": "string", "minLength": 1, "maxLength": 240},
+    "document": {"type": "string", "pattern": "^p[a-f0-9]{32}$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

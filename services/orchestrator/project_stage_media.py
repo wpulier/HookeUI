@@ -22,10 +22,8 @@ _retired = []
 
 def reference(value, session):
     from .door.schema import check
-    if type(value) is not dict or set(value) != {'origin', 'session', 'document', 'revision', 'digest'}:
-        raise ProjectLocationError('Choose an exact retained media revision')
-    check({'id': value['document'], **{k: value[k] for k in ('session', 'revision', 'digest')}}, 'artifact-reference')
-    if value['session'] != session or type(value['origin']) is not str:
+    check(value, 'project-media-reference')
+    if value['session'] != session:
         raise ProjectLocationError('This retained source belongs to another Project')
     return MediaReference(**value)
 

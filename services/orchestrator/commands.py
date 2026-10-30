@@ -603,7 +603,7 @@ def _manual_proposal(message):
 # (clicks and questions have their own records; reports, timing and the blind test's own are left out).
 USER_ACTIONS = frozenset({"clear", "remove", "restore", "select", "cells", "magnifier", "present", "settings", "slidemap",
                           "presenter", "showing", "thread", "session", "scale", "focus", "flag", "pin-note", "dataset",
-                          "view", "source", "source-remove", "source-restore", "asset-meta", "asset-trash", "asset-restore", "action", "action-cancel",
+                          "view", "source", "source-retain", "source-remove", "source-restore", "asset-meta", "asset-trash", "asset-restore", "action", "action-cancel",
                           "population-correct"})
 
 
@@ -635,6 +635,7 @@ async def _handle(app, client: Client, message: dict) -> None:
     reply: dict = {"type": "result", "for": kind, "requestId": message.get("requestId")}
     handler = COMMANDS.get(kind)
     before = activity.before_command(app, kind, message) if kind in USER_ACTIONS else None
+    source_asked = app.day.here() if kind == 'source-retain' else None
     try:
         if handler is None:
             reply.update(ok=False, error=f"unknown command {kind}")
@@ -657,7 +658,7 @@ async def _handle(app, client: Client, message: dict) -> None:
                            "args": {k: v for k, v in message.items() if k not in ("type", "requestId")
                                     and isinstance(v, (str, int, float, bool)) and len(str(v)) <= 120}})
         try:  # and in Activity, in plain words (activity.py)
-            activity.command(app, kind, message, reply, before)
+            activity.command(app, kind, message, reply, before, asked=source_asked)
         except Exception:
             pass
     if reply.get("ok") is False:
@@ -2924,14 +2925,16 @@ async def source(app, client, msg) -> dict:
             if app.day.sid != sid or app._source_selection != selection:
                 raise tools.ToolError('That source selection was superseded', next=None)
             previous = app.day.on_stage
+            from .door import actor as source_actor
+            source_by = source_actor.current() or 'user'
             if prepared is not None:
                 try:
-                    app.day.open_source(target, retained=asset.exact_reference())
+                    app.day.open_source(target, by=source_by, retained=asset.exact_reference())
                 except (ValueError, OSError) as error:
                     raise tools.ToolError('The source opened, but its history could not be saved',
                                           next='check Project storage and choose the source again before analyzing') from error
             else:
-                app.day.open_source(target)
+                app.day.open_source(target, by=source_by)
             await app.stage_changed(asset)
             app.hold_until_landed(False)
         return {"ok": True, "onStage": target, "previous": previous, **({"title": asset.title_now()} if asset else {})}
@@ -2939,6 +2942,22 @@ async def source(app, client, msg) -> dict:
         if prepared is not None and prepared not in stage_media.held:
             await asyncio.to_thread(prepared.close)
 
+
+
+@command('source-retain')
+async def source_retain(app, client, msg) -> dict:
+    """Owner's explicit Add material; copying does not select or navigate the Stage."""
+    from .project_source_intake import retain
+    import uuid
+    sid = msg.get('session')
+    if sid != app.day.sid:
+        raise tools.ToolError('That Project is no longer open', next=None)
+    try:
+        result = await retain(app, sid, str(msg.get('asset') or ''), str(msg.get('requestId') or uuid.uuid4().hex))
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next='check the source and Project storage, then add the material again') from error
+    app.broadcast_sources(await app.session_sources(sid))
+    return result
 
 
 @command("source-remove")

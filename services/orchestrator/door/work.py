@@ -168,6 +168,7 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
     made = app.new_session(f"{label}: {path.stem}"[:80], by="agent")
     sid = made["session"]
     _remember_project(app, sid, record["by"])
+    await commands.source_retain(app, None, {'asset': asset.id, 'session': sid, 'requestId': record['id']})
     await commands.source(app, None, {"open": asset.id, "session": sid})
     for _ in range(100):
         staged = getattr(app.hub, "stage_meta", None) or {}

@@ -581,11 +581,12 @@ class SessionStore:
         if not aid:
             return
         before = set(self.removed_sources)
-        if op == "opened":
+        if op in ("opened", "retained"):
             self.sources.pop(aid, None)
             self.sources[aid] = at  # newest last
             self.removed_sources.discard(aid)
-            self.on_stage = aid
+            if op == 'opened':
+                self.on_stage = aid
             if isinstance(e.get('retained'), dict):
                 self.source_references[aid] = dict(e['retained'])
         elif op == "removed" and aid != "live":
@@ -613,6 +614,18 @@ class SessionStore:
             reference(retained, self.sid)
         self._record({"type": "source", "asset": aid, "op": "opened", "by": by,
                       **({'retained': dict(retained)} if retained is not None else {})}, strict=retained is not None)
+
+    def retain_source(self, aid: str, retained: dict, *, session: str, by: str) -> None:
+        """Associate copied material without moving the Stage or rewriting old bindings."""
+        from ..project_stage_media import reference
+        reference(retained, session)
+        with self._filing(session) as store:
+            if store.sid != session:
+                raise ValueError('The source destination Project is unavailable')
+            if store.source_references.get(aid) == retained and aid not in store.removed_sources:
+                return  # request-key retry: no duplicate history
+            store._record({'type': 'source', 'asset': aid, 'op': 'retained',
+                           'retained': dict(retained), 'by': by}, strict=True)
 
     def record_layer(self, eid: str | None) -> None:
         """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding

@@ -2134,9 +2134,11 @@ class App:
     async def put_on_stage(self, aid: str) -> dict:
         """One of the user's assets on stage, as the studio's Add does (the `source` command, held at its start): it is
         the session's from then on (ADR 0022's amendment). The library's add_asset tool."""
-        from .commands import source
+        from .commands import source, source_retain
 
-        return await source(self, None, {"open": aid, "paused": True})
+        sid = self.day.sid
+        await source_retain(self, None, {'asset': aid, 'session': sid})
+        return await source(self, None, {"open": aid, "paused": True, 'session': sid})
 
     async def open_page(self, client, page: str, timeout: float = 4.0) -> dict | None:
         """Ask the studio that made the request (every studio when none did) to open a page ("#models/<id>") and wait for

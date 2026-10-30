@@ -327,6 +327,7 @@ COMMANDS = {
     "view": "none: the studio covers the live view to look back at a session, or shows it again (no looks meanwhile)",
     # A session's sources (library.py, sources.py; ADR 0022): kept in the session's journal and the library's file.
     "source": "asset",
+    "source-retain": "asset",
     "source-remove": "none: takes an asset out of the session (its journal); the library keeps it",
     "source-restore": "none: puts a removed asset back in the session (its journal)",
     "asset-meta": "none: the user's fields of an asset, kept in the library (library.jsonl)",

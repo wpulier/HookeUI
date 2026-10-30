@@ -295,11 +295,12 @@ class Catalogue:
                 info.specimens.append(str(e["name"]))
         elif kind == "source" and e.get("asset"):
             aid, before = str(e["asset"]), set(info.removed_sources)
-            if e.get("op") == "opened":
+            if e.get("op") in ("opened", "retained"):
                 info.sources.pop(aid, None)
                 info.sources[aid] = at
                 info.removed_sources.discard(aid)
-                info.on_stage = aid
+                if e.get('op') == 'opened':
+                    info.on_stage = aid
                 if isinstance(e.get('retained'), dict):
                     info.source_references[aid] = dict(e['retained'])
             elif e.get("op") == "removed" and aid != "live":

@@ -1,4 +1,5 @@
 import {selectObservedWorkspaceInput} from './workspace-input';
+import { SourceIntake } from './source-intake';
 import { scientificAskSelection } from './scientific-ask-input';
 import { ActivityNavigation, type ActivitySurface } from './workspace-study-navigation';
 import { workspaceInput } from './workspace-views-model';
@@ -411,12 +412,18 @@ const sideResearchers = new ResearcherCards((rid) => { shelf.markOpened(rid); op
 let studyActionOwner: string | null = null;
 let studyTransition = false;
 let studyInputNavigation:((source:string,title:string,session:string,position:number)=>Promise<boolean>)|null=null;
+const sourceIntake = new SourceIntake(() => sessionsModel.current,
+  (asset,session) => connection.request('source-retain',{asset,session}, `material-${crypto.randomUUID()}`), () => openToken);
 /** User choices open a dedicated work Tab; internal restoration still uses putOnStage. */
 async function openUserInput(target:string,options:{asset?:AssetMeta;at?:number;paused?:boolean;session?:string;say?:(text:string)=>void}={}):Promise<boolean>{
-  if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,options);
+  const session=options.session??sessionsModel.current;
   try{
+    if(sessionsModel.opening())throw new Error('Wait for this Project to finish opening.');
+    if(!await sourceIntake.prepare(target,session,!!options.asset?.retained))return false;
+    if(sessionsModel.opening())return false;
+    if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,{...options,session});
     if(!studyInputNavigation)throw new Error('Wait for the workspace to finish opening.');
-    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',options.session??sessionsModel.current,options.at??0);
+    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',session,options.at??0);
   }catch(error){showHint(error instanceof Error?error.message:String(error),true);return false;}
 }
 const studySessionSwitch = new StudySessionSwitch();

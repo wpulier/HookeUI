@@ -900,6 +900,9 @@ def _command_text(app, kind: str, msg: dict, reply: dict, label: str | None) -> 
         return f"You put “{_cut(reply.get('title') or msg.get('open'), 60)}” on stage"
     if kind == "source-remove":
         return f"You took “{_cut(reply.get('title') or msg.get('asset'), 60)}” out of this session"
+    if kind == 'source-retain':
+        return (f"You copied “{_cut(reply.get('title') or msg.get('asset'), 60)}” into this Project"
+                if reply.get('storage') == 'project' else None)
     if kind == "source-restore":
         return f"You put “{_cut(reply.get('title') or msg.get('asset'), 60)}” back in this session"
     if kind == "asset-meta":
