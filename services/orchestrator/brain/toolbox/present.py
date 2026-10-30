@@ -1550,12 +1550,41 @@ SAME_TWICE = ("front", "move", "resize", "pan", "hide", "restore", "opacity")
 NOT_SHOWN_YET = ("CONFIRM_TIMEOUT", "TOPOLOGY_MISMATCH", "VERIFICATION_UNAVAILABLE", "DISPLAY_UNVERIFIED")
 
 
+async def _its_tab_in_front(services, ctx, reference) -> None:
+    """Front on a window laid out on a Tab not in front (a Project reopened with it on another Tab): its Tab is
+    brought forward first, the person's own Tab click, so the window can come to the front where they look. A window
+    the report does not place on a Tab, or one already on the Tab in front, is left to front as it is."""
+    from ...placement import strip
+    from ...screen import screen_of
+
+    broker = getattr(services, "workspace_tabs", None)
+    if broker is None:
+        return
+    try:
+        iid = _window_ref(ctx, reference)
+    except ToolFailed:
+        return  # the action itself says what was wrong with its window reference
+    screen = screen_of(services.hub)
+    observed = screen.observation(ctx.client) if getattr(ctx, "client", None) is not None else None
+    wire = observed.wire() if observed is not None else None
+    row = next((i for i in (wire or {}).get("items") or () if i.get("id") == iid), None)
+    tab = (((row or {}).get("view") or {}).get("arrangement") or {}).get("tab")
+    front = strip(wire).get("tab")
+    if not tab or not front or tab == front:
+        return
+    await broker(ctx, {"action": "switch", "tab": str(tab)})
+    if callable(getattr(screen, "refresh", None)):
+        await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
+
+
 async def _native_settled(services, ctx, args):
     """A native window change, sent once more by Hooke when the screen did not show it the first time (SAME_TWICE,
     NOT_SHOWN_YET); a second miss is said as what the screen shows, with nothing for the user to repeat."""
     from ...screen import screen_of
     from ..registry import CURRENT_RUN
 
+    if args.get("do") in ("front", "restore"):
+        await _its_tab_in_front(services, ctx, args.get("instance", args.get("what")))
     try:
         return await _native_present(services, ctx, args)
     except ToolFailed as first:

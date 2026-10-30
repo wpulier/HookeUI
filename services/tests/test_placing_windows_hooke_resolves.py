@@ -87,6 +87,59 @@ def test_front_nested_is_not_confirmed_while_another_window_on_the_tab_is_still_
     asyncio.run(go())
 
 
+
+def test_front_on_a_window_on_a_tab_not_in_front_brings_its_tab_forward_first(tmp_path, monkeypatch):
+    """A Project reopened with the photo on Main while another Tab is in front: front on it brings Main forward (the
+    person's own Tab click) and then the window, confirmed; never a timeout handed to the user."""
+    monkeypatch.setattr(screen_mod, 'CONFIRM_S', 1.0)
+    app, studio = built(tmp_path)
+    nested_in_the_project_workspace(monkeypatch, studio)
+    entry, _ = saved_picture(app)
+    shown = {'tab': 'reference'}
+    screen = COMMANDS['screen']
+
+    async def with_strip(app_, client, report):
+        if client is studio and isinstance(report, dict) and report.get('schema') == 'screen-observation-v2':
+            items = []
+            for item in report['items']:
+                item = {**item, 'view': {**(item.get('view') or {}), 'arrangement': {
+                    'project': 'p', 'tab': 'main', 'placement': 'p-' + item['id'], 'focused': False}}}
+                if shown['tab'] != 'main':  # laid out on Main, not shown while another Tab is in front
+                    item.update(visible=False, rect=[0, 0, 0, 0], contentRect=[0, 0, 0, 0], clipRect=[0, 0, 0, 0])
+                items.append(item)
+            report = {**report, 'items': [*items, {
+                'id': 'workspace-tabs', 'rootId': 'tabs-root', 'workspaceId': WORKSPACE, 'kind': 'panel',
+                'lifetimeGeneration': 'tabs-lifetime', 'sourceGeneration': 1, 'load': {'state': 'unknown'},
+                'revision': report['seq'], 'open': True, 'connected': True, 'visible': True,
+                'view': {'legacy': {'schema': 'studio-surface-v1', 'scope': 'dom-observation', 'workspace': {
+                    'project': 'p', 'tab': shown['tab'],
+                    'tabs': [{'id': 'main', 'title': 'Main', 'front': shown['tab'] == 'main'},
+                             {'id': 'reference', 'title': 'Reference', 'front': shown['tab'] == 'reference'}]}}}}]}
+        return await screen(app_, client, report)
+
+    switched = []
+
+    async def tabs(ctx, args):
+        assert args == {'action': 'switch', 'tab': 'main'}, args
+        switched.append(args['tab'])
+        shown['tab'] = 'main'
+        await studio.send_report()
+        return {'ok': True, 'tabs': [{'id': 'main', 'title': 'Main', 'selected': True}]}
+
+    async def go():
+        photo, _, _ = await open_window(app, entry)
+        other, _, _ = await open_window(app, entry)
+        monkeypatch.setitem(COMMANDS, 'screen', with_strip)
+        monkeypatch.setattr(app.brain.services, 'workspace_tabs', tabs)
+        await studio.send_report()
+        runs, _ = await plan(app, [('present', {'do': 'front', 'instance': {'instanceId': photo}})])
+        succeeded(runs[0])
+        assert switched == ['main'], 'its Tab was brought forward first'
+        assert len([m for m in studio.messages if m.get('op') == 'front']) == 1, 'confirmed the first time'
+        assert runs[0].outcome['status'] == 'confirmed', runs[0].outcome
+    asyncio.run(go())
+
+
 # --- a Tab name already taken (will-workspace "new-tab", run 3) ---------------------------------------------------------
 
 async def in_one_request(app, studio, calls):
