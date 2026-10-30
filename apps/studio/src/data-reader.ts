@@ -321,6 +321,8 @@ export const readerMark = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset'>)
 
 /** What the reader needs from the workspace (workspace-study.ts gives it). */
 export interface ReaderDeps {
+  /** Metadata already present in this Project's index; never substitutes for an exact report read. */
+  retainedEntry?(ref: {id: string; day: string; version: number}): ReaderEntry | null;
   researchers(): { rid: string; name: string; day?: string; status?: string }[];
   working(rid: string): boolean;
   method(entry: ReaderEntry): string;
@@ -892,7 +894,13 @@ export class DataReader {
         let signature: string | undefined;
         this.refreshMaterial = (latest) => {
           this.loaded.kind = latest.material ? kindWord(latest) : 'File';
-          const next = JSON.stringify([latest.material?.inspection, latest.material?.shape]);
+          const reports = (latest.material?.inspection?.reports ?? []).map(report => {
+            const candidate = this.deps.retainedEntry?.({id: report.id, day: report.session, version: report.revision});
+            const retained = candidate?.id === report.id && candidate.day === report.session
+              && candidate.version === report.revision && candidate.source?.sha256 === report.digest ? candidate : null;
+            return {report, caption: retained ? byLine(retained, makerOf(retained, this.deps.researchers()), '') : ''};
+          });
+          const next = JSON.stringify([latest.material?.inspection, latest.material?.shape, reports]);
           if (next === signature) return;
           signature = next;
           const previous = body.querySelector<HTMLDetailsElement>('.rd-material-inspection');
@@ -905,10 +913,16 @@ export class DataReader {
             details.append(el('summary', '', inspection.status === 'conflicting' ? 'Inspection reports disagree' : 'Recorded matrix inspection'));
             if (inspection.status === 'reported' && latest.material?.shape)
               details.append(el('p', 'rd-note', `${latest.material.shape.map(n => n.toLocaleString()).join(' × ')} · AnnData. Dimensions come from the retained inspection report.`));
-            for (const report of inspection.reports) {
+            for (const [index, {report, caption}] of reports.entries()) {
               if (report.session !== ref.day) continue;
-              const button = el('button', 'mm-control', `Open inspection · revision ${report.revision}`);
+              const button = el('button', 'rd-inspection-link');
               button.type = 'button';
+              const words = el('span', 'rd-inspection-words');
+              words.append(el('strong', '', `Inspection ${index + 1}`),
+                el('span', 'rd-inspection-caption', [caption, `Revision ${report.revision}`].filter(Boolean).join(' · ')));
+              const arrow = el('span', 'rd-inspection-arrow', '↗'); arrow.setAttribute('aria-hidden', 'true');
+              button.append(words, arrow);
+              button.title = `Open retained inspection ${report.id}, revision ${report.revision}`;
               button.addEventListener('click', () => { void open({id: report.id, version: report.revision, digest: report.digest, title: 'Matrix inspection'}).catch(error => {
                 if (!signal.aborted) details.append(el('p', 'rd-note', error instanceof Error ? error.message : 'The retained inspection could not be opened.'));
               }); });

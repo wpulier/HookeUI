@@ -1233,3 +1233,9 @@ external dependencies; failure/cancellation preserve incomplete destinations.
 
 
 Project folder copies attempt descriptor-based macOS copy-on-write before streaming. Unsupported filesystems use the original byte-copy path; permission, disk and I/O errors retain an incomplete destination. Every member still has an independent inode, normalized permissions, fsync and independent source/destination hash checks. Conservative full-byte space admission remains unchanged because future copy-on-write edits may allocate blocks. This optimizes folder copying, not dependency closure.
+
+Folder snapshot verification reads every journal-accepted dataset-table, analysis and graph revision through table_reading.read_accepted using only the captured Project artifact roots. Missing, changed, foreign or unsupported numeric history refuses a new seal; verification does not run evaluators or rewrite history. Complete external-source collection remains separate.
+
+Accepted numeric reads reuse the retained-output descriptor reader: bounded regular-file reads, no descendant symlinks, change detection and cancellation between chunks. They never block opening a FIFO or reinterpret stored settings.
+
+Dependency review reports an optional observedRevision for successfully resolved execution locators, with exact captured Project/id/revision/digest. The original unpinned-execution-locator issue remains; current resolution is not historical evidence. External, missing, malformed and digest-mismatched links never gain that observation. No accepted document is rewritten.

@@ -2023,3 +2023,5 @@ Reveal read actual operation receipts. No UI labels this as complete collection.
 Project menu input counts use the server's shared material membership, including
 historical selections. `sourcesIncomplete` means the shown count is partial; keep
 that qualification when merging live session counters into the catalogue row.
+
+Matrix inspection links are distinct compact rows. Author and save time come only from an exact same-Project/id/revision/hash match in the existing inventory; missing or mismatched metadata stays absent. Opening still fetches the pinned report into its own Tab, without extra preview requests or execution.
