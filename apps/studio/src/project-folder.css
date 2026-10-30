@@ -17,3 +17,21 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-folder button.study-primary:hover { background: var(--mm-accent-fill-hover); }
 .project-folder button:focus-visible, .project-folder summary:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 3px; }
 .project-folder button:disabled { cursor: default; opacity: .5; }
+
+.project-export { border-top: 1px solid var(--mm-line); padding-top: 18px; display: grid; gap: 12px; }
+.project-export h3 { margin: 0; font-size: 15px; }
+.project-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.project-export .project-folder-path { margin-top: 10px; font-size: 12px; color: var(--mm-text-2); }
+.project-collection-review { margin-top: 14px; display: grid; gap: 8px; }
+.project-collection-limit { color: var(--mm-text-2); }
+.project-collection-review ul { margin: 12px 0; padding: 0; list-style: none; }
+.project-collection-review li { padding: 10px 0; border-bottom: 1px solid var(--mm-line); overflow-wrap: anywhere; }
+.project-collection-review li p { font-size: 12px; }
+.project-collection-pages { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.project-collection-pages[hidden] { display: none; }
+.project-open label { display: grid; gap: 10px; margin: 24px 0 12px; font-size: 14px; }
+.project-open input { min-width: 0; width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid var(--mm-line-strong); border-radius: 10px; background: var(--mm-raise); color: var(--mm-text); font: inherit; }
+.project-open input:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 2px; }
+.project-open .project-folder-name { font-size: 13px; line-height: 1.5; }
+.project-open .project-open-relocate { display: flex; align-items: center; gap: 10px; margin: 14px 0 8px; }
+.project-open .project-open-relocate input { width: 16px; height: 16px; padding: 0; accent-color: var(--mm-accent-fill); }

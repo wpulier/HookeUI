@@ -4,7 +4,7 @@ The host keeps writer leases until it shuts down. A saved locator never grants
 access; the door still authorizes actors separately. Missing portable locations
 refuse rather than recreating empty research under the old sessions directory.
 """
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 import threading
 
@@ -85,6 +85,22 @@ class ProjectLocations:
                     verify_owner(root)
                     self._held.enter_context(acquiring.pop_all())
                     self._leases[root.origin] = lease
+
+    @contextmanager
+    def registration_publication(self):
+        """Fence only final locator publication; evidence verification stays off-loop."""
+        with self._lock:
+            self._check()
+            yield
+
+    @contextmanager
+    def relocation_publication(self, root):
+        """A missing old path cannot erase this host's still-admitted writer."""
+        with self._lock:
+            self._check()
+            if root.origin in self._leases:
+                raise ProjectLocationError('This Hooke host still owns the original Project writer. Close the host before changing its location.')
+            yield
 
     def check_writer(self, root):
         """Confirm a captured host lease without allocating or changing authority."""

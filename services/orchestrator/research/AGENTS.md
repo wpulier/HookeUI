@@ -506,3 +506,9 @@ legacy Projects retain their existing execution behavior. Shared acquisitions an
 global description caches are not yet collected by this adapter.
 
 Study evidence reads its original workflow receipts from one bounded Project inventory scan per request. The same workflow status derivation and observed driver ownership serve individual and batch reads; no persistent status cache or dispatch is added. Missing runs remain interrupted admissions, and unreadable records prevent a false completion claim.
+# Portable copy verification
+
+Folder sealing verifies current and archived researcher metadata against their
+Project/date/researcher identity, content-addressed archive names and retained
+finding payload digests. Pending publication refuses. Verification starts no
+manager or provider and does not qualify complete external dependency collection.

@@ -3169,6 +3169,25 @@ async def sessions_reveal(app, client, msg) -> dict:
     return {"ok": True, "path": str(folder)}
 
 
+@command('project-open-folder')
+async def project_open_folder(app, client, msg) -> dict:
+    """Owner-selected working folder; never exposed through the agent door."""
+    from .project_launch import register_owner_folder
+    day, generation = app.day, app.day.generation
+    if msg.get('session') != day.sid:
+        raise tools.ToolError('The Project changed.', next='open the folder again from the current Project')
+    try:
+        root = await asyncio.to_thread(register_owner_folder, app.paths, day.locations, msg.get('path'),
+                                       use_location=msg.get('useLocation', False))
+    except (OSError, ValueError) as error:
+        raise tools.ToolError(str(error), next='keep the original folder and choose an available working Project') from error
+    # Registration is durable even if navigation changed while verification ran.
+    # The UI decides whether it can leave its current edits; no stage moves here.
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin,
+            'name': root.name, 'location': str(root.path)},
+            'current': app.day is day and day.current(generation)}
+
+
 @command('project-storage')
 async def project_storage(app, client, msg) -> dict:
     """The owner's current-Project inspector shares the connector's location facts."""
@@ -3200,6 +3219,83 @@ async def project_reveal(app, client, msg) -> dict:
         return {'ok': False, 'path': folder, 'error': 'Open this location in your file manager.'}
     subprocess.Popen(['open', '-R', folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return {'ok': True, 'path': folder}
+
+
+@command('project-export-prepare')
+async def project_export_prepare(app, client, msg) -> dict:
+    from .project_export import prepare
+    from .door.schema import check
+    day, generation, session = app.day, app.day.generation, msg.get('session')
+    if session != day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    value = await asyncio.to_thread(prepare, day, session)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    check(value, 'project-export-plan')
+    return {'ok': True, 'export': value}
+
+
+@command('project-export')
+async def project_export(app, client, msg) -> dict:
+    from .project_export import export, owned_export
+    from .door.schema import check as validate
+    day, session = app.day, msg.get('session')
+    if session != day.sid or msg.get('acknowledgeIncomplete') is not True:
+        raise tools.ToolError('Review this Project’s export scope first.', next='reopen Project folder and review the copy')
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Project export stopped before publication')
+        def perform():
+            value = export(day, session, record['id'], acknowledge_incomplete=True, check=check)
+            validate(value, 'project-export')
+            return {'export': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Copying and verifying saved Project files')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.export',
+        project=session, input_revision=None, generation='project-folder-snapshot-v1',
+        params={'acknowledgeIncomplete': True}, request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_export_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg.get('session') or record['tool'] != 'project.export':
+        raise tools.ToolError('This is not an export from this Project.', next='open the Project that owns the export')
+    return record
+
+
+@command('project-export-status')
+async def project_export_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_export_operation(app, msg)}
+
+
+@command('project-export-reveal')
+async def project_export_reveal(app, client, msg) -> dict:
+    import subprocess
+    import sys
+    from .project_export import reveal_path
+    record = _project_export_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('export')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('This export has not completed.', next='wait for its saved completion receipt')
+    day, generation = app.day, app.day.generation
+    path = await asyncio.to_thread(reveal_path, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': str(path), 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': str(path)}
+
+
+@command('project-export-stop')
+async def project_export_stop(app, client, msg) -> dict:
+    record = _project_export_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
 
 
 # --- researchers --------------------------------------------------------------------------------

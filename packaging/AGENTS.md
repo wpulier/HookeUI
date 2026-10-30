@@ -1,3 +1,5 @@
+The origin-checked hookeFolder bridge also offers choose-project: the native directory panel returns only the owner-selected path, with no implicit snapshot, registration or authority. The existing owner service verifies the folder when Open is requested.
+
 # The Mac app and its releases
 
 HookeUI.app is how people get this app: a signed, notarized dmg that runs the studio on a Mac with no developer tools

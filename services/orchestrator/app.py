@@ -1956,31 +1956,40 @@ class App:
                 out[session.sitting] = out.get(session.sitting, 0) + 1
         return out
 
-    def scientific_inputs(self) -> dict[str, int]:
-        """Each session's scientific inputs (imported files and folders, scientific_projects.ProjectStore). Reads the
-        store: off the event loop (`sessions_message`)."""
-        projects = getattr(getattr(self.hub, "resources", None), "projects", None)
-        try:
-            return projects.inputs_by_session() if projects is not None else {}
-        except OSError:
+    def material_input_adjustments(self, infos) -> dict:
+        """Off-loop canonical inventory projection, scanning each backing store once."""
+        from .project_material import additional_inputs, attach_usage
+        index = getattr(self.hub, "resources", None)
+        if index is None or index.projects is None:
             return {}
+        groups = index.projects.scan_sessions(info.id for info in infos)
+        result = {}
+        for info in infos:
+            saved, problems = groups[info.id]
+            entries = [index.project_entry(item) for item in saved]
+            unreadable = [*problems, *attach_usage(entries, index.projects)]
+            result[info.id] = {'additional': additional_inputs(entries, info),
+                               'incomplete': bool(unreadable)}
+        return result
 
     def sessions_wire(self, infos=None, working: dict | None = None, inputs: dict | None = None) -> dict:
         """Every session, the most recently used first (protocol.ts SessionsList): each the catalogue's own row
         (day/catalogue.py: what Made in this session lists, its researchers, its conversations) with the researchers
-        working in it now. Its inputs are the library's opened sources and its scientific inputs (F-L8-6: a project
-        holding only imported scientific files said "0 inputs"). Reads the journals and the scientific store: off the
+        working in it now. Its inputs use the shared material selections, including Study assignments and pinned
+        dependencies, plus journal sources not already represented by an exact retained input. Reads off the
         event loop (`sessions_message`)."""
         infos = self.day.catalogue.list() if infos is None else infos
         working = self.working_by_session() if working is None else working
-        inputs = self.scientific_inputs() if inputs is None else inputs
+        inputs = self.material_input_adjustments(infos) if inputs is None else inputs
         rows = []
         for info in infos:
             row = {**info.wire(), "working": int(working.get(info.id, 0))}
             if info.id == self.day.sid:  # the open session's, as its own wire counts it (held footage too)
                 row["counts"] = self.subjects.counts(info)
             if inputs.get(info.id):
-                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]}
+                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]['additional']}
+                if inputs[info.id]['incomplete']:
+                    row["counts"]['sourcesIncomplete'] = True
             rows.append(row)
         # Where every Project is saved on this Mac, said with ~ (thesis question 12: the Projects page and Help say it).
         root = str(self.paths.sessions).replace(str(Path.home()), "~", 1)
@@ -1989,7 +1998,10 @@ class App:
     async def sessions_message(self) -> dict:
         """The sessions list, its journals and scientific inputs read in a thread."""
         working = self.working_by_session()
-        infos, inputs = await asyncio.to_thread(lambda: (self.day.catalogue.list(), self.scientific_inputs()))
+        def read():
+            infos = self.day.catalogue.list()
+            return infos, self.material_input_adjustments(infos)
+        infos, inputs = await asyncio.to_thread(read)
         return self.sessions_wire(infos, working, inputs)
 
     def hold_until_landed(self, held: bool, expires: bool = True) -> None:

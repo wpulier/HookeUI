@@ -82,7 +82,8 @@ class SessionStore:
         prefs.migrate(upto=today(clock))
         catalogue = Catalogue(Journal("", root).root, locations=locations)
         sid = prefs.current
-        if not (sid and sids.is_sid(sid) and ((locations.root_for(sid) if locations is not None else catalogue.root) / sid / sids.JOURNAL).is_file()):
+        selected = catalogue.get(sid) if sid and sids.is_sid(sid) else None
+        if selected is None or selected.unavailable is not None:
             last = catalogue.last_used()
             sid = last.id if last is not None else today(clock)
         store = cls(root, clock, session=sid, prefs=prefs, catalogue=catalogue, locations=locations)

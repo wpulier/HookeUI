@@ -1,4 +1,5 @@
 import { organizeMaterial } from './material-organization';
+import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
@@ -15,7 +16,7 @@ import { mountAppUpdates } from './app-updates';
 import { agentConnections } from './agent-connections';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, projectRowWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, inputCountWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -1239,19 +1240,37 @@ function renderSessionBrowser():void {
   appMenu.refresh();
 }
 /** A Project's row in Recent projects: when it was last used and its inputs, so rows that share a name differ. */
-function projectNote(row:{lastActive:number;counts?:{sources?:number}}):string{
+function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesIncomplete?:boolean}}):string{
   const now=Date.now()/1000,when=daysAgo(row.lastActive,now)===0?new Date(row.lastActive*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):monthDay(row.lastActive,now);
-  const inputs=row.counts?.sources??0;
-  return `${when} · ${inputs} input${inputs===1?'':'s'}`;
+  return `${when} · ${inputCountWords(row.counts)}`;
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
+  openProjectFolder: () => {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
+      open: async (path, useLocation) => {
+        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
+        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
+        return reply.project;
+      },
+      navigate: session => changeSession(session),
+    });
+  },
   projectFolder: () => {
     const owner = workspaceViews.tabOwner();
     if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
     const row = snapshot.projects.find(item => item.id === owner.session);
     openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
       current: () => inputOwnerCurrent(owner) && !switching,
+      exportActions: {
+        prepare: async () => { const r = await bridge.request('project-export-prepare', {session: owner.session}); if (!r.export) throw new Error('Export preparation is unavailable.'); return r.export; },
+        start: async requestKey => { const r = await bridge.request('project-export', {session: owner.session, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Export admission was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-export-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Export status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+        reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
+      },
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});

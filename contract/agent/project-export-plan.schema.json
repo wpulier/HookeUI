@@ -1,0 +1,68 @@
+{
+  "$id": "hooke:agent/project-export-plan",
+  "type": "object",
+  "required": [
+    "session",
+    "origin",
+    "scope",
+    "files",
+    "bytes",
+    "collection",
+    "requiredFreeBytes",
+    "dependencyReview",
+    "sourceReview"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "scope": {
+      "enum": [
+        "project-folder"
+      ]
+    },
+    "files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "state",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "unverified"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "requiredFreeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "dependencyReview": {
+      "type": "object"
+    },
+    "sourceReview": {
+      "$ref": "project-source-review.schema.json"
+    }
+  }
+}

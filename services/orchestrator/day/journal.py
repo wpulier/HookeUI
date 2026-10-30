@@ -36,20 +36,20 @@ class Journal:
         """The session id, by its old name (one session per day until sessions are many)."""
         return self.sid
 
-    def append(self, event: dict) -> dict:
+    def append(self, event: dict, *, durable=False) -> dict:
         if not self._owns_project:
-            return self._append(event)
+            return self._append(event, durable=durable)
         if self._admitted_inode is not None:
             # Import never rewrites an already admitted owner journal. Keep its live events durable while
             # unrelated new owners are staged, without granting access to an uncommitted imported journal.
-            return self._append(event, admitted=True)
+            return self._append(event, admitted=True, durable=durable)
         from .ownership import namespace
         with namespace(self.root):
             from ..scientific_import_transaction import require_visible
             require_visible(self.root)
-            return self._append(event)
+            return self._append(event, durable=durable)
 
-    def _append(self, event: dict, *, admitted=False) -> dict:
+    def _append(self, event: dict, *, admitted=False, durable=False) -> dict:
         record = {"at": round(time.time(), 3), **event}
         line = json.dumps(record, ensure_ascii=False)
         if admitted:
@@ -88,12 +88,15 @@ class Journal:
                     f.write("\n")  # a line torn by a crash: end it, so this event is a line of its own
             f.write(line + "\n")
             f.flush()
-            if created:
+            if created or durable:
                 os.fsync(f.fileno())  # the immutable origin must survive once creation returns
             observed = os.fstat(f.fileno())
             self._admitted_inode = (observed.st_dev, observed.st_ino)
-        if created:
-            for folder in (self.path.parent, self.root):
+        if created or durable:
+            # A prior directory-sync failure may leave visible but uncommitted
+            # entries. Strict retries reconfirm the complete enclosing path.
+            folders = (self.path.parent, *self.path.parent.parents) if durable else (self.path.parent, self.root)
+            for folder in folders:
                 fd = os.open(folder, os.O_RDONLY)
                 try:
                     os.fsync(fd)

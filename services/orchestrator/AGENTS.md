@@ -1,3 +1,7 @@
+Owner project-open-folder accepts strict boolean useLocation for a known origin only. It reuses inactive registry replacement with full history verification, both writer locks and the short publication guard. Local grants and accepted bytes are unchanged; unknown origins and conflicting legacy owners refuse.
+
+Owner `project-open-folder` registers a selected working folder through project_launch.register_owner_folder off the event loop. It does not navigate, import access or replay work. Studio uses its ordinary unsaved-work navigation afterward; late completion never changes the workspace. This path-bearing owner command is excluded from the agent door.
+
 # The orchestrator
 
 Owner commands `project-storage` and `project-reveal` capture the current Project
@@ -1220,3 +1224,10 @@ Project folder estimates include bounded historical source-event preflight. Remo
 Library sources remain dependencies; live camera and prose do not become file links.
 Exact retained choices are scoped by origin, with missing inclusion explicit. This
 reads no host Library and does not certify all media/journal dependencies collected.
+
+Owner Project-folder export commands use the same snapshot service and original
+Operations records as connected contributors. Preparation is read-only and scoped
+to the captured Project; starting captures the requested owner before background
+work. Navigation does not retarget admitted copying. Status/Stop read/control only
+that Project's export operations. Completed copies remain explicitly unverified for
+external dependencies; failure/cancellation preserve incomplete destinations.

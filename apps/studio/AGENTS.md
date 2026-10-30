@@ -1,4 +1,15 @@
+Open Project keeps moved-folder recovery in a disclosure. “Use this location” is opt-in and sent to the same owner command; errors preserve the path and choice. It does not grant access or bypass normal unsaved-work navigation.
+
+Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.
+
+Open Project folder in the Project menu accepts a local folder path. Registration and navigation are separate: the ordinary Project switch checks unsaved work, and closing/changing workspace during verification prevents late navigation. Failed registration preserves the typed path. Native picker and read-only/copy choices remain separate qualification gates.
+
 Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.
+
+The folder export review shows the server's inspected historical revision counts,
+unresolved declared relationships and historical media inclusion needs. Details are
+paged and literal. Zero reported issues is not complete dependency collection;
+shared recordings and unassessed external dependencies remain explicitly unverified.
 
 The Project menu's **Project folder** inspector uses the same `project-storage`
 projection as the connector. It captures the Project opening, discards late reads
@@ -2104,3 +2115,14 @@ revision and digest. That single row keeps material organization and authorship,
 source preview and Open in Tab. Separate imports or revisions remain separate even
 when their names or bytes match. Late inventory refresh recomputes the join; source
 rows remain available while retained inventory is unavailable.
+
+Project folder also offers an explicitly partial folder snapshot: preparation shows
+size and unverified dependency scope, then an explicit Export this partial copy
+starts the shared tracked operation. Lost admission replies reuse one request key;
+closing/navigation stops polling without cancelling admitted work. Reopening recovers
+the locally remembered operation ID (a locator, never authority). Progress, Stop and
+Reveal read actual operation receipts. No UI labels this as complete collection.
+
+Project menu input counts use the server's shared material membership, including
+historical selections. `sourcesIncomplete` means the shown count is partial; keep
+that qualification when merging live session counters into the catalogue row.

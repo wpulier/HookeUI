@@ -1,3 +1,7 @@
+Owner relocation tests exercise moved working folders, unchanged grants/history, both-copy writer exclusion, unknown origins and malformed choices. The synthetic dialog test retains the explicit choice after refusal. These are distinct from an actual browser relocation journey.
+
+test_project_open_command uses synthetic retained Projects with real stores to qualify owner-only registration without navigation or grants, stale requests and disabled-host refusal. project-open.test.ts checks synthetic dialog retries, close/navigation races and delegation to normal unsaved-work navigation. These tests do not establish native chooser or full collection acceptance.
+
 `test_project_source_preflight.py` uses synthetic journals and copied media over the
 real Project stores. It checks removed-source history, exact retained choices,
 origin mismatch, interrupted/changed journals and bounded refusal. This is source
@@ -809,3 +813,30 @@ supported-connector qualification or establish complete collection.
 journals, evidence readers and folder-copy admission. Historical manifest/file
 damage refuses even with a recomputed outer seal. This is retained-byte integrity,
 not biological accuracy, complete collection or an actual browser proof.
+
+`test_project_export.py` exercises shared preparation and tracked folder exports through
+real isolated stores/door transport with synthetic consent. It checks contributor
+authority, explicit partial scope, retries, navigation, cancellation ownership,
+linked destinations and disk refusal. `project-export.test.ts` checks the matching
+UI lifecycle with synthetic transport. Neither establishes complete collection,
+real connected-agent export or browser quality; record those separately.
+
+`test_project_owner_open` checks explicit owner startup on retained synthetic folders,
+accepted-history integrity, handle/permission collisions, writer refusal, snapshot
+immutability and no imported grants. Server-main argument/environment tests use a
+transport stand-in: they do not qualify the native chooser or full read-only UI.
+
+`test_project_historical_attribution` copies, restores and renames a synthetic Project through real immutable intake, then reads its shared resource maker with an empty host label cache. It checks preserved exact revisions/actor/label, host-cache isolation and legacy fallback. This is storage/index proof; actual portable browser authorship is recorded separately.
+
+# Retained researcher integrity
+
+`test_project_research_integrity.py` uses synthetic researcher output through real
+metadata publication and folder-copy verification. It checks archived bytes,
+finding digests, owner mismatch, incomplete publication, bounded cancellation and
+recomputed outer seals. This is storage evidence, not provider or complete-collection
+acceptance.
+
+Moved-folder resume regression reaches SessionStore.resume with its remembered
+location absent, checks an available fallback and offline listing, then explicitly
+relocates/reopens without shadow storage or replay. The red trace and actual
+isolated browser startup are recorded separately from synthetic checks.

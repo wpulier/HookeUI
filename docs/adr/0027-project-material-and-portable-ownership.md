@@ -18,6 +18,13 @@ Migration is explicit: inventory, space estimate, settle work, copy, verify, reo
 
 ## Delivery and proof
 
+Folder-copy verification checks retained researcher metadata as well as scientific
+documents: archived metadata must match its content-addressed name, every record
+must retain its Project/researcher/date identity, and saved finding revisions must
+match their original payload digests. Incomplete publication refuses sealing.
+This neither qualifies provider execution nor establishes closure of external
+research dependencies; original files and failed copies remain available for recovery.
+
 1. Shared inventory and Inputs/Data/Activity repair over current storage.
 2. Root resolver, manifest, registry, writer lease and new-Project storage.
 3. Complete collection/opening, relocation, independent copies and transactional conversion.
@@ -446,3 +453,71 @@ original population, Project and revision. A new outer snapshot hash cannot bles
 corrupted accepted evidence. Legacy absolute locations require explicit collection;
 no filename guessing or fallback to another host's evidence folder is allowed.
 This extends integrity checking, not complete journal dependency coverage.
+
+
+### Explicit folder snapshot export
+
+Owner controls and contributing connections may request a snapshot of an already
+routed Project through the existing operation service. A read-only preparation
+reports the byte estimate and unresolved collection scope first. Export writes only
+a new host-selected destination under the configured Projects parent’s Exports
+folder; callers cannot provide a filesystem destination. No Project membership,
+credentials, grants, registry entries or running work are copied into authority.
+
+The snapshot retains its manifest and hashes and is immutable under the existing
+Project writer rules. This first export is explicitly a **folder snapshot with
+unverified external dependencies**, never a complete collected Project. Callers
+acknowledge that scope. Legacy Projects refuse until migration/collection exists.
+Retries recover a completed same-operation destination, never overwrite it; an
+incomplete destination remains for recovery and requires a new export request.
+UI and connector expose the same receipt and completeness meaning. Hosted services
+without local folders report explicit unavailability. Full collection stays a
+separate gate and is not inferred from a successful export.
+
+
+### Owner-selected working-folder opening
+
+A staged host may explicitly open an existing working Project folder at launch.
+This registers a new origin only after validating its journal and accepted evidence
+under the writer lease. A conflicting host handle, legacy owner or existing local
+agent-permission record refuses; historical author labels never become authority.
+A known origin at a different location still requires the separate inactive-location
+choice. An immutable snapshot first needs explicit working-copy restoration.
+
+Opening imports no credentials, grants or runtimes, never invokes retained work,
+and does not certify complete dependency collection. This operator launch seam
+qualifies restoration through the ordinary host; the native folder picker, read-only
+workspace mode and independent-copy UI remain separate product gates.
+
+
+### Owner Open Project control
+
+The existing Project menu can register an explicitly entered local working-folder
+path through the same owner registration service as startup. Registration verifies
+accepted history and conflicts before adding a locator; it never moves the Stage,
+imports grants, or launches work. The UI then uses ordinary Project navigation,
+including its unsaved-work checks. Closing the dialog or changing Projects while
+verification runs cannot cause late navigation. A registered folder remains in All
+Projects if navigation is declined. This owner command is deliberately unavailable
+to connected agents; they still need locally established Project access.
+
+The native shell supplies its origin-checked directory chooser; browser path entry
+uses the same owner admission. Neither entrance is snapshot restoration, read-only opening, independent-copy creation or legacy migration.
+Portable-mode activation remains an operator choice.
+
+## Historical attribution after relocation
+
+Resource makers use the label captured in an accepted agent import before any
+current host label. Reopening a Project without its old connections must preserve
+that recorded display name and stable actor ID. Reading a historical label never
+registers a connection, updates the host label cache, or grants access. Records
+without a retained label keep the existing host-label/unknown fallback.
+
+### Owner-selected location recovery in Studio
+
+Open Project may explicitly request “Use this location” for an origin already
+registered on this host. This reuses the registry's inactive-location transaction:
+verify retained history, refuse either active writer, and publish only the locator.
+The Project origin, accepted bytes and local grants stay unchanged. An unknown
+origin cannot use this mode or adopt historical permissions. Default opening still
+refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.

@@ -144,6 +144,8 @@ def runnable(tool_name: str) -> bool:
 DOOR_RESOURCES = {
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
+    'project.export.prepare': 'reads the byte estimate and unverified dependency scope of an authorized Project folder',
+    'project.export': 'contributor explicitly exports an immutable folder snapshot to a new host-selected location; no authority or completeness is inferred',
     'project.storage': 'reads location and collection facts for an authorized Project without moving files or granting access',
     'project.dependencies': 'inspects declared historical evidence dependencies in an authorized Project; never reads external Projects or claims complete collection',
     'project.read': 'reads the exact authorized Project and retained corpus index',
@@ -158,6 +160,11 @@ DOOR_RESOURCES = {
     'workflow.read': 'discovers reusable workflow definitions and capability contracts',
     'workflow.write': 'authors a new reusable definition or admits work in an authorized Project',
 }
+
+
+# Owner storage actions accept local paths and cannot be admitted by connected
+# agents. Importing historical authorship never establishes present-day authority.
+OWNER_STORAGE_ACTIONS = {'project-open-folder': 'owner selects a local Project folder; no inherited agent authority'}
 
 
 def door_resource(name: str) -> bool:

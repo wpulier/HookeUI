@@ -1,3 +1,4 @@
+import {projectExport, type ExportActions} from './project-export';
 import './project-folder.css';
 
 /** Same projection as contract/agent/project-storage; this inspector never moves evidence. */
@@ -9,6 +10,7 @@ export interface ProjectStorage {
 }
 interface Options {
   title: string; session: string; current: () => boolean;
+  exportActions?: ExportActions;
   read: () => Promise<{storage: ProjectStorage}>;
   reveal: () => Promise<{ok: boolean; path: string; error?: string}>;
 }
@@ -28,6 +30,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
   const status = node('p', 'Reading saved location…', 'project-folder-status'); status.setAttribute('role', 'status');
   actions.append(reveal); dialog.append(header, node('p', opts.title, 'project-folder-name'), body, status, actions);
   let closed = false;
+  let exportView: ReturnType<typeof projectExport> | undefined;
   const current = () => !closed && opts.current();
   const changed = () => { reveal.disabled = true; status.textContent = 'The Project changed. Close this panel and reopen its folder details.'; };
   reveal.addEventListener('click', async () => {
@@ -41,6 +44,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
     finally { if (current()) reveal.disabled = false; }
   });
   const load = async () => {
+    exportView?.dispose(); exportView = undefined;
     status.textContent = 'Reading saved location…'; body.replaceChildren(); reveal.disabled = true;
     try {
       const {storage} = await opts.read();
@@ -56,6 +60,10 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
       const details = node('details'), summary = node('summary', 'Identity and collection');
       details.append(summary, node('p', `Project identity: ${storage.origin ?? 'Unavailable'}`, 'project-folder-path'), node('p', storage.collection.reason));
       body.append(details);
+      if (available && portable && storage.origin && opts.exportActions) {
+        exportView = projectExport(opts.exportActions, current, storage.origin);
+        body.append(exportView.element);
+      }
       reveal.disabled = !available;
       status.textContent = available ? '' : 'Your research has not been replaced or recreated.';
       if (!available) addRetry();
@@ -69,6 +77,6 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
     const retry = node('button', 'Retry', 'study-quiet'); retry.type = 'button';
     retry.addEventListener('click', () => { if (current()) void load(); else changed(); }); body.append(retry);
   };
-  dialog.addEventListener('close', () => { closed = true; dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
+  dialog.addEventListener('close', () => { closed = true; exportView?.dispose(); dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
   document.body.append(dialog); dialog.showModal(); void load(); return dialog;
 }
