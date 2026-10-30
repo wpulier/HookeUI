@@ -777,8 +777,10 @@ async def workspace_layout(app, client, msg) -> dict:
         if registrations is not None:
             from .day import SessionStore
             session, root, clock = msg['session'], app.day.root, app.day.clock
+            locations, prefs, catalogue = app.day.locations, app.day.user_prefs, app.day.catalogue
             def reconcile_owned_jobs():
-                owner = SessionStore(root, clock, session=session)
+                owner = SessionStore(root, clock, session=session, locations=locations,
+                                     prefs=prefs, catalogue=catalogue)
                 workspace_views.reconcile_jobs(owner, registrations.records('j', session))
             await asyncio.to_thread(reconcile_owned_jobs)
             if msg['session'] != app.day.sid:

@@ -55,6 +55,12 @@ def main(mode, folder, material="protocol"):
             h, sid, ref, study = (receipt[k] for k in ('headers', 'session', 'reference', 'study'))
             assert built.day.sid == sid
 
+        # The actual UI reads the layout on every open; this reconciles jobs via a
+        # detached store and must never create a shadow legacy journal.
+        from orchestrator.commands import workspace_layout
+        layout = client.portal.call(workspace_layout, built, None, {'session': sid, 'schema': 7})
+        assert layout['ok'], layout
+        assert not (paths.sessions / sid / 'journal.jsonl').exists()
         if material == 'mixed':
             from tests import project_mixed_probe
             if mode == 'create':

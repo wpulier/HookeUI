@@ -205,7 +205,8 @@ class Quiz:
             return day, asked
         if asked.day is None or asked.day == day.sid:
             return None
-        original = SessionStore(root=day.root, session=asked.day)
+        original = SessionStore(root=day.root, clock=day.clock, session=asked.day,
+                                locations=day.locations, prefs=day.user_prefs, catalogue=day.catalogue)
         if asked.thread not in original.threads:
             return None
         return original, Asked(asked.thread, original.generation, day=asked.day, session=original.sid)

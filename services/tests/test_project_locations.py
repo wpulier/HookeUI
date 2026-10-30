@@ -235,3 +235,20 @@ def test_leased_journal_failure_does_not_allow_partial_id_allocation(tmp_path, m
             day.catalogue.used(day.date, 'e')
     finally:
         locations.close()
+
+
+def test_delayed_quiz_reply_uses_original_portable_project(tmp_path):
+    from orchestrator.quiz import Quiz
+    from orchestrator.day.store import Asked
+    day, locations = setup(tmp_path)
+    try:
+        sid = day.new('Original quiz')
+        original = Asked(day.active_id, day.generation, day=sid, session=sid)
+        root = locations.project(sid)
+        day.new('Later selection')
+        owner, reply = Quiz.reply_store(day, original)
+        assert owner.sid == sid and owner.journal.root == root.path / 'history/sessions'
+        assert reply.thread == original.thread
+        assert not (locations.legacy / sid).exists()
+    finally:
+        locations.close()

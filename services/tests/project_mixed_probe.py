@@ -84,4 +84,4 @@ def inspect(built, receipt, base):
     lines = [row['line'] for row in built.day.journal.load() if row.get('type') == 'line']
     assert {row.get('lineId') for row in lines} >= {'mixed-question', 'mixed-answer'}
     return {'matrixDigest': matrix.digest, 'media': mixed['media'], 'populationManifests': manifests,
-            'layout': read(built.day), 'notes': built.day.annotations[mixed['note']], 'lines': [line for line in lines if line.get('type') != 'app-notice']}
+            'layout': read(built.day, schema=7), 'notes': built.day.annotations[mixed['note']], 'lines': [line for line in lines if line.get('type') != 'app-notice']}
