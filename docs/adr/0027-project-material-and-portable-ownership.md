@@ -27,6 +27,17 @@ The finish line includes mixed microscopy/matrix restoration with exact historic
 
 ADR 0026 grants apply unchanged to saved-input work. New door actions are deliberate default-deny declarations. Importing or moving a Project never widens authority. Shared contract schemas apply locally and hosted; unsupported hosted storage operations refuse explicitly.
 
+## Ordinary server qualification seam
+
+The server factory accepts an explicitly supplied ProjectLocations dependency,
+matching App.build. No request, environment flag or ordinary command-line launch
+selects this seam. An isolated full-server probe uses the ordinary lifespan and
+Studio Project creation, grants a synthetic connection through signed owner
+confirmation, imports copied evidence and creates a Study. After process shutdown,
+folder relocation and restart preserve exact saved documents and inventory.
+This is server/storage evidence, not actual browser/client, media restoration,
+complete dependency collection or permission to migrate existing Projects.
+
 ## Foundation implementation checkpoint
 
 `project_roots.py` supplies versioned layout validation, origin/location pointers and

@@ -109,10 +109,10 @@ def _installed_studio_tab_capture(client, _pending, metadata) -> bool:
                for actual, value in zip(metadata["workspaceToImage"], expected))
 
 
-def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None) -> FastAPI:
+def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None, *, project_locations=None) -> FastAPI:
     from .build_info import identity, runtime_identity
     build = identity()  # backend source identity is fixed at process startup
-    built = App.build(bridge_url, paths, use_gpu=use_gpu)
+    built = App.build(bridge_url, paths, use_gpu=use_gpu, project_locations=project_locations)
     built._workspace_capture_authority = _installed_studio_tab_capture
     hub = built.hub
     hub.execution.context_provider = lambda: {
