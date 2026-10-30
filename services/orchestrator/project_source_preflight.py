@@ -25,7 +25,7 @@ def _stamp(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _journal(path, check):
+def _journal(path, check, *, visit=lambda event, number: None):
     ids, count, digest = set(), 0, hashlib.sha256()
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
@@ -49,6 +49,7 @@ def _journal(path, check):
                 raise ProjectLocationError('Project journal contains an unreadable event; collection cannot certify it') from error
             if type(event) is not dict:
                 raise ProjectLocationError('Project journal contains an unsupported event')
+            visit(event, count)
             if event.get('type') != 'source' or event.get('asset') == 'live':
                 continue
             identity = event.get('asset')

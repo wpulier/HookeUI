@@ -434,3 +434,15 @@ grants. Duplicate operation IDs or request identities across locations are confl
 not a choice to overwrite either history. A second host may read saved records but
 may reconcile or change them only with the Project's writer lease. Unfinished direct
 operations recover as interrupted; workflow references remain owned by WorkflowService.
+
+
+### Native microscopy evidence in collection verification
+
+Folder snapshots also verify every journal-accepted microscopy save, including
+superseded revisions and same-revision enrichments. Resolve the origin-scoped
+retained location and manifest pin through the existing evidence reader, verify
+its required capture/mask files and every declared optional file, and confirm its
+original population, Project and revision. A new outer snapshot hash cannot bless
+corrupted accepted evidence. Legacy absolute locations require explicit collection;
+no filename guessing or fallback to another host's evidence folder is allowed.
+This extends integrity checking, not complete journal dependency coverage.
