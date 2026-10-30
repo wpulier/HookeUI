@@ -18,6 +18,7 @@ import stat
 from .project_repository import document_root, session_root, verify_owner
 from .project_roots import COPY_INTENT, PARTS, SNAPSHOT, ProjectLocationError, ProjectRoot, writer
 from .scientific_projects import ProjectStore
+from .project_snapshot_integrity import verify_records
 
 MAX_FILES = 100_000
 MAX_DEPTH = 64
@@ -177,6 +178,7 @@ def _copy_visible(root, destination, *, check, restored_from=None):
     required = sum(item.size for item in members) + MAX_MANIFEST + HEADROOM
     if shutil.disk_usage(parent).free < required:
         raise ProjectLocationError(f'Project copying needs {required} free bytes; no copy was started')
+    verify_records(root, check=check)
     check()
     destination.mkdir(mode=0o700)
     intent = destination / COPY_INTENT
@@ -281,5 +283,6 @@ def verify_snapshot(location: Path, *, check=lambda: None):
         if _stream(root.path / item['path'], check=check) != (item['bytes'], item['sha256']):
             raise ProjectLocationError('Project snapshot content does not match its manifest')
     verify_owner(root)
+    verify_records(root, check=check)
     return {'origin': root.origin, 'files': len(actual), 'bytes': sum(m.size for m in actual.values()),
             'scope': 'project-folder', 'externalDependencies': 'not-verified'}

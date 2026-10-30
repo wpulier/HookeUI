@@ -1,5 +1,10 @@
 # Checks
 
+`test_project_snapshot_integrity.py` uses synthetic accepted records and actual
+copy admission to reject damaged historical revisions, missing/changed file chunks,
+and a recomputed outer seal over corrupt evidence. These are integrity checks,
+not complete collection or real Project portability evidence.
+
 `test_project_server_routing.py` runs the ordinary FastAPI server and lifespan in
 separate processes, with synthetic consent and text. Studio creates the Project;
 the connector contributes copied evidence and a Study. Shutdown, folder move or explicit snapshot restoration, and
