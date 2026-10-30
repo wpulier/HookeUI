@@ -1644,7 +1644,7 @@
      "type": "string"
     },
     "what": {
-     "description": "what to find (for \"concept\": the thing's name alone)",
+     "description": "what to find: the thing the user named, whole, as they see it, never a part inside it unless they named that part (for \"concept\": the thing's name alone)",
      "type": "string"
     }
    },

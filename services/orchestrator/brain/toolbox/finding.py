@@ -85,7 +85,9 @@ def add_finding_tools(registry: Registry, services) -> None:
                       "are the ones asked for; best for many cells of a smear or tissue (red or white blood cells, cheek "
                       "cells), not for tiny things like platelets or bacteria (blood smear bench: every red cell 0.90 found this way against 0.60 by looking). "
                       "It sees the camera's picture only, never the outlines the app draws (by their colour: highlight where).",
-                      schema({"what": {"type": "string", "description": "what to find (for \"concept\": the thing's name alone)"},
+                      schema({"what": {"type": "string", "description": "what to find: the thing the user named, whole, as "
+                                                                       "they see it, never a part inside it unless they named "
+                                                                       "that part (for \"concept\": the thing's name alone)"},
                               "inside": OBJECT,
                               "like": {"type": "string", "description": 'every thing like this outlined one ("find all like '
                                                                         'this", "the others like it"): object id or "that"'},
