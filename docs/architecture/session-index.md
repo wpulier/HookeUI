@@ -260,3 +260,5 @@ Retained Project media has one scientific inventory entry. `_sources` omits the
 legacy Library alias for an exact `source_references` binding, including inactive
 Project reads. Inputs/Data join the source’s retained metadata to that exact record;
 a matching host Library ID cannot contribute another item or replace its identity.
+
+Accepted agent-import provenance supplies its recorded display label to the shared maker projection. It takes precedence over a current host label and remains available after folder restoration without connections. This is historical authorship only; reading it never registers or authenticates an agent. Legacy records without a label keep the host/unknown fallback.
