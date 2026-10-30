@@ -87,9 +87,15 @@ other files.
     or Fill and Hide run. Done only once the report shows it on that Tab (`workspace_tabs.SPECIMEN_WAIT_S`; otherwise
     said with what the report shows); Hands checks the same fact. The tool's words say the specimen counts in what a
     Tab shows, so "only X open" floats or hides it too.
-  - **A new Tab** ("+", ⌘T, `tabs create`, a window sent to a new Tab) opens with its specimen floating small in the
-    Stage's lower-left corner (`floatingSpecimen`, also where Float puts it). Main, an input's Tab and a run's result
-    Tab (it draws there) keep it filling; a comparison hides it.
+  - **An empty new Tab** ("+", ⌘T, New Tab, `tabs create`) shows a minimized live feed of the main input,
+    picture-in-picture: the specimen floating small in the Stage's lower-left corner (`floatingSpecimen`, also where
+    Float puts it), which the user can close (Hide) or enlarge (Fill). It goes away once anything is placed in that Tab
+    (a window opened there, an item added or moved in, its Arrange: `WorkspaceViews.feedAway`), unless the specimen was
+    asked for there (`tabs specimen`, Float or Fill, Show specimen). **A Tab made for or from something** (Add to Tab or
+    Send to a new Tab, `new-tab`, a reader or comparison Tab) has no feed: one thing fills it, two or more share it side
+    by side (Will, 30 Oct: "if I ask for the table in a new tab, it should open the table full screen"). Main, an
+    input's Tab and a run's result Tab (it draws there) keep it filling. The Tab strip's report marks the minimized feed
+    (`specimen.minimized`), and `tabs list` says each Tab's `feed`: minimized, filling, floating or none.
   - **A result drawn on it is brought into sight** (`placement.live_in_sight`; will-research 30 Oct: "Outline every
     cell" with the findings document's Tab in front was answered "the layer is on the live view" while the reader hid
     it): the cells' layer (`outline_cells`) and every outline a find, a highlight, a count or the look draws (through
@@ -121,9 +127,12 @@ other files.
     addition it needs is each Tab's `kind`, `specimen` and `items` ({placement, kind, title, resource}).
 - **Placing things: one vocabulary** (`orchestrator/placement.py`). Every tool that puts something on screen takes the
   same words, each done only when the studio's report shows it, with what the report shows when not:
-  - `new-tab`: a Tab of its own, a canvas with no specimen. A population's results (`show_measurements` or `present
-    do=place`): its outlines on their capture and its table beside them, like Will's "Cell outlines" Tab ("Cell
-    results"; the report shows both on that Tab, in front, side by side).
+  - `new-tab`: a Tab of its own, with no live feed. One thing fills it: the table asked for in a new Tab
+    (`show_measurements`) is its only window, fitted to the Tab ("Cell results"; the report shows only it there, the
+    specimen hidden). Two or more share it: a second thing put in a Tab this request made (or named by id) is arranged
+    beside what is there rather than closing it, and several things made for one new Tab go into that one Tab. The
+    outlines asked for in a new Tab (`present do=place` of a population) go on their capture with their table beside
+    them, like Will's "Cell outlines" Tab.
   - `beside`: side by side in this Tab with what is there, the live view included: the Tab's own Arrange (`tabs
     arrange`; the report shows no window, the floating specimen included, over a quarter of another). A new Tab has no
     live view, so "beside the live view" names Main. The Arrange is sent once the report shows the new window there, and
