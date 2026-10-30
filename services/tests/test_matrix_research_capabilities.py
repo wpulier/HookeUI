@@ -164,3 +164,35 @@ def test_numeric_inspection_still_refuses_nonfinite_values(tmp_path):
     source = adata(tmp_path / 'values.h5ad', [[np.nan, 1.]], ['a'], ['x'], ['g1', 'g2'])
     with pytest.raises(engine.Refused, match='finite'):
         engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)
+
+
+@pytest.mark.parametrize('representation', ['dense', 'csr'])
+@pytest.mark.parametrize('block_rows', [1, 3])
+def test_inspection_measures_depth_reciprocal_not_reciprocal_of_mean(tmp_path, monkeypatch, representation, block_rows):
+    anndata = pytest.importorskip('anndata')
+    source = adata(tmp_path / 'depth.h5ad', [[1, 1], [2, 2], [4, 4]], ['a'] * 3, ['x'] * 3, ['g1', 'g2'])
+    if representation == 'dense':
+        obj = anndata.read_h5ad(source); obj.X = obj.X.toarray(); obj.write_h5ad(source)
+    monkeypatch.setattr(engine, 'BLOCK_ROWS', block_rows)
+    path, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    depth = summary['libraryDepth']
+    assert depth['median'] == 4 and depth['zeroObservations'] == 0
+    assert depth['meanReciprocal'] == pytest.approx(7 / 24)
+    assert depth['meanReciprocal'] != pytest.approx(1 / depth['mean'])
+    assert json.loads(path.read_text())['libraryDepth'] == depth
+
+
+def test_inspection_does_not_drop_zero_depth_observations(tmp_path):
+    source = adata(tmp_path / 'depth.h5ad', [[0, 0], [1, 3]], ['a'] * 2, ['x'] * 2, ['g1', 'g2'])
+    _, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    depth = summary['libraryDepth']
+    assert depth['median'] == 2 and depth['mean'] == 2
+    assert depth['zeroObservations'] == 1 and depth['meanReciprocal'] is None
+    assert 'undefined' in depth['reciprocalMeaning']
+
+
+def test_transformed_inspection_never_describes_reciprocal_as_count_depth(tmp_path):
+    source = adata(tmp_path / 'transformed.h5ad', [[-2, 0], [.25, .75]], ['a'] * 2, ['x'] * 2, ['g1', 'g2'])
+    _, summary = engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)
+    assert summary['rowTotals']['median'] == -.5
+    assert 'meanReciprocal' not in summary['rowTotals'] and 'libraryDepth' not in summary

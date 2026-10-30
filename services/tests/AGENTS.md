@@ -828,3 +828,5 @@ metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and
 recomputed outer seals. This is storage evidence, not provider or complete-collection
 acceptance.
+
+`matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
