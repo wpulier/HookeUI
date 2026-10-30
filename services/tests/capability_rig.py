@@ -114,11 +114,14 @@ class Rig:
         if "<answer-facts" in prompt or "Original request and completed receipts" in prompt:
             return {"answer": "Done what the receipts say.", "actions": [], "observation_scope": "none", "input_refs": []}
         if prompt.startswith("You write a short document for a scientist"):  # write_document: one record cited
-            import re
-
             cited = re.findall(r"^\[([^\]]+)\]", prompt, re.M)[:1]
             return {"title": "Findings", "sections": [{"heading": "What was found", "paragraphs": [
                 {"text": "What the newest record says.", "cites": cited}]}]}
+        tiles = re.search(r"contact sheet of \d+ numbered tiles.*?\(tiles (\d+) to (\d+)\)", prompt, re.S)
+        if tiles:  # classify (classify.py): each numbered tile named, the first as one class, the rest as the other
+            first, last = int(tiles.group(1)), int(tiles.group(2))
+            return {"tiles": [{"n": n, "class": "guard cell" if n == first else "pavement cell", "sure": True}
+                              for n in range(first, last + 1)]}
         plan = PLAN.get()
         if plan is not None and FAST_QUESTION.search(prompt) and "First, what are" in prompt:
             return {"intent": "request", "needs_look": False, "answer": "On it.", "actions": plan,

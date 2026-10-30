@@ -291,6 +291,9 @@ class App:
                       tags=lambda: {"day": day.sid, "thread": day.active_id})
         if started_with:
             agent.log(started_with)
+        # Classifying's vision models (classify.py) are the agent's own clients: one key change drops them all, and a
+        # stand-in agent stands in for them too. Read at each call, so a replaced `agent.vision` is the one used.
+        hub.vision_for = lambda option: agent.vision(option)
         # Labels the user teaches (taught.py, option TAUGHT): the user's, from every session (ADR 0017), written per
         # date with the session they were taught in; every new outline cropped as it appears and, while TAUGHT is
         # on, matched on the heavy GPU worker.

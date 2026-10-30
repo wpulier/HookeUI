@@ -116,13 +116,22 @@ REVISE_ONLY = "revise"  # an effort that never starts a researcher of its own
 RUN_OPERATIONS = {"workflow": "invoke or inspect a named scientific workflow", "segment": "segment every cell in {view} and measure them",
                   "enhance": "make a clearer picture of {view} from real frames",
                   "measure_saved_objects": "measure the explicitly selected saved labels",
-                  "motion": "measure what moves on the Stage over its last seconds"}
+                  "motion": "measure what moves on the Stage over its last seconds",
+                  "classify": "classify the cells of {view} with several models and compare them"}
 # The cell finders a researcher can name for segment (id = name), as the app names them (orchestrator/names.py; a test
 # keeps the two the same): the research process does not import the app (Slice 5, the user's Q24).
 CELL_FINDERS = {"cellpose-sam": "Cellpose-SAM", "cellpose-sam-tuned": "Cellpose-SAM fine-tuned on your corrections",
                 "micro-sam-lm": "micro-sam (light microscopy)", "edgetam-automask": "EdgeTAM automatic masks",
                 "fiji-analyze-particles": "Analyze Particles (Fiji)",
                 "basic-bright-objects": "Bright objects"}
+# The models a researcher can name for classify (id = name), as the app names them (operations.CLASSIFY; a test keeps
+# the two the same, and the app tells a run the list it has: manager._door "classifiers").
+CLASSIFIERS = {"gemini-3.8-flash": "Gemini 3.8 Flash", "gemini-3.8-flash-hires": "Gemini 3.8 Flash (high resolution)",
+               "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite", "gemini-3.5-flash": "Gemini 3.5 Flash",
+               "gpt-5.6-luna-priority": "GPT-5.6 Luna (priority)", "gpt-6-luna": "GPT-6 Luna", "gpt-6.1-sol": "GPT-6.1 Sol",
+               "claude-opus-5-5": "Claude Opus 5.5", "claude-opus-5-5-fast": "Claude Opus 5.5 (fast mode)",
+               "gemini-4-argon": "Gemini 4 Argon", "medsiglip-448": "MedSigLIP 448"}
+MAX_CLASSIFIERS = 6  # orchestrator/model_comparison.MAX_MODELS
 
 
 def operation_limit(effort: str | None) -> int:

@@ -114,6 +114,14 @@ other files.
     item ("Motion, for Researcher 2"). Each is read with the session tool and never shown. It is never what a request
     of the user's means unless shown or named (`Population.made_for`, as M2.2's comparisons; "the motion",
     `TracksStore.latest` and the board's lines skip a researcher's), and anyone reaches it by its id.
+  - **Classifiers compared** (Part 2.5, W5; "have a researcher run five classifying models on these cells and report
+    comparing them"): `run` operation "classify" with `models` (two to six ids; the run is told the ones that can run
+    here, `manager._door` "classifiers") and `classes` names the same cells of a population of its own session
+    (`input`, else the one on screen) with each model through the runner at research priority, made for it
+    (`model_comparison.compare_classes`), and keeps the comparison as one result entry with its table ("Model
+    comparison, for Researcher 2"). Its reply is a headline and the numbers (pairs' agreement and kappa, the cells all
+    named alike, counts, time, cost); its report compares the models from that entry, cited as evidence, never from
+    its own guess. One operation of its run, whatever the number of models.
   - **Limits:** one at a time across the app, at most 3 in a run, refused with the reason and a next step a
     researcher can take when the camera has no fresh picture (live), memory is full or another session is open; the
     session keeps what it ran and on what (`ran`).

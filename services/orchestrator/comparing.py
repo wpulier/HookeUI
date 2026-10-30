@@ -17,7 +17,9 @@ import numpy as np
 
 from .drawing import outline
 
-COLOURS_BGR = [(249, 121, 232), (34, 197, 94), (56, 195, 247)]  # pink, green, amber: one per model
+# One per model, up to six (model_comparison.MAX_MODELS): pink, green, amber, then sky, orange and violet.
+COLOURS_BGR = [(249, 121, 232), (34, 197, 94), (56, 195, 247), (235, 206, 135), (60, 140, 255), (246, 92, 167)]
+PER_ROW = 3  # panels side by side; more models go on a second row
 MATCH_IOU = 0.5  # two cells' boxes this alike are the same cell, for a comparison's counts
 
 
@@ -111,9 +113,20 @@ def picture(image: np.ndarray, arms: list[dict], box, height: int = 300) -> byte
             pts = np.round((np.asarray(poly, float) - (cx0, cy0)) * scale).astype(np.int32).reshape(-1, 1, 2)
             outline(crop, [pts], colour, 2)  # on a dark casing: seen on any stain (drawing.py)
         panels.append(np.vstack([crop, caption_strip(str(arm.get("caption") or ""), crop.shape[1], colour)]))
-    gap = np.full((panels[0].shape[0], 8, 3), 0, np.uint8)
-    row = panels[0]
-    for p in panels[1:]:
-        row = np.hstack([row, gap, p])
-    ok, jpeg = cv2.imencode(".jpg", row, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    # Every panel the same height (a caption may take two lines), PER_ROW to a row, rows the same width.
+    tall = max(p.shape[0] for p in panels)
+    panels = [np.vstack([p, np.full((tall - p.shape[0], p.shape[1], 3), 24, np.uint8)]) if p.shape[0] < tall else p
+              for p in panels]
+    rows = []
+    for start in range(0, len(panels), PER_ROW):
+        row = panels[start]
+        for p in panels[start + 1:start + PER_ROW]:
+            row = np.hstack([row, np.full((tall, 8, 3), 0, np.uint8), p])
+        rows.append(row)
+    wide = max(r.shape[1] for r in rows)
+    rows = [np.hstack([r, np.zeros((tall, wide - r.shape[1], 3), np.uint8)]) if r.shape[1] < wide else r for r in rows]
+    grid = rows[0]
+    for r in rows[1:]:
+        grid = np.vstack([grid, np.zeros((8, wide, 3), np.uint8), r])
+    ok, jpeg = cv2.imencode(".jpg", grid, [cv2.IMWRITE_JPEG_QUALITY, 90])
     return jpeg.tobytes() if ok else None

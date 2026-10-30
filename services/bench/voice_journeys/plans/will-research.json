@@ -85,6 +85,43 @@
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
   {
+   "id": "classify-outline",
+   "kind": "act",
+   "say": "Outline every cell.",
+   "expect": {
+    "tools": [
+     "outline_cells",
+     "do_in_hooke"
+    ],
+    "visible": "the leaf epidermis cells outlined as a layer",
+    "outcome": true,
+    "judge": "outlines the cells in view and says how many, once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "classify-five",
+   "kind": "act",
+   "say": "Have a researcher run five different classifying models on these cells and report comparing them.",
+   "from": "Will, 29 October: \"Have a researcher run 5 different classifying models… report comparing\" (W5)",
+   "waitFor": {
+    "researcher": "done"
+   },
+   "wait": 900,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "start_researcher",
+     "think"
+    ],
+    "researchers": 1,
+    "visible": "the researcher's card working on the outlined cells, then its finished report",
+    "outcome": true,
+    "judge": "starts one researcher on the cells just outlined, its card showing it working; the researcher has the app run five different classifying models on those same cells (each a recorded run, kept as one comparison in Data), and its report compares the five from those runs' records: what each named the cells, how often each pair agreed, the cells all named alike, time and cost; agreement is said as agreement, never as which model is right; a model that could not run is said with why; the result is said once, only after the researcher finished (never promised or said done before)"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
    "id": "make-video",
    "kind": "act",
    "say": "Make a short video of a stoma opening and closing.",

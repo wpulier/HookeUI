@@ -76,7 +76,8 @@ Magnifying & comparing (A close-up beside the view; two things side by side):
 - You: Zoom in or out: Wheel, pinch or − + in the magnifier (wheel or pinch)
 - I: Hold the sharpest frame: Freezes the magnifier on its sharpest frame (say "hold it there")
 - I: Side by side: Shows two things side by side (say "compare these two")
-- I: Compare named models: Runs the models you name on one view, side by side (say "compare EdgeTAM and SAM 2.1 on that"); models: Outlining: EdgeTAM (on this Mac), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I: Compare named models: Runs two to six models you name on one input (say "compare EdgeTAM and SAM 2.1 on that"); models: Outlining: EdgeTAM (on this Mac), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
+- I: Compare classifying models: Several models name the same cells; agreement, counts, time, cost (say "compare Gemini, GPT and MedSigLIP at classifying these cells")
 - I: How do they differ: Looks at two things and says how they differ (say "how are these two different?"); models: Seeing: Claude Opus 5.5 (fast mode) in the cloud, a setting; Needs setup: Needs your Anthropic API key (needs ANTHROPIC_API_KEY)
 - I: Is it in focus: Judges whether a thing is in focus now (say "is it in focus?")
 - I: Show a researcher's picture: Puts a researcher's picture in the magnifier (say "show me the labelled picture")
@@ -221,6 +222,7 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - My researchers: Outline cells for itself: Segments the view now or a kept one, never on screen (say "have a researcher measure how much these cells vary"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting; Cells: EdgeTAM automatic masks (on this Mac), a setting
 - My researchers: Clearer picture for itself: Averages or picks real frames for its reading, never on screen (say "have a researcher take the clearest picture of the clip it held"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - My researchers: Motion for itself: Measures what moves in the live view, never on screen (say "have a researcher measure how fast these swim"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
+- My researchers: Compare classifiers for itself: Runs several classifying models on cells and compares their records (say "have a researcher run five classifying models on these cells and compare them"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - My researchers: Chart saved measurements: Draws a chart from a saved table's own values (say "have a researcher chart the nucleus areas"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - My researchers: Animate saved measurements: Animates a saved table row by row, not a generated video (say "have a researcher animate the measurements table"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: Start a researcher: Starts background research on what you asked; models: Researching: GPT-6.1 Sol + web search (cloud), a setting

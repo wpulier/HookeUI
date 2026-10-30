@@ -114,7 +114,7 @@ in MT4 through the same package.
   refuses a stale view, an unknown plane ("no plane is assumed") or an inferred region, checks the written image
   against its preview within `TOLERANCE`, and indexes each export in `exports.jsonl`.
 - **Calibrated area and method comparison** (MT6: `orchestrator/calibrated_area.py`, `method_comparison.py`,
-  `task_facts.py`): areas from the labels' own axis-aligned calibration or pixels with why; two or three arms on one
+  `task_facts.py`): areas from the labels' own axis-aligned calibration or pixels with why; two to six arms on one
   frozen source, each declaring its factor, boundary definitions never ranked, a choice kept with its rationale.
 - **A reader update** (MT5: `examples/beta-scientific-tools/bdv-hdf5-reader/`, BigDataViewer HDF5): its tests take v1
   (level 0), v2 (the pyramid) and a broken v3 through `prepare.run`; v3 fails its proof and v2 stays, and a Project

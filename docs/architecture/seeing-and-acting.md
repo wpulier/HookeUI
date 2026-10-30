@@ -417,6 +417,13 @@ other files.
   the whole view when it has no eyepiece circle. A cells comparison the user runs by hand from the workspace's
   Tools is drawn by the workspace instead (each model's retained masks on its Stage, in that model's colour,
   each hideable: `apps/studio/AGENTS.md` "Tools"), so it gets no side-by-side picture of its own.
+  - **Two to six models** (Part 2.5, W5; `orchestrator/model_comparison.py`, the one comparison interface): outlines,
+    cells and classifying (`operation` classify: each model names every cell of a population from the same `classes`,
+    `orchestrator/classify.py`). Past six that can run, the rest are said to be left out; the picture tiles three to a
+    row. Every comparison is also kept as one table in Data, a row per model (what it found, counts per class,
+    agreement with the others, time, cost), from each run's own record, bound to its sha256 (`tables.result_table`),
+    so `placement` (or `show_measurements` of its d-id) shows it where asked; classify, which has no picture, shows it
+    beside by default. Agreement is never accuracy (ADR 0020).
 - Choosing a model (`use` for this request, `set_default` from now on, `compare_models`;
   `brain/toolbox/choosing.py`): a name means what `orchestrator/names.py` says, an exact key only (the id, the
   name, the name with where it runs said any way: "SAM 3.1 (local)", an old label for one release, a spoken

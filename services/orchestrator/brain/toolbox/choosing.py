@@ -23,13 +23,20 @@ import numpy as np
 from ... import names
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 
-OPERATION_WORDS = {"outline": "outlining", "cells": "segmenting every cell", "find-like": "finding every one like it",
+OPERATION_WORDS = {"outline": "outlining", "cells": "segmenting every cell", "classify": "classifying each cell",
+                   "find-like": "finding every one like it",
                    "track": "following outlined things", "link": "linking the cells of two views",
                    "looks": "describing how each cell looks", "groups": "grouping cells by look",
                    "light": "measuring the colour inside each cell", "names": "ranking names for each group",
                    "your-label": "matching cells to the groups you named",
                    "motion": "measuring what moves"}  # every operation (the M3.5 review; K1's and M3.2's too)
 ASK_WHICH = "ask which models can do it"
+# Where a comparison's table goes (placement.py's words a table takes: show_measurements'), when it is to be shown.
+TABLE_PLACEMENTS = ("beside", "new-tab", "only", "replace", "window")
+PLACEMENT_SCHEMA = {"type": "string", "enum": list(TABLE_PLACEMENTS),
+                    "description": "where the comparison's table goes: beside (side by side in this Tab, the live view "
+                                   "included), new-tab (a Tab of its own), only, replace or window; empty: kept in Data "
+                                   "(classify: beside)"}
 
 
 def turn_on(group: str, option_id: str) -> str:
@@ -375,75 +382,99 @@ def add_choosing_tools(registry: Registry, services) -> None:
 
     magnifier = getattr(services, "magnifier", None)  # stand-ins without one: no compare_models
     if magnifier is not None:
+        from ... import model_comparison
+
         compared = Compared(hub)  # the last comparison's arms, kept to choose from (Q16)
 
         async def compare_models(ctx: ToolContext, args: dict) -> str:
-            """Named comparison (M2): the models named do the same work on the same view; never the arena."""
-            from ...operations import availability
-
+            """Named comparison (M2; Part 2.5 W5: up to six): the models named do the same work on the same input, each
+            through the runner, and the comparison is kept as one table from their records; never the arena."""
             if args.get("keep"):
                 return await compared.keep(services, ctx, str(args["keep"]), expected=args.get("comparison"))
             op = operation_of(args)
-            if op.id not in ("outline", "cells"):
-                raise ToolFailed(f"models can be compared here at outlining or segmenting every cell, not {OPERATION_WORDS[op.id]}",
-                                 next="ask to compare them at outlining a thing, or at segmenting every cell")
+            if op.id not in model_comparison.OPERATIONS:
+                raise ToolFailed(f"models can be compared here at outlining, segmenting every cell or classifying cells, "
+                                 f"not {OPERATION_WORDS[op.id]}",
+                                 next="ask to compare them at outlining a thing, segmenting every cell or classifying cells")
             policy = str(args.get("policy") or "raw").strip().lower()
             if policy not in ("raw", "route"):
                 raise ToolFailed('the policy is "raw" (exactly those models) or "route" (each with its declared fallbacks)',
                                  next='say "exactly those models" or "with their fallbacks"')
-            named, unknown = [], []
-            for name in list(args.get("implementations") or []):
-                try:
-                    impl = pick(hub, op, name)
-                except ToolFailed:
-                    unknown.append(str(name))  # said, and the rest still compared when two remain
-                    continue
-                if impl not in named:
-                    named.append(impl)  # the same model named twice counts once
-            if len(named) < 2:
+            placement = args.get("placement")
+            if placement is not None and placement not in TABLE_PLACEMENTS:
+                raise ToolFailed(f"{placement!r} is not a place for the comparison's table",
+                                 next="say one of: " + ", ".join(TABLE_PLACEMENTS))
+            chosen = model_comparison.select(hub, op.id, args.get("implementations"),
+                                             pick=None if op.id in names.COMPARED_ONLY else pick)
+            unknown, cannot = chosen.unknown, chosen.cannot
+            named = len(chosen.impls) + len(cannot) + len(chosen.left_out)
+            if named < 2:
                 if unknown:  # a name that means nothing goes back to the model with the choices (live 2026-10-11)
                     raise ToolFailed(f"a comparison needs two different models (not known: {'; '.join(unknown)}); the "
-                                     f"choices (id = name): {names.choices_line(op.id)}", next=PICK_AGAIN)
+                                     f"choices (id = name): {model_comparison.choices_line(op.id)}", next=PICK_AGAIN)
                 raise ToolFailed("a comparison needs two different models", next=ASK_WHICH)
-            cannot = [f"{i.label} can't run here ({availability(hub, i)})" for i in named if availability(hub, i)]
-            if args.get("exact") and (unknown or cannot or not 2 <= len(named) <= 3):
-                raise ToolFailed("The selected comparison needs two or three available, distinct models. "
+            most = model_comparison.MAX_MODELS
+            if args.get("exact") and (unknown or cannot or not 2 <= named <= most):
+                raise ToolFailed(f"The selected comparison needs two to {most} available, distinct models. "
                                  + "; ".join(cannot + unknown), next="check model setup and choose again")
-            runnable = [i for i in named if not availability(hub, i)]
-            if len(runnable) < 2:
+            impls = chosen.impls
+            if len(impls) < 2:
                 raise ToolFailed("; ".join(cannot) or "a comparison needs two models that can run here", next=ASK_WHICH)
-            impls, left_out = runnable[:3], [i.label for i in runnable[3:]]  # three at once, of those that can run
-            if unknown:
-                cannot.append(f"not known here: {'; '.join(unknown)}")
             kept: dict = {}
             if op.id == "outline":
-                words = await _compare_outlines(services, ctx, args, impls, policy, kept)
+                words, record = await _compare_outlines(services, ctx, args, impls, policy, kept)
+            elif op.id == "cells":
+                words, record = await _compare_cells(services, ctx, args, impls, policy, kept)
             else:
-                words = await _compare_cells(services, ctx, args, impls, policy, kept)
-            words += compared.hold(kept)
-            compared.session = getattr(ctx.asked, "session", None)
+                words, record = await _compare_classes(services, ctx, args, impls, policy)
+            if op.id != "classify":
+                words += compared.hold(kept)
+                compared.session = getattr(ctx.asked, "session", None)
             from ..registry import CURRENT_RUN
             active_run = CURRENT_RUN.get()
-            if active_run is not None and "comparison" in active_run.values:
+            if active_run is not None and "comparison" in active_run.values and op.id != "classify":
                 active_run.values["comparison"]["id"] = compared.token
-            return (words + (f"; {'; '.join(cannot)}" if cannot else "")
-                    + (f"; left out (three at once at most): {', '.join(left_out)}" if left_out else ""))
+            words += await _keep_table(services, ctx, record, placement, default_shown=op.id == "classify")
+            said = chosen.said()
+            return words + (f"; {said}" if said else "")
 
-        registry.add(Tool("compare_models", "Run the models the user names on one view, side by side, measured (\"compare "
-                          "EdgeTAM and SAM 3.1 on that\"); not the blind test. Then keep=<one of them> puts that one's "
-                          "result on the board (\"keep the SAM 2.1 one\").",
-                          schema({"operation": {"type": "string", "enum": ["outline", "cells"], "description": "outline (default)"},
-                                  "implementations": {"type": "array", "description": "the models' ids, as listed under use",
-                                                      "items": {"type": "string", "enum": [
-                                                          i for i in names.choosable_ids()
-                                                          if names.resolve("outline", i) or names.resolve("cells", i)]}},
-                                  "object": {"type": "string"},
-                                  "input": {"type": "string", "enum": ["view"], "description": "Compare cells on the current input instead of the displayed population"},
-                                  "exact": {"type": "boolean", "description": "Refuse the whole comparison if any selected model cannot run"},
-                                  "comparison": {"type": "string", "description": "Exact comparison id when keeping a result from the Studio"},
-                                  "policy": {"type": "string", "description": "raw (default) or route"},
-                                  "keep": {"type": "string", "description": "the model of the last comparison whose result "
-                                                                            "to keep on the board (its id)"}}),
+        from ...operations import OPERATIONS as _OPERATIONS
+
+        compare_ids = list(dict.fromkeys(  # the outline and cell finders a request can be given, then the classifiers
+            [i for i in names.choosable_ids() if names.resolve("outline", i) or names.resolve("cells", i)]
+            + [i.id for i in _OPERATIONS["classify"].implementations]))
+        # Classifiers no `use` lists (the vision models are listed there, by the same ids and names): told once, here.
+        unlisted = [i for i in _OPERATIONS["classify"].implementations if i.id not in names.choosable_ids()]
+        compare_params = schema({"operation": {"type": "string", "enum": list(model_comparison.OPERATIONS),
+                                               "description": "outline (default), cells or classify"},
+                                 "implementations": {"type": "array", "maxItems": 8,
+                                                     "description": "the models' ids, as listed under use",
+                                                     "items": {"type": "string", "enum": compare_ids}},
+                                 "object": {"type": "string"},
+                                 "of": {"type": "string", "description": "cells or classify: the population (e3); "
+                                                                         "empty: the cells shown"},
+                                 "classes": {"type": "array", "maxItems": 24, "items": {"type": "string"},
+                                             "description": "classify: the classes to name each cell from, as the user "
+                                                            "said them"},
+                                 "placement": PLACEMENT_SCHEMA,
+                                 "input": {"type": "string", "enum": ["view"], "description": "Compare cells on the current input instead of the displayed population"},
+                                 "exact": {"type": "boolean", "description": "Refuse the whole comparison if any selected model cannot run"},
+                                 "comparison": {"type": "string", "description": "Exact comparison id when keeping a result from the Studio"},
+                                 "policy": {"type": "string", "description": "raw (default) or route"},
+                                 "keep": {"type": "string", "description": "the model of the last comparison whose result "
+                                                                           "to keep on the board (its id)"}})
+        if unlisted:
+            compare_params["description"] = ("classify: the vision models by their ids under use, and "
+                                             + "; ".join(f"{i.id} = {names.said_impl(i.id)}" for i in unlisted))
+        registry.add(Tool("compare_models", "Run the models the user names (two to six) on "
+                          "the same input, side by side, measured from each run's record (\"compare EdgeTAM and SAM 3.1 "
+                          "on that\", \"compare five classifiers on these cells\"); not the blind test. classify: each "
+                          "model names every cell of a population (of; the cells shown if none) from `classes` (else the "
+                          "specimen's list, else in its own words), and the comparison says how often they agree, each "
+                          "one's counts per class, time and cost. The comparison is kept as a table in Data; `placement` "
+                          "shows it (classify: beside by default). Then keep=<one of them> puts that one's outline or "
+                          "cells on the board (\"keep the SAM 2.1 one\").",
+                          compare_params,
                           compare_models, inline_ms=1500, family="magnifier", outline_refs=("object",)))
 
     async def set_default(ctx: ToolContext, args: dict) -> str:
@@ -679,7 +710,7 @@ async def _compare_outlines(services, ctx: ToolContext, args: dict, impls: list,
         reused = bool(done.use.reused)
         arm = {"impl": impl.id, "label": impl.label, "executed": executed, "polygons": done.output.get("polygons") or [],
                "reused": reused, "at": done.execution.at, "ms": None if reused else round(done.execution.ms, 1),
-               "execution": done.execution.id, "fallbackFrom": made.get("fallbackFrom")}
+               "execution": done.execution.id, "fallbackFrom": made.get("fallbackFrom"), **_cost(impl, done, reused)}
         arm["areaPx"] = round(comparing.polygon_area(arm["polygons"]), 1)
         arms.append(arm)
     ran = [a for a in arms if not a.get("failed") and a["polygons"]]
@@ -700,6 +731,7 @@ async def _compare_outlines(services, ctx: ToolContext, args: dict, impls: list,
         parts.append(f"{_ran(a)} {size}, {how}")
     pairs = _pairs(ran, lambda a, b: f"{_ran_name(a)} and {_ran_name(b)} overlap "
                                      f"{comparing.overlap(a['polygons'], b['polygons']) * 100:.0f}% (IoU)")
+    measured = _measured_pairs(ran, lambda a, b: {"iou": comparing.overlap(a["polygons"], b["polygons"])})
     shown = ""
     if len(ran) >= 2:
         try:
@@ -719,12 +751,18 @@ async def _compare_outlines(services, ctx: ToolContext, args: dict, impls: list,
                 shown = "; the picture did not show in the magnifier"
     from ..registry import attach
 
+    from ... import model_comparison
+
+    stored = [{k: v for k, v in a.items() if k not in ("caption", "polygons")} for a in arms]
+    record = model_comparison.build("outline", stored, policy=policy, summary={"pairs": measured}, um_per_px=um,
+                                    on={"capture": getattr(capture, "id", None), "object": obj.id,
+                                        "box": [round(v, 1) for v in box]})
     attach(values={"comparison": {"operation": "outline", "policy": policy, "capture": getattr(capture, "id", None),
                                   "object": obj.id, "box": [round(v, 1) for v in box], "pairs": pairs,
                                   "arms": [{k: v for k, v in a.items() if k != "caption"} for a in arms]}})
     how = "exactly those models" if policy == "raw" else "each with its declared fallbacks"
     return (f"Compared on the view at {comparing.when(getattr(capture, 'wall_at', None))} ({how}): " + "; ".join(parts)
-            + "".join(f"; {p}" for p in pairs) + shown)
+            + "".join(f"; {p}" for p in pairs) + shown), record
 
 
 def _studio_draws() -> bool:
@@ -789,7 +827,7 @@ async def _compare_cells(services, ctx: ToolContext, args: dict, impls: list, po
         arms.append({"impl": impl.id, "label": impl.label, "executed": population.implementation, "population": population.id,
                      "count": len(population.live()), "reused": reused, "revision": population.revision,
                      "at": record.at if record is not None else population.made_at, "execution": execution,
-                     "ms": None if reused or record is None else round(record.ms, 1),
+                     "ms": None if reused or record is None else round(record.ms, 1), **_cost(impl, None, reused),
                      "boxes": [list(m.box) for m in population.live()],
                      "polygons": [p for m in population.live() for p in m.polygons]})
     ran = [a for a in arms if not a.get("failed")]
@@ -806,6 +844,7 @@ async def _compare_cells(services, ctx: ToolContext, args: dict, impls: list, po
         parts.append(f"{_ran(a)}: {a['count']} instances segmented in the view ({a['population']}), {how}")
     pairs = _pairs(ran, lambda a, b: f"{comparing.matched(a['boxes'], b['boxes'])} found by both {_ran_name(a)} and "
                                      f"{_ran_name(b)} (boxes at least {comparing.MATCH_IOU:.0%} alike)")
+    measured = _measured_pairs(ran, lambda a, b: {"matched": comparing.matched(a["boxes"], b["boxes"])})
     shown = ""
     if compared is not None:
         compared.update(operation="cells", capture=capture, arms=arms)  # kept to choose from (Compared)
@@ -832,8 +871,107 @@ async def _compare_cells(services, ctx: ToolContext, args: dict, impls: list, po
                 shown = "; the picture did not show in the magnifier"
     from ..registry import attach
 
+    from ... import model_comparison
+
+    stored = [{k: v for k, v in a.items() if k not in ("polygons", "caption", "boxes")} for a in arms]
+    record = model_comparison.build("cells", stored, policy=policy, summary={"pairs": measured},
+                                    on={"capture": capture.id})
     attach(values={"comparison": {"operation": "cells", "policy": policy, "capture": capture.id, "pairs": pairs,
                                   "arms": [{k: v for k, v in a.items() if k not in ("polygons", "caption")} for a in arms]}})
     how = "exactly those models" if policy == "raw" else "each with its declared fallbacks"
     return (f"Compared on the view at {comparing.when(getattr(capture, 'wall_at', None))} ({how}): " + "; ".join(parts)
-            + "".join(f"; {p}" for p in pairs) + shown)
+            + "".join(f"; {p}" for p in pairs) + shown), record
+
+
+async def _compare_classes(services, ctx: ToolContext, args: dict, impls: list, policy: str) -> tuple[str, dict]:
+    """Each model names every cell of the same population (the one named, else the one shown) from the same classes,
+    through the runner (model_comparison.compare_classes); the words say each run and how often they agree."""
+    from ... import model_comparison
+    from ...population import resolve
+
+    hub = services.hub
+    ref = str(args.get("of") or args.get("object") or "").strip() or None
+    population = resolve(hub, ref, ctx)
+    if population is None:
+        raise ToolFailed(f"there are no cells called {ref} to classify" if ref else "no cells are outlined to classify",
+                         next="outline the cells (outline_cells), then compare the classifiers on them")
+    record = await model_comparison.compare_classes(hub, population, impls, classes=args.get("classes"), policy=policy)
+    if not any(not a.get("failed") for a in record["arms"]):
+        raise ToolFailed("no model could classify them: " + "; ".join(f"{a['label']}: {a['failed']}" for a in record["arms"]),
+                         next="check the models' keys and setup, then compare again")
+    from ..registry import attach
+
+    on = record["on"]
+    how = "exactly those models" if policy == "raw" else "each with its declared fallbacks"
+    head = (f"Classified {on['members']} of {population.title}'s {on['of']} cells ({population.id}) with each model "
+            f"({how}), the same cells and the same classes ("
+            + (", ".join(record["summary"]["classes"]) if record["summary"]["classes"] else "none given: in their own words")
+            + "): ")
+    attach(values={"comparison": {"operation": "classify", "policy": policy, "population": population.id,
+                                  "arms": [{k: v for k, v in a.items()} for a in record["arms"]]}})
+    return head + model_comparison.words(record), record
+
+
+def _cost(impl, done, reused: bool) -> dict:
+    """An outline or cell run's cost as its record says it: a model on this Mac costs nothing; a cloud one's is not
+    reported for these operations (said so)."""
+    if reused:
+        return {"costUsd": None, "costBasis": "a reuse: nothing new was spent", "runs": "cloud" if impl.worker == "cloud" else "this Mac"}
+    if impl.worker == "cloud":
+        return {"costUsd": None, "costBasis": "not reported for this model's runs", "runs": "cloud"}
+    return {"costUsd": 0.0, "costBasis": "runs on this Mac", "runs": "this Mac"}
+
+
+def _measured_pairs(ran: list, measure) -> list[dict]:
+    """Every pair of models that ran, by implementation, with what `measure` says of them (as `_pairs` words them: two
+    arms that ran the same model are not compared)."""
+    out, said = [], set()
+    for i in range(len(ran)):
+        for j in range(i + 1, len(ran)):
+            a, b = ran[i], ran[j]
+            if a.get("executed") and a.get("executed") == b.get("executed"):
+                continue
+            pair = frozenset((a.get("executed") or a["impl"], b.get("executed") or b["impl"]))
+            if pair in said:
+                continue
+            said.add(pair)
+            out.append({"a": a["impl"], "b": b["impl"], **measure(a, b)})
+    return out
+
+
+async def _keep_table(services, ctx: ToolContext, record: dict, placement: str | None, *, default_shown: bool) -> str:
+    """The comparison kept as one table in Data (a result entry whose table the measurements table reads), and shown
+    where it was asked (placement), or beside by default when it is the comparison's only view (classify)."""
+    from ... import model_comparison
+    from ..registry import CURRENT_RUN, attach
+
+    hub = services.hub
+    results = getattr(getattr(hub, "resources", None), "results", None)
+    run = CURRENT_RUN.get()
+    if results is None or run is None:
+        return ""
+    kept_values = model_comparison.values(record)
+    # The record's fields beside what the studio already reads of a comparison (commands._comparison_summary): its arms
+    # and pairs as they were, its token.
+    attach(values={**kept_values, "comparison": {**kept_values["comparison"], **(run.values.get("comparison") or {})}})
+    try:
+        entry = results.from_run(run, ctx, hub, produced=True)
+    except (OSError, ValueError, ToolFailed) as exc:
+        return f"; its table could not be kept ({exc})"
+    if entry is None:
+        return ""
+    kept = f"; the comparison's table is kept in Data as {entry['id']} ({model_comparison.title(record)})"
+    place = placement or ("beside" if default_shown else None)
+    if place is None or ctx.channel == "system" or getattr(services, "open_page", None) is None:
+        return kept + (f"; show_measurements of={entry['id']} opens it" if place is None else "")
+    from .tables import open_table
+
+    day = getattr(services, "day", None)
+    try:
+        shown = await open_table(services, ctx, session=getattr(day, "sid", ""), target=entry["id"], revision=0,
+                                 title=str(entry.get("title") or model_comparison.title(record)),
+                                 rows=len(record["rows"]), what=f"the comparison's table {entry['id']}", tab=None,
+                                 guard=lambda: None, placement=place)
+    except ToolFailed as exc:
+        return kept + f", not shown ({exc}); show_measurements of={entry['id']} opens it"
+    return kept + f": {shown}"

@@ -18,6 +18,9 @@ OWNER = 'personal'
 KINDS = {'tool', 'review', 'measure', 'export', 'compare', 'researcher'}
 ACTORS = {'user', 'studio', 'agent:chat', 'agent:voice', 'agent:system', 'agent:researcher'}
 MAX_NODES, MAX_INPUTS, MAX_ATTEMPTS = 12, 64, 32
+# A comparison step takes two to six fixed branches (Part 2.5, W5: N models compared, model_comparison.MAX_MODELS);
+# every other step one to three inputs, as before.
+MAX_COMPARED, MAX_NEEDS = 6, 3
 PENDING = {'running', 'awaiting-review', 'awaiting-controls', 'awaiting-research', 'uncertain'}
 
 
@@ -71,7 +74,8 @@ def graph(value):
         if (type(node) is not dict or set(node) != {'id','name','kind','needs','settings'}
                 or type(node['id']) is not str or not re.fullmatch(r'[a-z][a-z0-9_-]{0,39}',node['id'])
                 or node['id'] in ids or node['kind'] not in KINDS or type(node['settings']) is not dict
-                or type(node['needs']) is not list or not 1 <= len(node['needs']) <= 3
+                or type(node['needs']) is not list
+                or not 1 <= len(node['needs']) <= (MAX_COMPARED if node.get('kind') == 'compare' else MAX_NEEDS)
                 or any(type(n) is not str for n in node['needs']) or len(set(node['needs'])) != len(node['needs'])):
             raise InvalidProject('Each workflow step needs a unique identity, supported operation and connected inputs')
         title(node['name']); ids.add(node['id'])
