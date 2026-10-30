@@ -2165,7 +2165,10 @@ async def _native_present_core(services, ctx, args):
         from ...untrusted import inline
 
         changed = []
-        drawn = {row.get("id"): row.get("drawRef") for row in (screen.completion_report(ctx.client) or {}).get("items", ())}
+        try:
+            drawn = {row.get("id"): row.get("drawRef") for row in (screen.completion_report(ctx.client) or {}).get("items", ())}
+        except ObservationError:  # the connection went since its confirmation: the words lose only the held note
+            drawn = {}
         for iid in effect.targets:
             state = core.get(pctx.workspace_id, iid)
             source = state.source.to_wire()
