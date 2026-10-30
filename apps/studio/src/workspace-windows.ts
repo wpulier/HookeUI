@@ -71,6 +71,9 @@ interface WindowRow {
   allowSmall: boolean; dismissed: boolean; sizeEstablished: boolean; liveSample: LiveSample | null; heldSample: LiveSample | null; liveHeld: boolean; disposed: boolean; layoutStamp: string | null; viewPaint: ViewPaint | null;
   /** The newest live frame waiting for the next animation frame; what is on screen until then is the last paint. */
   queuedLive: { frame: LiveFrame; sample: LiveSample } | null;
+  /** The sample of the live frame the window holds now, painted or not: a paint skipped while its Tab was not in front
+   *  (or the studio was away) paints that frame later with its own sample, though no newer frame comes (a held source). */
+  shownSample: LiveSample | null;
 }
 type LiveFrame = { image: HTMLImageElement; sample: unknown; held?: boolean; sourceToken: string; sourceGeneration: number; lifetimeGeneration: string };
 const CHROME = 42; // The shared design header; controls stay inside it.
@@ -396,7 +399,7 @@ export class WorkspaceWindows {
       opener: batch.op === 'open' && document.activeElement instanceof HTMLElement ? document.activeElement : null,
       pending: new Map(), expectedUrl: null, decodeJob: null, decodedToken: null, beforeUser: null, allowSmall: batch.op === 'resize', dismissed: false,
       sizeEstablished: state.geometryIntent.relation?.kind === 'beside' && !!state.geometryIntent.size,
-      liveSample: null, heldSample: null, liveHeld: false, disposed: false, layoutStamp: null, viewPaint: null, queuedLive: null,
+      liveSample: null, heldSample: null, liveHeld: false, disposed: false, layoutStamp: null, viewPaint: null, queuedLive: null, shownSample: null,
     };
     const controlsToggle = document.createElement('button');
     controlsToggle.type = 'button'; controlsToggle.className = 'workspace-window-options';
@@ -735,7 +738,7 @@ export class WorkspaceWindows {
     }, { signal: row.events.signal });
   }
   private loadMedia(row: WindowRow): void {
-    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.mediaEvents = new AbortController();
+    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.shownSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.mediaEvents = new AbortController();
     row.root.dataset.staged = 'true';
     row.picture.replaceChildren(); row.media = null; row.image = null; row.fit = null; row.expectedUrl = null;
     row.load = { state: 'empty', drawToken: null, naturalSize: null }; row.message.hidden = false;
@@ -823,10 +826,10 @@ export class WorkspaceWindows {
   private mediaError(row: WindowRow, detail: string, code: string): void {
     row.decodedToken = null;
     row.load = { state: 'error', drawToken: null, naturalSize: null, error: detail, errorCode: code };
-    row.liveSample = null; row.heldSample = null; row.message.hidden = false; row.message.textContent = detail;
+    row.liveSample = null; row.heldSample = null; row.shownSample = null; row.message.hidden = false; row.message.textContent = detail;
   }
   private emptyMedia(row: WindowRow): void {
-    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.picture.replaceChildren();
+    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.shownSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.picture.replaceChildren();
     row.image = null; row.media = null; row.fit = null; row.expectedUrl = null;
     row.load = { state: 'empty', drawToken: null, naturalSize: null }; row.message.hidden = true;
     if (row.root.hidden) row.root.remove();
@@ -866,6 +869,9 @@ export class WorkspaceWindows {
     const stamp = JSON.stringify([rect(row.root.getBoundingClientRect()), row.viewport.style.width, row.viewport.style.height, row.picture.style.width, row.picture.style.height, row.picture.style.left, row.picture.style.top, row.image?.style.transform]);
     const changed = stamp !== row.layoutStamp; row.layoutStamp = stamp;
     if (changed && row.load.state === 'drawn') { const sample = row.liveSample ?? row.heldSample; row.heldSample = null; row.load.state = 'loaded'; row.load.drawToken = null; row.liveSample = null; this.scheduleDraw(row, sample); }
+    // A live frame that arrived while the window was out of sight is painted once its layout changes (its Tab in front, a
+    // zoom): a held source sends no newer frame to do it (will-tabs, 30 Oct).
+    else if (changed && row.load.state === 'loaded' && row.state.source.kind === 'live' && row.image && row.shownSample) this.scheduleDraw(row, row.shownSample);
   }
   private observedZ(row: WindowRow): number | null {
     const value = getComputedStyle(row.root).zIndex;
@@ -911,7 +917,10 @@ export class WorkspaceWindows {
     // A front command can already be satisfied. Its fresh settled frame still
     // observes actual order, tied to this admitted occurrence. Other view
     // commands continue to require changed pixels/geometry; replay never enters here.
-    if (row.load.state === 'loaded') { row.load.state = 'drawn'; row.load.drawToken = `draw-${uuid()}`; row.liveSample = row.liveHeld ? null : drawnSample; row.heldSample = row.liveHeld ? drawnSample : null; }
+    // A live window paints the frame it holds: the sample handed with it, else that frame's own (a paint skipped while it was
+    // out of sight, done now with no newer frame to come).
+    const sample = drawnSample ?? (row.state.source.kind === 'live' ? row.shownSample : null);
+    if (row.load.state === 'loaded') { row.load.state = 'drawn'; row.load.drawToken = `draw-${uuid()}`; row.liveSample = row.liveHeld ? null : sample; row.heldSample = row.liveHeld ? sample : null; }
     row.root.dataset.staged = row.state.staged === true ? 'true' : 'false';
     if (!row.pending.size && row.state.staged !== true && this.observedZ(row) !== null && (!image || this.observedView(row) !== null)) {
       if (!row.viewPaint || row.viewPaint.view !== view || settledFront && row.viewPaint.binding !== binding) row.viewPaint = { ref: `view-${uuid()}`, view, binding, job, media };
@@ -939,7 +948,7 @@ export class WorkspaceWindows {
       if (!waiting) requestAnimationFrame(() => this.flushLive(row));
       return;
     }
-    row.queuedLive = null; this.applyLive(row, frame); this.scheduleDraw(row, sample);
+    row.queuedLive = null; this.applyLive(row, frame, sample); this.scheduleDraw(row, sample);
   }
   private liveBinds(row: WindowRow, frame: LiveFrame): boolean {
     return row.state.source.kind === 'live' && frame.sourceToken === row.state.delivery.sourceToken
@@ -948,16 +957,16 @@ export class WorkspaceWindows {
   private flushLive(row: WindowRow): void {
     const queued = row.queuedLive; row.queuedLive = null;
     if (!queued || this.disposed || row.disposed || row.dismissed || !row.state.open || !this.liveBinds(row, queued.frame)) return;
-    if (row.load.state !== 'drawn') { this.applyLive(row, queued.frame); this.scheduleDraw(row, queued.sample); return; }
+    if (row.load.state !== 'drawn') { this.applyLive(row, queued.frame, queued.sample); this.scheduleDraw(row, queued.sample); return; }
     // Swapped and painted inside this one animation frame, so no report sees it half done.
-    this.applyLive(row, queued.frame);
+    this.applyLive(row, queued.frame, queued.sample);
     this.paint(row, Object.freeze({ ...queued.sample }), false, row.decodeJob, row.image, row.media, this.viewBinding(row), this.paintedView(row));
   }
-  private applyLive(row: WindowRow, frame: LiveFrame): void {
+  private applyLive(row: WindowRow, frame: LiveFrame, sample: LiveSample): void {
     row.decodeJob = {}; row.root.dataset.staged = 'true'; row.image = frame.image; row.media = frame.image; row.expectedUrl = urlKey(frame.image.currentSrc); row.picture.replaceChildren(frame.image);
     Object.assign(frame.image.style, { position: 'absolute', maxWidth: 'none', width: '100%', left: '0%', top: '0%', height: 'auto', transformOrigin: '0 0' });
     row.fit = fitPicture({ width: frame.image.naturalWidth, height: frame.image.naturalHeight, disc: this.discFor(row), bounds: { min: 240, usual: 360, max: 640 } });
-    row.load = { state: 'loaded', drawToken: null, naturalSize: [frame.image.naturalWidth, frame.image.naturalHeight] }; row.liveSample = null; row.heldSample = null; row.liveHeld = frame.held === true; this.reflect(row);
+    row.load = { state: 'loaded', drawToken: null, naturalSize: [frame.image.naturalWidth, frame.image.naturalHeight] }; row.liveSample = null; row.heldSample = null; row.shownSample = Object.freeze({ ...sample }); row.liveHeld = frame.held === true; this.reflect(row);
     row.message.hidden = true; fitPanel(row.root, row.picture, frame.image, this.discFor(row)); this.layoutMedia(row);
   }
   private arrange(states: WindowState[]): void {

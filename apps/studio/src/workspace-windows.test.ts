@@ -1051,3 +1051,34 @@ test('explicit restore raises a background-created native placement after accept
  windows.apply({context,requestId:sent.at(-1)!.requestId,commandId:'restored',actionOccurrenceId:'restored',items:[accepted],op:'restore'});
  dom.frame();expect(panels.top()?.id).toBe(A);
 });
+
+// will-tabs, 30 Oct (the isolated instance): a live close-up whose Tab was not in front kept receiving frames it could not
+// paint, then its source held (the object left the frame: no more frames come). Moved to the Tab in front, it painted the
+// frame it held but reported no sample, so its front was never confirmed ("No actual content draw is recorded").
+describe('a live window shown again paints the frame it holds with that frame\'s sample', () => {
+  test('hidden, held, then shown: its paint carries the held frame\'s sample', async () => {
+    const { windows, image, item, draw } = await liveWindow();
+    const sample: ReviewedSample = { run: 'run-a', boot: 'live-boot', seq: 10 };
+    draw(sample); dom.frame(); expectLivePixels(windows, image, item);
+    const shown = root(windows, A) as unknown as TestElement;
+    shown.style.visibility = 'hidden'; // its Tab is not in front
+    draw({ ...sample, seq: 11 }); dom.frame(); // the next frame arrives, and cannot be painted there
+    expect(liveFact(windows).load.state).toBe('loaded');
+    shown.style.visibility = ''; // its Tab comes to the front; no frame follows (the source holds its last one)
+    (windows as Renderer & { shownAgain(): void }).shownAgain(); dom.frame();
+    expect(liveFact(windows).load.state).toBe('drawn');
+    expect(liveFact(windows).liveSample).toEqual({ ...sample, seq: 11 });
+  });
+  test('hidden, held, then its layout changes in sight (its Tab in front, a zoom): painted with the held frame\'s sample', async () => {
+    const { windows, draw } = await liveWindow();
+    const sample: ReviewedSample = { run: 'run-a', boot: 'live-boot', seq: 10 };
+    draw(sample); dom.frame();
+    const shown = root(windows, A) as unknown as TestElement;
+    shown.style.visibility = 'hidden';
+    draw({ ...sample, seq: 12 }); dom.frame();
+    expect(liveFact(windows).load.state).toBe('loaded');
+    shown.style.visibility = ''; windows.dispatchUser({ action: 'zoom', instance: A, values: { factor: 2 } }); dom.frame();
+    expect(liveFact(windows).load.state).toBe('drawn');
+    expect(liveFact(windows).liveSample).toEqual({ ...sample, seq: 12 });
+  });
+});
