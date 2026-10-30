@@ -957,7 +957,8 @@ class Experiments:
         asked = x.asked_in if x.asked_in is not None else app.conversation.here()
         request = issue(self.hub, "command", asked=asked, channel="system")
         try:
-            pin = self.hub.screen.pin(client, request_id=request.admission.request_id, timing="server-experiment-landed")
+            # Pinned to what the studio shows now, as a hand-off's later step is (partner_tools.follow_up).
+            pin = self.hub.screen.pin(client, request_id=request.admission.request_id, timing="server-handoff-arrival")
             info = self.hub.latest_info
             ctx = ToolContext("system", 0, info.id if info else None, f"Open {x.name}'s results",
                               asked=request.asked, admission=request.admission, actor="assistant",
@@ -973,8 +974,10 @@ class Experiments:
                 x.outcome = {**(x.outcome or {}), "tab": f"{x.name}: {x.title}"}
                 return run.summary[:1:].lower() + run.summary[1:] if run.summary else "opened in a Tab of its own"
             return f"not opened in a Tab: {run.summary}"
-        except Exception as exc:  # noqa: BLE001 - said, with its reason; the results stay in Data
-            return f"not opened in a Tab ({exc})"
+        except Exception as exc:  # noqa: BLE001 - said in plain words; the results stay in Data, the reason in the log
+            log.warning("experiment %s results not opened: %s", x.key, exc)
+            return ("not opened in a Tab yet: the studio did not show what it has open just then; ask to open the "
+                    "results and they open in a Tab of their own")
         finally:
             request.seal()
 

@@ -216,6 +216,12 @@ def test_the_approved_plan_runs_as_a_workflow_with_its_records_then_the_audit_th
     assert doc.kind == "result" and doc.media == "document"
     assert "shown in a Tab of its own" in x.outcome["words"]
     assert "Cellpose-SAM: 5, 5 cells" in x.outcome["words"]
+    # One outcome, once: owed to the voice (said at a pause) and noted in the conversation it was asked in.
+    from orchestrator.voice.events import bus_of
+
+    told = [e for e in bus_of(built.brain).events.values() if e.ref == f"experiment:{x.key}"]
+    assert [e.kind for e in told] == ["job-result"] and told[0].text.startswith("Experiment 1 finished: ")
+    assert any("Experiment 1 finished" in t.text for t in built.conversation.turns if t.role != "user")
 
 
 def test_a_failed_model_is_said_with_its_reason(rig, monkeypatch):
@@ -238,3 +244,135 @@ def test_a_failed_model_is_said_with_its_reason(rig, monkeypatch):
     assert x.status == "failed" and "the worker is gone" in x.why and "frame 1" in x.why
     assert "did not finish" in xs.status_words(x)
 
+
+
+def test_the_results_document_holds_the_table_the_outlines_side_by_side_and_the_audit(rig):
+    """What lands in the Tab: one document made by the app from the run's records (never the brain's model's words),
+    with the comparison table, the outlines side by side on frame 1 and the researcher's audit in its own words."""
+    from orchestrator.documents import text_of
+
+    built, xs = rig.built, rig.xs
+    session = built.day.sid
+
+    async def go():
+        x = xs.draft(session=session, thread=None, models=MODELS, frames=2, every=1.0, asked="compare them")
+        xs.approve(x, version=x.version, by="card", actor="user")
+        await until_async(lambda: x.status in ("done", "failed", "stopped"), seconds=120)
+        return x
+
+    x = asyncio.run(go())
+    assert x.status == "done", x.why
+    values = built.hub.resources.results.values(x.outcome["document"], session)
+    assert values["media"] == "document" and values["writer"] == "app"
+    assert values["byline"] == "Made by the app from Experiment 1's run records, with the researcher's audit"
+    sections = {s["heading"]: s for s in values["document"]["sections"]}
+    assert list(sections) == ["What was compared", "Frame by frame", "The comparison", "The audit"]
+    frames = sections["Frame by frame"]["paragraphs"]
+    assert frames[0]["text"].startswith("Frame 1: Cellpose-SAM found 5 cells; micro-sam (light microscopy) found 2 cells; "
+                                        "2 were found by both")
+    assert {c["kind"] for c in frames[0]["cites"]} == {"population"}
+    table = sections["The comparison"]["table"]
+    assert table["columns"][:6] == ["Frame", "Model", "What ran", "Cells", "Measured", "Mask area (px²)"]
+    # A row per frame and model, then one per model over all frames; the measurement step's rows match each count.
+    assert [r[:2] for r in table["rows"]] == [[1, "Cellpose-SAM"], [1, "micro-sam (light microscopy)"],
+                                             [2, "Cellpose-SAM"], [2, "micro-sam (light microscopy)"],
+                                             ["all", "Cellpose-SAM"], ["all", "micro-sam (light microscopy)"]]
+    assert [r[3] for r in table["rows"][:4]] == [r[4] for r in table["rows"][:4]] == [5, 2, 5, 2]
+    assert sections["The comparison"]["figure"] == {"picture": 0, "caption": "The outlines side by side on frame 1: each "
+                                                                             "model's cells on the frame's own pixels"}
+    audit = sections["The audit"]["paragraphs"][0]
+    assert audit["text"].startswith("Researcher 1's audit, in its own words (not reviewed by you): Simulated research")
+    assert audit["cites"][0]["kind"] == "research"
+    entry = built.hub.resources.get(x.outcome["document"], session)
+    assert entry.pictures  # the outlines side by side, kept with it
+    assert "Made by the app" in text_of(values) and "Frame | Model" in text_of(values)
+
+
+def test_the_brain_runs_it_only_on_the_users_own_yes_and_the_card_runs_the_version_it_shows(rig, monkeypatch):
+    """`experiment` do=run: the user's yes quoted from what they said (never the model's paraphrase), or the card's
+    press through the studio's command; `experiment_status` reads how it goes from its records."""
+    from orchestrator.brain.registry import ToolContext
+    from orchestrator.brain.toolbox import research as research_tools
+
+    built, xs = rig.built, rig.xs
+    registry = built.brain.registry
+    said = {"words": "I want to run an experiment comparing Cellpose and micro-sam on this footage"}
+    monkeypatch.setattr(research_tools, "recent_request", lambda services, ctx: said["words"])
+    asked = built.conversation.here()
+
+    async def call(tool, args, channel="chat", actor="assistant"):
+        ctx = ToolContext(channel, 1, None, question=said["words"], asked=asked, actor=actor)
+        run = registry.start(tool, args, ctx)
+        if run.task is not None:
+            await run.task
+        return run
+
+    async def go():
+        planned = await call("experiment", {"do": "plan", "models": MODELS, "frames": 2, "every": 1.0})
+        assert planned.ok, planned.summary
+        assert "planned (version 1; not run yet)" in planned.summary and "nothing has run" in planned.summary
+        x = xs.get(None, built.day.sid)
+        # A yes the user did not say is refused, and nothing runs.
+        refused = await call("experiment", {"do": "run", "asked_with": "yes, run it"})
+        assert refused.ok is False and "own yes" in refused.summary and x.status == "proposed"
+        said["words"] = "Yes, run it."
+        started = await call("experiment", {"do": "run", "asked_with": "yes, run it"})
+        assert started.ok, started.summary
+        assert x.status in ("sampling", "running") and x.approved["by"] == "words" and x.approved["actor"] == "agent:chat"
+        going = await call("experiment_status", {})
+        assert going.ok and "Experiment 1" in going.summary and ("sampling" in going.summary or "running" in going.summary)
+        await until_async(lambda: x.status in ("done", "failed", "stopped"), seconds=120)
+        ended = await call("experiment_status", {"experiment": "x1"})
+        assert "finished after" in ended.summary and "Cellpose-SAM: 5, 5 cells" in ended.summary
+        # The card: another plan, run by its version through the studio's command (the user's own press).
+        second = await call("experiment", {"do": "plan", "models": MODELS, "on": "view", "audit": False})
+        assert second.ok
+        y = xs.get("x2", built.day.sid)
+        xs.change(y, every=None, frames=None, on="view", measure=False)
+        from orchestrator.commands import COMMANDS
+
+        stale = await COMMANDS["experiment"](built, None, {"action": "run", "id": "x2", "version": 1})
+        assert stale["ok"] is False and "changed since it was shown" in stale["error"]
+        ran = await COMMANDS["experiment"](built, None, {"action": "run", "id": "x2", "version": 2})
+        assert ran["ok"], ran
+        assert y.approved["by"] == "card" and y.approved["actor"] == "user"
+        await until_async(lambda: y.status in ("done", "failed", "stopped"), seconds=120)
+        assert y.status == "done" and len(y.frames) == 1 and y.audit is None
+        return x
+
+    asyncio.run(go())
+
+
+def test_the_results_land_through_present_place_new_tab_on_the_studio_that_approved_it(rig, monkeypatch):
+    """The landing is a request of its own on the approving studio, pinned to what it shows now: `present` do=place,
+    placement new-tab, with the document's id (documents.show then waits for the studio's report). With no studio
+    showing the Project, it is said not opened, never claimed."""
+    from orchestrator import screen as screen_module
+    from orchestrator.experiments import Experiment
+
+    built, xs = rig.built, rig.xs
+    session = built.day.sid
+    x = Experiment(key="p" + "0" * 32, n=9, session=session, plan={"models": [{"label": "A"}, {"label": "B"}]},
+                   status="landing", outcome={"document": "d9"})
+    assert asyncio.run(xs._show(x, {"id": "d9"})).startswith("not opened yet: no studio shows this Project now")
+    client = object()
+    built.hub.clients.add(client)
+    started = []
+
+    class Run:
+        ok, summary, task = True, 'Shown in a Tab of its own, "Experiment 9: A vs B", in front, its pages drawn', None
+
+    monkeypatch.setattr(built.hub.screen, "pin", lambda c, **kw: SimpleNamespace(client=c, **kw))
+
+    async def fresh(hub, c, now=False):
+        return None
+
+    monkeypatch.setattr(screen_module, "fresh_report", fresh)
+    monkeypatch.setattr(built.brain.registry, "start", lambda tool, args, ctx: started.append((tool, args, ctx)) or Run())
+    x.client = client
+    said = asyncio.run(xs._show(x, {"id": "d9"}))
+    assert said.startswith('shown in a Tab of its own, "Experiment 9: A vs B"')
+    (tool, args, ctx), = started
+    assert (tool, args) == ("present", {"what": "d9", "do": "place", "placement": "new-tab"})
+    assert ctx.client is client and ctx.request_snapshot.timing == "server-handoff-arrival" and ctx.channel == "system"
+    built.hub.clients.discard(client)

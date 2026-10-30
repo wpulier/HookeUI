@@ -179,6 +179,14 @@ other files.
   - **Its receipt** says what was written (its title, its sections, the records it cites by name), where it is saved
     ("saved in Data as d7, under Write-ups") and where the studio shows it. Opened later, it is `present do=place`
     with its id (new-tab or beside), the same path. A deep report that reads the web is a researcher's.
+- **An experiment's results** (`orchestrator/experiments.py`; Part 2.5, W5) are one document of the same kind, made by
+  the app from the run's records (its byline says so: "Made by the app from Experiment 1's run records"), with the
+  researcher's audit in its own words: what was compared, frame by frame (each frame's paragraph citing each model's
+  cells), the comparison table and the outlines side by side on frame 1 drawn on the page (`readerDocument`'s `table`
+  and `figure`), and the audit. When the experiment lands they are placed in a Tab of their own by a request of its own
+  on the studio that approved it (else the one whose report counts), pinned to what it shows then: `present` do=place
+  placement new-tab with the document's id, done once the report shows the reader Tab with it. With no studio showing
+  its Project it is said not opened, never claimed; the card's Open results does the same later.
 - **A failure on the report path says what did not happen** (`screen.REPORT_NEXT`): not confirmed on screen yet, saved
   work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
   open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen

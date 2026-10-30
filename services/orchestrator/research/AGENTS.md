@@ -456,6 +456,19 @@ The current UI keeps this conversation inline, separately from reviewed findings
 connector recipient operates externally: no subprocess launcher, provider billing or new
 workflow attempt ledger is implied by saving a question.
 
+### A researcher auditing an experiment
+
+An experiment (`orchestrator/experiments.py`, Part 2.5 W5) the user approved with an audit runs a second frozen
+workflow whose one step is a researcher through this app's researchers (`workflow_research`, provider
+`local-researcher`; `docs/architecture/scientific-workflows.md` "Experiments"). Its input is the run's record (a JSON
+file: the plan, each frame with each model's run and counts, the matched cells, the comparison step's areas, and the
+Data ids to read); its brief is the question and criteria the user approved, the records to read with its session tool
+(the comparison table, each model's cells per frame) and how to judge them (check the table's counts against each
+model's cells, cite the records each point rests on, say what the run cannot settle, agreement is not accuracy). It is
+started `confirmed` (the plan the user said yes to admits it, at its effort's cap), with origin `experiment` and
+`asked` false: no camera snapshot, no beside-the-view opening of its own, and its finish is the experiment's step, said
+once in the experiment's outcome. Its finding becomes the step's `research-findings` output, not reviewed by anyone.
+
 ### One saved workflow from every entrance
 
 `tests/test_workflow_entrances.py` qualifies the integrated WorkflowService across the entrances (Part 2.5): one saved

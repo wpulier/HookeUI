@@ -90,6 +90,7 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 | `part-2.5-broad` | The broad journey (Will, 29 Oct: "incredible dynamic assistant epicness at the level of Clicky"): one continuous session of 30 casual requests. It covers seeing, pointing ("circle the cluster on the left"), acting, references to earlier turns ("that one", "the second one"), two researchers from one request and "what's researcher 2 doing?", capabilities (BioCLIP, the models in use, "switch your brain to Claude"), comparing three outline models, a reference picture and a web search, a new Project and back, one request that can't succeed, one interruption and small talk that must use no tool. Nobody talks while the slide is moved once (the watcher must raise it; with the default WATCH quiet it is told silently). An idle wait at the end lets the last researcher finish and its event be told, and counts the watcher's false alarms. Run it on a fresh stack, so researcher numbers start from the setup's Researcher 1. One run's worst case is about $24 for the one brain. |
 | `part-2.5-watch` | The watcher (`orchestrator/view_watch.py`) with WATCH chatty, the plan's own `settings`: "keep an eye on the slide with me", then nobody talks while the slide is moved once (a panning clip the stack makes from the still: held 14 s, moved over 2 s, held), "what just changed?", then 5 minutes where nothing happens. Worst case about $1.30 for the one brain; a run cost $0.39-0.46. |
 | `will-alive` | Alive and available (W3), on the real June 14 leaf recording: "Find a YouTube video about stomata" (the next words come 6-8 s later, while it runs: `"wait": 8`), "What's the thing in the middle?" meanwhile, then the Assistant closed (`"assistant": "close"`, the bench presses its toggle before the words) for "Outline every cell", then reopened (`"assistant": "open"`) for "Is the video search done?". Read with the Alive line. |
+| `will-experiment` | Will's experiment (W5) on the real June 14 leaf recording: "I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it" (the plan shown as a card, nothing run), "Yes, run it.", "How is the experiment going?" while it runs, then an `idle` step that waits for the experiment to end (`"waitFor": {"experiment": "done"}`) and judges the one outcome and its results Tab. Both models must be installed on this Mac; the audit is a quick researcher (at most $0.25). |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
@@ -110,7 +111,9 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
   is "not applicable" there, never a second failure.
 - **Kinds.**
   - `act`, `view`, `ask`, `status`: spoken requests.
-  - `idle`: no words. It waits for the newest researcher to finish.
+  - `idle`: no words. It waits for the newest researcher to finish, or what its `waitFor` names: `{"researcher":
+    "done"}` (a researcher new to the step finished), `{"researcher": "latest-done"}`, `{"frames": true}`, or
+    `{"experiment": "done"}` (an experiment's card, new to the step, ended: done, failed or stopped).
   - `restart`: quit and reopen Hooke.
   - `typed`: a request typed in the chat.
   - `stage`: the specimen put on the stage (setup).
