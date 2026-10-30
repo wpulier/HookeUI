@@ -580,7 +580,19 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                     f"again for exactly {subject}; {seen}")
         if args.get("show") is False:
             attach(picture_bytes=found.jpeg)
-            return (f"retained a reference photo: a real photo from {site}, not this slide ({title}; {credit}); "
+            # Kept now, by its id, as this request's own result: a later step ("put them in the new Tab") places it by
+            # that id or by this step, and nothing has to be named again (Will, 30 Oct: two photos kept, never placed,
+            # "name what to place").
+            from ..registry import CURRENT_RUN, record_output
+
+            kept = ""
+            run_now = CURRENT_RUN.get()
+            entry = hub.resources.results.from_run(run_now, ctx, hub, produced=True) if run_now is not None else None
+            if entry is not None:
+                record_output(ctx, {"kind": "resource", "resource": {"day": session_of(entry, entry["day"]),
+                                                                     "id": entry["id"], "version": None}})
+                kept = f" in Data as {entry['id']}"
+            return (f"retained a reference photo{kept}: a real photo from {site}, not this slide ({title}; {credit}); "
                     f"{seen}; asked for: {subject}; the existing magnifier is unchanged")
         if getattr(services, 'presentations', None) is not None and ctx.client:
             from ..registry import CURRENT_RUN

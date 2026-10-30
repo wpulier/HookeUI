@@ -297,9 +297,23 @@ async def place(services, ctx, registry, args: dict) -> str:
     # id or resource: one name (will-workspace, 30 Oct: "put that photo in it" named its window by instanceId and was
     # refused twice as naming nothing).
     raw = args.get("what") if args.get("what") not in (None, "") else args.get("instance")
+    if isinstance(raw, dict) and set(raw) == {"step", "output"}:
+        # What an earlier step of this request made, by its step and output (registry.typed_step_output).
+        from .brain.registry import typed_step_output
+
+        raw = _output_name(typed_step_output(ctx, raw))
     if isinstance(raw, dict):
         raw = raw.get("instanceId") or raw.get("id") or (raw.get("resource") or {}).get("id") or ""
     what = raw.strip() if isinstance(raw, str) else ""
+    if not what:
+        # Nothing named: "put them in the new Tab" means what this request made (Will, 30 Oct: two photos found for a
+        # new Tab, then "name what to place" twice and an empty Tab). Every one of them is placed, in the order made.
+        made = request_made(ctx)
+        if len(made) > 1:
+            said = [await place(services, ctx, registry, {**args, "what": one}) for one in made]
+            return "; ".join(said)
+        if made:
+            what = made[0]
     placement = str(args.get("placement") or "")
     tab = " ".join(str(args.get("tab") or "").split())[:80] or None
     instead = args.get("instead") is True
@@ -708,3 +722,32 @@ async def _live_here(services, ctx, window: str, title: str) -> str | None:
                                           "title": state.title or title})
     made = [s.id for s in core.list(pctx.workspace_id) if s.id not in before and s.open]
     return made[-1] if made else None
+
+
+def _output_name(output: dict) -> str:
+    """The name a typed step output goes by for place: a window's id, else the Data item it is."""
+    return str(output.get("instanceId") or (output.get("resource") or {}).get("id") or output.get("id") or "")
+
+
+def request_made(ctx) -> list[str]:
+    """What this request's earlier steps made that can be placed (saved items and windows), in the order made: "them",
+    "those", "the two" when nothing is named."""
+    from .brain.registry import current_step
+
+    now, steps = current_step(ctx)
+    names: list[str] = []
+    for number in sorted(n for n in getattr(steps, "outputs", {}) or {} if not now or n < now):
+        wires = []
+        for output in steps.outputs.get(number) or ():
+            try:
+                wires.append(output.wire() if hasattr(output, "wire") else dict(output))
+            except Exception:  # an output it cannot read is left out
+                continue
+        # A step that showed what it made in a window: that window, never the window and its saved item both.
+        shown = [w for w in wires if w.get("kind") == "presentation"]
+        for wire in shown or [w for w in wires if w.get("kind") == "resource"]:
+            name = _output_name(wire)
+            if name and name not in names and (wire.get("kind") == "presentation"
+                                               or re.fullmatch(r"[a-z]\d+(:o\d+)?", name)):
+                names.append(name)
+    return names[:6]

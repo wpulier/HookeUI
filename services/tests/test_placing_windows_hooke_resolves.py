@@ -473,3 +473,22 @@ def test_a_window_a_request_opens_goes_to_the_tab_it_was_asked_in(monkeypatch):
         assert asyncio.run(present._home_tab(services, ctx)) == "" and not sent
     finally:
         registry.CURRENT_RUN.reset(token)
+
+
+def test_them_with_nothing_named_is_what_this_request_made():
+    """Will's try-out, 30 Oct: "open a new tab and put in it two images you find online": two photos were kept, then
+    "put them there" named nothing and was refused twice, and the Tab stayed empty. With nothing named, place takes what
+    this request's earlier steps made, every one, a window when a step showed it, else its saved item."""
+    from types import SimpleNamespace
+    from orchestrator.brain import registry
+    from orchestrator.placement import request_made
+
+    steps = registry.Steps()
+    out = registry.ToolOutput.capture
+    steps.outputs[1] = [out({"kind": "resource", "resource": {"day": "p", "id": "d1", "version": None}})]
+    steps.outputs[2] = [out({"kind": "resource", "resource": {"day": "p", "id": "d2", "version": None}})]
+    steps.outputs[3] = [out({"kind": "presentation", "instanceId": "w-9"}),
+                        out({"kind": "resource", "resource": {"day": "p", "id": "d3", "version": None}})]
+    steps.outputs[5] = [out({"kind": "resource", "resource": {"day": "p", "id": "d5", "version": None}})]
+    ctx = SimpleNamespace(step=4, steps=steps)
+    assert request_made(ctx) == ["d1", "d2", "w-9"], "earlier steps only; a shown one by its window"
