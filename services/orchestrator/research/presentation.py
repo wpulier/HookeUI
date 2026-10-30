@@ -101,6 +101,7 @@ class PresentationJobs:
         current = self.current(session, kind)
         if expected_base != (current or {}).get('id'):
             raise ResearchRefused('the presentation changed; inspect its current version before revising', next='select the current presentation before revising')
+        manager._portable_execution_ready(session.sitting)
         # `day`: the calendar day it is charged to (ledger.py), whichever date folder its researcher is in.
         job = {'id': request_id, 'fingerprint': fingerprint, 'state': 'queued', 'created': time.time(), 'day': manager.today(),
                'contentKind':kind, **({'lesson':copy.deepcopy(lesson)} if lesson else {}),
@@ -339,12 +340,12 @@ class PresentationJobs:
 
     def photo(self, session):
         """The researcher's kept picture of the slide (its close-up, else the whole view), or None."""
-        directory = self.manager.root / session.day / session.rid / 'inputs'
+        directory = self.manager.directory(session) / 'inputs'
         found = directory / ('crop.jpg' if session.has_crop else 'frame.jpg')
         return found if found.exists() else None
 
     def write_output(self, session, output):
-        path = self.manager.root / session.day / session.rid / output['path']
+        path = self.manager.directory(session, write=True) / output['path']
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(path.suffix + '.tmp')
         if output.get('format') == 'html':

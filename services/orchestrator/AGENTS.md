@@ -1132,4 +1132,13 @@ not proof of dependency closure. Incomplete destinations cannot open; sealed
 snapshots cannot acquire a writer. Caller settlement, external/shared dependencies
 and eventual explicit working-copy import remain separate responsibilities.
 
+Selected Library intake can retain its metadata history alongside copied bytes.
+`project_media_history.py` reads bounded complete journal lines on the intake
+worker and selects only the source's identity, edits and applicable shared example
+classification. Final publication holds the Library lock and verifies the captured
+journal identity; changed metadata refuses without accepting a mixed revision.
+History hashes cover selected records only, so unrelated later edits do not change
+an accepted import's request identity. Author labels remain historical evidence,
+not grants. This does not collect a whole Record dataset or activate playback aliases.
+
 Portable snapshots accept only after all output and directory syncing finishes. The durable pending marker is removed as the last fallible action; failures remain uncertain across host restart without a recovery write. Explicit reconciliation remains required before using uncertain output.

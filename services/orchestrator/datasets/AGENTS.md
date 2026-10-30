@@ -1,5 +1,14 @@
 # Datasets: Record collects, the Data light checks
 
+`project_record_collection.py` is a staged background storage adapter for explicit
+whole-dataset inclusion in a portable Project. It reviews exact file membership,
+hashes, capture warnings and required bytes, then uses existing source-directory
+intake to copy the reviewed bytes. It never trims shared recordings to a Project's
+window, follows a link or installs carried capability archives. Changed membership
+requires a fresh review. The digest identifies reviewed content, not authority;
+owner inclusion UI/door admission and complete external dependency collection are
+not supplied by this adapter. Existing Record and Save paths remain unchanged.
+
 Part of the working context the root `AGENTS.md` maps. "Above" and "below" may mean parts it lists in
 other files.
 

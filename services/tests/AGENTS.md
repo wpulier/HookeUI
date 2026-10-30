@@ -1,5 +1,12 @@
 # Checks
 
+`test_project_record_collection.py` retains a synthetic shared Record folder through
+real immutable intake and reads it after deleting the synthetic original and moving
+the Project. It checks unchanged warnings/cross-Project records, mutable source hard
+links, missing parts, changed files/folders, cancellation, disk admission and event-loop
+refusal. This qualifies storage only: no owner inclusion UI, media decoder, actual
+recording, complete Project dependency closure or live App activation is implied.
+
 `test_project_media.py` copies synthetic media through actual immutable intake,
 moves its owning Project, deletes the original, and reads the exact retained bytes.
 It checks changed/replaced originals, cancellation, writer exclusion, origin/digest
@@ -666,4 +673,19 @@ The loop-stall regression holds its deliberate real event-loop block until the m
 
 `test_project_identity_routing.py` uses synthetic observations with real Project journals and identity replay. It covers move/reopen, merged-ID retention, independent writer refusal, replaced storage and interrupted tails. It is storage evidence, not biological identity accuracy or live portability acceptance.
 
+`test_project_media_history.py` uses real Library edits and immutable file intake
+with synthetic pixels. It checks retained calibration revisions, unrelated-item
+exclusion, stable retries, change-during-copy refusal and bounded history recovery.
+It does not qualify playback, live capture or complete Project collection.
+
+`test_project_research_storage.py` uses real journals and files with synthetic
+researcher records: moved-folder readback, retained prior interpretations, output
+and transcript paths, interrupted read-only recovery, conflicting identities,
+writer exclusion, replaced storage and durable failed-publication markers. These
+checks do not run a provider or certify complete dependency collection. Legacy
+research lifecycle checks remain required alongside the adapter tests.
 Snapshot publication failure probes retain the pending marker after complete output bytes, directory-sync failures and failed acceptance. A fresh host refuses the uncertain result and preserves it on retry; no process-local fallback is needed. These are synthetic payloads through real storage, not complete Project restoration.
+
+Study evidence regressions exercise multiple retained workflow runs through one inventory read, then change original control and confirm the next read reflects it without replay. Unreadable receipt and foreign-Project checks remain explicit. These controlled execution/storage tests do not establish production latency or scientific quality.
+
+Project-folder copy bounds each stream to its captured byte count plus a one-byte growth probe, and refuses excessive directory depth before destination admission. Growth regressions assert bounded reads/output; copy failure keeps the ordinary incomplete marker.

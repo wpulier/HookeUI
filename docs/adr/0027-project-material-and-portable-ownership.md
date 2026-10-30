@@ -181,6 +181,21 @@ action; a crash may conservatively restore uncertainty. Background identity life
 binding and reconciliation UI remain open gates: the staged adapter explicitly
 refuses event-loop use, rather than blocking live frames or silently claiming a save.
 
+### Retained researcher files
+
+The staged research storage adapter routes saved researcher records, previous
+interpretations, output files, notes and bounded transcripts by their captured
+Project. Historical file serving resolves the saved owner rather than the active
+workspace. Ambiguous researcher identities refuse rather than silently choosing
+another Project. An interrupted imported effort is displayed as interrupted and
+never replayed; a read-only host does not rewrite its saved accounting or status.
+
+This is retained-work routing, not provider execution qualification. New provider
+runs, follow-ups and presentation generation in portable Projects explicitly
+refuse until host-local spending, worker lifetime, source acquisitions and full
+collection are qualified. Existing legacy Projects keep their working researcher
+paths. Global descriptions/shared acquisitions, dependency closure and live App
+activation remain open; no complete portable Project claim follows from this slice.
 ### Selected Library media retention
 
 The staged `ProjectMedia` adapter copies an admitted image or recording through the
@@ -195,3 +210,30 @@ This adapter does not remap live Library aliases, collect Library edit history,
 materialize playback files or collect Record datasets. Record parts refuse until
 whole-dataset inclusion is reviewed. Live portable activation and complete mixed
 Project collection remain off pending those integrations.
+
+### Selected media metadata history
+
+Collection of a Library source preserves its available metadata revisions, including
+calibration and user corrections, alongside the exact copied bytes. Only records
+for that source and applicable shared example classifications enter the Project;
+the rest of the Library stays outside. A bounded, complete journal read and a
+publication-time Library guard prevent mixed metadata/byte captures. Truncated,
+conflicting or oversized history refuses rather than claiming complete collection.
+This extends selected-media retention; shared Record capture collection, playback
+identity mapping and full Project migration remain separate acceptance gates.
+
+### Whole Record folder inclusion
+
+The internal Record collector reviews the complete selected folder, including its
+cross-Project contents, hashes and required space. An admitted collection binds the
+exact review digest; that digest is not authorization. The caller must separately
+establish the owner's inclusion decision. Files enter the existing immutable
+source-directory store, never mutable hard links to an original recording.
+
+The review preserves capture warnings and explicitly reports external references
+as uncollected. It verifies declared camera parts and retains every folder file;
+it does not certify capture quality, decode media, or recursively collect paths
+mentioned in conversations. Unfinished checks, missing parts, links, changed files,
+oversized metadata and cancelled copies refuse. No public collection action or
+live App activation is added by this storage slice. Complete Project dependency
+closure, inclusion UI and mixed-domain reopen acceptance remain required.

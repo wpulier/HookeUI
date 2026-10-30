@@ -229,7 +229,33 @@ class Workflows:
         return sorted(rows,key=lambda a:(a['item'],a['node'],a['number']))
 
     def status(self,id_,session):
-        saved=self.run(id_,session);state=saved.document['state']['workflowRun'];rows=self.attempts(id_,session)
+        return self._status(self.run(id_,session), self.attempts(id_,session))
+
+    def statuses(self, ids, session):
+        """One bounded Project inventory read for a Study's original run receipts.
+
+        No retained status cache or replacement execution records. Missing runs
+        remain absent so the caller can report their original interrupted admission.
+        An unreadable record could be an attempt; it cannot establish completion.
+        """
+        ids=set(ids)
+        if len(ids)>256:raise InvalidProject('Read at most 256 workflow runs together')
+        if not ids:return {}
+        saved, problems=self.store.scan(session)
+        if problems:raise InvalidProject('Project execution history contains unreadable records; inspect Data before trusting its status')
+        runs={};attempts={id_:[] for id_ in ids}
+        for item in saved:
+            if item.id in ids:
+                if item.document['kind']!='scientific-workflow-run':raise InvalidProject('Choose a workflow run')
+                runs[item.id]=item
+            state=item.document['state'].get('workflowAttempt')
+            if item.document['kind']=='scientific-workflow-attempt' and type(state) is dict and state.get('run') in ids:
+                attempts[state['run']].append({**state,'id':item.id,'revision':item.revision})
+        return {id_:self._status(item,sorted(attempts[id_],key=lambda a:(a['item'],a['node'],a['number']))) for id_,item in runs.items()}
+
+    @staticmethod
+    def _status(saved, rows):
+        state=saved.document['state']['workflowRun']
         latest={(a['item'],a['node']):a for a in rows};active=list(latest.values())
         complete=len(active)==len(state['inputs'])*len(state['definition']['graph']['nodes']) and all(a['status']=='completed' for a in active)
         control=state['control']

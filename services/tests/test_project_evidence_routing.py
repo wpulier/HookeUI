@@ -2,6 +2,7 @@
 import copy
 import hashlib
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -15,12 +16,17 @@ from orchestrator.resources import Index
 from tests.test_evidence import population, view, saved
 
 
+def clock():
+    # Match the declared capture date regardless of the runner's current day/timezone.
+    return time.mktime((2026, 10, 29, 12, 0, 0, 0, 0, -1))
+
+
 @pytest.fixture
 def project(tmp_path):
     legacy = tmp_path / 'host/sessions'
-    SessionStore(legacy, session='2026-10-29')
+    SessionStore(legacy, clock=clock, session='2026-10-29')
     locations = ProjectLocations(legacy, ProjectRegistry(tmp_path/'host'), tmp_path/'Projects')
-    day = SessionStore(legacy, session='2026-10-29', locations=locations)
+    day = SessionStore(legacy, clock=clock, session='2026-10-29', locations=locations)
     day.new('Microscopy')
     hub = SimpleNamespace()
     evidence = Evidence(hub, tmp_path/'host/evidence', day=day)

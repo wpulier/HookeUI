@@ -22,6 +22,11 @@ def describe(document: dict) -> dict:
     if kind in ('source-file', 'source-directory'):
         material.update(kind='folder' if kind == 'source-directory' else 'file',
                         origin='imported', input=True, section='files', category='import')
+        collection = state.get('recordCollection')
+        if (kind == 'source-directory' and isinstance(collection, dict)
+                and collection.get('format') == 'hooke-record-collection-v1'
+                and collection.get('scope') == 'whole-record-folder'):
+            material.update(kind='recorded-dataset', format='microscopemind-dataset/1')
         media = state.get('librarySource')
         if isinstance(media, dict) and media.get('format') == 1 and media.get('scope') == 'selected-media':
             asset = media.get('asset')

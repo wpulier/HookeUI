@@ -19,6 +19,7 @@ from .project_roots import COPY_INTENT, PARTS, SNAPSHOT, ProjectLocationError, P
 from .scientific_projects import ProjectStore
 
 MAX_FILES = 100_000
+MAX_DEPTH = 64
 MAX_MANIFEST = 32 << 20
 HEADROOM = 64 << 20
 # These host associations and lock inodes are recreated on an explicit working
@@ -42,8 +43,10 @@ class Member:
 def _members(root, check, directories=None):
     found = []
     directories = [] if directories is None else directories
-    def visit(path):
+    def visit(path, depth=0):
         check()
+        if depth > MAX_DEPTH:
+            raise ProjectLocationError('Project folders exceed the supported nesting depth; reorganize working files before collection')
         info = path.lstat()
         relative = path.relative_to(root).as_posix()
         if relative in EXCLUDED or re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/\.write\.lock', relative):
@@ -53,7 +56,7 @@ def _members(root, check, directories=None):
             if len(directories) > MAX_FILES:
                 raise ProjectLocationError('This Project folder exceeds the supported directory count')
             for child in sorted(path.iterdir()):
-                visit(child)
+                visit(child, depth + 1)
         elif stat.S_ISREG(info.st_mode):
             found.append(Member(relative, info.st_size, _stamp(info)))
             if len(found) > MAX_FILES:
@@ -74,14 +77,19 @@ def _stream(path, expected=None, output=None, check=lambda: None):
         if not stat.S_ISREG(before.st_mode) or (expected and _stamp(before) != expected):
             raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
         digest = hashlib.sha256()
-        while True:
+        remaining = before.st_size
+        while remaining:
             check()
-            block = source.read(1 << 20)
+            block = source.read(min(remaining, 1 << 20))
             if not block:
-                break
+                raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
+            remaining -= len(block)
             digest.update(block)
             if output is not None:
                 output.write(block)
+        check()
+        if source.read(1):
+            raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
         if _stamp(os.fstat(source.fileno())) != _stamp(before) or _stamp(path.lstat()) != _stamp(before):
             raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
         return before.st_size, digest.hexdigest()
