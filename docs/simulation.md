@@ -33,7 +33,34 @@ outputs, recordings and credentials out of Git. Results live in the ignored
 model configuration and measured timing scope.
 
 Cloud scenarios require the explicit harness `--cloud` option and authorized
-provider credentials/spending. Neither `make check` nor the contributor check
+provider credentials/spending, including when selected with `--only`. Owned non-cloud
+stacks remove provider environment keys and disable file/Keychain lookup and research
+extensions in both child processes. `--attach` uses an externally managed stack;
+it cannot isolate that stack's credentials or saved data. Use an owned stack for
+the full gate. Neither `make check` nor the contributor check
 turns that option on. Never treat timing measured under unrelated heavy work as
 performance qualification. The full gate and affected tests are described in
 [the testing contract](../services/tests/AGENTS.md).
+
+Steady-state follow-click, cells-click and model-load baselines wait at most 120 seconds for the default
+models to be resident and no longer loading before seeding outlines. Following
+measurements also require a completed follower step after the final seed reply. Preparation time and the last
+observed state are retained separately; a timeout fails the scenario. Admission
+does not inspect latency or retry slow samples. Cold-model loads, concurrent load
+phases and their original latency thresholds remain part of the gate.
+
+Owned simulations also use a fresh catalog containing independent copies of the
+bundled models' available published weights and verification/device cache records.
+On macOS these are APFS clones. Source symlinks are refused; personal entries and
+channel catalogs are excluded. Missing weights remain missing and the production
+pinned legacy-cache resolver remains available. Prepared Python environments and
+tools are reused at their installed paths, including ordinary interpreter/dependency
+cache writes; this isolates saved scientific state, not the whole filesystem.
+No new model installation or provider request is made by this preparation.
+`test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
+qualify model performance.
+
+The cells-click scenario admits the same loaded cells RPC after setup, retains its
+first measured click, and still requires ten complete successful click intervals
+inside that exact RPC. Default-model residency and a fresh follower step replace
+setup races; no cell-finding run is added as a warm-up.

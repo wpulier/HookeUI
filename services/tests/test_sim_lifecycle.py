@@ -39,7 +39,7 @@ def test_observer_failures_keep_the_report_and_release_tasks(tmp_path, monkeypat
     class Stack:
         ws_url = "ws://test-refused"
 
-        def __init__(self, *args):
+        def __init__(self, *args, cloud=False):
             pass
 
         async def __aenter__(self):
