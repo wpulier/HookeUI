@@ -362,3 +362,13 @@ never authority to read them. Cancellation and revocation stop the affected revi
 This is an inspection, not collection, migration, grant creation or a completeness
 certificate. Hosted implementations without local storage report unavailable using
 the same contract. The CLI discovers this action without a private code path.
+
+### Historical source inclusion preflight
+
+Collection estimates inspect all journal source events, including removed sources,
+and show exact retained Library-binding choices scoped by the Project origin.
+They never resolve a historical Library ID against this host's unrelated Library,
+select newest-wins, or infer references from conversation text. A missing binding
+requires explicit inclusion review. A binding is not proof of whole-Record inclusion,
+complete Library history or verified media bytes. Changes, damaged journals and
+resource limits refuse this preflight; active work is never replayed.
