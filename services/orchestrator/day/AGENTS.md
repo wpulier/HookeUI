@@ -374,3 +374,14 @@ reference. Ordinary portable startup remains off pending complete collection and
 qualification.
 
 `source-retain` is the owner Studio intake step for selected Library media. Portable Projects copy through ProjectMedia off the event loop and journal an exact `source`/`retained` association without selecting the Stage. Request retries retain the original receipt even if the source was deleted. The captured Project and actor survive a UI Project switch; no fallback may file into another Project. Existing connector file-open uses this same step after its own authorization and intake. Global Library browsing is not newly granted.
+
+Detached workspace reconciliation and delayed quiz replies carry the host’s ProjectLocations, preferences and catalogue. They resolve the captured Project and must not create a second legacy journal with the same session handle. Real server restoration checks exercise workspace-layout reconciliation before shutdown.
+
+`python -m orchestrator.project_recovery --home <host> --session <handle>` inspects
+an empty legacy shadow conflicting with a registered portable Project. With the
+host stopped, `--preserve-empty-shadow <inspected-sha256>` moves only a two-event,
+otherwise empty legacy creation into host-local project-recovery, with its original
+bytes and a recovery receipt. It refuses active portable writers, changed bytes,
+additional events/files and ambiguous owners. It does not merge origins, alter
+portable evidence or grants, and is never invoked automatically. An interrupted
+recovery preserves its prepared receipt and bytes for explicit inspection.
