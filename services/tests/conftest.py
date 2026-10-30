@@ -56,9 +56,10 @@ def _isolated_provider_credentials(monkeypatch):
 
 @pytest.fixture
 def research_key(_isolated_provider_credentials, monkeypatch):
-    """A set-up app whose researchers' model (GPT-6.1 Sol by default) has its key, so starting a real-model researcher is
-    not refused for want of it (research/manager.engine_key_refusal; the refusal itself: test_research_engine_key.py).
-    After `_isolated_provider_credentials`, which clears every real key."""
+    """A set-up app whose researchers' model (Claude Opus 5.5 by default since 30 Oct; GPT-6.1 Sol the other option) has
+    its key, so starting a real-model researcher is not refused for want of it (research/manager.engine_key_refusal; the
+    refusal itself: test_research_engine_key.py). After `_isolated_provider_credentials`, which clears every real key."""
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'test-anthropic-key')
     monkeypatch.setenv('OPENAI_API_KEY', 'test-openai-key')
 
 

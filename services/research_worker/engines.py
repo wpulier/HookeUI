@@ -359,6 +359,10 @@ def _sent(items) -> tuple[int, int]:
 def make_engine(name: str | None):
     if name == "fake":  # a scripted researcher stays scripted, whatever the environment says
         return FakeEngine()
+    if not os.environ.get("MICROMIND_RESEARCH_ENGINE"):
+        from orchestrator.options import research_engine_with_key
+
+        name = research_engine_with_key(name or "claude-opus-5-5")  # its key missing: another listed one that has its
     name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or name or "claude-opus-5-5"
     if name == "fake":
         return FakeEngine()

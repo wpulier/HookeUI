@@ -290,6 +290,22 @@ RESEARCH_ENGINE = {
     ]
 }
 
+
+def research_engine_with_key(name: str) -> str:
+    """The researchers' model to run: the one set, or, when its key is missing and another listed one has its key, the
+    first of those (Will, 30 Oct: researchers "default opus5.5 but can use openai"; never refused for a key another
+    model here has). Only between the frontier ones (RESEARCH_FALLBACK): Gemini Flash "often answers from memory", so a
+    Google key alone is still told plainly what to add. A model this app does not list, or one needing no key, is run as
+    named."""
+    option = RESEARCH_ENGINE.get(name)
+    if option is None or not option.needs or os.environ.get(option.needs) or name not in RESEARCH_FALLBACK:
+        return name
+    return next((i for i in RESEARCH_FALLBACK if RESEARCH_ENGINE[i].needs and os.environ.get(RESEARCH_ENGINE[i].needs)),
+                name)
+
+
+RESEARCH_FALLBACK = ("claude-opus-5-5", "gpt-6.1-sol")
+
 # What draws researchers' pictures (spike S4).
 PRESENTATION = {o.id: o for o in [
     Option('off', 'Standard layout only', 'App-rendered findings; no presentation model call'),

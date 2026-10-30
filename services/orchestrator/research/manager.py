@@ -83,7 +83,9 @@ def engine_key_refusal(setting: str | None) -> ResearchRefused | None:
     alone, Gemini as the Assistant, GPT-6.1 Sol for researchers)."""
     from ..options import RESEARCH_ENGINE
 
-    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "claude-opus-5-5"
+    from ..options import research_engine_with_key
+
+    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or research_engine_with_key(setting or "claude-opus-5-5")
     option = RESEARCH_ENGINE.get(name)
     if option is None or not option.needs or os.environ.get(option.needs):
         return None  # a scripted engine, one this app does not list, or its key is there
