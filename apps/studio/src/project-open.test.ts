@@ -21,8 +21,23 @@ test('verified registration navigates through the normal unsaved-work gate only 
   const dialog = showOpenProject({current: () => true, open, navigate});
   submit(dialog); submit(dialog);
   await vi.waitFor(() => expect(navigate).toHaveBeenCalledExactlyOnceWith('p1'));
-  expect(open).toHaveBeenCalledExactlyOnceWith('/Projects/Research');
+  expect(open).toHaveBeenCalledExactlyOnceWith('/Projects/Research', false);
   expect(document.body.contains(dialog)).toBe(false);
+});
+
+test('relocation is an explicit owner choice and stays selected after a writer refusal', async () => {
+  dom(); const open = vi.fn().mockRejectedValueOnce(new Error('Another Hooke host is writing')).mockResolvedValue(project);
+  const navigate = vi.fn(async () => true);
+  const dialog = showOpenProject({current: () => true, open, navigate});
+  const inputs = Array.from(dialog.querySelectorAll('input'));
+  const choice = inputs.find(input => input.type === 'checkbox')!;
+  expect(choice.checked).toBe(false); choice.checked = true;
+  submit(dialog);
+  await vi.waitFor(() => expect(dialog.textContent).toContain('Another Hooke host is writing'));
+  expect(open).toHaveBeenLastCalledWith('/Projects/Research', true);
+  expect(choice.checked).toBe(true); expect(choice.disabled).toBe(false);
+  expect(navigate).not.toHaveBeenCalled();
+  submit(dialog); await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce());
 });
 test.each(['closed', 'navigated'])('late registration after %s never moves the workspace', async kind => {
   dom(); let current = true, done!: (value: OpenedProject) => void;

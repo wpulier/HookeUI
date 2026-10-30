@@ -75,13 +75,15 @@ def test_move_resume_retains_conversation_and_workspace_without_replay(tmp_path)
     root.path.rename(moved)
     fresh = ProjectLocations(locations.legacy, locations.registry, locations.parent)
     try:
-        with pytest.raises(ProjectLocationError):
-            SessionStore.resume(fresh.legacy, locations=fresh)
+        fallback = SessionStore.resume(fresh.legacy, locations=fresh)
+        assert fallback.sid != sid
+        assert fallback.catalogue.get(sid).unavailable
         assert not (fresh.legacy / sid).exists()
         fresh.registry.register(ProjectRoot.open(moved), replace_inactive=True)
+        fallback.open(sid)
         restored = SessionStore.resume(fresh.legacy, locations=fresh)
         assert restored.sid == sid
-        assert restored.journal.load() == events
+        assert restored.journal.load()[:len(events)] == events
         assert any(e.get('operation') == 'op-original' for e in restored.journal.load())
     finally:
         fresh.close()

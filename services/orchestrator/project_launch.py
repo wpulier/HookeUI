@@ -50,13 +50,15 @@ def _open_owner_folder(paths, locations, opening):
     Prefs(paths.sessions).point(root.session, strict=True)
 
 
-def register_owner_folder(paths, locations, opening):
+def register_owner_folder(paths, locations, opening, *, use_location=False):
     """Register an owner-selected working folder without navigation or agent access."""
     from .day.ownership import namespace, retained_owner
     from .door.projects import ProjectAccess
     from .project_repository import verify_owner
     if locations is None:
         raise ProjectLocationError("Project folders are not enabled for this host")
+    if type(use_location) is not bool:
+        raise ProjectLocationError('Choose explicitly whether to use a relocated Project location')
     if not isinstance(opening, str) or not opening.strip() or not Path(opening).expanduser().is_absolute():
         raise ProjectLocationError('Choose the absolute location of the Project folder')
     root = ProjectRoot.open(Path(opening))
@@ -66,10 +68,20 @@ def register_owner_folder(paths, locations, opening):
         entries = locations.registry.locations()
         prior = entries.get(root.origin)
         if prior is not None:
-            # No implicit relocation, re-registration, or access reset for a known origin.
-            if Path(prior['path']) != root.path or locations.registry.locate(root.origin) != root:
-                raise ProjectLocationError('This Project is known at another location. Choose explicit inactive-location recovery or open read-only.')
+            if Path(prior['path']) != root.path:
+                if not use_location:
+                    raise ProjectLocationError('This Project is known at another location. Select “Use this location” after closing its other Hooke host.')
+                old = retained_owner(paths.sessions, root.session)
+                if ((old is not None and old['origin']['origin'] != root.origin)
+                        or (old is None and (paths.sessions / root.session / 'journal.jsonl').exists())):
+                    raise ProjectLocationError('A conflicting legacy Project uses this handle. Neither Project was changed.')
+                locations.registry.register(root, replace_inactive=True, require_known=True,
+                    verify_history=True, publication_guard=lambda: locations.relocation_publication(root))
+            elif locations.registry.locate(root.origin) != root:
+                raise ProjectLocationError('This Project identity changed; preserve both folders before continuing')
             return root
+        if use_location:
+            raise ProjectLocationError('This Project is not registered here. Clear “Use this location” to open it as a new local Project without inherited agent access.')
         if root.session in locations.handles():
             raise ProjectLocationError('Another Project uses this host handle. Neither Project was changed; open in a separate profile.')
         if ((paths.sessions / root.session / 'journal.jsonl').exists()

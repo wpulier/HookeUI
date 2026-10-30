@@ -3164,7 +3164,8 @@ async def project_open_folder(app, client, msg) -> dict:
     if msg.get('session') != day.sid:
         raise tools.ToolError('The Project changed.', next='open the folder again from the current Project')
     try:
-        root = await asyncio.to_thread(register_owner_folder, app.paths, day.locations, msg.get('path'))
+        root = await asyncio.to_thread(register_owner_folder, app.paths, day.locations, msg.get('path'),
+                                       use_location=msg.get('useLocation', False))
     except (OSError, ValueError) as error:
         raise tools.ToolError(str(error), next='keep the original folder and choose an available working Project') from error
     # Registration is durable even if navigation changed while verification ran.

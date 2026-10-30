@@ -512,3 +512,12 @@ current host label. Reopening a Project without its old connections must preserv
 that recorded display name and stable actor ID. Reading a historical label never
 registers a connection, updates the host label cache, or grants access. Records
 without a retained label keep the existing host-label/unknown fallback.
+
+### Owner-selected location recovery in Studio
+
+Open Project may explicitly request “Use this location” for an origin already
+registered on this host. This reuses the registry's inactive-location transaction:
+verify retained history, refuse either active writer, and publish only the locator.
+The Project origin, accepted bytes and local grants stay unchanged. An unknown
+origin cannot use this mode or adopt historical permissions. Default opening still
+refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
