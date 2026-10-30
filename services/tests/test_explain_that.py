@@ -354,5 +354,7 @@ def test_only_while_there_is_a_last_result_is_the_brain_asked_whether_the_words_
     assert line.startswith('The last result the user saw or heard ("that", "it"): said: It is in the Graphic Tab.; '
                            "made or shown: r1:o1.")
     assert '"about_last": true' in line
+    # An action on it is done alone, never with its record read (Will's try-out, 30 Oct: "Can you zoom in on it?").
+    assert 'Never for an action on it' in line and 'zoom in on it' in line
     voice = _last_result_words(brain, asked, for_voice=True)
     assert voice == line[:len(voice)] and "about_last" not in voice

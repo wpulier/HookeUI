@@ -1008,9 +1008,12 @@ def _last_result_words(brain, request_snapshot=None, for_voice: bool = False) ->
     said = 'The last result the user saw or heard ("that", "it"): ' + "; ".join(parts) + "."
     if for_voice:
         return said
-    return said + (' When the user\'s words are about it ("explain that", "what is it?", "I don\'t understand that"), '
-                   'add "about_last": true to your reply: its own record (what it is and shows, who made it and with '
-                   'what, from what, when) is then read for the answer.')
+    # Only a question about it reads its record: an action on it ("zoom in on it", "outline that") is done at once, as
+    # before (Will's try-out, 30 Oct: "Can you zoom in on it?" read the record too, an extra round, 6.3 s to decide).
+    return said + (' When the user asks to have it explained or described ("explain that", "what is it?", "I don\'t '
+                   'understand that"), add "about_last": true to your reply: its own record (what it is and shows, who '
+                   'made it and with what, from what, when) is then read for the answer. Never for an action on it '
+                   '("zoom in on it", "outline that", "put it in a new Tab"): do that action alone.')
 
 
 def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
