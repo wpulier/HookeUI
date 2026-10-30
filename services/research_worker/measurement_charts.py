@@ -155,6 +155,17 @@ def _font(size: int):
         return ImageFont.load_default()
 
 
+# The default font draws Latin-1 only: a title's dash or curly quote would be an empty box (live 30 Oct: "Average net
+# speed □ all tracked spots").
+PLAIN = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2212": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"',
+                       "\u201d": '"', "\u2026": "...", "\u2022": "\u00b7", "\u00a0": " "})
+
+
+def plain(text: str) -> str:
+    """Text the chart's font can draw: common punctuation as its Latin-1 twin, anything else beyond Latin-1 as "?"."""
+    return "".join(c if ord(c) < 256 else "?" for c in str(text).translate(PLAIN))
+
+
 def _number(x: float) -> str:
     if x == 0:
         return "0"
@@ -224,7 +235,7 @@ def _draw(s: Series, title: str, layout: _Layout, upto: int, caption: str):
     image = Image.new("RGB", SIZE, "#ffffff")
     d = ImageDraw.Draw(image)
     ink, faint, rule = "#1d232b", "#5f6875", "#d5d9df"
-    d.text((layout.left, 16), title[:90], fill=ink, font=_font(17))
+    d.text((layout.left, 16), plain(title)[:90], fill=ink, font=_font(17))
     small = _font(11)
     for t in _ticks(layout.y_low, layout.y_high):
         y = layout.y(t)
@@ -345,7 +356,7 @@ def means_png(sets: list[Series], names: list[str], title: str, unit: str = "") 
     d = ImageDraw.Draw(image)
     ink, faint, rule = "#1d232b", "#5f6875", "#d5d9df"
     left, top, right, bottom = 74, 58, SIZE[0] - 24, SIZE[1] - 96
-    d.text((left, 16), title[:90], fill=ink, font=_font(17))
+    d.text((left, 16), plain(title)[:90], fill=ink, font=_font(17))
     small = _font(11)
 
     def y(v: float) -> float:
@@ -370,11 +381,16 @@ def means_png(sets: list[Series], names: list[str], title: str, unit: str = "") 
             d.line([(middle, hi), (middle, lo)], fill=ink, width=2)
             d.line([(middle - 8, hi), (middle + 8, hi)], fill=ink, width=2)
             d.line([(middle - 8, lo), (middle + 8, lo)], fill=ink, width=2)
-        d.text((middle, y(st["mean"] + st["sd"]) - 6), _number(st["mean"]), fill=ink, font=small, anchor="mb")
-        d.text((middle, bottom + 6), name[:16], fill=ink, font=small, anchor="ma")
-        d.text((middle, bottom + 20), f"n = {st['n']}", fill=faint, font=small, anchor="ma")
+        words = f"mean {_number(st['mean'])}"  # on a white box above its whisker, so dots never hide it
+        at = (middle, y(st["mean"] + st["sd"]) - 6)
+        box = d.textbbox(at, words, font=small, anchor="mb")
+        d.rectangle([box[0] - 3, box[1] - 2, box[2] + 3, box[3] + 2], fill="#ffffff", outline=rule)
+        d.text(at, words, fill=ink, font=small, anchor="mb")
+        d.text((middle, bottom + 6), plain(name)[:16], fill=ink, font=small, anchor="ma")
+        d.text((middle, bottom + 20), f"n = {st['n']}" + (f", sd {_number(st['sd'])}" if st["n"] > 1 else ""),
+               fill=faint, font=small, anchor="ma")
     first = sets[0]
-    axis = first.column + (f" ({unit})" if unit else "")
+    axis = plain(first.column + (f" ({unit})" if unit else ""))
     d.text((14, top - 16), axis[:40], fill=faint, font=small)
     d.text((left + (right - left) / 2, bottom + 38), "bar: mean · whisker: ±1 standard deviation · dots: each value"
            + (f" (only rows where {first.only[1:]} is true)" if first.only else ""), fill=faint, font=small, anchor="ma")

@@ -153,3 +153,11 @@ def test_every_table_a_means_chart_read_is_what_the_researcher_made_it_from():
                         outputs=[{"kind": "image", "derived": {"source": {"id": "m1"},
                                                                "sources": [{"id": eid} for eid in SPEEDS]}}])
     assert made_from(s) == list(SPEEDS)
+
+
+def test_a_title_the_font_cannot_draw_is_drawn_in_its_latin_1_twin():
+    from research_worker import measurement_charts as charts
+
+    assert charts.plain("Average net speed — all tracked spots, 4 runs (µm/s)") == \
+        "Average net speed - all tracked spots, 4 runs (µm/s)"
+    assert charts.plain("“Run” … →") == '"Run" ... ?'
