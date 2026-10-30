@@ -1,0 +1,337 @@
+"""Metadata-only material projection shared by the resource index and agent state.
+
+No content reads, filesystem inference or execution. Declared formats are facts from
+accepted documents, not a guess from a title. Use never changes an artifact's origin.
+"""
+from __future__ import annotations
+
+
+def describe(document: dict) -> dict:
+    kind = document.get('kind', '')
+    state = document.get('state', {})
+    state = state if isinstance(state, dict) else {}
+    file = state.get('sourceFile', {})
+    file = file if isinstance(file, dict) else {}
+    operation = state.get('matrixOperation', {})
+    operation = operation if isinstance(operation, dict) else {}
+    output = operation.get('output', {})
+    summary = output.get('summary', {}) if isinstance(output, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    material = {'kind': 'file', 'origin': 'unknown', 'input': False,
+                'section': 'other', 'category': 'other', 'record': False}
+    if kind in ('source-file', 'source-directory'):
+        material.update(kind='folder' if kind == 'source-directory' else 'file',
+                        origin='imported', input=True, section='files', category='import')
+        collection = state.get('recordCollection')
+        if (kind == 'source-directory' and isinstance(collection, dict)
+                and collection.get('format') == 'hooke-record-collection-v1'
+                and collection.get('scope') == 'whole-record-folder'):
+            material.update(kind='recorded-dataset', format='microscopemind-dataset/1')
+        media = state.get('librarySource')
+        if isinstance(media, dict) and media.get('format') == 1 and media.get('scope') == 'selected-media':
+            asset = media.get('asset')
+            if isinstance(asset, dict) and asset.get('kind') in ('still', 'recording'):
+                material['kind'] = 'image' if asset['kind'] == 'still' else 'recording'
+                # A generated picture used as an input keeps its producing origin.
+                material['origin'] = ('generated' if asset.get('from') in ('snapshot', 'clearer')
+                                      else 'imported' if asset.get('from') in ('added', 'example', 'recording')
+                                      else 'unknown')
+    elif kind == 'research-effort':
+        material.update(kind='assignment', origin='authored', input=True, section='study', category='study-result')
+    elif kind == 'project-material-membership':
+        material.update(kind='organization', origin='authored', section='history', category='organization', record=True)
+    elif kind.startswith('scientific-workflow-'):
+        material.update(kind='workflow', origin='generated', section='history', category='workflow', record=True)
+        attempt = state.get('workflowAttempt', {})
+        if isinstance(attempt, dict) and isinstance(attempt.get('run'), str):
+            material['run'] = attempt['run']
+    elif kind == 'matrix-result':
+        material.update(kind='analysis', origin='generated', section='analysis', category='analysis')
+        if summary.get('format') == 'response-model-v1':
+            material.update(kind='model', section='model')
+    elif isinstance(state.get('scientificMeasurements'), dict):
+        material.update(kind='table', origin='generated', section='analysis', category='table')
+    elif kind in ('population-labels', 'retained-population'):
+        material.update(kind='labels', origin='generated', section='analysis', category='outline-layer')
+    elif kind in ('scientific-comparison', 'scientific-method-comparison'):
+        material.update(kind='analysis', origin='generated', section='analysis', category='analysis')
+    if isinstance(summary.get('format'), str):
+        material['format'] = summary['format'][:120]
+    if type(file.get('size')) is int and file['size'] >= 0:
+        material['bytes'] = file['size']
+    shape = summary.get('shape')
+    if isinstance(shape, list) and len(shape) <= 8 and all(type(n) is int and n >= 0 for n in shape):
+        material['shape'] = list(shape)
+    # These are exact accepted dependencies, not proof of content verification now.
+    material['dependencies'] = document.get('resources', [])
+    return material
+
+
+def inspection_facts(summary):
+    """Bounded, literal inspection facts; older reports remain valid without a preview."""
+    import math
+    result = {}
+    shape=summary.get('shape')
+    if isinstance(shape,list) and len(shape)==2 and all(type(n) is int and n>=0 for n in shape):result['shape']=shape
+    for key in ('observationColumns', 'variableColumns'):
+        values = summary.get(key)
+        if isinstance(values, list) and all(isinstance(v, str) for v in values):
+            result[key] = [v[:256] for v in values[:128]]
+    for key in ('dtype',):
+        if isinstance(summary.get(key), str):
+            result[key] = summary[key][:256]
+    for key in ('rawCounts', 'sparse'):
+        if type(summary.get(key)) is bool:
+            result[key] = summary[key]
+    preview = summary.get('preview')
+    if not isinstance(preview, dict) or preview.get('selection') != 'first-observations-and-variables':
+        return result
+    rows, columns, values = preview.get('observations'), preview.get('variables'), preview.get('values')
+    if not (isinstance(rows, list) and isinstance(columns, list) and 0 < len(rows) <= 10
+            and 0 < len(columns) <= 10 and all(isinstance(v, str) and len(v) <= 256 for v in rows + columns)
+            and isinstance(values, list) and len(values) == len(rows)
+            and all(isinstance(row, list) and len(row) == len(columns)
+                    and all(type(v) in (int, float) and math.isfinite(v) or isinstance(v,str) and len(v)<=32 and v.lstrip('-').isdigit() for v in row) for row in values)):
+        return result
+    clean = {key: preview[key] for key in ('selection', 'observations', 'variables', 'values')}
+    for key, count in (('observationAnnotations', len(rows)), ('variableAnnotations', len(columns))):
+        annotations = preview.get(key, [])
+        if not (isinstance(annotations, list) and len(annotations) <= 10):
+            return result
+        kept = []
+        for annotation in annotations:
+            if not (isinstance(annotation, dict) and isinstance(annotation.get('name'), str)
+                    and len(annotation['name']) <= 256 and isinstance(annotation.get('values'), list)
+                    and len(annotation['values']) == count
+                    and all(v is None or type(v) is bool or isinstance(v, str) and len(v) <= 256
+                            or type(v) in (int, float) and math.isfinite(v) for v in annotation['values'])):
+                return result
+            kept.append({'name': annotation['name'], 'values': annotation['values']})
+        clean[key] = kept
+    if preview.get('integerEncoding')=='unsafe-as-decimal-string':clean['integerEncoding']='unsafe-as-decimal-string'
+    result['preview'] = clean
+    return result
+
+
+def _inspections(entries):
+    """Index recorded matrix inspections by exact input, never by title or filename."""
+    import re
+    found = {}
+    for entry in entries:
+        if (entry.kind != 'project' or not isinstance(entry.id, str)
+                or not re.fullmatch(r'p[a-f0-9]{32}', entry.id)
+                or type(entry.version) is not int or entry.version < 1
+                or not isinstance(entry.source, dict)
+                or not isinstance(entry.source.get('sha256'), str)
+                or not re.fullmatch(r'[a-f0-9]{64}', entry.source['sha256'])):
+            continue
+        document = entry.values if isinstance(entry.values, dict) else {}
+        state = document.get('state', {})
+        operation = state.get('matrixOperation', {}) if isinstance(state, dict) else {}
+        if (document.get('kind') != 'matrix-result' or not isinstance(operation, dict)
+                or operation.get('format') != 1 or operation.get('capability') != 'matrix-inspect'):
+            continue
+        inputs, output = operation.get('inputs'), operation.get('output')
+        ref = inputs.get('matrix') if isinstance(inputs, dict) else None
+        summary = output.get('summary') if isinstance(output, dict) else None
+        if not isinstance(ref, dict) or not isinstance(summary, dict):
+            continue
+        shape = summary.get('shape')
+        if (summary.get('format') != 'annotated-matrix-summary-v1'
+                or not isinstance(shape, list) or len(shape) != 2
+                or any(type(n) is not int or n < 0 for n in shape)
+                or ref.get('session') != entry.day
+                or not isinstance(ref.get('id'), str) or not re.fullmatch(r'p[a-f0-9]{32}', ref['id'])
+                or type(ref.get('revision')) is not int or ref['revision'] < 1
+                or not isinstance(ref.get('digest'), str) or not re.fullmatch(r'[a-f0-9]{64}', ref['digest'])):
+            continue
+        key = (entry.day, ref['id'], ref['revision'], ref['digest'])
+        found.setdefault(key, []).append((ref, shape, inspection_facts(summary), {
+            'id': entry.id, 'session': entry.day, 'revision': entry.version,
+            'digest': entry.source['sha256']}))
+    return found
+
+
+def _inspected(material, document, reference, inspections):
+    """Enrich display facts from retained reports; never revise source evidence."""
+    state = document.get('state', {})
+    source = state.get('sourceFile', {}) if isinstance(state, dict) else {}
+    if document.get('kind') != 'source-file' or material.get('kind') != 'file' or not isinstance(source, dict):
+        return material
+    file_ref = source.get('reference', {})
+    matches = [(shape, report, facts) for input_ref, shape, facts, report in inspections.get(reference, [])
+               if input_ref.get('sha256') == source.get('sha256')
+               and type(input_ref.get('bytes')) is int and input_ref['bytes'] == source.get('size')
+               and isinstance(file_ref, dict) and isinstance(file_ref.get('component'), str)
+               and file_ref['component'].startswith('file.') and input_ref.get('component') == file_ref['component']]
+    if not matches:
+        return material
+    shapes = {tuple(shape) for shape, _, _ in matches}
+    material['inspection'] = {'status': 'reported' if len(shapes) == 1 else 'conflicting',
+                              'reports': [report for _, report, _ in matches[:64]], 'total': len(matches),
+                              'facts': [dict(facts, report=report) for _, report, facts in matches[:64]]}
+    if len(shapes) == 1:
+        material.update(kind='matrix', format='AnnData', shape=list(next(iter(shapes))))
+    return material
+
+
+def _workflow_authors(entries, store):
+    """Project protected output lineage to its producing attempt, never a later run controller."""
+    rows = {(e.day, e.id): e for e in entries if e.kind == 'project' and isinstance(e.values, dict)}
+    labels = {}
+    for entry in rows.values():
+        effort = entry.values.get('state', {}).get('researchEffort', {})
+        experiments = effort.get('experiments', {}) if isinstance(effort, dict) else {}
+        if not isinstance(experiments, dict):
+            continue
+        for experiment in experiments.values():
+            if not isinstance(experiment, dict):
+                continue
+            execution = experiment.get('execution', {})
+            if (isinstance(execution, dict) and execution.get('kind') == 'workflow'
+                    and execution.get('session') == entry.day and isinstance(experiment.get('byLabel'), str)):
+                labels[(entry.day, execution.get('id'), experiment.get('by'))] = experiment['byLabel']
+    from .workflows import valid_actor
+    for entry in rows.values():
+        marker = entry.values.get('state', {}).get('workflowOutput', {})
+        run_id = marker.get('run') if isinstance(marker, dict) else None
+        if not isinstance(run_id, str):
+            continue
+        run = rows.get((entry.day, run_id))
+        if not run or run.values.get('kind') != 'scientific-workflow-run':
+            continue
+        attempt_ref = marker.get('attempt')
+        if not isinstance(attempt_ref, dict) or attempt_ref.get('session') != entry.day:
+            continue
+        attempt = rows.get((entry.day, attempt_ref.get('id')))
+        if (attempt and attempt.version == attempt_ref.get('revision')
+                and attempt.source.get('sha256') == attempt_ref.get('digest')):
+            document = attempt.values
+        elif store is not None:
+            try:
+                from .scientific_comparisons import exact
+                document = exact(store, attempt_ref, entry.day).document
+            except (ValueError, OSError, KeyError):
+                continue
+        else:
+            continue
+        state = document.get('state', {}).get('workflowAttempt', {})
+        if document.get('kind') != 'scientific-workflow-attempt' or state.get('run') != run_id:
+            continue
+        actor = state.get('actor')
+
+        if not valid_actor(actor):
+            continue
+        entry.made_by = {'actor': 'you' if actor == 'studio' else actor, 'workflow': run_id}
+        label = labels.get((entry.day, run_id, actor))
+        if label:
+            entry.made_by['label'] = label
+
+
+def attach_usage(entries, store=None) -> list[str]:
+    """Join exact Study inputs. Bad memberships never hide unrelated material."""
+    import re
+    materials, problems = {}, []
+    _workflow_authors(entries, store)
+    inspections = _inspections(entries)
+    for entry in entries:
+        if entry.kind == 'project' and isinstance(entry.values, dict):
+            entry.material = _inspected(describe(entry.values), entry.values,
+                (entry.day, entry.id, entry.version, entry.source.get("sha256")), inspections)
+            entry.material['uses'] = []
+            materials[entry.id] = entry
+    for study in materials.values():
+        if study.values.get('kind') != 'research-effort':
+            continue
+        effort = study.values.get('state', {}).get('researchEffort', {})
+        refs = effort.get('inputs', []) if isinstance(effort, dict) else None
+        if not isinstance(refs, list) or len(refs) > 64:
+            problems.append(f'Study {study.id}: input membership is unreadable')
+            continue
+        for ref in refs:
+            if (not isinstance(ref, dict) or not isinstance(ref.get('id'), str)
+                    or type(ref.get('revision')) is not int or ref['revision'] < 1
+                    or not isinstance(ref.get('digest'), str)
+                    or not re.fullmatch(r'[a-f0-9]{64}', ref['digest'])):
+                problems.append(f'Study {study.id}: an input reference is invalid')
+                continue
+            entry = materials.get(ref['id'])
+            if entry is None:
+                problems.append(f'Study {study.id}: input {ref["id"]} is unavailable')
+                continue
+            current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
+            use = {'study': study.id, 'studyTitle': study.title, 'revision': ref['revision'], 'digest': ref['digest'],
+                   'title': entry.title, 'available': current, 'material': {k: v for k, v in entry.material.items() if k != 'uses'} if current else describe({})}
+            if not current and store is not None:
+                try:
+                    old = store.read(entry.id, entry.day, revision=ref['revision'])
+                    if old.digest != ref['digest']:
+                        raise ValueError('digest mismatch')
+                    use.update(title=old.document['title'], available=True, material=_inspected(
+                        describe(old.document), old.document, (old.session, old.id, old.revision, old.digest), inspections))
+                except (OSError, ValueError, KeyError):
+                    problems.append(f'Study {study.id}: input {entry.id} revision {ref["revision"]} is unavailable')
+            entry.material['uses'].append(use)
+            if current:
+                entry.material['input'] = True
+    from .project_material_edit import record, membership_id
+    for membership in materials.values():
+        if membership.values.get('kind') != 'project-material-membership':
+            continue
+        try:
+            value = record(membership.values['state']['materialMembership'], session=membership.day)
+            ref = value['reference']
+            if membership.id != membership_id(ref):
+                raise ValueError('organization identity mismatch')
+            entry = materials.get(ref['id'])
+            if entry is None:
+                raise ValueError('organized material unavailable')
+            organization = {k: value[k] for k in ('role', 'input', 'by')}
+            organization['revision'] = membership.version
+            current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
+            if current:
+                entry.material['organization'] = organization
+                entry.material['input'] = value['input'] or any(u['revision'] == entry.version for u in entry.material['uses'])
+            for use in entry.material['uses']:
+                if use['revision'] == ref['revision'] and use['digest'] == ref['digest']:
+                    use['material']['organization'] = organization
+            # Explicitly selected historical material remains visible even outside a Study.
+            if not current and value['input'] and not any(u['revision'] == ref['revision'] and u['digest'] == ref['digest'] for u in entry.material['uses']):
+                if store is None:
+                    raise ValueError('historical organization needs retained storage')
+                old = store.read(entry.id, entry.day, revision=ref['revision'])
+                if old.digest != ref['digest']:
+                    raise ValueError('organized revision digest mismatch')
+                old_material = _inspected(describe(old.document), old.document,
+                    (old.session, old.id, old.revision, old.digest), inspections)
+                old_material.update(organization=organization, input=True)
+                entry.material['uses'].append({'membership': membership.id, 'revision': ref['revision'],
+                    'digest': ref['digest'], 'title': old.document['title'], 'available': True, 'material': old_material})
+        except (ValueError, OSError, KeyError):
+            problems.append(f'Material organization {membership.id} is unavailable')
+    return problems
+
+
+def input_references(entries):
+    """Exact inventory selections, including historical Study uses (the Inputs view)."""
+    selected = set()
+    for entry in entries:
+        material = entry.material or {}
+        if material.get('input'):
+            selected.add((entry.day, entry.id, entry.version, entry.source.get('sha256')))
+        for use in material.get('uses', []):
+            selected.add((entry.day, entry.id, use['revision'], use['digest']))
+    return selected
+
+
+def additional_inputs(entries, record):
+    """Add inventory inputs to journal source counts without counting retained aliases twice."""
+    from .day.catalogue import opened_sources
+    selected = input_references(entries)
+    refs = getattr(record, 'source_references', {})
+    duplicated = 0
+    for identity in opened_sources(record):
+        ref = refs.get(identity, {})
+        if (ref.get('session'), ref.get('document'), ref.get('revision'), ref.get('digest')) in selected:
+            duplicated += 1
+    return len(selected) - duplicated

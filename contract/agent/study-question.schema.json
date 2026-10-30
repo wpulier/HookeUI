@@ -111,6 +111,13 @@
           "minimum": 0
         }
       }
+    },
+    "materials": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "$ref": "artifact-reference.schema.json"
+      }
     }
   }
 }

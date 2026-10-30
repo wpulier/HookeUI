@@ -20,9 +20,9 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [React and React DOM (isolated workflow editor)](https://github.com/facebook/react) | open | MIT | code | - | - |
 | [React Flow (workflow connections and step canvas)](https://github.com/xyflow/xyflow) | open | MIT | code | - | - |
 | [Pint 0.26.1 (scientific unit-name identity; no implicit conversion)](https://github.com/hgrecco/pint) | open | BSD-3-Clause | code | - | - |
-| [Google Gemini API (vision, Sight, fast pass, research, pictures)](https://ai.google.dev/gemini-api/terms) | terms | Gemini API terms of service | service | vision: `gemini-3.8-flash`, vision: `gemini-3.8-flash-hires`, vision: `gemini-3.5-flash-lite`, vision: `gemini-3.5-flash`, vision: `gemini-4-argon`, research: `gemini-3.8-flash`, image: `gemini-3.1-flash-image`, sight: `gemini-3.8-flash`, sight: `gemini-3.5-flash-lite`, fast: `gemini-3.5-flash`, fast: `gemini-3.8-flash`, fast: `gemini-3.5-flash-lite`, reflex: `lean`, reflex: `lean-3.5-flash`, reflex: `lean-lite`, lesson_check: `check`, lesson_check: `rewrite`, claim_check: `model`, reference_search: `web+commons`, reference_search: `web`, fixed: `video`, fixed: `lesson-check`, fixed: `retrieval` | - |
-| [OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)](https://openai.com/policies/services-agreement) | terms | OpenAI services agreement | service | vision: `gpt-5.6-luna-priority`, vision: `gpt-6-luna`, vision: `gpt-6.1-sol`, voice: `gpt-live-1`, voice: `gpt-realtime-2.1`, research: `gpt-6.1-sol`, presentation: `gpt-6.1-sol`, image: `gpt-image-2.5-flare`, image: `gpt-image-2.5-sunburst`, fast: `gpt-5.6-luna-priority`, voicelink: `relay`, voicelink: `webrtc`, lesson_check: `rewrite`, fixed: `lesson-writer` (fallback), fixed: `editor`, fixed: `voice-words` | - |
-| [Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)](https://www.anthropic.com/legal/commercial-terms) | terms | Anthropic commercial terms | service | vision: `claude-opus-5-5`, vision: `claude-opus-5-5-fast`, vision: `claude-sonnet-5-5`, presentation: `claude-opus-5-5`, fixed: `lesson-writer` | - |
+| [Google Gemini API (vision, Sight, fast pass, research, pictures)](https://ai.google.dev/gemini-api/terms) | terms | Gemini API terms of service | service | vision: `gemini-3.8-flash`, vision: `gemini-3.8-flash-hires`, vision: `gemini-3.5-flash-lite`, vision: `gemini-3.5-flash`, vision: `gemini-4-argon`, research: `gemini-3.8-flash`, image: `gemini-3.1-flash-image`, sight: `gemini-3.8-flash`, sight: `gemini-3.5-flash-lite`, fast: `gemini-3.5-flash`, fast: `gemini-3.8-flash`, fast: `gemini-3.5-flash-lite`, reflex: `lean`, reflex: `lean-3.5-flash`, reflex: `lean-lite`, look_hard: `gemini-4-argon`, lesson_check: `check`, lesson_check: `rewrite`, claim_check: `model`, reference_search: `web`, reference_search: `web+commons`, fixed: `video`, fixed: `lesson-check`, fixed: `retrieval` | - |
+| [OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)](https://openai.com/policies/services-agreement) | terms | OpenAI services agreement | service | vision: `gpt-5.6-luna-priority`, vision: `gpt-6-luna`, vision: `gpt-6.1-sol`, voice: `gpt-realtime-2.1`, voice: `gpt-live-1`, research: `gpt-6.1-sol`, presentation: `gpt-6.1-sol`, image: `gpt-image-2.5-flare`, image: `gpt-image-2.5-sunburst`, fast: `gpt-5.6-luna-priority`, voicelink: `relay`, voicelink: `webrtc`, think: `gpt-6.1-sol`, lesson_check: `rewrite`, fixed: `lesson-writer` (fallback), fixed: `editor`, fixed: `voice-words` | - |
+| [Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)](https://www.anthropic.com/legal/commercial-terms) | terms | Anthropic commercial terms | service | vision: `claude-opus-5-5`, vision: `claude-opus-5-5-fast`, vision: `claude-sonnet-5-5`, research: `claude-opus-5-5`, presentation: `claude-opus-5-5`, think: `claude-opus-5-5`, look_hard: `claude-opus-5-5`, fixed: `lesson-writer` | - |
 | [fal.ai hosted inference (SAM 3.1 in the cloud)](https://fal.ai/terms) | terms | fal terms of service | service | outline: `sam3.1-fal`, outline: `edgetam>sam3.1-fal`, fixed: `find-all` | - |
 | [Wikimedia Commons search API (a catalogue searched beside the web for reference photos)](https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use) | open | Wikimedia API terms of use | service | reference_search: `web+commons` | - |
 | [EdgeTAM outline model (code and weights)](https://github.com/facebookresearch/EdgeTAM) | open | Apache-2.0 | weights | pointing: `masks`, outline: `edgetam`, outline: `edgetam>sam3.1-fal`, outline: `edgetam>sam3.1-local`, dissect: `grid`, dissect: `vlm-boxes`, cells: `edgetam-automask`, track: `objects` | `warmup`, `regions`, `automask`, `track`, `segment` (edgetam) |
@@ -71,13 +71,13 @@ declarations alone do not determine the legal effect on weights or clear a parti
 
 | Job | Commercial | Research |
 |---|---|---|
-| vision | `gemini-3.8-flash` | `gemini-3.8-flash` |
+| vision | `claude-opus-5-5-fast` | `claude-opus-5-5-fast` |
 | pointing | `box` | `box` |
 | outline | `edgetam` | `edgetam` |
-| voice | `gpt-live-1` | `gpt-live-1` |
+| voice | `gpt-realtime-2.1` | `gpt-realtime-2.1` |
 | brain | `json-actions` | `json-actions` |
 | dissect | `grid` | `grid` |
-| research | `gpt-6.1-sol` | `gpt-6.1-sol` |
+| research | `claude-opus-5-5` | `claude-opus-5-5` |
 | presentation | `auto` | `auto` |
 | image | `gpt-image-2.5-flare` | `gpt-image-2.5-flare` |
 | sight | `gemini-3.8-flash` | `gemini-3.8-flash` |
@@ -97,14 +97,20 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | voicelink | `webrtc` | `webrtc` |
 | talk | `hold` | `hold` |
 | talk_key | `control-option` | `control-option` |
+| heard_cue | `tone` | `tone` |
+| partner_acts | `brain` | `brain` |
+| partner_speaks | `acknowledges` | `acknowledges` |
+| think | `claude-opus-5-5` | `claude-opus-5-5` |
+| look_hard | `gemini-4-argon` | `gemini-4-argon` |
 | admit | `quote` | `quote` |
 | taught | `on` | `on` |
 | lesson_check | `check` | `check` |
 | research_pacing | `forced` | `forced` |
 | claim_check | `model` | `model` |
-| reference_search | `web+commons` | `web+commons` |
+| reference_search | `web` | `web` |
 | outline_repair | `same` | `same` |
 | naming | `one` | `one` |
+| naming_model | `close-look` | `close-look` |
 | seen | `on` | `on` |
 | coach | `lens` | `lens` |
 | closeup | `single` | `single` |
@@ -116,6 +122,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | row_provenance | `off` | `off` |
 | orb_every | `1` | `1` |
 | library_looks | `off` | `off` |
+| watch | `quiet` | `quiet` |
 
 ## Python dependency groups
 

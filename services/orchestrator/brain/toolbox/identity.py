@@ -77,6 +77,8 @@ def add_identity_tools(registry: Registry, services) -> None:
         from ...population import promote
 
         identity = store()
+        await identity.io.ensure_ready()
+        owner = identity.io.owner()
         members = [str(m) for m in (args.get("members") or []) if m]
         objects = [str(o) for o in (args.get("objects") or []) if o]
         if not members and not objects:
@@ -123,8 +125,8 @@ def add_identity_tools(registry: Registry, services) -> None:
                 if obj is None:
                     skipped.append(f"{m} could not be outlined, so it is not followed")
                     continue
-                made.append((identity.make([member_node(population.id, m), outline_node(obj.id)],
-                                           why=str(args.get("why") or "followed"), by="follow_cells"), m))
+                made.append((await identity.io.mutate("make", [member_node(population.id, m), outline_node(obj.id)],
+                                           why=str(args.get("why") or "followed"), by="follow_cells", owner=owner), m))
         for oid in objects:
             node = node_of(oid, ctx)
             obj = identity.outline(node)
@@ -132,13 +134,13 @@ def add_identity_tools(registry: Registry, services) -> None:
                 raise ToolFailed(f"{oid} is not outlined now", next="click it, then ask again")
             if made_on_earlier_run(obj):
                 raise ToolFailed(f"{describe(obj)}: {EARLIER_VIEW}", next="outline it again on the view now")
-            made.append((identity.make([node], why=str(args.get("why") or "followed"), by="follow_cells"), describe(obj)))
+            made.append((await identity.io.mutate("make", [node], why=str(args.get("why") or "followed"), by="follow_cells", owner=owner), describe(obj)))
         if not made:
             raise ToolFailed("nothing could be followed: " + "; ".join(skipped),
                              next="outline the cells again on the view now" if earlier else "say which cells, by their number")
         stopped = []
         for i, _ in made:
-            stopped += identity.follow(i)
+            stopped += await identity.io.mutate("follow", i, owner=owner)
         mine = {i for i, _ in made}
         stopped = [i for i in dict.fromkeys(stopped) if i not in mine]
         log_measurement(services, ctx, "individuals", individuals=[i for i, _ in made],
@@ -158,6 +160,7 @@ def add_identity_tools(registry: Registry, services) -> None:
         from ...identity import change_words, how_words, thing_words, where_words
 
         identity = store()
+        await identity.io.ensure_ready()
         which = str(args.get("which") or "").strip()
         if which and not re.fullmatch(r"i\d+", which):
             try:
@@ -187,11 +190,13 @@ def add_identity_tools(registry: Registry, services) -> None:
 
     async def same_one(ctx: ToolContext, args: dict) -> str:
         identity = store()
+        await identity.io.ensure_ready()
+        owner = identity.io.owner()
         a, b = node_of(args.get("a"), ctx), node_of(args.get("b"), ctx)
         if a == b:
             raise ToolFailed("those are the same outline already", next=None)  # no next: nothing to link
         if args.get("undo"):  # "those aren't the same": a new event naming the link; nothing is deleted
-            undone = identity.not_same(a, b, why=ctx.question)
+            undone = await identity.io.mutate("not_same", a, b, why=ctx.question, owner=owner)
             if not undone:
                 together = any(a in identity.nodes_of(i) and b in identity.nodes_of(i) for i in identity.individuals())
                 raise ToolFailed(f"I have no link of yours or the linking model's between {plain(a)} and {plain(b)} to undo"
@@ -199,7 +204,7 @@ def add_identity_tools(registry: Registry, services) -> None:
                                  next=None)  # no next: nothing to undo
             return (f"{plain(a)} and {plain(b)} are no longer one thing (you said they aren't the same; the earlier "
                     "link stays in today's record, marked undone)")
-        i = identity.same_one(a, b, basis="user")
+        i = await identity.io.mutate("same_one", a, b, basis="user", owner=owner)
         return f"{plain(a)} and {plain(b)} are now one thing, because you said so (to ask about it later: {i})"
 
     registry.add(Tool("follow_cells", "Keep an eye on chosen cells over time (\"keep an eye on the odd ones\").",

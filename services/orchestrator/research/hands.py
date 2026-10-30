@@ -8,7 +8,11 @@ operations for its own reading, and reads what that made the same way.
     session's index (e…), made for it;
   - "enhance": a clearer picture from real frames (enhance.py: the average of still frames, or the sharpest one;
     a focus stack only of the user's own last turn of the focus knob), kept as a result entry with its picture
-    (d…), made for it.
+    (d…), made for it;
+  - "classify" (Part 2.5, W5): two to six classifying models (operation `classify`: the vision models, MedSigLIP)
+    each name the same cells of a population (`input`, else the one shown) from the same classes, through the runner
+    at research priority (model_comparison.compare_classes), and the comparison of their runs is kept as one result
+    entry with its table (d…), made for it: what the researcher's report compares is that record.
 - On the live view now, or on a sample the session still keeps (`input`, Amendment 1 A "Inputs"): a population's
   view (segment), or a held clip's frames (one frame to segment, its frames to enhance), of the researcher's own
   session, on whichever day it was made. A sample no longer kept is
@@ -36,6 +40,9 @@ from dataclasses import dataclass, field
 
 from research_worker.budget import RUN_OPERATIONS as OPERATIONS, operation_limit
 
+# How long a researcher waits for another researcher's operation to finish before it is told to carry on without it.
+BUSY_WAIT_S = 90.0
+
 PRIORITY = "research"  # gpu_client's class for a researcher's own operations
 NEXT = "carry on without it, and say what could not be measured"  # a researcher can't click or wait on the user
 ELSEWHERE = "another session is open now: the live view and what it makes are that session's"
@@ -49,7 +56,7 @@ GONE = "that view is not kept any more"  # a sample the session no longer keeps 
 LET_GO_MIN_S = 5.0  # the app lets an operation go at the researcher's wait less 2 s, never sooner than this
 MB = 1024 * 1024
 FAILED_WORDS = {"segment": "segment the view", "enhance": "make the picture", "motion": "measure what moves",
-                "capability": "run that capability"}
+                "capability": "run that capability", "classify": "classify those cells"}
 CAPABILITY = "capability"  # one the catalog added (kinds.py's registry), named by `capability`
 CLIP_FPS_TOO_LOW = ("a held clip has a frame every 0.5 s, and things are followed from frame to frame only at the live "
                     "view's rate (about 30 a second; at 2 a second a moving spot is lost or taken for its neighbour)")
@@ -94,7 +101,8 @@ class Hands:
                   frame: int | None = None, how: str | None = None, seconds: float | None = None,
                   scheduled: bool = False, fresh: bool = False, implementation: str | None = None,
                   capability: str | None = None, params: dict | None = None, resource: dict | None = None,
-                  inputs: dict | None = None, selection: dict | None = None, run_id: str | None = None) -> dict:
+                  inputs: dict | None = None, selection: dict | None = None, run_id: str | None = None,
+                  models: list | None = None, classes: list | None = None) -> dict:
         """One operation for a researcher: {"ok", "id", "title", "words"} or {"ok": False, "error", "next"}.
         `wait`: how long the researcher waits for it; the app lets it go a little before that (its queued GPU
         call is dropped, its memory and the one-at-a-time slot freed) and says nothing was made. `input`: a kept
@@ -102,9 +110,18 @@ class Hands:
         `seconds`: how long motion watches the live view; `fresh`: acquire upcoming seconds rather than its rolling window;
         `implementation`: segment's cell finder, by name or id (names.py; the user's Q24), raw: that one or nothing.
         `resource`: an exact retained capability picture, mutually exclusive with input/frame. `inputs`: for a capability
-        with several or native inputs, one exact retained resource per input (admission.py), checked as every actor's are."""
+        with several or native inputs, one exact retained resource per input (admission.py), checked as every actor's are.
+        `models` and `classes`: classify's models (two to six, by id) and the classes to name the cells from."""
         measuring = operation == 'measure_saved_objects'
         workflow = operation == 'workflow'
+        classifying = operation == 'classify'
+        if (models is not None or classes is not None) and not classifying:
+            return {"ok": False, "error": "models and classes belong only to classify", "next": NEXT}
+        if classifying and (not isinstance(models, list) or not all(isinstance(m, str) for m in models)
+                            or (classes is not None and (not isinstance(classes, list)
+                                                         or not all(isinstance(c, str) for c in classes)))):
+            return {"ok": False, "error": "classify takes models (two to six ids) and optionally classes (a list of names)",
+                    "next": NEXT}
         if workflow:
             attempt = getattr(session, '_attempt', None)
             if (attempt is None or attempt.id != run_id or attempt.completion.done() or not attempt.record.get('dispatchedAt')):
@@ -177,6 +194,13 @@ class Hands:
         if len(done) >= limit and not scheduled:  # a mission's slots are the app's schedule (missions.py)
             return {"ok": False, "error": f"at most {limit} operations in one run",
                     "next": "work from what the earlier ones made (the session tool reads them)"}
+        if self.busy is not None and self.busy != session.rid:
+            # Researchers started together ("have 3 researchers each compare a different model") take turns: one waits
+            # for the slot within what it said it would wait, rather than giving up at once (live 2026-10-30: the third
+            # of three wrote up "the run was blocked" 15 s in, with nothing compared).
+            deadline = time.monotonic() + max(0.0, min(BUSY_WAIT_S, (wait if wait else BUSY_WAIT_S) - 5.0))
+            while self.busy is not None and time.monotonic() < deadline:
+                await asyncio.sleep(0.25)
         if self.busy is not None:
             return {"ok": False, "error": "another researcher's operation is running (one at a time, so the live view comes first)",
                     "next": "carry on, and ask again later in this run"}
@@ -191,8 +215,8 @@ class Hands:
                 sample = None  # disk read begins only after this operation owns the research slot
             else:
                 sample = self.sample(session, str(input).strip(), frame if operation == "segment" else None,
-                                     view=operation == "segment") if input else None
-            if sample is None and not pending_clip and resource is None and not measuring and not workflow:
+                                     view=operation == "segment") if input and not classifying else None
+            if sample is None and not pending_clip and resource is None and not measuring and not workflow and not classifying:
                 source = getattr(self.hub, "source", None)
                 if source is None or not source.is_fresh():
                     raise Refusal("no fresh picture from the camera")
@@ -224,6 +248,7 @@ class Hands:
                 except (ValueError, OSError) as exc:
                     raise Refusal(str(exc)) from None
             work = (self._workflow(session, params, attempt) if workflow
+                    else self._classify(session, input, models, classes) if classifying
                     else self._measure(session, selection, attempt) if measuring
                     else self._capability(session, kind, values, manifest, resource=resource, inputs=inputs) if kind is not None
                     else self._segment(session, sample, implementation) if operation == "segment"
@@ -240,7 +265,8 @@ class Hands:
                         'A measurement may already have been accepted.',
                         'next': 'inspect the original Project Data for its accepted table before retrying the exact selection'}
             why = {"segment": "(the live view's own work comes first)",
-                   "motion": "(watching and measuring took longer than that)"}.get(operation, "(the picture took longer than that)")
+                   "motion": "(watching and measuring took longer than that)",
+                   "classify": "(the models took longer than that)"}.get(operation, "(the picture took longer than that)")
             return {"ok": False, "error": f"not done in {limit or 5.0:.0f} s {why}, so the app let it go: nothing was made",
                     "next": NEXT}
         except Refusal as refused:
@@ -323,6 +349,72 @@ class Hands:
                     'words':'Workflow command recorded. Inspect its run status; this is not a claim that analysis or review completed.',
                     'ran':{'workflowCommand':action},'values':value}
         except (ValueError,OSError,KeyError) as error:raise Refusal(str(error)) from error
+
+    async def _classify(self, session, input: str | None, models: list, classes: list | None) -> dict:
+        """Two to six models name the same cells of a population of the researcher's own session (`input`, else the one
+        on screen) from the same classes, each through the runner at research priority, made for it; the comparison of
+        their runs kept as one result entry with its table (model_comparison.py), never shown."""
+        from .. import model_comparison
+        from ..evidence import evidence_of
+        from ..operations import runner
+        from ..population import layer_of
+        from ..resources import resources_of
+
+        if input:
+            population = evidence_of(self.hub).get(str(input).strip())
+            if population is None or not _mine(population, session):
+                raise Refusal(f"there are no cells called {input} in this session",
+                              next="list the session's populations with the session tool, or segment the view first")
+        else:
+            population = layer_of(self.hub).population()
+            if population is None:
+                raise Refusal("no cells are on screen to classify",
+                              next="name a population by its id (the session tool lists them), or segment the view first")
+        chosen = model_comparison.select(self.hub, "classify", models)
+        if len(chosen.impls) < model_comparison.MIN_MODELS:
+            said = chosen.said()
+            raise Refusal("a comparison needs two classifying models that can run here" + (f" ({said})" if said else ""),
+                          next=f"name two to {model_comparison.MAX_MODELS} of: {model_comparison.choices_line('classify')}")
+        record = await model_comparison.compare_classes(self.hub, population, chosen.impls, classes=classes,
+                                                        origin="background", made_for=session.name, priority=PRIORITY)
+        if not any(not a.get("failed") for a in record["arms"]):
+            raise Refusal("no model could classify them: " + "; ".join(f"{a['label']}: {a['failed']}" for a in record["arms"]))
+        words = model_comparison.words(record)
+        executions = [a["execution"] for a in record["arms"] if a.get("execution")]
+        made_by = [r.made_by() for r in (runner(self.hub).get(e) for e in executions) if r is not None]
+        store = resources_of(self.hub).results
+        args = {"operation": "classify", "implementations": [i.id for i in chosen.impls], "of": population.id,
+                **({"classes": list(classes)} if classes else {})}
+        entry = store.add("compare_models", args, f"{model_comparison.title(record)} on {population.title}: {words}",
+                          values=model_comparison.values(record), executions=executions, made_by=made_by,
+                          thread=(session.origin or {}).get("thread"), made_for=session.name,
+                          session=session.sitting or session.day, retaining=True)
+        entry = await store.confirm_save(entry)
+        if entry["state"] != "done":
+            raise Refusal("the comparison could not be saved", next="check local storage and run it again")
+        # Everything a report compares, small enough to go back with the reply whole (research_worker caps it at 6000
+        # characters): the columns by name, a row per model, every pair by the models' names; each cell's labels stay in
+        # the entry.
+        compact = {k: record[k] for k in ("operation", "on", "totals", "rows", "says")}
+        compact["columns"] = [c["name"] + (f" ({c['unit']})" if c.get("unit") else "") for c in record["columns"]]
+        names = {a["impl"]: a["label"] for a in record["arms"]}
+        compact["pairs"] = [{**p, "a": names.get(p["a"], p["a"]), "b": names.get(p["b"], p["b"])}
+                            for p in record["summary"]["pairs"]]
+        compact["allAgree"], compact["everyNamed"] = record["summary"]["allAgree"], record["summary"]["everyNamed"]
+        left = chosen.said()
+        on = record["on"]
+        cost = (f"; it was expected to cost about ${on['expectedUsd']:.2f} before it ran"
+                if on.get("expectedUsd") else "")
+        return {"id": entry["id"], "title": entry["title"], "kind": "result",
+                "ran": {"models": [i.id for i in chosen.impls], "of": population.id, "executions": executions},
+                "values": {"comparison": compact},
+                "words": (f"classified {on.get('chosen') or str(on['members']) + ' cells'} of {population.title} "
+                          f"({population.id}) with {len(chosen.impls)} models "
+                          f"({model_comparison.said_names([i.label for i in chosen.impls])}) and kept the comparison as "
+                          f"one entry ({entry['id']}): {model_comparison.headline(record)}{cost}"
+                          + (f"; not compared: {left}" if left else "")
+                          + ". Every model's counts, every pair's agreement, the time and the cost are in these values; "
+                            "the entry adds each cell's label")}
 
     async def _measure(self, session, selection, attempt):
         """The same accepted-label measurement as Studio/Ask, scoped to this research run."""

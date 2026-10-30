@@ -4,7 +4,7 @@
   "minMs": 5000,
   "quietMs": 4000,
   "voices": {"user": "Samantha"},
-  "camera": {"still": "assets/examples/human_mitosis.png"},
+  "camera": {"still": "assets/examples/human_mitosis.png", "footage": "human_mitosis-noise.mp4"},
   "steps": [
     {"id": "looking", "kind": "view", "say": "What am I looking at?",
      "expect": {"tools": ["look_hard", "look_at_screen", "inspect_camera", "name_specimen", "resources", "outcomes"],

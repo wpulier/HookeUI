@@ -484,7 +484,7 @@ def test_every_model_role_can_be_chosen_for_one_request_and_the_rest_from_now_on
 
     said, vision, a = run(go({"operation": "vision", "implementation": "GPT-6.1 Sol", "by": "user"}, "vision"))
     assert said == "for this request, the vision model (looking and answering) uses GPT-6.1 Sol, from this step on"
-    assert vision == "gpt-6.1-sol" and world.settings.vision == "gemini-3.8-flash"  # outside the request: the default
+    assert vision == "gpt-6.1-sol" and world.settings.vision == "claude-opus-5-5-fast"  # outside the request: the default
     assert a.choices["vision"]["implementation"] == "gpt-6.1-sol" and a.choice_log[-1]["operation"] == "vision"
     said, fast, _ = run(go({"operation": "fast", "implementation": "off", "by": "brain"}, "fast"))
     assert fast == "off" and said.startswith("for this request, the quick-decision model uses Always look first")
@@ -619,9 +619,9 @@ def test_from_now_on_is_kept_until_changed_restored_after_a_restart_and_said(tmp
     monkeypatch.delenv("OPENAI_API_KEY")
     later = Settings()
     restored = defaults.restore(later, DayStore(root=tmp_path))
-    assert later.vision == "gemini-3.8-flash" and next(r for r in restored if r["group"] == "vision")["problem"] == "needs OPENAI_API_KEY"
+    assert later.vision == "claude-opus-5-5-fast" and next(r for r in restored if r["group"] == "vision")["problem"] == "needs OPENAI_API_KEY"
     assert "Seeing was set to GPT-6.1 Sol (cloud) at " in defaults.words(restored, later)
-    assert "but it can't run now (needs OPENAI_API_KEY): Gemini 3.8 Flash is used." in defaults.words(restored, later)
+    assert "but it can't run now (needs OPENAI_API_KEY): Claude Opus 5.5 (fast mode) is used." in defaults.words(restored, later)
     # The key is added while the app runs: the choice is the user's again at once, not at the next restart (live
     # 2026-10-12: DINOv3 downloaded again and look-alikes stayed on DINOv2 until a restart).
     assert defaults.resume(later, DayStore(root=tmp_path)) == []

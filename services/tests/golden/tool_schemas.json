@@ -227,7 +227,7 @@
   "kind": "effect",
   "name": "use",
   "params": {
-   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); claude-sonnet-5-5 = Claude Sonnet 5.5; gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot: from now on only (set_default).",
+   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); claude-sonnet-5-5 = Claude Sonnet 5.5; gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: claude-opus-5-5 = Claude Opus 5.5 + web search; gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click | think: claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | look_hard: gemini-4-argon = Gemini 4 Argon; claude-opus-5-5 = Claude Opus 5.5. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot and think and look_hard: from now on only (set_default).",
    "properties": {
     "by": {
      "description": "who chose it: the user named it, or you did",
@@ -307,12 +307,21 @@
   }
  },
  {
-  "description": "Run the models the user names on one view, side by side, measured (\"compare EdgeTAM and SAM 3.1 on that\"); not the blind test. Then keep=<one of them> puts that one's result on the board (\"keep the SAM 2.1 one\").",
+  "description": "Run the models the user names (two to six) on the same input, side by side, measured from each run's record (\"compare EdgeTAM and SAM 3.1 on that\", \"compare five classifiers on these cells\"); not the blind test. classify: each model names every cell of a population (of; the cells shown if none) from `classes` (else the specimen's list, else in its own words), and the comparison says how often they agree, each one's counts per class, time and cost. The comparison is kept as a table in Data; `placement` shows it (classify: beside by default). Then keep=<one of them> puts that one's outline or cells on the board (\"keep the SAM 2.1 one\").",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "compare_models",
   "params": {
+   "description": "classify: the vision models by their ids under use, and medsiglip-448 = MedSigLIP 448 (on this Mac)",
    "properties": {
+    "classes": {
+     "description": "classify: the classes to name each cell from, as the user said them",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 24,
+     "type": "array"
+    },
     "comparison": {
      "description": "Exact comparison id when keeping a result from the Studio",
      "type": "string"
@@ -336,10 +345,23 @@
        "cellpose-sam-tuned",
        "fiji-analyze-particles",
        "basic-bright-objects",
-       "edgetam-automask"
+       "edgetam-automask",
+       "gemini-3.8-flash",
+       "gemini-3.8-flash-hires",
+       "gemini-3.5-flash-lite",
+       "gemini-3.5-flash",
+       "gpt-5.6-luna-priority",
+       "gpt-6-luna",
+       "gpt-6.1-sol",
+       "claude-opus-5-5",
+       "claude-opus-5-5-fast",
+       "claude-sonnet-5-5",
+       "gemini-4-argon",
+       "medsiglip-448"
       ],
       "type": "string"
      },
+     "maxItems": 8,
      "type": "array"
     },
     "input": {
@@ -356,11 +378,27 @@
     "object": {
      "type": "string"
     },
+    "of": {
+     "description": "cells or classify: the population (e3); empty: the cells shown",
+     "type": "string"
+    },
     "operation": {
-     "description": "outline (default)",
+     "description": "outline (default), cells or classify",
      "enum": [
       "outline",
-      "cells"
+      "cells",
+      "classify"
+     ],
+     "type": "string"
+    },
+    "placement": {
+     "description": "where the comparison's table goes: beside (side by side in this Tab, the live view included), new-tab (a Tab of its own), only, replace or window; empty: kept in Data (classify: beside)",
+     "enum": [
+      "beside",
+      "new-tab",
+      "only",
+      "replace",
+      "window"
      ],
      "type": "string"
     },
@@ -442,7 +480,9 @@
       "image",
       "presentation",
       "sight",
-      "zeroshot"
+      "zeroshot",
+      "think",
+      "look_hard"
      ],
      "type": "string"
     }
@@ -581,18 +621,18 @@
   }
  },
  {
-  "description": "Retrieve a real photo directly into its own window, usually within seconds: a reference photo with its source and available attribution, not this slide (\"show me a real picture of a stoma\", \"what does a normal one look like?\"). Not an AI illustration, and no research report. Uses Gemini 3.8 Flash with Google Search across the public web, without domain restrictions. A failed lookup does not require a researcher. Preserve the current request's imaging method, magnification and subject in subject and search_terms; do not inherit old university, collection or domain restrictions from earlier requests unless the user retains them. omit search_terms when the full request is already concise. Never drop a required detail just to get a match. show=false fetches and retains without changing the current magnifier or motion view; its source output 0 lets a later step use present do=open source={step:N,output:0} for this step N, without predicting an ID. Alternatively use the returned resource's exact day/id, version=null and picture=0 to open an independent window. description is your bounded explanation of the topic, kept with its web credit and displayed beneath the native image. You have not seen the retrieved image yet: do not assert its magnification, visible features or that it satisfies a detail the source has not established. Default/show=true opens its independent window, retaining the magnification and other work. In a native workspace, with default show=true, beside=true fits the new photo beside the original requesting browser's pointed window (or its sole visible window) before its first paint, leaving that anchor fixed; ambiguity or no room is reported. For an explicit anchor, use show=false then present(do=open,source={step:N,output:0}, relation={kind:beside,reference:{instanceId:the exact observed window ID}}) for initial fitting. Arranging an already-open window preserves its current size and may not fit. n: another match (2, 3...) when asked for another one.",
+  "description": "Retrieve a real photo directly into its own window, usually within seconds: a reference photo with its source and available attribution, not this slide (\"show me a real picture of a stoma\", \"what does a normal one look like?\"). Not an AI illustration, and no research report. Uses Gemini 3.8 Flash with Google Search across the public web, without domain restrictions. A failed lookup does not require a researcher. Preserve the current request's imaging method, magnification and subject in subject and search_terms; do not inherit old university, collection or domain restrictions from earlier requests unless the user retains them. omit search_terms when the full request is already concise. Never drop a required detail just to get a match. show=false fetches and retains without changing the current magnifier or motion view; its source output 0 lets a later step use present do=open source={step:N,output:0} for this step N, without predicting an ID. Alternatively use the returned resource's exact day/id, version=null and picture=0 to open an independent window. Every photo found is looked at, its pixels against the whole request (subject, how many, kind of view, imaging, a different one from those already in this Project); one that fails is never returned, and the receipt says what the returned photo shows from that look: describe the photo only in those words, never as what was asked. description is an optional note on the topic, kept as a note, never as what the photo shows. Default/show=true opens its independent window, retaining the magnification and other work. In a native workspace, with default show=true, beside=true fits the new photo beside the original requesting browser's pointed window (or its sole visible window, else the one in front) before its first paint; with no room beside it, Hooke first moves that window over (narrowing it only when moving is not enough) and says so. For an explicit anchor, use show=false then present(do=open,source={step:N,output:0}, relation={kind:beside,reference:{instanceId:the exact observed window ID}}) for initial fitting. Arranging an already-open window preserves its current size and may not fit. n: another match (2, 3...) when asked for another or a different one; photos already kept in this Project are then never returned.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "reference_photo",
   "params": {
    "properties": {
     "beside": {
-     "description": "with default show=true, initial fit beside the original requesting browser's pointed or sole visible window, before first paint; anchor unchanged. show=false only retains; choose an exact anchor with present open+relation",
+     "description": "with default show=true, initial fit beside the original requesting browser's pointed, sole visible or front window, before first paint; that window is moved over first when there is no room beside it. show=false only retains; choose an exact anchor with present open+relation",
      "type": "boolean"
     },
     "description": {
-     "description": "your explanation/caption, kept as data with the original web source and licence",
+     "description": "optional note on the topic, kept as a note; the photo's description comes from a look at its pixels",
      "maxLength": 600,
      "type": "string"
     },
@@ -734,7 +774,7 @@
   }
  },
  {
-  "description": "Facts about a population of segmented things (outline_cells, automatic masks, find-all matches): the count, per column the median and middle half, coverage, the members by measured ranges, sorted, the first few, outliers of a column, or those worth a second look (review). Columns: area, perimeter, length, width, elongation, roundness, solidity, intensity, score, group (once grouped). It never segments: with no population it says so. Query this source when asked to check a saved count or measurement, even if an earlier answer gave a number. For requested largest/smallest members use by with top and order; the median and middle half are not extrema. If creating or correcting a set first, include this query after that action in the same plan (of @N for the population made by step N), so the requested measurements are answered from the resulting revision. Members (c12) can then be highlighted by id, or with highlight's selector.",
+  "description": "Facts about a population of segmented things (outline_cells, automatic masks, find-all matches): the count, per column the mean, median and middle half, coverage, the members by measured ranges, sorted, the first few, outliers of a column, or those worth a second look (review). Columns: area, perimeter, length, width, elongation, roundness, solidity, intensity, score, group (once grouped). It never segments: with no population it says so. Query this source when asked to check a saved count or measurement, even if an earlier answer gave a number. For requested largest/smallest members use by with top and order; the median and middle half are not extrema. If creating or correcting a set first, include this query after that action in the same plan (of @N for the population made by step N), so the requested measurements are answered from the resulting revision. Members (c12) can then be highlighted by id, or with highlight's selector.",
   "inline_ms": 2000,
   "kind": "query",
   "name": "query_population",
@@ -893,7 +933,7 @@
   }
  },
  {
-  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. One request starts one researcher; when the user asks for more than one, list each start in the same answer. When the user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, starting or running, from their previous words), pass them to that one with researcher_note instead of starting another; start a new one when they ask for another researcher or separate work. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, drawn from the table's own values), annotated_image (labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels or measure what moves for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
+  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. One request starts one researcher; when the user asks for more than one, list each start in the same answer. When the user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, starting or running, from their previous words), pass them to that one with researcher_note instead of starting another; start a new one when they ask for another researcher or separate work. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, drawn from the table's own values, and write a slide presentation or a small interactive or animated visual of the data as a page the user opens rendered: ask for those in the brief, never say it can't), annotated_image (labels drawn on a photo of the user's own outlined thing on this slide), image (a made AI illustration or diagram of a kind of thing, labelled or not, needing nothing outlined; never a real photo: for a real photo use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels, measure what moves or classify cells with several models and compare them for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "start_researcher",
@@ -1582,7 +1622,7 @@
      "type": "boolean"
     },
     "by": {
-     "description": "\"look\" (default), \"cells\", or \"concept\" (SAM 3.1 matches the words; on these slides an example works better)",
+     "description": "\"look\" (default: the app's eyes find the thing meant and its segmenter outlines it, as a click does; what \"segment that\" or \"use a segmentation model on it\" means for one thing), \"cells\", or \"concept\" (SAM 3.1 finds every match of a kind named by its name; on these slides words often find nothing and an example works better)",
      "enum": [
       "look",
       "cells",
@@ -1607,7 +1647,7 @@
      "type": "string"
     },
     "what": {
-     "description": "what to find (for \"concept\": the thing's name alone)",
+     "description": "what to find: the thing the user named, whole, as they see it, never a part inside it unless they named that part (for \"concept\": the thing's name alone)",
      "type": "string"
     }
    },
@@ -1880,9 +1920,23 @@
   "name": "retrieve_page",
   "params": {
    "properties": {
+    "placement": {
+     "description": "with show: where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only"
+     ],
+     "type": "string"
+    },
     "query": {
      "description": "topic or page to find when no URL is known",
      "type": "string"
+    },
+    "show": {
+     "description": "also open the page it read in a window (Wikipedia, YouTube and Vimeo open inside the app)",
+     "type": "boolean"
     },
     "url": {
      "description": "public page URL if known",
@@ -1905,14 +1959,14 @@
   }
  },
  {
-  "description": "Which model made an outline and how it was named (\"which model did you use?\", \"how do you know?\"), and what the session made today, from one index (cells, measurements, researchers' work, snapshots, names, labels, scale, datasets). id=o1: how that outline and its name were made, each model that found, drew, checked, named and followed it (answer from this, never from memory). With id and inspect=true, attach that saved picture to the next answer for visual questions; captions alone are not pixels. At most two pictures per request. Nothing given, the summary (\"what data do we have?\"); kind or query, those; id, one in full: an entry, a saved member (c17) or an outline (o3). Large readings return nextOffset and revision; continue with both until nextOffset is null. It makes nothing.",
+  "description": "Which model made an outline and how it was named (\"which model did you use?\", \"how do you know?\"), and what the session made today, from one index (cells, measurements, researchers' work, snapshots, names, labels, scale, datasets). id=o1: how that outline and its name were made, each model that found, drew, checked, named and followed it (answer from this, never from memory). With id and inspect=true, attach that saved picture to the next answer for visual questions; captions alone are not pixels. At most two pictures per request. Nothing given, the summary (\"what data do we have?\"); kind or query, those; id, one in full: an entry, a saved member (c17) or an outline (o3). id=\"that\": the last result the user saw or heard, with what made it, from what, when and its numbers, to explain it (\"I don't understand that\"). Large readings return nextOffset and revision; continue with both until nextOffset is null. It makes nothing.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "resources",
   "params": {
    "properties": {
     "id": {
-     "description": "one entry (e3, d4...), saved member (c17), or outline (o3)",
+     "description": "one entry (e3, d4...), saved member (c17), outline (o3), or \"that\"",
      "type": "string"
     },
     "inspect": {
@@ -1947,6 +2001,19 @@
     },
     "revision": {
      "description": "exact reading revision from the first page; required for continuation",
+     "type": "string"
+    },
+    "section": {
+     "description": "one part of the Project's view in full (the brief shows only its first lines): data, researchers, studies, agents (connected agents' work), tabs, stage, models",
+     "enum": [
+      "data",
+      "researchers",
+      "studies",
+      "agents",
+      "tabs",
+      "stage",
+      "models"
+     ],
      "type": "string"
     },
     "thread": {
@@ -2003,7 +2070,7 @@
   }
  },
  {
-  "description": "Present layers, document windows and the magnifier. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
+  "description": "Present layers, document windows and the magnifier. do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, window, replace, close, only), done once the screen shows it; with tab it puts it in that Tab (a window, a saved picture, a researcher's picture, a table), wherever it is now. Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its exact ID from resources, without rerunning its maker: open shows it in the reader; show draws a layer on the picture. Open a saved member (c17) for its original clean crop without making a live outline. Historical motion tracks need verified field placement; current-camera trails draw only on their exact paired camera frame and include camera/stage motion. For moving motion into a corner, open its existing source in a native window, then resize/move and fade that window; hide its tracks layer if transferring it off the camera. The measurement is unchanged. Restore the overlay with show on tracks:mN. Changing layer opacity alone does not move it.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "present",
@@ -2057,9 +2124,14 @@
       "close",
       "move",
       "resize",
-      "front"
+      "front",
+      "place"
      ],
      "type": "string"
+    },
+    "instead": {
+     "description": "with placement: move it here from the Tab it is open in, when the user wants it here rather than there; otherwise it opens here too",
+     "type": "boolean"
     },
     "members": {
      "description": "emphasise: these",
@@ -2084,6 +2156,19 @@
      "description": "legacy magnifier move/resize: asked for over the view or its object",
      "type": "boolean"
     },
+    "placement": {
+     "description": "do=place only: where it goes: new-tab: a Tab of its own (no live feed): one thing fills it, two or more share it side by side; beside: side by side in this Tab with what is there, the live view included; overlay: drawn on the live specimen (outlines and layers only); window: a floating window, in front; replace: in place of the window in front, which closes; close: closed (its Data is kept); only: the only thing open in its Tab (the rest closed, the specimen hidden; Main's floats small). Outlines (eN, layer:eN): overlay draws them on the live view; new-tab gives them a Tab with their capture and table",
+     "enum": [
+      "new-tab",
+      "beside",
+      "overlay",
+      "window",
+      "replace",
+      "close",
+      "only"
+     ],
+     "type": "string"
+    },
     "rect": {
      "description": "document or legacy magnifier move/resize: [x,y,width,height] workspace CSS pixels, width at least 160; native windows use their own layout fields",
      "items": {
@@ -2104,6 +2189,11 @@
     "revision": {
      "description": "population open/show only: 0 for retained original, or its current revision; no recomputation",
      "type": "integer"
+    },
+    "tab": {
+     "description": "with placement: the Tab to put it in, by title or id, made when none has that title (default: in front); it is opened there from Data when not open there",
+     "maxLength": 80,
+     "type": "string"
     },
     "top": {
      "description": "emphasise: how many",
@@ -2164,7 +2254,7 @@
   }
  },
  {
-  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), their exact retained placements and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, or close a named Tab. Closing hides an arrangement and never deletes Data. Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen.",
+  "description": "List the Tabs inside this Project (a Tab arranges this Project\u2019s windows; a new Project is new_project), what each holds and what is in front, or explicitly create, rename, switch, add a retained resource, move a placement, arrange, keep only one thing, or close a named Tab. Each item has a kind (table, outlines, tracks, image, reference, document, graph, video, web-page, magnifier, note); list with kind=table gives only the Tabs holding a table: \"which Tab has the measurements?\" is answered from kinds, never titles. Researcher Tabs list what they show. Placing on a Tab: arrange puts its windows and the live view side by side (beside); only keeps just `keep` (window or placement ids) open there, closing the rest and hiding the specimen (Main\u2019s floats small), and with no keep closes everything on the Tab (\"close everything on this Tab\"); both done once the screen shows it. Closing hides an arrangement and never deletes Data. Each Tab also holds the specimen, the live view: it fills the Tab behind its windows, floats as a small window (a new Tab opens with it so), or is hidden there; list and the screen say which. It counts in what a Tab shows: name it when it is there, and float or hide it too for only one thing open in a Tab or everything else closed (action specimen with specimen fill, float or hide; Main\u2019s floats, never hides; done once the screen shows it). Mutations require the user\u2019s request. Always name tab by its exact ID from list; move also needs from and placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is show_measurements with tab: one action, confirmed on screen. Anything else put in a Tab (a photo, a researcher's picture, a window open in another Tab), as its main item or beside, is present do=place with tab: one action, wherever it is now.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "tabs",
@@ -2178,18 +2268,54 @@
       "switch",
       "add",
       "move",
-      "close"
+      "close",
+      "specimen",
+      "arrange",
+      "only"
      ],
      "type": "string"
     },
     "from": {
      "type": "string"
     },
+    "keep": {
+     "description": "only: the window or placement ids that stay open; none to close everything",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 8,
+     "type": "array"
+    },
+    "kind": {
+     "description": "list: only the Tabs holding this kind",
+     "enum": [
+      "table",
+      "outlines",
+      "tracks",
+      "image",
+      "reference",
+      "document",
+      "graph",
+      "video",
+      "web-page",
+      "magnifier",
+      "note"
+     ],
+     "type": "string"
+    },
     "placement": {
+     "type": "string"
+    },
+    "presentation": {
+     "description": "add a population as its measurements table instead of its outlines",
+     "enum": [
+      "table"
+     ],
      "type": "string"
     },
     "resource": {
      "additionalProperties": false,
+     "description": "add: the saved item by its id (its saved version unless one is named)",
      "properties": {
       "id": {
        "type": "string"
@@ -2199,10 +2325,17 @@
       }
      },
      "required": [
-      "id",
-      "version"
+      "id"
      ],
      "type": "object"
+    },
+    "specimen": {
+     "enum": [
+      "fill",
+      "float",
+      "hide"
+     ],
+     "type": "string"
     },
     "tab": {
      "type": "string"
@@ -2215,6 +2348,204 @@
    "required": [
     "action"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Find a video on the web (YouTube or Vimeo) about something and open it, or open a web page or video by its link (YouTube, Vimeo, Wikipedia; other sites are said with their link): \"find a YouTube video about stomata and open it\". The video found is checked (its real title, judged against what was asked) and kept in Data. It opens in its own sandboxed window with its source and link shown; placement: window (the default, in front), beside, new-tab, only or replace. Done once the screen shows it.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "show_web",
+  "params": {
+   "properties": {
+    "placement": {
+     "description": "where it goes (default window)",
+     "enum": [
+      "window",
+      "beside",
+      "new-tab",
+      "only",
+      "replace"
+     ],
+     "type": "string"
+    },
+    "tab": {
+     "description": "a Tab by title or id (made when none has it)",
+     "maxLength": 80,
+     "type": "string"
+    },
+    "title": {
+     "description": "with url: a short title for the window",
+     "maxLength": 200,
+     "type": "string"
+    },
+    "url": {
+     "description": "a YouTube, Vimeo or Wikipedia link",
+     "maxLength": 2048,
+     "type": "string"
+    },
+    "video": {
+     "description": "what the video should be about",
+     "maxLength": 600,
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Write a document from what this Project already has, as the user asks (\"write out the interesting findings so far\"): its measurements, outlines, counts, names, reference photos with their sources, the scale and the researchers' findings, each paragraph citing its records; nothing they do not say. Saved in Data (Write-ups). open: true when the user asks to see it; placement new-tab (a Tab of its own, the default) or beside (the reader on the right). Done once the screen shows it. Only when asked for a document; a deep report that reads the web is start_researcher's.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "write_document",
+  "params": {
+   "properties": {
+    "about": {
+     "description": "what to write, in the user's words (\"the interesting findings so far\")",
+     "maxLength": 600,
+     "type": "string"
+    },
+    "open": {
+     "description": "open it once saved (the user asked to see or open it)",
+     "type": "boolean"
+    },
+    "placement": {
+     "description": "with open: where it goes (default new-tab)",
+     "enum": [
+      "new-tab",
+      "beside"
+     ],
+     "type": "string"
+    },
+    "tab": {
+     "description": "with open: a name for its Tab",
+     "maxLength": 80,
+     "type": "string"
+    },
+    "title": {
+     "description": "a title the user gave",
+     "maxLength": 120,
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records (\"compare Cellpose and micro-sam on this footage and have a researcher audit it\"). do=plan first: it shows the plan as a card and runs nothing; say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); do=change when they change it. Long work: it runs in the background and its results land in a Tab of their own when it finishes. One model on one view now is compare_models.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "experiment",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "run: the user's own yes, quoted",
+     "type": "string"
+    },
+    "audit": {
+     "description": "a researcher audits the run (default true when asked)",
+     "type": "boolean"
+    },
+    "by": {
+     "description": "run from the plan card's Run it (the studio)",
+     "enum": [
+      "card"
+     ],
+     "type": "string"
+    },
+    "do": {
+     "enum": [
+      "plan",
+      "change",
+      "run",
+      "stop"
+     ],
+     "type": "string"
+    },
+    "effort": {
+     "description": "the audit's effort (quick)",
+     "enum": [
+      "quick",
+      "standard"
+     ],
+     "type": "string"
+    },
+    "every": {
+     "description": "footage: seconds between frames (default 4)",
+     "maximum": 60.0,
+     "minimum": 1.0,
+     "type": "number"
+    },
+    "experiment": {
+     "description": "change/run/stop: its id (x1) or number; default the latest",
+     "type": "string"
+    },
+    "frames": {
+     "description": "footage: how many frames (default 5)",
+     "maximum": 12,
+     "minimum": 1,
+     "type": "integer"
+    },
+    "measure": {
+     "description": "measure each model's cells (default true)",
+     "type": "boolean"
+    },
+    "models": {
+     "description": "the models the user named, by their ids as listed under use",
+     "items": {
+      "enum": [
+       "cellpose-sam",
+       "cellpose-sam-tuned",
+       "micro-sam-lm",
+       "fiji-analyze-particles",
+       "basic-bright-objects",
+       "edgetam-automask"
+      ],
+      "type": "string"
+     },
+     "maxItems": 6,
+     "minItems": 2,
+     "type": "array"
+    },
+    "on": {
+     "description": "footage (default): frames of the live view over time; view: the view now",
+     "enum": [
+      "footage",
+      "view"
+     ],
+     "type": "string"
+    },
+    "question": {
+     "description": "what the researcher should check, in the user's words",
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "version": {
+     "description": "run: the plan's version the user said yes to",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "do"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "How an experiment is going, or how it ended (\"how is the experiment going?\"), from its records: its state, its frames, each model's runs so far, its audit, its results. The latest by default.",
+  "inline_ms": 300,
+  "kind": "query",
+  "name": "experiment_status",
+  "params": {
+   "properties": {
+    "experiment": {
+     "description": "its id (x1) or number; default the latest",
+     "type": "string"
+    }
+   },
+   "required": [],
    "type": "object"
   }
  },

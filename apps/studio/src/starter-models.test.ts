@@ -266,12 +266,12 @@ describe('where it is mounted', () => {
 
 // Ticket 67, fix 4: a model downloaded here whose Hooke check has not run was "Ready" in this offer and Not checked in Models.
 describe('a downloaded model in the offer, as Models says it', () => {
-  it('says Downloaded · not checked until Hooke has checked it, then Ready', () => {
+  it('says Downloaded · not checked yet until Hooke has checked it or it ran here, then Ready', () => {
     const wire = freshWire();
     const edgetam = wire.models!.find((m) => m.id === 'edgetam')!;
     Object.assign(edgetam, { status: 'ready', group: 'ready', steps: [], face: { state: 'unchecked', says: 'Ready to run; not checked on this Mac yet', action: null, also: [] } });
     const row = () => starterRows(wire).find((r) => r.id === 'edgetam')!;
-    expect([row().state, row().size]).toEqual(['unchecked', 'Downloaded · not checked']);
+    expect([row().state, row().size]).toEqual(['unchecked', 'Downloaded · not checked yet']);
     expect(row().ticked).toBe(false);
     edgetam.face = { state: 'on', says: 'On · last check: works', action: null, also: [] };
     expect([row().state, row().size]).toEqual(['ready', 'Ready']);

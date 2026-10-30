@@ -1,13 +1,38 @@
+Open Project keeps moved-folder recovery in a disclosure. “Use this location” is opt-in and sent to the same owner command; errors preserve the path and choice. It does not grant access or bypass normal unsaved-work navigation.
+
+Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.
+
+Open Project folder in the Project menu accepts a local folder path. Registration and navigation are separate: the ordinary Project switch checks unsaved work, and closing/changing workspace during verification prevents late navigation. Failed registration preserves the typed path. Native picker and read-only/copy choices remain separate qualification gates.
+
+Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.
+
+The folder export review shows the server's inspected historical revision counts,
+unresolved declared relationships and historical media inclusion needs. Details are
+paged and literal. Zero reported issues is not complete dependency collection;
+shared recordings and unassessed external dependencies remain explicitly unverified.
+
+The Project menu's **Project folder** inspector uses the same `project-storage`
+projection as the connector. It captures the Project opening, discards late reads
+after navigation and reveals only the host-resolved saved location. Existing host
+storage and portable folder layouts are distinguished; neither availability nor
+Reveal claims complete collection. It does not migrate, move or export records.
+
 A Project with retained Studies uses its empty stage as a return point to those Studies:
 question, recorded experiment/input/report counts and Open Study. Counts are history,
 not running-status or scientific acceptance. Existing Data and Inputs remain the ways
 to inspect material or choose a camera. Opening starts nothing. Project switches clear
 old summaries immediately; late reads and stale buttons cannot act on another Project.
-The Assistant retains its same connected-agent entry and current-Project setup prompt.
-The Inputs drawer's empty message describes its picture/video list only; it directs
-scientific-file and saved-result users to Data without claiming their Project is empty.
+The Assistant retains its same connected-agent entry and current-Project setup prompt, now in its header's ⋯ ("Connect your own agent…").
+Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
+Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
+at the captured Project/document revision. Markup is literal text; previewing neither
+runs a reader nor qualifies scientific interpretation. Failed pages preserve the
+previous text and retry the same range. The original-byte download remains available.
 
-The Assistant offers a compact connected-agent entry inside each Project, including the local-only example.
+The Assistant offers a compact connected-agent entry inside each Project, including the local-only example: the
+header's ⋯ item "Connect your own agent…" opens it as a small popover (`AgentConnections.openEntry`; it was a card always
+in the chat column, moved out on Will's ask, W3), and a small green dot before that ⋯ shows while an agent is connected,
+naming it in its tooltip (`mountDot`).
 It names confirmed, non-revoked Hooke connections without claiming current activity or Project access;
 Settings owns connection and Project grants. Copy setup prompt uses the channel's returned playbook,
 adds the current Project locator at click time and sends nothing. Clipboard failure shows selectable text;
@@ -362,7 +387,7 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   task's role) is no second row: it is a model of that task, its own settings showing when it is chosen there. An
   entry contract/actions.json `ownTasks` lists is a task row of its own by that name: Bright objects is **Find bright
   regions** in Common ("Bright objects · built in"), never a cell finder's row (a threshold finds regions, not cells),
-  though it stays a choice in Outline every cell, where its declared output words follow it. By model is the wire's `models` in Models' sections and counts (Needs you, Ready, Not checked, Can be
+  though it stays a choice in Outline every cell, where its declared output words follow it. By model is the wire's `models` in Models' sections and counts (Needs you, Ready, Ready, not checked yet, Can be
   set up, then Not on this Mac folded, then New), five a section until **Show all N**, each row its lit cell, one quiet
   line and its next step; a ready model's row opens its first task with it chosen, another opens its card in Models.
   A task that compares (cells, outline) has **Compare models…** in its page's ⋯: up to three ready models ticked in
@@ -379,6 +404,17 @@ The studio is the workspace and the library (`docs/design/2026-10-12-workspace-a
   Open in Measurements opens (`agent-table.ts`, a `table-window` message, on the Tab it names, fitted), done once the
   screen report shows it (docs/architecture/on-screen.md "One surface per thing"); a studio without the workspace keeps
   this page.
+- **What each Tab holds** (`workspace-model.ts`; on-screen.md "The workspace model"): every item on a Tab by kind
+  (table, outlines, tracks, image, reference, document, graph, video, web-page, magnifier, note), from its saved
+  presentation or its window's source (`data-source-kind`/`data-source-media` on a native window, `data-web-window` on
+  a web window). The Assistant's `tabs list` and the screen report's Tab strip (`holds`) read it; `tabs arrange` and
+  `tabs only` are the Tab's own Arrange and its windows' own × (`WorkspaceViews.only`: the specimen hidden, Main's
+  floated small).
+- **A web page or video** (`web-window.ts`; on-screen.md "Web pages and videos"): the Assistant's `show_web` opens it
+  as a document window on the Tab named (a `web-window` message), its frame sandboxed (`WEB_SANDBOX`: no top
+  navigation, popups or forms) and only for `WEB_HOSTS` (YouTube's privacy-enhanced embed, Vimeo's player, Wikipedia
+  and Commons), with "Video from youtube.com · Open on the web ↗" under it; closing it stops it. Reported as a document
+  surface (representation `web-page` or `video`), done once the report shows its frame loaded.
 - **The empty stage** (`session-home.ts`) is one box under the session's name, "What will you look at?": side by side,
   Open a picture or video (dropped anywhere on the stage, or chosen: it joins your assets and this session) and the live
   camera (its state, Use live camera for a new session, Connect a camera and Reconnect when it has no picture); under
@@ -647,6 +683,9 @@ settles. Restoration never reopens a locally dismissed window. Explicit accepted
 native restore raises its shell; stale callbacks cannot move a newer Project.
 The specimen shell has its own stack group because it is a sibling of the fixed
 artifacts stacking context; its order must never be reindexed with child windows.
+The details card (`#description`) goes with the specimen it describes: while the specimen was pressed last, which is
+how the card opens, it is in front of the artifacts' windows and a floated specimen; after a press on another window,
+level with the specimen and later in the stage, so never behind it (`workspace-views.css`).
 
 Unrun Python drafts use browser-local recovery, scoped to the Project, exact
 scientific resource revision and placement, with separate writer identities.
@@ -1054,6 +1093,56 @@ everything above. It talks over WebRTC only, whatever the saved Voice link. Its 
   ends with a plain message and a Talk again button (`.voice-session-retry`).
 - **The voice's speaking** goes to the server as it changes: `{type:"voice-phase",phase:"speaking"|"listening",at}`,
   the studio's own measure of the output (its sideband may not hear the output buffer).
+- **Alive and available** (`voice-presence.ts`, `voice-mark.ts`, `voice-presence.css`; W3, the live-partner spec 4.8
+  horizontal 2; Will, 29 Oct: "it just paused. No indication anywhere the LIVE model was thinking or working"). The
+  voice's state is the server's `voice-state` (`services/orchestrator/voice/presence.py`: listening, heard, thinking,
+  speaking, working with its hand-offs and jobs, idle, off), as chat's `thinking` is; only the user's own key held is
+  shown here first. Hooke's work in flight is counted from one list, the strip over the composer (`FlightStrip`: the
+  hand-off rows, this Project's researchers at work, and the server's own list deduplicated by key, `flightEntries`), so
+  "Working · 2" is what that strip and the Working strip list. It shows beside Talk (the state mark and the status line:
+  "Thinking", "Speaking · 1 working", "Hooke is working · 2", else how to talk), in the Assistant header by its title (a
+  chip: "Thinking", "Working · 2", "Live"), and, while Talk is on and the Assistant is closed, as the presence pill first
+  in the Working strip ("Hooke · thinking"; no ×; a click opens the Assistant). The mark is the accent dot with the heard
+  cue's halo (listening, heard, a ring leaving it while thinking, breathing while speaking), the gold lit cell while Hooke
+  works, a still dot while live. Talk's level dot turns gold while Hooke works. A voice that sends no state (GPT-Live) is
+  shown from its own events (processing, speaking, a tool call to its result), never a timer: the 20 s `data-working`
+  timer is gone. `document.body` carries `data-voice-state` and `data-voice-working` (what is shown, for the journeys'
+  Alive line). A voice session's Activity line (`voice/diagnostics.py`) stays in Activity and is never a loading pill
+  (`isVoiceSession`). `voice-presence.fixture.html?state=thinking|speaking|working|closed|connect` shows them (fixture only).
+- **Talk never holds the user back** (`session-view.ts` `switchBlock`; Will, 2026-10-29: HeyClicky never blocks the
+  user). With either voice on, the user may switch Projects and change the input, and so may the voice.
+  - What still holds a switch back: no connection, a document that must be saved first, a recording.
+  - Both voices follow the open Project. The server injects the new Project's recap into the open voice
+    (`App._session_event`). The one brain also refreshes its brief and clears its marks (`Partner.project_changed`;
+    the studio clears its marks on `session-cleared` too). Each tool takes a fresh pin of this studio's report.
+  - Before this, with Talk on, the user was told "End voice before switching projects / changing the input".
+  - A Project the voice itself opened had its Tab input refused, so its Tabs said "Not opened" and the studio kept
+    reporting the Project left. Every show_measurements, tabs and present-close then failed for the rest of Talk
+    ("the studio that asked is not showing this Project's Tabs"; bench think-broad-1).
+- **Hands: the partner cursor and takeover** (`drive.ts`, `drive.css`; the live-partner spec 4.2 and decision 2; the wire
+  is docs/architecture/on-screen.md "Hands: the partner's drive").
+  - **The cursor.** Before each intent runs, the server sends `drive` (its id, the control `version`, and an intent with
+    a kind, a target in the marks grammar or `control:<element id>`, and a 2–4 word caption). A pointer drawn inside
+    Hooke's window moves there, eased over 320 ms, with the caption beside it. Things on the picture are ringed
+    instead (`defaultStyle`).
+    - It never moves the Mac's pointer and never takes a click: it is one fixed layer moved by transforms.
+    - `drive-shown` answers once it arrives with the target's rect, or at once with `ok:false` and why (marks' values,
+      plus `stale` for a cue planned before the user took control back).
+    - It follows its target each frame.
+    - `drive-end` shows a tick (verified) or a cross (failed) for a moment, then fades; uncertain and running just fade.
+  - **Takeover.** While `control` says the partner has it, the user takes control back in the same task as their
+    input: their own pointer moving at least 3 px over the window, Escape (which then closes nothing else), or the talk
+    key or button. The cursor stops and fades, and `takeover` goes to the server with the version the studio last saw.
+    The server raises the version, drops everything queued and acknowledges with `control` (`ack`).
+    - Measured in Chromium (`drive.fixture.html`, with real pointer, key and click input, and a worker standing in
+      for the server): input to cursor stopped at most 18 ms; input to the server's acknowledgement 3–18 ms.
+  - **The verifier's report.** Within the existing screen check, the report carries what each intent is checked
+    against (`screen.ts` `verifierLegacy`, bounded as `workspace_observation._legacy` checks):
+    - the Project's open Tabs in strip order with the one in front (`workspace.tabs`);
+    - the outlines drawn now with their kind (`drawn`, on the outlines item);
+    - the layer's members and how many are drawn (`members`);
+    - already there: the selection's ids, and the magnifier's outline and zoom level.
+    - Intents bind to the report's `seq`.
 - **Marks** (`marks.ts`): `{type:"marks"}` draws on one full-window SVG (`svg#voice-marks`, `pointer-events: none`, above
   the workspace) and answers `marks-shown` with each target's rect, or why it was not drawn (`not-found`, `out-of-view`,
   `ambiguous`, `hidden`, `bad-target`). Targets are Hooke's own ids: `outline:<id>`
@@ -1384,10 +1473,10 @@ The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-par
   they come from, **Download <size>** (following the ticks) and **Not now**. What is ticked follows one rule read from
   the wire: the default of a role that powers a capability whose actor is `auto`, open licence tier, no install, under
   100 MB. Download keeps the answer and uses `model-download` (or `model-turn-on` for an entry with its own software) in
-  the one queue, the rows then showing measured progress with the lit cell, then "Downloaded · not checked" until
-  Hooke's own check has passed here and Ready after (one meaning of Ready: Models' sections, `run-spec.ts`
-  `runnableWords`, which the offer, Tools, the settings picker, a download's pill and a status in words all say; a run of
-  yours is not that check); Not now collapses to "No models
+  the one queue, the rows then showing measured progress with the lit cell, then "Downloaded · not checked yet" (the
+  green outline: it can run) until Hooke's own check has passed here or a run of it worked here, and Ready after (one
+  meaning of Ready: Models' sections, `run-spec.ts` `runnableWords`, which the offer, Tools, the settings picker, a
+  download's pill and a status in words all say); Not now collapses to "No models
   downloaded. Models has them whenever you want them." The answer is the server's (`onboarding-models`,
   `onboarding/models.json` in the data home), so no place asks again. Choosing the folder is a separate ticket: no
   Change button until a real setting exists. The key note (`setup-note.ts`) waits until something that needs the key was asked
@@ -1456,7 +1545,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Tab report lists researcher and Study Tabs (`research`), which it can show or close. The Stage bar (`stageSlots`) is
   on every Tab: on a work Tab the specimen's name, its credit quieter and its picture (`specimenLabel`), with Float or
   Fill and Hide (the floating specimen keeps its own bar; the full one has none), or "Specimen hidden" with Show as
-  backdrop; on a researcher's, Study's or draft's page its bar (back to the work Tab, what it works on with its state
+  backdrop (one `setSpecimen` for these, the Assistant's `tabs specimen` too; a new Tab's specimen floats small in the
+  Stage's lower-left corner, `floatingSpecimen`, where Float puts it; `specimenReport` says each Tab's for the screen
+  report, docs/architecture/on-screen.md "A Tab's specimen"); on a researcher's, Study's or draft's page its bar (back
+  to the work Tab, what it works on with its state
   words, Stop while it can be stopped; step 7 below); on the right the camera, Record and the Assistant. The specimen is
   named once: with a picture or recording on the Stage, the camera control says only the camera ("No camera", its
   device, else Camera; `CameraFacts.named`), with its menu and its title naming the specimen. When the bar runs short
@@ -1582,9 +1674,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   note: EdgeTAM automatic masks is not "Outlines what you click"); **On**, one row per declared data input (the
   Stage's picture with the specimen's thumbnail, a saved input behind its Change, a volume, each typed port, the
   selected outline a task needs, a click task's clicks); **With**, the chosen model as a card with its lit cell, whole
-  name and where it runs (a Not checked model adds "not checked on this Mac yet", and "ran here · its check not run yet"
-  once this page ran it without a failure: Hooke's own check, one run on the public example, is a record a run of yours
-  does not make, contract/AGENTS.md; its tooltip says so), whose Change opens the models in place (Models' sections, Not on this Mac folded; each row a
+  name and where it runs (a model Ready, not checked yet adds "not checked on this Mac yet", and "ran here" once this
+  page ran it without a failure: the server keeps that run as its real use, observed.py "use", so the next Models page
+  says Working here; a click task still leads with Check it here while Hooke's own check has not passed, since a click
+  trial needs it), whose Change opens the models in place (Models' sections, Not on this Mac folded; each row a
   lit cell, the whole name in up to two lines, what it does here, at most one action under the name; a step nobody can
   press here says its reason, "Made from your corrections", and is not picked; a step only the person can take, their
   key or a licence, is the needs cell wherever its section is); a cloud model says where the picture goes ("Sends this
@@ -1684,6 +1777,35 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   each. While the answer is written the cards sit under the slot; then under the answer ("Sure." then the cards). No
   card for a manual start, another conversation or session, or a quick lookup. "Show it" goes through
   `openStudyResearch` too. A new answer and a card rise in once (`[data-arrived]`, 200 ms; reduced motion none).
+  **An experiment's card** (`experiment-card.ts`, `experiment-card.css`; Part 2.5 W5, `orchestrator/experiments.py`):
+  the server's `experiment` record drawn under the answer of the request that planned it (the request id on its steps;
+  one whose request is not in the log stays under the line it arrived after): its lit cell (needs you while it is a
+  plan, working, ready, attention), "Experiment 1 · Cellpose-SAM vs micro-sam (light microscopy)", its state in the
+  server's words ("Planned · runs on your yes", "Running · Frame 2 of 5: micro-sam (light microscopy) cells; 3 of 10
+  model runs done", "Done · its results are in a Tab of their own", "Didn't finish · <why>"), the plan's steps and cost
+  while it is a plan, and its actions: Run it (the column's primary button; sends the plan's version the card shows,
+  `{type:'experiment', action:'run', id, version}`), Change… (the composer, ready for the user's words), Stop while it
+  runs, Open results once it landed. Nothing on it is the studio's own: a plan changed since it was drawn is refused by
+  the server. `experiments` (the open Project's, on connect and on a Project switch) and `experiment` messages keep it.
+  The Data reader draws its results document with its `byline`, each section's `figure` (one of the entry's pictures)
+  and `table` (data-reader.ts `readerDocument`).
+  **Work in flight while you keep talking** (`handoffs.ts`, `handoffs.css`; Will, 29 Oct: two things ran and nothing
+  said so). Each request the voice hands to Hooke's brain (`do_in_hooke`; a server `handoff` line, filed with its
+  conversation under one `lineId`, so a later state replaces it and a replay shows its last) is one row under the voice
+  line that started it (the voice's next words start below it): its lit cell, its title (the voice's few plain words,
+  else the request's), then "Hooke is working · 0:07", "Still working" past the voice's 12 s, and it settles into
+  "Done · <the brain's answer>", "Started · <it>" when it started a researcher (whose card sits under it), "Couldn't
+  confirm · <what was asked>, it may not have happened" when its step's own receipt says the change was never seen on
+  screen (never "Didn't work", kept for a real failure and its reason), "Didn't work · <why>", or "Not known" when no
+  result was recorded. A step the brain left running settles the row from that step's own late receipt. A tap opens
+  what was asked, the steps in Activity's words and Open in Activity. A later step the user asked for ("then put it in
+  Stoma Reference") is a line on the row ("Then, after Researcher 2: …", then its outcome); done, it is a row of its own
+  ("After Researcher 2"). The slim strip right over the composer (`FlightStrip`) shows only while something runs: "2
+  working · Reference photo of a stoma · A new Tab", with this Project's researchers at work and a waiting later step
+  after its researcher ("then: …", quieter, not counted); each entry scrolls to its row or card and marks it. States
+  are the server's (ADR 0006). `chat.fixture.html?state=handoffs|handoffs-landed` shows them. The Working strip under the
+  Stage has a pill for each hand-off and think job in flight too (`flightPills`, from the same list; researchers keep the
+  shelf's), and a voice hand-off's `thinking` (channel "voice") is its row's, never the typed slot's.
   **Scrolling that respects reading** (`chat-scroll.ts` `ChatFollow`): your own send follows (`sent()` from `ask`, and
   your words arriving); while following, the end stays in view as lines are drawn and, through the injected
   ResizeObserver, as they grow. A reader who scrolled up stays put: the log has `overflow-anchor: none` and keeps the
@@ -1787,7 +1909,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   dropped by a capture, so nothing is lost; an old "Go to results" notice of one opens the researcher's own Tab.
 - **Models and Add model or tool (step 8).** Models (`modelspage.ts`, the mock's `modelsSheet()`) is one grid of one card
   shape a section, and its sections are run-spec.ts's `modelSection`, the ones Tools By model and a task's model list
-  use: Needs you, Ready (face on or obtained, the one meaning of Ready), Not checked, Can be set up, then Not on this Mac
+  use: Needs you, Ready (face on or obtained, the one meaning of Ready: Hooke's own check passed, or a real use of it
+  worked here, which the card says as Working here · last ran 14:02), Ready, not checked yet (it can run and nothing of
+  it is recorded: the green outline, never grey; Will 2026-10-29), Can be set up, then Not on this Mac
   folded; so the summary, the side's counts (`workspace-study-surfaces.ts`: a card's `data-section`, never its words;
   where it runs by `data-runs`) and Tools agree exactly, and a section with nothing in it is not listed on the side. The
   sheet: a 60 px header (Models; **Add model or tool**, which opens the three ways in, through `hooke-models-add`; the
@@ -1795,12 +1919,13 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   where-it-runs chips, the grid (220 px columns, 200 px rows). **The card** (`card`, its look and verb from
   model-status.ts `cardLook`, tested in `model-status.test.ts`): its lit cell and name, what it is and where it runs
   ("Model, on this Mac", "Cloud model, Google", "Built-in method"), what it does in two lines, one facts line ("On this
-  Mac · free", "413 MB · free", "Your Google key", "Your choice for find all like this", "Needs Fiji · free", or a setup's
+  Mac · free", "413 MB · free", "Your Google key", "Working here · last ran 14:02" with the cell's Working here for one a
+  real use showed working, "Your choice for find all like this", "Needs Fiji · free", or a setup's
   own words while it works; the face's words are its tooltip), one action at the bottom; a click anywhere on it opens
   its Details beside the grid (`model-card-hit`, 360 px pane). No step lists, terms or status pills on a card: they are
   in its setup sheet and Details. **One verb per state:** Use it here (ready and serving a task here: `useModel` through
   `hooke-use-model`; a ready entry that serves none, and every data entry, says "Used by the Assistant and researchers"
-  with no button), Check it here (Not checked: its sheet), Download 413 MB (started in place; the card then fills from
+  with no button), Check it here (Ready, not checked yet: its sheet), Download 413 MB (started in place; the card then fills from
   the server's measured bytes, "Downloading · 42%" with its setup cell and Cancel; a stopped download says where it
   stopped and offers Retry and Details), Add key and Accept licence (the person's step, on the button; the cell is its
   section's: blue only in Needs you, the grey outline in Can be set up, as Tools By model draws the same row), Turn on, Set up
@@ -1815,9 +1940,9 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   Needs you cards is gone (the needs cell says it). **Details** (the mock's `modelDetail()`): its name and a 28 px ×
   ("Close details"), what it is and does, then **Tasks**, one row per task a person runs here (by name, once), each with
   Try it on <specimen> where it can run (`served`, `specimen`: actions-panel.ts `served` and `stageName`, wired in
-  main.ts), which opens that task's run page with it chosen (`useModel(model, task)`), so a Not checked model is one press
-  from use; a Not checked model's Tasks are followed by what that means (`tool-check-note`: Hooke's own check is not
-  recorded on this Mac; trying it on your picture does not record it, Check it here in its setup does); then Size, Licence (its short name) and Pictures. A candidate's Prepare for review stays in view; everything
+  main.ts), which opens that task's run page with it chosen (`useModel(model, task)`), so a model Ready, not checked yet
+  is one press from use; its Tasks are followed by what that means (`tool-check-note`: no run of it here is recorded
+  yet; once one works it shows as working here; Check it here in its setup runs Hooke's own check); then Size, Licence (its short name) and Pictures. A candidate's Prepare for review stays in view; everything
   else (every capability, the Assistant's too, demonstrations, trial and setup controls, alternatives, facts and files,
   versions, updates, Turn off, Remove, Share, Report) is under a closed "More about this model" (How to install opens it).
   Its check line says its time as people read it ("works · Oct 28, 2:46 am · 1700 ms", `readableTime`), never ISO. Its
@@ -1940,3 +2065,77 @@ Send. A pending question exposes a copyable handoff in that question, not a perm
 page-wide instruction; connection authorization still does not claim a running agent.
 
 Main's research overview aggregates every retained Study in its Project. A Study is an effort, not an actor or an output. Creation dates come from the first retained revision; authorship is grouped by stable identity, never by label. The overview reads existing workflow evidence with bounded fan-out; interrupted, unstarted and failed-refresh states never imply running work. Study lifecycle stays separate from execution. Contributor origins, unanswered questions, reports and dated admissions remain inspectable, and report language is not accepted as a finding. Same-Project refresh preserves disclosures/focus; Project-opening guards still protect stale actions. Existing Hooke researcher records appear separately, with their observed state and model, without inventing external-agent liveness.
+
+Inputs and Data's material menu includes Organize material. A shared sheet records
+an explicit group and input choice against the captured Project/revision. Closing it
+keeps the draft; lost replies retry the same request. Inputs groups/searches these
+server-recorded roles. Generated artifacts retain generated origin; Study dependencies
+remain visible independently of the checkbox for a later revision. This controls
+organization, not scientific reinterpretation or a file conversion.
+
+Inputs keeps Add material and search in a padded toolbar with full-height controls.
+Retained material names stay on one line; the complete title and material facts
+remain in the row tooltip and its full title in the accessible name. Role headings
+use the same inset as the toolbar; grouping never changes accepted content.
+
+Dropping several files chooses separate retained materials, never an inferred
+scientific stack. Stack remains an explicit import mode. Separate files use the
+existing bounded file transactions sequentially, pinned to the sheet's Project;
+each keeps its own request identity and receipt. Stop preserves accepted files,
+retry skips them, and uncertain acceptance must be recovered before replacing
+the selection. The sheet retains progress and opens each exact saved source.
+Folder-drop refusal still directs users to the complete native folder chooser
+so hidden scientific metadata is not silently omitted.
+
+Main uses the same retained Inputs projection even before a Study exists, showing material and a route to inspect it instead of camera onboarding. Project changes clear that projection; failed refreshes qualify retained counts. The Project menu preserves catalogue source counts (including scientific files) when live session updates report only camera/library sources; newer catalogue counts can decrease as well as increase.
+
+Retained file inspection keeps revision/size and download together, then literal
+text preview. Scientific-reader setup and content hashes are secondary disclosures.
+It uses the original exact revision and existing reader admission; the layout does
+not infer a file's scientific meaning or treat plain text as a qualified reader.
+
+A reader Tab retains one exact item. Opening a different Data/Input item or an
+internal source link from it goes to that item's retained Tab (reusing it when
+already open), rather than replacing the visible file under the previous title.
+
+Main waits for the current Project inventory and Studies before showing empty-project onboarding. A failed initial read offers Retry and Data rather than claiming there is no research. Refreshing a populated Project preserves its saved overview. Data’s rail badge remains the count of unread grouped rows, not all retained records.
+
+Main presents each Study’s purpose, observed execution and latest report before its supporting material and contributor details. Browse inputs stays the primary action for material-only Projects. DOM and keyboard order follow the same reading order; all counts and status still come from retained evidence.
+
+Inputs and retained file readers show matrix dimensions only when a retained matrix-inspect result pins the same Project, document revision, digest and file component/hash. Inspection links open the exact report in its own Tab; disagreement stays visible and never picks the newest answer. Images, recordings and whole Record collections retain their declared kind and use the same saved-file/folder inspector. These facts do not certify scientific correctness or change source bytes.
+
+Copied Library images and recordings preview their exact retained source revision in the Data reader, without resolving global Library IDs or moving the Stage. Browser codec failures retain the original download and an explicit retry. Closing the reader stops playback. Full Stage restoration is a separate qualification.
+
+Explicit Add/Open of a new Library image or recording first retains it in the captured portable Project, before any Tab/Stage navigation. Already-retained sources and restoration use their exact saved binding. A later source choice or changed Project opening suppresses late navigation; failed copying preserves the existing view. Legacy Projects keep their current storage behavior.
+
+Workspace layout schema 7 preserves exact retained media references on input Tabs. Older layout versions stay unchanged; an older server cannot receive a save that strips these references. Selecting two retained revisions of the same historical Library ID opens distinct Tabs. Stage metadata is reported separately from the latest selected Library binding. Pending material-intake request keys survive reconnect and page reload in browser session storage; acknowledged new Add actions get a new key.
+
+Inputs and Data join a Library source alias to its exact retained document, session,
+revision and digest. That single row keeps material organization and authorship,
+source preview and Open in Tab. Separate imports or revisions remain separate even
+when their names or bytes match. Late inventory refresh recomputes the join; source
+rows remain available while retained inventory is unavailable.
+
+Project folder also offers an explicitly partial folder snapshot: preparation shows
+size and unverified dependency scope, then an explicit Export this partial copy
+starts the shared tracked operation. Lost admission replies reuse one request key;
+closing/navigation stops polling without cancelling admitted work. Reopening recovers
+the locally remembered operation ID (a locator, never authority). Progress, Stop and
+Reveal read actual operation receipts. No UI labels this as complete collection.
+
+Project menu input counts use the server's shared material membership, including
+historical selections. `sourcesIncomplete` means the shown count is partial; keep
+that qualification when merging live session counters into the catalogue row.
+
+Matrix inspection links are distinct compact rows. Author and save time come only from an exact same-Project/id/revision/hash match in the existing inventory; missing or mismatched metadata stays absent. Opening still fetches the pinned report into its own Tab, without extra preview requests or execution.
+
+Project folder export completion offers a separate working-copy restoration after space/scope review. Its tracked operation survives closing the panel and keeps its request identity after a lost reply. Completion exposes the location without navigating or replaying work; opening remains the normal owner Project action.
+
+Project folder offers whole recorded-dataset inclusion only for a portable Project. The owner chooses a completed host recording, reviews size, shared scope and capture warnings, then confirms the whole dataset. Progress survives panel closure via the retained operation; retries keep their request identity. Navigation fences stale UI without retargeting admitted work. Inputs/Data use the ordinary retained recorded-dataset artifact.
+
+Project inventory and Study refreshes coalesce while their same-Project read is pending.
+Navigation cancels the old browser read; refresh events do not invalidate an arriving
+answer. A ten-second notice offers Retry, and a thirty-second read timeout keeps
+already loaded material. Retry repeats reads only, never scientific operations.
+
+Material overviews promote exact retained inspection facts and bounded previews above file details. Material questions pin their attachment beside the Study revision; experiment setup uses the same catalog form as Tools and admits through Study/WorkflowService only after Run. A historical selection never silently becomes the latest input. Open analysis windows is the private-window manager, not research activity. The Project-title folder control opens the existing folder inspector.

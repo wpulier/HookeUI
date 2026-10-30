@@ -1,0 +1,70 @@
+{
+  "$id": "hooke:agent/project-export",
+  "type": "object",
+  "required": [
+    "session",
+    "origin",
+    "scope",
+    "files",
+    "bytes",
+    "collection",
+    "operation",
+    "location",
+    "manifestSha256"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "scope": {
+      "enum": [
+        "project-folder"
+      ]
+    },
+    "files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "state",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "unverified"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^op_[a-f0-9]{16,32}$"
+    },
+    "location": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

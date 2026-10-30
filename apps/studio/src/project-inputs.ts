@@ -1,0 +1,54 @@
+/** Inputs is a view of the shared inventory, never a second membership store. */
+import type { DataEntry, ProjectMaterial } from './data-roles';
+import type {AssetMeta} from './protocol';
+import {retainedSource} from './material-identity';
+
+export function projectInputs(entries: readonly DataEntry[], query = '', sources:readonly AssetMeta[]=[]): DataEntry[] {
+  const needle = query.trim().toLocaleLowerCase();
+  const selected = new Map<string, DataEntry>();
+  for (const entry of entries) {
+    if (entry.material?.input) selected.set(`${entry.id}@${entry.version}`, entry);
+    for (const use of entry.material?.uses ?? []) {
+      const key = `${entry.id}@${use.revision}`;
+      if (!selected.has(key)) selected.set(key, {...entry, title: use.title, version: use.revision,
+        source: {...entry.source, sha256: use.digest},
+        material: {...(use.material ?? entry.material!), input: true},
+        summary: use.available ? entry.summary : 'This pinned revision is unavailable. Open the Study to inspect its reference.'});
+    }
+  }
+  return [...selected.values()].filter(entry => !needle ||
+    [entry.title, retainedSource(entry,sources)?.title, entry.summary, entry.material?.kind, entry.material?.format, entry.material?.organization?.role].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle));
+}
+
+export function materialKind(kind: ProjectMaterial['kind']): string {
+  return {matrix: 'Matrix', image: 'Image', recording: 'Recording', 'recorded-dataset': 'Recorded dataset', assignment: 'Study assignment', folder: 'Folder', file: 'File', model: 'Model', analysis: 'Analysis', table: 'Table', labels: 'Outlines', workflow: 'Workflow record'}[kind] ?? 'File';
+}
+
+export function materialFacts(entry: DataEntry): string {
+  const material = entry.material;
+  if (!material) return '';
+  const size = material.bytes === undefined ? '' : material.bytes < 1024 ? `${material.bytes} B` :
+    material.bytes < 1024 ** 2 ? `${(material.bytes / 1024).toFixed(1)} KB` : `${(material.bytes / 1024 ** 2).toFixed(1)} MB`;
+  return [material.organization?.role, materialKind(material.kind),
+    material.format, material.shape?.map(n => n.toLocaleString()).join(' × '),
+    material.inspection?.status === 'conflicting' ? 'Inspection reports disagree' : '', size, `Revision ${entry.version ?? 1}`].filter(Boolean).join(' · ');
+}
+
+/** Returning to a retained Tab never substitutes the head for a pinned revision. */
+export function projectEntry(entries: readonly DataEntry[], ref: {id: string; day: string; version: number | null}, session: string): DataEntry | null {
+  const inventory = [...entries, ...projectInputs(entries)];
+  return inventory.find(entry => entry.id === ref.id && (entry.day ?? session) === ref.day &&
+    (ref.version === null || (entry.version ?? null) === ref.version)) ?? null;
+}
+
+/** Provenance must come from a recorded index revision, never a historical-use row synthesized from its head. */
+export function indexedRevision(entries: readonly DataEntry[], ref: {id: string; day: string; version: number}, session: string): DataEntry | null {
+  if (ref.day !== session) return null;
+  return entries.find(entry => entry.id === ref.id && (entry.day ?? session) === ref.day && entry.version === ref.version) ?? null;
+}
+
+/** A saved scientific Tab can outlive the current inventory. The reader must fetch this exact revision. */
+export function retainedProjectEntry(ref: {id: string; day: string; version: number | null}, session: string): DataEntry | null {
+  if (ref.day !== session || !/^p[0-9a-f]{32}$/.test(ref.id) || !Number.isSafeInteger(ref.version) || Number(ref.version) < 1) return null;
+  return {id: ref.id, day: ref.day, version: Number(ref.version), kind: 'project', title: 'Saved material', summary: '', state: 'saved', actions: []};
+}

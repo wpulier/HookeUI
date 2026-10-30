@@ -717,10 +717,66 @@ def _voice_workspace(snapshot) -> list[str]:
     from ..workspace_observation import front
 
     shown = {key: value for key, value in front(wire).items()
-             if value is not None and key in ("tab", "window", "studioVisible", "studioFocused")}
+             if value is not None and key in ("tab", "window", "specimen", "holds", "overlays", "magnifiers",
+                                              "studioVisible", "studioFocused")}
     if shown:
         lines.append("Workspace front: " + encode(shown))  # the Tab and window in front, the studio in view (observed)
     return lines
+
+
+KIND_WORDS = {"table": ("a table", "tables"), "outlines": ("cell outlines", "sets of cell outlines"),
+              "tracks": ("motion tracks", "sets of motion tracks"), "image": ("an image", "images"),
+              "reference": ("a reference photo", "reference photos"), "document": ("a document", "documents"),
+              "graph": ("a graph", "graphs"), "video": ("a video", "videos"), "web-page": ("a web page", "web pages"),
+              "magnifier": ("a magnifier", "magnifiers"), "note": ("a note", "notes")}
+
+
+def holds_words(holds: dict | None) -> str:
+    """What a Tab holds (the Tab strip's counts by kind, workspace-model.ts) in plain words: "a table and cell
+    outlines", "2 images"; "" when it holds nothing or the report does not say."""
+    parts = []
+    for kind, (one, many) in KIND_WORDS.items():
+        n = (holds or {}).get(kind)
+        if isinstance(n, int) and n > 0:
+            parts.append(one if n == 1 else f"{n} {many}")
+    return parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1] if parts else ""
+
+
+def overlay_words(drawn: list | None) -> str:
+    """The layers drawn on the specimen (workspace_observation.overlays) in plain words: "cell outlines (142)"."""
+    words = []
+    for layer in drawn or ():
+        what = "motion tracks" if layer.get("kind") == "tracks" else "outlines" if layer.get("id") == "outlines" else "cell outlines"
+        n = layer.get("members")
+        words.append(f"{what} ({n})" if isinstance(n, int) else what)
+    return ", ".join(words)
+
+
+def other_tabs_words(wire) -> str:
+    """The other open Tabs of this Project and what each holds, from the Tab strip: 'Other Tabs: "Cell results" (a
+    table and cell outlines), "Reference" (a reference photo)'; "" when there are none or none says."""
+    strip = next((i for i in wire.get("items") or () if i.get("id") == "workspace-tabs"), None)
+    workspace = ((strip or {}).get("view") or {}).get("legacy", {}).get("workspace") or {}
+    rows = []
+    for tab in workspace.get("tabs") or ():
+        if tab.get("front") or "holds" not in tab:
+            continue
+        held = holds_words(tab.get("holds"))
+        rows.append(f'"{inline(tab.get("title") or tab.get("id"), 80)}" ({held or "empty"})')
+    return ("Other Tabs: " + ", ".join(rows[:12])) if rows else ""
+
+
+def specimen_words(fact: dict | None) -> str:
+    """A Tab's specimen (the live view) as its Tab strip reports it (workspace_observation `specimen`), in a few words
+    after "the specimen", or "" when the report does not say."""
+    state = (fact or {}).get("state")
+    rect = (fact or {}).get("rect")
+    if state == "fill":
+        return "fills it, behind its windows"
+    if state == "float":
+        return "floats in it as a window" + (f" ({round(rect[2])}x{round(rect[3])} px at {round(rect[0])},"
+                                              f"{round(rect[1])})" if rect else "")
+    return "is hidden in it" if state == "hidden" else ""
 
 
 def _voice_windows(snapshot) -> list[str]:
@@ -737,9 +793,18 @@ def _voice_windows(snapshot) -> list[str]:
     # Which Tab of the Project is in front and the window highest on it, as the report shows them (on-screen.md); the
     # studio out of view is said, since nothing on it is then on the user's display.
     shown = front(wire)
+    # The Tab's specimen is part of what it holds (filling it, floating, or hidden), said with the Tab.
+    specimen = specimen_words(shown.get("specimen"))
+    held, drawn = holds_words(shown.get("holds")), overlay_words(shown.get("overlays"))
     if shown["tabTitle"] or shown["studioVisible"] is False:
         lines.append((f'Tab "{inline(shown["tabTitle"], 80)}" of this Project' if shown["tabTitle"] else "This Project")
+                     + (f", the specimen {specimen}" if specimen else "")
+                     + (f", holding {held}" if held else "")
+                     + (f"; drawn on the specimen: {drawn}" if drawn else "")
                      + (", the studio not in view" if shown["studioVisible"] is False else ""))
+    others = other_tabs_words(wire)
+    if others:
+        lines.append(others)
     for item in items[:8]:
         source = sources.get(item.get("sourceKey")) or {}
         identity = source.get("identity") or {}
@@ -910,6 +975,47 @@ def _outlined(state, info, positions: bool, *, workspace_scoped=False, provenanc
     return rows[-20:] + away[-6:] + tail
 
 
+def _last_result_words(brain, request_snapshot=None, for_voice: bool = False) -> str:
+    """The last thing Hooke showed or said in this conversation (board.last_result), in a line: what "that" and "it"
+    mean in "explain that" (will-research, 29 Oct: the quick pass explained stomata in general instead of the
+    researcher's graphic just placed). For the brain, the line asks for the judgment `about_last` (fast.FastDecision):
+    a request about it then carries its record (resources(id="that"), read by code, fast.reading_last_result), since
+    being told where the record was did not get it read (will-research, 30 Oct, measure-c4acc90: no tool in any run).
+    Said only while there is a last result, so no other request carries it. Empty when there is none."""
+    try:
+        from ..board import last_result
+        from ..screen import screen_of
+
+        store = getattr(getattr(brain, "services", None), "day", None)
+        if store is None:
+            return ""
+        thread = store.threads.get(store.thread_for(None))
+        at = getattr(request_snapshot, "at", None) or time.time()
+        found = last_result(thread.turns if thread is not None else [], at, screen_of(brain.hub))
+    except Exception:
+        return ""
+    if found is None:
+        return ""
+    parts = []
+    if found.said:
+        parts.append(f"said: {inline(found.said[-1], 200)}")
+    if found.resources:
+        parts.append(f"made or shown: {', '.join(found.resources[:4])}")
+    if found.outlines:
+        parts.append(f"outlines: {', '.join(found.outlines[:4])}")
+    if not parts:
+        return ""
+    said = 'The last result the user saw or heard ("that", "it"): ' + "; ".join(parts) + "."
+    if for_voice:
+        return said
+    # Only a question about it reads its record: an action on it ("zoom in on it", "outline that") is done at once, as
+    # before (Will's try-out, 30 Oct: "Can you zoom in on it?" read the record too, an extra round, 6.3 s to decide).
+    return said + (' When the user asks to have it explained or described ("explain that", "what is it?", "I don\'t '
+                   'understand that"), add "about_last": true to your reply: its own record (what it is and shows, who '
+                   'made it and with what, from what, when) is then read for the answer. Never for an action on it '
+                   '("zoom in on it", "outline that", "put it in a new Tab"): do that action alone.')
+
+
 def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
     """What the user has on screen besides the live view, in a line."""
     if request_snapshot is not None:
@@ -971,6 +1077,25 @@ def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
                      + (f"; closed, not on screen: {[i['id'] for i in closed]}" if closed else "")
                      + ". Current action receipts supersede this starting state; "
                      "earlier conversation claims do not establish what is displayed now.\n")
+        from ..workspace_observation import front
+
+        # The Tab in front holds the specimen too (the live view: filling it, floating, or hidden; its Tab strip says).
+        shown_front = front(wire)
+        specimen = specimen_words(shown_front.get("specimen"))
+        if specimen:
+            inventory += f"On the Tab in front, the specimen (the live view) {specimen}.\n"
+        # What each Tab holds, by kind (workspace-model.ts): "which Tab has the measurements?" is read from these.
+        held, drawn = holds_words(shown_front.get("holds")), overlay_words(shown_front.get("overlays"))
+        if held:
+            inventory += f"The Tab in front holds {held}.\n"
+        if drawn:
+            inventory += f"Drawn on its specimen: {drawn}.\n"
+        others = other_tabs_words(wire)
+        if others:
+            inventory += others + ".\n"
+        last = _last_result_words(brain, request_snapshot, for_voice=for_voice)
+        if last:
+            inventory += last + "\n"
         inventory += ("Resolve the original versus new reference from these exact window resource IDs, "
                       "source websites and this conversation's action receipts, not a nearby Made today entry. "
                       "When the requested retained source is already visible, keep that window without another action; "

@@ -1130,6 +1130,18 @@ body[data-workspace-study='true'] .chat-new-messages[hidden] { display: none; }
 body[data-workspace-study='true'] .chat-new-messages-arrow { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 /* An empty conversation: one sentence, then the three things the Assistant does, as cards. */
+/* The Assistant column scrolls when its content is taller than the window (a short window, or the page zoomed in),
+   with the composer kept at its foot: workspace-study.css clips the column (overflow: hidden), which cut off the
+   composer and Talk, and at some zooms the whole chat (Will, 29 Oct). More specific than that rule, so it wins in
+   either order. */
+body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel aside.notebook { overflow-y: auto; }
+/* The classic layout's "hide the chat" (localStorage chat-hidden, main.ts) is not this column's: here the column's own
+   close decides. A browser that once hid the chat kept an empty Assistant column with no way back (Will, 29 Oct:
+   empty in his Chrome, fine in Incognito). */
+body[data-workspace-study='true'][data-chat='hidden'] .study-right-panel aside.notebook { visibility: visible; }
+body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel aside.notebook > form.ask {
+  position: sticky; bottom: 0; z-index: 2; box-shadow: 0 8px 0 8px var(--mm-panel, rgb(25, 25, 28));
+}
 body[data-workspace-study='true'] .study-right-panel .starters { flex: none; display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 16px 12px; border: 0; }
 body[data-workspace-study='true'] .study-right-panel .starters[hidden] { display: none; }
 body[data-workspace-study='true'] .study-right-panel .starters p { margin: 0 0 6px; font: 400 13px/20px var(--mm-sans); color: var(--mm-text-2); }

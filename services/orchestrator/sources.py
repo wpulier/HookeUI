@@ -68,7 +68,7 @@ def _users(sid: str, assets: dict[str, Asset], others: Iterable) -> dict[str, li
     gone = {s: set(getattr(i, "removed_sources", set()) or set()) for s, i in infos.items()}
     for s, info in infos.items():
         for aid, at in dict(getattr(info, "sources", {}) or {}).items():
-            if aid != "live" and aid not in gone[s]:
+            if aid != "live" and aid not in gone[s] and aid not in getattr(info, 'source_references', {}):
                 found.setdefault(aid, {})[s] = (float(at or 0.0), labels[s])
     for asset in assets.values():
         made_in = asset.origin or ""

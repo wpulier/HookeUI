@@ -3,7 +3,7 @@
 // (JSON path), where to write the player's state (JSON path), the options (JSON: mode, setup, bridge, acoustic,
 // restart: the command that quits and reopens Hooke).
 // harness.js is loaded before the studio's own code, so it sees every socket. The talk key is Playwright's trusted
-// Control+Option (the studio's hold, PARTNER-CONTRACT.md Amendment 10), lent to the page as window.__benchKey. At a
+// Control+Option (the studio's hold, live-partner-contract.md Amendment 10), lent to the page as window.__benchKey. At a
 // restart step the player pauses; this runs the restart command, reloads the page and resumes after it.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -29,6 +29,12 @@ const page = context.pages()[0] ?? await context.newPage();
 const problems = [];
 page.on('pageerror', (error) => problems.push(`pageerror ${error.message}`.slice(0, 400)));
 page.on('console', (message) => { if (message.type() === 'error') problems.push(`console ${message.text()}`.slice(0, 400)); });
+// A takeover while the partner acts (the Drive line): the person's own mouse or Escape, trusted.
+await page.exposeFunction('__benchTakeover', async (how) => {
+  if (how === 'escape') await page.keyboard.press('Escape');
+  else { await page.mouse.move(700, 450); await page.mouse.move(760, 490, { steps: 6 }); }
+  return Date.now();
+});
 await page.exposeFunction('__benchKey', async (down) => {
   if (down) { await page.keyboard.down('Control'); await page.keyboard.down('Alt'); }
   else { await page.keyboard.up('Alt'); await page.keyboard.up('Control'); }

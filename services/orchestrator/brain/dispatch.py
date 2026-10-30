@@ -37,15 +37,23 @@ class Refused(ToolError):
 
 def not_answered(label: str, result, next: str = "ask again in a moment") -> ToolError:
     """What a provider result without data says: its refusal in its own words, else "<label> did not answer (…)"."""
-    refused = refusal(getattr(result, "error", ""))
+    refused = refusal(getattr(result, "error", ""), label)
     if refused is not None:
         return refused
     return ToolError(f"{label} did not answer ({getattr(result, 'error', '') or 'unreadable reply'})", next=next)
 
 
-def refusal(error: str) -> Refused | None:
+POLICY_KINDS = ("local-only", "capped")  # the app's own policy refused it: every cloud model would be refused alike
+# Why a model could not be used that the person can act on (research_worker.api_usage.REASONS, the one mapping): said
+# as that reason with what to do, never "did not answer (…the provider's words…)" (Will's try-out of 29 Oct).
+MODEL_REASONS = ("retired", "no-credit", "no-key", "key-refused", "rate-limit")
+
+
+def refusal(error: str, label: str = "") -> Refused | None:
     """The refusal a provider adapter kept as its result's error ("CapReached: …", vision.VisionResult), or None for
-    any other failure. The prefix is the exception's own class name, as the adapters write it."""
+    any other failure. The prefix is the exception's own class name, as the adapters write it. A model the provider
+    retired, an account out of credit, a missing or refused key and a rate limit are said by their reason
+    (api_usage.refusal), `label` naming the model."""
     kind, _, words = str(error or "").partition(": ")
     if kind == "ProviderRefused":
         from research_worker.api_usage import LOCAL_ONLY
@@ -57,7 +65,15 @@ def refusal(error: str) -> Refused | None:
     if kind in ("ConnectError", "ConnectionError", "ConnectTimeout", "APIConnectionError"):
         return Refused("the cloud model could not be reached: the connection failed",
                        next=f"check this Mac's internet connection, then ask again; {STILL_LOCAL}", kind="connection", retry=True)
-    return None
+    from research_worker import api_usage
+
+    found = api_usage.refusal(error, model=label)
+    if found["reason"] not in MODEL_REASONS:
+        return None
+    said = found["said"]
+    if label and label not in said:  # "Claude Opus 5.5 couldn't be used: your Anthropic account is out of credit"
+        said = f"{label} couldn't be used: {api_usage.refusal_clause(found)}"
+    return Refused(said, next=found["todo"], kind=found["reason"], retry=found["reason"] == "rate-limit")
 
 
 _PHASE = ContextVar("answer_dispatch_phase", default=None)

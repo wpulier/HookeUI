@@ -40,7 +40,7 @@ class Questions:
     def rows(self, study, session):
         return self.snapshot(study, session)['questions']
 
-    def ask(self, study, session, *, request, question, basis, recipient, actor, label):
+    def ask(self, study, session, *, request, question, basis, recipient, actor, label, materials=None):
         text(request, 'Question request', 128)
         text(question, 'Question', 8000)
         check(basis, 'artifact-reference')
@@ -49,9 +49,15 @@ class Questions:
         captured = exact(self.studies.store, basis, session)
         if KEY not in captured.document.get('state', {}):
             raise InvalidProject('Select a saved Study')
+        materials = [] if materials is None else materials
+        if type(materials) is not list or len(materials) > 8:
+            raise InvalidProject('Attach at most eight exact material references')
+        for ref in materials:
+            check(ref, 'artifact-reference')
+            exact(self.studies.store, ref, session)
         attribution = self.studies.attribution(actor, label)
         row = {'id': 'q_' + fingerprint({'actor': actor, 'request': request})[:32],
-               'request': request, 'question': question, 'basis': basis, 'recipient': recipient,
+               'request': request, 'question': question, 'basis': basis, 'recipient': recipient, 'materials': materials,
                **attribution, 'at': time.time(), 'answer': None}
         check(row, 'study-question')
         def change(state):
@@ -59,7 +65,8 @@ class Questions:
             old = next((q for q in rows if q['id'] == row['id']), None)
             if old:
                 fields = ('request', 'question', 'basis', 'by')
-                if any(old[k] != row[k] for k in fields) or old['recipient']['actor'] != row['recipient']['actor']:
+                if (any(old[k] != row[k] for k in fields) or old['recipient']['actor'] != row['recipient']['actor']
+                        or old.get('materials', []) != materials):
                     raise Conflict('This question request already belongs to other words or context')
                 return False
             if len(rows) >= 128:

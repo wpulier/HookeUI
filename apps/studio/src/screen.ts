@@ -72,6 +72,8 @@ function validScreenReportFailure(value: unknown): value is ScreenReportFailure 
 export interface ScreenItem {
   work?: StudioSurfaceLegacy['work'];
   workspace?:{project:string;tab:string;tabTitle?:string};
+  drawn?: StudioSurfaceLegacy['drawn'];
+  members?: StudioSurfaceLegacy['members'];
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   id: string; // live | layer:<population> | outlines | magnifier | viewer | slidemap | card
@@ -140,7 +142,9 @@ export interface StudioSurfaceLegacy {
   step?: string | null; placement?: string; covers?: boolean; opacity?: number;
   style?: { opacity?: number; fillOpacity?: number; lineWidth?: number; colour?: string; color?: string;
     stroke?: string; fill?: boolean; emphasis?: { members: readonly string[]; rest: 'hide' | 'fade' } };
-  workspace?:{project:string;tab:string;tabTitle?:string};
+  workspace?:{project:string;tab:string;tabTitle?:string;tabs?:readonly VerifierTab[]};
+  drawn?: readonly { id: string; kind: string }[]; // the outlines drawn on the live view now (the "outlines" item)
+  members?: { count: number; drawn: number }; // the population layer's members, and how many are drawn now
   document?: {project:string;tab:string;placement:string;resource:{day:string;id:string;version:number|null;picture:number|null;outputId?:string};representation:string;state:string;focused:boolean};
   workReady?: boolean;
   work?: { researcherId: string; resource: { day: string; id: string; version: number | null } };
@@ -220,7 +224,7 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
   // This closed projection deliberately has no native source, paint or ownership fields.
   const result: StudioSurfaceLegacy = { schema: 'studio-surface-v1', scope: 'dom-observation' };
   if (value.schema !== result.schema || value.scope !== result.scope) throw new Error('Invalid legacy observation scope');
-  const allowed = ['schema', 'scope', 'title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'style', 'work', 'workReady', 'document', 'workspace'];
+  const allowed = ['schema', 'scope', 'title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'style', 'work', 'workReady', 'document', 'workspace', 'drawn', 'members'];
   if (Object.keys(value).some((key) => !allowed.includes(key))) throw new Error('Unknown legacy observation field');
   for (const key of ['title', 'shows', 'source', 'beside', 'step', 'placement'] as const) {
     const field = value[key]; if (field === undefined) continue;
@@ -270,10 +274,27 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
     if (resource.version !== null && (!Number.isSafeInteger(resource.version) || resource.version < 0)) throw new Error('Invalid observed work version');
     result.work = structuredClone(work);
   }
-  if(value.workspace){const keys=Object.keys(value.workspace).sort().join(',');if(keys!=='project,tab'&&keys!=='project,tab,tabTitle')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);
+  if(value.drawn!==undefined){
+    if(!Array.isArray(value.drawn)||value.drawn.length>60)throw new Error('Invalid drawn outlines');
+    result.drawn=value.drawn.map(row=>{if(Object.keys(row).sort().join(',')!=='id,kind')throw new Error('Invalid drawn outline');boundedIdentity(row.id);boundedIdentity(row.kind);return {id:row.id,kind:row.kind};});
+  }
+  if(value.members!==undefined){
+    const m=value.members;
+    if(Object.keys(m).sort().join(',')!=='count,drawn'||![m.count,m.drawn].every(v=>Number.isSafeInteger(v)&&v>=0)||m.drawn>m.count)throw new Error('Invalid layer members');
+    result.members={count:m.count,drawn:m.drawn};
+  }
+  if(value.workspace){const keys=Object.keys(value.workspace).filter(k=>k!=='tabs').sort().join(',');if(keys!=='project,tab'&&keys!=='project,tab,tabTitle')throw new Error('Invalid workspace context');boundedIdentity(value.workspace.project);boundedIdentity(value.workspace.tab);
     // The Tab in front's title (main.ts), at most 80 characters as a Tab title is (workspace_observation.py checks the same).
     if(value.workspace.tabTitle!==undefined&&(typeof value.workspace.tabTitle!=='string'||!value.workspace.tabTitle||value.workspace.tabTitle.length>80))throw new Error('Invalid workspace context');
-    result.workspace={...value.workspace};}
+    const tabs=value.workspace.tabs;
+    if(tabs!==undefined&&(!Array.isArray(tabs)||tabs.length>24||tabs.length&&tabs.filter(t=>t.front).length!==1||tabs.some(t=>Object.keys(t).some(k=>!['front','id','title','specimen','kind','holds'].includes(k))||!['front','id','title'].every(k=>k in t)||typeof t.front!=='boolean'||typeof t.title!=='string'||t.title.length>80
+      ||t.kind!==undefined&&!TAB_KINDS.has(t.kind)||t.holds!==undefined&&(!t.holds||typeof t.holds!=='object'||Object.entries(t.holds).some(([k,n])=>!HOLD_KINDS.has(k)||!Number.isSafeInteger(n)||(n as number)<0||(n as number)>999)))))throw new Error('Invalid workspace Tabs');
+    // A Tab's specimen (screen.ts VerifierSpecimen): its state, and its place only when floating.
+    if(tabs?.some(t=>t.specimen!==undefined&&(!t.specimen||!['fill','float','hidden'].includes(t.specimen.state)||Object.keys(t.specimen).some(k=>k!=='state'&&k!=='rect'&&k!=='minimized')
+      ||t.specimen.minimized!==undefined&&(t.specimen.minimized!==true||t.specimen.state!=='float')
+      ||t.specimen.rect!==undefined&&(t.specimen.state!=='float'||!Array.isArray(t.specimen.rect)||t.specimen.rect.length!==4||!t.specimen.rect.every(Number.isFinite)||t.specimen.rect[2]<0||t.specimen.rect[3]<0))))throw new Error('Invalid workspace specimen');
+    tabs?.forEach(t=>boundedIdentity(t.id));
+    result.workspace={...value.workspace,...(tabs?{tabs:tabs.map(t=>({...t,...(t.specimen?{specimen:structuredClone(t.specimen)}:{}),...(t.holds?{holds:{...t.holds}}:{})}))}:{})};}
   if(value.document){
     const d=value.document;
     if(Object.keys(d).some(k=>!['project','tab','placement','resource','representation','state','focused'].includes(k)))throw new Error('Unknown document observation');
@@ -283,6 +304,51 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
   }
   return result;
 }
+
+/** A Tab's specimen (the live view) as the report says it: filling the Tab behind its windows, floating as a window
+ * (its place in workspace px, when laid out), or hidden from the Tab. `minimized`: floating as an empty new Tab's
+ * minimized live feed, small in its corner, which goes away once something is placed there (workspace-views.ts pip). */
+export type VerifierSpecimen = { state: 'fill' | 'float' | 'hidden'; rect?: Rect4; minimized?: true };
+export type VerifierTab = { id: string; title: string; front: boolean; specimen?: VerifierSpecimen;
+  /** The Tab's kind (work, output, compare, reader) and what it holds, counted by item kind (workspace-model.ts). */
+  kind?: string; holds?: Partial<Record<string, number>> };
+/** The item kinds a Tab's `holds` may count (workspace-model.ts ITEM_KINDS; workspace_observation.ITEM_KINDS). */
+const HOLD_KINDS = new Set(['table', 'outlines', 'tracks', 'image', 'reference', 'document', 'graph', 'video', 'web-page', 'magnifier', 'note']);
+const TAB_KINDS = new Set(['work', 'output', 'compare', 'reader']);
+/** What Hands' verifier checks an intent's outcome against (the live-partner spec 4.2), kept within the bounds
+ * workspace_observation._legacy accepts: the Project's open Tabs in strip order (24, titles of 80, the one in front
+ * kept), the outlines drawn now (60), and the population layer's members (drawn never over count). */
+export function verifierLegacy(facts: { tabs?: readonly VerifierTab[]; drawn?: readonly { id: string; kind: string }[];
+  members?: { count: number; drawn: number } }): Pick<StudioSurfaceLegacy, 'drawn' | 'members'> & { tabs?: VerifierTab[] } {
+  const out: Pick<StudioSurfaceLegacy, 'drawn' | 'members'> & { tabs?: VerifierTab[] } = {};
+  if (facts.tabs) {
+    const front = facts.tabs.findIndex((t) => t.front);
+    const kept = facts.tabs.slice(0, 24);
+    if (front >= 24) kept[23] = facts.tabs[front];
+    const at = front < 0 ? -1 : Math.min(front, 23);
+    out.tabs = kept.map((t, i) => ({ id: t.id, title: t.title.slice(0, 80), front: i === at, ...(t.specimen ? { specimen: verifierSpecimen(t.specimen) } : {}),
+      ...(t.kind && TAB_KINDS.has(t.kind) ? { kind: t.kind } : {}), ...(t.holds ? { holds: verifierHolds(t.holds) } : {}) }));
+  }
+  if (facts.drawn) out.drawn = facts.drawn.slice(0, 60).map((d) => ({ id: d.id, kind: d.kind }));
+  if (facts.members) {
+    const count = Math.max(0, Math.trunc(facts.members.count)), drawn = Math.max(0, Math.min(count, Math.trunc(facts.members.drawn)));
+    out.members = { count, drawn };
+  }
+  return out;
+}
+/** A Tab's counts by kind within the bounds workspace_observation accepts: known kinds only, whole counts to 999. */
+function verifierHolds(holds: Partial<Record<string, number>>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [kind, n] of Object.entries(holds)) if (HOLD_KINDS.has(kind) && Number.isFinite(n) && (n ?? 0) > 0) out[kind] = Math.min(999, Math.trunc(n!));
+  return out;
+}
+/** A specimen fact within the bounds workspace_observation accepts: a place only when floating, whole px. */
+function verifierSpecimen(s: VerifierSpecimen): VerifierSpecimen {
+  const rect = s.state === 'float' && s.rect && s.rect.every(Number.isFinite) && s.rect[2] >= 0 && s.rect[3] >= 0 ? s.rect.map(Math.round) as Rect4 : undefined;
+  return { state: s.state, ...(rect ? { rect } : {}), ...(s.state === 'float' && s.minimized === true ? { minimized: true as const } : {}) };
+}
+/** The report's own closed check of a surface observation, for tests. */
+export const observeLegacyForTest = (value: StudioSurfaceLegacy): StudioSurfaceLegacy => observedLegacy(value);
 
 function legacyMeaning(legacy: StudioSurfaceLegacy): string {
   return JSON.stringify([legacy.shows ?? null, legacy.source ?? null, legacy.beside ?? null,
@@ -1071,6 +1137,10 @@ export class WorkspaceSession {
   }
   frontPresentation(saved: import('./workspace-study-restoration').StudyRetainedView): boolean {
     return this.pair?.windows.frontPresentation(saved) ?? false;
+  }
+  /** Arrange's tile for a native window by its id (WorkspaceWindows.placeWindow); true when there is nothing more to do. */
+  placeWindow(id: string, rect: readonly number[]): boolean {
+    return this.pair?.windows.placeWindow(id, rect) ?? true;
   }
   openRetainedResource(saved: import('./workspace-study-restoration').StudyRetainedView, foreground = true): Promise<void> {
     if (this.disposed || !this.pair) return Promise.reject(new Error('Reconnect before reopening retained evidence.'));

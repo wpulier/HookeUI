@@ -235,7 +235,7 @@ def _match_client(value, client: ClientRef, *, closed=False):
         _refuse("CLIENT_MISMATCH", "workspace, client, page or connection differs")
 
 
-SOURCE_KINDS = frozenset(("live", "saved-image", "video", "lesson", "written", "composite"))
+SOURCE_KINDS = frozenset(("live", "saved-image", "video", "lesson", "written", "composite", "web-page"))
 # Recovered P5 values are authoritative provenance too. Preserve their spelling;
 # "capture" does not by itself establish clean/raw pixels or permit relabeling.
 MEDIA_KINDS = frozenset(("raw", "derived", "annotated", "external-reference", "capture", "labelled", "reference",
@@ -461,10 +461,43 @@ def _legacy_style(value):
     return result
 
 
+SPECIMEN_STATES = ("fill", "float", "hidden")  # how a Tab holds the specimen (the live view): workspace-views-model.ts
+SPECIMEN_ASKED = {"fill": "fill", "float": "float", "hide": "hidden"}  # tabs specimen, as the Tab strip then reports it
+
+
+# What a thing on a Tab is (apps/studio/src/workspace-model.ts ITEM_KINDS), and a Tab's own kind.
+ITEM_KINDS = ("table", "outlines", "tracks", "image", "reference", "document", "graph", "video", "web-page",
+              "magnifier", "note")
+TAB_KINDS = ("work", "output", "compare", "reader")
+
+
+def _holds(value) -> dict:
+    """A Tab's items counted by kind (workspace-model.ts `holds`). Lenient, the one bad part left out (the finalisation
+    plan's rule 4: one bad part never takes down the whole): a kind it does not know or a count out of bounds is
+    dropped, never the report."""
+    if not isinstance(value, dict):
+        return {}
+    return {kind: n for kind, n in value.items()
+            if kind in ITEM_KINDS and type(n) is int and 0 < n <= 999}
+
+
+def _specimen(value) -> dict:
+    """A Tab's specimen as its Tab strip reports it (main.ts, workspace-views.ts specimenReport): filling the Tab behind
+    its windows, floating as a window (its place in workspace px, when laid out), or hidden from the Tab. `minimized`:
+    floating as an empty new Tab's minimized live feed (Will, 30 Oct), which goes away once something is placed there."""
+    value = _legacy_fields(value, ("state",), ("rect", "minimized"))
+    if value["state"] not in SPECIMEN_STATES or ("rect" in value and value["state"] != "float") or (
+            "minimized" in value and (value["minimized"] is not True or value["state"] != "float")):
+        _refuse("INVALID_REPORT", "invalid structural specimen")
+    return {"state": value["state"], **({"rect": _rect(value["rect"])} if "rect" in value else {}),
+            **({"minimized": True} if "minimized" in value else {})}
+
+
 def _legacy(value):
     """Closed DOM observations, never native sources, ownership or paint receipts."""
     value = _legacy_fields(value, ("schema", "scope"), ("title", "shows", "source", "beside", "level",
-        "pictures", "step", "placement", "covers", "opacity", "style", "work", "workReady", "document", "workspace"))
+        "pictures", "step", "placement", "covers", "opacity", "style", "work", "workReady", "document", "workspace",
+        "drawn", "members"))
     if value["schema"] != "studio-surface-v1" or value["scope"] != "dom-observation":
         _refuse("INVALID_REPORT", "unknown structural observation scope")
     result = {"schema": value["schema"], "scope": value["scope"]}
@@ -498,10 +531,35 @@ def _legacy(value):
         elif key == "style":
             result[key] = _legacy_style(fact)
         elif key == "workspace":
-            context = _legacy_fields(fact, ("project", "tab"), ("tabTitle",))
+            context = _legacy_fields(fact, ("project", "tab"), ("tabTitle", "tabs"))
             result[key] = {k:_id(context[k]) for k in ("project", "tab")}
             if "tabTitle" in context:  # the Tab in front's title, as its Tab strip shows it (main.ts)
                 result[key]["tabTitle"] = _legacy_text(context["tabTitle"], 80)
+            if "tabs" in context:  # the Project's open Tabs in strip order, one in front (Hands: focus, "the main tab")
+                tabs = _array(context["tabs"])
+                if len(tabs) > 24:
+                    _refuse("REPORT_TOO_LARGE", "structural Tab list exceeds its bound")
+                result[key]["tabs"] = [{"id": _id(t["id"]), "title": _legacy_text(t["title"], 80),
+                                        "front": _boolean(t["front"]),
+                                        **({"specimen": _specimen(t["specimen"])} if "specimen" in t else {}),
+                                        **({"kind": t["kind"]} if t.get("kind") in TAB_KINDS else {}),
+                                        **({"holds": _holds(t["holds"])} if "holds" in t else {})}
+                                       for t in (_legacy_fields(t, ("id", "title", "front"), ("specimen", "kind", "holds"))
+                                                 for t in tabs)]
+                if tabs and sum(t["front"] for t in result[key]["tabs"]) != 1:
+                    _refuse("INVALID_REPORT", "exactly one Tab is in front")
+        elif key == "drawn":  # the outlines drawn on the live view now (Hands: highlight and clear verified)
+            drawn = _array(fact)
+            if len(drawn) > 60:
+                _refuse("REPORT_TOO_LARGE", "structural drawn outlines exceed their bound")
+            result[key] = [{"id": _id(d["id"]), "kind": _id(d["kind"])}
+                           for d in (_legacy_fields(d, ("id", "kind")) for d in drawn)]
+        elif key == "members":  # a population layer's members and how many are drawn (Hands: outline verified)
+            members = _legacy_fields(fact, ("count", "drawn"))
+            count, drawn_n = _integer(members["count"]), _integer(members["drawn"])
+            if count < 0 or drawn_n < 0 or drawn_n > count:
+                _refuse("INVALID_REPORT", "invalid structural member counts")
+            result[key] = {"count": count, "drawn": drawn_n}
         elif key == "document":
             document = _legacy_fields(fact, ("project", "tab", "placement", "resource", "representation", "state", "focused"))
             resource = _legacy_fields(document["resource"], ("day", "id", "version", "picture"), ("outputId",))
@@ -1139,10 +1197,56 @@ def front(wire: Mapping) -> dict:
                and here(i)]
     window = max(windows, key=lambda i: i.get("z") or 0, default=None)
     viewport = wire.get("viewport") or {}
+    # The Tab in front's specimen (the live view), as its Tab strip reports it: part of what that Tab holds.
+    strip_tab = next((t for t in workspace.get("tabs") or () if t.get("front")), None) or {}
+    specimen = strip_tab.get("specimen")
+    drawn = overlays(wire) if (specimen or {}).get("state") != "hidden" else []
     return {"project": project, "tab": tab, "tabTitle": workspace.get("tabTitle"),
             "window": window["id"] if window is not None else None,
             "title": (window.get("title") or legacy(window).get("title")) if window is not None else None,
+            "specimen": specimen,
+            # What the Tab in front holds, counted by kind (workspace-model.ts), the layers drawn on its specimen, and
+            # its magnifiers: None when the report does not say.
+            "holds": strip_tab.get("holds"), "overlays": drawn or None, "magnifiers": magnifiers(wire) or None,
             "studioVisible": viewport.get("visible"), "studioFocused": viewport.get("documentFocused")}
+
+
+def overlays(wire: Mapping) -> list[dict]:
+    """The layers drawn on the live specimen now, as the report shows them: each layer of cell outlines (`layer:<id>`)
+    and of motion tracks (`tracks:<id>`) open and drawn, and the named outlines drawn (`outlines`, with how many)."""
+    out = []
+    for item in wire.get("items") or ():
+        iid, legacy = str(item.get("id") or ""), ((item.get("view") or {}).get("legacy") or {})
+        if iid.startswith(("layer:", "tracks:")) and item.get("open") and item.get("visible"):
+            kind = "outlines" if iid.startswith("layer:") else "tracks"
+            members = legacy.get("members") or {}
+            out.append({"id": iid, "kind": kind, "title": legacy.get("title") or item.get("title"),
+                        **({"members": members.get("count")} if "count" in members else {})})
+        elif iid == "outlines" and item.get("open") and legacy.get("drawn"):
+            out.append({"id": iid, "kind": "outlines", "title": "named outlines", "members": len(legacy["drawn"])})
+    return out[:8]
+
+
+def magnifiers(wire: Mapping) -> list[str]:
+    """The magnifiers open now: the legacy magnifier, and each native window showing the live view magnified."""
+    sources = {s.get("key"): s for s in wire.get("sources") or ()}
+    out = []
+    for item in wire.get("items") or ():
+        iid = str(item.get("id") or "")
+        if iid == "magnifier" and item.get("open"):
+            out.append(iid)
+        elif iid.startswith("w-") and item.get("open") and (sources.get(item.get("sourceKey")) or {}).get("kind") == "live":
+            out.append(iid)
+    return out[:8]
+
+
+def tabs_holding(wire: Mapping, kind: str) -> list[dict]:
+    """The open Tabs whose items include `kind` (a table, outlines, a video...), as the Tab strip reports what each
+    holds: "which Tab has the measurements?" answered from kinds, never from titles. Each as {id, title, front, n}."""
+    strip = next((i for i in wire.get("items") or () if i.get("id") == "workspace-tabs"), None)
+    workspace = ((strip or {}).get("view") or {}).get("legacy", {}).get("workspace") or {}
+    return [{"id": t["id"], "title": t.get("title"), "front": bool(t.get("front")), "n": (t.get("holds") or {})[kind]}
+            for t in workspace.get("tabs") or () if (t.get("holds") or {}).get(kind)]
 
 
 def pin_request(observation: Observation, *, snapshot_id: str, timing: str,

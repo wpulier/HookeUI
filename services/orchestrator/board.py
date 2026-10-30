@@ -25,6 +25,13 @@ them.
 6. the newest thing the app had outlined by then;
 7. the newest outline by then (none: said, never one made after the request).
 Without a `WhenAsked` (a tool run directly, tests), the screen now.
+
+"That" may also be a result rather than an outline ("I don't understand that, explain that"; the live partner spec's 4.8,
+horizontal 4): `last_result` reads, as of when the request was made, the last thing the user saw or heard as an
+outcome, from its records: the newest exchange's answer in the conversation's journal with what its request made, opened
+or started (the turns' resource, outline and researcher receipts), or the window in front when the studio first showed
+it open after that answer (`Screen.opened_at`). Nothing made after the request is what it meant. `resources(id="that")`
+reads it with each result's own record (what made it, from what, when, its numbers).
 """
 from __future__ import annotations
 
@@ -104,6 +111,9 @@ class WhenAsked:
     cell: tuple[str, str] | None = None  # (population, member) selected on the cells layer
     cell_at: float = 0.0
     magnified: str | None = None  # what the magnifier was open on
+
+
+FIND_MEANT = ("find", {})  # a refusal's need: the thing meant found first (filled in by Board.resolve)
 
 
 @dataclass(frozen=True)
@@ -202,6 +212,8 @@ class Board:
         text = str(ref or "").strip()
         if text.startswith("@"):
             text = step_output(ctx, text)
+        if text.startswith("outline:"):  # the marks' and the screen report's way of naming an outline (marks.ts)
+            text = text[len("outline:"):]
         if not text:
             return self._that(self.now(), ctx, None)
         if text in scene.objects:
@@ -250,7 +262,14 @@ class Board:
         if pointed in scene.objects:
             return scene.objects[pointed]
         asked = getattr(ctx, "when_asked", None)
-        picked = self._guess(state, said, asked, ctx.aliases)
+        try:
+            picked = self._guess(state, said, asked, ctx.aliases)
+        except ToolFailed as exc:
+            if exc.needs == FIND_MEANT:  # find the thing meant, in the user's own words: the look model judges it
+                words = " ".join(str(getattr(ctx, "question", "") or "").split())[:400]
+                meant = f"what the user means by {said!r}" if said else "what the user means"
+                exc.needs = ("find", {"what": f"{meant}, in their words: {words}" if words else meant, "all": False})
+            raise
         from .brain.intent import log_override
 
         now = picked
@@ -298,10 +317,11 @@ class Board:
             # Outlined only since the request: not what it was about.
             raise ToolFailed(f"nothing was outlined when you asked{' for ' + repr(said) + ' to mean' if said else ''}",
                              next="click it, or ask me to find it")
+        # Nothing outlined is Hooke's to meet: it finds the thing meant first (`resolve` fills in what the user said),
+        # then the call runs again (registry `needs`).
         if said:
-            raise ToolFailed(f"nothing is outlined for {said!r} to mean; ask me to find it first",
-                             next=None)  # no next: the message says what to do
-        raise ToolFailed("nothing is outlined yet; ask me to find it first", next=None)  # no next: the message says what to do
+            raise ToolFailed(f"nothing is outlined for {said!r} to mean", next=None, needs=FIND_MEANT)  # no next: Hooke finds it first
+        raise ToolFailed("nothing is outlined yet", next=None, needs=FIND_MEANT)  # no next: Hooke finds it first
 
     def _clicked(self, state: BoardState, recent_only: bool, until: float) -> Item | None:
         """The newest outline the user's click made by `until` (when the request was made, or now)."""
@@ -366,3 +386,91 @@ def _evidence(hub) -> tuple[str, ...]:
         return evidence_lines(hub, getattr(day, "active_id", None))
     except Exception:
         return ()
+
+
+# --- the last result ("explain that") -------------------------------------------------------------------------------
+LAST_TURNS = 60  # turns of the conversation read back for the last outcome
+SAID_MAX = 4  # lines said of it kept, newest last
+SAID_CHARS = 600
+# A note that carries a hand-off's or a query's own answer (brain/loop.py), the words after its prefix being the answer.
+ANSWER_NOTES = ("Model answer for the original request: ", "Model answer from the completed query: ")
+
+
+@dataclass(frozen=True)
+class LastResult:
+    """What the user last saw or heard as an outcome, from its records, as of when they asked."""
+    at: float  # when it was said, or when its window was first shown open
+    said: tuple[str, ...] = ()  # what was said of it, oldest first (the answer, a hand-off's answer, a late outcome)
+    channel: str = ""  # "chat" or "voice": how it was asked
+    turn: int | None = None  # the request's own turn (its Activity line is request:<session>:<turn>)
+    resources: tuple[str, ...] = ()  # the index entries its steps made or reopened
+    outlines: tuple[str, ...] = ()  # the outlines it made
+    researcher: str | None = None  # the researcher it started, or that reported on it
+    window: dict | None = None  # the window in front, when it opened after that answer: {id, title, kind, resource?}
+
+
+def _outcome(turn) -> bool:
+    refs = turn.refs or {}
+    return turn.role == "assistant" or (turn.role == "note" and (
+        bool(refs.get("resourceIds") or refs.get("objectIds") or refs.get("rid"))
+        or str(turn.text).startswith(ANSWER_NOTES)))
+
+
+def last_result(turns, until: float, screen=None) -> LastResult | None:
+    """The last result (see the module's doc): the newest exchange with an outcome among `turns` (a conversation's, in
+    order) by `until`, else the window in front opened by then; the newer of the two."""
+    exchange: list = []
+    asked = None
+    for turn in reversed(list(turns)[-LAST_TURNS:]):
+        if turn.at > until:
+            continue  # said or made after the request: not what it meant
+        if turn.role == "user":
+            if exchange:
+                asked = turn
+                break
+            continue  # the request's own words, or a request nothing answered yet
+        if _outcome(turn):
+            exchange.append(turn)
+    exchange.reverse()
+    found = None
+    if exchange:
+        refs = [t.refs or {} for t in exchange]
+        said = []
+        for t in exchange:
+            text = str(t.text or "").strip()
+            for prefix in ANSWER_NOTES:
+                text = text[len(prefix):] if text.startswith(prefix) else text
+            if text and (t.role == "assistant" or str(t.text).startswith(ANSWER_NOTES)):
+                said.append(text[:SAID_CHARS])
+        found = LastResult(
+            at=exchange[-1].at, said=tuple(said[-SAID_MAX:]),
+            channel=getattr(asked, "channel", "") or exchange[-1].channel, turn=getattr(asked, "id", None),
+            resources=tuple(dict.fromkeys(i for r in refs for i in r.get("resourceIds") or [] if isinstance(i, str))),
+            outlines=tuple(dict.fromkeys(i for r in refs for i in r.get("objectIds") or [] if isinstance(i, str))),
+            researcher=next((r["rid"] for r in reversed(refs) if isinstance(r.get("rid"), str)), None))
+    window = _window_opened(screen, found.at if found else 0.0, until)
+    if window is None:
+        return found
+    return LastResult(at=window.pop("at"), window=window)
+
+
+def _window_opened(screen, after: float, until: float) -> dict | None:
+    """The window in front (screen.frontmost), when the studio first showed it open after `after` and by `until`."""
+    if screen is None:
+        return None
+    from .screen import frontmost
+    from .untrusted import inline
+
+    try:
+        front = frontmost(screen.items())
+        opened = screen.opened_at(str(front.get("id"))) if front is not None else None
+    except Exception:  # what is on screen never stops "that" being read from the conversation
+        return None
+    if front is None or opened is None or not after < opened <= until:
+        return None
+    out = {"id": str(front["id"])[:120], "title": inline(front.get("title"), 120), "kind": str(front.get("kind") or ""),
+           "at": opened}
+    held = (front.get("document") or {}).get("resource") if isinstance(front.get("document"), dict) else None
+    if isinstance(held, dict) and isinstance(held.get("id"), str):
+        out["resource"] = held["id"][:120]
+    return out

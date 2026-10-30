@@ -201,7 +201,7 @@ test('closing shows where the Tab went: a copy flies to its target and the targe
 
 function agent(more:Record<string,unknown>={}){
  vi.stubGlobal('document',{hidden:false,querySelector:()=>null,body:{dataset:{}}});
- const view={id:'main',title:'Main',items:[] as any[],notes:[]},other={id:'t2',title:'Tab 2',items:[] as any[],notes:[]};
+ const view={id:'main',title:'Main',specimen:{visible:true,rect:null},items:[] as any[],notes:[]},other={id:'t2',title:'Tab 2',specimen:{visible:true,rect:null},items:[] as any[],notes:[]};
  const order:string[]=[];
  const current=Object.assign(Object.create(WorkspaceViews.prototype),{session:'p',generation:1,layout:{schema:5,active:'main',views:[view,other]},openIds:['main','t2'],
   completionRestores:new Set(),loaded:new Set(['main']),capture:vi.fn(),changed:vi.fn(),render:vi.fn(),flush:vi.fn(async()=>{}),roots:()=>[],

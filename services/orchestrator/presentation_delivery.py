@@ -592,7 +592,7 @@ class PreparedSources:
         mime = {f'{entry.id}-{n}.jpg': 'image/jpeg', f'{entry.id}-{n}.png': 'image/png'}.get(name) if isinstance(name, str) else None
         if mime is None or self.index.results.root is None:
             _fail('unsafe_source', 'the retained result file address is invalid')
-        root = self.index.results.root.resolve()
+        root = self.index.results.root_for(entry.day).resolve()
         path = root / ((record or {}).get('day') or entry.date or entry.day) / name  # its own date folder
         if path.resolve() != path:
             _fail('unsafe_source', 'the retained original aliases another location')
@@ -1143,7 +1143,7 @@ class PreparedSources:
                     'kind': 'saved-image', 'media': selection.media,
                     'availability': ('retained' if selection.path is not None and selection.path.is_file() and
                                      (selection.kind == 'tracks' or
-                                      (selection.path.parent.name, selection.path.name) not in self.index.results._pending) else 'temporary'),
+                                      not self.index.results.picture_pending(selection.path.parent.name, selection.path.name, selection.address.day)) else 'temporary'),
                     'identity': {'resource': {'day': selection.address.day, 'id': selection.address.id,
                                               'version': selection.address.version, 'picture': selection.address.picture}},
                     'provenance': facts, 'digest': data.digest})
@@ -1270,6 +1270,21 @@ class PreparedSources:
                 self._live_guard(pins[0], pins[0].origin)
             lease = self._lease(pins[0])
             return ResolvedSource(lease.source, lease.release)
+
+    def prepared_key(self, key, context) -> bool:
+        """Whether a source under this exact key is still granted for display to this context's origin (metadata
+        only: it grants nothing). A report naming a key with nothing granted behind it shows a window whose grant has
+        ended: nothing is prepared under it any more (its pin was released when it closed, or it was never granted
+        here), or it is a live source left with no visibility owner, pinned only by a read-only close borrow (the
+        close's own, held until the studio's report confirms it: live 2026-10-29 18:57, every report in that wait was
+        refused whole)."""
+        try:
+            origin = _origin(context)
+        except PresentationError:
+            return False
+        with self._lock:
+            return any(pin.origin == origin and pin.source.key == key and (pin.live is None or pin.visible_holders > 0)
+                       for pin in self._pins.values())
 
     def get(self, token, context):
         origin = _origin(context)

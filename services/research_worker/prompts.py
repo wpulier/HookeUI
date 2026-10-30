@@ -31,6 +31,13 @@ RULES = [
     ("animate_measurements", "A chart or an animation of measurements or other saved data is drawn by the app from that "
                              "table (make_chart, animate_measurements: name the entry and its rows, the app copies the "
                              "values). A generated video is a different thing, made only when that is your deliverable."),
+    ("make_page", "When the user asks for a presentation, slides, a write-up to pull up, a visual, a diagram that moves "
+                  "or a little animation explaining the data, make it with make_page: one finished HTML page, built from "
+                  "the numbers you actually read (read the table's rows with the session tool first, page by page if it "
+                  "is long), so it opens rendered in the app. A presentation is 4-8 slides: the question, what was done, "
+                  "the key numbers as real figures (inline SVG charts drawn from the values), what it means, and its "
+                  "limits. A visual is small and focused. Never say you could not make it when make_page can; make it, "
+                  "then finish."),
     (None, "Never claim more than the picture shows: the specimen is usually unstained and blurry."),
     (None, "finish.limitations says, in plain words, what you could not settle from what you saw and found (a missing "
            "view, scale or stain, a source that disagrees); finish.next_questions, what is worth asking next. Leave them "

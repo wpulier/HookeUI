@@ -12,6 +12,9 @@ body[data-workspace-study='true'] .data-reader-side {
 }
 /* A reader Tab: the reader fills the Stage under its bar. */
 body[data-workspace-study='true'] .data-reader-tab { position: absolute; inset: 0; z-index: 40; background: var(--mm-bar); }
+/* A window opened on a reader Tab (a video, a picture) is in front of its reader, as on any Tab (will-research,
+   29 Oct: a video opened over a document was "hidden behind the current document"); the right edge's reader stays over. */
+body[data-workspace-study='true'][data-reader-tab='true'] #study-artifacts { z-index: 41; }
 body[data-workspace-study='true'] .rd-head { flex: none; border-bottom: 1px solid var(--mm-line); }
 body[data-workspace-study='true'] .rd-back {
   display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 8px 10px 0; padding: 0 8px 0 4px; border: 0;
@@ -192,9 +195,66 @@ body[data-workspace-study='true'] .rd-src-w > .rd-src-line { color: var(--mm-tex
 body[data-workspace-study='true'] .rd-src-line .rd-src-site { color: var(--mm-text-3); }
 body[data-workspace-study='true'] .rd-src-cited { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 body[data-workspace-study='true'] .rd-src-cited:hover, body[data-workspace-study='true'] .rd-src-line .rd-src-site:hover { color: var(--mm-text-2); text-decoration: underline; }
+/* A document the Assistant wrote (documents.py): under each paragraph, the records it cites, in the page's byline type,
+   each opening here. */
+body[data-workspace-study='true'] .data-reader .page .rd-doc > p.rd-doc-from { margin: -0.6cqw 0 1.6cqw; font: 400 2cqw/1.33 var(--mm-sans); color: var(--s-muted); }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-cite { margin: 0; padding: 0; border: 0; background: transparent; color: var(--s-link); font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--s-line); text-underline-offset: 2px; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-cite:hover { text-decoration-color: currentColor; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc > p.rd-note { margin: 2.6cqw 0 0; font: 400 2cqw/1.33 var(--mm-sans); color: var(--s-muted); }
+/* An experiment's results (experiments.py): the outlines side by side as a figure, and its comparison table, on the page. */
+body[data-workspace-study='true'] .data-reader .page .rd-doc > figure.rd-doc-fig { margin: 1.2cqw 0 1.6cqw; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc > figure.rd-doc-fig img { display: block; max-width: 100%; height: auto; border-radius: 4px; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc > figure.rd-doc-fig figcaption { margin-top: .8cqw; font: 400 2cqw/1.33 var(--mm-sans); color: var(--s-muted); }
+body[data-workspace-study='true'] .data-reader .page .rd-doc > .rd-doc-table { overflow-x: auto; margin: 1.2cqw 0 1.6cqw; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table table { border-collapse: collapse; width: 100%; font: 400 1.9cqw/1.35 var(--mm-sans); color: var(--s-body); }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table th { text-align: left; font-weight: 600; color: var(--s-title); }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table :is(th, td) { padding: .5cqw 1cqw .5cqw 0; border-bottom: 1px solid var(--s-line); vertical-align: bottom; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table td { white-space: nowrap; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table td.mm-num { font-variant-numeric: tabular-nums; }
 /* Its versions in How it was made: each a press that shows it on the page. */
 body[data-workspace-study='true'] .rd-ver-pick { margin: 0 0 0 -6px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
 body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hover); color: var(--mm-text); }
 /* The switcher's menu: wide enough for a title and its kind, each cut with an ellipsis rather than at the edge. */
 .workspace-add-menu.rd-switch-menu { max-width: min(460px, calc(100vw - 32px)); }
 .workspace-add-menu.rd-switch-menu > button { min-width: 0; }
+
+.rd-retained-media { display: grid; gap: 10px; margin-bottom: 20px; }
+.rd-retained-media .rd-retained-image, .rd-retained-media .rd-video { display: block; max-width: 100%; max-height: 65vh; object-fit: contain; border-radius: 12px; background: #101114; }
+.rd-retained-media .rd-note { margin: 0; }
+.rd-retained-media button { justify-self: start; }
+.rd-retained-media [hidden] { display: none; }
+
+/* Exact inspection links: one compact row per recorded run, with provenance underneath. */
+.rd-material-inspection .rd-inspection-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 12px 14px; margin-top: 8px; border: 1px solid var(--mm-line); border-radius: 12px; background: var(--mm-raise); color: var(--mm-text); text-align: left; cursor: pointer; font: inherit; }
+.rd-inspection-link:hover { border-color: var(--mm-line-strong); }
+.rd-inspection-link:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 2px; }
+.rd-inspection-words { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.rd-inspection-words strong { font-size: 14px; font-weight: 600; }
+.rd-inspection-caption { color: var(--mm-text-2); font-size: 12px; line-height: 1.5; }
+.rd-inspection-arrow { flex: none; color: var(--mm-text-2); }
+
+/* Retained material: contents first, provenance and file transport second. */
+.rd-material-inspection { display:grid; gap:20px; padding:24px; }
+.rd-material-inspection h3,.rd-material-inspection h4 { margin:0 0 12px; }
+.material-dimensions { display:flex; gap:40px; margin:18px 0; }
+.material-dimensions div { display:grid; gap:6px; }
+.material-dimensions strong { font-size:clamp(24px,3vw,36px); font-variant-numeric:tabular-nums; letter-spacing:-.04em; }
+.material-dimensions span,.material-role { color:var(--muted,#aaa); font-size:13px; }
+.material-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.material-actions button { padding:9px 14px; border:1px solid var(--line,#444); border-radius:9px; background:var(--panel,#242426); color:inherit; }
+.material-inspection-report { border-top:1px solid var(--line,#333); padding-top:16px; min-width:0; }
+.material-inspection-facts { padding:0 12px; }
+.material-annotations { font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+.material-preview-scroll { overflow:auto; max-height:360px; border:1px solid var(--line,#333); border-radius:10px; }
+.material-preview table { border-collapse:collapse; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
+.material-preview th,.material-preview td { padding:8px 12px; border-bottom:1px solid var(--line,#333); white-space:nowrap; text-align:right; }
+.material-preview th { background:var(--panel,#242426); text-align:left; font-weight:500; }
+.material-preview details { margin-top:12px; font-size:13px; overflow-wrap:anywhere; }
+.material-conflict { border-left:3px solid #dfb260; padding:10px 14px; }
+@media(max-width:640px){.rd-material-inspection{padding:16px}.material-dimensions{gap:24px}}
+
+.material-study-chooser,.material-capability-dialog{padding:24px;max-width:min(700px,90vw);max-height:85vh;overflow:auto}.material-study-options{display:grid;gap:8px;margin:20px 0}.material-study-options button{text-align:left;padding:12px 16px;border-radius:12px}.material-capability-dialog label{display:grid;gap:6px;margin:12px 0}.material-capability-dialog select,.material-capability-dialog input{padding:10px;border:1px solid var(--line,#444);border-radius:8px;background:var(--panel,#242427);color:inherit}.study-question-attachment{margin:8px 16px;font-size:13px;color:var(--muted,#aaa)}
+
+.material-study-link { justify-self:start; max-width:100%; padding:0; border:0; background:none; color:var(--mm-accent,#91b9ff); font:inherit; font-size:13px; text-align:left; line-height:1.5; cursor:pointer; }
+.material-study-link:hover { text-decoration:underline; }
+.material-study-link:focus-visible { outline:2px solid var(--mm-accent,#91b9ff); outline-offset:4px; }

@@ -26,11 +26,11 @@ export function sourceReaders(root:HTMLElement,source:Source,open:(target:{id:st
       const result=await reply(await fetch(`/api/scientific-files/${encodeURIComponent(source.id)}/readers?${new URLSearchParams({session:source.day,revision:String(source.version)})}`));
       if(!object(result.source)||result.source.id!==source.id||result.source.session!==source.day||result.source.revision!==source.version||!Array.isArray(result.readers))
         throw new Error('The reader list belongs to another source. Reopen this saved revision.');
-      const rows=result.readers.map(reader);list.replaceChildren();
+      const rows=result.readers.map(reader);list.replaceChildren();find.hidden=rows.length===0;
       const choice=object(result.choice)&&typeof result.choice.says==='string'?result.choice:null;
       const chosen=choice?.state==='chosen'&&typeof choice.capability==='string'?choice.capability:null;
       if(chosen)rows.sort((a,b)=>Number(b.key===chosen)-Number(a.key===chosen));
-      status.textContent=choice?`${choice.says}${choice.state==='refused'&&typeof choice.next==='string'?` Next: ${choice.next}.`:''}${choice.state!=='refused'?' Preparing a reader workspace does not start it, and no declaration certifies scientific results.':''}`
+      status.textContent=!rows.length?'Preview isn’t available yet. No installed integration declares a reader for this source. The original file remains available to download.':choice?`${choice.says}${choice.state==='refused'&&typeof choice.next==='string'?` Next: ${choice.next}.`:''}${choice.state!=='refused'?' Preparing a reader workspace does not start it, and no declaration certifies scientific results.':''}`
         :rows.length?'Choose an integration to prepare a private reader workspace. Starting it is a separate action; none of these declarations certifies scientific results.':'No declared reader is installed for review. Add a reader integration in Models, then check again.';
       for(const item of rows){
         const row=node('article'),choose=node('button',`Review with ${item.name}`),message=node('p',item.reason?`${BLOCKED[item.blocked]?`${BLOCKED[item.blocked]}: `:''}${item.reason}`:item.scope),setup=node('a','Open integration setup');
@@ -63,6 +63,6 @@ export function sourceReaders(root:HTMLElement,source:Source,open:(target:{id:st
         })();});
       }
     }catch(error){status.textContent=String(error instanceof Error?error.message:error);}
-    finally{loading=false;find.disabled=false;find.textContent='Check readers again';}
+    finally{loading=false;find.disabled=false;find.textContent='Refresh reader readiness';}
   })();});
 }

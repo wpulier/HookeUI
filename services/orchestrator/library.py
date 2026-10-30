@@ -34,6 +34,7 @@ Reading scans files, so it is done off the event loop (asyncio.to_thread), cache
 from __future__ import annotations
 
 import json
+import copy
 import re
 import threading
 import time
@@ -312,9 +313,19 @@ class Library:
     def key_of(self, aid: str) -> str | None:
         return self._keys.get(aid)
 
+    def retention_state(self, asset: Asset) -> dict:
+        """Small source-owned capture guard; no scan or filesystem work under publication."""
+        with self.lock:
+            key = self._keys.get(asset.id)
+            return copy.deepcopy({'key': key, 'edits': self._edits.get(asset.id, {}),
+                'registered': self._registered.get(key), 'looked': self._looked.get(asset.id, {}),
+                'sharedLooked': self._looked_specimens.get(asset.specimen.lower(), {}) if asset.group == 'example' else {},
+                'trashed': self._trashed.get(asset.id)})
+
     def search(self, query: str = "", kind: str | None = None, fresh: bool = False, scope: str | None = None) -> list[Asset]:
-        """Every asset matching the words (title, specimen, file, notes), newest first. `fresh`: the folders are read
-        again now, not the scan of the last few seconds (the studio, finding a file it has just added)."""
+        """Every asset matching the words (title, specimen, file, notes), newest first; the examples show each
+        specimen's newest clip before a second clip of any. `fresh`: the folders are read again now, not the scan of the
+        last few seconds (the studio, finding a file it has just added)."""
         words = [w for w in re.split(r"\s+", (query or "").lower()) if w]
         used = self.used() if scope == "mine" else set()
         out = []
@@ -328,7 +339,15 @@ class Library:
                              str(category.get("group") or ""), str(category.get("name") or "")]).lower()
             if all(w in text for w in words):
                 out.append(asset)
-        return sorted(out, key=lambda a: (-(a.at or 0.0), a.id))
+        newest = sorted(out, key=lambda a: (-(a.at or 0.0), a.id))
+        if scope != "example":
+            return newest
+        # The examples: every specimen's newest clip, then the other clips. Most of the corpus is one specimen's clips
+        # (1,506 of 1,566 are Gram-stained bacteria, the newest), which newest-first put before every other specimen.
+        seen: set[str] = set()
+        firsts = [a for a in newest if (a.specimen_now() or a.id) not in seen and not seen.add(a.specimen_now() or a.id)]
+        chosen = {a.id for a in firsts}
+        return firsts + [a for a in newest if a.id not in chosen]
 
     # --- the user's edits -------------------------------------------------------------------------------------------
     def set_meta(self, aid: str, fields: dict, by: str = "user") -> dict:

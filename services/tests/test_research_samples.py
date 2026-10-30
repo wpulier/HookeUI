@@ -507,7 +507,7 @@ def test_when_the_researchers_wait_runs_out_the_picture_keeps_its_memory_and_slo
         during = (hands.busy, memory.reserved["research"])
         other = researcher()
         other.rid = "r3"
-        second = await hands.run(other, "enhance", "y", input="k1", how="sharpest")
+        second = await hands.run(other, "enhance", "y", input="k1", how="sharpest", wait=1.0)  # no time to wait its turn
         reply = await first
         return during, second, reply
 

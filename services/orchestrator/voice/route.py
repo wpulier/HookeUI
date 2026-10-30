@@ -31,6 +31,7 @@ import logging
 import contextlib
 import hashlib
 import json
+import os
 import time
 from uuid import uuid4
 
@@ -40,6 +41,7 @@ from ..options import VOICE
 from .. import execution
 from ..prompts import LIVE_VOICE_DELEGATE, PARTNER
 from .diagnostics import VoiceDiagnostics
+from .events import bus_of
 from .base import ToolSpec, VoiceConfig, VoiceEvent
 from ..brain import context
 from ..brain.speech import SpokenRequests
@@ -132,7 +134,7 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             moment = brain.moment(request_snapshot=pin) if client is not None else brain.moment()
             initial_view_key = context.view_key(moment)
             initial_question_view = getattr(brain.sight, "question_view", None)
-        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain)
+        instructions = voice_prompt(brain) if model != ONE_BRAIN else partner_prompt(brain, hub)
         try:  # under a monthly cap the session is admitted first (its first minutes at their most), never after it opens
             usage_meter = api_usage.VoiceUsage(model)
         except (api_usage.CapReached, api_usage.ProviderRefused) as exc:
@@ -144,8 +146,13 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             # One mind that hears, sees and acts (voice/partner.py): its own tools, what it sees each turn and the
             # Project brief; its lines go into the same conversation, and nothing is handed to the brain's hands.
             partner = Partner(hub, brain, dialogue, client=client, send=websocket.send_json, log=brain.agent.log)
-            session = RealtimeSession(VoiceConfig(model=model, system_prompt=instructions),
-                                      talk=getattr(hub.settings, "talk", "hold"))
+            # MICROMIND_REALTIME_MODEL: a measured alternative of the same family (gpt-realtime-2.1-mini) for the journey
+            # bench only; the option stays the one chosen.
+            # The brain's one bus (events.bus_of) and its record of what was said: what an earlier Talk still owed is
+            # said by this one, and what it said stays said.
+            session = RealtimeSession(VoiceConfig(model=os.environ.get("MICROMIND_REALTIME_MODEL") or model,
+                                                  system_prompt=instructions), talk=getattr(hub.settings, "talk", "hold"),
+                                      bus=bus_of(brain), said=getattr(brain, "said", None))
             partner.bind(session)
             session.config.tools = partner.tools.specs()
             with contextlib.suppress(Exception):
@@ -248,6 +255,9 @@ def add_voice_route(app: FastAPI, hub, brain, dialogue, workspace_transport=None
             async for event in session.events():
                 if event.kind == 'ready':
                     provider_ready.set()
+                    with contextlib.suppress(Exception):  # the voice opened: real use of its model here (observed.py "use")
+                        from .. import observed
+                        observed.call_used(session.config.model, True)
                 if event.kind == 'error':
                     diagnostics.provider_error(event.data)
                 else:
@@ -614,10 +624,13 @@ def brain_tool(spoken_requests: SpokenRequests) -> ToolSpec:
                     parameters={"type": "object"}, handler=ask_brain)
 
 
-def partner_prompt(brain) -> str:
-    """The one-brain voice's instructions (prompts.PARTNER). What it can do is its tools' declarations, sent with the
-    session, and the capabilities tool when asked: not repeated here (context earns its place)."""
-    return PARTNER
+def partner_prompt(brain, hub=None) -> str:
+    """The one-brain voice's instructions (prompts.partner_prompt: its Acting follows option PARTNER_ACTS). What it can do
+    is its tools' declarations, sent with the session, and the capabilities tool when asked: not repeated here (context
+    earns its place)."""
+    from ..prompts import partner_prompt as written
+
+    return written(getattr(getattr(hub, "settings", None), "partner_acts", "brain") if hub is not None else "brain")
 
 
 def voice_prompt(brain) -> str:

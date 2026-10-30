@@ -8,7 +8,11 @@ from orchestrator import reference
 from research_worker import retrieval, safe_fetch
 
 PAGE_IMAGES = safe_fetch.page_images
-MATCHES_PHOTO = retrieval.matches_photo
+LOOK_AT_PHOTO = retrieval.look_at_photo
+
+
+def seen(matches, shows='a light micrograph of the requested subject', unmet=''):
+    return retrieval.PhotoLook(matches, shows, unmet)
 
 
 def search_result(text, candidates):
@@ -100,11 +104,11 @@ def test_slow_image_host_does_not_delay_usable_match_and_is_cancelled(monkeypatc
 @pytest.fixture(autouse=True)
 def scripted_photo_pixel_check(monkeypatch):
     from research_worker import retrieval
-    async def matches_photo(query, jpeg):
-        return True
+    async def look_at_photo(query, jpeg):
+        return seen(True)
     async def no_page_images(url, **kwargs):
         return []
-    monkeypatch.setattr(retrieval, 'matches_photo', matches_photo)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look_at_photo)
     monkeypatch.setattr(safe_fetch, 'page_images', no_page_images)
 
 
@@ -116,13 +120,36 @@ def test_downloaded_chart_is_not_displayed_as_a_photograph(monkeypatch):
         return safe_fetch.FetchedImage(b'chart-pixels', 20, 20, url, url)
     async def check(query, jpeg):
         assert jpeg == b'chart-pixels'
-        return False
+        return seen(False, 'a bar chart of counts', 'not a photograph')
     monkeypatch.setattr(retrieval, 'lookup', lookup)
-    monkeypatch.setattr(retrieval, 'matches_photo', check)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
-    with pytest.raises(reference.NotFound, match='downloaded image did not match'):
+    with pytest.raises(reference.NotFound, match='none of the 1 photos found matched what was asked; they showed: a bar chart'):
         asyncio.run(reference.retrieve('sperm photograph'))
+
+
+def test_the_nearest_photo_of_the_subject_is_offered_with_what_it_misses_when_none_matches(monkeypatch):
+    """will-workspace, 29 Oct: nine photos of several stomata were turned down for "a single stoma" and the user was
+    left with nothing. None matching, the first that is of the subject is the answer, with what it misses said; one
+    that is not of the subject (a chart) never is."""
+    async def lookup(*args, **kwargs):
+        return [{'title': 'Banner', 'page': 'https://example.org/a', 'image': 'https://example.org/chart.jpg'},
+                {'title': 'Stomata', 'page': 'https://example.org/b', 'image': 'https://example.org/three.jpg'}]
+    async def fetch(url):
+        return safe_fetch.FetchedImage(url.encode(), 20, 20, url, url)
+    async def check(query, jpeg):
+        if jpeg.endswith(b'chart.jpg'):
+            return retrieval.PhotoLook(False, 'a bar chart of counts', 'not a photograph', False)
+        return retrieval.PhotoLook(False, 'a light micrograph of three stomata on a leaf epidermis',
+                                   'shows three stomata, not one', True)
+    monkeypatch.setattr(retrieval, 'lookup', lookup)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
+    monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
+    monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
+    found = asyncio.run(reference.retrieve('a single stoma'))
+    assert found.page == 'https://example.org/b' and found.differs == 'shows three stomata, not one'
+    assert found.shows.startswith('a light micrograph of three stomata')
 
 
 def test_source_page_photo_is_used_when_search_has_no_direct_image(monkeypatch):
@@ -138,15 +165,17 @@ def test_source_page_photo_is_used_when_search_has_no_direct_image(monkeypatch):
         return safe_fetch.FetchedImage(b'actual-pixels', 300, 200, photo, photo)
     async def check(query, jpeg):
         assert jpeg == b'actual-pixels'
-        return True
+        return seen(True, 'a surface view of one stoma between two guard cells, light microscopy')
     monkeypatch.setattr(retrieval, 'lookup', lookup)
     monkeypatch.setattr(safe_fetch, 'page_images', candidates, raising=False)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
-    monkeypatch.setattr(retrieval, 'matches_photo', check)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
     found = asyncio.run(reference.retrieve('stoma photograph'))
     assert found.page == page and found.jpeg == b'actual-pixels'
-    assert found.title == 'stoma photograph'
+    # Another picture on the page than the one the search named: titled and described by the look, not the request.
+    assert found.title == 'a surface view of one stoma between two guard cells, light microscopy'
+    assert found.shows == found.title and found.looked_by == retrieval.LOOKUP_MODEL
 
 
 def test_page_image_discovery_uses_actual_html_and_resolves_relative_urls(monkeypatch):
@@ -181,9 +210,9 @@ def test_blocked_direct_image_recovers_from_page_and_rejects_its_logo(monkeypatc
         return safe_fetch.FetchedImage(url.encode(), 300, 200, url, url)
     async def check(query, jpeg):
         checked.append(jpeg)
-        return jpeg.endswith(b'/photo.jpg')
+        return seen(jpeg.endswith(b'/photo.jpg'))
     monkeypatch.setattr(retrieval, 'lookup', lookup)
-    monkeypatch.setattr(retrieval, 'matches_photo', check)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
     monkeypatch.setattr(safe_fetch, 'page_images', candidates)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
@@ -205,10 +234,10 @@ def test_another_photo_uses_original_sources_and_does_not_discard_the_only_new_m
         return safe_fetch.FetchedImage(b'old-photo' if 'old.jpg' in url else b'new-photo', 300, 200, url, url)
     async def check(query, jpeg):
         assert jpeg == b'new-photo', 'known duplicate pixels need no paid relevance check'
-        assert 'https://new.example/stoma' in query
-        return True
+        assert 'Candidate source site: new.example' in query
+        return seen(True)
     monkeypatch.setattr(retrieval, 'lookup', lookup)
-    monkeypatch.setattr(retrieval, 'matches_photo', check)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
     found = asyncio.run(reference.retrieve('stoma photograph', n=2,
@@ -240,7 +269,7 @@ def test_blocked_sources_trigger_one_grounded_recovery_preserving_request(monkey
     assert 'HTTP 403' in searches[1] and 'https://blocked.example/stoma' in searches[1]
 
 
-def test_recovery_is_bounded_to_two_searches_six_unique_pages(monkeypatch):
+def test_recovery_is_bounded_to_its_searches_and_six_unique_pages(monkeypatch):
     searches, pages = [], []
     async def lookup(query, **kwargs):
         searches.append(query)
@@ -253,7 +282,7 @@ def test_recovery_is_bounded_to_two_searches_six_unique_pages(monkeypatch):
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
     with pytest.raises(reference.NotFound):
         asyncio.run(reference.retrieve('stoma'))
-    assert len(searches) == 2
+    assert len(searches) == reference.WEB_SEARCHES
     assert len(pages) == len(set(pages)) == 6
 
 
@@ -283,7 +312,7 @@ def test_provider_preserves_long_request_recovery_and_candidate_identity(monkeyp
     calls = []
     async def generate(**args):
         calls.append(args)
-        return search_result(text='{"matches":true}' if isinstance(args.get('contents'), list)
+        return search_result(text='{"shows":"a stoma","unmet":"","matches":true}' if isinstance(args.get('contents'), list)
                                else '{"matches":[]}',
             candidates=[SimpleNamespace(grounding_metadata=SimpleNamespace(web_search_queries=['source']))])
     async def close():
@@ -294,7 +323,7 @@ def test_provider_preserves_long_request_recovery_and_candidate_identity(monkeyp
              + '\nOnly another website, outside Commons.\nRecovery: prior source returned HTTP 403'
              + '\nCandidate source page: https://new.example/stoma')
     asyncio.run(retrieval.lookup(query, images=True))
-    assert asyncio.run(MATCHES_PHOTO(query, b'test-pixels'))
+    assert asyncio.run(LOOK_AT_PHOTO(query, b'test-pixels')).matches
     assert calls[0]['input'] == query
     assert calls[1]['contents'][0].text == query
     with pytest.raises(ValueError, match='no constraints were dropped'):
@@ -356,7 +385,7 @@ def test_observed_url_field_is_normalized_only_with_search_evidence(monkeypatch,
     assert calls[0]['response_format']['schema']['properties']['matches']['items']['required'] == ['title', 'page']
 
 
-def test_unverified_search_is_recovered_once_with_its_reason_not_fetched(monkeypatch):
+def test_unverified_search_is_recovered_with_its_reason_not_fetched(monkeypatch):
     queries = []
     async def lookup(query, **kwargs):
         queries.append(query)
@@ -367,7 +396,7 @@ def test_unverified_search_is_recovered_once_with_its_reason_not_fetched(monkeyp
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     with pytest.raises(reference.NotFound, match='did not return evidence of a web search'):
         asyncio.run(reference.retrieve('stoma', request_context='different website, outside Commons'))
-    assert len(queries) == 2
+    assert len(queries) == reference.WEB_SEARCHES
     assert 'did not return evidence of a web search' in queries[1]
     assert all('different website, outside Commons' in q for q in queries)
 
@@ -421,9 +450,12 @@ def test_lookup_diagnostics_survive_production_execution_filter_and_archive(monk
     assert step['finishReason'] == 'completed'
 
 
-@pytest.mark.parametrize('raw, expected', [('{"matches":true}', True), ('{"matches":false}', False),
-    ('{"matches":', None), ('{"matches":"true"}', None), ('{}', None)])
-def test_pixel_validation_requires_complete_boolean_decision(monkeypatch, raw, expected):
+@pytest.mark.parametrize('raw, expected', [
+    ('{"shows":"a surface view of one stoma","unmet":"","matches":true}', True),
+    ('{"shows":"a leaf cross-section","unmet":"not a surface view","matches":false}', False),
+    ('{"matches":true}', None),  # a decision with no account of the pixels says nothing true about the picture
+    ('{"shows":"x","unmet":"","matches":', None), ('{"shows":"x","unmet":"","matches":"true"}', None), ('{}', None)])
+def test_the_look_requires_what_the_pixels_show_and_a_complete_decision(monkeypatch, raw, expected):
     from google import genai
     calls = []
     async def generate(**kwargs):
@@ -435,11 +467,15 @@ def test_pixel_validation_requires_complete_boolean_decision(monkeypatch, raw, e
         models=SimpleNamespace(generate_content=generate), aclose=close)))
     if expected is None:
         with pytest.raises(retrieval.LookupFailed, match='Photo validation'):
-            asyncio.run(MATCHES_PHOTO('another stoma photo', b'pixels'))
+            asyncio.run(LOOK_AT_PHOTO('another stoma photo', b'pixels'))
     else:
-        assert asyncio.run(MATCHES_PHOTO('another stoma photo', b'pixels')) is expected
+        look = asyncio.run(LOOK_AT_PHOTO('another stoma photo', b'pixels'))
+        assert look.matches is expected and look.shows
     config = calls[0]['config']
-    assert config.response_schema['properties']['matches']['type'] == 'boolean'
+    schema = config.response_schema
+    assert schema['properties']['matches']['type'] == 'boolean'
+    assert schema['property_ordering'][0] == 'shows'  # the pixels are described before they are judged
+    assert 'kind of view' in config.system_instruction and 'how many' in config.system_instruction
     assert config.max_output_tokens >= 1024  # observed 100-token responses were cut off before the decision
 
 
@@ -511,10 +547,10 @@ def test_the_search_and_its_pixel_check_read_the_request_with_what_was_on_screen
 
     async def matches(query, jpeg):
         checked.append(query)
-        return True
+        return seen(True)
 
     monkeypatch.setattr(retrieval, 'lookup', lookup)
-    monkeypatch.setattr(retrieval, 'matches_photo', matches)
+    monkeypatch.setattr(retrieval, 'look_at_photo', matches)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
     found = asyncio.run(reference.retrieve('iris', request_context='Pull up a picture of an iris online',
@@ -543,19 +579,21 @@ def test_with_commons_raced_the_catalogue_photo_wins_when_the_web_is_slow_and_is
 
     async def check(query, jpeg):
         checked.append(query)
-        return True
+        return seen(True)
 
     monkeypatch.setattr(retrieval, 'lookup', slow_web)
     monkeypatch.setattr(safe_fetch, 'commons_search', catalogue)
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
-    monkeypatch.setattr(retrieval, 'matches_photo', check)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
     import time
     t0 = time.monotonic()
     found = asyncio.run(reference.retrieve('plant stoma', request_context='show me a stoma', sources='web+commons'))
     assert found.jpeg == b'commons-jpeg'
     wall_clock.within(time.monotonic() - t0, 2, 'the lookup')  # the slow web search was not waited for
-    assert 'show me a stoma' in checked[0] and commons_page in checked[0]  # the check sees the request and the page
+    # The look sees the request and the candidate's site, not its address (a page's path is often its title).
+    assert 'show me a stoma' in checked[0] and 'Candidate source site: commons.wikimedia.org' in checked[0]
+    assert 'File:Stoma' not in checked[0]
 
     async def no_catalogue(*args, **kwargs):
         pytest.fail('the web search alone never searches the catalogue')
@@ -567,3 +605,95 @@ def test_with_commons_raced_the_catalogue_photo_wins_when_the_web_is_slow_and_is
 
     monkeypatch.setattr(retrieval, 'lookup', quick_web)
     assert asyncio.run(reference.retrieve('plant stoma', sources='web')).page == 'https://example.org/stoma'
+
+
+FOUNDER = ('Can you pull up an image side-by-side, a different one than you have been, of a stoma, just a single stoma, '
+           'and put it next to the magnification?')
+CROSS_SECTION = seen(False, 'a stained transverse section of a leaf: epidermis and mesophyll cells in layers, two guard '
+                            'cells cut across beside a closed pore; light microscopy', 'a cross-section, not a surface view')
+SURFACE = seen(True, 'a surface view of one stoma: two kidney-shaped guard cells around an open pore, among '
+                     'epidermal cells; brightfield light microscopy')
+
+
+def scripted_candidates(monkeypatch, pages, looks):
+    """The web search names `pages` (each with its image), each image's pixels are its page's, and the look at the
+    pixels answers from `looks` by those pixels. Returns the looks' queries in the order asked."""
+    asked = []
+
+    async def lookup(query, **kwargs):
+        return [{'title': title, 'page': page, 'image': page + '.jpg'} for page, title in pages]
+
+    async def fetch(url):
+        return safe_fetch.FetchedImage(url.encode(), 640, 480, url, url)
+
+    async def look(query, jpeg):
+        asked.append((jpeg.decode(), query))
+        return looks[jpeg.decode().removesuffix('.jpg')]
+
+    monkeypatch.setattr(retrieval, 'lookup', lookup)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look)
+    monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
+    monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
+    return asked
+
+
+def test_a_cross_section_is_turned_down_for_a_single_stoma_in_surface_view_and_the_next_one_is_used(monkeypatch):
+    """Live 2026-10-29 17:16: asked for "just a single stoma" to set beside the magnified leaf surface, the web search
+    named a Commons file of a leaf cross-section; the bare yes/no pixel check passed it, and the voice said it was "a
+    single stoma". The look now says what the pixels show and judges them against the whole request read with the
+    view: the cross-section is turned down and the surface view after it is the one returned."""
+    section = 'https://commons.wikimedia.org/wiki/File:Guard_cells_surrounding_closed_stoma_in_epidermis'
+    surface = 'https://microscope.example/stoma-surface'
+    asked = scripted_candidates(monkeypatch, [(section, 'File:Guard cells surrounding closed stoma'),
+                                              (surface, 'Stoma surface')],
+                                {section: CROSS_SECTION, surface: SURFACE})
+    on_screen = 'the running look: a close-up view of green plant epidermis showing stomatal complexes'
+    found = asyncio.run(reference.retrieve('single stoma microscope', request_context=FOUNDER, view_context=on_screen))
+    assert found.page == surface and found.jpeg == (surface + '.jpg').encode()
+    assert found.shows == SURFACE.shows and found.looked_by == retrieval.LOOKUP_MODEL
+    looked = dict(asked)
+    # Both looked at (the Commons file as its page, for its licence and author); the turned-down one never returned.
+    assert set(looked) == {section, surface + '.jpg'}
+    for query in looked.values():  # each look is given the whole request and the view, as data
+        assert FOUNDER in query and on_screen in query
+        assert 'Guard_cells' not in query.split('Candidate source site:')[1]  # the site, never the page's file name
+
+
+def test_none_matching_is_said_plainly_with_what_the_photos_showed(monkeypatch):
+    section = 'https://commons.wikimedia.org/wiki/File:Leaf_section'
+    asked = scripted_candidates(monkeypatch, [(section, 'Leaf section')], {section: CROSS_SECTION})
+    with pytest.raises(reference.NotFound) as caught:
+        asyncio.run(reference.retrieve('single stoma, surface view', request_context=FOUNDER))
+    said = str(caught.value)
+    assert said.startswith('none of the') and 'matched what was asked' in said
+    assert 'transverse section' in said and 'not a surface view' in said
+    assert len(asked) == 1  # the recovery search found the same page again: it was not looked at twice
+
+
+def test_another_one_never_returns_a_picture_already_shown_in_this_project(monkeypatch):
+    """"A different one than you have been": a picture whose pixels are those of a reference already kept in this
+    Project is never returned for another one (n > 1), and costs no look; the look is told what the earlier ones
+    showed, as data."""
+    import hashlib
+    old = 'https://microscopyofnature.com/stomata'
+    new = 'https://plants.example/one-stoma'
+    earlier = [{'page': old, 'title': 'Stomata | Microscopy of Nature',
+                'digest': hashlib.sha256((old + '.jpg').encode()).hexdigest(),
+                'shows': 'a surface view of three stomata in a row'}]
+    asked = scripted_candidates(monkeypatch, [(old, 'Stomata'), (new, 'One stoma')], {old: SURFACE, new: SURFACE})
+    found = asyncio.run(reference.retrieve('single stoma', n=2, request_context=FOUNDER, previous_sources=earlier))
+    assert found.page == new
+    assert [url for url, _ in asked] == [new + '.jpg']  # the earlier picture was excluded before any paid look
+    assert 'a surface view of three stomata in a row' in asked[0][1] and 'already shown in this Project' in asked[0][1]
+
+
+def test_the_same_picture_asked_for_afresh_is_a_fact_the_look_judges(monkeypatch):
+    """Not asked for another one (n = 1), an earlier picture is not excluded by code: the look is told it is the same
+    picture as one already shown and judges that with the request."""
+    import hashlib
+    old = 'https://microscopyofnature.com/stomata'
+    earlier = [{'page': old, 'digest': hashlib.sha256((old + '.jpg').encode()).hexdigest()}]
+    asked = scripted_candidates(monkeypatch, [(old, 'Stomata')], {old: SURFACE})
+    found = asyncio.run(reference.retrieve('stoma', request_context='show me a stoma', previous_sources=earlier))
+    assert found.page == old
+    assert 'Fact from the app: this candidate is the same picture as a reference photo already shown' in asked[0][1]

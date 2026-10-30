@@ -215,7 +215,7 @@ describe('Data’s list', () => {
     list.render(state(rows));
     const root = list.list as unknown as SessionNode;
     expect(root.querySelectorAll('.mm-dsection').map((head) => head.textContent)).toEqual([
-      'Pictures and recordings 1', 'Analyses 3', 'Write-ups 2', 'Sources 1', 'Other 1']);
+      'Pictures and recordings 1', 'Analyses 3', 'Write-ups 2', 'Sources 1', 'Files 1']);
     // Other is folded: its rows show once it is opened.
     expect(root.querySelector('[data-resource="b1"]')).toBe(null);
     fire(root.querySelector('.data-fold')!, 'click');

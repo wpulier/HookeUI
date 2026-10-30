@@ -1,12 +1,12 @@
 import type { StudyRetainedView } from './workspace-study-restoration';
 export type Rect = [number,number,number,number];
 export interface NotePlacement {id:string;rect:Rect;placementId?:string}
-export interface WorkspaceTabInput {source:string;position:number}
+export interface WorkspaceTabInput {source:string;position:number;retained?:import('./project-media-reference').ProjectMediaReference}
 /** Schema 5 adds output and compare Tabs and table, analysis and graph windows; schema 6 the reader Tab (one Data item
  * shown full width, ticket 66); 2-5 keep their own format. */
-export const LAYOUT_SCHEMA=6;
-export type LayoutSchema=2|3|4|5|6;
-export const LAYOUT_SCHEMAS:readonly LayoutSchema[]=[2,3,4,5,6];
+export const LAYOUT_SCHEMA=7;
+export type LayoutSchema=2|3|4|5|6|7;
+export const LAYOUT_SCHEMAS:readonly LayoutSchema[]=[2,3,4,5,6,7];
 export type TabKind='output'|'compare'|'reader';
 export interface TabProvenance {researcher?:string;version?:number;run?:string;from?:string}
 export type LaneLabel='A'|'B'|'C';
@@ -17,6 +17,15 @@ export const SCHEMA5_PRESENTATIONS:readonly ItemPresentation[]=['datatable','ana
 export interface WorkspaceView {input?:WorkspaceTabInput;id:string;title:string;specimen:{visible:boolean;rect:Rect|null};items:StudyRetainedView[];notes:NotePlacement[];kind?:TabKind;provenance?:TabProvenance;compare?:TabCompare}
 export interface WorkspaceLayout {schema:LayoutSchema;coordinates:'stage';active:string;views:WorkspaceView[]}
 export const mainLayout = ():WorkspaceLayout => ({schema:2,coordinates:'stage',active:'main',views:[{id:'main',title:'Main',specimen:{visible:true,rect:null},items:[],notes:[]}]});
+/** How a Tab holds the specimen: filling its Stage behind its windows, floating as a window of its own, or hidden. */
+export type SpecimenState='fill'|'float'|'hidden';
+export const specimenState=(s:WorkspaceView['specimen']):SpecimenState=>!s.visible?'hidden':s.rect?'float':'fill';
+/** The specimen floating small (Will, 2026-10-29; a new Tab's default, and Float's): a modest window in the Stage's
+ * lower-left corner, clear of the reader on the right and of the windows that open from the top. */
+export function floatingSpecimen(stageWidth:number,stageHeight:number):Rect{
+ const width=Math.round(Math.min(320,Math.max(240,stageWidth*.24))),height=Math.round(width*3/4)+36; // its bar is 36 px
+ return [16,Math.max(40,Math.round(stageHeight-height-16)),width,height];
+}
 export function transferItem(layout:WorkspaceLayout,from:string,to:string,item:StudyRetainedView):WorkspaceLayout {
   const result=structuredClone(layout),source=result.views.find(v=>v.id===from),target=result.views.find(v=>v.id===to);
   if(!source||!target||from===to)return result;
@@ -45,8 +54,27 @@ export function needsSchema6(layout:Pick<WorkspaceLayout,'views'>):boolean {retu
 /** The layout as a server that saves only up to `supported` takes it: a reader Tab is left out (it stays in this
  * studio for the session) and the schema is at most what it reads. The newest server takes it whole. */
 export function layoutForServer(layout:WorkspaceLayout,supported:LayoutSchema):{schema:LayoutSchema;coordinates:'stage';views:WorkspaceView[]} {
- if(supported>=6)return {schema:layout.schema,coordinates:'stage',views:layout.views};
+ if(supported<7&&layout.views.some(v=>v.input?.retained))throw new Error('Update Hooke before saving Tabs with retained Project media. The exact reference cannot be dropped.');
+ if(supported>=6)return {schema:Math.min(layout.schema,supported) as LayoutSchema,coordinates:'stage',views:layout.views};
  return {schema:Math.min(layout.schema,supported) as LayoutSchema,coordinates:'stage',views:layout.views.filter(v=>v.kind!=='reader')};
+}
+/** A layout save that met a newer revision, rebased (WorkspaceViews.rebase): `local` (what this window shows) on top
+ * of `server` (saved since this window's base `known`). The Tabs, items and notes added on the server since `known`,
+ * and not here, are kept; everything here stays as it is, so nothing this window shows is lost and nothing another
+ * window added is dropped. A Tab removed here since `known` is not brought back. */
+export function rebasedLayout(local:WorkspaceLayout,server:{schema?:number;views?:WorkspaceView[]},known:{views?:WorkspaceView[]}):WorkspaceLayout {
+ const next=structuredClone(local);
+ const placements=(views:readonly WorkspaceView[]|undefined)=>new Set((views??[]).flatMap(v=>[...v.items,...v.notes].map(i=>i.placementId).filter((p):p is string=>!!p)));
+ const knownViews=new Set((known.views??[]).map(v=>v.id)),knownPlaced=placements(known.views),here=placements(next.views);
+ for(const view of server.views??[]){
+  const mine=next.views.find(v=>v.id===view.id);
+  if(!mine){if(!knownViews.has(view.id)&&next.views.length<24)next.views.push(structuredClone(view));continue;}
+  for(const item of view.items)if(item.placementId&&!here.has(item.placementId)&&!knownPlaced.has(item.placementId))mine.items.push(structuredClone(item));
+  for(const note of view.notes)if(note.placementId&&!here.has(note.placementId)&&!knownPlaced.has(note.placementId))mine.notes.push(structuredClone(note));
+ }
+ if(typeof server.schema==='number'&&LAYOUT_SCHEMAS.includes(server.schema as LayoutSchema)&&server.schema>next.schema)next.schema=server.schema as LayoutSchema;
+ bumpForSchema5(next);
+ return next;
 }
 /** True when the layout holds a field only schema 5 can save. */
 export function needsSchema5(layout:Pick<WorkspaceLayout,'views'>):boolean {
@@ -56,7 +84,8 @@ export function needsSchema5(layout:Pick<WorkspaceLayout,'views'>):boolean {
 /** Like rememberView's move to schema 3: only writing a schema-5 field moves a layout to schema 5. */
 export function bumpForSchema5(layout:WorkspaceLayout):void {
  if(needsSchema5(layout))layout.schema=Math.max(5,layout.schema) as LayoutSchema;
- if(needsSchema6(layout))layout.schema=6;
+ if(needsSchema6(layout))layout.schema=Math.max(6,layout.schema) as LayoutSchema;
+ if(layout.views.some(v=>v.input?.retained))layout.schema=7;
 }
 /** Mark a Tab as an output or compare Tab. Lanes name 2-3 of the Tab's own windows, A-C, once each. */
 export function setTabKind(layout:WorkspaceLayout,id:string,fields:{kind:TabKind;provenance?:TabProvenance;compare?:TabCompare}):void {

@@ -1,5 +1,18 @@
 # Outside agents: the one door
 
+With opt-in Project routing, new Project-scoped operations keep their authoritative
+receipt in `history/operations`, under the captured origin and host writer lease.
+Legacy receipts remain in host storage until explicit collection. Loading retained
+receipts never imports credentials/grants or launches work. Duplicate IDs/request
+identities refuse before recovery writes. An unavailable writer leaves the original
+receipt unchanged and exposes `storageReadOnly`: its recorded running state is not
+observed execution here, and cancellation is refused. WorkflowService still owns
+workflow execution. Failed admission sync retries reuse the same reserved ID.
+Cancelled callers drain their filesystem writers before releasing serialization.
+Unavailable Project histories leave healthy records readable, but unknown request
+keys refuse admission until the missing history is restored: keys are connection-wide.
+Loading bounds all candidate files (including malformed records) and aggregate bytes.
+
 Part of the working context the root `AGENTS.md` maps. The decision is ADR 0026
 (`docs/adr/0026-outside-agents-connect-through-one-door.md`). Read it before changing anything here.
 To try it by hand, from the published Beta or a `dev` checkout, follow `docs/testing/agent-connection.md`.
@@ -123,6 +136,9 @@ agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
   while Talk is live, or while a Hooke window shows a Project that isn't empty (nothing opened, made or asked) and
   isn't the example's own. It is checked at the door and again as it starts.
 - **Work Hooke stopped is interrupted, not cancelled:** only a cancel someone asked for is `cancelled`.
+- **One way in:** an agent's run (`commands.run_tool` as the agent) asks the studio whose report counts for a current
+  report when its last is stale, before its tool reads the screen, as every actor's request does
+  (`screen.fresh_report`; docs/architecture/on-screen.md).
 
 ## Still to build (ADR 0026)
 - **Live-stage runs** still require the creator's open Project. The saved-input workflow path below captures retained inputs independently; actual off-screen qualification is separate from source/tests.
@@ -205,3 +221,49 @@ Both resources are deliberately declared in agent_runnable; authorization and re
 are checked on every call. Questions never launch agents or grant new access. Polling agents
 use their own runtime and subscription; the UI never reports them running merely because
 a question waits. Shared schemas: study-question and study-answer.
+
+`material.organize` is a default-deny declared Project contribution. It takes an exact
+artifact reference, a group (`role`, up to 80 characters), `input` boolean and expected membership revision (0 when absent). The
+server derives the organizing actor from the connection, checks contribute authority
+at admission and publication, and publishes a separate membership record, preserving source bytes, producing context and every
+historical revision. Historical Study pins can be organized without advancing the source head. The shared Studio endpoint invokes the same metadata service;
+request identity and revision conflict checks prevent duplicate or stale acceptance.
+
+`project.storage` is a read-authorized metadata action using the shared
+`project-storage` contract. It returns the durable origin, legacy versus routed
+folder storage, known local location and observed owner availability. It takes no
+writer lease and never moves, collects or creates missing research. A missing or
+mismatched registered folder stays unavailable; legacy stores are not presented as
+portable folders. Collection remains explicitly not assessed. Hosted callers that
+cannot inspect local storage use the same unavailable meaning, never a fabricated
+local path or completeness claim.
+
+`project.dependencies` is a read-authorized, discoverable inspection on either
+legacy or routed Project records. It captures the accepted heads, reads every
+historical revision through the captured store, and returns the shared
+`project-dependencies` contract. External references are reported without opening
+their owners. Changing heads/membership, revocation or cancellation stops the
+review rather than returning a mixed basis. Its tracked receipt is not a complete
+collection certificate, a migration, a grant or an executable workflow. Hosts
+without local storage use explicit unavailability; the CLI has no special path.
+
+The local project.dependencies receipt includes sourceReview from the captured
+Project journal and accepted media bindings. The read grant and cancellation guard
+cover both scans. It accepts no caller path and never consults another host's Library.
+Omission on an unavailable host is not a complete-collection claim.
+
+Live-stage operation admission includes the exact retained media reference in
+inputRevision when present, preserving the legacy asset identity otherwise.
+Execution rechecks Project ownership and that revision after publishing progress,
+before tool admission. Reusing a Library alias for another revision cannot silently
+retarget queued work. The scientific execution retains its original input evidence.
+
+`project.export.prepare` reads an authorized routed Project's size and collection
+limitations; `project.export` requires contribute permission and explicit
+`acknowledgeIncomplete: true`. Both use the owner's shared export service and
+original tracked operation. Destinations are generated under the configured
+Projects parent's Exports folder, never chosen by caller path. Saved snapshot
+receipts report unverified external dependencies and import no authority or jobs.
+Legacy/unavailable storage refuses; no complete-Project claim is made.
+
+`actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.

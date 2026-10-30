@@ -50,8 +50,12 @@ RUNNABLE: dict[str, str] = {
 
 # Not runnable, with why. Every other tool of the Assistant is declared here.
 NOT_RUNNABLE: dict[str, str] = {
+    "show_web": "changes what a window presents (a video or web page from the web)",
+    "write_document": "writes with the Assistant's own model and opens a Tab in the researcher's workspace",
     "find_workflows": "use Project-scoped workflow discovery through the door",
     "workflow": "use Project-scoped workflow admission through a Study",
+    "experiment": "starts researchers and runs on the user's own yes to its plan, in the researcher's workspace",
+    "experiment_status": "reads the researcher's experiments; agents read their Study's workflow runs",
     "add_asset": "puts the researcher's library assets on stage; agents bring files with open",
     "assets": "reads the researcher's whole library",
     "annotate_resource": "writes notes on any retained evidence, the researcher's too",
@@ -140,8 +144,13 @@ def runnable(tool_name: str) -> bool:
 DOOR_RESOURCES = {
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
+    'project.export.prepare': 'reads the byte estimate and unverified dependency scope of an authorized Project folder',
+    'project.export': 'contributor explicitly exports an immutable folder snapshot to a new host-selected location; no authority or completeness is inferred',
+    'project.storage': 'reads location and collection facts for an authorized Project without moving files or granting access',
+    'project.dependencies': 'inspects declared historical evidence dependencies in an authorized Project; never reads external Projects or claims complete collection',
     'project.read': 'reads the exact authorized Project and retained corpus index',
     'project.state': 'reads the authorized Project as every reader sees it: data with exact references, researchers, Studies, the studio',
+    'material.organize': 'organizes an exact artifact in an authorized Project; preserves its bytes, producing provenance and historical revisions',
     'project.import': 'retains one explicitly supplied local file in an authorized Project',
     'artifact.read': 'reads an exact authorized retained revision, with bounded source text',
     'study-question.read': 'reads retained questions and exact Study context within an authorized Project',
@@ -150,6 +159,23 @@ DOOR_RESOURCES = {
     'study.write': 'creates or continues Studies and publishes attributed findings in an authorized Project',
     'workflow.read': 'discovers reusable workflow definitions and capability contracts',
     'workflow.write': 'authors a new reusable definition or admits work in an authorized Project',
+}
+
+
+# Owner storage actions accept local paths and cannot be admitted by connected
+# agents. Importing historical authorship never establishes present-day authority.
+OWNER_STORAGE_ACTIONS = {
+    'project-record-review': 'owner reviews whole shared Record inclusion and required space',
+    'project-record-include': 'owner explicitly copies the whole reviewed Record dataset into a Project',
+    'project-record-status': 'owner observes an admitted whole Record inclusion',
+    'project-record-stop': 'owner requests stopping an admitted whole Record inclusion',
+
+    'project-open-folder': 'owner selects a local Project folder; no inherited agent authority',
+    'project-copy-prepare': 'owner reviews a completed export before restoring a working copy',
+    'project-copy-restore': 'owner restores an exported identity without registration or inherited access',
+    'project-copy-status': 'owner observes the restoration operation in its Project',
+    'project-copy-stop': 'owner requests stopping a restoration, preserving incomplete files',
+    'project-copy-reveal': 'owner reveals only its verified restoration destination',
 }
 
 

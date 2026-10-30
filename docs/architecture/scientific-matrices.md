@@ -10,8 +10,8 @@ Every input is a Project-owned document id, revision, digest and optional file c
 ownership and content hashes before materializing bytes into a private worker directory. Arbitrary host paths,
 foreign Projects, ambiguous components, changed generations and changed intent under the same request refuse.
 Outputs use the existing chunked FileIntake and keep exact input references, capability generation, parameters,
-runtime receipt identity and output meaning in protected `state.matrixOperation`. Matrix values never travel
-through ordinary tables, chat context, or document JSON. Generic document saves cannot manufacture these receipts.
+runtime receipt identity and output meaning in protected `state.matrixOperation`. Full matrices never travel through ordinary tables or chat context. Inspection reports may retain the
+strictly bounded preview described below; the original matrix remains an immutable file. Generic document saves cannot manufacture these receipts.
 
 The capabilities are:
 
@@ -183,3 +183,5 @@ produces unavailable/null, never invented zero error. Full gene moments remain i
 JSON file; the operation receipt is a compact context summary. Population moments do not test
 covariance, multimodality, biological fidelity or distribution equality. This is not an official
 competition score, and inspecting conditioning controls is not independent predictive evaluation.
+
+Matrix-inspect v4 has one bounded document-preview exception: the positional first 10 observations × 10 variables and at most 10 annotation columns per axis. No full matrix is transported in document JSON. Unsafe integer values are decimal text with explicit encoding metadata; this preserves numeric identifiers beyond JavaScript’s safe integer range. Preview is never representative sampling.

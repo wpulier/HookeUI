@@ -6,11 +6,12 @@ import { keyOf, modelSection, runStep, sectionCell, shortName, wholeSetup, type 
 import { sizeWords } from './size-words';
 
 /** A model's status on its card, in one word and a colour, said the same on its Models card and its row in Tools
- * (docs/design/2026-10-23-part1-uiux-pass/README.md §B): Ready (green, and green means nothing else), Setting up
- * (yellow), Not checked and Not set up (grey: the step is on the button), Needs attention (red: a person must act),
- * Not available on this Mac (grey, with the reason). Only the words and colours are the studio's; `state` is the
- * server's face state, unchanged, and `says` its line. Not checked stays apart from Ready and from Not set up: it can
- * run, but no check has passed on this Mac yet (catalog_view.face). */
+ * (docs/design/2026-10-23-part1-uiux-pass/README.md §B): Ready (green, and green means it can run: Working here when a
+ * real use of it worked, Ready · not checked yet when nothing of it is recorded), Setting up (yellow), Not set up (grey:
+ * the step is on the button), Needs attention (red: a person must act), Not available on this Mac (grey, with the
+ * reason). Only the words and colours are the studio's; `state` is the server's face state, unchanged, and `says` its
+ * line. Ready, not checked yet stays apart from Ready and from Not set up: it can run, and neither a run here nor Hooke's
+ * own check is recorded yet (catalog_view.face); grey "Not checked" read as not there (Will, 2026-10-29). */
 export interface FaceState { state: string; colour: string; word: string; says: string }
 export function faceState(row: ModelRow, setup: CapabilitiesWire['setup']): FaceState {
   const cards = [...(setup?.shelf?.cards ?? []), ...(setup?.shelf?.behind ?? [])];
@@ -28,9 +29,10 @@ export function faceState(row: ModelRow, setup: CapabilitiesWire['setup']): Face
     word: row.execution.action === 'unsupported' ? 'Not on this Mac' : 'Not set up', says: row.execution.action === 'unsupported'
       ? row.execution.why : row.execution.why || 'Compare on your picture to finish setting it up' };
   const state = row.face?.state ?? row.status;
-  const colour = ['on', 'obtained'].includes(state) ? 'green' : state === 'broken' ? 'red' : 'grey';
-  return { state, colour, word: ['on', 'obtained'].includes(state) ? 'Ready' : state === 'unavailable' ? 'Not on this Mac'
-    : state === 'unchecked' ? 'Not checked' : state === 'broken' ? 'Needs attention' : 'Not set up',
+  const runnable = state === 'unchecked' && modelSection(row) === 'unchecked';
+  const colour = ['on', 'obtained'].includes(state) || runnable ? 'green' : state === 'broken' ? 'red' : 'grey';
+  return { state, colour, word: row.face?.by === 'use' ? 'Working here' : ['on', 'obtained'].includes(state) ? 'Ready'
+    : state === 'unavailable' ? 'Not on this Mac' : runnable ? 'Ready · not checked yet' : state === 'broken' ? 'Needs attention' : 'Not set up',
     says: row.face?.says ?? row.word }; // Broken is its own status (readiness.py, ADR 0019), never said as Not set up (L7b)
 }
 
@@ -77,7 +79,7 @@ export function whereWords(row: ModelRow): string {
 // One card shape for every entry: its lit cell and name, what it is and where it runs, what it does in two lines, one
 // facts line, one action at the bottom. Its section is run-spec.ts's `modelSection`, the same one Tools By model and a
 // task's model list use, so Models' counts, its sections and Tools agree exactly (one meaning of Ready: face on or
-// obtained; Not checked is its own state). Its one verb follows its state: Use it here, Download 413 MB, Add key, Accept
+// obtained; Ready, not checked yet is its own state). Its one verb follows its state: Use it here, Download 413 MB, Add key, Accept
 // licence, Turn on, Set up Fiji, Check it here, Retry. The rest of an entry (its steps, terms, facts and files) is in its
 // setup sheet and its Details.
 
@@ -146,8 +148,8 @@ export function cardFactsWords(row: ModelRow, wire: CapabilitiesWire | null, sec
  * - `continue`: a setup under way, Continue setup reopening its sheet;
  * - `retry`: a failed download (again, in place) or setup (its sheet, where Retry setup is);
  * - `download`: Download 413 MB, started in place;
- * - `sheet`: its setup sheet (Add key, Accept licence, Turn on, Set up Fiji, Allow…; Check it here for a Not checked
- *   model, in the workspace too: its sheet's Run the check, since trying it on a task does not record the check);
+ * - `sheet`: its setup sheet (Add key, Accept licence, Turn on, Set up Fiji, Allow…; Check it here for a model Ready,
+ *   not checked yet, in the workspace too: its sheet's Run the check, Hooke's own check on the public example);
  * - `direct`: the entry's one step done at once where it has no setup plan (the older card action);
  * - `none`. */
 export type CardVerb =
@@ -204,9 +206,11 @@ export function cardLook(row: ModelRow, wire: CapabilitiesWire | null, context: 
   const whole = wholeSetup(first.step, row.steps, shortName(row.name), row.id);
   const step = whole.step;
   const base = sectionCell(section);
+  // Working here by a real use (catalog_view.face `by: 'use'`): said on the card itself, with when it last ran.
+  const used = section === 'ready' && row.face?.by === 'use';
   const look = (verb: CardVerb, over: Partial<CardLook> = {}): CardLook => ({
-    section, cell: base.cell, cellWord: base.word, fraction: null, kind: cardKindWords(row, wire),
-    facts: whole.facts || cardFactsWords(row, wire, section, step), says: face.says, verb, setup, ...over,
+    section, cell: base.cell, cellWord: used ? 'Working here' : base.word, fraction: null, kind: cardKindWords(row, wire),
+    facts: whole.facts || (used ? face.says : cardFactsWords(row, wire, section, step)), says: face.says, verb, setup, ...over,
   });
   const plan = !!setup?.plan && context.shelf;
   if (section === 'away') {
@@ -249,8 +253,8 @@ export function cardLook(row: ModelRow, wire: CapabilitiesWire | null, context: 
     return look(plan ? { kind: 'sheet', label: setup!.recheck ? 'Check again' : setup!.plan!.steps.every((s) => s.kind === 'check') ? 'Check it here' : firstStepWords(setup!.plan!.steps) } : { kind: 'direct' });
   }
   if (section === 'unchecked') {
-    // Check it here runs Hooke's own check (its sheet's Run the check), in the workspace too: trying the model on a
-    // task does not record the check, so a card that sent people to Details' Try it on left it Not checked.
+    // Check it here runs Hooke's own check (its sheet's Run the check), in the workspace too; a run that works on a task
+    // (Details' Try it on) makes it Working here as well, and the card's state says Ready either way.
     if (plan) return look({ kind: 'sheet', label: setup!.recheck ? 'Check again' : setup!.plan!.steps.every((s) => s.kind === 'check') ? 'Check it here' : firstStepWords(setup!.plan!.steps) });
     if (context.inWorkspace && context.served !== 0) return look({ kind: 'use' });
     return look({ kind: 'direct' });

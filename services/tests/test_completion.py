@@ -148,6 +148,31 @@ def test_live_source_binding_does_not_require_a_saved_resource_or_fixed_pixels()
     assert result["observed"][0]["drawRef"]["seq"] == 350
 
 
+def test_a_held_live_frame_is_the_windows_own_drawing_of_its_source():
+    """will-tabs, 30 Oct (the isolated instance): a live close-up whose object left the frame holds its last verified
+    frame (Screen reports its drawRef as {"held": sample}, "verifiable held pixels for window controls"). Every control
+    on it (front, zoom, a move to another Tab) was refused "The live sample has no matching drawn-frame identity": the
+    held frame is that same source's own drawing, of that run and stream. A held frame of another run, or a command
+    acknowledged on another stream, is still refused."""
+    live = {"key": "live-o1", "kind": "live", "media": "capture",
+            "identity": {"run": "run-8", "object": "o1", "anchorCapture": "1261", "day": "2026-10-30"},
+            "provenance": {"basis": "tracked-object", "object": "o1"}, "availability": "temporary"}
+    held = {"run": "run-8", "boot": "bridge-1", "seq": 350, "frame": 1261, "epoch": 0}
+
+    def observed(item_held, ack_held):
+        shown = report(item(bound_source=live))
+        shown["items"][0]["drawRef"] = {"held": item_held}
+        shown["commandResults"][0]["drawRef"] = {"held": ack_held}
+        return shown
+
+    result = compare(picture_expectations(bound_source=live), observed(held, held))
+    assert result["status"] == "confirmed", result["unmatched"]
+    other_run = compare(picture_expectations(bound_source=live), observed({**held, "run": "run-7"}, held))
+    assert other_run["status"] != "confirmed" and "SOURCE_MISMATCH" in codes(other_run)
+    other_stream = compare(picture_expectations(bound_source=live), observed(held, {**held, "boot": "bridge-2"}))
+    assert other_stream["status"] != "confirmed" and "SOURCE_MISMATCH" in codes(other_stream)
+
+
 @pytest.mark.parametrize("field,wrong", [
     ("workspaceId", "workspace-other"), ("clientId", "tab-other"),
     ("clientEpoch", "page-old"), ("connectionEpoch", "socket-old"),
@@ -2134,3 +2159,50 @@ def test_scoped_front_rejects_incomplete_or_noncausal_order(fault):
     elif fault == 'old_report': observed['seq'] = 20
     elif fault == 'wrong_browser': observed['client']['clientEpoch'] = 'other-browser'
     assert compare(expected, observed, command)['status'] != 'confirmed'
+
+
+def tab_front_case():
+    """will-leaf, 30 Oct: in the Project workspace the windows live inside the study artifacts, so the stage's
+    foreground lists only `side` and `study-artifacts` (incomplete) and never a window's own root. In front is then the
+    window's order on its Tab: above every window shown there, by the z the studio measured."""
+    expected, observed, command, sources = observed_view_effect('front')
+    observed['complete'] = False
+    observed['foreground'] = {'scope': 'workspace-windows', 'hostId': 'stage', 'complete': False,
+                              'roots': [{'rootId': 'side', 'z': 25}, {'rootId': 'study-artifacts', 'z': 35}]}
+    expected[-1]['expected'] = {'scope': 'tab-windows', 'above': [B]}
+    return expected, observed, command, sources
+
+
+def test_front_on_a_tab_is_proved_by_the_windows_order_there_without_a_complete_inventory():
+    expected, observed, command, _ = tab_front_case()
+    assert core().valid_postconditions([e for e in expected if e['predicate'] == 'front'])
+    result = compare(expected, observed, command)
+    assert result['status'] == 'confirmed', result
+
+
+@pytest.mark.parametrize('fault', ['sibling_above', 'sibling_equal', 'sibling_z_unknown', 'late_window_above',
+                                   'control_disagrees', 'stale_paint', 'old_report'])
+def test_front_on_a_tab_is_not_confirmed_while_a_window_there_is_over_it(fault):
+    expected, observed, command, sources = tab_front_case()
+    sibling = observed['items'][1]
+    if fault == 'sibling_above': sibling['z'] = 9
+    elif fault == 'sibling_equal': sibling['z'] = 8
+    elif fault == 'sibling_z_unknown': sibling.pop('z')
+    elif fault == 'late_window_above':
+        late = deepcopy(sibling)
+        late.update(id='w-late', rootId='root-late', z=12)
+        observed['items'].append(late)
+    elif fault == 'control_disagrees': observed['items'][0]['controls']['front']['observedValue'] = 3
+    elif fault == 'stale_paint':
+        observed['items'][0]['viewDrawRef'] = observed['commandResults'][0]['viewDrawRef'] = command['targets'][A]['baseViewDrawRef']
+    elif fault == 'old_report': observed['seq'] = 20
+    assert compare(expected, observed, command)['status'] != 'confirmed'
+
+
+def test_a_window_closed_since_is_no_longer_over_the_one_brought_to_front():
+    expected, observed, command, _ = tab_front_case()
+    gone = deepcopy(observed['items'][1])
+    gone.update(id='w-closed', rootId='root-closed', z=99, open=False, visible=False)
+    observed['items'].append(gone)
+    expected[-1]['expected']['above'] = [B, 'w-closed']
+    assert compare(expected, observed, command)['status'] == 'confirmed'

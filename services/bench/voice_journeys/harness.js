@@ -9,7 +9,16 @@
 //   frames  the live view on /ws each second: frames per second and their delay p50/p90 (MMF1 headers)
 //   mark    each mark the studio drew (svg#voice-marks .voice-mark), its rect and its target's, and when it cleared
 //   line    the voice's lines as they grow on /ws (when each part of a line was said, not only when it began)
-//   researchers  the researchers board's rows when they change; key, fault, check, problem
+//   takeover  the person's mouse or Escape while the partner acted (a plan step's "takeover")
+//   staged  the bench put the specimen back on an empty stage (Use live camera, then the bridge plays the still)
+//   researchers  the Project's researchers from the orchestrator (/api/research; the board only when that fails),
+//           when they change; key, fault, check, recovered (the bench put the journey back where it belongs)
+//   frames also say whether the stage had a source ("source") or showed the empty stage ("empty": nothing to view)
+//   voice-shown  the voice's state as the studio shows it (body data-voice-state and data-voice-working), whether the
+//           presence pill is in the Working strip (.strip-pill[data-id="voice:presence"], its words) and whether the
+//           Assistant is open (.study-agent-toggle pressed), each time any of them changes
+//   handoff-row  a hand-off's row in the chat (li.chat-handoff[data-handoff]) appearing or changing state
+//   assistant-set  the bench closed or opened the Assistant before a step's words (a plan step's "assistant")
 // The scorer (standard.py) reads these with the stack's own logs; this file decides nothing.
 (() => {
   if (window.__bench || window.top !== window) return; // the studio's own page, once (not its frames)
@@ -20,10 +29,12 @@
 
   // --- the voice socket, both ways ----------------------------------------------------------------------------------
   const KEEP_IN = new Set(['model', 'ready', 'interrupted', 'turn_complete', 'error', 'closed', 'tool_call', 'tool_result', 'answer']);
-  const KEEP_TYPES = new Set(['talk', 'snapshot', 'snapshot-request', 'marks', 'marks-shown', 'marks-clear', 'bench', 'text', 'mute']);
+  const KEEP_TYPES = new Set(['talk', 'snapshot', 'snapshot-request', 'marks', 'marks-shown', 'marks-clear', 'bench', 'text', 'mute',
+    'voice-phase', 'offer', 'reoffer', 'control', 'drive', 'drive-shown', 'drive-end', 'voice-state']);
   function brief(message) {
     const m = {};
-    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at'])
+    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase',
+      'version', 'owner', 'ok', 'why', 'outcome', 'intent', 'state', 'seq', 'turn'])
       if (message[key] !== undefined) m[key] = message[key];
     if (message.marks) m.marks = message.marks;
     if (message.resolved) m.resolved = message.resolved;
@@ -56,17 +67,32 @@
     } catch { /* not a frame */ }
   }
   const quantile = (values, q) => { if (!values.length) return null; const v = [...values].sort((a, b) => a - b); return Math.round(v[Math.min(v.length - 1, Math.round(q * (v.length - 1)))]); };
+  // The empty stage ("What will you look at?", session-home.ts) shows when the Project has nothing on its stage: no
+  // frames then is no live view to measure, not a slow one.
+  const stage = () => { const home = document.querySelector('.session-home'); return home && !home.hidden && home.getClientRects().length ? 'empty' : 'source'; };
   setInterval(() => {
     const now = Date.now(), seconds = (now - frameBin.start) / 1000;
-    if (frameBin.n || seconds > 5) {
-      ev({ e: 'frames', fps: Math.round((frameBin.n / seconds) * 10) / 10, delayP50: quantile(frameBin.delays, 0.5), delayP90: quantile(frameBin.delays, 0.9), n: frameBin.n });
-      frameBin = { start: now, n: 0, delays: [] };
-    }
+    ev({ e: 'frames', fps: Math.round((frameBin.n / seconds) * 10) / 10, delayP50: quantile(frameBin.delays, 0.5),
+         delayP90: quantile(frameBin.delays, 0.9), n: frameBin.n, stage: document.body ? stage() : 'source' });
+    frameBin = { start: now, n: 0, delays: [] };
   }, 1000);
 
   // The voice's lines as they grow on /ws (a line's journal record keeps only when it started): when each word came.
   const lineText = new Map();
+  // The app's settings as the studios are sent them: a change of setting (set_default, use) is the app's own record of it.
+  let settingsSeen = null;
+  function settings(data) {
+    let message; try { message = JSON.parse(data); } catch { return; }
+    const now = message && typeof message.settings === 'object' && message.settings ? message.settings : null;
+    if (!now) return;
+    const changed = Object.fromEntries(Object.entries(now).filter(([k, v]) => !settingsSeen || JSON.stringify(settingsSeen[k]) !== JSON.stringify(v)));
+    if (settingsSeen && !Object.keys(changed).length) return;
+    ev({ e: 'settings', first: !settingsSeen, changed: Object.keys(changed) });
+    settingsSeen = now;
+  }
+
   function chat(data) {
+    if (data.length < 200000 && data.includes('"settings"')) settings(data);
     if (data.length > 20000 || !data.includes('"lineId"')) return;
     let line; try { line = JSON.parse(data); } catch { return; }
     if (line.type !== 'chat' || line.role !== 'assistant' || !line.voice || !line.lineId) return;
@@ -88,12 +114,13 @@
         const send = this.send.bind(this);
         this.send = (data) => { if (typeof data === 'string') wsOut(data); return send(data); };
       } else if (path === '/ws') {
+        main.socket = this;
         this.addEventListener('message', (m) => { if (typeof m.data === 'string') chat(m.data); else frame(m.data); });
       }
     }
   }
   window.WebSocket = BenchWebSocket;
-  const voice = { socket: null };
+  const voice = { socket: null }, main = { socket: null };
 
   // --- what was heard: the remote track's level, and the element it plays in not muted -------------------------------
   const NativeAudio = window.Audio;
@@ -165,12 +192,28 @@
   }
 
   // --- marks and the researchers board, sampled -------------------------------------------------------------------
+  // A mark's target on the page, found the way the studio finds it (marks.ts tabPlace, researcherPlace).
   function targetRect(target) {
     const [kind, ...rest] = String(target).split(':'); const id = rest.join(':');
     let el = null;
-    if (kind === 'tab') el = document.getElementById(`work-tab-${id}`) || [...document.querySelectorAll('[id^="work-tab-"]')].find((b) => (b.textContent || '').trim() === id);
-    else if (kind === 'researcher') el = document.querySelector(`.researchers-board-row[data-rid="${CSS.escape(id)}"]`) || [...document.querySelectorAll('.researchers-board-row')].find((r) => new RegExp(`\\b(?:Researcher|Analyst) ${id}\\b`).test(r.textContent || ''));
-    else if (kind === 'window') el = document.querySelector(`section.workspace-window[data-presentation-id="${CSS.escape(id)}"]`);
+    if (kind === 'tab') {
+      el = document.querySelector(`[id="work-tab-${CSS.escape(id)}"]`);
+      if (!el) {
+        const tabs = [...document.querySelectorAll('[data-workspace-view-tab]')].map((t) => ({ t, title: (t.querySelector('.workspace-tab-label')?.textContent ?? t.textContent ?? '').trim() }));
+        let found = tabs.filter((x) => x.title === id.trim());
+        if (!found.length) found = tabs.filter((x) => x.title.toLowerCase() === id.trim().toLowerCase());
+        el = found.length === 1 ? found[0].t : null;
+      }
+    } else if (kind === 'researcher') {
+      const rids = /^\d+$/.test(id) ? apiRows.filter((r) => r.number === Number(id)).map((r) => r.rid) : [id];
+      for (const rid of rids) {
+        for (const css of ['.researchers-board-row', '.researcher-card', '.chat-rcard']) {
+          const found = document.querySelector(`${css}[data-rid="${CSS.escape(rid)}"]`);
+          if (found && found.getClientRects().length) { el = found; break; }
+        }
+        if (el) break;
+      }
+    } else if (kind === 'window') el = document.querySelector(`section.workspace-window[data-presentation-id="${CSS.escape(id)}"]`);
     else if (kind === 'document') el = document.querySelector(`#study-artifacts > [data-placement-id="${CSS.escape(id)}"]`);
     if (!el) return null;
     const r = el.getBoundingClientRect();
@@ -195,17 +238,78 @@
       ev({ e: 'mark', on: false, id, target });
     }
   }, 40);
-  let board = '';
-  function researchers() {
+  // The Project's researchers, from the orchestrator (/api/research: the open Project's, and those still working
+  // elsewhere); the board's rows only when that does not answer (the board may not be drawn).
+  const ACTIVE = new Set(['queued', 'starting', 'running', 'revising']);
+  let apiRows = [], apiAnswered = false, board = '';
+  function boardRows() {
     return [...document.querySelectorAll('.researchers-board-row')].map((r) => {
       const m = /\b(?:Researcher|Analyst) (\d+)\b/.exec(r.textContent || '');
-      return { rid: r.dataset.rid, group: r.dataset.group, state: r.dataset.state, number: m ? Number(m[1]) : null };
+      return { rid: r.dataset.rid, group: r.dataset.group, state: r.dataset.state, number: m ? Number(m[1]) : null, source: 'board' };
     });
   }
-  setInterval(() => {
+  const researchers = () => (apiAnswered ? apiRows : boardRows());
+  async function pollResearchers() {
+    try {
+      const listing = await (await fetch('/api/research', { cache: 'no-store' })).json();
+      apiRows = (listing.sessions || []).filter((s) => s.purpose === 'research' || s.n).map((s) => ({
+        rid: s.rid, day: s.day, number: s.n || null, status: s.status, group: ACTIVE.has(s.status) ? 'working' : 'done',
+        sitting: s.sitting, created: s.created, started: s.started, finished: s.finished, notes: s.notes, source: 'api' }));
+      apiAnswered = true;
+    } catch { apiAnswered = false; }
     const rows = researchers(), key = JSON.stringify(rows);
     if (key !== board) { board = key; ev({ e: 'researchers', rows }); }
-  }, 1000);
+  }
+  setInterval(() => { void pollResearchers(); }, 1500);
+  const newest = () => researchers().filter((r) => r.number != null).sort((a, b) => b.number - a.number)[0];
+
+  // --- the voice's state as shown, the presence pill, the Assistant, and the hand-off rows, sampled ----------------
+  // On every change of the body's voice attributes, and every 250 ms (the pill and the Assistant's toggle have no one
+  // attribute to watch): one voice-shown event whenever what is shown changes; one handoff-row per row and state.
+  const agentToggle = () => document.querySelector('.study-agent-toggle');
+  const assistantOpen = () => { const t = agentToggle(); return t ? t.getAttribute('aria-pressed') === 'true' : null; };
+  let shownKey = '';
+  const rowStates = new Map();
+  function sampleShown() {
+    if (!document.body) return;
+    const pill = document.querySelector('.strip-pill[data-id="voice:presence"]');
+    const visible = !!pill && !pill.hidden && pill.getClientRects().length > 0;
+    const n = Number(document.body.dataset.voiceWorking);
+    const now = { state: document.body.dataset.voiceState || null, n: Number.isFinite(n) ? n : null, pill: visible,
+      pillWords: visible ? (pill.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '', assistant: assistantOpen() };
+    const key = JSON.stringify(now);
+    if (key !== shownKey) { shownKey = key; ev({ e: 'voice-shown', ...now }); }
+    for (const row of document.querySelectorAll('li.chat-handoff[data-handoff]')) {
+      const id = row.dataset.handoff, at = row.dataset.state || '';
+      if (rowStates.get(id) === at) continue;
+      rowStates.set(id, at);
+      ev({ e: 'handoff-row', id, state: at });
+    }
+  }
+  setInterval(sampleShown, 250);
+  const watchBody = () => {
+    if (!document.body) { setTimeout(watchBody, 50); return; }
+    new MutationObserver(sampleShown).observe(document.body, { attributes: true, attributeFilter: ['data-voice-state', 'data-voice-working'] });
+    sampleShown();
+  };
+  watchBody();
+  // A plan step's "assistant": "close" | "open", before its words: the Assistant's own toggle, pressed only when it
+  // differs, then a moment for the panel (and the presence pill) to settle.
+  async function setAssistant(want, stepId) {
+    const open = want === 'open', toggle = agentToggle();
+    if (toggle && assistantOpen() !== open) toggle.click();
+    await sleep(600);
+    sampleShown();
+    ev({ e: 'assistant-set', step: stepId, want, ok: assistantOpen() === open });
+  }
+
+  // The open Project, from the orchestrator (/api/sessions).
+  async function openProject() {
+    const listing = await (await fetch('/api/sessions', { cache: 'no-store' })).json().catch(() => ({}));
+    const id = listing.current?.id ?? listing.current;
+    const row = (listing.sessions || []).find((s) => s.id === id) || {};
+    return { id, name: String(row.name ?? row.label ?? ''), rows: listing.sessions || [] };
+  }
 
   // --- the conversation going quiet -----------------------------------------------------------------------------------
   let lastChange = Date.now(), observing = false;
@@ -216,18 +320,37 @@
     new MutationObserver(() => { lastChange = Date.now(); }).observe(log, { childList: true, subtree: true, characterData: true });
   }
   const lastAudio = () => { const a = [...state.events].reverse().find((e) => e.e === 'audio'); return a ? (a.on ? Date.now() : a.t) : 0; };
-  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all).
-  async function quiet(quietMs, maxMs, minMs) {
+  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all),
+  // and no tool the voice called is still running (Talk's working dot): a voice that waits quietly on a long tool is
+  // not done (the smoke run of 29 Oct ended a step 4 s into Cellpose, and the stack's teardown stopped its worker).
+  // A hand-off's row saying "Hooke is working" is work under way too, as the user sees it: they wait for its outcome
+  // before the next words (will-workspace, 29 Oct: Cellpose's outcome landed in the next step), for at most HANDOFF_MS.
+  const HANDOFF_MS = 120000;
+  // `hold`: false when the next words are meant to come while Hooke still works (the next step's "during": "actually,
+  // stop that" during a search, a question asked meanwhile); the hand-off's row then never holds them back.
+  async function quiet(quietMs, maxMs, minMs, hold = true) {
     const t0 = Date.now();
-    const busy = () => Date.now() - t0 < minMs || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
-    while (Date.now() - t0 < maxMs && busy()) await sleep(200);
+    const handing = () => hold && !!document.querySelector('[data-role="handoff"][data-state="working"]');
+    // The voice about to answer (heard you, thinking: the studio's shown state) is not quiet either.
+    const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing()
+      || ['heard', 'thinking'].includes(document.body?.dataset.voiceState || '');
+    const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
+    // Once a hand-off has worked in this wait, its step's limit stays long: its outcome is said after its row ends
+    // (will-leaf, 29 Oct: the row ended past the step's own limit, and the next words cut its outcome off).
+    let handed = false;
+    const limit = () => ((handed = handed || handing()) ? Math.max(maxMs, HANDOFF_MS) : maxMs);
+    while (Date.now() - t0 < limit() && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.
-  async function speaking(afterMs, maxMs) {
+  // Until the answer has been under way for `afterMs` from its first audio after `since` (the request's release; a
+  // preamble counts as its start) and is audible now: an interruption comes into the answer itself, not its first
+  // word (think-broad-2: 2 s in cut the answer before it began). At most `maxMs`.
+  async function speaking(afterMs, maxMs, since = 0) {
     const t0 = Date.now();
     while (Date.now() - t0 < maxMs) {
-      const on = [...state.events].reverse().find((e) => e.e === 'audio');
-      if (on && on.on && Date.now() - on.t >= afterMs) return true;
+      const first = state.events.find((e) => e.e === 'audio' && e.on && e.t >= since);
+      const last = [...state.events].reverse().find((e) => e.e === 'audio');
+      if (first && last && last.on && Date.now() - first.t >= afterMs) return true;
       await sleep(20);
     }
     return false;
@@ -236,6 +359,27 @@
   async function bridge(base, path) {
     const r = await fetch(base + path, { method: 'POST' });
     return r.json().catch(() => ({}));
+  }
+
+  // The specimen on the stage (the plan's camera: the still played as test footage, stack.py noisy_loop): a Project
+  // opens on the empty stage (a new one, or one reopened: "the live view starts fresh"), where a person clicks Use live
+  // camera; the bridge then plays the specimen. Done in the setup, and again whenever a step leaves the journey on the
+  // empty stage, each time recorded ("staged"), never silently.
+  async function stageSpecimen(plan, base, stepId, always = false) {
+    const footage = plan.camera?.footage;
+    if (!footage || !base || (!always && stage() !== 'empty')) return null;
+    const live = document.querySelector('button.home-go-live');
+    if (live && live.getClientRects().length) { live.click(); await sleep(2500); }
+    await bridge(base, `/feed?source=footage&footage=${encodeURIComponent(footage)}`).catch(() => ({}));
+    const at = Date.now();
+    let ok = false;
+    while (Date.now() - at < 12000 && !ok) {
+      await sleep(500);
+      const last = [...state.events].reverse().find((e) => e.e === 'frames');
+      ok = !!last && last.n > 0 && last.stage !== 'empty';
+    }
+    ev({ e: 'staged', step: stepId, ok, footage });
+    return ok;
   }
 
   const talkButton = () => document.getElementById('talk');
@@ -271,40 +415,80 @@
     return Date.now();
   }
 
-  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one).
+  // An experiment's card (experiment-card.ts) that has ended: its results landed, or it said why not.
+  const ENDED = new Set(['done', 'failed', 'stopped', 'expired']);
+  const endedExperiments = () => [...document.querySelectorAll('.chat-xcard[data-experiment]')]
+    .filter((c) => ENDED.has(c.dataset.state)).map((c) => `x:${c.dataset.experiment}`);
+  // What is known before a step: its researchers and the experiments already ended (so a wait is for a new one).
+  const known = () => new Set([...researchers().map((r) => r.rid), ...endedExperiments()]);
+
+  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one), or
+  // an experiment ended ("experiment": "done", its card's state done, failed or stopped).
   function satisfied(waitFor, before) {
     if (!waitFor) return false;
+    if (waitFor.experiment === 'done') return endedExperiments().some((id) => !before.has(id));
+    // Hooke's own work done: no request's row in the chat still working (a search still finding its photos).
+    if (waitFor.handoffs === 'idle') return !document.querySelector('[data-role="handoff"][data-state="working"]');
     const rows = researchers();
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
-    if (waitFor.researcher === 'latest-done') {
-      const newest = rows.filter((r) => r.number != null).sort((a, b) => b.number - a.number)[0];
-      return !!newest && newest.group === 'done';
-    }
+    if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }
+    if (waitFor.frames) { const last = [...state.events].reverse().find((e) => e.e === 'frames'); return !!last && last.n > 0 && last.stage !== 'empty'; }
     return false;
   }
 
-  // After the restart: what must still be there (the Project, its Tab, the researcher's output).
+  // The journey put back where its plan says it is ("project:Nuclei") when a step left it elsewhere: the step that
+  // failed is scored as it was, and the steps after it are not scored again for that one failure.
+  async function ensure(step) {
+    const [kind, ...rest] = String(step.ensure).split(':'); const name = rest.join(':');
+    if (kind !== 'project') return;
+    const open = await openProject();
+    if (open.name === name) return;
+    const want = open.rows.filter((s) => String(s.name ?? s.label ?? '') === name).sort((a, b) => (b.lastUsed ?? b.started ?? 0) - (a.lastUsed ?? a.started ?? 0))[0];
+    if (!want || !main.socket || main.socket.readyState !== WebSocket.OPEN) {
+      ev({ e: 'recovered', step: step.id, what: step.ensure, ok: false, from: open.name, detail: want ? 'no studio connection' : 'no such Project' });
+      return;
+    }
+    main.socket.send(JSON.stringify({ type: 'session', action: 'switch', id: want.id })); // the sessions rail's own message
+    let now = open;
+    for (let i = 0; i < 40 && now.id !== want.id; i++) { await sleep(500); now = await openProject(); }
+    ev({ e: 'recovered', step: step.id, what: step.ensure, ok: now.id === want.id, from: open.name });
+    await sleep(4000);
+  }
+
+  // Before the restart: what is there, so the checks after it ask only that it is still there (a Tab or a researcher
+  // an earlier step failed to make is that step's failure, never the restart's).
+  async function beforeRestart() {
+    const open = await openProject();
+    const tabs = [...document.querySelectorAll('[data-workspace-view-tab], [id^="work-tab-"]')].map((b) => (b.querySelector?.('.workspace-tab-label')?.textContent ?? b.textContent ?? '').trim());
+    const last = newest();
+    return { project: { id: open.id, name: open.name }, tabs: [...new Set(tabs)], researcher: last ? { rid: last.rid, day: last.day, number: last.number } : null };
+  }
+
+  // After the restart: what was there before is still there (the Project open, its Tab, the researcher's work).
+  // ok null: it was not there before the restart, so there is nothing to keep.
   async function checks(step) {
+    const before = state.beforeRestart || {};
     for (const check of step.checks || []) {
       const [kind, ...rest] = check.split(':'); const value = rest.join(':');
       let ok = false, detail = '';
       for (let i = 0; i < 40 && !ok; i++) {
         if (kind === 'project') {
-          const listing = await (await fetch('/api/sessions', { cache: 'no-store' })).json().catch(() => ({}));
-          const rows = listing.sessions || [];
-          const current = rows.find((s) => s.id === (listing.current?.id ?? listing.current)) || listing.current || {};
-          detail = `open: ${current.name ?? current.title ?? JSON.stringify(current).slice(0, 80)}`;
-          ok = String(current.name ?? current.title ?? '').includes(value);
+          const open = await openProject();
+          detail = `open: ${open.name}; before the restart: ${before.project?.name ?? '?'}`;
+          ok = before.project?.id ? open.id === before.project.id : open.name.includes(value);
         } else if (kind === 'tab') {
-          const tabs = [...document.querySelectorAll('[id^="work-tab-"]')].map((b) => (b.textContent || '').trim());
-          detail = `tabs: ${tabs.join(', ')}`;
+          if (before.tabs && !before.tabs.some((t) => t.includes(value))) { ok = null; detail = `no Tab ${value} before the restart`; break; }
+          const tabs = [...document.querySelectorAll('[data-workspace-view-tab], [id^="work-tab-"]')].map((b) => (b.querySelector?.('.workspace-tab-label')?.textContent ?? b.textContent ?? '').trim());
+          detail = `tabs: ${[...new Set(tabs)].join(', ')}`;
           ok = tabs.some((t) => t.includes(value));
         } else if (kind === 'researcher') {
-          const rows = researchers(), latest = state.lastResearcher;
-          detail = `rows: ${rows.map((r) => r.rid).join(', ')}; expected ${latest}`;
-          ok = latest ? rows.some((r) => r.rid === latest) : rows.length > 0;
+          const last = before.researcher;
+          if (!last) { ok = null; detail = 'no researcher before the restart'; break; }
+          const r = await fetch(`/api/research/${encodeURIComponent(last.rid)}?day=${encodeURIComponent(last.day || '')}`, { cache: 'no-store' }).catch(() => null);
+          detail = `Researcher ${last.number} (${last.rid}): ${r ? r.status : 'no answer'}`;
+          ok = !!r && r.ok;
         }
-        if (!ok) await sleep(500);
+        if (ok === false) await sleep(500);
       }
       ev({ e: 'check', step: step.id, name: check, ok, detail: detail.slice(0, 300) });
     }
@@ -314,7 +498,7 @@
     state,
     async run(plan, { bridge: base = '', quietMs = plan.quietMs ?? 6000, maxMs = 25000, minMs = plan.minMs ?? 9000, from = 0, carry = null,
       mode = 'open', setup = false, baselineMs = 10000 } = {}) {
-      if (carry) Object.assign(state, { steps: carry.steps || [], events: [...(carry.events || []), ...state.events], lastResearcher: carry.lastResearcher });
+      if (carry) Object.assign(state, { steps: carry.steps || [], events: [...(carry.events || []), ...state.events], beforeRestart: carry.beforeRestart });
       else if (from === 0) Object.assign(state, { steps: [], events: state.events.filter((e) => e.e === 'frames') });
       Object.assign(state, { done: false, error: null, paused: null, plan: plan.id, talk: mode, acoustic: !!options.acoustic });
       state.started = state.started || Date.now();
@@ -322,10 +506,13 @@
       try {
         observeChat();
         document.querySelector('.example-skip')?.click(); // a fresh home's walkthrough steps aside
+        if (!setup) await stageSpecimen(plan, base, 'start'); // the journey starts with the specimen on the stage
         if (from === 0 && !setup) await sleep(baselineMs); // the live view before Talk: the baseline
         if (from > 0 && steps[from - 1]?.kind === 'restart') await checks(steps[from - 1]);
-        const spokenAhead = steps.slice(from).some((s) => !['typed', 'idle', 'restart'].includes(s.kind));
-        if (spokenAhead) { await connect(true); await sleep(3000); }
+        const spokenAhead = steps.slice(from).some((s) => !['typed', 'idle', 'restart', 'stage'].includes(s.kind));
+        // Connected, it may talk first (its opening line, one-brain voice): the first step waits until it is quiet,
+        // so its first press never cuts that line and the line is never taken for the step's answer.
+        if (spokenAhead) { await connect(true); await sleep(3000); await quiet(2500, 20000, 0); }
         for (let i = from; i < steps.length; i++) {
           const step = steps[i], next = steps[i + 1];
           if (step.footage) {
@@ -343,31 +530,46 @@
           if (step.kind === 'restart') {
             const at = Date.now();
             state.steps.push({ id: step.id, kind: step.kind, say: '', start: at, end: at, restart: true });
-            state.lastResearcher = (researchers().filter((r) => r.number != null).sort((a, b) => b.number - a.number)[0] || {}).rid;
+            state.beforeRestart = await beforeRestart();
             state.paused = { restart: true, next: i + 1 };
             return JSON.parse(JSON.stringify(state));
           }
           if (step.kind === 'idle') {
-            const at = Date.now(), before = new Set(researchers().map((r) => r.rid));
+            const at = Date.now(), before = known();
             const limit = (step.wait ?? 120) * 1000;
             while (Date.now() - at < limit && !satisfied(step.waitFor, before)) await sleep(500);
             await quiet(quietMs, 30000, 8000); // the event's one line, if it is told
             state.steps.push({ id: step.id, kind: step.kind, say: '', start: at, end: Date.now(), idle: true });
+            if (step.ensure) await ensure(step);
+            await stageSpecimen(plan, base, step.id);
+            continue;
+          }
+          if (step.kind === 'stage') { // the specimen on a new Project's stage, as a person opens it (setup)
+            const at = Date.now();
+            const ok = await stageSpecimen(plan, base, step.id, true);
+            state.steps.push({ id: step.id, kind: step.kind, say: '', start: at, end: Date.now(), setup, staged: ok });
+            if (step.ensure) await ensure(step);
+            await stageSpecimen(plan, base, step.id);
             continue;
           }
           if (step.kind === 'typed') {
             // Asked in the chat after the talking (the demo's memory question); setup is typed before Talk.
             if (!setup && talkButton()?.dataset.state === 'live') { await connect(false); await sleep(2000); }
-            const before = new Set(researchers().map((r) => r.rid));
+            const before = known();
             const at = await typed(step.say);
             state.steps.push({ id: step.id, kind: step.kind, say: step.say, start: at, end: at, setup });
             const limit = (step.wait ?? maxMs / 1000) * 1000;
             if (step.waitFor) { while (Date.now() - at < limit && !satisfied(step.waitFor, before)) await sleep(1000); }
             await quiet(quietMs, step.waitFor ? 30000 : limit, Math.min(minMs, limit));
+            if (step.ensure) await ensure(step);
+            await stageSpecimen(plan, base, step.id);
             continue;
           }
+          if (step.assistant) await setAssistant(step.assistant, step.id);
           const record = { id: step.id, kind: step.kind, say: step.say };
           if (step.interrupt) record.interrupt = true;
+          const startedBefore = step.waitFor ? known() : null;
+          if (step.assistant) record.assistant = step.assistant;
           if (mode === 'hold') {
             record.down = await hold(true);
             await sleep(150);
@@ -377,11 +579,40 @@
           if (mode === 'hold') { await sleep(200); record.up = await hold(false); }
           state.steps.push(record);
           if (step.kind === 'restart') continue;
+          if (step.takeover) { // the person takes over while the partner acts: at its first cue (a drive) after release
+            const from = Date.now();
+            let cue = null;
+            while (Date.now() - from < (step.takeover.waitMs ?? 20000) && !cue) {
+              cue = state.events.find((e) => e.e === 'ws-in' && (e.m || {}).type === 'drive' && e.t >= (record.up ?? record.end));
+              if (!cue) await sleep(20);
+            }
+            if (!cue) ev({ e: 'takeover', step: step.id, how: step.takeover.how, skipped: 'no cue to take over from' });
+            else {
+              await sleep(step.takeover.afterMs ?? 100);
+              const how = step.takeover.how || 'mouse';
+              let at;
+              if (typeof window.__benchTakeover === 'function') at = await window.__benchTakeover(how);
+              else {
+                if (how === 'escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                else window.dispatchEvent(new MouseEvent('mousemove', { clientX: 760, clientY: 490, bubbles: true }));
+                at = Date.now();
+              }
+              ev({ e: 'takeover', step: step.id, how, at, cue: (cue.m || {}).id });
+            }
+          }
           if (next && next.interrupt) { // the next words come in the middle of this answer
-            await speaking(next.interrupt.afterMs ?? 2000, 20000);
+            await speaking(next.interrupt.afterMs ?? 4500, 30000, record.up ?? record.end);
             continue;
           }
-          await quiet(quietMs, (step.wait ?? maxMs / 1000) * 1000, minMs);
+          if (step.waitFor) { // a spoken request whose work lands later (a researcher): its window spans that work,
+            // so what is said and done when it lands (a kept later step, will-research) is judged with the request
+            const from = record.up ?? record.end, limit = (step.wait ?? 600) * 1000;
+            while (Date.now() - from < limit && !satisfied(step.waitFor, startedBefore)) await sleep(1000);
+            await quiet(quietMs * 2, 120000, 20000); // the kept step's hand-off runs, then its outcome is said
+          }
+          await quiet(quietMs, step.waitFor ? 30000 : (step.wait ?? maxMs / 1000) * 1000, minMs, !(next && next.during));
+          if (step.ensure) await ensure(step);
+          await stageSpecimen(plan, base, step.id);
         }
         if (!setup && spokenAhead) await connect(false).catch(() => {});
       } catch (e) {

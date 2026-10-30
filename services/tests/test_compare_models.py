@@ -116,18 +116,19 @@ def test_a_fallback_is_named_as_what_ran_and_the_same_models_output_is_never_an_
     assert shown[-1][1] == "Compared on the same view: EdgeTAM → SAM 3.1 (cloud), its fallback | SAM 3.1 (cloud)"
 
 
-def test_three_models_are_compared_in_every_pair_and_a_fourth_is_said_to_be_left_out(monkeypatch):
+def test_every_model_that_can_run_is_compared_in_every_pair_up_to_six(monkeypatch):
     # This refusal oracle intentionally exercises the separate commercial edition.
     monkeypatch.setenv("MICROMIND_EDITION", "commercial")
     world, registry, obj, _, _ = with_fal(monkeypatch)
     said = compare(world, registry, {"implementations": ["EdgeTAM", "SAM 2.1 tiny", "EdgeTAM", "SAM 3.1 (fal cloud)",
                                                          "EdgeTAM, then SAM 3.1 (fal)", "no such model", "micro-sam"],
                                      "object": obj.id})
-    assert said.count("overlap") == 3 and "SAM 2.1 tiny and SAM 3.1 (cloud) overlap" in said
+    # Four can run here, and all four are compared (Part 2.5 W5: up to six at once), in every pair.
+    assert said.count("overlap") == 6 and "SAM 2.1 tiny and SAM 3.1 (cloud) overlap" in said
     # The same model named twice counts once; an unknown name is said, never fatal; one that can't run here is said
-    # with why; the cap is three of those that can run, and the rest are said to be left out (M2.2 re-check notes).
+    # with why (M2.2 re-check notes).
     assert "not known here: no such model" in said and "micro-sam (light microscopy) can't run here" in said
-    assert said.endswith("left out (three at once at most): EdgeTAM then SAM 3.1 (cloud)")
+    assert "left out" not in said
 
 
 def test_comparing_cells_reuses_the_cells_shown_records_it_and_keeps_its_populations_apart(monkeypatch):

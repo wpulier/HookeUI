@@ -449,11 +449,14 @@ def label_workspace_bytes(wire: dict, distinct: int | None = None) -> int:
 
 def masks_from_labels(labels: np.ndarray, origin: tuple[int, int] = (0, 0), *,
                       admit: Callable[[int], None] | None = None,
-                      admit_workspace: Callable[[int], None] | None = None) -> list[tuple[int, Mask]]:
+                      admit_workspace: Callable[[int], None] | None = None,
+                      scale: float = 1.0) -> list[tuple[int, Mask]]:
     """Each native label's own mask, in its bounding box: [(label, Mask)]. Numeric lookup IDs and
     bounds stay inside label_workspace_bytes, independent of the largest native ID. Admit the sum
     of all retained mask rectangles before allocating any; disconnected instances can overlap in
-    bounding-box storage even though their occupied pixels never overlap."""
+    bounding-box storage even though their occupied pixels never overlap. `scale`: capture px per
+    label px (a large still's working copy, source_images.Working), `origin` in capture px; each
+    mask is kept at the labels' own scale."""
     if not labels.size or not labels.any():
         return []
     # Keep discovery inside its admitted scratch bound, including the first call. np.unique
@@ -487,7 +490,11 @@ def masks_from_labels(labels: np.ndarray, origin: tuple[int, int] = (0, 0), *,
             continue
         y0, x0 = int(lo[0]), int(lo[1])
         bits = labels[y0:int(hi[0]) + 1, x0:int(hi[1]) + 1] == label
-        out.append((int(label), Mask(bits, origin[0] + x0, origin[1] + y0)))
+        if scale == 1:
+            out.append((int(label), Mask(bits, origin[0] + x0, origin[1] + y0)))
+        else:
+            out.append((int(label), Mask(bits, origin[0] + int(round(x0 * scale)), origin[1] + int(round(y0 * scale)),
+                                         float(scale))))
     return out
 
 
@@ -560,6 +567,8 @@ class Evidence:
                  keep: Callable[[Path, str], None] | None = None) -> None:
         self.hub = hub
         self.root = Path(root) if root is not None else None
+        from .project_artifact_folder import ArtifactFolder
+        self._folders = ArtifactFolder(self.root, 'evidence') if self.root is not None else None
         self.day = day  # day.SessionStore: files each saved item as a journal event, read back at start
         self.log = log or (lambda record: None)
         self.keep = keep  # Services.keep: mirror into a dataset being recorded
@@ -577,7 +586,9 @@ class Evidence:
         self._writing: set[str] = set()  # populations whose save is running (one writer each)
         self._dirty: set[str] = set()  # ...and asked to save again meanwhile
         self.disk_gb = float(os.environ.get("MICROMIND_EVIDENCE_GB") or DISK_GB)
-        self._disk_used: tuple[float, int] | None = None
+        self._disk_used: tuple[Path, float, int] | None = None
+        self._retained_manifests: dict[Path, tuple[str, tuple]] = {}
+        self._recovered_optional: dict[Path, set[str]] = {}
         if self.day is not None:
             self.read_back()
             listeners = getattr(self.day, "listeners", None)
@@ -591,14 +602,21 @@ class Evidence:
         there is never written over: scaffolding review, M1.3 item 4)."""
         while True:
             eid = f"e{self._next('e', session)}"
-            if self.root is None or not any((folder / eid).exists() for folder in self._day_folders()):
+            if self.root is None or not any((folder / eid).exists() for folder in self._day_folders(session)):
                 return eid
 
     def _date(self) -> str:
         return getattr(self.day, "date", None) or time.strftime("%Y-%m-%d")  # today's folder, by the session's clock
 
-    def _day_folders(self) -> list[Path]:
-        return [self.root / self._date()] if self.root is not None else []
+    def root_for(self, session=None, *, write=False):
+        if self._folders is None and self.root is not None:
+            from .project_artifact_folder import ArtifactFolder
+            self._folders = ArtifactFolder(self.root, 'evidence')
+        return self._folders.root_for(self.day, session or self._session(), write=write) if self._folders else None
+
+    def _day_folders(self, session=None) -> list[Path]:
+        root = self.root_for(session)
+        return [root / self._date()] if root is not None else []
 
     def member_id(self, session: str | None = None) -> str:
         return f"c{self._next('c', session)}"
@@ -642,20 +660,21 @@ class Evidence:
                                   "analyses wait until it works", next="check the disk has room, then ask again")
 
     def disk_used(self) -> float:
-        if self.root is None or not self.root.exists():
+        root = self.root_for()
+        if root is None or not root.exists():
             return 0.0
         now = time.monotonic()
-        if self._disk_used is not None and now - self._disk_used[0] < 30:
-            return self._disk_used[1]
+        if self._disk_used is not None and self._disk_used[0] == root and now - self._disk_used[1] < 30:
+            return self._disk_used[2]
         total = 0
-        for path in self.root.rglob("*"):
+        for path in root.rglob("*"):
             try:
                 info = path.stat()
             except FileNotFoundError:  # an atomic saver can rename its temporary file during this walk
                 continue
             if stat.S_ISREG(info.st_mode):
                 total += info.st_size
-        self._disk_used = (now, total)
+        self._disk_used = (root, now, total)
         return total
 
     # --- adding -------------------------------------------------------------------------------
@@ -780,6 +799,20 @@ class Evidence:
             population.summary_hold.grow(max(0, needed - population.summary_hold.nbytes), "retaining evidence's table")
             population.summary_hold.settle(needed)
             return
+        if population.hold is not None and population.hold.reservation.cls in BACKGROUND:
+            # A background run's table (a researcher's, an experiment's) is kept in an allowance of its own, so its
+            # working allowance is free again once the run is saved (capture.ALLOWANCES_MB "kept"); with no room
+            # there, it stays with its hold as below.
+            from .capture import Refused as MemoryRefused
+
+            try:
+                kept = population.hold.reservation.memory.reserve("kept", needed, "a background run's evidence table")
+            except (MemoryRefused, ValueError):
+                kept = None
+            if kept is not None:
+                population.summary_hold = kept
+                weakref.finalize(population, kept.release)
+                return
         if population.hold is not None:
             # Transfer its existing capacity; the pixel hold still owns every resident image/mask.
             pixels = sum(m.mask.bits.nbytes for m in population.members.values() if m.mask is not None)
@@ -832,24 +865,32 @@ class Evidence:
 
     def _save(self, population: Population, loop=None) -> None:
         try:
-            folder = self.root / (population.day or time.strftime("%Y-%m-%d")) / population.id
-            folder.mkdir(parents=True, exist_ok=True)
+            from .project_evidence import destination, sync_publication, verify_previous, remember
+            folder, portable = destination(self, population)
+            previous = population.path or folder
+            if portable:
+                verify_previous(self, population)
             files = {}
             if population.capture is not None and getattr(population.capture, "jpeg", None):
                 files["capture.jpg"] = population.capture.jpeg
-            elif (folder / "capture.jpg").exists():
-                files["capture.jpg"] = (folder / "capture.jpg").read_bytes()
+            elif (previous / "capture.jpg").exists():
+                files["capture.jpg"] = (previous / "capture.jpg").read_bytes()
             if population.view.get("sourceImage"):
                 files["source.image"] = self.capture_native(population)
             files["masks.npz"], written = self._masks_bytes(population)
-            if population.vectors or (folder / "vectors.npz").exists():
-                files["vectors.npz"] = self._vectors_bytes(population, folder)
+            if population.vectors or ((previous / "vectors.npz").exists()
+                                      and 'vectors.npz' not in self._recovered_optional.get(previous, set())):
+                files["vectors.npz"] = self._vectors_bytes(population, previous)
             sums = {}
             for name, data in files.items():
                 _atomic(folder / name, data)
                 sums[name] = hashlib.sha256(data).hexdigest()
             manifest = self.manifest(population, sums)
             _atomic(folder / "manifest.json", json.dumps(manifest).encode())  # the manifest last
+            if portable:
+                verify_previous(self, population)
+                sync_publication(self, population, folder)
+                remember(self, folder)
         except Exception as exc:
             self._on_loop(loop, self._failed, population, f"{type(exc).__name__}: {exc}"[:200])
             return
@@ -879,10 +920,12 @@ class Evidence:
                     # Filed in the session it was made in, under its conversation (a session's conversations keep
                     # their ids for good); one from before sessions, only while that conversation is still the one
                     # loaded (S2).
-                    record(population.id, str(folder), filed_thread(self.hub, population.thread, population.session,
+                    from .project_evidence import reference
+                    path, identity = reference(self, population, folder)
+                    record(population.id, path, filed_thread(self.hub, population.thread, population.session,
                                                                     population.generation),
                            population.revision, list(population.members), day=population.day or None,
-                           session=population.session or None)
+                           session=population.session or None, **identity)
             why = ""
         except Exception as exc:
             why = f"its session's journal did not file it ({type(exc).__name__}: {exc})"[:200]
@@ -986,7 +1029,7 @@ class Evidence:
         """Every vector group: the saved ones, with the resident ones over them (a later group never drops one)."""
         arrays = {}
         saved = folder / "vectors.npz"
-        if saved.exists():
+        if saved.exists() and 'vectors.npz' not in self._recovered_optional.get(folder, set()):
             try:
                 with np.load(saved) as data:
                     arrays.update({name: data[name] for name in data.files})
@@ -1200,9 +1243,10 @@ class Evidence:
         for eid, entry in (getattr(self.day, "evidence", {}) or {}).items():
             self._seen_ids(eid, list(entry.get("members") or []))
             with ExitStack() as scope:
-                folder = Path(entry["path"])
+                from .capture import Refused, captures
                 try:
-                    from .capture import Refused, captures
+                    from .project_evidence import resolve
+                    folder = resolve(self, self._session(), entry)
 
                     # JSON's smallest scalars/containers can occupy far more than their bytes on disk.
                     # This covers parsing, manifest plus Member wrappers, and the retained table's admission.
@@ -1211,6 +1255,9 @@ class Evidence:
                         "reading saved evidence's table")
                     scope.enter_context(reading)
                     population = self._read_population(eid, entry, folder, problems)
+                    if entry.get('manifestSha256'):
+                        from .project_folder_copy import _stamp
+                        self._retained_manifests[folder] = (entry['manifestSha256'], _stamp((folder / 'manifest.json').lstat()))
                 except Refused as exc:
                     problems.append(f"{eid}: not loaded in memory ({exc})"[:200])
                     self.unavailable[eid] = f"{eid} is unavailable in memory: {exc}; close earlier analyses and reopen"[:300]
@@ -1269,6 +1316,7 @@ class Evidence:
         if population.revision == 0 and population.original is None:
             population.original = {"revision": 0, "members": copy.deepcopy([m.row() for m in population.live()]),
                                    "columns": copy.deepcopy(population.columns)}
+        self._recovered_optional[folder] = set(lost)
         if "vectors.npz" in lost:
             # Its looks' vectors are gone: those groups go (they are made again when asked); the masks, the
             # measurements, the revisions and the other groups are read back.
@@ -1284,6 +1332,10 @@ def _enrichment_kinds(population) -> list[str]:
     from .enrichment import kinds
 
     return kinds(population)
+
+
+# Allowances a run in the background holds its evidence in (capture.py): its table, once saved, is kept apart ("kept").
+BACKGROUND = frozenset({"research"})
 
 
 def summary_bytes(population: Population) -> int:

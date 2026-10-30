@@ -29,7 +29,9 @@ from orchestrator.model_checks import STOMA_BOX
 
 ACTORS = ("chat", "voice", "researcher")
 # A researcher's own operations (research_worker.budget.RUN_OPERATIONS), by the capability that is each.
-RUNS = {"research-run": "segment", "research-enhance": "enhance", "research-motion": "motion"}
+RUNS = {"research-run": "segment", "research-enhance": "enhance", "research-motion": "motion", "research-classify": "classify"}
+# What a researcher's `run` of one of them names besides its operation (classify: its models and classes, W5).
+RUN_ARGS = {"research-classify": {"models": ["gemini-3.8-flash", "gpt-6.1-sol"], "classes": ["guard cell", "pavement cell"]}}
 # Roles a request names a model for with `use` (names.roles), by the operation or setting `use` takes.
 USE_AS = {"outline": "outline", "cells": "cells", "embed": "looks"}
 # Methods whose choice runs a model of its own: set as the Behaviour menu sets them, from now on.
@@ -77,6 +79,15 @@ PLANS: dict[str, Plan] = {
         "graph": {"format": 1, "input": {"kind": "scientific-scene"}, "nodes": [
             {"id": "export", "name": "Export input", "kind": "export", "needs": ["input"], "settings": {}}]},
     }})]),
+    # An experiment (W5): planning it runs nothing before the user's yes, so its models and its audit researcher are
+    # not on this path; the approved run reaches each through the runner and the research manager (test_experiments).
+    "experiment": Plan("compare Cellpose and micro-sam on this footage and have a researcher audit it", [
+        ("experiment", {"do": "plan", "models": ["cellpose-sam", "micro-sam-lm"], "frames": 3})],
+        not_on_path={"cells": "a plan runs nothing before the user's yes; the approved run segments each frame with each "
+                              "model through the runner (test_experiments)",
+                     "research": "the audit researcher starts only in the approved run (test_experiments)"}),
+    "experiment-status": Plan("how is the experiment going?", [("experiment_status", {})],
+                              before=[("experiment", {"do": "plan", "models": ["cellpose-sam", "micro-sam-lm"]})]),
     "saved-make-table": Plan("keep these measurements in an editable table", [
         ("make_table", {"sources": [{"id": "e1", "revision": 0}], "mode": "frozen"})], ("cells",)),
     "saved-edit-table": Plan("name the saved table", [
@@ -121,6 +132,10 @@ PLANS: dict[str, Plan] = {
     "compare": Plan("compare these two", [("compare", {"a": "o1", "b": "o2"})], ("outline", "outline2")),
     "compare-models": Plan("compare these two models on that", [("compare_models", {
         "operation": "{use_as}", "object": O1, "implementations": ["{name}", "{other}"]})], ("outline",), names_model=True),
+    # Several models name the same cells (W5): the vision models are the scripted provider's, MedSigLIP the heavy worker's.
+    "compare-classifiers": Plan("compare Gemini, GPT and MedSigLIP at classifying these cells", [("compare_models", {
+        "operation": "classify", "implementations": ["gemini-3.8-flash", "gpt-6.1-sol", "medsiglip-448"],
+        "classes": ["guard cell", "pavement cell"]})], ("cells",)),
     "contrast": Plan("how are these two different?", [("contrast", {"a": "o1", "b": "o2"})], ("outline", "outline2")),
     "focus-check": Plan("is it in focus?", [("focus_check", {"object": O1})], ("outline",)),
     "show-picture": Plan("show me the labelled picture", [("show_in_magnifier", {"researcher": "r1"})], ("lesson",)),
@@ -170,6 +185,9 @@ PLANS: dict[str, Plan] = {
     "snapshot": Plan("save this view", [("snapshot", {})]),
     "seen-before": Plan("have we seen this before?", [("seen_before", {})], ("outline", "seen")),
     "what-data": Plan("what data do we have?", [("resources", {})]),
+    # Written by the brain's own model from the Project's records (a count made first), kept under Write-ups.
+    "write-document": Plan("write out the interesting findings so far", [
+        ("write_document", {"about": "the interesting findings so far"})], before=[("count", {"label": "stoma"})]),
     "inspect-camera": Plan("compare this view with the saved picture", [("inspect_camera", {})]),
     "how-known": Plan("how do you know it's a stoma?", [("resources", {"id": O1})], ("outline",)),
     "user-annotation": Plan("keep this as my tentative observation", [("annotate_resource", {"text": "two guard cells"})],
@@ -256,6 +274,9 @@ PLANS: dict[str, Plan] = {
     "set-default-model": Plan("always use this one from now on", [("set_default", {"operation": "{use_as}", "implementation": "{name}",
                                                                                      "by": "user"})], names_model=True, reach="set"),
     "retrieve-page": Plan("pull up a page about stomata", [("retrieve_page", {"query": "stomata"})]),
+    # Found and checked (the video search asked, its result judged), kept in Data; this rig has no studio to show it in.
+    "web-video": Plan("find a YouTube video about stomata and open it", [("show_web", {"video": "stomata"})],
+        expect="refused: this studio has no Project workspace to show it in"),
     # Researchers' work: asked for by chat and voice (start_researcher), and a researcher's own operations by its `run`.
     "research": Plan("look into why stomata close", [("start_researcher", {"brief": "why stomata close", "effort": "quick",
                                                                            "asked_with": "look into why stomata close"})]),
@@ -281,6 +302,10 @@ PLANS: dict[str, Plan] = {
     "research-motion": Plan("have a researcher measure how fast these swim", [("start_researcher", {
         "brief": "measure how fast these swim", "effort": "quick",
         "asked_with": "have a researcher measure how fast these swim"})], not_on_path={"researcher:research": RUN_ENGINE}),
+    "research-classify": Plan("have a researcher run five classifying models on these cells and compare them", [(
+        "start_researcher", {"brief": "run five classifying models on these cells and compare them", "effort": "standard",
+                             "asked_with": "have a researcher run five classifying models on these cells and compare them"})],
+        ("cells",), not_on_path={"researcher:research": RUN_ENGINE}),
     # A chart or an animation of a kept table: a research researcher's own tools (measurement_charts.py), never a video.
     "research-chart": Plan("have a researcher chart the nucleus areas", [("start_researcher", {
         "brief": "chart the nucleus areas", "effort": "quick", "asked_with": "have a researcher chart the nucleus areas"})]),
@@ -390,9 +415,23 @@ def world(tmp_path, monkeypatch):
 
     looked: list[str] = []
 
-    async def lookup(query, *, images=False, observe=None):
+    async def lookup(query, *, images=False, videos=False, observe=None):
         looked.append(query)
+        if videos:  # a video search (show_web): one video page, its site's own title checked below
+            return [{"page": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": "Stomata",
+                     "description": "how stomata open and close"}]
         return [{"page": "https://en.wikipedia.org/wiki/Stoma", "title": "Stoma", "image": "https://upload.wikimedia.org/x.jpg"}]
+
+    async def judge_videos(request, candidates):
+        return retrieval.VideoJudgment(0, "its title is about stomata")
+
+    async def oembed(page, site):  # the video site's own title, never the network here
+        return {"title": "How stomata open and close", "channel": "Plant Bio"}
+
+    from orchestrator import video_search
+
+    monkeypatch.setattr(retrieval, "judge_videos", judge_videos)
+    monkeypatch.setattr(video_search, "oembed", oembed)
 
     async def fetch_text(url, *a, **k):
         return "Stomata are pores in the epidermis of leaves."
@@ -403,8 +442,8 @@ def world(tmp_path, monkeypatch):
         return safe_fetch.FetchedImage(leaf(), 1280, 720, url, "https://en.wikipedia.org/wiki/Stoma", "Stoma", "CC BY-SA 4.0",
                                        "A. Botanist")
 
-    async def matches_photo(query, jpeg):
-        return True
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(True, "a surface view of a leaf epidermis with stomata, light microscopy")
 
     async def page_images(url, client=None):
         return []
@@ -416,7 +455,7 @@ def world(tmp_path, monkeypatch):
         return []  # nothing there: the web's photo is the one shown, the same for both choices
 
     monkeypatch.setattr(retrieval, "lookup", lookup)
-    monkeypatch.setattr(retrieval, "matches_photo", matches_photo)
+    monkeypatch.setattr(retrieval, "look_at_photo", look_at_photo)
     monkeypatch.setattr(safe_fetch, "fetch_text", fetch_text)
     monkeypatch.setattr(safe_fetch, "fetch_image", fetch_image)
     monkeypatch.setattr(safe_fetch, "page_images", page_images)
@@ -515,7 +554,8 @@ async def _run_row(rig, world, row: Row, plan, setups) -> str:
     elif row.actor == "voice":
         runs, _found = await rig.voice(steps, plan.words)
     else:
-        reply = await rig.researcher(RUNS[row.capability], implementation=entry.name if row.role == "cells" else None)
+        reply = await rig.researcher(RUNS[row.capability], implementation=entry.name if row.role == "cells" else None,
+                                     **RUN_ARGS.get(row.capability, {}))
         return rig.judge_run(reply, row, since, world, why_unavailable(row) if not declared(plan, row) else "")
     return rig.judge(runs, row, plan, since, world, why_unavailable(row), declared(plan, row))
 

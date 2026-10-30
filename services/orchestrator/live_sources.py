@@ -14,6 +14,18 @@ from .brain.registry import ToolFailed
 from .brain.toolbox.common import in_view
 
 
+def _crop(obj, capture):
+    """The object's padded crop on this camera frame, or None when the object is not on the frame now: in view (its
+    centre inside the eyepiece disc, which on some footage reaches past the frame's edges) and still predicted off the
+    frame, the slide having carried it there (the June 14 leaf recording, 30 Oct: the stoma's box went above the frame
+    at a slide move of about 490 px, the crop came out empty, the encoder refused it and the studio failed the live
+    window for good). None is out of view: the window holds its last frame, or waits for its first."""
+    if capture is None or not in_view(obj, capture) or not getattr(obj, 'shown', True):
+        return None
+    x0, y0, x1, y1 = padded_rect(object_box_in(obj, capture), .15, capture.width, capture.height)
+    return [x0, y0, x1, y1] if 0 <= x0 < x1 <= capture.width and 0 <= y0 < y1 <= capture.height else None
+
+
 class _ObjectSnapshot(LiveMotionSnapshot):
     def __init__(self, hold, wire, lease):
         super().__init__(hold, wire)
@@ -49,8 +61,8 @@ class _ObjectLease:
             if not self.stopped:
                 obj = self.original()
                 capture = store.get(getattr(self.sources.hub.latest_info, 'id', None)) if obj is not None else None
-                if capture is not None and in_view(obj, capture) and obj.shown:
-                    rect = padded_rect(object_box_in(obj, capture), .15, capture.width, capture.height)
+                rect = _crop(obj, capture) if obj is not None else None
+                if rect is not None:
                     return _ObjectSnapshot(store.hold(capture, 'analysis', 'look', owner), {
                         'basis': 'camera-pixels', 'sample': {'run': RUN, 'frameId': capture.id,
                             'boot': capture.boot, 'seq': capture.seq, 'epoch': capture.epoch,
@@ -117,9 +129,9 @@ class LiveSources:
             return self.motion.acquire_snapshot(source, owner)
         obj = self._object(source)
         capture = captures(self.hub).get(getattr(self.hub.latest_info, 'id', None))
-        if capture is None or not in_view(obj, capture) or not getattr(obj, 'shown', True):
+        rect = _crop(obj, capture)
+        if rect is None:
             return None
-        rect = padded_rect(object_box_in(obj, capture), .15, capture.width, capture.height)
         return LiveMotionSnapshot(captures(self.hub).hold(capture, 'analysis', 'look', owner), {
             'basis': 'camera-pixels', 'sample': {'run': RUN, 'frameId': capture.id,
                 'boot': capture.boot, 'seq': capture.seq, 'epoch': capture.epoch,

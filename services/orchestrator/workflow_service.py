@@ -14,6 +14,7 @@ class WorkflowService:
         self.hub,self.day=hub,day
         self.workflows=Workflows(hub.resources.projects)
         self.steps=ScientificSteps(self.workflows,hub)
+        self.steps.day=day
         self.tasks={}
         self.wakeups=set()
         self.closing=False
@@ -28,8 +29,13 @@ class WorkflowService:
         A missing driver cannot establish termination of a dispatched worker. Reads
         disclose that uncertainty without changing receipts or restarting anything.
         """
-        result=self.workflows.status(id_,session)
-        task=self.tasks.get((session,id_))
+        return self._observe(self.workflows.status(id_,session))
+
+    def observed_statuses(self, ids, session):
+        return {id_:self._observe(row) for id_,row in self.workflows.statuses(ids,session).items()}
+
+    def _observe(self, result):
+        task=self.tasks.get((result['session'],result['id']))
         owned=task is not None and not task.done()
         latest={(a['item'],a['node']):a for a in result['attempts']}
         unresolved=any(a['status'] in ('running','awaiting-research') for a in latest.values())
@@ -75,7 +81,7 @@ class WorkflowService:
                     for a in research:
                         claim={'run':id_,'session':session,'attempt':{'id':a['id']}}
                         try:
-                            outcome=await asyncio.to_thread(collect,self.workflows,claim,a['research'],status['control']=='stop')
+                            outcome=await asyncio.to_thread(collect,self.workflows,claim,a['research'],status['control']=='stop',self.hub)
                             if outcome:await asyncio.to_thread(self.workflows.finish,claim,outcome)
                         except (ValueError,OSError):
                             # Retained Study evidence remains authoritative; never manufacture settlement.
@@ -86,7 +92,11 @@ class WorkflowService:
                     room=captures(self.hub).memory.reserve('analysis',128<<20,'workflow scientific step')
                     with room:return self.steps.execute(claim)
                 try:
-                    outcome=await asyncio.to_thread(execute)
+                    if self.steps.on_loop(claim):
+                        # The app's own models and researchers (experiment_steps): awaited here, their work in their
+                        # workers at research priority, each holding its own memory; the live view never waits on it.
+                        outcome=await self.steps.execute_on_loop(claim)
+                    else:outcome=await asyncio.to_thread(execute)
                 except asyncio.CancelledError:
                     # Work in a thread may still own its operation. Recovery must reconcile it.
                     raise
@@ -110,6 +120,8 @@ class WorkflowService:
         def fields(*names):
             if set(b)!=set(names):raise InvalidProject('Use only the declared workflow command fields')
         if action=='capability':
+            study=b.pop('study',None)
+            if study is not None and actor!='studio':raise InvalidProject('Connected agents use Study workflow admission')
             fields('session','capability','generation','inputs','parameters','request')
             self.owner(b['session'])
             from .matrix_capability_runs import descriptor, parameters
@@ -129,6 +141,11 @@ class WorkflowService:
             # A single manual invocation is still one ordinary frozen workflow run.
             await asyncio.to_thread(w.bindings,graph,bindings,b['session'])
             definition=await asyncio.to_thread(w.create,declared.get('name',b['capability']),graph,token({'manual':b['request']})[:32],actor=actor,action='capability')
+            if study is not None:
+                from .research.studies import for_workspace
+                operation, _ = await for_workspace(self.hub,self.day).start_workflow(study,b['session'],request=b['request'],
+                    workflow=definition.id,revision=definition.revision,inputs=[b['inputs'][ports[0]]],bindings=bindings,actor=actor,label='You')
+                return {'run':operation['workflow'],'operation':operation}
             return await self.command({'action':'start','workflow':definition.id,'revision':definition.revision,'session':b['session'],
                 'inputs':[b['inputs'][ports[0]]],'bindings':bindings,'request':b['request']},actor=actor)
         if action=='create':
@@ -159,7 +176,7 @@ class WorkflowService:
                 await asyncio.to_thread(exact,w.store,ref,b['session'])
             readiness=await asyncio.to_thread(self.steps.validate,graph,b['inputs'],b['session'],bindings)
             if action=='validate':return {'readiness':readiness}
-            existing=await asyncio.to_thread(w.store._folder(run_identity(b['session'],b['request'])).exists)
+            existing=await asyncio.to_thread(lambda: w.store.for_session(b['session'])._folder(run_identity(b['session'],b['request'])).exists())
             if not readiness['available']:raise InvalidProject('; '.join(r['reason'] for r in readiness['steps'] if r['reason']))
             saved=await asyncio.to_thread(w.start,b['workflow'],b['revision'],b['session'],b['inputs'],b['request'],actor=actor,bindings=bindings)
             if not existing:self.launch(saved.id,saved.session)

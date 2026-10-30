@@ -3,6 +3,7 @@
 // Tabs (workspace-research-tabs.ts), so every Tab has one anatomy.
 
 const PATHS = {
+  folder: '<path d="M3 6h5l2-2h6a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z"/>',
   home: '<circle cx="10" cy="10" r="6"/><circle cx="10" cy="10" r="2"/>',
   picture: '<rect x="3.5" y="4.5" width="13" height="11" rx="1.5"/><path d="m4 14 4-4 3 3 2-2 3.5 3"/>',
   recording: '<rect x="3.5" y="5" width="9.5" height="10" rx="1.5"/><path d="m13 8.5 3.5-2v7l-3.5-2"/>',

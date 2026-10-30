@@ -304,6 +304,58 @@ other files.
   from `movement.py`, below or above a value the model sets, two checks in a row), by something
   new appearing in a still view (`quality.StillChange`), or by a yes/no question the vision
   model answers every 15 s. At most 3 at once, 15 minutes at most; running out of time is said.
+- **The watcher** (`orchestrator/view_watch.py`, option WATCH; the live partner's item 4): what happens in the view,
+  noticed without being asked. No live model speaks up from video on its own (OpenAI's nor Gemini's), so this is
+  Hooke's own, as ADK's streaming tool `monitor_video_stream` yields only when what it measures changes.
+  - **On the camera path, newest frame only:** a listener on every published frame (`Hub.on_frame`, after the coach's)
+    that reads the numbers the hub already measured (offset, epoch, steady, the disc, sharpness stats): nothing
+    decoded, copied, queued or awaited, a late frame simply the newest. The counted population is read once a second,
+    after the frame's publish (`call_soon`), from the layer's own member checks. Its cost on the frame path: p50 8 µs,
+    p99 37 µs a frame over a synthetic hour (`bench/watch_bench.py`; one frame of 108,000 took 2.3 ms), against a
+    33 ms frame; the population's reading 0.1 ms for 500 members, once a second.
+  - **Events, on the settled view only,** each a measured change, never a name or a verdict:
+    - **slide-moved:** the view settled (Sight's `SETTLE_S`) more than Sight's `MOVED_FRACTION` of the eyepiece's
+      radius from where it last rested (still for `REST_S`, 3 s: a later nudge is measured from there; shorter stops in
+      one repositioning add up), or after continuity was lost once the tracker had `CUT_SETTLE_S` (1.2 s) to rejoin; a
+      rejoin while standing still (an epoch going back to an old number) is the same place, not a move, and so is a
+      cut whose picture still matches the field's last still one (the hub's 64 px thumbnail, at least the re-find
+      score 0.8, `watch-skip` logged: a starved feed lost continuity on a still picture in the voice bench).
+      Facts: how far (fields of view, px, µm with a scale) and which way the picture moved.
+    - **focus-drifted:** on a field with texture (`quality.MIN_PEAK`), the sharpness over the contrast squared (a
+      change of light is not one of focus) stayed under 60% of the sharpest this field looked since it settled for 3 s,
+      while nobody turned the knob (the coach's sweep); after a turn of the knob the field's sharpest starts again (the
+      user chose that focus), and the eyepiece disc changing size is said as the phone's lens.
+    - **population-changed:** on a still, sharp view, members of the population shown (the counted cells) inside the
+      eyepiece that were in place and are no longer where they were counted (their own pixels checked and not there),
+      at least 3 and 15% of those in place, on 3 readings in a row; with the counts, any back in place and the median
+      area in place before and now. A move of the slide or a blur is a new baseline, never a change; a cell that
+      appeared is not counted until the cells are found again.
+    - **cell-divided:** an interface (`ViewWatch.divided`) with no detector: following keeps one outline per thing and
+      linking keeps links one to one, so `status()` says "not available".
+  - **Each event carries** `eventT` (the frame at which it was established), `sinceT` (when its condition began), the
+    frame and what the voice can point at (`frame` with a region of its camera picture, `population:<id>`,
+    `member:<population>:<member>`, `outline:<id>`), drawn as it is said.
+  - **One delivery rule per kind** (`view_watch.DELIVERY`, by WATCH; "quiet" the default):
+
+    | Event | quiet | chatty |
+    | --- | --- | --- |
+    | slide-moved | context | idle |
+    | focus-drifted | idle | idle |
+    | population-changed | idle | idle |
+    | cell-divided | interrupt | interrupt |
+
+    "context" is told to the voice silently; "idle" is one sentence when nobody is talking; "interrupt" stops the
+    voice's own words for it, never the user's. "Off" watches nothing. The user's quieter or "let me find things"
+    makes every rule context. A kind is told at most once in its gap (`GAP_S`: a slide move 10 s, focus 60 s,
+    counted cells 20 s). Only the one-brain voice gets them (`Partner.happened`); every event is logged
+    (`watch-event`, delivered or not).
+  - **Measured** (`docs/bench/voice-journeys.md`, "The watcher on footage"): on synthetic eyepiece footage through the
+    hub's own analysis, a pan, a cut and a defocus each raised one event (0.7 s, 1.9 s and 3.0 s after it happened),
+    a halved light and a turn of the knob none, and a steady hour none (0 false alarms in 60 minutes); on the real June 14
+    leaf recording (3m43s) the 6 real moves of the slide and no false alarm (one, a nudge after a long rest, before
+    `REST_S`). The journey
+    bench's watch lines (`plans/part-2.5-watch.json`, the broad journey): event to speech at most 2 s when nobody is
+    talking, and false alarms per hour.
 - Outcomes (`orchestrator/outcomes.py`, tool `outcomes`, K3): how each way of doing something has gone on this
   specimen, from the executions and only unambiguous signals (the user's corrections of their members, blind
   votes of the outline trials that compared them, won or lost only for a letter winner, ties and "none good" apart,
@@ -365,6 +417,13 @@ other files.
   the whole view when it has no eyepiece circle. A cells comparison the user runs by hand from the workspace's
   Tools is drawn by the workspace instead (each model's retained masks on its Stage, in that model's colour,
   each hideable: `apps/studio/AGENTS.md` "Tools"), so it gets no side-by-side picture of its own.
+  - **Two to six models** (Part 2.5, W5; `orchestrator/model_comparison.py`, the one comparison interface): outlines,
+    cells and classifying (`operation` classify: each model names every cell of a population from the same `classes`,
+    `orchestrator/classify.py`). Past six that can run, the rest are said to be left out; the picture tiles three to a
+    row. Every comparison is also kept as one table in Data, a row per model (what it found, counts per class,
+    agreement with the others, time, cost), from each run's own record, bound to its sha256 (`tables.result_table`),
+    so `placement` (or `show_measurements` of its d-id) shows it where asked; classify, which has no picture, shows it
+    beside by default. Agreement is never accuracy (ADR 0020).
 - Choosing a model (`use` for this request, `set_default` from now on, `compare_models`;
   `brain/toolbox/choosing.py`): a name means what `orchestrator/names.py` says, an exact key only (the id, the
   name, the name with where it runs said any way: "SAM 3.1 (local)", an old label for one release, a spoken
@@ -491,11 +550,29 @@ other files.
   look and its specimen, the subject named, the names of the outlines pointed at, selected, magnified or shown in a
   window); the search model reads the words in it (live 2026-10-11: "an iris" after zooming on the user's eye found
   the plant).
-  - **Where it searches** (option REFERENCE_SEARCH): "web+commons" (the default) searches Wikimedia Commons'
-    catalogue beside the web from the start (`reference.catalogue`, its pages outside the web's page budget), and
-    the first photo the pixel check accepts wins; the other search is called off. "web" is the web alone. On 20
-    subjects asked live (`bench/reference_bench.py`, `docs/bench/reference.md`): the web 20/20 found, 18/20 right by
-    a judge of another family, 10.7 s p50; Commons 11/20, all right, 5.0 s; the two raced 20/20, 20/20, 6.2 s.
+  - **The look at each photo** (`retrieval.look_at_photo`): every downloaded picture is looked at against the whole
+    request, read with what the user was looking at and the reference photos already kept in this Project
+    (`magnifier.shown_in_project`, not only those open in a window): the look first says what the pixels show (the
+    subject, how many, the kind of view, the imaging), then whether that is what was asked ("just a single stoma",
+    a surface view to set beside the magnified leaf, "a different one"). It is given the candidate's site, never its
+    address, whose path is often its title. A picture it turns down is never the answer: the next candidate is
+    tried, the recovery search is told what the turned-down ones showed, and when none passes the failure says so,
+    with what they showed. Asked for another one (`n` > 1), a picture whose pixels are an earlier reference's is
+    never returned and costs no look; otherwise the look is told it is the same picture and judges it. What the look
+    saw is the picture's description (`Found.shows`, the result's `description` with `describedBy`) and the
+    receipt's words ("what it shows, from a look at its pixels by Gemini 3.8 Flash: …"); the request is only "asked
+    for", and the caller's own `description`, written before anyone saw the picture, is kept as its `note` (live
+    2026-10-29 17:16: a yes/no check passed a tissue cross-section for "just a single stoma", and the receipt, the
+    caption and the answer all called it "a single stoma").
+  - **Where it searches** (option REFERENCE_SEARCH): "web" (the default since 2026-10-29) is the open web alone.
+    "web+commons" searches Wikimedia Commons' catalogue beside the web from the start (`reference.catalogue`, its
+    pages outside the web's page budget), and the first photo the look accepts wins, so the catalogue (about 0.5 s)
+    wins whenever it has one: Commons first. On 20 subjects asked live (`bench/reference_bench.py`, 2026-10-11): the
+    web 20/20 found, 18/20 right, 10.7 s p50; Commons 11/20, all right, 5.0 s; the two raced (computed from the two
+    run apart) 20/20, 6.2 s; but that judge asked only "a real photograph of <subject>", which passes a cross-section
+    for a single stoma in surface view (its judge now reads the whole request). The founder expects the open web
+    first, and on 2026-10-29 every catalogue search answered HTTP 403 (Wikimedia's robot policy refused the
+    User-Agent, now with a contact in `safe_fetch.USER_AGENT`).
 - The chat is the conversation (typed and spoken), not an activity log: a click names the thing
   on its outline and card (`SceneObject.seen`), a tool that finishes late updates its answer's
   line in place (`chat-action`), a voice hand-off shows on the Talk dot, and researchers the
@@ -547,10 +624,10 @@ other files.
 ## The one-brain loop (option VOICE `gpt-realtime-2.1`)
 
 One model hears the user, sees fresh pixels, calls the app's tools with the user's own words, reads their results and
-speaks, all in one context (PARTNER-CONTRACT of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
-`voice/partner_tools.py`). It is an option beside GPT-Live, which stays the default until the journey bench shows it
-better on the packaged build. Where GPT-Live hands the brain an id and the brain guesses the words (`brain/speech.py`),
-this voice has no hops to fall between.
+speaks, all in one context (live-partner-contract.md of 2026-10-29; `voice/openai_realtime.py`, `voice/partner.py`,
+`voice/partner_tools.py`). It is the default: since 29 Oct 2026 the live partner's stack is Hooke's default, and
+GPT-Live stays beside it as a choice picked by hand, with nothing falling back to it. Where GPT-Live hands the brain an
+id and the brain guesses the words (`brain/speech.py`), this voice has no hops to fall between.
 
 - **Transport:** WebRTC only. The route posts the browser's SDP offer and the session config to `POST
   /v1/realtime/calls` (the SDK's `client.realtime.calls.with_raw_response.create`: the SDP answer is the body, the call
@@ -567,6 +644,21 @@ this voice has no hops to fall between.
   picture item deleted, this turn's text note (kept) and picture item (camera then window) added, then after
   `RELEASE_TAIL_S` (0.15 s, the WebRTC audio still in flight) `input_audio_buffer.commit` and `response.create` at once:
   nothing is fetched after release. A tap shorter than 0.25 s and Escape (`cancel`) ask for nothing.
+- **It decides, then speaks** (option `PARTNER_SPEAKS`, default `after-deciding`; the 30 Oct journeys on b1e2727, after
+  three rounds of prompt rules against it: "I'm checking the current tabs to find the measurement table, then I'll open
+  it.", "Starting the experiment with both models and a researcher audit." for a plan only drafted, each 0.8-1.3 s after
+  release and before `do_in_hooke`, judged "preliminary narration"). A user's turn (held, open mic or typed) is answered
+  first in text alone (`output_modalities: ["text"]`, `metadata.decide`, and `DECIDE_RULE`: what it writes is said word
+  for word unless it calls a tool other than mark). Its text deltas never reach the chat, and its `partner-response`
+  record has an empty `transcript` with the text as `written`. Then (`RealtimeSession._decided`, logged
+  `partner-decided`): with a tool other than mark called, its words are let go unsaid and the tools run as before, their
+  outcome said by the next audio response (a long hand-off keeps its one progress line); with none, or only marks, its
+  words are its answer, said at once by one audio response (`cause: "say"`, its only context those words, markdown taken
+  out, `SAY_DECIDED` as its short instructions), its marks drawn with them. Either way its written message is deleted
+  from the conversation, so the conversation holds the spoken message alone (a barge-in truncates it as any answer's),
+  and nothing that was not said. It stays "thinking" from the release until its words play. What it adds to a direct
+  answer's first words is that one response (asked for as soon as the text is done). `as-it-decides` answers in speech
+  at once, as before.
 - **One response at a time** (the review of 2026-10-29): every `response.create` (a turn, a typed line, a tool round,
   a look, a progress line, a line nobody asked for, a reconnect's line) is queued at one gate
   (`RealtimeSession._gate`), sent only when the response in progress has ended, and checked again just before it is
@@ -583,8 +675,8 @@ this voice has no hops to fall between.
   find, outline_cells, select, zoom, clear, start_researcher, research_status, researcher_note, cancel_researcher,
   show_me, resources, models_in_use, capabilities, workflow, new_project, retrieve_page (web search), run_capability
   (once a capability is on; the session's tools follow the registry at each key-down) and reference_photo, plus
-  `mark`, `look_hard` (the frame, and the window if asked, to `Settings.vision`) and `do_in_hooke` (the user's words to
-  `Brain.turn`, a rare fallback). Each call is one voice request (Ticket "turn", channel voice, its admission and
+  `mark`, `look_hard` (the frame, and the window if asked, to `Settings.vision`) and `think` (below; it replaced
+  `do_in_hooke`, which is kept but no longer offered). Each call is one voice request (Ticket "turn", channel voice, its admission and
   request id, the accepted studio's pin, `voice_owner` this session so researchers report back to it) run through the
   brain's `ActionRunner`; the user's words of that turn (their transcription, waited for at most 1.5 s) are its
   `question`. Each call's row goes into the chat (`chat-action`). start_researcher, new_project and cancel_researcher
@@ -606,7 +698,9 @@ this voice has no hops to fall between.
   text's digest (never a prefix: the narrator's lines share a long preamble); a mark on the researcher's card is drawn
   as it is said, and a narrator line is the researcher's only when its own facts carry its `researchId`. A researcher's
   own words (its one-liner) are inside the untrusted wrapper. Waiting more than a minute, it stays in the conversation
-  unsaid.
+  unsaid. The watcher's events (above) come the same way with their own rule (`happened(delivery=)`): "context" is a
+  silent system item, "idle" this line, "interrupt" this line after stopping the voice's own speech when the user is
+  not talking; their marks (a region of the camera picture with its frame, or a population) are drawn as it is said.
 - **One conversation:** the user's words (`conversation.item.input_audio_transcription.completed`) and the voice's
   (`response.output_audio_transcript.delta`, one line per response) are filed with `SpokenRequests`' caption lines, as
   GPT-Live's are; they never reach its hands. Typed chat while talking (the brain's voice notes, which GPT-Live reads
@@ -623,6 +717,12 @@ this voice has no hops to fall between.
   it again. The same session object goes on (researchers' delivery and the narrator still reach it).
 - **Speaking:** the sideband's `output_audio_buffer.started` / `stopped` / `cleared` (checked over a real WebRTC call,
   below), and the studio's own `{type:"voice-phase", phase:"speaking"|"listening"}`, set whether the voice is audible.
+- **Its state, shown** (`voice/presence.py`, the studio's `voice-presence.ts`; W3 "alive and available"): server to
+  studio `{type:"voice-state", state, n, working:[{key,label,since}], seq, at, turn}` at each change: listening (key
+  held), heard (released and taken), thinking (from the release to its first words, and while a tool of its own runs or
+  a round's next response is asked), speaking, working (only Hooke's own work in flight: its hand-offs and jobs, keyed
+  as the studio's in-progress strip keys them), idle, off. A wait never shows blank: every moment between release and
+  words, or while anything Hooke does is in flight, has a state.
 - **Usage:** each `response.done`'s usage (text, audio and image tokens in; text and audio out) is recorded at list
   price (`budget.PRICES["gpt-realtime-2.1"]`; cached input at the full price, so it can only over-count); its
   open time writes no charge, and its minutes ahead under a monthly cap are held at an estimated $0.30 a minute.
@@ -663,6 +763,123 @@ the first transcript 308 ms, `output_audio_buffer.started` **448 ms**, `response
 `response.done` 1466 ms, `output_audio_buffer.stopped` 6300 ms (the browser received 44,647 bytes of audio): the answer
 plays for seconds after `response.done`, which is why only the buffer's events (and the studio's voice-phase) say when
 it is audible. Not measured without the studio: whether `RELEASE_TAIL_S` keeps the last word.
+
+### Tuning against the journey bench (2026-10-29)
+
+Measured over real WebRTC calls (a headless Chrome peer) and the part-2.5 journey, then kept:
+- **Reasoning effort `minimal`:** response.create to the first server audio 0.82 s median vs 1.10 s at `low`, with the
+  partner's prompt, tools, brief and pictures; with spoken input, a tool round's preamble 0.74 s vs 3.10 s.
+- **Perception sent while the key is held:** the note at once, the camera and the window as each is ready
+  (`RealtimeSession.early`); release sends only commit and response.create. The API prepares items as they arrive:
+  0.74 s vs 1.33 s with the same pictures sent at release. A tap or Escape deletes them again.
+- **Pictures at full detail** (`auto`): at `low` the model took a new layer of outlines for "hidden behind the tabs
+  panel". Sent during the hold, their cost is small.
+- **One voice, briefly** (the UX pass of 29 Oct; `prompts.PARTNER`, the OpenAI voice guide's wording): the answer or
+  outcome first in plain words, one or two sentences by default; how Hooke did it (models, layers, segmentation,
+  checks, receipts) only when the user asks how. A lead-in ("Outlining them now.") only before a tool that takes
+  noticeable time; a quick action (highlight, select, a Tab, close) is called without one and said once after its
+  result. After a tool, only what is new. Receipts, results from behind the voice, events and progress follow the same
+  rules (`RECEIPT_RULES`, `prepare`, `_ask_batch`, `PROGRESS_WORDS`), so they read as one person. An average is the
+  mean (a population's summary gives each column's mean beside its median); a median is said as the median.
+- **Pointing goes with the words:** a mark before speaking cost a silent response (3.5 s of silence). The app points
+  at a tool's result itself (`population:<id>`); the model marks when asked, or when its answer is about one thing in
+  view, after speaking. A round of marks after words gets no response of its own unless a mark was not shown (Will's
+  feel check: a second reply repeated the first, "It's highlighted around the central oval…"); marks with no words
+  before them go on to the answer. HeyClicky's pointing likewise sits alongside speech, and the Realtime API leaves the
+  next `response.create` to the client.
+- **Progress while the user's tool runs:** at most one line a round, only once the voice has said nothing for
+  `PROGRESS_AFTER_S` (5 s) with the tool still running, so only a silence that would feel broken is filled. Its words
+  say what Hooke is doing now or waits on, never what it may find, and the time only when it has been long. If the
+  result lands before the line is heard starting, the line is cancelled and the result said instead; a line already
+  playing is heard to its end. An output after that line that only says the tool is still running gets no reply of its
+  own: the outcome is said once when it lands. Every progress line of 29 Oct had been cut off mid-sentence by
+  `max_output_tokens` 100 (it counts reasoning); the cap is 400 now, there only to stop a runaway (smoke 9dc7398:
+  "It's still working on outlining…", "…nothing is finished yet. You should see", judged robotic).
+- **A hand-off said nothing of yet** (do_in_hooke with no lead-in; will-alive "slow", 30 Oct: a 15 s web search was
+  silent until its outcome, judged "no brief acknowledgment that the search was under way"): one line once the voice has
+  been quiet `HANDOFF_PROGRESS_AFTER_S` (4.5 s) and one of the hand-off's steps has run `HANDOFF_STEP_S` (2.5 s), or
+  quiet `HANDOFF_THINKING_S` (9 s) with none, worded as the voice's own "I" from what Hooke's brain is doing right now:
+  each step it runs, its arguments and progress words (`partner_tools.handoff_doing`, from the hand-off's job, which
+  `Registry.started` tells each step of its request as it starts), never a promise. Quick work says nothing before its
+  outcome: most hand-offs end in 5-7 s with every step (find, zoom, a Tab, a window) under 2.5 s. After a lead-in the
+  wait stays `PROGRESS_AFTER_LEADIN_S` (20 s). Its outcome is said once, as before.
+- **It talks first** (Will's feel check, 29 Oct): as the studio goes live before any turn (its first `voice-phase`
+  listening), the camera picture and Hooke's window go in with a kept note, and one idle `opener` event goes on the
+  bus; its response has `mark` as its only tool and `OPENER_RULE` as its instruction: what is on the stage, as
+  specifically as the pictures and the Project allow, and the one obvious next thing, pointing at what it names; with
+  nothing on the stage, how to start. Once per Talk session (never on a reconnect); withdrawn if the user presses or
+  types first. It is the voice's own line, written from the pictures, not a template.
+- **A reply's parts are joined:** the words of two parts of one response (either side of a tool call) are joined with
+  a space, in the streamed words and in its items ("…easy to spot.That central oval…").
+- **The release tail is 0.05 s:** committing 0.12 s before the words' end lost none of them.
+- **A Project named exactly that opens** (`day/catalogue.find`): "Open the Nuclei project" no longer matches every
+  session that saw nuclei.
+- **A reconnect storm ends Talk:** more than 3 reconnects in 60 s stop it with a plain message (the mini model's
+  sideband dropped every few seconds: 14 calls in a minute).
+
+Measured and not kept: `gpt-realtime-2.1-mini` (slower to first audio, 1 of 2 right tools, its sideband dropping);
+a cache warm-up response at the start (no gain on the first turn); shorter tool descriptions (within noise).
+
+**Where release to first audio goes** (quiet machine): commit 0.05 s, model to server audio 0.6-1.2 s (p50 ~0.85),
+playout 0.15-0.2 s (WebRTC jitter buffer 100-137 ms, then the words' onset). About 1.05-1.1 s p50 release to heard:
+the standard's 0.8 s is below what this model gives here.
+
+**The outline step** is Cellpose-SAM on the camera's frame: on the bench's 1280 x 720 frame 5.8-6.4 s warm (the app's
+own path adds about 0.2 s), 10-35 s when the machine is loaded by other work. micro-sam (light microscopy), measured on
+the same frame: 0.65 s, 308 outlines against Cellpose's 343, 298 of Cellpose's matched one to one at IoU >= 0.5 (mean
+IoU 0.78): an option for the user to choose; the default is unchanged.
+
+### `think`: the frontier mind behind the voice (option THINK)
+
+The voice in front answers at once and sees; a hard question, a request with several steps, a comparison of models
+or a close look goes to `think(request, why)` (`voice/think.py`, `partner_tools.think`). On τ-Voice a fast voice
+with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
+- **Started at once:** the tool returns `{"started": true, "task": ...}` in well under 200 ms, and the voice says one
+  short acknowledgement. Spoken before it called think: nothing more is asked for. Silent: one "On it." (`ack`, at most
+  60 tokens), never a second (HeyClicky's duplicate acknowledgement).
+- **The backend** (Claude Opus 5.5 by default over httpx, effort low; GPT-6.1 Sol through the Responses API) gets the
+  user's words, the turn's two pictures as at key-down, the Project brief, the recent conversation and the per-turn
+  notes, and runs its own tool loop (at most 8 rounds) through `PartnerTools.run`: a voice request each, attributed
+  to the Assistant, act then look. A change on screen comes back with the studio's report and a fresh window picture.
+  It ends with `report(say, points, checked, done)`: "done" counts only when it also says every change was checked.
+  Its tools are the voice's plus the brain's longer ones (`compare_models`, counts, tables, graphs, research reads).
+- **Long tools are waited for:** behind the voice, a tool still running at the voice's 12 s (a comparison of three
+  outline models loading cold took ~40 s) is waited for up to 70 s (`THINK_TOOL_WAIT_S`), and its real outcome goes
+  to the backend; while think waits, the outcome is filed but not said as a line of its own (`PartnerTools.held`), so
+  it is said once, in think's result. Past that wait the backend is told it is still running, and the outcome is said
+  as one line when it lands, as any long tool's is (think-broad-1: think reported "they're still running" and the
+  comparison came 40 s later during another step).
+- **Progress while it works:** think's call is answered at once, so no tool round is pending; behind a quiet voice
+  (no key held, nothing said for `THINK_PROGRESS_AFTER_S`, 6 s, since its acknowledgement), a short line on what is
+  under way (`task_facts`: "thinking it through, now running compare_models, 15 s so far"), at most 2, at least 15 s
+  apart, the second only when what it is doing has changed, never once its result is due
+  (`RealtimeSession.tell_progress`). A slow background tool (a reference photo, a web page) gets one.
+- **Prompt caching:** the tools and the system prompt (the same for every task) are cached by a marker on the system,
+  each round's growing conversation by the automatic marker; cache writes and reads are priced in its spend.
+- **Which questions go to it:** the voice answers what is already here (what was found, how something was made or
+  measured, what a researcher reported) itself from the brief or resources; think is for what needs working out,
+  several steps, comparisons and close looks (think-broad-1: a question about how the nuclei were measured went to
+  think and was spoken 16 s later). The model it runs on is a setting like the others: `set_default` think
+  ("switch your brain to Claude"), and `models_in_use` has its row, "Thinking behind the voice".
+- **The result** waits for quiet (no key held, nothing said), is written out of band in the voice's own words
+  (`response.create` with `conversation: "none"`, text only, `metadata.task`; the backend's own words when that
+  does not come back in 4 s), is added to the conversation, and is said once through the gate, with marks on the ids
+  it names drawn as the words start. A key press while it waits holds it; it is never said twice.
+- **Said when settled:** the result waits until nobody is talking, nothing is asked for, no tool of a turn is still
+  running or unanswered and the voice has been idle `IDLE_S` (`RealtimeSession.settled`); its words are prepared
+  once, and a delivery dropped for a key press keeps them (think-broad-2: said in the gap between the user's next turn
+  and its tool round, the voice talked about that turn instead, and the second preparation held the user's turn 1.6 s).
+- **Behind any partner session:** RealtimeSession's `deliver` and `tell_progress` when the session has them; otherwise
+  the result is the one `proactive` line every partner session says (`think-done`), with a mark on its first point
+  (Gemini 3.8 Live needs only `n`, `closed` and `proactive`).
+- **Slow tools the same way** (`partner_tools.BACKGROUND`: `reference_photo`, `retrieve_page`): "started" at once with
+  one acknowledgement, a progress line naming the tool, the result said once when it lands (`partner-background`,
+  then `partner-think-said` and a `think` response), a reference photo's window marked as the words start; past 70 s
+  still running, it is said as one line when it lands. `retrieve_page` waits up to 45 s and says a timeout as one.
+- **A refusal** (Anthropic's safeguards may refuse life-science requests) is said as a refusal, the other model
+  offered by name; another model never answers in its place. A missing key is said, with where to set it.
+- Records: `partner-think` (task, model, rounds, tools with confirmed, checked, refused, ms, tokens) and
+  `partner-think-said`.
 
 ## Claude as the brain (BRAIN `fc` with a Claude vision option)
 

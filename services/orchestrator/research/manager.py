@@ -43,6 +43,7 @@ from ..learner import of as learner_of
 from ..magnifier import crop_jpeg, object_box_in
 from ..marks import encode_crop, fov_crop
 from ..paths import Paths
+from ..project_locations import ProjectLocationError
 from ..presenter import items as presenter_items
 from .content import lesson_from_html, render
 from . import findings as scientific_findings
@@ -57,7 +58,8 @@ log = logging.getLogger(__name__)
 POOLS = {"big": 3, "instant": 4}
 DESCRIPTION_SLOTS = 2
 SNAPSHOT_EVERY_S = 10.0
-TERMINAL_RECEIPT_GRACE_S = 10.0  # cancel acknowledgement is not proof the worker stopped
+TERMINAL_RECEIPT_GRACE_S = 10.0
+SPAWN_TIMEOUT_S = 60.0  # a researcher's dispatch acknowledgement (worker.call "spawn")  # cancel acknowledgement is not proof the worker stopped
 
 
 def strip_citations(value):
@@ -81,7 +83,9 @@ def engine_key_refusal(setting: str | None) -> ResearchRefused | None:
     alone, Gemini as the Assistant, GPT-6.1 Sol for researchers)."""
     from ..options import RESEARCH_ENGINE
 
-    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "gpt-6.1-sol"
+    from ..options import research_engine_with_key
+
+    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or research_engine_with_key(setting or "claude-opus-5-5")
     option = RESEARCH_ENGINE.get(name)
     if option is None or not option.needs or os.environ.get(option.needs):
         return None  # a scripted engine, one this app does not list, or its key is there
@@ -784,6 +788,8 @@ class ResearchManager:
         self.session: Callable[[], str] = session or ((lambda: store.sid) if store is not None else self.today)
         self.conversation = conversation
         self.root = Path(root) if root is not None else Paths.from_env().research
+        from .storage import ResearchStorage
+        self.storage = ResearchStorage(self.root, store)
         # Where researchers read the session's one index (scaffolding Amendment 2, point 7): the app's own
         # address, set by server.main once it knows its port. Unset (tests, create_app alone): no session tool.
         self.resources_url: str | None = None
@@ -803,7 +809,7 @@ class ResearchManager:
         # The interaction log (agent.log; the app sets it): lesson checks, stalls and claims checks
         # are logged with the options used, for comparing them.
         self.log: Callable[[dict], None] = lambda record: None
-        # Where each run's model transcript goes (a performance log, logs/transcripts/; the app sets it): one file per
+        # Where each run's retained model transcript goes (research/transcripts/; the app sets it): one file per
         # researcher and day, a line per round (research_worker/researcher.py `transcribe`). Unset (tests): none kept.
         self.transcripts: Path | None = None
         # Its hands (hands.py): the app's own operations a researcher asks for, for its reading, never on screen.
@@ -851,15 +857,16 @@ class ResearchManager:
         cost is settled and counted, never lost. Their spending is already counted."""
         if not sid or sid in self._loaded:
             return
-        self._loaded.add(sid)
-        found = [s for date in self._dates_of(sid) for s in self._read_folder(date, kept_only=False, session=sid)
-                 if s.rid not in self.sessions]
+        found = [s for date in self._dates_of(sid) for s in self._read_folder(date, kept_only=False, session=sid)]
+        self.storage.check_identities(found, self.sessions.values())
+        found = [s for s in found if s.rid not in self.sessions]
         loaded = self._renumber(found, taken={s.n for s in self.sessions.values() if s.sitting == sid})
         if start:
             # One working when the app stopped (its saved status still says so): back as "interrupted".
             working = [s for s in self._read_folder(self.today(), kept_only=False, working=True)
                        if s.sitting != sid and s.rid not in self.sessions]
             loaded += self._renumber(working)
+        self.storage.check_identities(loaded, self.sessions.values())
         for session in sorted(loaded, key=lambda x: x.created):
             interrupted_jobs = False
             for usage in session.usage_runs.values():
@@ -885,11 +892,13 @@ class ResearchManager:
                         'error': 'Interrupted; provider outcome is unknown. No automatic retry.' if unknown
                         else 'Interrupted before dispatch. Submit a new request to continue.'})
                     interrupted_jobs = True
-            if session.renumbered or interrupted_jobs:
+            if (session.renumbered or interrupted_jobs) and not self.storage.portable(session.sitting):
                 self._save(session)  # a number given once (an old duplicate) is kept from now on
             self.sessions[session.rid] = session
         self._top[sid] = max([self._top.get(sid, 0)] + [s.n for s in self.sessions.values() if s.sitting == sid]
                              + self._numbers_on_disk(sid))
+        if not any(key[0] == sid for key in self.storage.unavailable):
+            self._loaded.add(sid)
 
     def _dates_of(self, sid: str) -> list[str]:
         """The calendar dates a session touched, whose folders hold its researchers: the store's for the one open
@@ -967,7 +976,7 @@ class ResearchManager:
         """Every researcher number used in a session, on any of its dates (scripted and description ones included)."""
         found = []
         for date in self._dates_of(sid):
-            for path in (self.root / date).glob("*/session.json"):
+            for path in self.storage.records(date, sid):
                 try:
                     d = json.loads(path.read_text())
                     if _sitting_of(d, date) == sid:
@@ -979,11 +988,13 @@ class ResearchManager:
     def days(self) -> list[dict]:
         """Days with finished research on disk, newest first (the studio's session list)."""
         out = []
-        for d in sorted((d for d in self.root.glob("????-??-??") if d.is_dir()), reverse=True):
-            n = len(self.read_day(d.name)) if d.name != self.today() else len(
-                [s for s in self.sessions.values() if s.purpose == "research" and s.day == d.name])
-            if n or d.name == self.today():
-                out.append({"day": d.name, "count": n})
+        dates = {d.name for _, root in self.storage.roots()
+                 for d in root.glob("????-??-??") if d.is_dir()}
+        for date in sorted(dates, reverse=True):
+            n = len(self.read_day(date)) if date != self.today() else len(
+                [s for s in self.sessions.values() if s.purpose == "research" and s.day == date])
+            if n or date == self.today():
+                out.append({"day": date, "count": n})
         return out
 
     def read_day(self, day: str, kept_only: bool = True, session: str | None = None) -> list[Session]:
@@ -1000,9 +1011,9 @@ class ResearchManager:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day or ""):
             return []
         loaded = []
-        for path in (self.root / day).glob("*/session.json"):
+        for path in self.storage.records(day, session):
             try:
-                d = json.loads(path.read_text())
+                d = self.storage.read(path)
                 if (d.get("purpose") != "research" or d.get("effort") not in EFFORTS or d.get("engine") == "fake"  # scripted tests
                         or (kept_only and d.get("status") not in KEPT)):
                     continue
@@ -1057,7 +1068,7 @@ class ResearchManager:
                     evidence_reads_missing=int(d.get("evidenceReadsMissing", d.get("workingDropped") or 0)),
                     has_crop=str(d.get("snapshot", "")).endswith("crop.jpg"), restored=True,
                     sitting=sitting, specimen=str(d.get("specimen") or ""),
-                    spent_estimated=float(d.get("spentEstimated") or 0), root=self.root,
+                    spent_estimated=float(d.get("spentEstimated") or 0), root=path.parent.parent.parent,
                     notes=_read_inbox(path.parent), plan=d.get("plan") if isinstance(d.get("plan"), dict) else None,
                     requests=[r for r in d.get("requests") or [] if isinstance(r, dict)],
                     working=kept[0], working_dropped=kept[1], revision_now=self._revision_now,
@@ -1070,6 +1081,7 @@ class ResearchManager:
                                                if isinstance(x, dict)) if m is not None]))
             except (OSError, ValueError, KeyError, TypeError):
                 continue
+        self.storage.check_identities(loaded)
         if kept_only:
             loaded = [x for x in loaded if x.outputs or x.result]
         return loaded
@@ -1112,7 +1124,8 @@ class ResearchManager:
         now = self.session()
         return {"sessions": [s.wire() for s in self.sessions.values()
                              if s.purpose != "research" or s.sitting == now or self.working(s)],
-                "spentToday": round(self.spent_today(), 4), "estimatedToday": round(self.estimated_today(), 4)}
+                "spentToday": round(self.spent_today(), 4), "estimatedToday": round(self.estimated_today(), 4),
+                **({"unavailable": self.storage.diagnostics()} if self.storage.unavailable else {})}
 
     def working_by_session(self) -> dict[str, int]:
         """How many researchers are working in each session ({sid: n}; the session list's "working")."""
@@ -1149,6 +1162,29 @@ class ResearchManager:
 
     def running(self, pool: str) -> list[Session]:
         return [s for s in self.sessions.values() if s.status in ("starting", "running") and EFFORTS[s.run_effort].pool == pool]
+
+    def _portable_execution_ready(self, sitting):
+        if self.storage.portable(sitting):
+            raise ResearchRefused("Provider researchers in portable Projects are not qualified yet",
+                                  next="read retained research or use the supported local capability workflows")
+
+    def directory(self, session: Session, *, write=False):
+        return self.storage.directory(session, write=write)
+
+    def file_root(self, date, rid):
+        if getattr(self.store, "locations", None) is None:
+            return self.root
+        candidates = [s for s in self.read_day(date, kept_only=False) if s.rid == rid]
+        current = self.sessions.get(rid)
+        if current is not None and current.day == date:
+            candidates.append(current)
+        self.storage.check_identities(candidates)
+        if any((not scope_day or scope_day == date) and (not scope_rid or scope_rid == rid)
+               for _, scope_day, scope_rid in self.storage.unavailable):
+            raise ProjectLocationError("This unscoped research identity is unavailable; inspect its Project diagnostics")
+        if not candidates:
+            return self.root  # compatible historical files without a session record
+        return self.directory(candidates[0]).parent.parent
 
     def get(self, rid: str) -> Session | None:
         return self.sessions.get(rid)
@@ -1278,10 +1314,10 @@ class ResearchManager:
             found = crop_jpeg(self.hub, obj, pad=0.3)
             if found is None:
                 return None
-            path = self.root / session.day / session.rid / "corrections" / f"{cid}.jpg"
+            path = self.directory(session, write=True) / "corrections" / f"{cid}.jpg"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(found[0])
-            return str(path.relative_to(self.root))
+            return str(path.relative_to(session.root or self.root))
         except Exception:
             return None
 
@@ -1369,6 +1405,7 @@ class ResearchManager:
                     raise ResearchRefused('this request identity was used for different content', next='inspect the original request before submitting a new one')
                 return copy.deepcopy(existing.get('outcome') or {'ok': False, 'code': 'OUTCOME_UNKNOWN',
                     'error': 'The original dispatch has no confirmed outcome. It will not be repeated.'})
+            self._portable_execution_ready(session.sitting)
             current = (session.result or {}).get('findingRevision', {}).get('version')
             if 'expectedBase' in payload and payload['expectedBase'] != current:
                 raise ResearchRefused('the findings changed since this request was composed',
@@ -1440,6 +1477,7 @@ class ResearchManager:
         if session is None or session.purpose != "research":
             raise ResearchRefused("there is no such researcher", next="say which researcher, or look in the Research tab")
         self._this_session_only(session)
+        self._portable_execution_ready(session.sitting)
         if mode in ('continue', 'revise'):
             from .selection import require_current
             require_current(session, selection)
@@ -1677,7 +1715,7 @@ class ResearchManager:
         marks = {k: v for k, v in (about or {}).items() if k in ("holding", "held") and isinstance(v, str)}
         note = {"at": round(time.time(), 2), "text": text, **({"answers": request["id"]} if request is not None else {}),
                 **marks}
-        directory = self.root / session.day / session.rid
+        directory = self.directory(session, write=True)
         directory.mkdir(parents=True, exist_ok=True)
         with (directory / INBOX).open("a") as f:
             f.write(json.dumps(note) + "\n")
@@ -1711,6 +1749,7 @@ class ResearchManager:
         session = self.sessions.get(rid)
         if session is None or session.purpose != "research":
             raise ResearchRefused("there is no such researcher", next="say which researcher, or look in the Research tab")
+        self._portable_execution_ready(session.sitting)
         if session.mission is not None and session.mission.status in ("watching", "checkpoint", "finishing"):
             raise ResearchRefused(f"{session.name} already has a mission running", next="cancel it first, or let it end")
         # Checkpoints are model runs at its effort (deep's 18 min is no checkpoint); a capture mission has none, only its
@@ -2094,25 +2133,26 @@ class ResearchManager:
         # The session the request was asked in (its Asked), else the one open: it belongs there for good (ADR 0017).
         asked_in = getattr(getattr(delivery, "asked", None), "session", None)
         sitting = asked_in if sids.is_sid(asked_in) else self.session()
+        self._portable_execution_ready(sitting)
         brief = _whole(brief.strip(), "the request")
         session = Session(
             rid=f"r{int(time.time()) % 100000:05d}{next(self._ids)}", n=0 if purpose == "description" else self._next_number(sitting),
             brief=brief, deliverable=deliverable, effort=effort,
-            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "gpt-6.1-sol"), purpose=purpose,
+            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "claude-opus-5-5"), purpose=purpose,
             label=label or (obj.label if obj else ""), object_id=obj.id if obj else None, origin=origin or {},
             deliver="tab" if purpose == "research" and (origin or {}).get("workspace") else None,
             day=self.today(), fake=fake, sitting=sitting, specimen=str(self.hub.scene.context.get("specimen") or "")[:80],
-            root=self.root, revision_now=self._revision_now, dependencies=bound_inputs)
+            root=self.storage.root_for(sitting, write=True), revision_now=self._revision_now, dependencies=bound_inputs)
         if fake is None:
             session.admission = {"words": words, "askedWith": asked_with, "mode": self._admit_mode(),
                                  "effort": effort, "deliverable": deliverable}
         session._delivery = delivery  # fixed before snapshot I/O or worker dispatch
         self._new_attempt(session)
-        directory = self.root / session.day / session.rid
+        directory = self.directory(session, write=True)
         # Held before the first await: two starts in one turn must not both pass the check.
         self.spending.hold(session, EFFORTS[effort].cap_usd)
         try:
-            if bound_inputs or (origin or {}).get('study'):
+            if bound_inputs or (origin or {}).get('study') or (origin or {}).get('experiment'):
                 # An explicit retained-work handoff never silently substitutes the camera now.
                 (directory / 'inputs').mkdir(parents=True, exist_ok=True)
                 snapshot = {'learner': learner_of(self.hub.settings)}
@@ -2142,7 +2182,7 @@ class ResearchManager:
         return ({"specimen": self.hub.scene.context.get("specimen"),
                  "turns": self.conversation.text() if self.conversation is not None else "",
                  "frame_id": info.id if info else None,
-                 "learner": learner_of(self.hub.settings), **_door()}, info)
+                 "learner": learner_of(self.hub.settings), **_door(self.hub)}, info)
 
     async def _take_snapshot(self, directory: Path, obj) -> dict:
         from ..capture import CaptureGone, Refused, captures
@@ -2264,6 +2304,7 @@ class ResearchManager:
             return
         attempt = session._attempt or self._new_attempt(session)
         try:
+            self._portable_execution_ready(session.sitting)
             worker = await self._ensure_worker()
             if session._attempt is not attempt or attempt.completion.done():
                 return  # a canceled/replaced queued attempt is never dispatched by an old launch task
@@ -2275,9 +2316,12 @@ class ResearchManager:
                    else {"brief": session.package or session.brief, "deliverable": session.deliverable, "revise": None})
             attempt.record.update(status="dispatched", dispatchedAt=time.time())
             self._save(session)
-            reply = await worker.call("spawn", rid=session.rid, run_id=attempt.id, n=session.n, brief=job["brief"], deliverable=job["deliverable"],
+            # A busy Mac can take more than the channel's usual 10 s to answer the first spawn while the research
+            # process is still importing (live 2026-10-30, load 55: "research-start-failed TimeoutError", the researcher
+            # "could not start"); the spawn's answer is only its acknowledgement, so it is given a minute.
+            reply = await worker.call("spawn", timeout=SPAWN_TIMEOUT_S, rid=session.rid, run_id=attempt.id, n=session.n, brief=job["brief"], deliverable=job["deliverable"],
                               effort=session.run_effort, engine=session.engine, label=session.label, purpose=session.purpose,
-                              dir=str(self.root / session.day / session.rid), snapshot=snapshot,
+                              dir=str(self.directory(session, write=True)), snapshot=snapshot,
                               dependencies=copy.deepcopy(session.dependencies),
                               image_model=getattr(self.hub.settings, "image", None), fake=session.fake,
                               lesson_check=getattr(self.hub.settings, "lesson_check", "off"),
@@ -2288,8 +2332,7 @@ class ResearchManager:
                               revise=job["revise"], inbox_from=session._notes_from,
                               requests_from=len(session.requests),  # its questions numbered on from earlier runs' (one numbering)
                               resources_url=self.resources_url, day=session.day, session=session.sitting,
-                              transcript=(str(self.transcripts / session.day / f"{session.rid}.jsonl")
-                                          if self.transcripts is not None else None),
+                              transcript=self.storage.transcript(session, self.transcripts),
                               # A monthly cap bounds each run to its effort's most, the amount its hold reserved
                               # against the month (ledger.hold), so runs never share one remaining allowance.
                               unlimited_budget=(not session.origin.get('study') and session.run_effort != "build" and self.hub.settings.research_cap is None
@@ -2806,6 +2849,9 @@ class ResearchManager:
                                              **({'run_id': message.get('runId')}
                                                 if message.get('operation') in ('measure_saved_objects','workflow') else {}),
                                              **({'params':message.get('params')} if message.get('operation')=='workflow' else {}),
+                                             # classify's models and classes (model_comparison.py), checked by hands
+                                             **({"models": message.get("models"), "classes": message.get("classes")}
+                                                if message.get("operation") == "classify" else {}),
                                              # one the catalog added, with its parameters (the one door, kinds.py)
                                              **({"capability": str(message["capability"])[:120],
                                                  "params": message.get("params") if isinstance(message.get("params"), dict)
@@ -2827,7 +2873,7 @@ class ResearchManager:
         if not self.hub.source.is_fresh():
             return {"ok": False, "error": "no fresh picture from the camera"}
         session.last_snapshot = time.monotonic()
-        directory = self.root / session.day / session.rid
+        directory = self.directory(session, write=True)
         meta = await self._take_snapshot(directory, obj)  # fresh acquisition captures its own current context
         return {"ok": True, "frame": meta.get("frame"), "crop": meta.get("crop")}
 
@@ -2874,7 +2920,7 @@ class ResearchManager:
 
     # --- records ----------------------------------------------------------------------
     def _save(self, session: Session) -> None:
-        directory = self.root / session.day / session.rid
+        directory = self.directory(session, write=True)
         directory.mkdir(parents=True, exist_ok=True)
         # `session`: the session it was started in (ADR 0017), read back as `sitting`.
         data = session.wire() | {"origin": session.origin, "responseId": session.response_id, "session": session.sitting}
@@ -2894,9 +2940,7 @@ class ResearchManager:
             data["canFollowUp"] = session.purpose == "research"
         # Atomic: written beside it, then moved over it, so a stop mid-write never leaves a torn file (a mission's
         # ledger is saved row by row).
-        tmp = directory / "session.json.tmp"
-        tmp.write_text(json.dumps(data, indent=2))
-        os.replace(tmp, directory / "session.json")
+        self.storage.save(session, data)
 
     def _log(self, session: Session, record: dict) -> None:
         try:
@@ -2905,10 +2949,11 @@ class ResearchManager:
             log.exception("research log failed")
 
     def _ledger(self, session: Session, entry: dict) -> None:
-        self.root.mkdir(parents=True, exist_ok=True)
+        root = self.storage.root_for(session.sitting, write=True)
+        root.mkdir(parents=True, exist_ok=True)
         record = {"at": round(time.time(), 2), "rid": session.rid, "researcher": session.name, "label": session.label,
                   "objectId": session.object_id, "specimen": self.hub.scene.context.get("specimen"), **entry}
-        with (self.root / "findings.jsonl").open("a") as f:
+        with (root / "findings.jsonl").open("a") as f:
             f.write(json.dumps(record) + "\n")
 
     def _changed(self, session: Session) -> None:
@@ -2924,10 +2969,11 @@ class ResearchManager:
             self._worker.stop()
 
 
-def _door() -> dict:
+def _door(hub=None) -> dict:
     """What a researcher can run beside the app's own operations, as it starts (the one door, kinds.py; ADR 0024): the
-    capabilities on here that take the view, with their parameters, and every cell finder segment can name. The research
-    process imports nothing of the app, so it is told."""
+    capabilities on here that take the view, with their parameters, every cell finder segment can name, and the
+    classifying models classify can name (those that can run here, when two or more can: W5). The research process
+    imports nothing of the app, so it is told."""
     out = {}
     try:
         from .. import kinds
@@ -2940,6 +2986,13 @@ def _door() -> dict:
         from ..operations import OPERATIONS
 
         out["cellFinders"] = {i.id: i.label for i in OPERATIONS["cells"].implementations}
+        classifiers = {i.id: i.label for i in OPERATIONS["classify"].implementations}
+        if hub is not None:
+            from ..operations import availability
+
+            runnable = {k: v for k, v in classifiers.items() if not availability(hub, OPERATIONS["classify"].impl(k))}
+            classifiers = runnable if len(runnable) >= 2 else classifiers  # else every one, so its refusal says why
+        out["classifiers"] = classifiers
     except Exception:  # noqa: BLE001
         pass
     return out

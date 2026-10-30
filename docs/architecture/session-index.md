@@ -153,6 +153,11 @@ other files.
   change in memory without a write, so a marker that missed one would say unchanged when it was not. The build is
   cheap: one collect's nested reads are shared (the researchers, and the collects the read badges' documents make),
   so a listing reads each store once plus each researcher-read entry's document.
+- **A document** (`write_document`, documents.py; on-screen.md "Documents") is a result entry with `media` "document":
+  role "writeup" (`produces.RESULT_ROLES`), a product, untrusted (its words are a model's from records partly not the
+  app's), `shown` its own title, its line made from what it keeps (`documents.summary_of`, never the receipt of the
+  request that made it, which says where it was shown then), and its text read from its file (`documents.text_of`, the
+  entry's detail; its values are not read twice). In `project.state` it is category "other", not a measurement.
 - **Saved scientific measurements** (`measure_saved_objects`) publish a typed table in the accepted Project,
   exposed by the index as `project`. They do not duplicate that table as a legacy `result` entry.
 - **Results are built from the tool run itself.** No tool has storage code of its own:
@@ -228,3 +233,37 @@ Display and exports must carry the warning; the method column is not an inferred
 Imported source documents expose the intake publisher’s retained `sourceImport` actor
 and operation as Data’s `madeBy`. Older documents without recorded provenance stay
 unattributed; the active connection never becomes the inferred author.
+
+Project material metadata comes from `project_material.describe`: declared document kinds and accepted output summary formats, never titles. Both resource wires and project.state carry that same projection. Metadata listing does not claim to have verified all payload bytes or qualified a reader. Unknown imports remain Files; matrix result formats distinguish retained response models from analysis output. Workflow attempts carry the original run ID for grouping.
+
+Material organization is an accepted exact-reference membership record, published by
+`project_material_edit.organize` from Studio or the declared `material.organize`
+agent action. It records the role/group, input selection, organizing actor and exact
+basis. The input’s scientific head does not change, including for a historical Study pin.
+Scientific kind, producing provenance, original bytes and historical revisions
+remain unchanged. Runtime/resource checks and revision conflicts stay with ProjectStore.
+Study-pinned dependencies remain Inputs even when a later revision is not selected.
+Group names are human/agent-supplied context, never inferred scientific classifications.
+
+## Portable result storage adapter
+
+Results resolve their original Project before retaining values or image bytes.
+The optional ProjectLocations resolver stores the existing date layout under that
+Project's artifacts/results; legacy Projects keep paths.results. Background writes
+capture the original session, pending saves are scoped to their store, and saved
+reads follow the journal owner after relocation. Changed/missing result folders
+refuse rather than recreating evidence. App activation still waits for the other
+legacy asset/research stores; this adapter does not certify complete collection.
+
+Study assignments are working material from creation, before findings exist.
+`project.state` joins each authoritative Study once into its data list with the
+same material metadata as the resource index and its exact Study reference. The
+separate Studies summary remains navigation/status for that same object, not a
+second output. No finding or scientific completion is inferred from an assignment.
+
+Retained Project media has one scientific inventory entry. `_sources` omits the
+legacy Library alias for an exact `source_references` binding, including inactive
+Project reads. Inputs/Data join the source’s retained metadata to that exact record;
+a matching host Library ID cannot contribute another item or replace its identity.
+
+Accepted agent-import provenance supplies its recorded display label to the shared maker projection. It takes precedence over a current host label and remains available after folder restoration without connections. This is historical authorship only; reading it never registers or authenticates an agent. Legacy records without a label keep the host/unknown fallback.

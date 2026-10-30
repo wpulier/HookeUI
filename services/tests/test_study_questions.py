@@ -32,3 +32,17 @@ def test_question_pins_substantive_context_and_answer_survives_reopen(tmp_path):
     with pytest.raises(Conflict): q.answer(study.id, 's1', first['id'], **{**reply,'statement':'Replaced'})
     with pytest.raises(InvalidProject): q.answer(study.id, 's1', first['id'], **{**reply,'actor':A})
     with pytest.raises(InvalidProject): q.answer(study.id, 's1', first['id'], **{**reply,'evidence':[{**identity(image),'session':'other'}]})
+
+
+def test_material_question_keeps_exact_attachment_and_refuses_changed_retry(tmp_path):
+    s, _, study, image, _ = setup(tmp_path)
+    q = Questions(s)
+    fields = dict(request='attached', question='Explain this input', basis=identity(study),
+                  materials=[identity(image)], recipient={'actor':B,'label':'Reviewer'}, actor='studio', label='You')
+    first=q.ask(study.id,'s1',**fields)
+    assert q.context(study.id,'s1',first['id'])['question']['materials']==[identity(image)]
+    assert q.ask(study.id,'s1',**fields)==first
+    with pytest.raises(Conflict):q.ask(study.id,'s1',**{**fields,'materials':[]})
+    for changed in ({'session':'other'},{'digest':'f'*64},{'revision':99}):
+        with pytest.raises((InvalidProject,ValueError)):
+            q.ask(study.id,'s1',**{**fields,'request':'bad','materials':[{**identity(image),**changed}]})

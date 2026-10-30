@@ -1,5 +1,14 @@
 import {describe,it,expect} from 'vitest';
-import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,SCHEMA5_PRESENTATIONS,bumpForSchema5,layoutForServer,mainLayout,needsSchema5,needsSchema6,readerItem,readerView,renewPlacements,setTabKind,tileRects,transferItem,undoArrange} from './workspace-views-model';
+import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,SCHEMA5_PRESENTATIONS,bumpForSchema5,floatingSpecimen,layoutForServer,mainLayout,needsSchema5,needsSchema6,readerItem,readerView,renewPlacements,setTabKind,specimenState,tileRects,transferItem,undoArrange} from './workspace-views-model';
+
+it('retained media requires schema 7 and cannot be stripped for an older server',()=>{
+ const layout=mainLayout();
+ layout.views[0].input={source:'a1',position:0,retained:{origin:'a'.repeat(32),session:'project',document:'p'+'b'.repeat(32),revision:1,digest:'c'.repeat(64)}};
+ bumpForSchema5(layout);
+ expect(layout.schema).toBe(7);
+ expect(layoutForServer(layout,7).views[0].input).toEqual(layout.views[0].input);
+ expect(()=>layoutForServer(layout,6)).toThrow('exact reference cannot be dropped');
+});
 describe('session arrangements',()=>{
  it('moves the exact revision without duplicating or deleting content',()=>{
   const l=mainLayout(),item={resource:{day:'2026-10-16',id:'e14',version:2,picture:0},title:'Masks',zoom:1,pan:[.5,.5]};
@@ -73,7 +82,7 @@ describe('layout schema 5',()=>{
  const lanes=[{placementId:'a',label:'A' as const,impl:'cellpose'},{placementId:'b',label:'B' as const,impl:'stardist'}];
  it('keeps older layouts in their own format until a schema-5 field is written',()=>{
   const layout=compareTab();
-  expect(LAYOUT_SCHEMA).toBe(6);expect(needsSchema5(layout)).toBe(false);
+  expect(LAYOUT_SCHEMA).toBe(7);expect(needsSchema5(layout)).toBe(false);
   bumpForSchema5(layout);expect(layout.schema).toBe(4);
   setTabKind(layout,'c1',{kind:'compare',compare:{sync:true,lanes}});
   expect(layout.schema).toBe(5);expect(layout.views[1].compare?.lanes).toEqual(lanes);
@@ -129,7 +138,7 @@ describe('layout schema 6: the reader Tab (ticket 66)',()=>{
   bumpForSchema5(layout);expect([needsSchema6(layout),layout.schema]).toEqual([false,5]);
   layout.views.push(readerView('t9',item));bumpForSchema5(layout);
   expect([needsSchema6(layout),layout.schema]).toEqual([true,6]);
-  expect(LAYOUT_SCHEMAS).toEqual([2,3,4,5,6]);
+  expect(LAYOUT_SCHEMAS).toEqual([2,3,4,5,6,7]);
  });
  it('sends a server that reads only schema 5 the layout without its reader Tabs, which stay in the studio',()=>{
   const layout=mainLayout();layout.views.push(readerView('t9',item));bumpForSchema5(layout);
@@ -142,4 +151,14 @@ describe('layout schema 6: the reader Tab (ticket 66)',()=>{
   const view=readerView('t9',item);renewPlacements(view,()=>'new');
   expect(view.items).toEqual([{resource:item.resource,title:item.title}]);
  });
+});
+
+it('floats the specimen small in the Stage\'s lower-left corner, its picture 4:3 under its bar, inside the Stage',()=>{
+ for(const [w,h] of [[1400,860],[900,600],[640,420]]){
+  const [x,y,a,b]=floatingSpecimen(w,h);
+  expect(a).toBeGreaterThanOrEqual(240);expect(a).toBeLessThanOrEqual(320);expect(b-36).toBe(Math.round(a*3/4));
+  expect(x).toBe(16);expect(y+b).toBeLessThanOrEqual(h-16);expect(y).toBeGreaterThanOrEqual(40);
+ }
+ expect(specimenState({visible:true,rect:null})).toBe('fill');expect(specimenState({visible:true,rect:[1,2,3,4]})).toBe('float');
+ expect(specimenState({visible:false,rect:[1,2,3,4]})).toBe('hidden');
 });

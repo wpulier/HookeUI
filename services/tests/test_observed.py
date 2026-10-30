@@ -107,7 +107,7 @@ def test_a_key_its_service_refused_is_no_key(home, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "test-value")
     monkeypatch.setattr(key_tests, "check", lambda service, value, client=None: key_tests.Outcome("rejected"))
     observed.store().put("key", "GEMINI_API_KEY", observed.probe_key("GEMINI_API_KEY"))
-    r = readiness.option("vision", options.Settings().vision, keys={"GEMINI_API_KEY": True})
+    r = readiness.option("vision", "gemini-3.8-flash", keys={"GEMINI_API_KEY": True})  # a Gemini model, chosen by hand
     assert not r.available and r.next.says == "Replace your Google Gemini API key" and "refused it" in r.next.how
     monkeypatch.setattr(key_tests, "check", lambda service, value, client=None: key_tests.Outcome("unchecked", "timed out"))
     assert observed.probe_key("GEMINI_API_KEY")["state"] == "unknown", "a timeout is never a refusal"
@@ -172,7 +172,7 @@ def test_answers_survive_a_restart(home):
 
 
 # --- the guarantees: nothing is a blocker because it is written down ---------------------------------------------------
-LOCAL_FACTS = {"files", "code", "weights", "on", "check", "runs", "edition", "entry"}
+LOCAL_FACTS = {"files", "code", "weights", "on", "check", "use", "runs", "edition", "entry"}  # use: a run here
 
 
 def test_every_kind_of_requirement_has_a_source_of_truth():

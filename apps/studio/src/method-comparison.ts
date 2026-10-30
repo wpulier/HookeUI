@@ -5,6 +5,8 @@ type Open=(target:Target)=>Promise<void>;
 type Owner={signal:AbortSignal;current:()=>boolean};
 type Native={kind:'array';session:string;id:string;revision:number;component:string;digest:string};
 const OPERATION='compare-retained-methods-v1';
+/** A retained comparison's arms, A to F: a workflow's comparison step compares up to six (method_comparison.py ARM_IDS). */
+const ARM_IDS=['a','b','c','d','e','f'];
 type Selection={session:string;source:Native;arms:Record<string,unknown>[];request:string};
 const object=(v:unknown):v is Record<string,unknown>=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='')=>{const el=document.createElement(tag);el.textContent=text;return el;};
@@ -173,7 +175,7 @@ export async function showMethodComparison(root:HTMLElement,source:Source,open:O
     const summaryLink=node('a','Download summary JSON');summaryLink.setAttribute('href',`/api/scientific-methods/${encodeURIComponent(source.id)}?${query(source)}`);summaryLink.download='comparison.json';section.append(' ',summaryLink);
     const choices:HTMLButtonElement[]=[],rationale=node('textarea');rationale.maxLength=4096;
     for(const arm of e.arms){
-      if(!object(arm)||!['a','b','c'].includes(String(arm.id))||!['completed','failed','cancelled'].includes(String(arm.status)))throw new Error('An arm has incomplete retained evidence.');
+      if(!object(arm)||!ARM_IDS.includes(String(arm.id))||!['completed','failed','cancelled'].includes(String(arm.status)))throw new Error('An arm has incomplete retained evidence.');
       const metric=summary.arms.find(r=>object(r)&&r.id===arm.id);
       if(!object(metric)||!(metric.area===null||typeof metric.area==='number'&&Number.isFinite(metric.area)))throw new Error('An arm has an unsupported summary.');
       const row=node('section');row.append(node('h4',`Arm ${String(arm.id).toUpperCase()} · ${String(arm.says)}`),node('p',`${String(arm.factor)} · ${String(arm.status)}`),node('p',metric.area===null?'Unavailable — no accepted measurement':`${metric.area} ${String(metric.unit)} · ${String(metric.pixels)} foreground elements`));

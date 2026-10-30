@@ -17,13 +17,16 @@ Nothing here may take time from the live view (as footage_media.py for the foota
   on macOS), never on the event loop or the frame path; a video's poster frame comes from ffmpeg run as a
   background-priority process;
 - they are kept in memory only (at most CACHE_MAX, the least recently used let go), keyed by what the studio
-  says the entry is now (`v`), so nothing new is saved; one that cannot be made is asked again after MISS_S.
+  says the entry is now (`v`), so nothing new is saved; one that cannot be made is asked again after MISS_S;
+- a library recording in the footage folder (every example, every real recording) is shown from the small picture the
+  camera bridge already keeps of it (`footage_picture`), so a page of Examples runs no ffmpeg at all.
 """
 from __future__ import annotations
 
 import asyncio
 import concurrent.futures
 import ctypes
+import hashlib
 import io
 import os
 import shutil
@@ -114,6 +117,25 @@ def shrink(data: bytes | None, *, region: tuple[float, float, float] | None = No
         image.save(out, "JPEG", quality=QUALITY, optimize=True)
         return out.getvalue()
     except Exception:  # noqa: BLE001 - an unreadable picture is no thumbnail, never an error page
+        return None
+
+
+def footage_picture(footage: Path | None, path: Path) -> bytes | None:
+    """The camera bridge's own small picture of a file in the footage folder, when it has made one: footage/.thumbs/
+    named as experiments/iphone-camera-feed/scripts/footage_media.py's `thumb_path` names it. Every example and real
+    recording has one once the camera menu has listed it, so the library shows them without running ffmpeg per card.
+    None for a file outside that folder or not pictured yet; the caller makes the poster frame then."""
+    if footage is None:
+        return None
+    try:
+        name = Path(path).relative_to(footage).as_posix()
+        stat = Path(path).stat()
+    except (ValueError, OSError):
+        return None
+    key = hashlib.sha1(f"{name}|{stat.st_size}|{int(stat.st_mtime)}".encode()).hexdigest()[:20]
+    try:
+        return (Path(footage) / ".thumbs" / f"{key}.jpg").read_bytes() or None
+    except OSError:
         return None
 
 
@@ -223,7 +245,11 @@ class Thumbnails:
         if asset is None:
             return None
         try:
-            data = poster(asset.path) if asset.kind == "recording" else shrink(asset.path.read_bytes())
+            if asset.kind == "recording":
+                pictured = footage_picture(getattr(library, "footage", None), asset.path)
+                data = shrink(pictured) if pictured else poster(asset.path)
+            else:
+                data = shrink(asset.path.read_bytes())
         except OSError:
             return None
         if data is not None:

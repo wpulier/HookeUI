@@ -99,14 +99,15 @@ beforeEach(() => {
 });
 afterEach(() => { runtime?.dispose(); windows?.dispose(); runtime = undefined; windows = undefined; vi.unstubAllGlobals(); });
 let pageVisible = true; // the studio on the user's display, or in the background (another app or tab in front)
-async function make(bytes = ABC, openCapture?: ConstructorParameters<typeof WorkspaceWindows>[0]['openCapture'], structural?: () => WorkspaceStructuralInput) {
+async function make(bytes = ABC, openCapture?: ConstructorParameters<typeof WorkspaceWindows>[0]['openCapture'], structural?: () => WorkspaceStructuralInput,
+  onPresentation?: ConstructorParameters<typeof WorkspaceWindows>[0]['onPresentation']) {
   pageVisible = true;
   const path = './workspace-runtime.ts';
   const module = await import(/* @vite-ignore */ path).catch((cause: unknown) => { throw new Error('MISSING_FEATURE: actual Studio WorkspaceRuntime adoption seam', { cause }); });
   expect(typeof module.WorkspaceRuntime, 'MISSING_FEATURE: public runtime adapter').toBe('function');
   const sent: unknown[] = [], blobs: Blob[] = [], revoked: string[] = [], panels = new PanelStack();
   const fetchBytes = vi.fn<typeof fetch>(async () => new Response(new Uint8Array(bytes).buffer, { headers: { 'Content-Type': 'image/jpeg' } }));
-  const real = new WorkspaceWindows({ host: dom.host as unknown as HTMLElement, context, panels, openCapture,
+  const real = new WorkspaceWindows({ host: dom.host as unknown as HTMLElement, context, panels, openCapture, onPresentation,
     send: (value) => runtime!.manual(value), retryLive: (id) => runtime!.retryLive(id), facts: () => ({ canvas: dom.host.getBoundingClientRect(), area: { width: 1200, height: 800 }, disc: null, object: null, labels: [] }) });
   windows = real;
   runtime = new (module.WorkspaceRuntime as Factory)({ context, host: dom.host as unknown as HTMLElement, windows: real,
@@ -876,6 +877,34 @@ describe('native live source delivery', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(fetchBytes).toHaveBeenCalledTimes(calls);
     expect(root().hidden).toBe(true); expect(revoked.length).toBeGreaterThan(0);
+  });
+  test('a live window closed in the Project workspace is reported closed and detached, and its close is confirmed', async () => {
+    // main.ts mounts each presented window in the Project's artifacts container, inside the stage. A close presented
+    // the closed window again, so it was mounted back there (live 2026-10-29 18:57, "close everything on this tab"):
+    // reported closed but connected, its controls present, never the inactive closed window the server takes, and
+    // the magnifier's close was "sent, but not confirmed on screen".
+    const artifacts = new TestElement('div'); dom.host.append(artifacts);
+    const { runtime, fetchBytes } = await make(ABC, undefined, undefined, (_id, root) => artifacts.append(root as unknown as TestElement));
+    const live = liveDescriptor();
+    fetchBytes.mockImplementation(async () => response(live.delivery.sourceToken));
+    await runtime.receive(command([live]));
+    await vi.waitFor(() => expect(dom.images.some((image) => image.decodeCalls > 0)).toBe(true));
+    dom.images.find((image) => image.decodeCalls > 0)!.finishDecode(1280, 720); await settleMicrotasks(); dom.frame();
+    expect(item().connected).toBe(true); expect(artifacts.contains(root())).toBe(true);
+    // The server's close: a new lifetime, open false (presentations.py), as the journey's was.
+    const closed = { ...live, open: false, revision: 2, lifetimeGeneration: 'b1c0e7a2-5d4e-4f3a-9b8c-7d6e5f4a3b2c',
+      propertyVersions: { ...live.propertyVersions, open: 2 } };
+    const close = command([closed], 'live-close', 'close'); close.fence.targets[A].basePropertyVersions.open = 1;
+    close.fence.targets[A].lifetimeGeneration = closed.lifetimeGeneration;
+    await runtime.receive(close);
+    const report = sample(8), row = item(A, report);
+    expect(row.open).toBe(false); expect(row.connected).toBe(false); expect(row.visible).toBe(false);
+    expect(row.controls.filter((control) => control.present)).toEqual([]);
+    expect(artifacts.contains(root())).toBe(false);
+    expect(result('live-close', A, report)).toMatchObject({ phase: 'closed', absent: true });
+    const consumer = backendContract(report, close, ['closed']) as unknown as { refused?: string; result: { status: string } };
+    expect(consumer.refused).toBeUndefined();
+    expect(consumer.result.status).toBe('confirmed');
   });
   test('closing during live decode cannot resurrect the retired window', async () => {
     const { runtime, fetchBytes, revoked } = await make(); const live = liveDescriptor();

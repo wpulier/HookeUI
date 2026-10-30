@@ -1,4 +1,5 @@
-import {selectObservedWorkspaceInput} from './workspace-input';
+import {selectObservedWorkspaceInput,exactInputObserved} from './workspace-input';
+import { SourceIntake } from './source-intake';
 import { scientificAskSelection } from './scientific-ask-input';
 import { ActivityNavigation, type ActivitySurface } from './workspace-study-navigation';
 import { workspaceInput } from './workspace-views-model';
@@ -7,6 +8,7 @@ import { bridgeAddress } from './bridge-address';
 import { artifactPresentation, openStudyCapture, openStudyComparison, openStudyMasks, openStudyTable, openStudyText } from './workspace-study-content';
 import { studyArtifacts } from './workspace-study-artifacts';
 import { openTableWindow } from './agent-table';
+import { openWebWindow } from './web-window';
 import { openStudyScientific } from './scientific-document';
 import { SetupNote } from './setup-note';
 import { SetupProgress } from './setup-progress';
@@ -21,7 +23,7 @@ document.documentElement.dataset.buildDigest = __MICROMIND_BUILD__.sourceDigest 
 import { itemSpace } from './spaces';
 import type { WorkspaceViewport } from './workspace-runtime';
 import { livePlacementObject } from './window-placement';
-import { captureWindow, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem } from './screen';
+import { captureWindow, verifierLegacy, rectOf, renderHint, saidOnce, ScreenReporter, WorkspaceSession, magnifierSurface, surfaceVisible, type StudioSurfaceCollection, type StudioSurfaceLegacy, type StudioSelection, type PresentMessage, type ScreenItem, type VerifierSpecimen, type VerifierTab } from './screen';
 import './style.css';
 import { assertNever, Connection, type CapabilitiesWire, type AssetMeta, type SessionCleared, type SessionState, type DatasetState, type DayState, type ArenaState, type ClientCommand, type Health, type Reveal, type Scores, type ServerMessage, type Settings, type TopProgram, type ToolRun, type Trial } from './protocol';
 import { BoxDrag, frameBox } from './boxdrag';
@@ -71,9 +73,18 @@ import { listVolumes } from './volumespanel';
 import { openAddKey } from './addkey';
 import { ARM_DASH, OUTLINE_COLORS, View } from './view';
 import { PARTNER_VOICE, VoiceClient, type VoiceEvent, type VoiceState } from './voice';
+import { MicCard, micPermission, needsMicCard, type MicPermission } from './mic-card';
 import { TalkHold, TalkTurns, talkKey, talkKeyWords, type TalkKey } from './talk';
+import { CursorPainter, PartnerCursor, Takeover } from './drive';
+import { HeardRing, HeardTone, heardCue, heardHandler, type HeardCue } from './heard';
+import './drive.css';
+import { FlightStrip, flightPills, voiceEntries, VOICE_SOURCE, type FlightEntry } from './handoffs';
+import { VoicePresence } from './voice-presence';
+import './handoffs.css';
+import './experiment-card.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
+import './mic-card.css';
 import { partnerHandler, windowSnapshot, type WindowCapture } from './partner';
 import { opensWorkForUser, ShowingBar } from './showing';
 import { StudioShell, navigateStudio, workspaceConnectionNotice } from './studio-shell';
@@ -85,7 +96,7 @@ import { ResultFocus } from './result-focus';
 import { SessionsModel, sessionName } from './sessions';
 import { SessionMenu } from './session-menu';
 import { SideBar, type SideSection } from './sidebar';
-import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, StageGate, startMayLand, viewOnOpen, type Landing, type StartLook } from './session-view';
+import { cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, LAND_WAIT_MS, lookState, onStart, StageGate, startMayLand, switchBlock, viewOnOpen, type Landing, type StartLook } from './session-view';
 import { addFiles, isAssetFeed, joinedSince, liveState, plainError, SourcesModel, SourcesSection, stageOf, type SourceRow, type SourcesState } from './sources';
 import { assetFor, isOwnFootage, libraryUrl, readLibrary } from './asset-library';
 import { SessionHome } from './session-home';
@@ -203,6 +214,15 @@ const slideMap = new SlideMapPanel((command) => connection.send(command), () => 
 const mapButton = element<HTMLButtonElement>('map');
 mapButton.addEventListener('click', () => slideMap.toggle());
 slideMap.onToggle = (open) => mapButton.setAttribute('aria-pressed', String(open));
+// What is in flight, over the composer (handoffs.ts): the voice's hand-offs to Hooke's brain (the chat's rows) and the
+// researchers at work in this Project, each entry jumping to its row or card (else its Tab); gone when nothing runs.
+const flightStrip = new FlightStrip();
+function flightResearchers(): void {
+  flightStrip.set('researchers', [...research.sessions.values()]
+    .filter((s) => s.purpose === 'research' && isWorking(s) && (!sitting || (s.sitting || s.day) === sitting))
+    .map((s) => ({ key: `researcher:${s.rid}`, name: s.name, since: s.started ?? s.created, doing: researcherCardView(s).sub,
+      go: () => { if (!chat.revealResearcher(s.rid)) openStudyResearch(s.rid); } })));
+}
 // The shelf (the Working strip's researchers: working, or new work not opened yet) and the side bar's Researchers
 // (every researcher of this session). Its count is its cards (researchersCount), never the quick lookups.
 function openStudyResearch(rid: string): void {
@@ -215,6 +235,7 @@ const shelf = new Shelf((rid) => openStudyResearch(rid), (rid) => connection.sen
 shell.strip.openList = (where) => { if(where==='activity'){showActivity(true);return;} if(document.body.dataset.workspaceStudy==='true')window.dispatchEvent(new CustomEvent('workspace-study-section',{detail:'research'}));else sideBar.open('researchers', true); };
 function renderResearchers(): void {
   shelf.update(research.sessions.values(), viewer.state, sitting);
+  flightResearchers();
   // The side bar's Researchers: the cards, compact, drawn while that section shows (and when it is opened).
   if (sideBar.showing('researchers') || document.body.dataset.workspaceStudy==='true') sideResearchers.update(research.sessions.values(), viewer.state, sitting);
   countResearchers();
@@ -410,13 +431,20 @@ const sideResearchers = new ResearcherCards((rid) => { shelf.markOpened(rid); op
 // capabilities message's; its forms are the tools' own arguments (GET /api/actions). The dock's view tools move in.
 let studyActionOwner: string | null = null;
 let studyTransition = false;
-let studyInputNavigation:((source:string,title:string,session:string,position:number)=>Promise<boolean>)|null=null;
+let studyInputNavigation:((source:string,title:string,session:string,position:number,retained?:AssetMeta['retained'])=>Promise<boolean>)|null=null;
+const sourceIntake = new SourceIntake(() => sessionsModel.current,
+  (asset,session,request) => connection.request('source-retain',{asset,session}, request), () => openToken, sessionStorage);
 /** User choices open a dedicated work Tab; internal restoration still uses putOnStage. */
 async function openUserInput(target:string,options:{asset?:AssetMeta;at?:number;paused?:boolean;session?:string;say?:(text:string)=>void}={}):Promise<boolean>{
-  if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,options);
+  const session=options.session??sessionsModel.current;
   try{
+    if(sessionsModel.opening())throw new Error('Wait for this Project to finish opening.');
+    const admitted=await sourceIntake.prepare(target,session,options.asset?.retained);
+    if(!admitted.ready)return false;
+    if(sessionsModel.opening())return false;
+    if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,{...options,session,retained:admitted.retained});
     if(!studyInputNavigation)throw new Error('Wait for the workspace to finish opening.');
-    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',options.session??sessionsModel.current,options.at??0);
+    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',session,options.at??0,admitted.retained);
   }catch(error){showHint(error instanceof Error?error.message:String(error),true);return false;}
 }
 const studySessionSwitch = new StudySessionSwitch();
@@ -994,7 +1022,68 @@ const voice = new VoiceClient(handleVoice, renderVoiceState, (level) => {
   const value = Math.min(1, level * 4).toFixed(2);
   talkButton.style.setProperty('--level', value);
   holdRing.style.setProperty('--level', value);
+  presence.mark.style.setProperty('--level', value);
 });
+
+// The voice's state, always in sight and true (voice-presence.ts): the server's `voice-state`, the user's own key held,
+// and Hooke's work in flight counted from the strip over the composer. Beside Talk (its mark and the status line), in
+// the Assistant header (a chip by its title), and with the Assistant closed as the presence pill in the Working strip.
+/** Whether the Assistant itself shows now (the Stage bar's Assistant pressed; the older layout: the chat not folded). */
+function assistantShown(): boolean {
+  if (document.body.dataset.workspaceStudy === 'true') {
+    const toggle = document.querySelector('.study-agent-toggle');
+    return toggle ? toggle.getAttribute('aria-pressed') === 'true' : true;
+  }
+  return document.body.dataset.chat !== 'hidden';
+}
+function openAssistant(): void {
+  if (document.body.dataset.workspaceStudy === 'true') window.dispatchEvent(new Event('workspace-show-agent'));
+  else setChatHidden(false);
+}
+const presence = new VoicePresence({
+  talk: () => voice.state,
+  held: () => { try { return !!talkHold.held && turns.open; } catch { return false; } }, // before Talk's hold is made: none
+  working: () => flightStrip.working,
+  assistantShown,
+  openAssistant,
+  sink: (pills) => shell.strip.set('voice', pills),
+  header: () => document.querySelector<HTMLElement>('.study-right-header'),
+  talkButton,
+  rendered: () => watchAssistant(),
+});
+const voiceLine = Object.assign(document.createElement('span'), {className: 'voice-session-line'});
+voiceStatus.replaceWith(voiceLine);
+voiceLine.append(presence.mark, voiceStatus);
+// The Assistant opening or closing: the presence pill shows or goes (its button's pressed state, read once it exists).
+let assistantWatched: Element | null = null;
+const assistantWatch = typeof MutationObserver === 'function' ? new MutationObserver(() => presence.render()) : null;
+function watchAssistant(): void {
+  if (!assistantWatch) return;
+  const toggle = document.querySelector('.study-agent-toggle');
+  if (!toggle || toggle === assistantWatched) return;
+  assistantWatched = toggle;
+  assistantWatch.observe(toggle, { attributes: true, attributeFilter: ['aria-pressed'] });
+}
+assistantWatch?.observe(document.body, { attributes: true, attributeFilter: ['data-chat', 'data-study-inspector', 'data-assistant-over'] });
+// Hooke's own work in flight on the Working strip too (hand-offs and think jobs; researchers have the shelf's pills),
+// from the same list as the strip over the composer, so both count the same; the voice's state counts it as well.
+const flightHidden = new Set<string>();
+function showFlight(entry: FlightEntry): void {
+  const shown = assistantShown();
+  if (!shown) openAssistant();
+  if (shown) entry.go(); else requestAnimationFrame(() => requestAnimationFrame(() => entry.go()));
+}
+function renderFlight(entries: readonly FlightEntry[]): void {
+  for (const key of [...flightHidden]) if (!entries.some((entry) => entry.key === key)) flightHidden.delete(key);
+  shell.strip.set('handoffs', flightPills(entries, flightHidden, showFlight, (key) => { flightHidden.add(key); renderFlight(flightStrip.entries); }));
+  renderVoiceStatus();
+}
+flightStrip.onChange = renderFlight;
+/** The server's list of Hooke's work in flight joins the one list (a key its row or researcher shows is not doubled). */
+function revealFlight(key: string): void {
+  if (key.startsWith('handoff:') && chat.revealHandoff(key.slice(8))) return;
+  showActivity(true);
+}
 
 // The chat: the conversation open now, typed and spoken (chatlog.ts). Its Activity is the side bar's Activity.
 const activityNavigation = new ActivityNavigation({
@@ -1018,6 +1107,19 @@ const downloadPills = new DownloadPills((model) => { if (!actionsPanel.showDownl
   (pills) => shell.strip.set('downloads', pills));
 element<HTMLButtonElement>('activity-toggle').addEventListener('click', () => showActivity(!activityShown()));
 element<HTMLButtonElement>('activity-close').addEventListener('click', () => showActivity(false));
+/** The experiments the server has told this studio of, by Project and id (experiment-card.ts; experiments.py). */
+const experiments = new Map<string, import('./experiment-card').ExperimentWire>();
+async function experimentAct(action: 'run' | 'change' | 'stop' | 'open', x: import('./experiment-card').ExperimentWire): Promise<void> {
+  if (action === 'change') { // the user's own words change it: the composer, ready for them
+    const fill = `Change ${x.name}: `;
+    composer.set(fill); question.focus(); question.setSelectionRange(fill.length, fill.length);
+    return;
+  }
+  try {
+    const reply = await connection.request('experiment', { action, id: x.id, ...(action === 'run' ? { version: x.version } : {}) });
+    if (!reply.ok) showHint(String(reply.error || 'That did not work.'), true);
+  } catch { showHint('The connection was lost; the experiment’s card shows what happened once it is back.', true); }
+}
 const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   activity: element<HTMLOListElement>('activity-log'),
   openActivity: () => showActivity(true),
@@ -1044,11 +1146,14 @@ const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   },
   // Researcher cards under the request that started each (chat-cards.ts), said as their Tab and pill say them.
   researchCards: { list: () => research.sessions.values(), view: researcherCardView, open: (rid) => openStudyResearch(rid) },
+  // Experiment cards under the request that planned each: the plan, Run it and Change, how it goes, its results.
+  experimentCards: { list: () => experiments.values(), act: experimentAct },
   cells: { make: (state, label) => litCell(state, { size: 12, label }), set: (cell, state, label) => setLitCell(cell as SVGSVGElement, state, { size: 12, label }) },
   ResizeObserver: typeof ResizeObserver === 'function' ? ResizeObserver : null,
   describe: (ids) => notes.describeObjects(ids),
   hint: (text) => chat.system(text),
   steps: (steps) => { assistantSteps = steps; stepPills.update(steps); },
+  flight: (entries) => flightStrip.set('handoffs', entries),
   voiceLive: () => voice.state === 'live' || voice.state === 'connecting',
   unread: () => {
     if (document.body.dataset.chat === 'hidden') chatUnread.hidden = false;
@@ -1186,6 +1291,7 @@ function handleMessage(message: ServerMessage): void {
       chat.apply(message); // the chat shows the active conversation
       break;
     case 'session-cleared': // the shared View dispatcher retired old overlay identities; Made in this session is another's
+      marks.clear(); // what the voice pointed at belonged to the Project left
       madeToday.sessionChanged();
       measurementsPage.sessionChanged();
       connectionStart.cleared();
@@ -1194,6 +1300,7 @@ function handleMessage(message: ServerMessage): void {
     case 'thread': // the active conversation as it was shown: replaces the log
     case 'chat':
     case 'chat-action':
+    case 'handoff': // a request the voice handed to Hooke's brain, as it goes (handoffs.ts)
     case 'app-notice':
     case 'activity': // a line of Activity: a request's record, a click, a studio action, a setting, a model, a researcher
     case 'execution':
@@ -1210,6 +1317,11 @@ function handleMessage(message: ServerMessage): void {
       break;
     case 'notes':
       notes.apply(message);
+      break;
+    case 'experiment':
+    case 'experiments':
+      for (const x of message.type === 'experiment' ? [message.experiment] : message.experiments) experiments.set(`${x.session}:${x.id}`, x);
+      chat.experimentsChanged();
       break;
     case 'research':
     case 'research-list':
@@ -1300,6 +1412,7 @@ function handleMessage(message: ServerMessage): void {
       voiceSetting = message.settings.voice ?? '';
       talkSetting = message.settings.talk === 'open' ? 'open' : 'hold';
       talkKeySetting = talkKey(message.settings.talk_key);
+      heardCueSetting = heardCue(message.settings.heard_cue);
       voice.link = message.settings.voicelink === 'webrtc' || voiceSetting === PARTNER_VOICE ? 'webrtc' : 'relay';
       renderTalk();
       view.outlineColor = OUTLINE_COLORS[message.settings.outlineColor ?? 'pink'] ?? OUTLINE_COLORS.pink;
@@ -1316,6 +1429,9 @@ function handleMessage(message: ServerMessage): void {
       lastAdvice = message.advice;
       break;
     case 'thinking':
+      // A voice hand-off's working signal is its row's and the voice's state's (handoffs.ts, voice-presence.ts): it never
+      // turns the typed request's slot on or clears it early.
+      if (message.channel === 'voice') break;
       chat.thinking(message.on, message.phase);
       break;
     case 'arena': {
@@ -1447,6 +1563,13 @@ function handleMessage(message: ServerMessage): void {
       const result = openTableWindow(message, { current: () => reporter.matchesStructuralPin(message.workspacePin) });
       connection.send({ type: 'table-window-result', id: message.id, session: message.session, workspacePin: message.workspacePin, result });
       reporter.askNow(); // done is the report showing it there (table_window.py)
+      if (document.hidden) reportWorkspace(performance.now());
+      break;
+    }
+    case 'web-window': { // a web page or video from the web, in a sandboxed window on this Tab (web-window.ts; web_window.py)
+      const result = openWebWindow(message, { current: () => reporter.matchesStructuralPin(message.workspacePin) });
+      connection.send({ type: 'web-window-result', id: message.id, session: message.session, workspacePin: message.workspacePin, result });
+      reporter.askNow(); // done is the report showing it there, its frame loaded (web_window.py)
       if (document.hidden) reportWorkspace(performance.now());
       break;
     }
@@ -1714,13 +1837,46 @@ talkButton.addEventListener('click', (event) => {
 function startTalk(): void {
   if (!workspaceSession || !workspaceReady) { showHint('Reconnect to the studio before starting Talk.'); return; }
   if (scientificAskSelection()) { showHint('Talk uses the Stage. Remove the saved attachment before starting Talk.'); return; }
+  // Not allowed yet: the microphone card first, whose button starts Talk in its own click (mic-card.ts).
+  const card = needsMicCard(micState, micHeardBefore(), macApp);
+  if (card) { micCard.show(card); setChatHidden(false, false); renderTalk(); return; }
+  connectTalk();
+}
+
+/** Talk connects now, in the click or key press that asked for it (its audio is allowed to start in that gesture). */
+function connectTalk(): void {
+  if (!workspaceSession) return;
   void voice.start(workspaceSession.voiceTarget());
 }
+
+// The microphone moment (mic-card.ts; Will's feel check, 29 Oct). The permission is read ahead of any press, so a press
+// decides at once, inside its own gesture; a prompt that is up is the card's "Allow" state, never "Connecting".
+let micState: MicPermission = 'unknown';
+const macApp = !!(window as unknown as { webkit?: { messageHandlers?: unknown } }).webkit?.messageHandlers;
+/** Waiting on a microphone prompt that is really up (a granted microphone opens at once: nothing to wait for). */
+function micWaiting(): boolean {
+  return voice.awaitingMic && (micCard.state !== null || micState !== 'granted');
+}
+function micHeardBefore(): boolean {
+  try { return localStorage.getItem('mic-heard') === '1'; } catch { return false; }
+}
+const micCard = new MicCard({
+  act: () => { micCard.show('asking'); connectTalk(); },
+  words: () => ({ keyWords: talkKeyWords(talkKeySetting), macApp }),
+});
+void micPermission((navigator as unknown as { permissions?: Parameters<typeof micPermission>[0] }).permissions, (state) => {
+  micState = state;
+  // Turned on from the site settings while the card says it is off: the card goes, and the next press starts Talk.
+  if (state === 'granted' && micCard.state === 'blocked') { micCard.hide(); renderTalk(); }
+}).then((state) => { micState = state; });
+askForm.before(micCard.root);
+askForm.before(flightStrip.root); // right over the composer
 
 // --- The one-brain voice (PARTNER_VOICE): hold to talk, its window snapshots and its marks (talk.ts, marks.ts). ---
 let voiceSetting = '';
 let talkSetting: 'hold' | 'open' = 'hold';
 let talkKeySetting: TalkKey = 'control-option';
+let heardCueSetting: HeardCue = 'tone';
 /** Whether Talk is held for each turn: the session's own word once it has said it, else the settings. */
 function holdToTalk(): boolean {
   if (voice.state === 'live' || voice.state === 'connecting') {
@@ -1736,7 +1892,7 @@ const turns = new TalkTurns({
   start: startTalk,
   began: (n) => {
     marks.clear(); // barge-in: what it pointed at goes with what it was saying
-    voiceStatus.textContent = holdWords();
+    renderVoiceStatus();
     // What the window looks like as the user starts to speak, sent with the turn (amendment 1). The pictures are
     // taken in this task; the rest is composed without holding up the live view (screen.ts captureWindow).
     void windowSnapshot(`talk-${n}`, 1280, windowCapture).then((shot) => voice.tellVoice(shot));
@@ -1746,11 +1902,23 @@ const turns = new TalkTurns({
 const talkHold = new TalkHold({
   enabled: holdToTalk,
   key: () => talkKeySetting,
-  press: () => turns.press(),
+  press: () => { takeover.input('talk'); heardRing.clear(); turns.press(); }, // told first: nothing the partner queued runs after you speak
   heldAlone: (via) => turns.heldAlone(via),
-  release: () => { const said = turns.open; turns.release(); if (said) voiceStatus.textContent = 'Sent · waiting for a response'; },
-  cancel: (why) => { const said = turns.open; turns.cancel(why); if (said) voiceStatus.textContent = holdWords(); },
+  release: () => {
+    const said = turns.open;
+    if (said) heardRing.released(); // the ring stays as sent until the server says it heard the turn (heard.ts)
+    turns.release();
+    // Nothing is said to be sent until the server says it took the turn (`heard`): a turn it drops (too short, or lost
+    // on a reconnect) never shows as waiting for an answer (Will's feel check, 29 Oct).
+    if (said) renderVoiceStatus();
+  },
+  cancel: (why) => { const said = turns.open; heardRing.clear(); turns.cancel(why); if (said) renderVoiceStatus(); },
 });
+// The sign it heard you (heard.ts; the live-partner spec, decision 1): the ring settles and, with HEARD_CUE "tone", a
+// soft tone plays in the voice's own speaker context, once per turn and never for one older than the newest begun.
+const heardRing = new HeardRing({ render: () => renderTalk() });
+const heardTone = new HeardTone({ shared: () => voice.cueContext() });
+const heardSign = heardHandler({ turn: () => turns.turn, cue: () => heardCueSetting, settle: () => heardRing.settle(), tone: () => heardTone.play() });
 talkHold.attach(window, document);
 talkHold.attachButton(talkButton);
 
@@ -1778,6 +1946,11 @@ const markHooks: MarkHooks = {
   member: (population, member) => {
     if (!liveShown()) return { why: 'hidden' };
     const box = view.memberCanvasBox(population, member);
+    return typeof box === 'string' ? { why: box } : { rect: canvasRect(box) };
+  },
+  population: (id) => {
+    if (!liveShown()) return { why: 'hidden' };
+    const box = view.populationCanvasBox(id);
     return typeof box === 'string' ? { why: box } : { rect: canvasRect(box) };
   },
   anchor: (ref) => {
@@ -1820,13 +1993,23 @@ function panelPlace(name: string): Place {
 }
 
 /** The partner's own messages: a snapshot to take now (act, then look), marks to draw or clear (partner.ts). */
-voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks });
+// Hands (drive.ts): the partner cursor before each intent, and the user's input taking control back in that task.
+const partnerCursor = new PartnerCursor({ hooks: markHooks, paint: (state) => cursorPainter.paint(state), reply: (command) => voice.tellVoice(command),
+  frame: (fn) => requestAnimationFrame(fn), still: typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches });
+const cursorPainter = new CursorPainter(document);
+const takeover = new Takeover({ cursor: partnerCursor, send: (command) => voice.tellVoice(command) });
+takeover.attach(window);
+voice.onPartner = partnerHandler({ reply: (command) => voice.tellVoice(command), capture: windowCapture, marks,
+  drive: { cursor: partnerCursor, takeover }, heard: (message) => { if (heardSign(message)) renderVoiceStatus(); },
+  // The voice's state, the server's: shown at once, and its own list of Hooke's work joins the one in-progress list.
+  voiceState: (message) => { presence.serverState(message); flightStrip.set(VOICE_SOURCE, voiceEntries(message, revealFlight)); renderVoiceStatus(); } });
 voice.onOutput = (muted) => { if (muted) talkButton.dataset.output = 'muted'; else delete talkButton.dataset.output; };
 
 // While connecting the word is "Cancel" (its accessible name says Cancel Talk, and the status above says it is
 // connecting): the composer's row keeps the Assistant's model named in full beside it (hooke-words, 2026-10-25).
 // Held turns say what holding does instead: Hold to talk, Listening while held.
 function talkLabelText(state: VoiceState): string {
+  if (micWaiting()) return 'Microphone';
   if (holdToTalk() && state !== 'off' && state !== 'error') return turns.open ? 'Listening' : state === 'connecting' ? 'Connecting' : 'Hold to talk';
   if (state === 'live') return 'End Talk';
   if (state === 'connecting') return 'Cancel';
@@ -1850,26 +2033,51 @@ function renderTalk(): void {
   voiceMute.hidden = state !== 'live' || hold; // held turns: the microphone is on only while held
   const holding = !!talkHold.held && (turns.open || turns.pending);
   if (holding) talkButton.dataset.holding = ''; else delete talkButton.dataset.holding;
-  holdRing.hidden = !holding;
-  holdRing.dataset.state = turns.open ? 'listening' : 'connecting';
-  holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
+  // After a release the ring stays as sent, then settles once heard (heard.ts HeardRing); its words fade, unchanged.
+  const after = holding ? null : heardRing.state;
+  holdRing.hidden = !holding && !after;
+  holdRing.dataset.state = after ?? (turns.open ? 'listening' : 'connecting');
+  if (holding) holdRing.lastElementChild!.textContent = turns.open ? 'Listening' : micCard.state ? 'Turn on the microphone first'
+    : voice.state === 'live' ? 'Hold to talk' : 'Connecting… keep holding';
 }
 
 function renderVoiceState(state: VoiceState, detail?: string): void {
   talkButton.setAttribute('aria-pressed', String(state === 'live'));
   talkButton.dataset.state = state;
   voiceControls.hidden = state === 'off';
-  voiceStatus.textContent = state === 'connecting' ? detail ?? 'Connecting microphone and voice provider…'
-    : state === 'error' ? detail ?? 'Voice needs attention. Open Activity.' : holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
+  // The microphone's own wait is the card's (mic-card.ts): "Connecting" is only the real connect.
+  if (micWaiting()) micCard.show('asking');
+  else if (state === 'live' || (state === 'connecting' && micCard.state === 'asking')) micCard.hide();
+  else if (state === 'error' && voice.micBlocked) micCard.show('blocked');
+  if (state === 'live') { try { localStorage.setItem('mic-heard', '1'); } catch { /* not remembered */ } }
+  // A Talk session's state is its own: nothing an earlier one said is kept (the server says the new one's as it goes).
+  if (state !== 'live') { presence.reset(); flightStrip.set(VOICE_SOURCE, []); }
+  presence.render();
+  voiceStatus.textContent = statusLine(detail);
   turns.stateChanged(state, !!talkHold.held);
-  if (state === 'off' || state === 'error') marks.clear();
+  if (state === 'off' || state === 'error') { marks.clear(); heardRing.clear(); }
   renderTalk();
-  if (state === 'error' && detail) chat.system(detail);
+  if (state === 'error' && detail && !voice.micBlocked) chat.system(detail); // a blocked microphone: the card says it
   if (state !== 'live') {
-    setVoiceWorking(false);
     chat.voice.stopped();
     clearStateHint('voice');
   }
+}
+
+/** Talk's status line: the microphone's wait, connecting and a problem in their own words; live, what the voice is
+ * doing (voice-presence.ts: "Thinking", "Speaking · 2 working", "Hooke is working · 2"), else how to talk. */
+function statusLine(detail?: string): string {
+  if (micWaiting()) return 'Allow the microphone to talk';
+  if (voice.state === 'connecting') return detail ?? 'Connecting to the voice…';
+  if (voice.state === 'error') return detail ?? 'Voice needs attention. Open Activity.';
+  const view = presence.view;
+  if (view.status) return view.also ? `${view.status} · ${view.also}` : view.status;
+  return holdToTalk() ? holdWords() : voice.muted ? 'Microphone muted' : 'Listening';
+}
+/** The voice's state drawn again, and the status line with it (live only: connecting and problems keep their words). */
+function renderVoiceStatus(): void {
+  presence.render();
+  if (voice.state === 'live') voiceStatus.textContent = statusLine();
 }
 
 /** The status while turns are held: what to do now. */
@@ -1881,10 +2089,12 @@ function handleVoice(event: VoiceEvent): void {
   switch (event.kind) {
     case 'status': {
       const phase = String(event.data?.phase ?? '');
-      const words: Record<string,string> = {listening:'Listening · speak when ready', processing:'Heard you · waiting for a response', speaking:'Speaking', muted:'Microphone muted', reconnecting:'Reconnecting…'};
       const hold = holdToTalk();
-      voiceStatus.textContent = hold && (phase === 'listening' || turns.open) ? holdWords() : (words[phase] ?? 'Voice needs attention') +
-        (voice.muted && phase !== 'muted' ? ' · microphone muted' : '');
+      // A voice that sends no state of its own (GPT-Live) is shown from these; the one brain's are the server's.
+      presence.setFallback(phase === 'processing' ? 'processing' : phase === 'speaking' ? 'speaking' : phase === 'listening' ? 'listening' : null);
+      if (phase === 'muted' || phase === 'reconnecting') voiceStatus.textContent = phase === 'muted' ? 'Microphone muted' : 'Reconnecting…';
+      else if (!['listening', 'processing', 'speaking'].includes(phase)) voiceStatus.textContent = 'Voice needs attention';
+      else { renderVoiceStatus(); if (voice.muted && !hold) voiceStatus.textContent += ' · microphone muted'; }
       if (phase === 'listening') showStateHint('voice', hold ? `Hold ${talkKeyWords(talkKeySetting)}, or hold Talk, and ask about the view or your work.` : 'Listening. Ask about the view or your work.');
       marks.phase(phase); // marks stay while it speaks and go a moment after
       break;
@@ -1914,13 +2124,13 @@ function handleVoice(event: VoiceEvent): void {
     case 'turn_complete':
       if (endsVoiceTurn(event)) chat.voice.turnEnd();
       break;
-    // The voice handed something to the app: the Talk dot breathes while it works (the chat
-    // stays for what was said; the view shows what was done).
+    // The voice handed something to the app: for a voice that sends no state of its own (GPT-Live), it is thinking until
+    // the result comes (never a timer); the one brain's state is the server's (voice-state).
     case 'tool_call':
-      setVoiceWorking(true);
+      presence.setFallback('tool');
       break;
     case 'tool_result':
-      if (!event.data?.interim) setVoiceWorking(false);
+      if (!event.data?.interim) presence.setFallback(null);
       break;
     case 'error':
       chat.system(`Voice: ${String(event.data?.message ?? 'something went wrong')}`);
@@ -1928,16 +2138,6 @@ function handleVoice(event: VoiceEvent): void {
   }
 }
 
-let workingTimer = 0;
-function setVoiceWorking(on: boolean): void {
-  window.clearTimeout(workingTimer);
-  if (on) {
-    talkButton.dataset.working = '';
-    workingTimer = window.setTimeout(() => delete talkButton.dataset.working, 20000);
-  } else {
-    delete talkButton.dataset.working;
-  }
-}
 
 /** A capability's run page (a run pill, a researcher's Used row): its task in Tools, or its Models entry. */
 function openRunPage(capability: string): void {
@@ -1970,6 +2170,11 @@ function diagnostic(error: unknown, options: LocalNoticeOptions = { deduplicate:
   chat.system(askError(error), options);
   return () => {}; // Activity retains local occurrences after a transient condition retires.
 }
+// The Project arrangement's own checks that did not pass (workspace-views.ts layoutDiagnostic): Activity, never a toast.
+window.addEventListener('workspace-layout-diagnostic', (event) => {
+  const detail = (event as CustomEvent<unknown>).detail;
+  if (typeof detail === 'string' && detail) diagnostic(new Error(detail));
+});
 function requestSendFailed(error: unknown): void {
   updateAskAvailability(); diagnostic(error, { deduplicate: false });
   askStatus.hidden = false;
@@ -2086,7 +2291,7 @@ const phonePanel = new PhonePanel(element('phone-panel'), source, bridgeBase, (t
 phonePanel.onDoctor = () => renderStatus();
 phonePanel.onStage = () => {
   if (!isAssetFeed(feed.state)) return null;
-  const title = sourcesModel.row(stageOf(feed.state, sourcesModel.state))?.title || feed.state?.footageTitle || 'a recording or picture';
+  const title = sourcesModel.state?.onStageAsset?.title || sourcesModel.row(stageOf(feed.state, sourcesModel.state))?.title || feed.state?.footageTitle || 'a recording or picture';
   return studyFeedSelector ? `${feed.state?.playback?.still ? 'Saved image' : 'Prerecorded video'} · ${title}` : title;
 };
 phonePanel.goLive = () => void openUserInput('live');
@@ -2123,7 +2328,7 @@ function renderStatus(): void {
   // One of the user's own recordings or pictures (the server put it on stage: the bridge's `asset:<path>`), or test
   // footage (the camera menu's, which stands for the live camera).
   const asset = isAssetFeed(feed.state) || !!feed.choosing?.name.startsWith('asset:');
-  const stageRow = isAssetFeed(feed.state) ? sourcesModel.row(stageOf(feed.state, sourcesModel.state)) : undefined;
+  const stageRow = isAssetFeed(feed.state) ? sourcesModel.state?.onStageAsset ?? sourcesModel.row(stageOf(feed.state, sourcesModel.state)) : undefined;
   // What plays is named by its title everywhere (the one being switched to, at once).
   const playingTitle = feed.choosing?.title ?? (footage ? stageRow?.title || feed.state?.footageTitle || footage.split('/').pop() || footage : '');
   const still = !feed.choosing && !!feed.state?.playback?.still;
@@ -2421,7 +2626,7 @@ function renderSources(): void {
  * when `paused` (a picture is always held). Opening associates: it is the session's from then on. The chip and the
  * player say it at once; a new session's home goes once it is there. Returns whether it is. */
 async function putOnStage(target: string, options: { at?: number; paused?: boolean; asset?: AssetMeta; session?: string;
-  say?: (text: string) => void } = {}): Promise<boolean> {
+  retained?: AssetMeta['retained']; say?: (text: string) => void } = {}): Promise<boolean> {
   stageChosen(); // something was put on stage: a start's landing never replaces it
   const asset = target === 'live' ? null : options.asset ?? sourcesModel.row(target) ?? null;
   // Already the camera: the session is told, and the camera is not restarted (a switch waits for its frames again).
@@ -2430,6 +2635,7 @@ async function putOnStage(target: string, options: { at?: number; paused?: boole
   renderSources();
   // `session`: a landing's, so a session left meanwhile never has another's source put in it (commands.py `source`).
   const command = { open: target, ...(target !== 'live' && options.paused ? { paused: true } : {}),
+    ...((options.retained ?? asset?.retained) ? {retained:options.retained ?? asset?.retained} : {}),
     ...(asset && typeof options.at === 'number' && options.at > 0 ? { at: options.at } : {}), ...(already ? { switch: false } : {}),
     ...(options.session ? { session: options.session } : {}) };
   const error = already
@@ -3184,11 +3390,13 @@ function screenItems(): ScreenItem[] {
   const items: ScreenItem[] = [{ id: 'live', kind: 'live', open: true, visible: true, opacity: view.liveOpacity,
     rect: rectOf(view.canvas.getBoundingClientRect()), z: 0 }];
   const population = populationScreenItem(view);
-  if (population) items.push(population);
+  // What Hands' verifier checks (screen.ts verifierLegacy): the layer's members drawn now, the outlines drawn now.
+  const members = view.layerMembers();
+  if (population) items.push({ ...population, ...(members ? verifierLegacy({ members }) : {}) });
   const tracks = tracksScreenItem(view);
   if (tracks) items.push(tracks);
   items.push({ id: 'outlines', kind: 'outlines', visible: view.outlinesVisible && !view.hideOverlays, opacity: view.outlinesOpacity,
-    style: { colour: outlineColourName, fill: view.outlineStyle === 'classic' }, z: 2 });
+    style: { colour: outlineColourName, fill: view.outlineStyle === 'classic' }, z: 2, ...verifierLegacy({ drawn: view.drawnOutlines() }) });
   SCREEN_PANELS.forEach(([id, panel], i) => items.push({ id, kind: id, open: panel.isOpen(), visible: panel.isVisible?.() !== false && panel.isOpen(), rect: panel.isOpen() ? rectOf(panel.footprint()) : null,
     z: fronted[id] ?? 10 + i, shows: id === 'viewer' ? viewer.state.rid : id === 'magnifier' ? magnifier.objectId() : null,
     ...(id === 'magnifier' ? { source: magnifier.source(), beside: magnifier.besideShown(), level: magnifier.levelShown(), covers: magnifier.covers(), pictures: magnifier.picturesShown() } : {}),
@@ -3214,8 +3422,15 @@ function studioSurfaces(): StudioSurfaceCollection {
     const open=!!project&&!!tab&&!document.body.dataset.workspaceOpening,rect=rectOf(tabStrip.getBoundingClientRect());
     // The Tab in front by its title as its button shows it (workspace-views.ts workTab), so "in Tab Measurements" is said.
     const tabTitle=tab?document.getElementById(`work-tab-${tab}`)?.querySelector('.workspace-tab-label')?.textContent?.trim().slice(0,80):undefined;
+    // Every open Tab of the Project, in strip order, the one in front marked: focus(tab) and close are checked on these.
+    // Each with its specimen (workspace-views.ts specimenReport): filling the Tab, floating (where), or hidden.
+    // And what each holds, counted by kind (workspace-model.ts), so "which Tab has the measurements?" reads the report.
+    const asked:{specimens?:Record<string,VerifierSpecimen>;holds?:Record<string,{kind:string;holds:VerifierTab['holds']}>}={};window.dispatchEvent(new CustomEvent('workspace-specimen-report',{detail:asked}));
+    const tabs=verifierLegacy({tabs:[...tabStrip.querySelectorAll<HTMLElement>('[data-workspace-view-tab]')].map(button=>{const id=button.dataset.workspaceViewTab!,model=asked.holds?.[id];return {id,
+      title:(button.querySelector('.workspace-tab-label')?.textContent??button.textContent??'').trim()||id,front:id===tab,
+      ...(asked.specimens?.[id]?{specimen:asked.specimens[id]}:{}),...(model?{kind:model.kind,holds:model.holds}:{})};})}).tabs;
     return {kind:'panel',open,visible:surfaceVisible(tabStrip,open,true,rect),rect,z:null,space:'workspace',
-      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{})}}:{})},
+      legacy:{schema:'studio-surface-v1',scope:'dom-observation',title:'Project Tabs',...(project&&tab?{workspace:{project,tab,...(tabTitle?{tabTitle}:{}),...(tabs?.some(t=>t.front)?{tabs}:{})}}:{})},
       contentKey:tabStrip.dataset.opening??null,controls:[]};
   }}]:[];
   return { surfaces: [...tabSurfaces,...documentSurfaces(),...current.map((item) => {
@@ -3223,7 +3438,7 @@ function studioSurfaces(): StudioSurfaceCollection {
     if (item.id === 'magnifier') return magnifierSurface(magnifier, root, () => item.z ?? 10);
     return { id: item.id, root, read: () => {
       const legacy: StudioSurfaceLegacy = { schema: 'studio-surface-v1', scope: 'dom-observation' };
-      for (const key of ['title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'work', 'workReady'] as const) {
+      for (const key of ['title', 'shows', 'source', 'beside', 'level', 'pictures', 'step', 'placement', 'covers', 'opacity', 'work', 'workReady', 'drawn', 'members'] as const) {
         if (item[key] !== undefined) Object.assign(legacy, { [key]: item[key] });
       }
       if(item.id==='live'&&document.body.dataset.workspaceProject&&document.body.dataset.activeWorkspaceView)legacy.workspace={project:document.body.dataset.workspaceProject,tab:document.body.dataset.activeWorkspaceView};
@@ -3360,6 +3575,22 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) workspaceSession?.shownAgain(); // painted now what was given in the background
   reporter.askNow();
   reportWorkspace(performance.now());
+});
+// Arrange's tile for a native window with no retained resource (the live magnifier, workspace-views.ts place): its
+// resize, then its move, each sent once the last was answered; a later Arrange of the same window replaces this one.
+const placingWindows = new Map<string, number>();
+window.addEventListener('workspace-place-window', (event) => {
+  const { id, rect } = (event as CustomEvent<{ id: string; rect: number[] }>).detail;
+  const turn = (placingWindows.get(id) ?? 0) + 1, until = performance.now() + 12_000;
+  placingWindows.set(id, turn);
+  const step = (): void => {
+    if (placingWindows.get(id) !== turn) return;
+    let done = true;
+    try { done = workspaceSession?.placeWindow(id, rect) ?? true; } catch (error) { diagnostic(error); }
+    if (!done && performance.now() < until) window.setTimeout(step, 50);
+    else if (placingWindows.get(id) === turn) placingWindows.delete(id);
+  };
+  step();
 });
 
 function applyPresent(message: PresentMessage): void {
@@ -3641,13 +3872,10 @@ export function workspaceStudyBridge() {
       onStage, heard: sourcesModel.state != null, selection: view.selected ? { id: view.selected, label: view.labelOf(view.selected) || view.selected } : null,
       frame: onStage && onStage !== 'live' ? null : view.header ? { id: view.header.id, boot: view.header.boot, w: view.header.w, h: view.header.h } : null, held: viewHeld };
   };
-  const switchBlockReason = (): string | null => {
-    if (!connected) return 'Reconnect before switching projects.';
-    const documentBlock=studyArtifacts().blockReason(sessionsModel.current);if(documentBlock)return documentBlock;
-    if (isRecording() || stopping || recorder.state !== 'idle') return 'Stop the recording before switching projects.';
-    if (voice.state !== 'off') return 'End voice before switching projects.';
-    return null;
-  };
+  // Never Talk: both voices follow the open Project (session-view.ts switchBlock).
+  const switchBlockReason = (): string | null => switchBlock({ connected,
+    documentBlock: studyArtifacts().blockReason(sessionsModel.current),
+    recording: isRecording() || stopping || recorder.state !== 'idle', talk: voice.state });
   const waitFor = async (check: () => boolean, message: string, timeout = 25_000) => {
     const deadline = performance.now() + timeout;
     while (!check()) {
@@ -3660,6 +3888,7 @@ export function workspaceStudyBridge() {
     const retained = workspaceSession?.retainedPresentation() ?? { views: [], missing: [] };
     const playback = feed.state?.source === 'footage' ? feed.state.playback : null;
     const saved: StudyPresentation = { schema: 1, session: sessionsModel.current, source: sourcesModel.state?.onStage ?? null,
+      ...(sourcesModel.state?.onStageRetained ? {retained:sourcesModel.state.onStageRetained}:{}),
       position: playback ? positionAt(playback, performance.now() - feed.playbackAt) : 0, paused: playback?.paused !== false,
       wholeFrame: view.wholeFrame, conversation: day?.active ?? null, draft: question.value,
       reading: element('log').scrollTop, views: [...retained.views,...studyArtifacts().retainedPresentation()], missing: retained.missing };
@@ -3686,7 +3915,7 @@ export function workspaceStudyBridge() {
       if (saved.source === null) openHome();
       else {
         const available = saved.source === 'live' || sourcesModel.row(saved.source);
-        const opened = available && await putOnStage(saved.source, { session: sid, at: saved.position, paused: true });
+        const opened = available && await putOnStage(saved.source, { session: sid, at: saved.position, paused: true, retained:saved.retained });
         current();
         if (!opened) {
           missing.push('The saved source is unavailable. Choose another input; no replacement frame was used.');
@@ -3814,6 +4043,7 @@ export function workspaceStudyBridge() {
     example: () => exampleGuide.start(),
     upload: (files: File[], session?:string, current?:()=>boolean) => addFromMac(files,session,current),
     bindInputNavigation: (handler:NonNullable<typeof studyInputNavigation>) => {studyInputNavigation=handler;},
+    prepareInput: (asset:AssetMeta,session:string) => sourceIntake.prepare(asset.id,session,asset.retained),
     cameraStatus: () => feed.state?.bridge.sourceKind==='none'?'No camera selected':feed.state?.source==='camera'?feed.state.bridge.stateLabel:'Select to check camera connection',
     selectTabInput: async (input:import('./workspace-views-model').WorkspaceTabInput,session:string) => {
       await selectObservedWorkspaceInput(input.source,{
@@ -3825,8 +4055,8 @@ export function workspaceStudyBridge() {
         select:async()=>{
           studyTransition=true;
           try {
-            if(!await putOnStage(input.source,{paused:true,at:input.position,session}))throw new Error('The input could not be opened. Your saved Tab and Data are kept; retry opening the Tab.');
-            await waitFor(()=>sessionsModel.current===session&&sourcesModel.state?.onStage===input.source&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
+            if(!await putOnStage(input.source,{paused:true,at:input.position,session,retained:input.retained}))throw new Error('The input could not be opened. Your saved Tab and Data are kept; retry opening the Tab.');
+            await waitFor(()=>sessionsModel.current===session&&exactInputObserved(input,sourcesModel.state)&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
           }finally{studyTransition=false;}
         },
       });

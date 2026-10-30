@@ -88,7 +88,9 @@ RESULT_TITLES = {
     "track_motion": "Motion", "measure": "Measurement", "count": "Count", "contrast": "Comparison",
     "compare": "Side by side", "enhance": "Clearer picture", "what_happened": "What happened",
     "where_is": "Where it is", "focus_check": "Focus check", "dissect": "Parts", "watch": "Watch",
-    "reference_photo": "Reference photo",
+    "reference_photo": "Reference photo", "show_web": "From the web", "write_document": "Document",
+    "compare_models": "Model comparison",
+    "experiment": "Experiment results", "experiment_table": "Experiment comparison",  # experiments.py
 }
 
 # A researcher's deliverable in plain words (an entry's title uses only the app's words).
@@ -139,6 +141,20 @@ def _words(text: object, limit: int) -> str:
     """A researcher's words as one line of plain text for Data (never a model's line): whitespace collapsed, capped."""
     line = " ".join(str(text or "").split())
     return line[:limit]
+
+
+def _document_text(values) -> str:
+    """A document's text, from its kept values (documents.py)."""
+    from .documents import text_of
+
+    return text_of(values)
+
+
+def _document_summary(values) -> str:
+    """A document's line, from what its journal keeps (documents.py)."""
+    from .documents import summary_of
+
+    return summary_of(values)
 
 
 def hhmm(at: float | None) -> str:
@@ -214,6 +230,7 @@ class Entry:
     shown: str = ""
     maker: dict | None = None  # who made it (maker_of), set as the index is collected; None when the record cannot tell
     run: str | None = None  # the execution that made it, when it came from one run: entries sharing it are one Data row
+    material: dict | None = None  # shared inventory projection; never an accepted-record edit
     forms: list[dict] | None = None  # a write-up's forms, newest first (a report's findings versions and presentation)
 
     @property
@@ -235,6 +252,9 @@ class Entry:
     @property
     def role(self) -> str | None:
         """Which of Data's sections it is in (produces.ROLES; ticket 66, S1)."""
+        if self.kind == "project" and isinstance(self.values, dict):
+            from .project_material import describe
+            return (self.material or describe(self.values))['section']
         return role_of(self.kind, self.media)
 
     def wire(self, listed: bool = True) -> dict:
@@ -242,10 +262,13 @@ class Entry:
         shows, a write-up's forms and a source's values. Without them, the reading a researcher pages through and whose
         digest it records (Index.document): unchanged by those fields, so a read before them still counts."""
         out = self._basis()
+        if listed and self.kind == "project" and isinstance(self.values, dict):
+            from .project_material import describe
+            out['material'] = copy.deepcopy(self.material or describe(self.values))
         if not listed:
             return out
         return {**out, "title": self.shown or self.title, "role": self.role,
-                "maker": copy.deepcopy(self.maker), "run": self.run,
+                "maker": copy.deepcopy(self.maker), "run": (out.get("material", {}).get("run") or (self.id if out.get("material", {}).get("kind") == "workflow" else self.run)),
                 **({"forms": copy.deepcopy(self.forms)} if self.forms is not None else {}),
                 **({"values": copy.deepcopy(self.values)} if self.kind == "source" else {})}
 
@@ -327,7 +350,7 @@ def maker_of(kind: str, eid: str, made_by: dict | None, researchers: Researchers
         return dict(YOU)
     from .door import actor as door_actor
     if door_actor.is_agent(actor):  # an outside agent's work, by its label as it names itself (ADR 0026)
-        return door_actor.maker(actor)
+        return door_actor.maker(actor, recorded_label=made.get("label"))
     if actor == "assistant":
         return dict(ASSISTANT)
     made_for = made.get("for")
@@ -406,6 +429,65 @@ class Results:
         self._floors: dict[tuple, int] = {}  # (session, date) -> the floor read once a run (day/ids.py)
         # Told each result kept (its entry): a clearer picture becomes one of the user's assets (App: library.py).
         self.on_saved: list[Callable[[dict], None]] = []
+        self._project_roots = {}
+
+    def root_for(self, session: str | None = None, *, write=False):
+        """Resolve result bytes using their owner, independent of the visible Project.
+
+        Legacy results retain their shared date layout. Routed results keep that
+        layout beneath their own artifacts/results. A host-held locator or folder
+        inode may not change under an admitted result writer.
+        """
+        locations = getattr(self.day, 'locations', None)
+        if locations is None:
+            return self.root
+        session = session or self._session()
+        project = locations.project(session)
+        if project is None:
+            return self.root
+        if write:
+            locations.writable(session)
+        folder = project.folder('artifacts') / 'results'
+        known = (project.origin, project.path) in self._project_roots
+        if write and not known:
+            folder.mkdir(exist_ok=True)
+        if folder.is_symlink():
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Project result storage was replaced by a link')
+        if folder.exists():
+            import stat
+            from .project_roots import ProjectLocationError
+            info = folder.stat(follow_symlinks=False)
+            if not stat.S_ISDIR(info.st_mode):
+                raise ProjectLocationError('Project result storage is not a folder')
+            key, identity = (project.origin, project.path), (info.st_dev, info.st_ino)
+            prior = self._project_roots.setdefault(key, identity)
+            if prior != identity:
+                raise ProjectLocationError('Project result storage changed; recover it before continuing')
+        elif (project.origin, project.path) in self._project_roots:
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Project result storage is missing; recover it before continuing')
+        return folder
+
+    def folder_for(self, date, session=None, *, write=False):
+        root = self.root_for(session, write=write)
+        if root is None:
+            return None
+        if not isinstance(date, str) or re.fullmatch(r'\d{4}-\d{2}-\d{2}', date) is None:
+            raise ValueError('The retained result date is invalid')
+        folder = root / date
+        if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+            from .project_roots import ProjectLocationError
+            raise ProjectLocationError('Result date storage was replaced; recover it before continuing')
+        return folder
+
+    def _file_key(self, date, name, session=None):
+        # Cleanup must wake original waiters even when a locator is gone/closed.
+        # A routed host uses stable owner keys, never mutable filesystem paths.
+        return (f'{session or self._session()}:{date}' if getattr(self.day, 'locations', None) is not None else date, name)
+
+    def picture_pending(self, date, name, session=None):
+        return self._file_key(date, name, session) in self._pending
 
     # --- making ---------------------------------------------------------------------------------
     async def stage_comparison(self, run, ctx, hub, jpeg: bytes, components: tuple[RetainedComponent, ...],
@@ -499,7 +581,7 @@ class Results:
             return
         prepared.consumed = True
         if prepared.entry is not None:
-            self._discarded.add((prepared.entry["day"], prepared.entry["id"]))
+            self._discarded.add(self._file_key(prepared.entry["day"], prepared.entry["id"], session_of(prepared.entry, prepared.entry["day"])))
         prepared.reservation.release()
         threading.Thread(target=self._discard_comparison, args=(prepared,), daemon=True).start()
 
@@ -507,15 +589,17 @@ class Results:
         entry = prepared.entry
         if entry is None:
             return  # add cleans a failed save before it returns a prepared entry
-        self._discarded.add((entry["day"], entry["id"]))
+        self._discarded.add(self._file_key(entry["day"], entry["id"], session_of(entry, entry["day"])))
         self._discard_files(entry)
 
     def _discard_files(self, entry) -> None:
         """A discarded producer remains a small tombstone, never readable constituent pixels."""
         day, rid = entry["day"], entry["id"]
+        session = session_of(entry, day)
+        self.root_for(session, write=True)
         gone = {**entry, "state": "discarded", "pictures": [], "source": {"availability": "missing"}, "values": None}
         # This tombstone also protects a restart when the journal itself is unwritable.
-        self._write(day, f"{rid}.json", json.dumps({"id": rid, "values": None, "state": "discarded"}).encode(), durable=True)
+        self._write(day, f"{rid}.json", json.dumps({"id": rid, "values": None, "state": "discarded"}).encode(), durable=True, session=session)
         # A normal result event with the same id replaces it on restart; no new artifact id.
         try:
             # Its own session's journal: the one loaded, else that session's (an old entry's session is its date).
@@ -526,13 +610,13 @@ class Results:
                 from .day.journal import Journal
                 journal = getattr(self.day, "journal", None)
                 if journal is not None:
-                    Journal(session_of(entry, day), journal.root).append({"type": "result", **gone})
+                    Journal(session, self.day.root_for(session) if hasattr(self.day, 'root_for') else journal.root).append({"type": "result", **gone})
         except (OSError, ValueError):
             pass  # still release private pixel partials and keep the independent tombstone
         for name in entry.get("pictures", []):
-            self._pending.pop((day, name), None)
+            self._pending.pop(self._file_key(day, name, session), None)
             try:
-                (self.root / day / name).unlink(missing_ok=True)
+                (self.folder_for(day, session, write=True) / name).unlink(missing_ok=True)
             except OSError:
                 continue  # the discarded entry never advertises an undeleted private partial
 
@@ -582,7 +666,7 @@ class Results:
             deadline = time.monotonic() + RESULT_SAVE_S
             for name in entry['pictures']:
                 await asyncio.to_thread(self.wait_for_picture, entry['day'], name,
-                                        timeout=max(0, deadline - time.monotonic()), cancelled=cancelled)
+                                        timeout=max(0, deadline - time.monotonic()), cancelled=cancelled, session=session_of(entry, entry['day']))
             entry = {**entry, 'state': 'done'}
             self.day.record_result(entry, strict=True)
         except (OSError, ValueError):
@@ -633,7 +717,9 @@ class Results:
                 self._discard_later(prepared)
             return None
         info = None
-        web = (run.values or {}).get("web") if (run.values or {}).get("media") == "reference" else None
+        media = (run.values or {}).get("media")
+        # A reference photo, a web page or a video from the web was made on no frame of this slide (show_web).
+        web = (run.values or {}).get("web") if media in ("reference", "web-page", "video") else None
         if hub is not None and web is None:  # a reference photo from the web was made on no frame of this slide
             info = (getattr(hub, "infos", {}) or {}).get(ctx.frame_id) if ctx.frame_id is not None else None
             info = info or getattr(hub, "latest_info", None)
@@ -642,9 +728,14 @@ class Results:
         source = None
         if isinstance(web, dict):
             source = {"frame": None, "seq": None, "boot": None, "web": copy.deepcopy(web)}
+            # A reference photo's description is what a look at its pixels saw (reference.retrieve), named by who
+            # looked, so it is never taken for the request's words.
             description = (run.values or {}).get("description")
             if isinstance(description, str) and description:
                 source["description"] = description[:600]
+                described_by = (run.values or {}).get("describedBy")
+                if isinstance(described_by, str) and described_by:
+                    source["describedBy"] = described_by[:80]
         elif isinstance(capture_sources, list):
             # Multi-capture outputs cannot be attributed to the unrelated current request frame.
             source = {"frame": None, "seq": None, "boot": None, "captures": capture_sources[:8]}
@@ -688,12 +779,14 @@ class Results:
                              made_with=_made_with(hub, run.executions),
                              session=self._session_of_asked(getattr(ctx, "asked", None)),
                              actor=getattr(run, "actor", None),
-                             **({"web": web} if isinstance(web, dict) else {}))
+                             **({"media": media} if media == "document" else {}),
+                             **({"web": web} if isinstance(web, dict) and media == "reference" else {}))
         # Its address in the index: (session, id), whatever date folder its pictures are in.
         address = session_of(entry, entry["day"])
         run.resource = {"id": entry["id"], "day": address, "title": entry["title"],
                         "version": None, "picture": 0 if entry.get("pictures") else None,
-                        "kind": "Reference photo" if web else "Saved result"}
+                        "kind": ({"web-page": "Web page", "video": "Video"}.get(media, "Reference photo") if web
+                                 else "Saved result")}
         key = id(run)
         self._consumed[key] = (weakref.ref(run, lambda _: self._consumed.pop(key, None)), entry)
         from .brain.registry import record_made, record_output
@@ -731,14 +824,15 @@ class Results:
             picture_bytes=(), made_for: str | None = None, web: dict | None = None, source: dict | None = None,
             components: tuple[RetainedComponent, ...] = (), durable_guard: Callable[[], None] | None = None,
             session: str | None = None, made_with: list[dict] | None = None, retaining: bool = False,
-            actor: str | None = None) -> dict:
+            actor: str | None = None, media: str | None = None) -> dict:
         """`pictures`: magnifier keys of pictures the run showed; `picture_bytes`: pictures made for no screen (a
         researcher's, research/hands.py). `made_for`: who it was made for when not the user's request ("Researcher
         2"), in its own field and its title, so no reader or filter takes it for the user's. `web`: where a
         reference photo from the web came from (site, page, title, licence, author), so it is kept and shown as one
         (media.REFERENCE) and never as the camera's. `session`: the session it was asked in (default: the one open);
         it is filed in that session's journal, its pictures in today's folder. `actor`: who started the run that made
-        it ("you", "assistant"; ticket 66, S2), kept as its "actor"."""
+        it ("you", "assistant"; ticket 66, S2), kept as its "actor". `media`: "document" for a document written from
+        the Project's records (documents.py), kept so Data lists it under Write-ups."""
         from .brain.registry import ToolFailed
 
         durable = bool(components)
@@ -755,6 +849,7 @@ class Results:
             from .day.ids import owner  # the comparison's session's own journal (never the one open now)
 
             journal = getattr(owner(self.day, session), "journal", journal)
+        self.root_for(session, write=True)
         written = self.root is None
         with self._lock:
             rid = self._new_id(session)
@@ -762,7 +857,7 @@ class Results:
                 initial = ({"id": rid, "values": None, "state": "reserved"} if durable else
                            {"id": rid, "values": values, **({"madeWith": list(made_with)} if made_with else {})})
                 written = self._write(day, f"{rid}.json", json.dumps(initial, default=str).encode(),
-                                      durable=durable)
+                                      durable=durable, session=session)
                 if durable and not written:
                     raise ToolFailed("the comparison metadata could not be saved", next="check local storage and try again")
         at = time.time()
@@ -781,21 +876,23 @@ class Results:
         if writes and not durable:  # comparisons already run on a worker and must finish saving first
             with self._lock:
                 for name, data in writes:
-                    self._pending[(day, name)] = data
-                    self._picture_writes[(day, name)] = threading.Event()
+                    self._pending[self._file_key(day, name, session)] = data
+                    self._picture_writes[self._file_key(day, name, session)] = threading.Event()
 
             def finished(name: str) -> None:
                 with self._lock:
-                    event = self._picture_writes.pop((day, name), None)
+                    event = self._picture_writes.pop(self._file_key(day, name, session), None)
                     if event is not None:
                         event.set()
 
             def write_all() -> None:
                 try:
                     for name, data in writes:
-                        if self._write(day, name, data):  # a write that fails keeps its picture readable from memory
-                            self._pending.pop((day, name), None)
+                        if self._write(day, name, data, session=session):  # a write that fails keeps its picture readable from memory
+                            self._pending.pop(self._file_key(day, name, session), None)
                         finished(name)
+                except (OSError, ValueError):
+                    pass  # retained pending bytes make confirmation fail honestly
                 finally:
                     # Failure wakes consumers too; pending bytes remain display-only.
                     for name, _ in writes:
@@ -820,7 +917,8 @@ class Results:
                  # Each kept picture's sha256 as it was made: a reopen reads it only while it is still those bytes.
                  **({"digests": [hashlib.sha256(data).hexdigest() for _name, data in writes]} if writes else {}),
                  **({"madeWith": list(made_with)} if made_with else {}),
-                 **({"media": "reference", "web": dict(web)} if web else {})}
+                 **({"media": "reference", "web": dict(web)} if web else {}),
+                 **({"media": "document"} if media == "document" and not web else {})}
         if retaining and not durable:
             entry['state'] = 'saving' if written else 'failed'
             if not written:
@@ -854,12 +952,12 @@ class Results:
             try:
                 for name, data in writes:
                     durable_guard()
-                    if not self._write(day, name, data, durable=True):
+                    if not self._write(day, name, data, durable=True, session=session):
                         raise ToolFailed("a comparison original could not be saved", next="check local storage and try again")
                 durable_guard()
                 metadata = json.dumps({"id": rid, "values": values, "source": entry["source"],
                                        **({"madeWith": list(made_with)} if made_with else {})}, allow_nan=False).encode()
-                if len(metadata) > 128 * 1024 or not self._write(day, f"{rid}.json", metadata, durable=True):
+                if len(metadata) > 128 * 1024 or not self._write(day, f"{rid}.json", metadata, durable=True, session=session):
                     raise ToolFailed("the comparison source metadata could not be saved", next="check local storage and try again")
                 durable_guard()
                 # Persist without Day.record_result's tolerant I/O or firing application listeners
@@ -870,7 +968,7 @@ class Results:
                 durable_guard()
                 return entry
             except BaseException:
-                self._discarded.add((day, rid))
+                self._discarded.add(self._file_key(day, rid, session))
                 try:
                     self._discard_files(entry)
                 finally:
@@ -907,10 +1005,11 @@ class Results:
         if state != 'saving':
             return state, summary
         date, names = entry.get('day'), entry.get('pictures') or []
+        session = session_of(entry, date)
         with self._lock:
-            if any((date, name) in self._picture_writes for name in names):
+            if any(self._file_key(date, name, session) in self._picture_writes for name in names):
                 return 'saving', 'Saving the original result. It is not yet confirmed as retained.'
-            pending = any((date, name) in self._pending for name in names)
+            pending = any(self._file_key(date, name, session) in self._pending for name in names)
         valid = (self.root is not None and isinstance(date, str)
                  and re.fullmatch(r'\d{4}-\d{2}-\d{2}', date)
                  and isinstance(entry.get('id'), str) and ENTRY_ID.fullmatch(entry['id'])
@@ -918,7 +1017,7 @@ class Results:
                                    and name not in ('.', '..') for name in names))
         if valid and not pending:
             try:
-                paths = [self.root / date / name for name in [*names, entry['id'] + '.json']]
+                paths = [self.folder_for(date, session) / name for name in [*names, entry['id'] + '.json']]
                 if all(path.is_file() and not path.is_symlink() for path in paths):
                     return 'done', summary
             except OSError:
@@ -926,14 +1025,14 @@ class Results:
         return 'failed', 'The result could not be saved. Check local storage and rerun this tool.'
 
     def wait_for_picture(self, day: str, name: str, *, timeout: float = 30,
-                         cancelled: threading.Event | None = None) -> None:
+                         cancelled: threading.Event | None = None, session: str | None = None) -> None:
         """Off-loop admission waits only for this original, never another result's I/O.
 
         Completion permits a disk read, not trust in preview bytes. The caller still
         verifies the retained digest, metadata and revision after this wait.
         """
         with self._lock:
-            event = self._picture_writes.get((day, name))
+            event = self._picture_writes.get(self._file_key(day, name, session))
         deadline = time.monotonic() + timeout
         while event is not None and not event.is_set():
             if cancelled is not None and cancelled.is_set():
@@ -944,7 +1043,7 @@ class Results:
             event.wait(min(.05, remaining))
         if cancelled is not None and cancelled.is_set():
             raise asyncio.CancelledError()
-        if (day, name) in self._pending:
+        if self._file_key(day, name, session) in self._pending:
             raise ValueError('This original could not be saved. Check local storage and rerun its producer.')
 
     def table_candidate(self, entry: dict, session: str, *, discover: bool = False) -> bool:
@@ -979,7 +1078,7 @@ class Results:
                              if key[:3] == (session, date, rid)), False)
         try:
             import stat
-            path = self.root / date / f'{rid}.json'
+            path = self.folder_for(date, session) / f'{rid}.json'
             if path.parent.is_symlink():
                 return False
             fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
@@ -1014,8 +1113,9 @@ class Results:
         if entry is None:
             return None
         if entry.get("full") and self.root is not None:
+            folder = self.folder_for(entry.get("day") or self._day_name(), session_of(entry, entry.get("day") or self._session()))
             try:
-                return json.loads((self.root / (entry.get("day") or self._day_name()) / f"{rid}.json").read_text())["values"]
+                return json.loads((folder / f"{rid}.json").read_text())["values"]
             except (OSError, ValueError, KeyError):
                 pass
         return entry.get("values")
@@ -1031,17 +1131,19 @@ class Results:
 
     def _is_discarded(self, entry) -> bool:
         day, rid = entry.get("day", self._day_name()), entry["id"]
-        if entry.get("state") == "discarded" or (day, rid) in self._discarded:
+        session = session_of(entry, day)
+        key = self._file_key(day, rid, session)
+        if entry.get("state") == "discarded" or key in self._discarded:
             return True
-        if (day, rid) not in self._retention_checked and self.root is not None and (entry.get("source") or {}).get("components"):
+        if key not in self._retention_checked and self.root is not None and (entry.get("source") or {}).get("components"):
             try:
-                metadata = read_picture_bytes(self.root / day / f"{rid}.json", 128 * 1024)
+                metadata = read_picture_bytes(self.folder_for(day, session) / f"{rid}.json", 128 * 1024)
                 if metadata and json.loads(metadata).get("state") == "discarded":
-                    self._discarded.add((day, rid))
+                    self._discarded.add(self._file_key(day, rid, session))
                     return True
             except (OSError, ValueError):
                 pass  # unavailable source metadata does not make the named artifact disappear
-            self._retention_checked.add((day, rid))
+            self._retention_checked.add(key)
         return False
 
     def _new_id(self, session: str | None = None) -> str:
@@ -1055,15 +1157,15 @@ class Results:
         key = (getattr(store, "sid", None), date)
         if key not in self._floors:
             self._floors[key] = floor(store, "d", date)
-        folder = self.root / date if self.root is not None else None
+        folder = self.folder_for(date, session) if self.root is not None else None
         n = max([self._floors[key], self._given] + [int(i[1:]) for i in used if i[1:].isdigit()]) + 1
         while f"d{n}" in used or (folder is not None and (any(folder.glob(f"d{n}-*")) or (folder / f"d{n}.json").exists())):
             n += 1
         self._given = n
         return f"d{n}"
 
-    def _write(self, day: str, name: str, data: bytes, *, durable: bool = False) -> bool:
-        folder = self.root / day
+    def _write(self, day: str, name: str, data: bytes, *, durable: bool = False, session: str | None = None) -> bool:
+        folder = self.folder_for(day, session, write=True)
         try:
             folder.mkdir(parents=True, exist_ok=True)
             tmp = folder / f".{name}.{os.getpid()}.tmp"
@@ -1116,6 +1218,8 @@ class Results:
         root = getattr(getattr(self.day, "journal", None), "root", None)
         if root is None or not sids.is_sid(day):
             return [], []
+        if hasattr(self.day, 'root_for'):
+            root = self.day.root_for(day)
         out: dict[str, dict] = {}
         invalid = 0
         try:
@@ -1149,12 +1253,12 @@ class Results:
         if entry is None or self.root is None or not (0 <= n < len(entry.get("pictures") or [])):
             return None
         folder_day = entry.get("day") or self._day_name()
-        pending = self._pending.get((folder_day, entry["pictures"][n]))
+        pending = self._pending.get(self._file_key(folder_day, entry["pictures"][n], session_of(entry, folder_day)))
         if pending is not None:
             data = pending if max_bytes is None or len(pending) <= max_bytes else None
         else:
             try:
-                data = read_picture_bytes(self.root / folder_day / entry["pictures"][n], max_bytes)
+                data = read_picture_bytes(self.folder_for(folder_day, session_of(entry, folder_day)) / entry["pictures"][n], max_bytes)
             except OSError:
                 return None
         digests = entry.get("digests") or []
@@ -1170,8 +1274,8 @@ class Results:
             raise ValueError("that original result picture is no longer available")
         folder_day = entry.get("day") or self._day_name()
         filename = entry["pictures"][n]
-        pending = self._pending.get((folder_day, filename))
-        maximum = len(pending) if pending is not None else (self.root / folder_day / filename).stat().st_size
+        pending = self._pending.get(self._file_key(folder_day, filename, session_of(entry, folder_day)))
+        maximum = len(pending) if pending is not None else (self.folder_for(folder_day, session_of(entry, folder_day)) / filename).stat().st_size
         return export_image(lambda limit: self.picture(rid, n, day, max_bytes=limit), maximum,
                             entry.get("madeWith") or [], memory)
 
@@ -1222,6 +1326,8 @@ class Index:
         self.results = results or Results(None)
         self.research = research
         self.snapshots = Path(snapshots) if snapshots is not None else None
+        from .project_snapshots import Snapshots
+        self.snapshot_store = Snapshots(self.snapshots, day) if self.snapshots is not None else None
         self.seen = seen
         self.taught = taught
         self.scale = scale
@@ -1276,7 +1382,8 @@ class Index:
                     "annotations": dict(getattr(store, "annotations", {}) or {}),
                     "datatables": dict(getattr(store, "datatables", {}) or {}),
                     "table_derivatives": dict(getattr(store, "table_derivatives", {}) or {}), "made": made}
-        root = getattr(getattr(store, "journal", None), "root", None)
+        root = store.root_for(sid) if store is not None and hasattr(store, 'root_for') and sids.is_sid(sid) else \
+            getattr(getattr(store, "journal", None), "root", None)
         found = _journal_records(Path(root), sid) if root is not None and sids.is_sid(sid) else \
             {"evidence": {}, "tracks": {}, "annotations": {}, "datatables": {}, "table_derivatives": {}}
         return {**found, "made": made}
@@ -1375,6 +1482,8 @@ class Index:
                 out.extend(provider(day, discover_tables=True) if name == 'results' and discover_tables else provider(day))
             except Exception as exc:  # one store that cannot be read never hides the others
                 unreadable.append(f"{name} ({exc})" if isinstance(exc, Unread) else f"{name} ({type(exc).__name__})")
+        from .project_material import attach_usage
+        unreadable.extend(attach_usage(out, self.projects))
         who = None
         for entry in out:
             made = entry.made_by if isinstance(entry.made_by, dict) else {}
@@ -1525,19 +1634,24 @@ class Index:
         store = evidence_of(self.hub) if eid.startswith('e') else tracks_of(self.hub)
         if store.root is None:
             return None
-        root = store.root.resolve()
+        root = store.root_for(day)
         filed = self._journal(day)['evidence' if eid.startswith('e') else 'tracks'].get(eid)
         if filed is None and self.day is None:  # no session store (a test, a bench): a day was a session
             filed = {'path': str(root / day / eid)}
         if filed is None or not filed.get('path'):
             return None
         try:
-            folder = Path(filed['path']).resolve()
-            date = folder.parent.name
-            if not sids.is_sid(date) or sids.parse(date)[1] != 1 or folder != root / date / eid:
+            from .project_evidence import resolve
+            folder = resolve(store, day, filed)
+            portable = str(filed['path']).startswith('project:')
+            date = folder.parent.parent.name if portable else folder.parent.name
+            expected = root / date / eid
+            if not sids.is_sid(date) or sids.parse(date)[1] != 1 or (folder.parent if portable else folder) != expected:
                 return None
+            from .project_evidence import _directories
+            _directories(root, folder)
             path = folder / 'manifest.json'
-            if path.resolve() != path:
+            if path.is_symlink():
                 return None
             raw = read_picture_bytes(path, 4*1024*1024)
             record = json.loads(raw) if raw else None
@@ -1726,7 +1840,8 @@ class Index:
         if entry.kind == "result":
             head.append("Retained byte/source association: selected producer metadata revalidated; "
                         "file byte identity is not independently verified by this read.")
-        if values not in (None, {}, []):
+        if values not in (None, {}, []) and not (entry.kind == "result" and entry.media == "document"):
+            # A document's values are its text (its detail), not read twice.
             body += ("\n" if body else "") + "values: " + json.dumps(values, default=str)
         if entry.untrusted or entry.kind in ('dataset-table', 'analysis', 'graph'):  # labels and source text remain data, not instructions
             from .untrusted import block
@@ -1752,7 +1867,7 @@ class Index:
                        if record['version'] == entry.version), None)
         if record is None:
             raise DataTableRefused('the selected saved numeric revision is unavailable')
-        return read_accepted(service.root, record, day, entry.kind)
+        return read_accepted(service.root_for(day), record, day, entry.kind)
 
     def _outline_facts(self, eid: str, day: str | None) -> str:
         """An outline on the board, read one step behind it (known.py: "how do you know?"). A
@@ -1860,7 +1975,7 @@ class Index:
         record,folder = retained
         name = 'capture.jpg' if eid.startswith('e') else 'tracks.jpg'
         path = folder/name
-        if path.resolve() != path:
+        if path.is_symlink():
             return None
         raw = read_picture_bytes(path,max_bytes)
         return (raw,'image/jpeg') if raw and hashlib.sha256(raw).hexdigest() == record['files'][name] else None
@@ -1916,7 +2031,7 @@ class Index:
             return (data, "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg") if data else None
         if re.fullmatch(r"b\d+", eid) and self.bookmarks is not None:
             mark = next((m for m in self.bookmarks.session_marks(day, self.dates(day)) if m.get("id") == eid), None)
-            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes) if mark is not None else None
+            data = self.bookmarks.picture(eid, mark.get("day"), max_bytes=max_bytes, session=day) if mark is not None else None
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"[vj]\d+", eid) and self.registrations is not None:
             data = self.registrations.picture(eid, day, max_bytes=max_bytes)
@@ -1934,8 +2049,8 @@ class Index:
             return (data, "image/jpeg") if data else None
         if re.fullmatch(r"snapshot-\d{6}-(?:[0-9a-f]{12}-)?f\d+", eid) and self.snapshots is not None and sids.is_sid(day):
             entry = next((e for e in self._snapshots(day) if e.id == eid), None)
-            path = self.snapshots / entry.date / f"{eid}.png" if entry is not None else None
-            return (read_picture_bytes(path, max_bytes), "image/png") if path is not None and path.is_file() else None
+            data = self.snapshot_store.picture(day, entry.date, eid, max_bytes=max_bytes) if entry is not None else None
+            return (data, "image/png") if data is not None else None
         if self.research is not None:
             session = self.research.get(eid)
             if session is not None and _sitting(session) != day:  # another session's researcher with this id
@@ -2176,6 +2291,13 @@ class Index:
                 except ValueError:
                     host = None
                 plain = "Reference photo" + (f" · {host}" if host else "")
+            # A document written from the Project's records (documents.py): the model's words from records partly
+            # not the app's, so untrusted to every prompt; Data shows its own title, and its text is read from its file.
+            document = r.get("media") == "document"
+            if document:
+                plain = "Document"
+            if document and state == "done":
+                summary = _document_summary(r.get("values"))  # what it is, not where its request showed it then
             out.append(Entry(
                 r["id"], "result", r.get("title") or r["id"], day, at if at is not None else 0.0, summary=summary,
                 state=state, plain=plain,
@@ -2189,7 +2311,10 @@ class Index:
                 media=r.get("media"), run=single_run(r.get("executions")),
                 source=copy.deepcopy(r.get("source") or {}), values=copy.deepcopy(r.get("values")), time_known=at is not None,
                 pictures=[f"/api/resources/{r['id']}/picture?day={day}&n={n}" for n in range(len(r.get("pictures") or []))],
-                date=str(r.get("day") or ""), portable=bool(r.get("madeWith")), table=self.results.table_candidate(r, day, discover=discover_tables), detail=(lambda r=r: f"asked: {r.get('request')}\nwith: {json.dumps(r.get('args'), default=str)}" if r.get("request") else "")))
+                date=str(r.get("day") or ""), portable=bool(r.get("madeWith")), table=self.results.table_candidate(r, day, discover=discover_tables),
+                detail=((lambda r=r: _document_text(self.results.values(r["id"], day))) if document else
+                        (lambda r=r: f"asked: {r.get('request')}\nwith: {json.dumps(r.get('args'), default=str)}" if r.get("request") else "")),
+                untrusted=document, shown=_words(((r.get("values") or {}).get("title") if isinstance(r.get("values"), dict) else None), 200) if document else ""))
         return out
 
     def _research(self, day: str) -> list[Entry]:
@@ -2408,10 +2533,15 @@ class Index:
         imported = document['state'].get('sourceImport', {})
         producer = imported.get('producer', {}) if isinstance(imported, dict) else {}
         # The intake publisher owns sourceImport; generic document edits cannot forge it.
-        made = ({"actor": producer['actor'], "operation": producer['operation']}
+        made = ({"actor": producer['actor'], "operation": producer['operation'],
+                 **({'label': producer['label']} if isinstance(producer.get('label'), str) else {})}
                 if isinstance(producer, dict) and producer.get('kind') == 'agent-import'
                 and isinstance(producer.get('actor'), str) and isinstance(producer.get('operation'), str)
                 else {})
+        if document['kind'] == 'project-material-membership':
+            membership = document['state'].get('materialMembership', {})
+            if isinstance(membership, dict) and isinstance(membership.get('by'), str):
+                made = {'actor': membership['by']}
         return Entry(item.id, "project", document['title'], item.session, item.at,
                      version=item.revision, state="saved", untrusted=True, made_by=made,
                      summary=f"{document['kind']} project · revision {item.revision}",
@@ -2452,7 +2582,7 @@ class Index:
             return []
         out = []
         for date in self.dates(day):
-            folder = self.snapshots / date
+            folder = self.snapshot_store.folder(day, date)
             if folder.is_dir():
                 out += self._snapshots_in(folder, date, day)
         return out
@@ -2461,7 +2591,7 @@ class Index:
         out = []
         for path in sorted(folder.glob("snapshot-*.json")):
             try:
-                facts = json.loads(path.read_text())
+                facts = self.snapshot_store.read(day, date, path.stem)
             except (OSError, ValueError):
                 continue
             if not isinstance(facts, dict) or session_of(facts, date) != day:
@@ -2592,6 +2722,10 @@ class Index:
             return []
         out = []
         for row in rows(day, library.assets(), record)["sources"]:
+            # Exact retained sources are already scientific Project entries. A
+            # host Library alias is neither a second result nor their identity.
+            if row['id'] in getattr(record, 'source_references', {}):
+                continue
             meta = {k: v for k, v in row.items() if k not in ("thumb", "joined", "opened", "position", "alsoIn")}
             out.append(Entry(row["id"], "asset", row.get("title") or row["id"], day, float(row.get("capturedAt") or 0.0),
                              summary=stage_line(meta).split(": ", 1)[-1], made_by={"from": row.get("from")},

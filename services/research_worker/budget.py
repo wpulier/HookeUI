@@ -26,7 +26,10 @@ PRICES = {
     "gemini-3.1-flash-image": {"text_in": 5.00, "image_in": 8.00, "image_out": 30.00},
     "web_search": 0.010,      # OpenAI, per call (search content tokens are billed as input)
     "google_search": 0.014,   # Gemini, per query beyond the monthly free tier (counted as paid)
-    "veo-3.1-fast": 0.10,     # per second at 720p
+    "veo-3.1-fast": 0.10,     # per second at 720p (retired by Google on 2026-10-22; kept for the records it made)
+    # Its successor, per second at 720p: 5,792 output tokens a second at $17.50 a million (Google's pricing page, read
+    # 2026-10-29: "approximately $0.10 per second"). research_worker/video.py.
+    "gemini-omni-flash": 0.10,
     # Lessons when ANTHROPIC_API_KEY is set, and a brain choice. Anthropic's pricing page, read 2026-10-29: $2/$10 (it was
     # priced here at an older Sonnet's $3/$15).
     "claude-sonnet-5-5": {"in": 2.00, "out": 10.00},
@@ -80,6 +83,8 @@ BASE_TOOLS = frozenset({"web_search", "snapshot", "session", "request_evidence",
 # Charts and animations of a table the session kept, drawn by the app on this Mac from the table's own values
 # (measurement_charts.py): no model, no provider, no money; from quick up, beside the app's other operations.
 CHART_TOOLS = frozenset({"make_chart", "animate_measurements"})
+# A rendered HTML page the researcher writes itself (slides, a small interactive visual), from quick up (Will, 2026-10-30).
+PAGE_TOOLS = frozenset({"make_page"})
 EFFORTS = {
     # Spike S5: one lookup with search results is $0.04-0.05 and 9-12 s, so instant has
     # $0.08 and no image tools (an annotated image takes ~11 s, spike S4).
@@ -90,12 +95,12 @@ EFFORTS = {
     "describe": Effort("describe", 25, 0.08, "instant", BASE_TOOLS, 3, "low"),
     # The app's own operations (run, orchestrator/research/hands.py) only from quick up: they take seconds of the
     # researcher's time, never money, and an instant lookup or a description has none to spare.
-    "quick": Effort("quick", 75, 0.25, "big", BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_lesson", "run"}, 8, "low",
+    "quick": Effort("quick", 75, 0.25, "big", BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_lesson", "run"}, 8, "low",
                     max_images=3),
     "standard": Effort("standard", 360, 1.00, "big",
-                       BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"}, 16, "medium",
+                       BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"}, 16, "medium",
                        max_images=5),
-    "deep": Effort("deep", 1080, 5.00, "big", BASE_TOOLS | CHART_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"},
+    "deep": Effort("deep", 1080, 5.00, "big", BASE_TOOLS | CHART_TOOLS | PAGE_TOOLS | {"annotate_image", "generate_image", "make_video", "make_lesson", "run"},
                    32, "high", max_images=8),
     # A new version of one thing a researcher made (ResearchManager.followup mode "revise"): a
     # lesson is one edit call plus the page written again (the page alone is checked at $0.10,
@@ -115,13 +120,22 @@ REVISE_ONLY = "revise"  # an effort that never starts a researcher of its own
 RUN_OPERATIONS = {"workflow": "invoke or inspect a named scientific workflow", "segment": "segment every cell in {view} and measure them",
                   "enhance": "make a clearer picture of {view} from real frames",
                   "measure_saved_objects": "measure the explicitly selected saved labels",
-                  "motion": "measure what moves on the Stage over its last seconds"}
+                  "motion": "measure what moves on the Stage over its last seconds",
+                  "classify": "classify the cells of {view} with several models and compare them"}
 # The cell finders a researcher can name for segment (id = name), as the app names them (orchestrator/names.py; a test
 # keeps the two the same): the research process does not import the app (Slice 5, the user's Q24).
 CELL_FINDERS = {"cellpose-sam": "Cellpose-SAM", "cellpose-sam-tuned": "Cellpose-SAM fine-tuned on your corrections",
                 "micro-sam-lm": "micro-sam (light microscopy)", "edgetam-automask": "EdgeTAM automatic masks",
                 "fiji-analyze-particles": "Analyze Particles (Fiji)",
                 "basic-bright-objects": "Bright objects"}
+# The models a researcher can name for classify (id = name), as the app names them (operations.CLASSIFY; a test keeps
+# the two the same, and the app tells a run the list it has: manager._door "classifiers").
+CLASSIFIERS = {"gemini-3.8-flash": "Gemini 3.8 Flash", "gemini-3.8-flash-hires": "Gemini 3.8 Flash (high resolution)",
+               "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite", "gemini-3.5-flash": "Gemini 3.5 Flash",
+               "gpt-5.6-luna-priority": "GPT-5.6 Luna (priority)", "gpt-6-luna": "GPT-6 Luna", "gpt-6.1-sol": "GPT-6.1 Sol",
+               "claude-opus-5-5": "Claude Opus 5.5", "claude-opus-5-5-fast": "Claude Opus 5.5 (fast mode)",
+               "gemini-4-argon": "Gemini 4 Argon", "medsiglip-448": "MedSigLIP 448"}
+MAX_CLASSIFIERS = 6  # orchestrator/model_comparison.MAX_MODELS
 
 
 def operation_limit(effort: str | None) -> int:

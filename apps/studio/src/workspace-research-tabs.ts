@@ -3,6 +3,7 @@ import {asking,chipStatus,isWorking,pillState,researcherCell,todaysResearch} fro
 import {litCell,setLitCell,type LitCellState} from './lit-cell';
 import {stopRequested} from './research-stop';
 import {tabMark} from './tab-marks';
+import {researchShows,type ResearchShows} from './workspace-model';
 
 /** Virtual researchers share the work Tab row but never enter the server layout or its 24-Tab cap. */
 type Host={current:()=>boolean;row:HTMLElement;project:string;activeWorkId:string;homeWorkId?:string;activateWork:(id:string)=>Promise<boolean>;reorderWork:(ids:string[])=>void;refit?:()=>void};
@@ -135,11 +136,14 @@ export class WorkspaceResearchTabs {
   return [...researchers,...views];
  }
  /** The Assistant's Tab report: every researcher and view Tab, open or closed, and which one is in front. */
- report():{id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft'}[]{
+ report():{id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft';shows:ResearchShows[]}[]{
   const selected=this.selectedId(),open=new Set(this.tabbed().map(row=>row.rid));
+  // What each one shows (workspace-model.ts): a researcher's conversation and the work it made, by kind; a Study's
+  // question, steps and write-up; a draft's form.
   return [
-   ...this.rows.filter(row=>open.has(row.rid)||this.hidden.has(row.rid)).map(row=>({id:researchId(row.rid),title:`${row.name} · ${researcherObjective(row)}`,open:open.has(row.rid),selected:selected===researchId(row.rid),kind:'researcher' as const})),
-   ...[...this.virtual.values()].map(tab=>({id:tab.id,title:tab.name,open:true,selected:selected===tab.id,kind:tab.id.startsWith('study:')?'study' as const:'draft' as const})),
+   ...this.rows.filter(row=>open.has(row.rid)||this.hidden.has(row.rid)).map(row=>({id:researchId(row.rid),title:`${row.name} · ${researcherObjective(row)}`,open:open.has(row.rid),selected:selected===researchId(row.rid),kind:'researcher' as const,shows:researchShows(row.outputs,12,row.rid)})),
+   ...[...this.virtual.values()].map(tab=>({id:tab.id,title:tab.name,open:true,selected:selected===tab.id,kind:tab.id.startsWith('study:')?'study' as const:'draft' as const,
+    shows:tab.id.startsWith('study:')?[{kind:'document' as const,title:'The Study: its question, steps and write-up'}]:[{kind:'document' as const,title:'A new researcher’s form'}]})),
   ];
  }
  /** The research or view Tab in front, or '' while a work Tab is. */

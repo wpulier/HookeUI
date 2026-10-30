@@ -142,3 +142,95 @@ def test_evaluation_is_explicit_diagnostic_and_panel_mismatch_refuses(tmp_path):
     assert meta['competitionScore'] is False and meta['rows'][0]['mse'] == 0
     with pytest.raises(engine.Refused, match='not installed'):
         engine.evaluate({}, {'profile': 'unknown'}, tmp_path, lambda: None)
+
+
+@pytest.mark.parametrize('values,whole', [([.25, 1.5], False), ([-1., 2.], False), ([1., 2.], True)])
+def test_numeric_inspection_is_explicit_and_does_not_relax_count_operations(tmp_path, values, whole):
+    source = adata(tmp_path / 'values.h5ad', [values], ['a'], ['x'], ['g1', 'g2'])
+    params = parameters('matrix-inspect', {'require_raw_counts': False})
+    _, result = engine.inspect({'matrix': source}, params, output(tmp_path, 'describe'), lambda: None)
+    assert result['shape'] == [1, 2] and result['wholeNonnegativeValues'] is whole
+    assert 'rawCounts' not in result
+    assert result['valueSemantics'] == 'unverified' and 'libraryDepth' not in result
+    assert result['rowTotals']['mean'] == sum(values)
+    if not whole:
+        with pytest.raises(engine.Refused, match='whole counts'):
+            engine.inspect({'matrix': source}, parameters('matrix-inspect', {}), output(tmp_path, 'strict'), lambda: None)
+        with pytest.raises(engine.Refused, match='whole counts'):
+            engine.export({'matrix': source}, {}, output(tmp_path, 'export'), lambda: None)
+
+
+def test_numeric_inspection_still_refuses_nonfinite_values(tmp_path):
+    source = adata(tmp_path / 'values.h5ad', [[np.nan, 1.]], ['a'], ['x'], ['g1', 'g2'])
+    with pytest.raises(engine.Refused, match='finite'):
+        engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)
+
+
+@pytest.mark.parametrize('representation', ['dense', 'csr'])
+@pytest.mark.parametrize('block_rows', [1, 3])
+def test_inspection_measures_depth_reciprocal_not_reciprocal_of_mean(tmp_path, monkeypatch, representation, block_rows):
+    anndata = pytest.importorskip('anndata')
+    source = adata(tmp_path / 'depth.h5ad', [[1, 1], [2, 2], [4, 4]], ['a'] * 3, ['x'] * 3, ['g1', 'g2'])
+    if representation == 'dense':
+        obj = anndata.read_h5ad(source); obj.X = obj.X.toarray(); obj.write_h5ad(source)
+    monkeypatch.setattr(engine, 'BLOCK_ROWS', block_rows)
+    path, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    depth = summary['libraryDepth']
+    assert depth['median'] == 4 and depth['zeroObservations'] == 0
+    assert depth['meanReciprocal'] == pytest.approx(7 / 24)
+    assert depth['meanReciprocal'] != pytest.approx(1 / depth['mean'])
+    assert json.loads(path.read_text())['libraryDepth'] == depth
+
+
+def test_inspection_does_not_drop_zero_depth_observations(tmp_path):
+    source = adata(tmp_path / 'depth.h5ad', [[0, 0], [1, 3]], ['a'] * 2, ['x'] * 2, ['g1', 'g2'])
+    _, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    depth = summary['libraryDepth']
+    assert depth['median'] == 2 and depth['mean'] == 2
+    assert depth['zeroObservations'] == 1 and depth['meanReciprocal'] is None
+    assert 'undefined' in depth['reciprocalMeaning']
+
+
+def test_transformed_inspection_never_describes_reciprocal_as_count_depth(tmp_path):
+    source = adata(tmp_path / 'transformed.h5ad', [[-2, 0], [.25, .75]], ['a'] * 2, ['x'] * 2, ['g1', 'g2'])
+    _, summary = engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)
+    assert summary['rowTotals']['median'] == -.5
+    assert 'meanReciprocal' not in summary['rowTotals'] and 'libraryDepth' not in summary
+
+@pytest.mark.parametrize('representation', ['dense', 'sparse'])
+def test_inspection_retains_only_first_ten_by_ten_preview(tmp_path, representation, monkeypatch):
+    anndata = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    values = np.arange(240, dtype=np.float32).reshape(20, 12)
+    data = anndata.AnnData(values if representation == 'dense' else sparse.csr_matrix(values),
+        obs=pd.DataFrame({'batch': ['a'] * 20, 'missing': [np.nan] * 20}, index=[f'o{i}' for i in range(20)]),
+        var=pd.DataFrame({'label': ['x'] * 12}, index=[f'v{i}' for i in range(12)]))
+    source = tmp_path / 'preview.h5ad'; data.write_h5ad(source)
+    original = sparse.csr_matrix.toarray
+    def bounded(self, *args, **kwargs):
+        assert self.shape[0] <= 10 and self.shape[1] <= 10
+        return original(self, *args, **kwargs)
+    monkeypatch.setattr(sparse.csr_matrix, 'toarray', bounded)
+    path, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'result'), lambda: None)
+    preview = summary['preview']
+    assert preview['selection'] == 'first-observations-and-variables'
+    assert preview['observations'] == [f'o{i}' for i in range(10)]
+    assert preview['variables'] == [f'v{i}' for i in range(10)]
+    assert preview['values'] == values[:10, :10].tolist()
+    assert preview['observationAnnotations'][1]['values'] == [None] * 10
+    assert summary['shape'] == [20, 12]
+    assert json.loads(path.read_text())['preview'] == preview
+
+
+@pytest.mark.parametrize('representation', ['dense', 'sparse'])
+def test_inspection_preview_keeps_large_integer_values_exact(tmp_path, representation):
+    anndata = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    values = np.asarray([[9007199254740993, 7]], dtype=np.uint64)
+    data = anndata.AnnData(values if representation == 'dense' else sparse.csr_matrix(values),
+        obs=pd.DataFrame({'identifier': np.asarray([9007199254740993], dtype=np.uint64)}, index=['one']),
+        var=pd.DataFrame(index=['a', 'b']))
+    source = tmp_path / 'large.h5ad'; data.write_h5ad(source)
+    _, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    preview = summary['preview']
+    assert preview['values'] == [['9007199254740993', 7]]
+    assert preview['observationAnnotations'][0]['values'] == ['9007199254740993']
+    assert preview['integerEncoding'] == 'unsafe-as-decimal-string'

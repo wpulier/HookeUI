@@ -1,0 +1,200 @@
+"""Actual isolated accepted records/door transport; synthetic connection consent."""
+import threading
+
+import pytest
+
+from orchestrator.door import schema
+from orchestrator.project_dependency_access import inspect, unavailable
+from orchestrator.project_repository import document_root
+from orchestrator.project_roots import ProjectLocationError
+from orchestrator.scientific_projects import ProjectStore
+from tests.test_project_folder_copy import setup
+from tests.test_project_record_dependencies import study
+from tests.test_agent_projects import project_door, run, STUDIO
+from tests.test_agent_door import connect, bearer, window_key  # noqa: F401
+from tests.waiting import until, HANG_S
+
+
+def test_available_review_keeps_exact_heads_and_never_changes_history(tmp_path):
+    root, _, first, second = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    effort = study(store, first)
+    before = [(s.id, s.revision, s.digest) for s in store.list(root.session)]
+    result = inspect(store, root.session)
+    schema.check(result, 'project-dependencies')
+    assert result['availability'] == 'available' and result['completeProject'] is False
+    assert result['documents'] == 2 and result['revisions'] == 3
+    assert result['referencesChecked'] == 1 and not result['issues']
+    assert {r['id'] for r in result['basis']} == {first.id, effort.id}
+    assert before == [(s.id, s.revision, s.digest) for s in store.list(root.session)]
+
+
+def test_new_accepted_revision_refuses_a_stale_review(tmp_path, monkeypatch):
+    root, _, first, _ = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    original = store.head_references
+    calls = 0
+    def changed(session, **options):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            store.create(session, {'kind': 'note', 'title': 'New work', 'resources': [],
+                                  'runtimes': [], 'state': {'text': 'Arrived during review'}})
+        return original(session, **options)
+    monkeypatch.setattr(store, 'head_references', changed)
+    with pytest.raises(ProjectLocationError, match='changed during inspection'):
+        inspect(store, root.session)
+    assert store.read(first.id, root.session, revision=first.revision) == first
+
+
+def test_unavailable_contract_cannot_claim_complete():
+    result = unavailable('2026-10-30')
+    schema.check(result, 'project-dependencies')
+    assert result['availability'] == 'unavailable' and result['basis'] == []
+    with pytest.raises(ValueError):
+        schema.check({**result, 'completeProject': True}, 'project-dependencies')
+
+
+def test_dependency_action_discovery_scope_and_idempotent_receipt(project_door, monkeypatch):
+    from orchestrator.door import listing
+    from orchestrator import agent_runnable
+    client, built = project_door
+    monkeypatch.setattr(listing, 'gather', lambda built: [])
+    owner = bearer(connect(client)['token'])
+    outsider = bearer(connect(client, label='Other', secret='unrelated-dependencies-0001')['token'])
+    session = run(client, owner, 'project.create', {'name': 'Evidence'}, 'dependency-create')['outcome']['project']['session']
+    assert [t['id'] for t in client.get('/api/agent/v1/tools?q=project.dependencies', headers=owner).json()['tools']] == ['project.dependencies']
+    result = run(client, owner, 'project.dependencies', {}, 'dependency-review', session)
+    schema.check(result['outcome']['dependencies'], 'project-dependencies')
+    assert result['outcome']['dependencies']['basis'] == []
+    assert result['outcome']['dependencies']['sourceReview']['sources'] == []
+    assert result['outcome']['dependencies']['sourceReview']['completeProject'] is False
+    assert run(client, owner, 'project.dependencies', {}, 'dependency-review', session)['id'] == result['id']
+    request = {'tool': 'project.dependencies', 'args': {}, 'project': session, 'requestKey': 'unrelated-dependency'}
+    assert client.post('/api/agent/v1/operations', headers=outsider, json=request).status_code == 403
+    monkeypatch.delitem(agent_runnable.DOOR_RESOURCES, 'project.dependencies')
+    assert client.get('/api/agent/v1/tools?q=project.dependencies', headers=owner).json()['tools'] == []
+    assert client.post('/api/agent/v1/operations', headers=owner, json=request).status_code == 403
+
+
+def test_reader_revoked_during_review_does_not_receive_results(project_door, monkeypatch):
+    from orchestrator import project_dependency_access
+    client, built = project_door
+    owner = bearer(connect(client)['token'])
+    reader = connect(client, label='Reader', secret='reader-dependencies-0001')
+    headers = bearer(reader['token'])
+    session = run(client, owner, 'project.create', {'name': 'Evidence'}, 'reader-project')['outcome']['project']['session']
+    monkeypatch.delenv('HOOKE_CONFIRM_KEY'); monkeypatch.setenv('HOOKE_DEV_CONFIRM', '1')
+    grant = {'session': session, 'connection': reader['connection']['id'], 'role': 'read'}
+    assert client.post('/api/agent-project-access', headers=STUDIO, json=grant).status_code == 200
+    entered, resume = threading.Event(), threading.Event()
+    original = project_dependency_access.inspect
+    def held(*args, **kwargs):
+        entered.set()
+        assert resume.wait(HANG_S), 'test release did not arrive'
+        return original(*args, **kwargs)
+    monkeypatch.setattr(project_dependency_access, 'inspect', held)
+    request = {'tool': 'project.dependencies', 'args': {}, 'project': session, 'requestKey': 'reader-inspection'}
+    response = client.post('/api/agent/v1/operations', headers=headers, json=request)
+    assert response.status_code == 202
+    op = response.json()['operation']['id']
+    try:
+        assert entered.wait(HANG_S)
+        assert client.post('/api/agent-project-access', headers=STUDIO, json={**grant, 'role': None}).status_code == 200
+    finally:
+        resume.set()
+    def stopped():
+        result = client.get('/api/agent/v1/operations/' + op, headers=owner).json()['operation']
+        return result if result['state'] == 'failed' else None
+    result = until(stopped)
+    assert result['outcome']['code'] == 'project-access-refused'
+    assert 'dependencies' not in result['outcome']
+    assert client.get('/api/agent/v1/operations/' + op, headers=headers).status_code == 403
+
+
+def test_cancellation_waits_for_read_worker_to_stop(project_door, monkeypatch):
+    from orchestrator import project_dependency_access
+    client, built = project_door
+    headers = bearer(connect(client)['token'])
+    session = run(client, headers, 'project.create', {'name': 'Evidence'}, 'cancel-project')['outcome']['project']['session']
+    entered, resume, exited = threading.Event(), threading.Event(), threading.Event()
+    original = project_dependency_access.inspect
+    def held(*args, **kwargs):
+        try:
+            entered.set()
+            assert resume.wait(HANG_S)
+            return original(*args, **kwargs)
+        finally:
+            exited.set()
+    monkeypatch.setattr(project_dependency_access, 'inspect', held)
+    response = client.post('/api/agent/v1/operations', headers=headers, json={
+        'tool': 'project.dependencies', 'args': {}, 'project': session, 'requestKey': 'cancel-inspection'})
+    assert response.status_code == 202
+    op = response.json()['operation']['id']
+    try:
+        assert entered.wait(HANG_S)
+        stop = client.post('/api/agent/v1/operations/' + op + '/cancel', headers=headers)
+        assert stop.status_code == 200 and not exited.is_set()
+        again = client.post('/api/agent/v1/operations/' + op + '/cancel', headers=headers)
+        assert again.status_code == 200
+        current = client.get('/api/agent/v1/operations/' + op, headers=headers).json()['operation']
+        assert current['state'] == 'cancelRequested' and not exited.is_set()
+    finally:
+        resume.set()
+    def ended():
+        result = client.get('/api/agent/v1/operations/' + op, headers=headers).json()['operation']
+        return result if result['state'] == 'cancelled' else None
+    result = until(ended)
+    assert exited.is_set() and 'dependencies' not in result['outcome']
+
+
+def test_head_discovery_is_bounded_and_cancellable_before_loading_bodies(tmp_path, monkeypatch):
+    root, _, first, second = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    original = store.read
+    def no_body(*args, **kwargs):
+        raise AssertionError('Head discovery must not load a document body')
+    monkeypatch.setattr(store, 'read', no_body)
+    refs = store.head_references(root.session, max_documents=2, max_revisions=3)
+    assert refs == [{'id': second.id, 'session': root.session, 'revision': second.revision, 'digest': second.digest}]
+    for limits in ({'max_documents': 0, 'max_revisions': 10}, {'max_documents': 10, 'max_revisions': 1}):
+        with pytest.raises(ValueError, match='allowance'):
+            store.head_references(root.session, **limits)
+    visited = 0
+    def stop():
+        nonlocal visited
+        visited += 1
+        if visited == 2:
+            raise RuntimeError('cancelled while enumerating')
+    with pytest.raises(RuntimeError, match='cancelled while enumerating'):
+        store.head_references(root.session, max_documents=10, max_revisions=10, check=stop)
+    assert original(first.id, root.session, revision=first.revision) == first
+
+
+def test_head_discovery_excludes_other_owners_without_reading_their_documents(tmp_path, monkeypatch):
+    from orchestrator.scientific_comparisons import identity
+    store = ProjectStore(tmp_path / 'records')
+    doc = {'kind': 'note', 'title': 'Synthetic', 'state': {}, 'resources': [], 'runtimes': []}
+    ours = store.create('2026-10-30', doc)
+    theirs = store.create('2026-10-30.1', doc)
+    # A damaged foreign body is never opened by discovery of our Project.
+    path = store.root / theirs.id / 'revisions' / (theirs.digest + '.json')
+    path.chmod(0o600); path.write_bytes(b'damaged unrelated body')
+    assert store.head_references(ours.session, max_documents=1, max_revisions=1) == [identity(ours)]
+
+
+def test_source_review_is_scoped_to_the_admitted_project_without_changing_the_ui(project_door):
+    client, built = project_door
+    owner = bearer(connect(client)['token'])
+    session = run(client, owner, 'project.create', {'name': 'Source history'}, 'source-review-create')['outcome']['project']['session']
+    visible = built.day.sid
+    captured = built.day.elsewhere(session)
+    captured.open_source('a12')
+    captured.remove_source('a12')
+    result = run(client, owner, 'project.dependencies', {}, 'source-review-history', session)
+    review = result['outcome']['dependencies']['sourceReview']
+    schema.check(review, 'project-source-review')
+    assert review['sources'] == [{'asset': 'a12', 'status': 'inclusion-required', 'choices': []}]
+    assert built.day.sid == visible
+    with pytest.raises(ValueError):
+        schema.check({**review, 'completeProject': True}, 'project-source-review')

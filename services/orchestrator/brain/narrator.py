@@ -231,20 +231,29 @@ class Narrator:
                 return
         sent = self.clock()
         try:
-            await voice.inject(text, respond=True, delegation_id=line.delegation_id)
+            published = await voice.inject(text, respond=True, delegation_id=line.delegation_id)
         except Exception:
             self._unavailable(line)
             return
+        when_heard = getattr(published, "when_heard", None)
+        if callable(when_heard):
+            # The one-brain voice's bus (voice/events.py) knows when the words were heard to their end: said then, not
+            # as they start; a line cut off stays owed there and comes back, and is claimed only once it is heard.
+            when_heard(lambda: self._said(voice, line, said))
+            return
         if await self._started_speaking(voice, sent):
-            self.delivered.append((self.clock(), "voice", line.text))
-            # Marked said only now that the voice is heard saying it (ADR 0006: never marked by a silent note, a failed
-            # send or speech that never started).
-            if line.outcomes and isinstance(said, Said):
-                said.claim(line.outcomes)
-            if line.action_id and isinstance(getattr(voice, "spoken_actions", None), set):
-                voice.spoken_actions.add(line.action_id)  # its outcome is said: the hand-off's findings won't say it again
+            self._said(voice, line, said)
             return
         self._unavailable(line)
+
+    def _said(self, voice, line: Line, said) -> None:
+        self.delivered.append((self.clock(), "voice", line.text))
+        # Marked said only now that the voice is heard saying it (ADR 0006: never marked by a silent note, a failed
+        # send or speech that never started).
+        if line.outcomes and isinstance(said, Said):
+            said.claim(line.outcomes)
+        if line.action_id and isinstance(getattr(voice, "spoken_actions", None), set):
+            voice.spoken_actions.add(line.action_id)  # its outcome is said: the hand-off's findings won't say it again
 
     async def _started_speaking(self, voice, sent: float) -> bool:
         end = sent + CONFIRM_S

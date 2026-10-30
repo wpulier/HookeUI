@@ -43,11 +43,30 @@ def freshness(record, table, *, updating=False, failed=None):
 class TableDerivatives:
     def __init__(self, tables: DataTables, root: Path, evaluators: dict):
         self.tables, self.root, self.evaluators = tables, Path(root), dict(evaluators)
+        from .project_artifact_folder import ArtifactFolder
+        self._storage = ArtifactFolder(self.root, 'table-derivatives')
         self._locks, self._timers, self._tasks, self._failed = {}, {}, {}, {}
         self._dirty = set()
         self._evaluation = asyncio.Semaphore(2)
         self._loop = None
         self.tables.day.listeners.append(self._changed)
+
+    def root_for(self, session, *, write=False):
+        return self._storage.root_for(self.tables.day, session, write=write)
+
+    def path_of(self, record, session, *, write=False):
+        from .table_reading import snapshot_path
+        path = self.root_for(session, write=write) / snapshot_path(record, session, record['kind'])
+        if path.resolve() != path.absolute():
+            raise DataTableRefused('the saved analysis or graph path was replaced')
+        return path
+
+    def _write(self, record, snapshot, session):
+        root = self.root_for(session, write=True)
+        def check():
+            if self.root_for(session, write=True) != root:
+                raise DataTableRefused('the saved analysis or graph destination changed')
+        return publish_snapshot(root, record, snapshot, session, check=check)
 
     def history(self, rid):
         return list(self.tables.day.table_derivatives.get(rid) or [])
@@ -67,7 +86,7 @@ class TableDerivatives:
         owner.check(self.tables.app)
         record = self.version(rid, version)
         try:
-            with (self.root / record['snapshot']['path']).open('rb') as stream:
+            with self.path_of(record, owner.session).open('rb') as stream:
                 body = stream.read(MAX_SNAPSHOT_BYTES + 1)
         except OSError:
             raise DataTableRefused('the saved analysis or graph file is unavailable', next='restore its saved file', status=409) from None
@@ -123,7 +142,7 @@ class TableDerivatives:
         owner.check(self.tables.app)
         if record['version'] > MAX_VERSIONS:
             raise DataTableRefused('the saved result reached its revision limit', next='create another analysis or graph')
-        writer = asyncio.create_task(asyncio.to_thread(publish_snapshot, self.root, record, snapshot, owner.session))
+        writer = asyncio.create_task(asyncio.to_thread(self._write, record, snapshot, owner.session))
         try:
             receipt = await asyncio.shield(writer)
         except asyncio.CancelledError:
@@ -132,13 +151,19 @@ class TableDerivatives:
             except Exception:
                 pass
             else:
-                (self.root / receipt['path']).unlink(missing_ok=True)
+                try:
+                    self.path_of({**record,'snapshot':receipt}, owner.session, write=True).unlink(missing_ok=True)
+                except (OSError, ValueError):
+                    pass
             raise
         try:
             owner.check(self.tables.app)
             saved = owner.store.record_table_derivative({**record, 'session': owner.session, 'snapshot': receipt, 'thread': owner.thread})
         except BaseException:
-            (self.root / receipt['path']).unlink(missing_ok=True)
+            try:
+                self.path_of({**record,'snapshot':receipt}, owner.session, write=True).unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass  # Unaccepted bytes stay for recovery when their original location is unavailable.
             raise
         self._failed.pop(owner.key(record['id']), None)
         if saved['mode'] == 'follow' and self.wire(saved)['freshness']['state'] == 'stale':

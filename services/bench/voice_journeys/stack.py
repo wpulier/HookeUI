@@ -64,6 +64,38 @@ def words(plan: dict, folder: Path) -> None:
         said.write_text(key)
 
 
+NOISE_S = 20  # the still's loop: long enough that its seam is rare, short enough to make in a second
+
+
+def noisy_loop(still: Path, folder: Path) -> Path:
+    """The still image as a short looping video with sensor-like noise, so no two frames are byte-identical: the bridge
+    heals a camera whose frames are (FROZEN_HEAL_S: a frozen iPhone), which stopped a still's live view about 17 s after
+    a Project's Use live camera (2026-10-29). A file encode, never a capture; made once per stack."""
+    out = folder / f"{still.stem}-noise.mp4"
+    if not out.exists():
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25", "-i", str(still),
+                        "-t", str(NOISE_S), "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,noise=alls=3:allf=t+u,format=yuv420p",
+                        "-c:v", "libx264", "-crf", "18", "-r", "25", str(out)], check=True)
+    return out
+
+
+# The watcher's slide move (plans with camera.pan; orchestrator/view_watch.py): the still held for PAN_HOLD_S, panned
+# by PAN_PX of its 512 px over PAN_S (most of the view: the bridge fits it to the frame's height), then held again.
+PAN_HOLD_S, PAN_S, PAN_PX, PAN_CLIP_S = 14, 2, 192, 90
+
+
+def panning_clip(still: Path, folder: Path) -> Path:
+    """The still as a slide that is moved once and left (the watcher's "slide-moved"), with the noisy loop's
+    sensor-like noise; held long enough after the move that a watch step never reaches its loop. Made once per stack."""
+    out = folder / f"{still.stem}-pan.mp4"
+    if not out.exists():
+        x = f"min({PAN_PX}\\,max(0\\,(t-{PAN_HOLD_S})*{PAN_PX / PAN_S:g}))"
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25", "-i", str(still),
+                        "-t", str(PAN_CLIP_S), "-vf", f"crop=320:320:{x}:96,scale=512:512,noise=alls=3:allf=t+u,"
+                        "format=yuv420p", "-c:v", "libx264", "-crf", "23", "-r", "25", str(out)], check=True)
+    return out
+
+
 def healthy(url: str, seconds: float) -> bool:
     end = time.monotonic() + seconds
     while time.monotonic() < end:
@@ -77,9 +109,10 @@ def healthy(url: str, seconds: float) -> bool:
     return False
 
 
-def settings_for(args: argparse.Namespace) -> str:
-    """This arm's settings: --settings JSON, with --voice and --talk on top."""
-    settings = json.loads(args.settings) if args.settings else {}
+def settings_for(args: argparse.Namespace, plan: dict | None = None) -> str:
+    """This arm's settings: the plan's own (part-2.5-watch: {"watch": "chatty"}), then --settings JSON, with --voice and
+    --talk on top."""
+    settings = {**((plan or {}).get("settings") or {}), **(json.loads(args.settings) if args.settings else {})}
     if args.voice:
         settings["voice"] = args.voice
     if args.talk:
@@ -87,10 +120,23 @@ def settings_for(args: argparse.Namespace) -> str:
     return json.dumps(settings) if settings else ""
 
 
+def stale(studio: Path) -> bool:
+    """Whether the studio's build is older than any of its sources: a journey runs the studio as it is now, never an
+    earlier build (29 Oct: every journey from 17:06 ran a build without the hand-off rows, the voice's state or the
+    studio's report fixes, so the bench never saw Hooke working and those fixes were never tried)."""
+    built = studio / "dist" / "index.html"
+    if not built.exists():
+        return True
+    at = built.stat().st_mtime
+    sources = [studio / name for name in ("index.html", "package.json", "vite.config.ts", "tsconfig.json")]
+    sources += [p for folder in ("src", "public") for p in (studio / folder).rglob("*") if p.is_file()]
+    return any(p.exists() and p.stat().st_mtime > at for p in sources)
+
+
 def publish(checkout: Path, build: bool) -> Path:
-    """The player and every plan's words beside the studio build."""
+    """The player and every plan's words beside the studio build (rebuilt when any of its sources is newer)."""
     dist = checkout / "apps" / "studio" / "dist"
-    if build or not (dist / "index.html").exists():
+    if build or stale(checkout / "apps" / "studio"):
         subprocess.run(["npm", "run", "build"], cwd=checkout / "apps" / "studio", check=True)
     test = dist / "voice-test"
     test.mkdir(parents=True, exist_ok=True)
@@ -123,8 +169,11 @@ def up(args: argparse.Namespace) -> dict:
         (out / sub).mkdir(parents=True, exist_ok=True)
     publish(checkout, args.build)
     camera = plan.get("camera") or {}
-    if camera.get("still"):  # a still image as the camera (the bundled example): no footage store needed
-        first, footage = checkout / camera["still"], out / "footage"
+    if camera.get("still"):  # a still image as the camera (the bundled example), with sensor-like noise: no store needed
+        footage = out / "footage"
+        first = noisy_loop(checkout / camera["still"], footage)
+        if camera.get("pan"):
+            panning_clip(checkout / camera["still"], footage)
     else:
         first, footage = ASSETS / "footage" / plan["steps"][0]["footage"], ASSETS / "footage"
     bridge = subprocess.Popen(
@@ -139,7 +188,7 @@ def up(args: argparse.Namespace) -> dict:
     env = {"MICROMIND_EDITION": "research", "MICROMIND_HOME": str(out / "home"),
            "MICROMIND_RECORDINGS_DIR": str(out / "recordings"), "MICROMIND_DATASETS_DIR": str(out / "datasets"),
            "MICROMIND_KEYS_FILE": str(Path(args.keys)), "MICROMIND_KEYCHAIN": "off", "CAMERA_NO_PHONE": "1"}
-    settings = settings_for(args)
+    settings = settings_for(args, plan)
     if settings:
         env["MICROMIND_SETTINGS"] = settings  # this arm's settings (app.py), e.g. {"voice": "gpt-realtime-2.1"}
     if args.faults:

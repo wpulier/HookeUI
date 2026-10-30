@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry, indexedRevision } from './project-inputs';
+import { dataRows, type DataEntry } from './data-roles';
+
+const entry = (id: string, input: boolean, extra = {}): DataEntry => ({
+  id, kind: 'project', title: id, day: '2026-10-29', version: 2, summary: '', state: 'saved', actions: [],
+  material: {kind: 'file', origin: 'imported', input, section: 'files', category: 'import', record: false, dependencies: [], ...extra},
+});
+
+describe('shared Project material', () => {
+  it('never borrows head attribution for a historical inspection selected as an input', () => {
+    const head = {...entry('report', false, {uses: [{study: 's', title: 'Older inspection',
+      revision: 1, digest: 'a'.repeat(64), available: true}]}), at: 200,
+      maker: {kind: 'agent' as const, name: 'Later author'}};
+    const ref = {id: 'report', day: '2026-10-29', version: 1};
+    expect(projectEntry([head], ref, ref.day)?.version).toBe(1);
+    expect(indexedRevision([head], ref, ref.day)).toBeNull();
+    const old = {...head, version: 1, at: 100, maker: {kind: 'agent' as const, name: 'Original author'}};
+    expect(indexedRevision([head, old], ref, ref.day)).toBe(old);
+    expect(indexedRevision([head, old], ref, 'another-project')).toBeNull();
+  });
+  it('shows explicit inputs and assignments without promoting generated outputs', () => {
+    const imported = entry('controls', true), result = entry('model', false, {origin: 'generated'});
+    const assignment = entry('Question', true, {kind: 'assignment', origin: 'authored'});
+    expect(projectInputs([imported, result, assignment])).toEqual([imported, assignment]);
+    expect(projectInputs([imported, result, assignment], 'question')).toEqual([assignment]);
+    expect(materialFacts(imported)).toBe('File · Revision 2');
+    expect(materialFacts(assignment)).toBe('Study assignment · Revision 2');
+  });
+  it('folds receipts beneath the run while retaining each exact revision', () => {
+    const run = {...entry('run', false, {kind: 'workflow'}), role: 'history' as const, run: 'run'};
+    const attempt = {...entry('attempt', false, {kind: 'workflow', run: 'run'}), role: 'history' as const, run: 'run'};
+    const rows = dataRows([attempt, run]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].entry?.id).toBe('run');
+    expect(rows[0].parts.map(item => item.id)).toEqual(['run', 'attempt']);
+  });
+});
+
+it('keeps a generated historical revision selected by a Study visible and pinned', () => {
+  const model = entry('model', false, {origin: 'generated', uses: [{study: 'study', revision: 1, digest: 'a'.repeat(64), title: 'Original model', available: true}]});
+  const [input] = projectInputs([model]);
+  expect(input.version).toBe(1);
+  expect(input.title).toBe('Original model');
+  expect(input.source?.sha256).toBe('a'.repeat(64));
+  expect(input.material?.origin).toBe('generated');
+  expect(model.version).toBe(2);
+});
+
+it('resolves a retained Tab pin without substituting the newest model', () => {
+  const model = entry('model', false, {origin: 'generated', uses: [{study: 'study', revision: 1, digest: 'a'.repeat(64), title: 'Original model', available: true}]});
+  const pin = {id: 'model', day: '2026-10-29', version: 1};
+  expect(projectEntry([model], pin, pin.day)?.title).toBe('Original model');
+  expect(projectEntry([model], {...pin, version: 2}, pin.day)).toBe(model);
+  expect(projectEntry([model], {...pin, version: 3}, pin.day)).toBeNull();
+  expect(projectEntry([model], {...pin, day: 'foreign'}, pin.day)).toBeNull();
+});
+
+it('keeps historical Tabs readable independently of Study membership', () => {
+  const pin = {id: 'p' + 'a'.repeat(32), day: '2026-10-29', version: 1};
+  expect(retainedProjectEntry(pin, pin.day)).toMatchObject({...pin, kind: 'project'});
+  expect(retainedProjectEntry(pin, 'foreign')).toBeNull();
+  expect(retainedProjectEntry({...pin, version: null}, pin.day)).toBeNull();
+});
+
+it('searches explicit Project groups while preserving generated origin', () => {
+  const model = entry('candidate', true, {kind:'model', origin:'generated', organization:{role:'Candidate models',input:true,by:'agent:codex'}});
+  expect(projectInputs([model], 'Candidate models')).toEqual([model]);
+  expect(materialFacts(model)).toBe('Candidate models · Model · Revision 2');
+  expect(model.material?.origin).toBe('generated');
+});
+
+
+it('shows declared matrix and media kinds with inspection facts, not filename guesses', () => {
+  const matrix = entry('unknown.bin', true, {kind: 'matrix', format: 'AnnData', shape: [18400,18533]});
+  expect(materialFacts(matrix)).toBe('Matrix · AnnData · 18,400 × 18,533 · Revision 2');
+  for (const [kind, word] of [['image', 'Image'], ['recording', 'Recording'], ['recorded-dataset', 'Recorded dataset']])
+    expect(materialFacts(entry('unknown.bin', true, {kind}))).toBe(`${word} · Revision 2`);
+  expect(materialFacts(entry('fake.h5ad', true))).toBe('File · Revision 2');
+  expect(materialFacts(entry('conflict', true, {inspection: {status:'conflicting', reports:[], total:2}})))
+    .toContain('Inspection reports disagree');
+});

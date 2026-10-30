@@ -329,6 +329,36 @@ def test_same_grid_branches_compare_through_existing_method_service(web):
     assert saved.document['kind']=='scientific-method-comparison'
 
 
+def test_a_comparison_step_takes_up_to_six_branches_each_an_arm(web):
+    """Part 2.5, W5: N models compared; the workflow's comparison step takes two to six fixed branches (arms A to F)
+    through the same method service, and only a comparison step takes more than three inputs."""
+    from orchestrator.workflow_execution import starter
+    from orchestrator.workflow_service import service as shared
+    from orchestrator.workflows import graph as checked
+    client,built=web;runner=shared(built.hub,built.day);w=runner.workflows;s=native_input(w,built.day.sid)
+    g=starter();first=g['nodes'][0];branches=[]
+    for n,area in enumerate((1,5,25,60,120)):
+        b=copy.deepcopy(first);b.update(id=f'branch{n}',name=f'Regions at least {area} px');b['settings']['parameters']['min_area']=area
+        branches.append(b)
+    g['nodes']=[*branches,{'id':'compare','name':'Compare five','kind':'compare','needs':[b['id'] for b in branches],'settings':{}}]
+    d=w.create('Compare five',g,'c'*32);r=w.start(d.id,1,s.session,[identity(s)],'d'*32,actor='studio')
+    for _ in range(6):
+        claim=w.claim(r.id,s.session);assert claim
+        w.finish(claim,runner.steps.execute(claim))
+    state=w.status(r.id,s.session)
+    assert state['status']=='completed'
+    output=next(a['output'] for a in state['attempts'] if a['node']=='compare')
+    saved=w.store.read(output['id'],s.session)
+    assert [arm['id'] for arm in saved.document['state']['methodEvidence']['arms']]==list('abcde')
+    assert [row['id'] for row in saved.document['state']['methodSummary']['arms']]==list('abcde')
+    seven=copy.deepcopy(g);extra=[copy.deepcopy(first) for _ in range(2)]
+    for n,b in enumerate(extra):b['id']=f'more{n}'
+    seven['nodes']=[*branches,*extra,{**g['nodes'][-1],'needs':[*[b['id'] for b in branches],'more0','more1']}]
+    with pytest.raises(InvalidProject):checked(seven)
+    four=copy.deepcopy(g);four['nodes'][-1]={**four['nodes'][-1],'kind':'review','needs':[b['id'] for b in branches[:4]]}
+    with pytest.raises(InvalidProject):checked(four)
+
+
 def test_run_continues_after_origin_project_switch_and_duplicate_dispatch(web):
     import asyncio
     from orchestrator.workflow_execution import starter
@@ -557,7 +587,8 @@ def test_researcher_and_studio_invocations_retain_equivalent_definition_and_inpu
     asyncio.run(exercise())
 
 
-def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_without_camera(tmp_path):
+@pytest.mark.parametrize("completed_before_read", [False, True])
+def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_without_camera(tmp_path, completed_before_read):
     import asyncio
     from tests.test_research_scientific_measurement import setup, FakeHub, ResearchManager
     from orchestrator.research.hands import Hands
@@ -590,7 +621,15 @@ def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_witho
         assert reply['ok'], reply
         operation = reply['values']['operation']
         run_id = operation['execution']['id']
-        await studies.workflows.tasks[(input_.session, run_id)]
+        key = (input_.session, run_id)
+        if completed_before_read:
+            from tests.waiting import until_async
+            await until_async(lambda: key not in studies.workflows.tasks)
+        # Finished tasks are intentionally retired; the retained run/attempt is
+        # the result. A fast successful driver need not still have a Task entry.
+        task = studies.workflows.tasks.get(key)
+        if task is not None:
+            await task
         retained = await call('study-read', study=study.id)
         assert retained['ok'], retained
         row = retained['values']
@@ -723,7 +762,8 @@ def test_review_retry_repairs_actor_publication_gap_without_overwriting_later_co
     assert w.status(r.id,'s1')['control']=='paused'
 
 
-def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web,tmp_path,monkeypatch):
+@pytest.mark.parametrize('in_study',[False,True])
+def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web,tmp_path,monkeypatch,in_study):
     # Real tiny fitted computation/retention; runtime admission and process transport are stand-ins.
     import io,sys,numpy as np
     from pathlib import Path
@@ -752,9 +792,19 @@ def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web
     headers={'Origin':ORIGIN,'X-MicroscopeMind':'workflow'}
     body={'action':'capability','session':built.day.sid,'capability':'response-fit','generation':declared['generation'],
           'inputs':{'effects':identity(source_file)},'parameters':{'regularization':1.,'rank':0},'request':'f'*32}
+    if in_study:
+        from orchestrator.research.studies import service as study_service
+        studies=study_service(built)
+        study=studies.create(built.day.sid,actor='studio',label='You',request='manual-study',title='Small experiment',
+            objective='Inspect retained material',criteria='Keep exact references',budget_usd=0)
+        body['study']=study.id
     response=client.post('/api/workflows/command',json=body,headers=headers)
     assert response.status_code==200,response.text
     run=response.json()['run'];claim=w.claim(run['id'],built.day.sid)
+    if in_study:
+        operation=response.json()['operation']
+        assert operation['by']=='studio' and operation['execution']['id']==run['id']
+        assert next(iter(studies.read(study.id,built.day.sid)['experiments'].values()))['operation']==operation['id']
     manual_definition=w.definition(run['definition']['id'],run['definition']['revision']).document['state']['workflow']
     assert manual_definition['createdBy']=='studio'
     assert manual_definition['lastChange']=={'by':'studio','action':'capability','revision':1}

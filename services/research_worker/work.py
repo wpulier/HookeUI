@@ -11,7 +11,7 @@ import re
 
 from orchestrator.untrusted import block, inline
 
-from .budget import CELL_FINDERS
+from .budget import CELL_FINDERS, CLASSIFIERS, MAX_CLASSIFIERS
 
 LESSON = """Write one self-contained HTML page: an interactive mini-lesson for a curious student
 who is looking at this through a microscope right now.
@@ -305,6 +305,24 @@ TABLE_CHART = {
     "order": {"type": "string", "enum": ["ascending", "descending", "table"], "description": "ascending if not given"},
     "kind": {"type": "string", "enum": ["sorted", "histogram"],
              "description": "sorted: one bar per row in that order; histogram: rows counted in equal bins (sorted if not given)"},
+    "only": {"type": "string", "description": "optional JSON pointer from one row to a true/false: only rows where it is "
+                                              "true are drawn, the rest counted as left out (motion tracks: /moving)"},
+}
+# make_chart also draws several tables of the same shape side by side (kind "means"): one per run of an operation.
+MAKE_CHART = {
+    **TABLE_CHART,
+    "table": {**TABLE_CHART["table"], "description": TABLE_CHART["table"]["description"] + "; for kind means, tables instead"},
+    "kind": {"type": "string", "enum": ["sorted", "histogram", "means"],
+             "description": "sorted: one bar per row in that order; histogram: rows counted in equal bins; means: one bar "
+                            "per table in tables at the mean of its values, a whisker of one standard deviation and every "
+                            "value a dot (e.g. the average speed of each of 4 motion runs). sorted if not given"},
+    "tables": {"type": "array", "minItems": 1, "maxItems": 8, "description": "kind means only: the session entries, one "
+               "bar each in this order ({id, revision} as for table); the same rows and value are read in each",
+               "items": {"type": "object", "properties": {"id": {"type": "string"}, "revision": {"type": "string"}},
+                         "required": ["id"], "additionalProperties": False}},
+    "names": {"type": "array", "items": {"type": "string"}, "description": "kind means only: a short name per table, "
+              "in the same order (Run 1, Run 2... if not given)"},
+    "unit": {"type": "string", "description": "kind means only: the values' unit as the table says it (e.g. px/s, µm/s)"},
 }
 
 SCHEMAS: dict[str, dict] = {
@@ -337,11 +355,30 @@ SCHEMAS: dict[str, dict] = {
         "parameters": {"type": "object", "properties": {
             "motion": {"type": "string", "description": "what moves and how, in one or two sentences"},
             "seconds": {"type": "integer", "enum": [4, 6, 8]}}, "required": ["motion"]}},
+    "make_page": {
+        "description": "Write one self-contained HTML page the user opens in the app, rendered: a short slide "
+                       "presentation of what you found (kind 'presentation'), or a small interactive or animated visual "
+                       "that explains data (kind 'visual': an SVG or canvas animation, a slider, hover details). Build it "
+                       "from what you actually read: put the real numbers from the session's records or your sources in "
+                       "the page's own script or markup, and name the entries you used in data_from. It runs in a sandbox "
+                       "with no network: inline all CSS, JavaScript and SVG, load nothing from elsewhere, no external "
+                       "fonts or libraries. Make it look finished: clear type, a dark-on-light or light-on-dark palette, "
+                       "slides that fit the window with arrow-key and click navigation and a slide counter.",
+        "parameters": {"type": "object", "properties": {
+            "kind": {"type": "string", "enum": ["presentation", "visual"]},
+            "title": {"type": "string", "maxLength": 120},
+            "summary": {"type": "string", "description": "one or two sentences: what the page shows and from what data"},
+            "data_from": {"type": "array", "items": {"type": "string"},
+                          "description": "the session entry ids (e1, d3...) or source URLs whose numbers the page uses"},
+            "html": {"type": "string", "description": "the whole document, from <!doctype html> to </html>"}},
+            "required": ["kind", "title", "summary", "html"]}},
     "make_chart": {
         "description": "Draw a chart of one numeric column of a table this session kept (a measurements table, any saved "
                        "result's rows), read whole by the app at its exact revision: its values are the table's own, never "
-                       "numbers you supply. Kept as a picture with its source; it is attached for you to see.",
-        "parameters": {"type": "object", "properties": TABLE_CHART, "required": ["title", "table", "rows", "value"]}},
+                       "numbers you supply. With kind means and tables, one bar per table at its mean with its spread "
+                       "(the same operation run several times: motion tracks' rows /detail/values/tracks, value /net, "
+                       "unit from the entry's scale). Kept as a picture with its source; it is attached for you to see.",
+        "parameters": {"type": "object", "properties": MAKE_CHART, "required": ["title", "rows", "value"]}},
     "animate_measurements": {
         "description": "Animate one numeric column of a table this session kept: the chart builds row by row in the order "
                        "you choose (smallest to largest, largest to smallest, or the table's own) and ends on the whole "
@@ -440,9 +477,22 @@ SCHEMAS: dict[str, dict] = {
                        "labels selection from a session entry: read its title, revision, digest and scientificView.inputs "
                        "first; never guess a resource or resolve ambiguous titles arbitrarily. It saves a typed objects "
                        "table in that Project through the same operation as Tools, without segmentation or camera input. "
-                       "Use it only when the user's research request authorizes measuring saved work.",
+                       "Use it only when the user's research request authorizes measuring saved work. classify has "
+                       f"two to {MAX_CLASSIFIERS} classifying models (models, by id) each name the same cells of a "
+                       "population (input: its id, e.g. e3 from the session tool; else the cells on screen) from the "
+                       "same classes (classes: as the user named them; else the specimen's list, else in their own "
+                       "words), each run recorded by the app, and keeps their comparison as one session entry (a "
+                       "result with its table): each model's counts per class, every pair's agreement and kappa, the "
+                       "cells all named alike, time and cost. Read that entry and compare the models from its numbers; "
+                       "agreement is not accuracy.",
         "parameters": {"type": "object", "properties": {
-            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects", "workflow"]},
+            "operation": {"type": "string", "enum": ["segment", "enhance", "motion", "measure_saved_objects", "workflow",
+                                                     "classify"]},
+            "models": {"type": "array", "maxItems": MAX_CLASSIFIERS, "items": {"type": "string", "enum": list(CLASSIFIERS)},
+                       "description": "classify only: the models, by id (" + "; ".join(
+                           f"{k} = {v}" for k, v in CLASSIFIERS.items()) + ")"},
+            "classes": {"type": "array", "maxItems": 24, "items": {"type": "string"},
+                        "description": "classify only: the classes to name each cell from, as the user said them"},
             "params": {"type":"object","description":"operation workflow: Study actions: study-list(), study-create(request,title,objective,criteria,budgetUsd,inputs), study-read(study), study-evidence(study,reference), study-claim(study,request,statement,evidence,dependsOn,limitations), study-run(study,request,workflow,revision,inputs[,bindings]). Read actual evidence before claims. Other command action capabilities(), capability(capability,generation,inputs,parameters,request), list(query), inspect(workflow,revision), status(run), create(name,graph,request), capture(source,revision,name,request), or start/validate(workflow,revision,inputs[,bindings,request]). Inputs are exact retained references. Preserve request identity. Never approve reviews or launch paid researcher nodes."},
             "selection": {"type": "object", "additionalProperties": False,
                 "description": "measure_saved_objects only: exact accepted labels from the session entry; no other input fields",

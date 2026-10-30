@@ -32,6 +32,9 @@ class Dialogue:
         self.day = day
         self.publish = publish  # to every open studio (hub.broadcast)
         self.log = log
+        # The voice's hand-offs to the brain still running in this run (voice/handoffs.py): a replay shows a hand-off
+        # the journal says was working, and that is not among them, as having no recorded result.
+        self.flying: set[str] = set()
 
     def here(self) -> Asked:
         return self.day.here()
@@ -143,6 +146,10 @@ class Dialogue:
                      "objectIds": t.refs.get("objectIds") or [], "thread": day.active_id}
                     for t in day.active.turns if t.role != "note"]
             lines = (said + list(day.active.lines))[-limit:]
+        if any(line.get("type") == "handoff" for line in lines):
+            from .voice.handoffs import replayed
+
+            lines = [replayed(line, self.flying) for line in lines]
         return {"type": "thread", "day": day.sid, "thread": day.active_id, "title": day.active.title, "lines": lines,
                 "summary": day.active.summary}
 

@@ -224,8 +224,28 @@ class App:
     _capabilities_sent: dict | None = field(default=None, repr=False)  # the last full capabilities built for studios
 
     @classmethod
-    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True) -> "App":
-        paths = paths or Paths.from_env()  # where everything is saved, decided once (paths.py)
+    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True,
+              *, project_locations=None) -> "App":
+        """Build one host; an explicit location resolver enables isolated portability qualification.
+
+        This internal dependency is not accepted from HTTP, saved files or an
+        environment toggle. Ordinary startup retains its existing storage policy.
+        The built host owns the resolver until its producers have stopped.
+        """
+        paths = paths or Paths.from_env()
+        if project_locations is not None:
+            from .project_roots import ProjectLocationError
+            if project_locations.legacy.resolve() != paths.sessions.resolve():
+                raise ProjectLocationError('Project locations must belong to this host’s session store')
+        try:
+            return cls._build(bridge_url, paths, use_gpu, project_locations=project_locations)
+        except BaseException:
+            if project_locations is not None:
+                project_locations.close()
+            raise
+
+    @classmethod
+    def _build(cls, bridge_url, paths, use_gpu, *, project_locations):
         from .scientific_import_transaction import recover
         from .scientific_projects import ProjectStore
         recover(ProjectStore(paths.results / "projects"), paths.sessions)
@@ -233,7 +253,7 @@ class App:
         hub.execution = execution.ExecutionLog.from_env(publish=hub.broadcast_execution)
         # The session and its conversations (day/store.py, ADR 0017): the one the app was last in, rebuilt from its
         # journal, so a restart comes back to the same session and conversation.
-        day = SessionStore.resume(root=paths.sessions, clock=session_clock())
+        day = SessionStore.resume(root=paths.sessions, clock=session_clock(), locations=project_locations)
         # Every session's journal read once now, before the event loop runs: after this the list only reads where a
         # journal grew (day/catalogue.py), so a reading on the loop (a new id, the session wire) stays small.
         day.catalogue.list()
@@ -291,6 +311,9 @@ class App:
                       tags=lambda: {"day": day.sid, "thread": day.active_id})
         if started_with:
             agent.log(started_with)
+        # Classifying's vision models (classify.py) are the agent's own clients: one key change drops them all, and a
+        # stand-in agent stands in for them too. Read at each call, so a replaced `agent.vision` is the one used.
+        hub.vision_for = lambda option: agent.vision(option)
         # Labels the user teaches (taught.py, option TAUGHT): the user's, from every session (ADR 0017), written per
         # date with the session they were taught in; every new outline cropped as it appears and, while TAUGHT is
         # on, matched on the heavy GPU worker.
@@ -358,9 +381,9 @@ class App:
                                    session=lambda: day.sid, store=day)
         day.listeners.append(research.session_event)
         research.log = agent.log  # lesson checks, stalls and claims checks (W6-3, W6-4)
-        # Each run's conversation with its model, round by round: a performance log beside the interaction log
-        # (logs/transcripts/<day>/<rid>.jsonl, docs/saves.md), pruned with the other dated logs.
-        research.transcripts = paths.logs / "transcripts"
+        # Research traces explain retained work and survive performance-log pruning (ADR 0027).
+        # Existing logs/transcripts remain readable in place until explicit collection.
+        research.transcripts = paths.research / "transcripts"
         presenter = Presenter(hub, research, outcomes=day.outcomes_of, prefs=(day.prefs.get, day.set_pref))  # how the user did on lesson steps (quiz.py)
         subjects = SubjectTracker(day, conversation, hub.scene, hub.broadcast)
         subjects.held = lambda: hub.view_held  # the studio covers the live view: a look in flight is not the subject
@@ -401,6 +424,30 @@ class App:
                       log=agent.log)
         hub.on_frame.append(coach.frame)
         hub.coach = coach
+        # The watcher (view_watch.py): what happens in the view (the slide settling on a new place, the focus drifting,
+        # counted cells no longer where they were), noticed unasked from what the hub already measures, each kind told to
+        # the one-brain voice by its rule (option WATCH); GPT-Live has no lines of this kind. Every event is logged.
+        from .view_watch import ViewWatch
+
+        def watch_told(event, rule: str) -> str:
+            happened = getattr(getattr(brain, "voice", None), "happened", None) if brain is not None else None
+            if not callable(happened):
+                return "no voice"
+            task = asyncio.get_running_loop().create_task(happened(
+                event.kind, event.text(), ref=event.id, delivery=rule, marks=event.marks(), frame=event.frame_ref()))
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())  # a closed voice says nothing; never raised
+            return "voice"
+
+        def um_per_px():
+            reading = hub.scale_reading()
+            return reading.um_per_px if reading is not None else None
+
+        view_watch = ViewWatch(hub, deliver=watch_told, quiet=lambda: hub.settings.quieter or hub.settings.user_leads,
+                               sweep=lambda: None if coach.sweeping_since is None else ("phone" if coach.phone else "knob"),
+                               um_per_px=um_per_px, log=agent.log,
+                               schedule=lambda read: asyncio.get_running_loop().call_soon(read))
+        hub.on_frame.append(view_watch.frame)  # after the coach's: its sweep for this frame is known
+        hub.view_watch = view_watch
         # The frames of the last turn of the focus knob, for a focus stack (sweep.py, enhance.py).
         sweep = SweepBuffer(hub.source.get)
         hub.on_frame.append(sweep.frame)
@@ -502,6 +549,9 @@ class App:
         from .scientific_projects import ProjectStore
         from .paths import envs as environment_root
         projects = ProjectStore(paths.results / 'projects', runtime_root=environment_root())
+        if project_locations is not None:
+            from .project_stores import ProjectStores
+            projects = ProjectStores(projects, project_locations)
         hub.screen = Screen(hub.broadcast)  # what the studio reports it shows; the verbs' changes (screen.py)
         hub.resources = Index(hub, results=results, projects=projects, research=research, snapshots=paths.snapshots, bookmarks=bookmarks,
                               registrations=registrations, identity=hub.identity, memory=memory, seen=seen, taught=taught,
@@ -528,7 +578,8 @@ class App:
                           snapshots=paths.snapshots, origin_of=origin_of)
         hub.library = library
         # Yours: the user's own and the examples a session has used (any session's sources, the catalogue's).
-        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)}
+        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)
+                                if aid not in getattr(info, 'source_references', {})}
         # The library's looks (library_looks.py): one look at each new asset files it by what is in it, with the fast
         # vision model when it can run here (its key); what the running look saw while it was on stage is told as data.
         from .library_looks import LibraryLooks
@@ -546,7 +597,8 @@ class App:
 
         hub.library_looks = LibraryLooks(
             library, lambda aid: thumbnails_of(hub).get(aid, LIBRARY, ""), look_vision,
-            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen if source == aid],
+            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen
+                                 if source == aid and aid not in getattr(info, 'source_references', {})],
             log=agent.log, chosen=lambda: not day.local_only and hub.settings.library_looks == "on")
         hub.stage_meta = None  # the asset on stage's metadata, for the Board's line (brain/context.py); None on live
         hub.stage_image_json = None
@@ -557,9 +609,11 @@ class App:
 
         def staged() -> str | None:
             meta = hub.stage_meta
-            return meta.get("id") if isinstance(meta, dict) and is_asset_id(meta.get("id")) else None
+            return meta.get("id") if isinstance(meta, dict) and not meta.get('retained') and is_asset_id(meta.get("id")) else None
 
-        subjects.pinned = lambda: str(library.edits(staged()).get("specimen") or "") if staged() else ""
+        subjects.pinned = lambda: (str((hub.stage_meta or {}).get('specimen') or '')
+            if (hub.stage_meta or {}).get('retained') and (hub.stage_meta or {}).get('specimenBy') == 'user'
+            else str(library.edits(staged()).get("specimen") or "") if staged() else "")
         subjects.on_named.append(lambda name: library.set_meta(staged(), {"specimen": name}, by="user") if staged() else None)
         scale.asset_set = lambda aid, fields: library.set_meta(aid, fields, by="user")
 
@@ -573,7 +627,7 @@ class App:
             name, date = str(entry["pictures"][0]), str(entry.get("day") or "")
             optics = {"objective": float(scale.objective)} if scale.asset is None and scale.objective else (
                 {k: v for k, v in (scale.asset or {}).items() if k != "id"})
-            library.register(f"result:{date}/{entry['id']}/0", results.root / date / name, title=str(entry.get("title") or "Clearer picture"),
+            library.register(f"result:{date}/{entry['id']}/0", results.folder_for(date, entry.get("session")) / name, title=str(entry.get("title") or "Clearer picture"),
                              at=float(entry.get("at") or time.time()), origin=entry.get("session"), optics=optics)
 
         results.on_saved.append(clearer_saved)
@@ -830,6 +884,8 @@ class App:
                                                 {'analysis': analyze, 'graph': graph})
         from .workspace_tabs import WorkspaceTabs
         hub.workspace_tabs = WorkspaceTabs(app)
+        from .experiments import experiments_of
+        experiments_of(hub, day, app)  # experiments (Part 2.5, W5): their plans' cards, their runs and their results
         from .capabilities import Verdicts
 
         app.verdicts = Verdicts(paths.verdicts)
@@ -993,11 +1049,21 @@ class App:
         profile = self.hub.screen._profile(socket)
         ctx = self.workspace_context(socket, request_id=profile.ref.connection_epoch, owner="server:metadata")
         lease = None
+        store = self.services.prepared_sources
         try:
-            lease = self.services.prepared_sources.resolve(SourceRef.from_wire(supplied), context=ctx)
+            lease = store.resolve(SourceRef.from_wire(supplied), context=ctx)
             return lease.source
-        except PresentationError:
-            raise ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection") from None
+        except PresentationError as error:
+            refused = ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection")
+            # Ended, not wrong: nothing is granted under this key for this connection any more (its window was
+            # closed and its pin released, or it was never granted here; or a live source whose close took its
+            # visibility, pinned only by that close's read-only borrow, so its live check fails `delivery_revoked`).
+            # Screen leaves that window out of the report. Facts differing from a source still prepared, and a live
+            # window still claiming to draw from a producer that stopped (its visibility owner is still there; the
+            # studio says it failed, then `_workspace_failed_source` takes it), stay refused.
+            refused.ended = (error.code in ("source_not_prepared", "delivery_revoked")
+                             and not store.prepared_key(supplied.get("key"), ctx))
+            raise refused from None
         finally:
             if lease is not None and lease.release is not None:
                 lease.release()  # only this synchronous metadata borrow; window owns its pin
@@ -1633,7 +1699,20 @@ class App:
                     await warm()
 
     async def stop(self) -> None:
+        try:
+            await self._stop()
+        finally:
+            media = getattr(self, '_project_stage_media', None)
+            if media is not None:
+                media.retire()
+            if getattr(self.day, 'locations', None) is not None:
+                # Completion/cancellation is not proof all writer threads ended.
+                # Fence later admission and hold leases until process teardown.
+                self.day.locations.retire()
+
+    async def _stop(self) -> None:
         self._stopping = True
+        self.hub.identity.io.retire()
         if getattr(self, "scientific_uploads", None) is not None:
             await asyncio.to_thread(self.scientific_uploads.close)
         from . import readiness
@@ -1730,6 +1809,8 @@ class App:
                        "why": event.get("why")}
             self.hub.broadcast(cleared)
             self.dialogue.marker(dict(cleared))
+            for wire in self.experiments_wire():  # the Project opened's experiments, as its cards
+                self.hub.broadcast(wire)
             if event.get("why") == "switch":
                 self.say_resumed()
         if kind == "quiz-outcome":
@@ -1746,6 +1827,10 @@ class App:
                 elif voice is not None and not voice.closed:
                     asyncio.ensure_future(voice.inject(self.brain.voice_recap(), respond=False, source="recap",
                                                        facts={"why": kind}))
+                    # The one-brain voice's Project brief follows at once (voice/partner.py project_changed).
+                    changed = getattr(voice, "project_changed", None)
+                    if kind == "session-opened" and asyncio.iscoroutinefunction(changed):
+                        asyncio.ensure_future(changed())
         # The sessions list (the header chip's menu and the sessions rail): at once when a session opens or is named,
         # and, when what the open session holds changes (a product, a source, a researcher, a conversation), at most
         # every 2 s.
@@ -1871,31 +1956,40 @@ class App:
                 out[session.sitting] = out.get(session.sitting, 0) + 1
         return out
 
-    def scientific_inputs(self) -> dict[str, int]:
-        """Each session's scientific inputs (imported files and folders, scientific_projects.ProjectStore). Reads the
-        store: off the event loop (`sessions_message`)."""
-        projects = getattr(getattr(self.hub, "resources", None), "projects", None)
-        try:
-            return projects.inputs_by_session() if projects is not None else {}
-        except OSError:
+    def material_input_adjustments(self, infos) -> dict:
+        """Off-loop canonical inventory projection, scanning each backing store once."""
+        from .project_material import additional_inputs, attach_usage
+        index = getattr(self.hub, "resources", None)
+        if index is None or index.projects is None:
             return {}
+        groups = index.projects.scan_sessions(info.id for info in infos)
+        result = {}
+        for info in infos:
+            saved, problems = groups[info.id]
+            entries = [index.project_entry(item) for item in saved]
+            unreadable = [*problems, *attach_usage(entries, index.projects)]
+            result[info.id] = {'additional': additional_inputs(entries, info),
+                               'incomplete': bool(unreadable)}
+        return result
 
     def sessions_wire(self, infos=None, working: dict | None = None, inputs: dict | None = None) -> dict:
         """Every session, the most recently used first (protocol.ts SessionsList): each the catalogue's own row
         (day/catalogue.py: what Made in this session lists, its researchers, its conversations) with the researchers
-        working in it now. Its inputs are the library's opened sources and its scientific inputs (F-L8-6: a project
-        holding only imported scientific files said "0 inputs"). Reads the journals and the scientific store: off the
+        working in it now. Its inputs use the shared material selections, including Study assignments and pinned
+        dependencies, plus journal sources not already represented by an exact retained input. Reads off the
         event loop (`sessions_message`)."""
         infos = self.day.catalogue.list() if infos is None else infos
         working = self.working_by_session() if working is None else working
-        inputs = self.scientific_inputs() if inputs is None else inputs
+        inputs = self.material_input_adjustments(infos) if inputs is None else inputs
         rows = []
         for info in infos:
             row = {**info.wire(), "working": int(working.get(info.id, 0))}
             if info.id == self.day.sid:  # the open session's, as its own wire counts it (held footage too)
                 row["counts"] = self.subjects.counts(info)
             if inputs.get(info.id):
-                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]}
+                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]['additional']}
+                if inputs[info.id]['incomplete']:
+                    row["counts"]['sourcesIncomplete'] = True
             rows.append(row)
         # Where every Project is saved on this Mac, said with ~ (thesis question 12: the Projects page and Help say it).
         root = str(self.paths.sessions).replace(str(Path.home()), "~", 1)
@@ -1904,7 +1998,10 @@ class App:
     async def sessions_message(self) -> dict:
         """The sessions list, its journals and scientific inputs read in a thread."""
         working = self.working_by_session()
-        infos, inputs = await asyncio.to_thread(lambda: (self.day.catalogue.list(), self.scientific_inputs()))
+        def read():
+            infos = self.day.catalogue.list()
+            return infos, self.material_input_adjustments(infos)
+        infos, inputs = await asyncio.to_thread(read)
         return self.sessions_wire(infos, working, inputs)
 
     def hold_until_landed(self, held: bool, expires: bool = True) -> None:
@@ -1933,7 +2030,7 @@ class App:
         hub = self.hub
         meta = asset.metadata() if asset is not None else None
         previous = getattr(hub, "stage_meta", None)
-        if (previous or {}).get("id") != (meta or {}).get("id"):
+        if ((previous or {}).get("id"), (previous or {}).get("retained")) != ((meta or {}).get("id"), (meta or {}).get("retained")):
             from . import ticket
             from .population import layer_of
 
@@ -1946,7 +2043,9 @@ class App:
         if fields is None:
             self.reopen_layer(asset)
         if hub.scale is not None:
-            hub.scale.use_asset(asset.id if asset is not None else None, asset.scale_optics() if asset is not None else None)
+            hub.scale.use_asset(asset.id if asset is not None else None,
+                                asset.scale_optics() if asset is not None else None,
+                                read_only=bool((meta or {}).get('retained')))
         if fields is None or "specimen" in fields:
             if fields is None:
                 self.subjects.source_changed(asset.user_specimen() if asset is not None else "")
@@ -2007,6 +2106,17 @@ class App:
         """Session `sid`'s sources (sources.rows): the open session's from its store, another's from its journal, each
         with the other sessions that use it (every session's journal, read by the catalogue)."""
         from . import sources
+
+        locations = getattr(self.day, 'locations', None)
+        portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
+        if portable is not None:
+            from .project_stage_media import sources as retained_sources
+            def read_retained():
+                record = next((i for i in self.day.catalogue.list() if i.id == sid), None)
+                if record is None:
+                    return {"session": sid, "onStage": None, "sources": [], "removed": []}
+                return retained_sources(self.hub.resources.projects, sid, record)
+            return await asyncio.to_thread(read_retained)
 
         library = getattr(self.hub, "library", None)
         if library is None:
@@ -2081,9 +2191,12 @@ class App:
     async def put_on_stage(self, aid: str) -> dict:
         """One of the user's assets on stage, as the studio's Add does (the `source` command, held at its start): it is
         the session's from then on (ADR 0022's amendment). The library's add_asset tool."""
-        from .commands import source
+        from .commands import source, source_retain
 
-        return await source(self, None, {"open": aid, "paused": True})
+        sid = self.day.sid
+        kept = await source_retain(self, None, {'asset': aid, 'session': sid})
+        return await source(self, None, {"open": aid, "paused": True, 'session': sid,
+                                        **({'retained': kept['retained']} if kept.get('retained') else {})})
 
     async def open_page(self, client, page: str, timeout: float = 4.0) -> dict | None:
         """Ask the studio that made the request (every studio when none did) to open a page ("#models/<id>") and wait for
@@ -2327,7 +2440,19 @@ class App:
                 *([self.slidemap.wire()] if self.slidemap is not None else []), self.subjects.wire(),
                 *([self.datasets.wire()] if self.datasets is not None else []),
                 *([self.rig.wire()] if self.rig is not None else []),
-                self.research_list(), self.day.wire(), self.dialogue.history(), self.execution_wire()]
+                self.research_list(), *self.experiments_wire(), self.day.wire(), self.dialogue.history(),
+                self.execution_wire()]
+
+    def experiments_wire(self) -> list[dict]:
+        """The open Project's experiments, as cards (experiments.py); none when there are none."""
+        experiments = getattr(self.hub, "experiments", None)
+        if experiments is None:
+            return []
+        try:
+            wire = experiments.wire_list(self.day.sid)
+        except Exception:  # noqa: BLE001 - a store that cannot be read never fails a studio's connect
+            return []
+        return [wire] if wire["experiments"] else []
 
     def layer_wires(self) -> list[dict]:
         """The population and the motion tracks shown over the live view (if any) and their layers' state, as

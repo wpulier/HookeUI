@@ -24,7 +24,10 @@ def is_agent(actor) -> bool:
     return isinstance(actor, str) and actor.startswith("agent:ac_")
 
 
-def maker(actor: str) -> dict:
+def maker(actor: str, *, recorded_label=None) -> dict:
     """Data's maker for an agent's actor: its label as it named itself, never a verified identity."""
     cid = actor[len("agent:"):]
-    return {"kind": "agent", "id": cid, "name": _LABELS.get(cid) or "An agent"}
+    # Accepted provenance travels with its Project; it must not seed today's
+    # connection cache or overwrite a different Project's historical label.
+    label = recorded_label if isinstance(recorded_label, str) and recorded_label.strip() else None
+    return {"kind": "agent", "id": cid, "name": label or _LABELS.get(cid) or "An agent"}

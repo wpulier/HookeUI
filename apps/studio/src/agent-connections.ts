@@ -94,6 +94,8 @@ export class AgentConnections {
   private readonly answered = new Set<string>();
   private section: HTMLElement | null = null;
   private entryStatus: HTMLElement | null = null;
+  private readonly dots: HTMLElement[] = [];
+  private popover: { root: HTMLElement; close: (refocus: boolean) => void } | null = null;
   private loaded = false;
   private readError = false;
   private copySequence = 0;
@@ -213,7 +215,62 @@ export class AgentConnections {
     entry.append(status, access, controls); host.append(entry); this.renderEntry();
   }
 
+  /** The names of the agents connected now (confirmed, not disconnected). */
+  connected(): string[] {
+    return this.state.connections.filter(c => c.revokedAt === null).map(c => c.label);
+  }
+
+  /** A small dot before `anchor` (the Assistant header's ⋯, which holds Connect your own agent…), shown while an agent is
+   * connected, named in its tooltip. It says connected (authorized), never that the agent is running now. */
+  mountDot(anchor: HTMLElement): HTMLElement {
+    const dot = document.createElement('span'); dot.className = 'agent-connected-dot'; dot.setAttribute('role', 'img');
+    dot.hidden = true;
+    anchor.before(dot);
+    this.dots.push(dot);
+    this.renderEntry();
+    return dot;
+  }
+
+  /** The Project entrance (`mountEntry`'s own content: who is connected, Copy setup prompt, Manage connections) as a
+   * small popover under `anchor`, from the Assistant header's ⋯ ("Connect your own agent…"). Escape, a click outside or
+   * Manage connections closes it; focus goes back to `anchor`. Pressed again while open, it closes. */
+  openEntry(anchor: HTMLElement, manage: () => void, project: () => string | undefined): HTMLElement | null {
+    if (this.popover) { this.popover.close(true); return null; }
+    const root = document.createElement('div'); root.className = 'agent-entry-popover';
+    root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'Connect your own agent');
+    const shut = document.createElement('button'); shut.type = 'button'; shut.className = 'agent-entry-close';
+    shut.setAttribute('aria-label', 'Close'); shut.textContent = '×';
+    root.append(shut);
+    const close = (refocus: boolean) => {
+      root.remove(); document.removeEventListener?.('pointerdown', outside, true);
+      if (this.popover?.root === root) this.popover = null;
+      if (refocus) anchor.focus?.({ preventScroll: true });
+    };
+    const outside = (event: Event) => { const t = event.target as Node; if (!root.contains(t) && !anchor.contains?.(t)) close(false); };
+    shut.onclick = () => close(true);
+    this.mountEntry(root, () => { close(false); manage(); }, project);
+    root.addEventListener?.('keydown', (event: Event) => {
+      if ((event as KeyboardEvent).key !== 'Escape') return;
+      event.preventDefault(); event.stopPropagation(); close(true);
+    });
+    const r = anchor.getBoundingClientRect?.();
+    const wide = typeof innerWidth === 'number' ? innerWidth : 1440;
+    if (r) { root.style.top = `${Math.round(r.bottom + 6)}px`; root.style.right = `${Math.max(8, Math.round(wide - r.right))}px`; }
+    document.body.append(root);
+    document.addEventListener?.('pointerdown', outside, true);
+    this.popover = { root, close };
+    (root.querySelector?.('.agent-entry-actions button') as HTMLButtonElement | null)?.focus?.({ preventScroll: true });
+    if (!this.loaded) void this.refresh().catch(() => {}); // its status read now if nothing has been yet
+    return root;
+  }
+
   private renderEntry(): void {
+    const names = this.connected();
+    for (const dot of this.dots) {
+      dot.hidden = !names.length;
+      const said = names.length ? `Connected to Hooke: ${names.join(', ')}` : '';
+      if (dot.title !== said) { dot.title = said; dot.setAttribute('aria-label', said); }
+    }
     if (!this.entryStatus) return;
     const live = this.state.connections.filter(c => c.revokedAt === null);
     this.entryStatus.textContent = this.readError ? 'Connection status unavailable. Open Settings to retry.'

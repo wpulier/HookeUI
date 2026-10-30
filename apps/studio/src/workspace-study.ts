@@ -1,3 +1,12 @@
+import {ProjectRead} from './project-read';
+import {workingCopyOperation} from './project-export';
+import { organizeMaterial } from './material-organization';
+import { showOpenProject } from './project-open';
+import { openProjectFolder } from './project-folder';
+import {inputChangeBlockReason} from './workspace-input';
+import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
+import {sameMediaReference} from './project-media-reference';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry, indexedRevision } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -9,7 +18,7 @@ import { mountAppUpdates } from './app-updates';
 import { agentConnections } from './agent-connections';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, projectRowWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, inputCountWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -25,6 +34,8 @@ import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
 import { RunPills } from './strip-sources';
 import { StudyRefused, controlStudy, createStudy, listStudies, readStudy, studyName, studyNeeds, studySpending, taskCounts, type Effort, type StudyProvider, type StudyInput, studyInputDescription, studyState, studyInputs, studyReadiness, startStudy, collectStudyTask, recoverStudyTask, studyEvidence, reviewStudyTask, retainStudyFinding } from './research-efforts';
+import { openMaterialCapability } from './workflow-capabilities';
+import type { Reference } from './study-conversation';
 import { studyConversation } from './study-conversation';
 import { renderStudy, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import { ADOPT_WAIT_MS, adoptedResearcher, beginStart, draftLine, notStartedWords, settleStart, type DraftStart } from './researcher-draft';
@@ -123,6 +134,7 @@ const controlDeck:ControlDeck=configureControlDeck(profileReply.profile,{
 const tabStorageKey = `${storageKey}:tabs`;
 let tabs = readTabs(sessionStorage.getItem(tabStorageKey)??localStorage.getItem(tabStorageKey));
 let switching = false;
+const PROJECT_OPENING = 'A project is opening. Please wait.';
 let initialized = false;
 // One layout write per press (b041): a rail, drawer, Data window or Assistant press changes the state, and the layout
 // is written once at its end (`press`). It ran 1 to 5 times per press, each run re-styling the page.
@@ -168,7 +180,8 @@ let resourceSession = '';
 /** The index's revision as Data last read it (ticket 66, S7): the poll sends it back, and an unchanged index draws nothing. */
 let resourceRevision = '';
 /** Data shows that its last read failed (its notice and Retry): the next good read draws the list again. */
-let resultsFailed = false;
+let resultsFailedSession = '';
+const resultsFailed = () => !!resultsFailedSession && resultsFailedSession === snapshot.session;
 /** Data's Made by: everyone (null), you, the Assistant or one researcher (data-roles.ts MakerKey). */
 let makerFilter: MakerKey | null = null;
 let sourceFilter: string | null = null;
@@ -287,10 +300,14 @@ function assistantMenu(): MenuItem[] {
     { label: 'New conversation', title: 'Start a new conversation; this one is kept', act: () => chooseThread('__new') },
     { label: 'Rename this one…', disabled: !threads.length, act: () => chooseThread('__rename') },
     'separator',
-    { label: 'Activity', title: 'What the Assistant and the app did, request by request', act: () => showActivity(true) }];
+    { label: 'Activity', title: 'What the Assistant and the app did, request by request', act: () => showActivity(true) },
+    'separator',
+    { label: 'Connect your own agent…', title: 'Copy the setup prompt for your own agent, or manage connections',
+      act: () => agentConnections.openEntry(assistantMore, manageAgents, () => snapshot.session || undefined) }];
 }
 const assistantMore = moreButton('Conversations and Activity', assistantMenu, 'mm-dhead-more study-assistant-more');
 rightHeader.append(el('h2','','Assistant'), controlsChip, assistantMore, closeRight);
+agentConnections.mountDot(assistantMore); // a small dot while an agent is connected (agent-connections.ts)
 const resize = el('div', 'study-resize');
 function resizePanel(handle: HTMLElement, side: 'left'|'right'): void {
   handle.tabIndex=0; handle.setAttribute('role','separator'); handle.setAttribute('aria-label',`Resize ${side === 'left' ? 'left panel' : 'Assistant'}`); handle.setAttribute('aria-orientation','vertical');
@@ -445,22 +462,28 @@ let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
   openResearcher: id => openResearcher(id),
+  retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
 let studiesAvailable=false;
 let studiesNote='';
+let studiesLoadedSession='';
 let studyReadGeneration = 0;
-async function refreshStudies():Promise<void>{
+const studyReads = new ProjectRead(()=>renderBoard());
+function refreshStudies():Promise<void>{
+  return studyReads.run(snapshot.session, (signal, ownsRead) => loadStudies(signal, ownsRead));
+}
+async function loadStudies(signal:AbortSignal, ownsRead:()=>boolean):Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
-  const current = () => snapshot.session === session && generation === studyReadGeneration;
+  const current = () => snapshot.session === session && generation === studyReadGeneration && ownsRead();
   if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  try{studies=await listStudies(session, fetch, signal);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
-  studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
+  studiesLoadedSession=session;studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
-  const activity=await readProjectActivity(knownStudies);
+  const activity=await readProjectActivity(knownStudies, fetch, signal);
   if(!current())return;
   projectActivity=activity;
   knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
@@ -506,7 +529,9 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 function renderBoard():void{
-  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers());
+  const material=resourceSession===snapshot.session?projectInputs(entries):[];
+  projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
+    {count:material.length,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -835,9 +860,9 @@ const workspaceViews:WorkspaceViews = new WorkspaceViews({
  // While a researcher's study holds the Stage, ⌘W goes back from it (never closing the hidden work Tab); any other Tab
  // command goes back first, then acts on the Tabs you can see.
  intercept:name=>{if(!researchStage.hidden&&!canLeaveStudy(()=>workspaceViews.command(name as Parameters<WorkspaceViews['command']>[0])))return true;clearStudyDraftMarkers();if(researchTabs.command(name))return true;if(researchStage.hidden)return false;closeResearchStage();return name==='close';},
- captureInput:()=>{const state=bridge.state();if(!state.ready)return null;const saved=bridge.capturePresentationSync();return saved.source?{source:saved.source,position:saved.source==='live'?0:saved.position}:null;},
+ captureInput:()=>{const state=bridge.state();if(!state.ready)return null;const saved=bridge.capturePresentationSync();return saved.source?{source:saved.source,position:saved.source==='live'?0:saved.position,...(saved.retained?{retained:saved.retained}:{})}:null;},
  selectInput:bridge.selectTabInput,
- inputBlockReason:input=>input.source===bridge.state().onStage?null:busy()?'This run keeps its captured input. You can preview Data while it finishes.':bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null,
+ inputBlockReason:input=>inputChangeBlockReason(input,{onStage:bridge.state().onStage, onStageRetained:bridge.capturePresentationSync().retained},busy(),bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null),
  // A reader Tab (Open in new Tab): the same reader, full width; its mark is its item's kind.
  reader:view=>showReaderTab(view),legacy:view=>showLegacyTab(view),openResearcher:rid=>openResearcherTab(rid),readerMark:view=>{const item=readerItem(view),entry=item?readerEntryOf({id:item.resource.id,day:item.resource.day,version:item.resource.version}):null;return entry?readerMark(entry):'output';},
  storageKey,request:bridge.request,restoreItems:bridge.restoreItems,placeItem:bridge.placeItem,frontItem:bridge.frontItem,captureItems:()=>bridge.capturePresentationSync().views,openData:()=>setDataOpen(true),notice:actionError,layoutChanged:()=>{snapshot=bridge.state();bridge.layoutChanged();renderContext();}});
@@ -849,9 +874,9 @@ window.addEventListener('workspace-run-destination',event=>{const detail=(event 
 configureWorkspaceCompare({owner:()=>workspaceViews.tabOwner(),current:owner=>workspaceViews.ownsTabChoice(owner)&&bridge.state().session===owner.session,
  state:()=>workspaceViews.comparisonState(),create:(selections,owner)=>workspaceViews.createComparison(selections,owner),
  setSync:(sync,owner)=>workspaceViews.setComparisonSync(sync,owner)});
-bridge.bindInputNavigation((source,title,project,position)=>{
+bridge.bindInputNavigation((source,title,project,position,retained)=>{
  if(project!==bridge.state().session)return Promise.reject(new Error('The Project changed. Reopen the input in its original Project.'));
- return workspaceViews.openInput({source,position},title);
+ return workspaceViews.openInput({source,position,...(retained?{retained}:{})},title);
 });
 // A Data card dropped on the Tab row opens its result there, as Open in Tab… does, once it is checked to be a result
 // of the Project still open.
@@ -960,8 +985,8 @@ let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
 window.addEventListener('workflow-open-study',event=>{const value=(event as CustomEvent<{id:string;session:string}>).detail;if(value.session===snapshot.session&&/^p[0-9a-f]{32}$/.test(value.id)){bridge.navigate('#');void openStudy(value.id);}});
-async function openStudy(id:string):Promise<void>{
-  if(!canLeaveStudy(()=>void openStudy(id)))return;
+async function openStudy(id:string,material?:{reference:Reference;title:string}):Promise<void>{
+  if(!canLeaveStudy(()=>void openStudy(id,material)))return;
   const owner=workspaceViews.tabOwner(),session=owner.session,opening=++studyOpening;
   const current=()=>opening===studyOpening&&inputOwnerCurrent(owner)&&!switching;
   let study:Effort,providers:StudyProvider[]=[],availableInputs:StudyInput[]=[];
@@ -983,6 +1008,7 @@ async function openStudy(id:string):Promise<void>{
     if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
+    material,
     current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
     open:async(ref,title)=>{
       if(ref.session!==session)throw new Error('Return to the originating Study.');
@@ -1037,7 +1063,7 @@ async function openStudy(id:string):Promise<void>{
   },4000);
 }
 /** New Study saves a draft. Provider execution requires the separate Start action. */
-function newStudy():void{
+function newStudy(initial?:{reference:Reference;title:string},created?:(study:Effort)=>void):void{
   const owner=workspaceViews.tabOwner(),session=owner.session;if(!session)return;
   const dialog=el('dialog','workspace-recovery-dialog study-new-study'),form=el('form');form.method='dialog';
   const current=()=>inputOwnerCurrent(owner)&&!switching&&dialog.isConnected;
@@ -1067,9 +1093,10 @@ function newStudy():void{
   footer.append(el('p','study-note study-new-study-starts','Creating a study starts nothing. You start each experiment.'),cancel,save);form.append(body,footer);
   const load=()=>{void studyInputs(session).then(inputs=>{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
+    if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!!initial&&input.id===initial.reference.id&&input.revision===initial.reference.revision&&input.digest===initial.reference.digest&&!check.disabled;
       const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
@@ -1082,7 +1109,7 @@ function newStudy():void{
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();
@@ -1131,7 +1158,7 @@ async function rememberSession(): Promise<void> {
 function persistTabs(): void { if(tabs) sessionStorage.setItem(tabStorageKey,JSON.stringify(tabs)); renderTabs(); }
 async function changeSession(id?: string, restoring = false): Promise<boolean> {
   if(!restoring && id===tabs?.active && id===snapshot.session) { surfaces.dismiss(); return true; }
-  if(switching) { actionError('A project is opening. Please wait.'); return false; }
+  if(switching) { actionError(PROJECT_OPENING); return false; }
   if(!canLeaveStudy(()=>void changeSession(id,restoring)))return false;
   clearStudyDraftMarkers();
   const blocked=studyArtifacts().blockReason(snapshot.session)||bridge.switchBlockReason(); if(blocked){actionError(blocked);return false;}
@@ -1147,7 +1174,11 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
     else {showSection('inputs');setDataOpen(false,false);}
     await workspaceViews.load(target);
     if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout(); return true;
-  } catch(error){workspaceViews.resume();actionError(error); return false;} finally {switching=false;}
+  } catch(error){workspaceViews.resume();actionError(error); return false;} finally {
+    switching=false;
+    // The wait was true only while that Project opened: once it has, the line is out of date and goes.
+    if(notice.textContent?.startsWith(PROJECT_OPENING)) notice.replaceChildren();
+  }
 }
 async function closeSessionTab(id:string): Promise<void> {
   if(switching || !tabs)return;
@@ -1195,7 +1226,7 @@ function renderTabs(): void {
       else if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const index=event.key==='Home'?0:event.key==='End'?tabs!.order.length-1:(tabs!.order.indexOf(id)+(event.key==='ArrowLeft'?-1:1)+tabs!.order.length)%tabs!.order.length;tabStrip.querySelector<HTMLElement>(`[data-session="${tabs!.order[index]}"] [role="tab"]`)?.focus();}});
     const close=button('×',()=>void closeSessionTab(id),'study-tab-close');close.setAttribute('aria-label',`Close project ${title}`);
     holder.addEventListener('dragstart',event=>event.dataTransfer?.setData('text/plain',id));holder.addEventListener('dragover',event=>event.preventDefault());holder.addEventListener('drop',event=>{event.preventDefault();const from=event.dataTransfer?.getData('text/plain');if(from&&tabs){tabs=moveTab(tabs,from,tabs.order.indexOf(id));persistTabs();}});
-    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton,close);tabStrip.append(holder);
+    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton);if(tabs.active===id){const folder=button('',()=>openCurrentProjectFolder(),'study-tab-rename');folder.append(tabMark('folder'));folder.setAttribute('aria-label',`Project folder for ${title}`);folder.title='Project folder';holder.append(folder);}holder.append(close);tabStrip.append(holder);
   }
   requestAnimationFrame(()=>tabStrip.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({block:'nearest',inline:'nearest'}));
   document.body.dataset.studyNeutral=String(tabs.active===null);
@@ -1224,13 +1255,64 @@ function renderSessionBrowser():void {
   appMenu.refresh();
 }
 /** A Project's row in Recent projects: when it was last used and its inputs, so rows that share a name differ. */
-function projectNote(row:{lastActive:number;counts?:{sources?:number}}):string{
+function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesIncomplete?:boolean}}):string{
   const now=Date.now()/1000,when=daysAgo(row.lastActive,now)===0?new Date(row.lastActive*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):monthDay(row.lastActive,now);
-  const inputs=row.counts?.sources??0;
-  return `${when} · ${inputs} input${inputs===1?'':'s'}`;
+  return `${when} · ${inputCountWords(row.counts)}`;
+}
+function openCurrentProjectFolder():void {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    const row = snapshot.projects.find(item => item.id === owner.session);
+    openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
+      current: () => inputOwnerCurrent(owner) && !switching,
+      exportActions: {
+        prepare: async () => { const r = await bridge.request('project-export-prepare', {session: owner.session}); if (!r.export) throw new Error('Export preparation is unavailable.'); return r.export; },
+        start: async requestKey => { const r = await bridge.request('project-export', {session: owner.session, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Export admission was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-export-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Export status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+        reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
+      },
+      restorationActions: source => ({
+        prepare: async () => { const r = await bridge.request('project-copy-prepare', {session: owner.session, operation: source}); if (!r.copy) throw new Error('Restoration preparation is unavailable.'); return r.copy; },
+        start: async requestKey => { const r = await bridge.request('project-copy-restore', {session: owner.session, operation: source, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Restoration admission was not acknowledged. Retry this request.'); return workingCopyOperation(r.operation); },
+        read: async operation => { const r = await bridge.request('project-copy-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Restoration status is unavailable.'); return workingCopyOperation(r.operation); },
+        stop: async operation => { const r = await bridge.request('project-copy-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return workingCopyOperation(r.operation); },
+        reveal: async operation => { const r = await bridge.request('project-copy-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The working copy could not be revealed.'); },
+      }),
+      recordActions: {
+        list: async () => {
+          const response = await fetch('/api/datasets', {cache: 'no-store'});
+          if (!response.ok) throw new Error('Recorded datasets could not be read.');
+          const value = await response.json();
+          if (!Array.isArray(value.datasets)) throw new Error('Recorded dataset listing is unavailable.');
+          return value.datasets;
+        },
+        review: async dataset => { const r = await bridge.request('project-record-review', {session: owner.session, dataset}); if (!r.review) throw new Error('Recording review is unavailable.'); return r.review; },
+        start: async (dataset, reviewDigest, requestKey) => { const r = await bridge.request('project-record-include', {session: owner.session, dataset, reviewDigest, requestKey, includeWholeDataset: true}); if (!r.operation) throw new Error('Inclusion was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-record-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Inclusion status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-record-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+      },
+      read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
+        if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
+      reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
+        if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
+    });
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
+  openProjectFolder: () => {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
+      open: async (path, useLocation) => {
+        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
+        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
+        return reply.project;
+      },
+      navigate: session => changeSession(session),
+    });
+  },
+  projectFolder: openCurrentProjectFolder,
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });
@@ -1459,8 +1541,12 @@ function importScientificSource(): void {
 /** Inputs (the drawer): the live camera and this Project's pictures and recordings as rows of the shared anatomy
  * (workspace-feel step 4), each opening its preview; ⋯ holds Open in Tab and its Results. The ways to bring an input in
  * are the drawer header's ⋯ (`inputsMore`), as Data's header has them. */
+let inputQuery = '', inputQueryOwner = '';
+let refreshInputRows: (() => void) | null = null;
 function renderInputs(): void {
   const owner=workspaceViews.tabOwner();
+  if (inputQueryOwner !== owner.session) { inputQuery = ''; inputQueryOwner = owner.session; }
+  const mediaRows: {node: HTMLElement; text: string; asset: AssetMeta}[] = [];
   const list=el('div','study-specimens');
   // The live camera: green only while it is truly live (refreshLiveCameraStatus); its words say which camera.
   const liveLead=el('span','mm-row-icon');liveLead.append(el('span','study-live-mark'));
@@ -1475,14 +1561,62 @@ function renderInputs(): void {
     const {wrap,row}=dataRow(thumb,asset.title,`${kind} · ${where}`,`${asset.title}\nPreview; Open in Tab gives it a Tab of its own`,()=>showPreview(asset,owner),
       ()=>[{label:'Open in Tab',title:'Open it in a Tab of its own',act:()=>void openSource(asset,owner)},{label:'Results',title:'What was made from it, in Data',act:()=>{sourceFilter=asset.id;showSection('results');}}],`More for ${asset.title}`);
     wrap.classList.add('study-input');row.classList.toggle('active',asset.id===snapshot.onStage);if(asset.id===snapshot.onStage)row.setAttribute('aria-current','true');
-    list.append(wrap);
+    list.append(wrap); mediaRows.push({node: wrap, text: `${asset.title} ${kind}`.toLocaleLowerCase(),asset});
   }
-  drawerBody.append(list);
-  if (!snapshot.sources.length) {
-    const empty=el('div','mm-drawer-empty');empty.append(el('p','','No pictures or videos in this Project yet. Scientific files and saved results are in Data. Use the Inputs menu to import material, or try the guided microscopy example.'));
+  const material = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+  const controls = el('div', 'project-input-controls');
+  const search = el('input', 'mm-control'); search.type = 'search'; search.placeholder = 'Search Project material';
+  search.setAttribute('aria-label', 'Search Project material'); search.value = inputQuery;
+  const materialList = el('div', 'project-input-material');
+  const drawMaterial = () => {
+    if (!inputOwnerCurrent(owner)) return;
+    materialList.replaceChildren();
+    const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
+    if (empty) empty.hidden = resultsFailed() || resourceSession !== snapshot.session || !!inputQuery || !!snapshot.sources.length || !!projectInputs(entries).length;
+    if (resultsFailed() || resourceSession !== snapshot.session || resourceReads.slow) {
+      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : resourceReads.slow?'Loading is taking longer than usual.': 'Loading Project material…');
+      notice.setAttribute('role', 'status'); materialList.append(notice);
+      if (resultsFailed() || resourceReads.slow) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) retryProjectReads(); }, 'mm-control'));
+    }
+    const needle = inputQuery.trim().toLocaleLowerCase();
+    let matchingMedia = 0;
+    const retained=resourceSession===snapshot.session?projectInputs(entries):[];
+    for (const row of mediaRows) { row.node.hidden = retained.some(entry=>isRetainedMaterial(entry,row.asset))||!!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
+    const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery, snapshot.sources) : [];
+    const grouped = [...selected].sort((a, b) => (a.material?.organization?.role || 'Material').localeCompare(b.material?.organization?.role || 'Material'));
+    let previousGroup = '';
+    for (const entry of grouped) {
+      const group = entry.material?.organization?.role || 'Material';
+      if (group !== previousGroup) { materialList.append(el('h3', 'project-input-group', group)); previousGroup = group; }
+      const actions = entryActions(entry);
+      const source=retainedSource(entry,snapshot.sources);
+      const open = () => { if (!inputOwnerCurrent(owner)) return;
+        if (entry.material?.kind === 'assignment') void openStudy(entry.id);
+        else if(source)showPreview(source,owner);
+        else actions.open(); };
+      const lead=el('span', source?.thumb?'mm-row-thumb':'mm-row-icon',entry.material?.kind==='assignment'?'◇':source?.thumb?'':'▤');
+      if(source?.thumb){const picture=el('img');picture.src=source.thumb;picture.alt='';picture.loading='lazy';lead.append(picture);}
+      const title=source?.title??entry.title;
+      const onStage=!!source&&snapshot.onStage===source.id&&sameMediaReference(source.retained,bridge.capturePresentationSync().retained);
+      const facts=[materialFacts(entry),onStage?'On the Stage':''].filter(Boolean).join(' · ');
+      const {wrap,row} = dataRow(lead,
+        title, facts, `${title}\n${facts}\nPreview retained material`, open,
+        () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] :
+          source?[{label:'Open image or recording in Tab',act:()=>void openSource(source,owner)},...actions.menu()]:actions.menu(), `More for ${title}`);
+      row.classList.toggle('active',onStage);if(onStage)row.setAttribute('aria-current','true');
+      materialList.append(wrap);
+    }
+    if (resourceSession === snapshot.session && inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
+  };
+  refreshInputRows = drawMaterial;
+  search.addEventListener('input', () => { inputQuery = search.value; drawMaterial(); });
+  controls.append(button('Add material', () => { if (inputOwnerCurrent(owner)) importScientificSource(); }, 'study-primary'), search);
+  drawerBody.append(controls, materialList, list); drawMaterial();
+  if (!snapshot.sources.length && !material.length && !inputQuery) {
+    const empty=el('div','mm-drawer-empty project-input-empty');empty.append(el('p','','Add files, datasets, images or recordings to this Project. They stay here with their research context.'));
     empty.append(button('Browse Project data',()=>{if(inputOwnerCurrent(owner))showSection('results');},'mm-control'));
     const example = button('Try the guided example', () => { if (!busy()) void bridge.example().catch(actionError); },'mm-control'); example.disabled = busy();
-    empty.append(example);drawerBody.append(empty);
+    empty.append(example);empty.hidden = resultsFailed() || resourceSession !== snapshot.session;drawerBody.append(empty);
   }
   refreshLiveCameraStatus();
 }
@@ -1492,7 +1626,7 @@ function refreshLiveCameraStatus(): void {
   // Green only while the camera is truly live (the Tab row's specimen control says so), never for "live" with no picture.
   const card = liveCameraStatus.closest<HTMLElement>('.study-live-card');
   if (card) card.dataset.camera = String(document.getElementById('source')?.dataset.state === 'live');
-  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen · pictures and videos only' : status;
+  const text = snapshot.onStage === 'live' && !none ? `${status} · On the Stage` : none ? 'No camera chosen' : status;
   if (liveCameraStatus.textContent !== text) liveCameraStatus.textContent = text;
 }
 function showPreview(asset: AssetMeta,owner=workspaceViews.tabOwner()): void {
@@ -1500,7 +1634,9 @@ function showPreview(asset: AssetMeta,owner=workspaceViews.tabOwner()): void {
   activePreview = asset;
   preview.replaceChildren();
   const header = el('header', 'study-panel-header'); header.append(el('h2', '', asset.title), button('×', () => surfaces.dismiss(), 'study-close'));
-  const media = asset.kind === 'recording' ? el('video') : el('img'); media.src = `/api/library/${encodeURIComponent(asset.id)}/file`;
+  const media = asset.kind === 'recording' ? el('video') : el('img');
+  const url=asset.retained?asset.thumb:`/api/library/${encodeURIComponent(asset.id)}/file`;
+  if(url)media.src=url;
   if (media instanceof HTMLVideoElement) media.controls = true; else media.alt = asset.title;
   const add = button('Open in Tab', () => { surfaces.dismiss(); void openSource(asset,owner); }, 'study-primary');
   add.disabled = busy();
@@ -1513,7 +1649,11 @@ async function openSource(asset: AssetMeta,owner=workspaceViews.tabOwner()): Pro
   if(!inputOwnerCurrent(owner)){actionError(new Error('The Project changed. Choose the input again in its intended Project.'));return;}
   if (busy()) { runStatus.textContent = 'This run keeps its captured input. You can preview other images while it finishes.'; return; }
   bridge.navigate('#');
-  try { await workspaceViews.openInput({source:asset.id,position:0},asset.title,owner); } catch (error) { actionError(error); }
+  try {
+    const admitted=await bridge.prepareInput(asset,owner.session);
+    if(!admitted.ready||!inputOwnerCurrent(owner))return;
+    await workspaceViews.openInput({source:asset.id,position:0,...(admitted.retained?{retained:admitted.retained}:{})},asset.title,owner);
+  } catch (error) { actionError(error); }
 }
 function inputOwnerCurrent(owner:ReturnType<WorkspaceViews['tabOwner']>):boolean {
  return workspaceViews.ownsTabChoice(owner)&&bridge.state().session===owner.session;
@@ -1553,22 +1693,28 @@ async function refreshBackgroundRun(): Promise<void> {
     if (run === owner && reconcileBackgroundRun(owner, data.entries, job.session)) { renderContext(); renderTabs(); }
   } catch { /* Retained state is authoritative; a failed poll never marks a job complete. */ }
 }
-async function refreshResults(): Promise<void> {
-  // Project research is visible on return, independent of which drawer is open.
+const resourceReads = new ProjectRead(()=>{renderBoard();if(drawerOpen&&section==='inputs')refreshInputRows?.();});
+function retryProjectReads():void { resourceReads.cancel();studyReads.cancel();void refreshResults(); }
+function refreshResults():Promise<void>{
   void refreshStudies();
+  return resourceReads.run(snapshot.session,(signal,ownsRead)=>loadResults(signal,ownsRead));
+}
+async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<void> {
+  // Project research is visible on return, independent of which drawer is open.
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
+  renderBoard();
   try {
     // The 10 s poll and the server's events send back the revision Data last read (ticket 66, S7): an unchanged index
     // answers in a few bytes, and nothing is redrawn.
     const since = resourceSession === session && resourceRevision ? `&since=${encodeURIComponent(resourceRevision)}` : '';
-    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store' });
+    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store', signal });
     if (!response.ok) throw new Error('Retained results could not be read.');
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
-    if (generation !== refreshGeneration || snapshot.session !== session) return;
+    if (!ownsRead() || generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
-    if (data.unchanged === true && resourceSession === session) { if (resultsFailed) { resultsFailed = false; renderResults(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
     // ticket). Its lessons, pictures, tables and sources are the server's own entries now (S4), no longer made up here.
     const next = (data.entries ?? []).map(entry => {const base={...entry,day:entry.day??session};if(entry.kind!=='research')return base;
@@ -1576,13 +1722,24 @@ async function refreshResults(): Promise<void> {
     // An index without a revision (before ticket 66) is compared whole, as before.
     const changed = resourceSession !== session || (data.revision ? data.revision !== resourceRevision : JSON.stringify(entries) !== JSON.stringify(next));
     entries = next; resourceSession = session; resourceRevision = data.revision ?? '';
-    if (!changed && !resultsFailed) { if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
-    resultsFailed = false;
+    if (!changed && !resultsFailed()) { if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    resultsFailedSession = '';
     madeMemo.clear();
     if (dataOpen) renderResults();
+    if (drawerOpen && section === 'inputs') refreshInputRows?.();
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
-  } catch (error) { if (dataOpen && generation === refreshGeneration) { resultsFailed = true; dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults())); } }
+  } catch (error) {
+    if (ownsRead() && generation === refreshGeneration && snapshot.session === session) {
+      resultsFailedSession = session;
+      renderBoard();
+      if (dataOpen) {
+        if(resourceSession===session)renderResults();
+        else dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => retryProjectReads()));
+      }
+      if (drawerOpen && section === 'inputs') refreshInputRows?.();
+    }
+  }
 }
 /** One row of Data (the mock's shared row anatomy): its picture or kind, its title, one quiet line, the New dot and ⋯. */
 function dataRow(lead:HTMLElement,title:string,sub:string,tip:string,open:()=>void,menu:()=>MenuItem[],menuLabel:string,name=title):{wrap:HTMLElement;row:HTMLButtonElement}{
@@ -1614,7 +1771,7 @@ function showMadeBy(key:MakerKey):void{
 /** What is on the Tab you are on (ticket 66, "On this Tab"): the things its saved layout holds, the windows open on it
  * now whether saved yet or not, the outlines or motion drawn on its specimen, and its input. Read from the page's own
  * marks and the saved layout, never measured. */
-function hereNow():{tab:string;ids:Set<string>;onStage:string|null}{
+function hereNow(){
   const tab=document.body.dataset.activeWorkspaceView??'',ids=new Set<string>(bridge.drawnOnStage());
   for(const root of document.querySelectorAll<HTMLElement>('[data-study-retained],[data-note-id]')){
     if(root.hidden||root.dataset.workspaceHidden==='true'||root.dataset.dismissed==='true'||root.dataset.resultTucked==='true')continue;
@@ -1622,11 +1779,11 @@ function hereNow():{tab:string;ids:Set<string>;onStage:string|null}{
     if(root.dataset.noteId){ids.add(root.dataset.noteId);continue;}
     try{const id=JSON.parse(root.dataset.studyRetained!)?.resource?.id;if(typeof id==='string')ids.add(id);}catch{/* not a kept thing's window */}
   }
-  return {tab,ids,onStage:snapshot.onStage};
+  return {tab,ids,onStage:snapshot.onStage,retained:bridge.capturePresentationSync().retained};
 }
-const hereKey=(here:ReturnType<typeof hereNow>)=>`${here.tab}|${here.onStage}|${[...here.ids].sort().join(' ')}`;
+const hereKey=(here:ReturnType<typeof hereNow>)=>`${here.tab}|${here.onStage}|${JSON.stringify(here.retained)}|${[...here.ids].sort().join(' ')}`;
 function rowHere(row:DataRow,here:ReturnType<typeof hereNow>):boolean{
-  if(row.asset&&(!row.entry||row.entry.kind==='asset'))return row.asset.id===here.onStage;
+  if(row.asset&&row.asset.id===here.onStage&&sameMediaReference(row.asset.retained,here.retained))return true;
   return row.parts.some(part=>here.ids.has(part.id)||workspaceViews.places(part.id).some(place=>place.id===here.tab));
 }
 // A Tab switch, a window opened, moved or closed, or outlines drawn or taken off: Data's "On this Tab" marks are checked
@@ -1639,8 +1796,8 @@ for(const name of ['workspace-tab-context','workspace-layout-changed','hooke-sta
  * its ⋯, and a run's other parts (its answer) keep theirs there under their own names. */
 function dataRowView(row:DataRow):DataRowView{
   const asset=row.asset;
-  if(asset&&(!row.entry||row.entry.kind==='asset'))return {tip:'Open it here, on the right; Open in its Tab is in ⋯',open:()=>openInReader(inputEntry(asset)),current:readerShowing({id:asset.id,day:snapshot.session}),
-    menu:()=>[{label:'Open in its Tab',act:()=>{setDataOpen(false,false);void openSource(asset);}},{label:'Show in Inputs',act:()=>{showSection('inputs');setDrawer(true);}}]};
+  if(asset)return {tip:'Open it here, on the right; Open in its Tab is in ⋯',open:()=>openInReader(inputEntry(asset)),current:readerShowing(row.entry??inputEntry(asset)),
+    menu:()=>[{label:'Open in its Tab',act:()=>{setDataOpen(false,false);void openSource(asset);}},{label:'Show in Inputs',act:()=>{showSection('inputs');setDrawer(true);}},...(row.entry?.kind==='project'?entryActions(row.entry).menu():[])]};
   const own=entryActions(row.entry!),others=row.parts.slice(1).map(part=>({part,actions:entryActions(part)}));
   return {tip:own.tip,open:own.open,drag:own.drag,current:row.parts.some(part=>readerShowing(part)),menu:()=>[...own.menu(),...others.flatMap(({part,actions}):MenuItem[]=>
     ['separator',{heading:partWord(part)},{label:'Open',title:part.title,aria:`Open ${part.title}`,act:actions.open},...actions.menu()])]};
@@ -1648,7 +1805,7 @@ function dataRowView(row:DataRow):DataRowView{
 /** One kept thing's open (in the reader), ⋯, tooltip and drag. */
 function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:string;drag:(wrap:HTMLElement)=>void}{
     // A row opens on the right of the Tab you are on, in the reader (ticket 66): nothing moves you to another Tab.
-    const open=()=>openInReader(entry as ReaderEntry);
+    const open=()=>{ if (entry.material?.kind === 'assignment') void openStudy(entry.id); else openInReader(entry as ReaderEntry); };
     const places=workspaceViews.places(entry.id,entry.version??0),source=sourceOf(entry),owner=workspaceViews.tabOwner();
     // Its maker by display name (the model's one name, a researcher's name), never a raw key.
     const maker=madeByWords(entry,entry.kind==='research'?bridge.researchers().find(item=>item.rid===entry.id)?.name??null:null,
@@ -1672,6 +1829,10 @@ function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:st
       // The mock's row ⋯: what its researcher made (Data under that maker's chip), and a Tab of its own.
       const who=(entry as DataEntry).maker;
       if(who?.kind==='researcher'&&who.name)items.push({label:`Show what ${who.name} made`,act:()=>showMadeBy(researcherKey(who.name))});
+      if (entry.kind === 'project' && entry.material && !entry.material.record && entry.material.kind !== 'assignment') {
+        items.push({label:'Organize material…',act:()=>organizeMaterial(entry, owner.session,
+          ()=>inputOwnerCurrent(owner), ()=>void refreshResults())});
+      }
       items.push({label:'Open in new Tab',act:()=>void openReaderTab(entry as ReaderEntry)});
       return items;
     };
@@ -1694,6 +1855,7 @@ function renderResults(opened = false): void {
   dataList.render({rows:shown,choices:makerChoices(all),maker:makerFilter,query:dataSearch.value,loading:resourceSession!==snapshot.session,
     source:sourceFilter===null?null:snapshot.sources.find(item=>item.id===sourceFilter)?.title??'one input',
     here:row=>rowHere(row,here),seen:dataSeen(),now:Date.now()/1000,model:entry=>entry.madeBy?bridge.makerName(entry.madeBy):''});
+  if(resultsFailed()){const notice=el('div','study-error');notice.setAttribute('role','status');notice.append(el('p','','Could not refresh. Showing saved Project data.'),button('Retry results',()=>retryProjectReads()));dataList.list.prepend(notice);}
   dataView.showResults();
   if(readingPosition)dataBody.scrollTop=readingPosition;
   watchSeen();
@@ -1789,24 +1951,28 @@ function rememberReader(entry: ReaderEntry | null, view: 'thing' | 'how' = 'thin
 }
 /** An input of this Project as the reader reads it. */
 function inputEntry(asset: AssetMeta): ReaderEntry {
-  return { id: asset.id, kind: 'asset', title: asset.title, summary: '', state: '', actions: [], day: snapshot.session, asset,
-    ...(typeof asset.capturedAt === 'number' ? { at: asset.capturedAt } : {}) } as ReaderEntry;
+  return sourceReaderEntry(asset,snapshot.session);
 }
-/** A Data item by its identity: this Project's index entry (that revision, else its newest), or one of its inputs. */
+/** A Data item by its identity: this Project's exact index or pinned input revision, or one of its inputs. */
 function readerEntryOf(ref: { id: string; day: string; version: number | null }): ReaderEntry | null {
-  const day = (entry: StudyResource) => entry.day ?? snapshot.session;
-  const found = entries.find((entry) => entry.id === ref.id && day(entry) === ref.day && (entry.version ?? null) === ref.version)
-    ?? entries.find((entry) => entry.id === ref.id && day(entry) === ref.day);
+  const found = projectEntry(entries, ref, snapshot.session);
   if (found) return found as ReaderEntry;
-  const asset = ref.day === snapshot.session ? snapshot.sources.find((item) => item.id === ref.id) : undefined;
-  return asset ? inputEntry(asset) : null;
+  const asset = ref.day === snapshot.session ? snapshot.sources.find((item) => item.retained ?
+    item.retained.document===ref.id && item.retained.session===ref.day && item.retained.revision===ref.version : item.id===ref.id) : undefined;
+  return asset ? inputEntry(asset) : retainedProjectEntry(ref, snapshot.session) as ReaderEntry | null;
 }
 /** A Data row (or a link inside the reader) opens on the right of the Tab you are on. Below 1200 px it takes the Data
  * drawer's place (‹ Data brings the list back). The Assistant steps aside (× brings it back if it was showing); a page
  * docked on the right parks, as it does when the Assistant opens. One layout write (press). */
 function openInReader(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): void {
-  // On a reader Tab the whole Tab is the reader: the item shows there (its saved item comes back with the Tab).
-  if (document.body.dataset.readerTab === 'true' && researchStage.hidden) { tabReader.show(entry, view); renderReaderLabel(); return; }
+  // A retained reader Tab owns one exact item. A different input gets its own
+  // retained Tab so the label, visible content and restored reference stay aligned.
+  if (document.body.dataset.readerTab === 'true' && researchStage.hidden) {
+    const current = tabReader.current();
+    if (current && sameItem(current, entry)) { tabReader.show(entry, view); renderReaderLabel(); }
+    else void openReaderTab(entry, view);
+    return;
+  }
   // On a researcher's Tab its own reader is on the right (ticket 66 D3): the item shows there, and the Tab stays.
   if (researchPageInFront() && showInResearchReader(entry, view)) { markReaderRow(); return; }
   const fromData = dataOpen;
@@ -1938,8 +2104,33 @@ function renderReaderLabel(): void {
   slot.replaceChildren(title, kind);
 }
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
+/** Opening setup never starts work; all choices retain the originating revision. */
+function materialAction(entry:ReaderEntry,action:'inspect'|'experiment'|'ask'):void{
+ const material=entry.material;if(!material){actionError(new Error('Refresh this material before continuing.'));return;}
+ const reference={id:entry.id,session:entry.day??snapshot.session,revision:Number(entry.version),digest:entry.source?.sha256??''},session=reference.session;
+ if(!Number.isInteger(reference.revision)||!reference.digest){actionError(new Error('Refresh this material to read its exact revision.'));return;}
+ if(session!==snapshot.session)return;
+ const owner=workspaceViews.tabOwner(),owns=()=>inputOwnerCurrent(owner)&&!switching;
+ const selected={reference,title:entry.title};
+ const proceed=(study?:Effort)=>{
+  if(!owns())return;
+  if(action==='ask'){if(study)void openStudy(study.id,selected);return;}
+  openMaterialCapability({material:{input:reference,title:entry.title},study:study?{id:study.id,title:studyName(study)}:undefined,
+   capability:action==='inspect'?'matrix-inspect':undefined},()=>owns()?session:'',run=>{if(owns())bridge.navigate(`#workflows?run=${encodeURIComponent(run.id)}`);});
+ };
+ const dialog=el('dialog','workspace-recovery-dialog material-study-chooser');dialog.setAttribute('aria-label','Choose a Study');
+ dialog.append(el('h2','','Choose a Study'),el('p','',`${entry.title} · revision ${reference.revision}`),el('p','','Keep this question or experiment with a research effort. Opening setup starts nothing.'));
+ const list=el('div','material-study-options');
+ for(const study of knownStudies){list.append(button(studyName(study),()=>{dialog.close();proceed(study);}));}
+ list.append(button('New Study…',()=>{dialog.close();if(owns())newStudy(selected,proceed);}));
+ if(action==='inspect')list.append(button('Inspect without a Study',()=>{dialog.close();proceed();}));
+ dialog.append(list,button('Cancel',()=>dialog.close()));dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+}
 function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
   return {
+    materialAction, openStudy:id=>{void openStudy(id);},
+    retainedEntry: (ref) => resourceSession === snapshot.session && ref.day === snapshot.session
+      ? indexedRevision(entries, ref, snapshot.session) as ReaderEntry | null : null,
     researchers: () => bridge.researchers().map((row) => ({ rid: row.rid, name: row.name, day: row.day, status: row.status })),
     working: (rid) => { const row = bridge.researchers().find((item) => item.rid === rid); return !!row && isWorking(row); },
     method: (entry) => entry.madeBy ? bridge.makerName(entry.madeBy) : '',
@@ -1960,7 +2151,7 @@ function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
     open: (ref) => {
       const entry = readerEntryOf({ id: ref.id, day: ref.day ?? snapshot.session, version: null });
       if (!entry) { actionError(new Error('That is not in this Project’s Data any more.')); return; }
-      if (mode === 'tab') tabReader.show(entry, 'thing'); else openInReader(entry);
+      openInReader(entry);
     },
     changed: () => { markReaderRow(); if (mode === 'tab') renderReaderLabel(); },
   };
@@ -2002,10 +2193,14 @@ provideResearchReader({
   },
 });
 /** Open in new Tab: the item in a Tab of its own, the same reader full width. */
-async function openReaderTab(entry: ReaderEntry): Promise<void> {
+async function openReaderTab(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): Promise<void> {
   // Its Tab is named as the reader names it (a researcher's report by its findings' title once read).
   const shown = reader.current(), title = shown && sameItem(shown, entry) ? reader.title() : readerTitle(entry.title, entry.kind);
-  try { await workspaceViews.openReaderTab({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title }); }
+  try {
+    const opened = await workspaceViews.openReaderTab({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title });
+    const current = tabReader.current();
+    if (opened && view === 'how' && current && sameItem(current, entry)) tabReader.show(entry, view);
+  }
   catch (error) { actionError(error); }
 }
 /** Every route the item's Data row had, by name, in the reader's ⋯ (nothing is removed: the kind's full tool opens as
@@ -2070,12 +2265,10 @@ assistantOff.append(el('h3','','This example Project'),
   el('p','','Your example inputs and results are kept here. You can inspect them with the local tools. The Assistant is off in this example to keep it local; open another Project to use it.'),
   assistantExamples,button('Open your Projects',()=>bridge.navigate('#sessions'),'mm-primary'));
 find('starters').before(assistantOff);
-const agentEntry = el('div');
-find('starters').before(agentEntry);
-agentConnections.mountEntry(agentEntry, () => {
+function manageAgents(): void {
   bridge.navigate('#settings');
   requestAnimationFrame(() => settings.querySelector<HTMLElement>('.agent-connections-settings')?.scrollIntoView({ block: 'start' }));
-}, () => snapshot.session || undefined);
+}
 function renderAgentScope(using: { name: string; thumb?: string; none: boolean }, output: string): void {
   const local = !!snapshot.session && snapshot.session === exampleProject();
   const scientific = scientificAskSelection();
@@ -2237,7 +2430,13 @@ window.addEventListener('keydown', event => {
 bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
-  if (next.session !== previous.session) { studyReadGeneration++; knownStudies = []; studiesNote = ''; studiesAvailable = false; }
+  if (next.session !== previous.session) {
+    resourceReads.cancel();studyReads.cancel();
+    // Retire the inventory owner with its contents before any view renders. An A→B→A switch
+    // can otherwise mistake A's emptied cache for a completed read while B is still pending.
+    entries = []; resourceSession = ''; resourceRevision = ''; resultsFailedSession = '';
+    studyReadGeneration++; studiesLoadedSession = ''; knownStudies = []; studiesNote = ''; studiesAvailable = false;
+  }
   if(next.session===previous.session&&next.ready)workspaceViews.observeInput();
   renderRailBadges();
   renderResearchStudy();
@@ -2261,7 +2460,7 @@ bridge.subscribe(next => {
     }
   }
   const key = JSON.stringify([next.session, next.title, next.sources, next.projects, next.projectsRoot]);
-  if (next.session !== previous.session) { entries = []; resourceRevision = ''; madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
+  if (next.session !== previous.session) { madeMemo.clear(); sourceFilter = null; makerFilter = null; void refreshResults(); }
   // Data's Pictures and recordings are the Project's inputs, and "On this Tab" marks the one on the Stage: drawn again
   // when either changes.
   const dataKey = JSON.stringify([next.sources.map(asset => [asset.id, asset.title, asset.thumb ?? '', asset.seconds]), next.onStage]);

@@ -80,6 +80,7 @@ def _copy_history(value, saved):
 
 class PreparedArray:
     def __init__(self, store, project, session, revision, original, reference, *, provenance=None):
+        store = store.for_session(session, write=False)
         self._provenance = None if provenance is None else _json(provenance)
         store.array_source(project, session, revision, original)
         record = arrays._manifest(store, project, reference)
@@ -109,6 +110,7 @@ class PreparedArray:
 
 class ProjectCopy:
     def __init__(self, store, saved, prepared):
+        store = store.for_session(saved.session, write=True)
         prepared = prepared if type(prepared) is list else [prepared]
         # Shared admission rejects mixed bases, duplicate components and incomplete
         # provenance before copying any bytes. The single-array format is retained.

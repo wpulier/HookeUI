@@ -70,10 +70,16 @@ export function projectRowWords(counts: SessionCounts | undefined, open: boolean
   return [...countWords(counts), ...(open ? ['Open project'] : [])].join(' · ');
 }
 
+export function inputCountWords(counts?: Pick<SessionCounts, 'sources' | 'sourcesIncomplete'>): string {
+  const count = counts?.sources ?? 0;
+  if (counts?.sourcesIncomplete) return count > 0 ? `${plural(count, 'input')} · some unavailable` : 'Inputs unavailable';
+  return plural(count, 'input');
+}
+
 export function countWords(counts: SessionCounts | undefined): string[] {
   const c = counts ?? { made: 0, researchers: 0, conversations: 0 };
   const words: string[] = [];
-  if ((c.sources ?? 0) > 0) words.push(plural(c.sources!, 'input'));
+  if (c.sourcesIncomplete || (c.sources ?? 0) > 0) words.push(inputCountWords(c));
   if (c.made > 0) words.push(plural(c.made, 'result'));
   if (c.researchers > 0) words.push(plural(c.researchers, 'researcher'));
   words.push(plural(Math.max(0, c.conversations), 'conversation'));
@@ -183,7 +189,7 @@ export function factsLine(state: Pick<SessionState, 'started' | 'days' | 'counts
   const c = state.counts ?? { made: 0, researchers: 0, conversations: 0 };
   return [sinceWords(state.started || now, now), plural(Math.max(1, state.days?.length ?? 1), 'day'),
     plural(c.conversations, 'conversation'), plural(c.researchers, 'researcher'),
-    (c.sources ?? 0) > 0 ? plural(c.sources!, 'input') : '', plural(c.made, 'result')].filter(Boolean).join(' · ');
+    c.sourcesIncomplete ? 'Inputs partly unavailable' : (c.sources ?? 0) > 0 ? plural(c.sources!, 'input') : '', plural(c.made, 'result')].filter(Boolean).join(' · ');
 }
 
 /** The suggestion, in the app's words (the brain and the voice word their own). */
@@ -307,7 +313,9 @@ export class SessionsModel {
         if (state.name !== undefined) row.name = state.name;
         if (state.named !== undefined) row.named = state.named;
         if (state.started) row.started = state.started; // the chip and the rail say the same "since"
-        if (state.counts) row.counts = state.counts;
+        // The live session counts only stage/library sources. The catalogue adds
+        // retained scientific files; a live update must not erase that inventory.
+        if (state.counts) row.counts = { ...state.counts, ...(row.counts?.sources !== undefined ? {sources: row.counts.sources, sourcesIncomplete: row.counts.sourcesIncomplete} : {}) };
         if (state.lastActive) row.lastActive = Math.max(row.lastActive, state.lastActive);
         if (state.days) row.days = state.days;
       }

@@ -51,8 +51,8 @@ def _journal_events(day):
 # Stage-coordinate layout formats, each passed through unchanged. Schema 5 adds output and
 # compare Tabs and table, analysis and graph windows; its fields are allowed only when present.
 # Schema 6 (ticket 66, S6) adds the reader Tab: one thing of Data, read full width, the specimen hidden.
-SCHEMA = 6
-SCHEMAS = (2, 3, 4, 5, 6)
+SCHEMA = 7
+SCHEMAS = (2, 3, 4, 5, 6, 7)
 TAB_KINDS = ('output', 'compare', 'reader')
 SCHEMA_OF_KIND = {'output': 5, 'compare': 5, 'reader': 6}  # the first schema each Tab kind is in
 PRESENTATIONS = ('masks', 'table', 'capture')
@@ -132,13 +132,19 @@ def checked_layout(value, session):
             continue
         if 'input' in view:
             source = view['input']
-            if (not isinstance(source, dict) or set(source) != {'source', 'position'} or
+            if (not isinstance(source, dict) or not {'source', 'position'} <= set(source) or
+                    set(source) - ({'source', 'position', 'retained'} if value['schema'] >= 7 else {'source', 'position'}) or
                     not isinstance(source['source'], str) or
                     not re.fullmatch(r'live|a[0-9]+', source['source']) or
                     type(source['position']) not in (int, float) or
                     not math.isfinite(source['position']) or not 0 <= source['position'] <= 1e9 or
                     source['source'] == 'live' and source['position'] != 0):
                 raise ValueError('invalid tab input reference')
+            if 'retained' in source:
+                from .project_stage_media import reference
+                reference(source['retained'], session)
+                if source['source'] == 'live':
+                    raise ValueError('Live camera cannot name retained media')
         specimen = view['specimen']
         if not isinstance(specimen, dict) or set(specimen) != {'visible', 'rect'} or type(specimen['visible']) is not bool:
             raise ValueError('invalid specimen layout')
@@ -661,7 +667,10 @@ def reconcile(day):
         if kind == 'result' and e.get('state', 'done') not in ('done', 'saved'): continue
         info = e
         if kind in ('evidence-saved', 'tracks-saved'):
-            try: info = json.loads((Path(e['path']) / 'manifest.json').read_text())
+            try:
+                from .project_evidence import resolve_entry
+                folder = resolve_entry(day, day.sid, e)
+                info = json.loads((folder / 'manifest.json').read_text())
             except (OSError, ValueError, KeyError): continue
         executions = info.get('executions') or [info.get('execution') or (info.get('madeBy') or {}).get('execution')]
         outputs.append((e, kind, info, executions))

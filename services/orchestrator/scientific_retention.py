@@ -257,6 +257,56 @@ def locked(root):
         yield root
 
 
+STALE = 'stale-temporary'  # registrations of temporary stores that no longer exist, set aside (never deleted)
+
+
+def _temporary(path: Path) -> bool:
+    """Whether a store lives in the system's temporary folder (a test's or a bench's home): never a removable disk."""
+    import tempfile
+    roots = {Path(tempfile.gettempdir()).resolve(), Path('/tmp').resolve(), Path('/private/tmp')}
+    try:
+        roots.add(Path(os.environ.get('TMPDIR', '/tmp')).resolve())
+    except OSError:
+        pass
+    return any(path == r or r in path.parents for r in roots)
+
+
+def _set_aside_stale(root):
+    """At the limit: the registrations of stores in the system's temporary folder that no longer exist protect nothing
+    (a temporary folder is never an unplugged disk), so they are moved aside into METADATA/STALE with a receipt, never
+    deleted. 29 Oct: 1009 of the 1024 were tests' homes from 17-23 Oct, and every new Project store since was refused
+    ('The saved Project store registration limit was reached'), stopping a voice-run experiment. A store that is merely
+    unavailable elsewhere (a disk) keeps blocking, as before."""
+    moved = []
+    for path in sorted((root / METADATA).glob('*.json')):
+        try:
+            value = _read(path)
+        except Uncertain:
+            continue
+        store = Path(value.get('store', '')) if type(value) is dict and type(value.get('store')) is str else None
+        if (store is None or not store.is_absolute() or value.get('runtimeRoot') != str(root)
+                or not _temporary(store) or _present(store) or path != _association(root, store)):
+            continue
+        moved.append((path, value))
+    if not moved:
+        return 0
+    folder = root / METADATA / STALE / (time.strftime('%Y%m%dT%H%M%SZ', time.gmtime()) + '-' + secrets.token_hex(4))
+    _directory(folder, root)
+    from .scientific_projects import ProjectStore
+    receipt = {'format': 1, 'runtimeRoot': str(root), 'at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+               'why': 'registrations of temporary stores that no longer exist', 'records': []}
+    for path, value in moved:
+        body = ProjectStore._read(path, 256 << 10)
+        ProjectStore._write(folder / path.name, body, immutable=True)
+        receipt['records'].append({'name': path.name, 'store': value['store'],
+                                   'sha256': hashlib.sha256(body).hexdigest()})
+    _write(folder / 'receipt.json', receipt)
+    for path, _ in moved:
+        path.unlink()
+    ProjectStore._sync_directory(root / METADATA)
+    return len(moved)
+
+
 def _register(root, store):
     expected = {'store': str(store), 'runtimeRoot': str(root)}
     association = _association(root, store)
@@ -264,6 +314,8 @@ def _register(root, store):
         if _read(association) != expected:
             raise Uncertain('A saved runtime association changed; removal is blocked')
     else:
+        if sum(1 for _ in (root / METADATA).glob('*.json')) >= MAX_STORES:
+            _set_aside_stale(root)
         if sum(1 for _ in (root / METADATA).glob('*.json')) >= MAX_STORES:
             raise Uncertain('The saved Project store registration limit was reached')
         _write(association, expected)

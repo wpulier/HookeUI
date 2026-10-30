@@ -21,7 +21,7 @@ MAX_MASK_BYTES = 64 << 20
 
 def descriptor():
     return {'id': OPERATION, 'title': 'Compare retained methods', 'implementation':'builtin', 'preparation':'none',
-            'input':'exact-native-source-and-two-or-three-arms', 'output':'retained-method-comparison',
+            'input':'exact-native-source-and-two-to-six-arms', 'output':'retained-method-comparison',
             'workingBytes':WORKING_BYTES, 'maskBytes':MAX_MASK_BYTES,
             'method':'Foreground is every nonzero label. Compare area/volume and disagreement against A; never rank accuracy.'}
 
@@ -156,9 +156,9 @@ async def run(hub, day, operation, action, request, *, caller, stopping=None, ch
             raise InvalidProject('The Project changed; return to the original Project before comparing')
         if ticket is not None and ticket.superseded('session'):raise InvalidProject(ticket.superseded('session'))
         check_caller()
-    store = hub.resources.projects
     def work():
         check()
+        store = hub.resources.projects.for_session(session, write=True)
         if action == 'choose':
             original = store.read(selected['project'],session,revision=selected['revision'])
             read(store,original.id,session,original.revision,check=check)

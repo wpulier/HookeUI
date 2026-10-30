@@ -66,10 +66,14 @@ can't run. Every setting is in exactly one; a model role whose options run no mo
   the live view keeps loaded to make room: a model that does not fit in the memory free is "not checked: inside the
   live app it needs 12.2 GB of memory and 11.4 GB is free ..." (`loads.sparing`); `make capability-check`
   (with the app stopped, BESIDE_LIVE=1 otherwise; DOWNLOAD=1 lets weights download) and `make
-  capability-check-cloud` (keys; its cost said; VIDEO=1 adds Veo, about $0.40) run them from `bench/capability_check.py`
+  capability-check-cloud` (keys; its cost said; VIDEO=1 adds the video model, Gemini Omni 1.1 Flash, about $0.40) run them from `bench/capability_check.py`
   and keep the result where the live app reads it. The local check must pass before a model-related PR merges; a
   change to `services/uv.lock` or `pyproject.toml` is model-related (every built-in model runs in that Python), and
   the check's last line says which Python it ran in and how it differs from that lock (`shared_python.drift`).
+  The check is not the only evidence a card reads: a real use of the model here that worked is too (`observed.py`
+  "use", catalog/AGENTS.md "Observed, not declared"), so a model in use says Working here, never Not checked. A real use
+  is never recorded as the check: `use`/`set_default`'s refusals, a click trial's gate (`capability_shelf._proven`) and
+  "Last check" on the Capabilities page still read the check alone.
 - **Fallbacks** a capability takes are listed with it (`fallbacks`: when, what happens, the roles), only
   as the code does them (find all like this: the vision and outline models when SAM 3.1 can't run
   here, not when it finds nothing; `test_finder` pins it). A capability whose own model can't run
@@ -128,8 +132,11 @@ trusted, and its maker, in pages with a cursor bound to the data's revisions onl
 role reads them: the studio's repeated reports and a researcher's next step never break a cursor);
 researchers running first, then finished, then stopped (labelled); Studies; agents' operations; the saved Tabs; the
 app's model choices (only for the Project open now); and the studio's state, `unavailable` when no studio reports this
-Project, never empty; its revision holds no time. A field added
+Project, never empty (with its open Tabs as the Tab strip reports them: each Tab's kind, whether it is in front, its
+specimen and what it holds by kind); its revision holds no time. A field added
 to it is additive within `project-state/1`, as `stage` was. The door checks every `project.state` answer against it before returning it; `project.read`'s
 output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
 contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed
 cache.
+
+Project material inspection facts are bounded projections of exact matching retained reports. Study questions optionally retain up to eight exact material attachments; omitted attachments preserve older question semantics. All references remain Project-scoped and digest-checked.

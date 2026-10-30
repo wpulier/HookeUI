@@ -1,4 +1,44 @@
+Owner project-open-folder accepts strict boolean useLocation for a known origin only. It reuses inactive registry replacement with full history verification, both writer locks and the short publication guard. Local grants and accepted bytes are unchanged; unknown origins and conflicting legacy owners refuse.
+
+Owner `project-open-folder` registers a selected working folder through project_launch.register_owner_folder off the event loop. It does not navigate, import access or replay work. Studio uses its ordinary unsaved-work navigation afterward; late completion never changes the workspace. This path-bearing owner command is excluded from the agent door.
+
 # The orchestrator
+
+Owner commands `project-storage` and `project-reveal` capture the current Project
+and generation around off-loop location verification. Reveal uses only that verified
+folder (or the particular legacy journal folder), never a caller-supplied path.
+The read response shares `project-storage` contract semantics with the agent door;
+agents continue to use their read-authorized `project.storage` action. Owner Finder
+controls do not widen door authority or certify complete collection.
+
+The normal server supports operator-only staged Project routing through
+`--project-folders /absolute/parent` or `HOOKE_PROJECTS_DIR`. `project_launch`
+constructs the existing resolver before App creation, refuses malformed locations
+and refuses to forget an existing registry if the setting is removed. This is an
+explicit qualification mode, not default activation or legacy migration. Launch it
+through scripts/studio.sh in an isolated profile; requests and saved records cannot
+choose this configuration. Full collection and owner folder controls remain separate.
+`--reopen-project` / `HOOKE_REOPEN_PROJECT` is an explicit startup recovery for a
+registered origin after moving its inactive folder. It verifies both ownership and
+the compatible handle under the writer/registry guards. Unknown origins and active
+originals/copies refuse. This repairs only a host locator, not grants or evidence;
+ordinary new-folder imports and independent copies remain separate.
+
+Dataset-table and analysis/graph snapshots use the captured Project's artifact
+folder when `day.locations` is enabled. Legacy paths remain unchanged. Shared
+`ArtifactFolder` routing pins the origin/location and folder inode, acquires the
+host's writer lease before publication, and refuses closed/replaced storage.
+Numeric index reads resolve the recorded owner without switching the workspace.
+Every accepted table/derivative revision keeps its original relative path and hash.
+This is an opt-in storage adapter, not complete Project collection or live App
+activation; missing evaluators do not prevent reading retained numeric results.
+
+`scientific_text.page` gives the connector and ordinary file preview the same bounded
+UTF-8 byte-page meaning. UI text reads validate the accepted source manifest and hash
+the displayed chunks only; they never claim fresh integrity of unread content. Exact
+Project/document/revision, source hash and byte range accompany the response. Downloads
+keep their whole-source verification. Text is untrusted data, never executed markup or
+proof of a ready scientific reader.
 
 Scientific tool selection distinguishes the active local tool from an explicit current-update
 trial. The latter records the exact prepared generation and captured saved input without
@@ -343,7 +383,8 @@ legacy export and explicitly offline `reimport(..., sessions=None)` remain avail
 verified ownership permits the ordinary UI to offer Open. Import does not switch the active Project or restore unrelated history.
 These filesystem/API guarantees do not establish an actual fresh-profile browser journey or platform qualification.
 
-`method_evidence.py` retains two or three declared methods as a Project document, separate from the existing
+`method_evidence.py` retains two to six declared methods (arms A to F; Part 2.5 W5: a workflow's comparison step
+takes up to six branches, `workflows.MAX_COMPARED`; records of two or three read as before) as a Project document, separate from the existing
 `method_comparison` aggregate API. It admits exact native source/mask revisions through `admission.native_source`,
 requires matching ordered axes, shape and calibration, and follows recorded edit/output associations back to the
 frozen input. Histories, runtime generations and corrections stay at their accepted references. Manual methods
@@ -1104,3 +1145,102 @@ resource discovery and comparison-table validation. Imported images use their ex
 including file/pixel hashes and scientific metadata; a temporary negative capture number is not identity.
 Camera results require capture, sequence, boot and process run. Unknown source identity refuses comparison.
 Existing table snapshots remain readable; new publication/update revalidates inputs without rewriting evidence.
+
+Portable scientific routing is described by ADR 0027. `ProjectStores` resolves a
+retained owner before paths are used; admission helpers capture `for_session`
+with write intent. Never derive a scientific destination from the visible Stage.
+The shared workflow library remains host-owned; runs retain frozen definitions.
+Live App activation and complete legacy collection remain separate qualification.
+
+`project_folder_copy` is a verified byte-copy stage, not proof of dependency
+closure. Both scientific/journal publication guards remain held through copy
+acceptance, excluding concurrent bundle import and refusing its pending barriers.
+Inactive copies acquire a writer lease; an owning host can copy under
+its retained lease without releasing it. Source membership and captured file
+identities/hashes are checked again before publication; observed changes, shutdown
+or location changes leave an incomplete destination for explicit recovery.
+Snapshots cannot acquire a writer. External/shared dependencies and eventual
+explicit working-copy import remain separate responsibilities.
+
+Selected Library intake can retain its metadata history alongside copied bytes.
+`project_media_history.py` reads bounded complete journal lines on the intake
+worker and selects only the source's identity, edits and applicable shared example
+classification. Final publication holds the Library lock and verifies the captured
+journal identity; changed metadata refuses without accepting a mixed revision.
+History hashes cover selected records only, so unrelated later edits do not change
+an accepted import's request identity. Author labels remain historical evidence,
+not grants. This does not collect a whole Record dataset or activate playback aliases.
+
+Portable snapshots accept only after all output and directory syncing finishes. The durable pending marker is removed as the last fallible action; failures remain uncertain across host restart without a recovery write. Explicit reconciliation remains required before using uncertain output.
+
+App.build accepts an internal, explicitly supplied ProjectLocations dependency for
+isolated host qualification. It checks the legacy host identity and shares that
+resolver between the real SessionStore and scientific ProjectStores. Failed build
+releases its leases. App shutdown fences further admission but retains its writer
+leases until process termination: cancelled tasks may still have writing threads.
+`server.create_app` accepts the same keyword-only dependency for isolated full-server
+qualification; ordinary command-line startup still supplies no resolver. This is not a
+request-selected storage path or a live migration/default-policy change. Portable
+UI session switching, media aliasing and provider execution remain unqualified.
+
+`project_storage_status` projects location/owner facts for an already authorized
+Project. It checks retained ownership even for an existing lease, reports missing
+registered folders without fallback, and leaves collection completeness unassessed.
+This read does not enable live portable creation or acquire write authority.
+
+Retained media previews use exact Project/document/revision/content hashes and verified file chunks. A small byte-signature allowlist supplies image/video transport types; SVG/HTML and unknown encodings remain downloads. Single HTTP byte ranges support playback seeking; invalid or multiple ranges refuse. Manifest/ownership checks precede regional reads; only the header and requested chunks are freshly verified, never the entire recording on each seek. This route does not select a Library source or infer scientific meaning.
+
+`project_folder_copy.restore_snapshot` explicitly creates a new working copy of a
+verified snapshot. It retains the source seal under history/restorations, preserves
+exact accepted bytes and checks disk, source membership and changes before final
+publication. It does not register the location, transfer grants, select the Project
+or replay ongoing operations. Source snapshots remain immutable and external
+dependency completeness remains unverified. Ordinary portable activation stays off.
+
+Matrix inspection retains strict raw-count admission by default. Its explicit
+`require_raw_counts=false` mode describes finite numeric matrices, recording row
+totals and unverified value semantics instead of implying cell library depths.
+Count preparation, prediction and export keep their existing strict checks.
+
+Project-folder estimates also include a bounded declared-record dependency review.
+It checks every accepted revision's exact artifact links, including Study inputs,
+claims/questions and workflow inputs/output lineage. External Projects are reported
+for inclusion review and never opened. Missing evidence, digest conflicts and
+unpinned execution locators are distinct; no prose/path inference, mutation or
+replay occurs. This is a partial preflight, not full dependency-closure certification.
+
+Project snapshot sealing and verification read every accepted scientific revision
+and verify its owned file/array bytes using the existing import/publication readers.
+Corruption cannot acquire legitimacy from a fresh outer checksum. Verification is
+bounded and cancellable; it neither repairs evidence nor certifies dependency closure.
+
+`project_dependency_access.inspect` is the shared read-only, captured-Project
+inspection over declared scientific record dependencies. It retains an exact head
+basis and checks for changes before returning. It runs off the event loop and
+supports cancellation/authorization checks. It never opens another Project on the
+strength of a saved reference or claims journal/media collection is complete.
+
+Project folder estimates include bounded historical source-event preflight. Removed
+Library sources remain dependencies; live camera and prose do not become file links.
+Exact retained choices are scoped by origin, with missing inclusion explicit. This
+reads no host Library and does not certify all media/journal dependencies collected.
+
+Owner Project-folder export commands use the same snapshot service and original
+Operations records as connected contributors. Preparation is read-only and scoped
+to the captured Project; starting captures the requested owner before background
+work. Navigation does not retarget admitted copying. Status/Stop read/control only
+that Project's export operations. Completed copies remain explicitly unverified for
+external dependencies; failure/cancellation preserve incomplete destinations.
+
+
+Project folder copies attempt descriptor-based macOS copy-on-write before streaming. Unsupported filesystems use the original byte-copy path; permission, disk and I/O errors retain an incomplete destination. Every member still has an independent inode, normalized permissions, fsync and independent source/destination hash checks. Conservative full-byte space admission remains unchanged because future copy-on-write edits may allocate blocks. This optimizes folder copying, not dependency closure.
+
+Folder snapshot verification reads every journal-accepted dataset-table, analysis and graph revision through table_reading.read_accepted using only the captured Project artifact roots. Missing, changed, foreign or unsupported numeric history refuses a new seal; verification does not run evaluators or rewrite history. Complete external-source collection remains separate.
+
+Accepted numeric reads reuse the retained-output descriptor reader: bounded regular-file reads, no descendant symlinks, change detection and cancellation between chunks. They never block opening a FIFO or reinterpret stored settings.
+
+Dependency review reports an optional observedRevision for successfully resolved execution locators, with exact captured Project/id/revision/digest. The original unpinned-execution-locator issue remains; current resolution is not historical evidence. External, missing, malformed and digest-mismatched links never gain that observation. No accepted document is rewritten.
+
+Owner project-copy commands restore only a completed export receipt from the current Project. They use the existing operation service, source-manifest pin and host-selected fresh destination; never register a copy, navigate, inherit grants or replay work. An incomplete copy is kept for inspection. Opening and location replacement remain separate explicit owner controls.
+
+project-record-review/include/status/stop are owner-only whole Record inclusion controls. They capture the Project, review its whole host dataset and content digest, use existing immutable intake, and expose one durable operation. No arbitrary path, automatic Record start, grant change, trimming or complete-collection claim is allowed.

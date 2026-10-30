@@ -22,14 +22,17 @@ export type Place = { rect: Rect; shape?: Point[] } | { why: MarkWhy };
 export type Target =
   | { kind: 'outline'; id: string }
   | { kind: 'member'; population: string; member: string }
+  | { kind: 'population'; id: string }
   | { kind: 'window'; id: string }
   | { kind: 'document'; id: string }
   | { kind: 'tab'; key: string }
   | { kind: 'researcher'; key: string }
   | { kind: 'panel'; name: string }
+  | { kind: 'control'; id: string } // a control by its element id (the partner cursor's target: control:talk)
   | { kind: 'frame' };
 
-/** `outline:o12`, `member:<population>:<member>`, `window:<presentationId>`, `document:<placementId>`,
+/** `outline:o12`, `population:e1` (or `layer:e1`: a whole layer of cell outlines), `member:<population>:<member>`,
+ * `window:<presentationId>`, `document:<placementId>`,
  * `tab:<view id or exact title>`, `researcher:<number or rid>`, `panel:<name>`, `frame`; null for anything else. */
 export function parseTarget(target: unknown): Target | null {
   if (typeof target !== 'string' || target.length > 300) return null;
@@ -40,6 +43,7 @@ export function parseTarget(target: unknown): Target | null {
   if (!rest) return null;
   switch (kind) {
     case 'outline': return { kind, id: rest };
+    case 'population': case 'layer': return { kind: 'population', id: rest };
     case 'member': {
       const last = rest.lastIndexOf(':');
       if (last < 1 || last === rest.length - 1) return null;
@@ -48,6 +52,7 @@ export function parseTarget(target: unknown): Target | null {
     case 'window': case 'document': return { kind, id: rest };
     case 'tab': case 'researcher': return { kind, key: rest };
     case 'panel': return { kind, name: rest };
+    case 'control': return { kind, id: rest };
     default: return null;
   }
 }
@@ -95,6 +100,8 @@ export interface MarkHooks {
   viewport(): [number, number];
   outline(id: string): Place;
   member(population: string, member: string): Place;
+  /** A layer of cell outlines (a population) as the box around its members drawn now; absent: not found. */
+  population?(id: string): Place;
   /** The anchor of frame marks: the frame the model saw (`ref`), or the one shown now; null without a picture. */
   anchor(ref: MarkFrameRef | undefined): FrameAnchor | null;
   /** Camera-frame points (that frame's px) on the window now, moved with the slide since the anchor; or why not. */
@@ -161,6 +168,8 @@ export function resolveTarget(spec: MarkSpec, hooks: MarkHooks, anchor: FrameAnc
   switch (target.kind) {
     case 'outline': return hooks.outline(target.id);
     case 'member': return hooks.member(target.population, target.member);
+    case 'population': return hooks.population ? hooks.population(target.id) : { why: 'not-found' };
+    case 'control': return elementPlace(hooks.doc.querySelector(`[id="${attr(target.id)}"]`), viewport);
     case 'window': return elementPlace(hooks.doc.querySelector(`section.workspace-window[data-presentation-id="${attr(target.id)}"]`), viewport);
     case 'document': return elementPlace(hooks.doc.querySelector(`#study-artifacts > [data-placement-id="${attr(target.id)}"]`), viewport);
     case 'tab': return tabPlace(hooks.doc, target.key, viewport);

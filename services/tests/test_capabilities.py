@@ -50,7 +50,8 @@ def test_every_actor_and_family_is_used_and_fixed_models_are_read_from_the_code(
 def test_the_wire_says_what_powers_what_who_can_change_it_and_why_not():
     s = options.Settings()
     s.update({"sight": "off"})
-    w = capabilities.wire(s, {"GEMINI_API_KEY": True}, verdicts={"zoom": {"id": "zoom", "state": "works", "at": "x"}})
+    # The key of the default eyes (Claude Opus 5.5 fast mode), so the vision model can run.
+    w = capabilities.wire(s, {"ANTHROPIC_API_KEY": True}, verdicts={"zoom": {"id": "zoom", "state": "works", "at": "x"}})
     roles = {r["id"]: r for r in w["roles"]}
     caps = {c["id"]: c for c in w["capabilities"]}
     assert "click-outline" in roles["outline"]["powers"] and roles["outline"]["current"] == s.outline

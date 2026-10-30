@@ -52,8 +52,9 @@ def auto_title(text: str) -> str:
 class SessionStore:
     def __init__(self, root: Path | None = None, clock: Callable[[], float] = time.time,
                  day: str | None = None, *, session: str | None = None, prefs: Prefs | None = None,
-                 catalogue: Catalogue | None = None, _header: dict | None = None) -> None:
+                 catalogue: Catalogue | None = None, _header: dict | None = None, locations=None) -> None:
         self.root = root
+        self.locations = locations
         self.clock = clock
         self.listeners: list[Callable[[dict], None]] = []  # called with each event, after it is applied
         self.generation = 0  # bumped each time the session is (re)loaded: background work started
@@ -64,7 +65,7 @@ class SessionStore:
         self.user_prefs = prefs if prefs is not None else Prefs(root)
         if prefs is None:
             self.user_prefs.migrate(upto=today(clock))
-        self.catalogue = catalogue if catalogue is not None else Catalogue(Journal("", root).root)
+        self.catalogue = catalogue if catalogue is not None else Catalogue(Journal("", root).root, locations=locations)
         self.prefs: dict = {}
         self._elsewhere: dict[str, SessionStore] = {}  # other sessions' stores, for work filed there
         # A session opening, and work filed from another thread choosing its session and writing to it, one at a time:
@@ -74,17 +75,27 @@ class SessionStore:
         self._load(sid, _header)
 
     @classmethod
-    def resume(cls, root: Path | None = None, clock: Callable[[], float] = time.time) -> "SessionStore":
+    def resume(cls, root: Path | None = None, clock: Callable[[], float] = time.time, *, locations=None) -> "SessionStore":
         """The store the app starts in (ADR 0017: on open, the session you were in): the session it was last in (the
         pointer in preferences.jsonl), else the one a request was last made in, else today's. Kept as the one it is in."""
         prefs = Prefs(root)
         prefs.migrate(upto=today(clock))
-        catalogue = Catalogue(Journal("", root).root)
+        catalogue = Catalogue(Journal("", root).root, locations=locations)
         sid = prefs.current
-        if not (sid and sids.is_sid(sid) and (catalogue.root / sid / sids.JOURNAL).is_file()):
+        selected = catalogue.get(sid) if sid and sids.is_sid(sid) else None
+        if selected is None or selected.unavailable is not None:
             last = catalogue.last_used()
-            sid = last.id if last is not None else today(clock)
-        store = cls(root, clock, session=sid, prefs=prefs, catalogue=catalogue)
+            if last is not None:
+                sid = last.id
+            elif locations is not None and locations.handles():
+                # The ordinary empty-startup fallback cannot reuse today's
+                # offline handle or recreate evidence at its missing location.
+                recovery = locations.create('Project recovery', date=today(clock),
+                    preferences=prefs, actor='system', clock=clock)
+                sid = recovery.session
+            else:
+                sid = today(clock)
+        store = cls(root, clock, session=sid, prefs=prefs, catalogue=catalogue, locations=locations)
         prefs.point(store.sid)
         return store
 
@@ -114,9 +125,11 @@ class SessionStore:
     def _load(self, sid: str, header: dict | None = None) -> None:
         from .ownership import namespace
         from ..scientific_import_transaction import reading, require_visible
-        root = Journal("", self.root).root
+        root = self.root_for(sid)
+        if self.locations is not None:
+            self.locations.writable(sid)
         with reading(root):
-            journal = Journal(sid, self.root)
+            journal = Journal(sid, root)
             events = journal.load(complete_only=True)
             # An existing conversation can be reconstructed while another Project is being created.
             # Empty/origin-only/torn creation still needs the creation lock before it can gain events.
@@ -134,7 +147,7 @@ class SessionStore:
     def _load_owned(self, sid, header, *, journal=None, events=None):
         self.generation += 1
         self.sid = sid
-        self.journal = journal if journal is not None else Journal(sid, self.root)
+        self.journal = journal if journal is not None else Journal(sid, self.root_for(sid))
         self.name = ""  # its name ("" until it has one: an old day journal has none, sid.label says its date)
         self.guide = None
         self.local_only = False  # provider admission belongs to the session, never global preferences
@@ -155,6 +168,9 @@ class SessionStore:
         # (a removed one's specimens are not the session's: `_subject_events` are applied again without them), and
         # what is on stage now ("live", an asset id, or None before anything was opened in it).
         self.sources: dict[str, float] = {}
+        self.source_references: dict[str, dict] = {}
+        self.on_stage_reference: dict | None = None
+        self._source_retention_receipts: set[str] = set()
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
         # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
@@ -202,6 +218,9 @@ class SessionStore:
         elif self.active_id not in self.threads:
             self.active_id = max(self.threads.values(), key=lambda t: t.last).id
 
+    def root_for(self, sid):
+        return self.locations.root_for(sid) if self.locations is not None else Journal("", self.root).root
+
     def current(self, generation: int | None) -> bool:
         """Whether work started at this generation still belongs to the session as it is now."""
         return generation is None or generation == self.generation
@@ -231,6 +250,12 @@ class SessionStore:
     def _record(self, event: dict, *, strict: bool = False) -> dict:
         event = {"at": round(self.clock(), 3), **event}  # the store's clock: the day an event falls on is its own
         from ..scientific_import_transaction import ImportPending
+        if self.locations is not None:
+            self.locations.writable(self.sid)
+            if self.root_for(self.sid) != self.journal.root:
+                raise ImportPending('The Project location changed; reopen before writing')
+            # A routed Project never reports a retained conversation after a failed write.
+            strict = True
         try:
             event = self.journal.append(event)
         except ImportPending:
@@ -267,8 +292,11 @@ class SessionStore:
         by the app); its conversations, memory and work are its journal's."""
         from .ownership import namespace
         from ..scientific_import_transaction import require_visible
-        with namespace(self.journal.root):
-            require_visible(self.journal.root)
+        target_root = self.root_for(sid)
+        if self.locations is not None:
+            self.locations.writable(sid)
+        with namespace(target_root):
+            require_visible(target_root)
             self._open(sid, why, header)
 
     def _open(self, sid, why, header):
@@ -296,6 +324,12 @@ class SessionStore:
         """A new session (only when the user asks: ADR 0017), begun today, with one empty conversation; it is the one
         the app is in now. Returns its id."""
         from .ownership import namespace
+        if self.locations is not None:
+            with self._switching:
+                root = self.locations.create(name, date=self.date, preferences=self.user_prefs,
+                    actor=by, clock=self.clock, local_only=local_only, started_from=self.sid, guide=guide)
+                self.open(root.session, "new")
+                return root.session
         with namespace(self.journal.root):
             return self._new(name, by, local_only=local_only, guide=guide)
 
@@ -309,6 +343,14 @@ class SessionStore:
     def create_retained(self, name: str, *, actor: str) -> "SessionStore":
         """Create a local-only Project without changing active session, stage or preferences."""
         from .ownership import namespace
+        if self.locations is not None:
+            with self._switching:
+                root = self.locations.create(name, date=self.date, preferences=self.user_prefs,
+                    actor=actor, clock=self.clock)
+                store = SessionStore(self.root, self.clock, session=root.session, prefs=self.user_prefs,
+                    catalogue=self.catalogue, locations=self.locations)
+                self._elsewhere[root.session] = store
+                return store
         with self._switching, namespace(self.journal.root):
             sid = sids.next_sid(self.journal.root, self.date)
             header = {"type": "session-started", "session": sid, "name": " ".join(name.split())[:80],
@@ -322,7 +364,7 @@ class SessionStore:
         """Open another session; False when it is the one open. KeyError when there is no such session."""
         if sid == self.sid:
             return False
-        if not sids.is_sid(sid) or not (self.journal.root / sid / sids.JOURNAL).is_file():
+        if not sids.is_sid(sid) or not (self.root_for(sid) / sid / sids.JOURNAL).is_file():
             raise KeyError(sid)
         self.open(sid, "switch")
         return True
@@ -364,9 +406,9 @@ class SessionStore:
             return self
         store = self._elsewhere.get(sid)
         if store is None:
-            if not sids.is_sid(sid) or not (self.journal.root / sid / sids.JOURNAL).is_file():
+            if not sids.is_sid(sid) or not (self.root_for(sid) / sid / sids.JOURNAL).is_file():
                 raise KeyError(sid)
-            store = SessionStore(self.root, self.clock, session=sid, prefs=self.user_prefs, catalogue=self.catalogue)
+            store = SessionStore(self.root, self.clock, session=sid, prefs=self.user_prefs, catalogue=self.catalogue, locations=self.locations)
             self._elsewhere[sid] = store
         return store
 
@@ -494,11 +536,13 @@ class SessionStore:
             self.outcomes.setdefault(e["rid"], {})[e["step"]] = {"outcome": e["outcome"], "by": e.get("by") or "", "at": at}
         elif kind == "evidence-saved":
             self.evidence[e["id"]] = {"path": e["path"], "at": at, "thread": e.get("thread"), "revision": e.get("revision", 0),
-                                      "members": e.get("members") or []}
+                                      "members": e.get("members") or [],
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
         elif kind == "evidence-made":
             self.evidence_ids[e["id"]] = e.get("lastMember") or ""
         elif kind == "tracks-saved":
-            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread")}
+            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread"),
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
             self.tracks_ids.add(e["id"])
         elif kind == "tracks-made":
             self.tracks_ids.add(e["id"])
@@ -549,11 +593,17 @@ class SessionStore:
         if not aid:
             return
         before = set(self.removed_sources)
-        if op == "opened":
+        if op in ("opened", "retained"):
             self.sources.pop(aid, None)
             self.sources[aid] = at  # newest last
             self.removed_sources.discard(aid)
-            self.on_stage = aid
+            if op == 'opened':
+                self.on_stage = aid
+                self.on_stage_reference = dict(e['retained']) if isinstance(e.get('retained'), dict) else None
+            if isinstance(e.get('retained'), dict):
+                self.source_references[aid] = dict(e['retained'])
+                if op == 'retained':
+                    self._source_retention_receipts.add(json.dumps([aid, e['retained']], sort_keys=True))
         elif op == "removed" and aid != "live":
             self.removed_sources.add(aid)
         elif op == "restored":
@@ -572,9 +622,26 @@ class SessionStore:
                 self._apply_subject(e, float(e.get("at") or self.clock()))
 
     # --- its sources (library.py; ADR 0022) -----------------------------------------------------
-    def open_source(self, aid: str, by: str = "user") -> None:
+    def open_source(self, aid: str, by: str = "user", *, retained=None) -> None:
         """An asset (or "live") put on stage: the session's from then on. Opening a removed one brings it back."""
-        self._record({"type": "source", "asset": aid, "op": "opened", "by": by})
+        if retained is not None:
+            from ..project_stage_media import reference
+            reference(retained, self.sid)
+        self._record({"type": "source", "asset": aid, "op": "opened", "by": by,
+                      **({'retained': dict(retained)} if retained is not None else {})}, strict=retained is not None)
+
+    def retain_source(self, aid: str, retained: dict, *, session: str, by: str) -> None:
+        """Associate copied material without moving the Stage or rewriting old bindings."""
+        from ..project_stage_media import reference
+        reference(retained, session)
+        with self._filing(session) as store:
+            if store.sid != session:
+                raise ValueError('The source destination Project is unavailable')
+            receipt = json.dumps([aid, retained], sort_keys=True)
+            if receipt in store._source_retention_receipts:
+                return  # retry cannot undo a later choice or removal
+            store._record({'type': 'source', 'asset': aid, 'op': 'retained',
+                           'retained': dict(retained), 'by': by}, strict=True)
 
     def record_layer(self, eid: str | None) -> None:
         """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding
@@ -800,13 +867,15 @@ class SessionStore:
             return self
 
     def record_evidence(self, eid: str, path: str, thread: str | None, revision: int, members: list[str], *,
-                        day: str | None = None, session: str | None = None) -> None:
+                        day: str | None = None, session: str | None = None,
+                        manifestSha256: str | None = None) -> None:
         """A population saved (evidence.py): filed in its session's journal with the date folder it is in (`day`),
         so a restart reads it back (ADR 0001)."""
         # `thread` as given: None is filed under the session (asked in no conversation of it), never a new t1.
         with self._filing(session) as store:
             store._record({"type": "evidence-saved", "id": eid, "path": path, "thread": thread, "day": day or self.date,
-                           "revision": revision, "members": members}, strict=True)
+                           "revision": revision, "members": members,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})}, strict=True)
 
     def record_annotation(self, source: dict, text: str, title: str = "", *, annotation_id: str = "", creation_id: str = "",
                           asked: Asked | None = None) -> dict:
@@ -896,10 +965,11 @@ class SessionStore:
             store._record({"type": "tracks-made", "id": tid, "day": day or self.date})
 
     def record_tracks(self, tid: str, path: str, thread: str | None, *, day: str | None = None,
-                      session: str | None = None) -> None:
+                      session: str | None = None, manifestSha256: str | None = None) -> None:
         """Motion tracks saved (motiontracks.py): filed in their session's journal, so a restart reads them back."""
         with self._filing(session) as store:  # thread None: under the session
-            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date},
+            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})},
                           strict=True)
 
     def link_research(self, rid: str, thread: str | None = None, *, session: str | None = None,

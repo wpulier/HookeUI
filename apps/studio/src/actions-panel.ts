@@ -931,7 +931,7 @@ export class ActionsPanel {
     this.controlWindows.get(id)?.show();
   }
 
-  /** By model: the Models page's entries, in its sections and counts (Needs you, Ready, Not checked, Can be set up, then
+  /** By model: the Models page's entries, in its sections and counts (Needs you, Ready, Ready, not checked yet, Can be set up, then
    * Not on this Mac folded and the New ones), five each until Show all; each row its lit cell and its next step. */
   private drawModels(): HTMLElement[] {
     const rows = (this.wire?.models ?? []).filter((m) => this.found(`${m.name} ${m.what} ${kindWords(m)}`));
@@ -975,7 +975,8 @@ export class ActionsPanel {
     const section = modelSection(model);
     const face = faceState(model, this.wire?.setup);
     const download = model.download && ['queued', 'downloading', 'checking'].includes(model.download.state) ? model.download : null;
-    const look = download ? { cell: 'setup' as LitCellState, word: 'Downloading' } : sectionCell(section);
+    const look = download ? { cell: 'setup' as LitCellState, word: 'Downloading' }
+      : section === 'ready' && model.face?.by === 'use' ? { cell: 'ready' as LitCellState, word: 'Working here' } : sectionCell(section);
     const tasks = section === 'ready' || section === 'unchecked' ? this.servedBy(model.id) : [];
     const { step, reason } = section === 'ready' ? { step: null, reason: '' } : section === 'unchecked'
       ? { step: model.face?.action?.kind === 'check' ? runStep({ kind: 'check', says: model.face.action.says }, model.id).step : null, reason: '' }
@@ -1083,6 +1084,9 @@ export class ActionsPanel {
     if (row && this.comparing === row.id) return 'comparing';
     if (state.running) return state.stopping ? 'stopping' : 'running';
     if (state.armed) return 'armed';
+    // A run that didn't run belongs to the Tab it was asked on: on another Tab the row is ready to run there.
+    if (state.result && !state.result.ok && !state.result.stopped && state.tabId && typeof document !== 'undefined'
+      && (document.body?.dataset?.activeWorkspaceView ?? state.tabId) !== state.tabId) state.result = null;
     if (state.result) return state.result.stopped ? 'stopped' : state.result.ok ? 'done' : 'failed';
     const chosen = spec.chosen;
     if (chosen?.download || chosen?.runnable) state.starting = '';
@@ -1256,20 +1260,20 @@ export class ActionsPanel {
     const cell = litCell(c.cell, { size: 14, label: c.cellWord, fraction });
     const lead = el('span', { className: 'run-cell' }, cell);
     const change = spec.choices.length > 1 ? { label: 'Change model', run: () => { state.list = !state.list; this.render(); }, off: busy, expanded: state.list, words: state.list ? 'Done' : 'Change', focus: `${id}:with` } : undefined;
-    // A model not checked on this Mac yet says so where it is named, so its Run is not a surprise. Once this page ran it
-    // here, that is said too: Hooke's own check (one run on the public example, origin "check": contract/AGENTS.md "The
-    // app's own check") is a record of its own that a run of yours does not make, so it stays Not checked.
+    // A model ready but not checked on this Mac yet says so where it is named, so its Run is not a surprise. Once this
+    // page ran it here, that is said: the run is kept as its real use (observed.py "use"), so the next Models page it
+    // comes with says it is working here; Hooke's own check (one run on the public example) stays a record of its own.
     const ranHere = c.section === 'unchecked' && !state.running && state.ranId === c.id && state.result?.ok === true;
-    const unchecked = ranHere ? 'ran here · its check not run yet' : 'not checked on this Mac yet';
+    const unchecked = ranHere ? 'ran here' : 'not checked on this Mac yet';
     const facts = c.reason || (!c.download && c.setup) || (c.section === 'unchecked' && !c.download ? [c.where, unchecked].filter(Boolean).join(' · ') : c.where);
     const line = this.line('With', this.card(lead, c.name, facts, change), 'run-with');
     if (c.section === 'unchecked' && !c.download && !c.reason) line.title = ranHere
-      ? `${c.name} ran here on your picture. Not checked means Hooke’s own check of it (one run on the public example) is not recorded on this Mac yet; Check it here in its setup records it.`
-      : `Not checked: Hooke’s own check of ${c.name} (one run on the public example) is not recorded on this Mac yet.`;
+      ? `${c.name} ran here on your picture.`
+      : `Ready, not checked yet: ${c.name} can run here, and no run of it on this Mac is recorded yet.`;
     return line;
   }
 
-  /** The models in place (the mock's modelList): Needs you, Ready, Not checked, Can be set up, then Not on this Mac
+  /** The models in place (the mock's modelList): Needs you, Ready, Ready, not checked yet, Can be set up, then Not on this Mac
    * folded; each row a lit cell, the whole name, what it does for this task, and at most one action under the name. */
   private drawModelList(id: string, state: RowState, spec: RunSpec): HTMLElement {
     const box = el('div', { className: 'run-models', role: 'group', 'aria-label': 'Models for this task' });
@@ -1440,11 +1444,12 @@ export class ActionsPanel {
         const words = resultWords(state.result!);
         foot.append(el('div', { className: 'run-fail', role: 'status' }, litCell('attention', { size: 14, label: 'Didn’t run' }),
           el('div', {}, el('b', { textContent: `${state.ranWith || short} didn’t run` }), el('p', { className: 'action-result-text', textContent: words }))));
-        // Another model when the task has one to choose; with only this one, back to its page to run it again.
-        const next = spec.choices.length > 1
-          ? act('Choose another model', 'mm-btn btn-sm', () => { state.result = null; state.list = true; this.render(); }, { 'data-focus': `${id}:another` })
-          : act('Run again', 'mm-btn btn-sm action-again', () => { state.result = null; this.render(); }, { 'data-focus': `${id}:again` });
-        foot.append(rowOf(next, act('Details', 'mm-btn btn-sm btn-quiet', () => this.deps.openActivity())));
+        // Run again always (the next view may be one it can run on); another model too when the task has one to choose.
+        const again = act('Run again', 'mm-btn btn-sm action-again', () => { state.result = null; this.render(); }, { 'data-focus': `${id}:again` });
+        const another = spec.choices.length > 1
+          ? [act('Choose another model', 'mm-btn btn-sm btn-quiet', () => { state.result = null; state.list = true; this.render(); }, { 'data-focus': `${id}:another` })]
+          : [];
+        foot.append(rowOf(again, ...another, act('Details', 'mm-btn btn-sm btn-quiet', () => this.deps.openActivity())));
         return foot;
       }
       case 'stopped': {

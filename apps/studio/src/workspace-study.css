@@ -50,3 +50,11 @@ body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-rig
 body[data-workspace-study='true']:not([data-study-layout='baseline']) .study-right-panel .notebook[hidden]{display:none!important}
 body[data-workspace-study='true']:not([data-study-layout='baseline']) :is(#chat-hide,#chat-show,#session-rail-phone){display:none!important}
 @media(max-width:640px){.study-identity{display:none}.study-layout-label{margin-right:auto}.study-right-panel .study-panel-header{min-height:50px}}
+
+.project-input-controls { display: grid; gap: 10px; padding: 12px 16px 16px; }
+.project-input-controls > .study-primary { min-height: 38px; padding: 10px 14px; font: 600 13px/18px var(--mm-sans); cursor: pointer; }
+.project-input-controls input { width: 100%; box-sizing: border-box; min-width: 0; }
+.project-input-controls > input { min-height: 36px; padding: 8px 12px; }
+.project-input-material { display: grid; gap: 4px; margin-bottom: 16px; }
+.project-input-group { margin: 12px 16px 4px; font: 600 12px/18px var(--mm-sans); color: var(--mm-text-2); }
+body[data-workspace-study='true'] .project-input-material .mm-row-title { display: block; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal; }

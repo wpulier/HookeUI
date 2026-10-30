@@ -239,13 +239,145 @@ def test_preclose_source_report_refusal_preserves_original_report_correlation(tm
             while not socket.control.empty():
                 replies.append(json.loads(socket.control.get_nowait()))
             refusal = next(reply for reply in replies if reply.get('type') == 'result' and reply.get('for') == 'screen')
-            assert refusal['ok'] is False and refusal['code'] == 'SOURCE_UNRESOLVED'
-            assert refusal['requestId'] is None
-            assert web.state.hub.screen.observation(socket) is before  # refused pixels/media are never admitted
+            # The window's grant ended at its close: the late report is taken without it (2026-10-29: refusing the
+            # whole report froze the screen while the studio kept reporting), and nothing of it is admitted.
+            assert refusal['ok'] is True and refusal['requestId'] is None
+            partial = refusal['partial']
+            assert {k: partial[k] for k in ('client', 'appRunId', 'seq')} == {
+                'client': origin['client'], 'appRunId': RUN, 'seq': old['seq']}
+            assert [row['sourceKey'] for row in partial['unresolved']] == [lease.source.key]
+            assert partial['unresolved'][0]['items'] == [opened.id]
+            taken = web.state.hub.screen.observation(socket).wire()
+            assert taken['seq'] == old['seq'] and taken['complete'] is False  # refused pixels/media are never admitted
+            assert all(i['id'] != opened.id for i in taken['items']) and not taken['sources']
             assert await send(web, socket, report(origin, 3, [(closed, lease)])) == {'ok': True}
-            assert refusal.get('screenReport') == {
-                'client': origin['client'], 'appRunId': RUN, 'seq': old['seq'], 'sourceKey': lease.source.key,
-            }, 'MISSING_FEATURE: original refused report/source correlation must survive its WS result'
         finally:
             await web.state.app.stop()
+    asyncio.run(go())
+
+
+def test_a_report_racing_a_live_windows_close_is_taken_without_it_while_the_close_waits(tmp_path):
+    """Live 2026-10-29 18:57:29: "close everything on this tab" closed the live magnifier, and the studio's report
+    right after it still named the window open. The close holds its own read-only borrow of the live source until the
+    report confirms it (`_native_present`), so the source was still pinned, with no visibility owner left; resolving it
+    failed `delivery_revoked`, which was not counted as an ended grant, and every report was refused whole for the
+    close's whole wait ("sent, but not confirmed on screen: the studio has not reported what it shows"). A live grant
+    ended by its close is as ended as a saved one: the report is taken without that window."""
+    from orchestrator.commands import handle
+
+    web = create_app('http://127.0.0.1:1', use_gpu=False, paths=Paths.under(tmp_path))
+
+    async def go():
+        borrow = None
+        try:
+            socket, origin, opened, lease = await initial(web, 'live')
+            racing = json.loads(json.dumps(report(origin, 2, [(opened, lease)])))  # the window still shown open
+            closed, borrow = commit(web, socket, PresentationAction('close', instance=opened.id), borrow_token=lease.token)
+            assert not closed.open
+            await handle(web.state.app, socket, racing)
+            replies = []
+            while not socket.control.empty():
+                replies.append(json.loads(socket.control.get_nowait()))
+            reply = next(r for r in replies if r.get('type') == 'result' and r.get('for') == 'screen')
+            assert reply['ok'] is True, ('BEHAVIOR: a report racing a live close must not be refused whole', reply)
+            assert [row['sourceKey'] for row in reply['partial']['unresolved']] == [lease.source.key]
+            taken = web.state.hub.screen.observation(socket).wire()
+            assert taken['seq'] == racing['seq'] and all(i['id'] != opened.id for i in taken['items'])
+            # The studio's report once it applied the close is taken whole, the close's borrow still held.
+            assert await send(web, socket, report(origin, 3, [(closed, lease)])) == {'ok': True}
+        finally:
+            if borrow:
+                borrow.release()
+            await web.state.app.stop()
+    asyncio.run(go())
+
+
+def test_a_live_window_open_in_the_core_whose_producer_stopped_is_still_refused_whole(tmp_path):
+    """The ended-grant rule stays narrow: a live window still open in the Core, claiming to draw from a producer that
+    stopped, is a report that is wrong (docs/architecture/on-screen.md), never one taken without it."""
+    web = create_app('http://127.0.0.1:1', use_gpu=False, paths=Paths.under(tmp_path))
+
+    async def go():
+        try:
+            socket, origin, opened, lease = await initial(web, 'live')
+            web.state.hub.track_layer.retire_live()
+            assert web.state.app.services.presentations.get(opened.workspace_id, opened.id).open
+            before = web.state.hub.screen.observation(socket)
+            result = await send(web, socket, report(origin, 2, [(opened, lease)]))
+            assert result['ok'] is False and result['code'] == 'SOURCE_UNRESOLVED', result
+            assert web.state.hub.screen.observation(socket) is before
+        finally:
+            await web.state.app.stop()
+    asyncio.run(go())
+
+
+def test_closing_the_live_magnifier_is_confirmed_from_the_studios_report_after_a_racing_one(tmp_path):
+    """The journey's close (18:57:29, "close everything on this tab"), end to end through the real present tool: the
+    studio's first report after the close still shows the live window open (it raced the command), then it reports the
+    window closed as the studio does (detached, no controls, its result absent). The racing report is taken without the
+    window, and the close is confirmed from the studio's report, never "sent, but not confirmed on screen"."""
+    from orchestrator.brain.actions import ActionRunner
+    from orchestrator.brain.registry import ToolContext
+    from tests.waiting import HANG_S
+
+    web = create_app('http://127.0.0.1:1', use_gpu=False, paths=Paths.under(tmp_path))
+    app = web.state.app
+
+    async def go():
+        try:
+            socket, origin, opened, lease = await initial(web, 'live')
+            seq = [1]
+            seen = []
+
+            async def render(message):
+                """The studio: a report it had made before it applied the close, then the one after."""
+                state = app.services.presentations.get(opened.workspace_id, opened.id)
+                fence = message['fence']['targets'][opened.id]
+                seq[0] += 1
+                seen.append(await send(web, socket, report(origin, seq[0], [(opened, lease)])))
+                seq[0] += 1
+                closed_report = report(origin, seq[0], [(state, lease)])
+                closed_report['commandResults'] = [{
+                    'requestId': message['requestId'], 'actionId': message['actionId'],
+                    'commandId': message['commandId'], 'appRunId': message['appRunId'],
+                    'presentationId': opened.id, 'phase': 'closed', 'reportSeq': seq[0], 'owner': fence['owner'],
+                    'lifetimeGeneration': state.lifetime_generation, 'sourceGeneration': state.source_generation,
+                    'committedRevision': state.revision,
+                    'committedPropertyVersions': dict(fence['committedPropertyVersions']),
+                    'committedPropertyOwners': {k: fence['owner'] for k in fence['committedPropertyVersions']},
+                    'propertyVersions': dict(state.property_versions), 'propertyOwners': dict(state.owners),
+                    'sourceToken': fence['sourceToken'], 'sourceKey': lease.source.key,
+                    'payloadBinding': dict(fence['payloadBinding']), 'drawRef': None, 'viewDrawRef': None,
+                    'absent': True}]
+                seen.append(await send(web, socket, closed_report))
+
+            original = app.hub.broadcast
+
+            def broadcast(message):
+                original(message)
+                if isinstance(message, dict) and message.get('schema') == 'presentation-command-v2':
+                    asyncio.get_running_loop().create_task(render(message))
+
+            app.hub.broadcast = broadcast
+            ticket = issue(app.hub, 'turn', asked=app.day.here(), channel='voice')
+            pin = app.hub.screen.pin(socket, request_id=ticket.admission.request_id, timing='server-handoff-arrival')
+            ctx = ToolContext('voice', 0, None, question='close everything on this tab', asked=ticket.asked,
+                              admission=ticket.admission, request_id=ticket.admission.request_id)
+            ctx.client, ctx.request_snapshot, ctx.workspace_id = socket, pin, opened.workspace_id
+            ctx.when_asked = app.brain.board.when_asked()
+
+            async def on_late(run, context):
+                pass
+
+            runner = ActionRunner(app.brain.registry, app.hub, lambda: None, on_late, board=app.brain.board)
+            with using(ticket):
+                runs = await runner.run([('present', {'do': 'close', 'instance': {'instanceId': opened.id}})], ctx)
+                await asyncio.wait_for(runs[-1].sequence, HANG_S)
+            ticket.seal()
+            run = runs[0]
+            assert seen and seen[0]['ok'] is True, ('the racing report is taken without the closed window', seen)
+            assert run.ok is True and run.outcome['status'] == 'confirmed', (run.summary, run.outcome.get('failure'))
+            assert 'not confirmed' not in run.summary
+        finally:
+            await app.stop()
     asyncio.run(go())

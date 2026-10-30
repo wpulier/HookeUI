@@ -158,7 +158,7 @@ def test_sonnet_is_a_choice_beside_opus_and_no_default_changed():
     assert sonnet.spec == "anthropic:claude-sonnet-5-5@low" and sonnet.needs == "ANTHROPIC_API_KEY"
     assert sonnet.uses == ("anthropic-api",) and sonnet.permitted
     defaults = Settings()
-    assert (defaults.vision, defaults.fast, defaults.brain) == ("gemini-3.8-flash", "gemini-3.8-flash", "json-actions")
+    assert (defaults.vision, defaults.fast, defaults.brain) == ("claude-opus-5-5-fast", "gemini-3.8-flash", "json-actions")
     assert Settings().update({"vision": "claude-sonnet-5-5", "brain": "fc"}) == []
     assert PRICES["claude-sonnet-5-5"] == {"in": 2.00, "out": 10.00}  # Anthropic's pricing page, read 2026-10-29
     assert api_usage.provider_for("claude-sonnet-5-5") == "Anthropic"

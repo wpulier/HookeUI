@@ -18,6 +18,9 @@ OWNER = 'personal'
 KINDS = {'tool', 'review', 'measure', 'export', 'compare', 'researcher'}
 ACTORS = {'user', 'studio', 'agent:chat', 'agent:voice', 'agent:system', 'agent:researcher'}
 MAX_NODES, MAX_INPUTS, MAX_ATTEMPTS = 12, 64, 32
+# A comparison step takes two to six fixed branches (Part 2.5, W5: N models compared, model_comparison.MAX_MODELS);
+# every other step one to three inputs, as before.
+MAX_COMPARED, MAX_NEEDS = 6, 3
 PENDING = {'running', 'awaiting-review', 'awaiting-controls', 'awaiting-research', 'uncertain'}
 
 
@@ -71,7 +74,8 @@ def graph(value):
         if (type(node) is not dict or set(node) != {'id','name','kind','needs','settings'}
                 or type(node['id']) is not str or not re.fullmatch(r'[a-z][a-z0-9_-]{0,39}',node['id'])
                 or node['id'] in ids or node['kind'] not in KINDS or type(node['settings']) is not dict
-                or type(node['needs']) is not list or not 1 <= len(node['needs']) <= 3
+                or type(node['needs']) is not list
+                or not 1 <= len(node['needs']) <= (MAX_COMPARED if node.get('kind') == 'compare' else MAX_NEEDS)
                 or any(type(n) is not str for n in node['needs']) or len(set(node['needs'])) != len(node['needs'])):
             raise InvalidProject('Each workflow step needs a unique identity, supported operation and connected inputs')
         title(node['name']); ids.add(node['id'])
@@ -110,7 +114,7 @@ def wire(saved):
 class Workflows:
     def __init__(self, store):
         self.store=store
-        self.library=ProjectStore(store.root.parent/'workflow-library', runtime_root=store.runtime_root)
+        self.library=ProjectStore(store.workflow_library_root, runtime_root=store.runtime_root)
 
     def definition(self, id_, revision=None):
         saved=self.library.read(id_,OWNER,revision=revision)
@@ -192,7 +196,7 @@ class Workflows:
                 'graph':definition.document['state']['workflow']['graph']}
         state={'format':1,'definition':frozen,'inputs':[identity(s) for s in sources],'control':'active','actor':actor,**({'bindings':bindings} if bindings else {})}
         runid=run_identity(session,req)
-        if self.store._folder(runid).exists():
+        if self.store.for_session(session, write=True)._folder(runid).exists():
             original=self.store.read(runid,session,revision=1)
             prior=original.document['state']['workflowRun']
             if {k:prior.get(k,{}) for k in ('definition','inputs','bindings')} != {k:state.get(k,{}) for k in ('definition','inputs','bindings')}:
@@ -210,7 +214,7 @@ class Workflows:
     @contextmanager
     def locked(self,id_,session):
         self.run(id_,session) # validates identity before constructing a lock path
-        with open(self.store.root/f'.workflow-{id_}.lock','a+b') as lock:
+        with open(self.store.for_session(session, write=True).root/f'.workflow-{id_}.lock','a+b') as lock:
             fcntl.flock(lock,fcntl.LOCK_EX)
             try:yield
             finally:fcntl.flock(lock,fcntl.LOCK_UN)
@@ -229,7 +233,33 @@ class Workflows:
         return sorted(rows,key=lambda a:(a['item'],a['node'],a['number']))
 
     def status(self,id_,session):
-        saved=self.run(id_,session);state=saved.document['state']['workflowRun'];rows=self.attempts(id_,session)
+        return self._status(self.run(id_,session), self.attempts(id_,session))
+
+    def statuses(self, ids, session):
+        """One bounded Project inventory read for a Study's original run receipts.
+
+        No retained status cache or replacement execution records. Missing runs
+        remain absent so the caller can report their original interrupted admission.
+        An unreadable record could be an attempt; it cannot establish completion.
+        """
+        ids=set(ids)
+        if len(ids)>256:raise InvalidProject('Read at most 256 workflow runs together')
+        if not ids:return {}
+        saved, problems=self.store.scan(session)
+        if problems:raise InvalidProject('Project execution history contains unreadable records; inspect Data before trusting its status')
+        runs={};attempts={id_:[] for id_ in ids}
+        for item in saved:
+            if item.id in ids:
+                if item.document['kind']!='scientific-workflow-run':raise InvalidProject('Choose a workflow run')
+                runs[item.id]=item
+            state=item.document['state'].get('workflowAttempt')
+            if item.document['kind']=='scientific-workflow-attempt' and type(state) is dict and state.get('run') in ids:
+                attempts[state['run']].append({**state,'id':item.id,'revision':item.revision})
+        return {id_:self._status(item,sorted(attempts[id_],key=lambda a:(a['item'],a['node'],a['number']))) for id_,item in runs.items()}
+
+    @staticmethod
+    def _status(saved, rows):
+        state=saved.document['state']['workflowRun']
         latest={(a['item'],a['node']):a for a in rows};active=list(latest.values())
         complete=len(active)==len(state['inputs'])*len(state['definition']['graph']['nodes']) and all(a['status']=='completed' for a in active)
         control=state['control']
@@ -412,7 +442,7 @@ class Workflows:
                 raise InvalidProject('Restore this removed workflow before creating a derived run')
             binding={'run':id_,'attempt':attempt,'result':result}
             target='p'+token({'derivedWorkflow':req,'session':session})[:32]
-            if self.store._folder(target).exists():
+            if self.store.for_session(session, write=True)._folder(target).exists():
                 saved=self.run(target,session)
                 if saved.document['state']['workflowRun'].get('derivedFrom')!=binding:
                     raise Conflict('This request already belongs to another correction')
@@ -441,7 +471,7 @@ class Workflows:
             saved=self.run(saved.id,saved.session);doc=saved.document;state=doc['state']['workflowRun']
             if 'initializing' not in state:return saved
             for seed in state['initializing']:
-                if self.store._folder(seed['id']).exists():continue
+                if self.store.for_session(saved.session, write=True)._folder(seed['id']).exists():continue
                 a=seed['state']
                 self.store.create(saved.session,{'kind':'scientific-workflow-attempt','title':a['node'],
                     'state':{'workflowAttempt':a},'resources':[reference(exact(self.store,a['output'],saved.session))],

@@ -430,16 +430,16 @@ def test_a_fetch_that_times_out_may_pass(monkeypatch):
 # --- 4. Costs ------------------------------------------------------------------------------------
 
 def test_a_cut_off_video_is_estimated(tmp_path, monkeypatch):
-    async def generate_videos(**kwargs):
+    async def create(**kwargs):  # Gemini Omni Flash's Interactions API (research_worker/video.py)
         await asyncio.sleep(30)
 
     monkeypatch.setattr(genai, "Client", lambda *a, **k: SimpleNamespace(aio=SimpleNamespace(
-        models=SimpleNamespace(generate_videos=generate_videos))))
+        interactions=SimpleNamespace(create=create))))
     r, events = researcher(tmp_path, {"effort": "standard", "deliverable": "video"})
     with pytest.raises(TimeoutError):
         asyncio.run(asyncio.wait_for(r.tool_make_video({"motion": "the cells drift", "seconds": 6}), 0.2))
     charge, = charges(events)
-    assert charge["model"] == researcher_module.VIDEO_MODEL and charge["usd"] == pytest.approx(PRICES["veo-3.1-fast"] * 6)
+    assert charge["model"] == researcher_module.VIDEO_MODEL and charge["usd"] == pytest.approx(PRICES["gemini-omni-flash"] * 6)
     assert r.spent_estimated == pytest.approx(0.6)
 
 

@@ -81,7 +81,7 @@ def _directory(store, record):
     if store.root is None or type(date) is not str or re.fullmatch(r'\d{4}-\d{2}-\d{2}', date) is None:
         raise ValueError('The result has no valid retained storage location.')
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    root = os.open(store.root, flags)
+    root = os.open(store.root_for(record.get('session') or date), flags)
     try:
         folder = os.open(date, flags, dir_fd=root)
         try:
@@ -147,7 +147,7 @@ def layout(hub, reference, session):
     name = record['pictures'][0]
     if type(name) is not str or '/' in name or '\\' in name:
         raise ValueError('Invalid original filename')
-    index.results.wait_for_picture(record['day'], name)
+    index.results.wait_for_picture(record['day'], name, session=session)
     with _directory(index.results, record) as folder:
         fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=folder)
         try:
@@ -184,7 +184,7 @@ def resolve(hub, reference, session, *, allowance="analysis", cancelled=None, ex
     name = record['pictures'][0]
     if index.results.root is None:
         raise ValueError('This result has no retained storage. Rerun it with local storage available.')
-    index.results.wait_for_picture(record['day'], name, cancelled=cancelled)
+    index.results.wait_for_picture(record['day'], name, cancelled=cancelled, session=session)
     with _original(index.results, record, name, store.memory, allowance) as body:
         if not body or hashlib.sha256(body).hexdigest() != record['digests'][0]:
             raise ValueError('The retained original is missing or changed. Restore its original bytes or rerun its producer.')

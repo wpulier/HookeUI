@@ -168,14 +168,21 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
     made = app.new_session(f"{label}: {path.stem}"[:80], by="agent")
     sid = made["session"]
     _remember_project(app, sid, record["by"])
-    await commands.source(app, None, {"open": asset.id, "session": sid})
-    for _ in range(100):
+    kept = await commands.source_retain(app, None, {'asset': asset.id, 'session': sid, 'requestId': record['id']})
+    await commands.source(app, None, {"open": asset.id, "session": sid,
+                                    **({'retained': kept['retained']} if kept.get('retained') else {})})
+    def observed():
         staged = getattr(app.hub, "stage_meta", None) or {}
-        if app.day.on_stage == asset.id and staged.get("id") == asset.id:
+        return (app.day.sid == sid and app.day.on_stage == asset.id and staged.get('id') == asset.id
+                and (not kept.get('retained') or
+                     (getattr(app.day, 'on_stage_reference', None) == kept['retained']
+                      and staged.get('retained') == kept['retained'])))
+    for _ in range(100):
+        if observed():
             break
         await asyncio.sleep(0.1)
     await progress(3, 3, "Opened")
-    landed = app.day.on_stage == asset.id
+    landed = observed()
     return {"says": f"Opened {path.name} in its own Project." if landed else
             f"{path.name} is in its own Project, but it hasn't reached the stage yet.",
             "project": sid, "asset": asset.id, "onStage": landed}
@@ -224,6 +231,17 @@ def check_args(schema: dict, args: dict, project: str | None = None) -> None:
         raise Refused(400, "bad-arguments", f"It needs {', '.join(missing)}.", next="send the arguments its inputSchema requires")
 
 
+def stage_revision(app):
+    """Admission identity includes the retained revision, not its reusable Library alias."""
+    asset = getattr(app.day, 'on_stage', None)
+    retained = getattr(app.day, 'on_stage_reference', None)
+    if retained is None:
+        return asset  # Legacy Stage receipt meaning stays unchanged.
+    from ..project_stage_media import reference
+    reference(retained, app.day.sid)
+    return json.dumps({'asset': asset, 'retained': retained}, sort_keys=True, separators=(',', ':'))
+
+
 async def run_capability(app, record: dict, progress, tool: str, preset: dict, args: dict) -> dict:
     """A listed capability, run by its tool as the agent (never as the researcher's own hand), in the agent's Project."""
     from .. import commands
@@ -234,10 +252,17 @@ async def run_capability(app, record: dict, progress, tool: str, preset: dict, a
     refused = own_project(app, record["project"], record["by"])
     if refused is not None:
         raise refused
-    if app.day.on_stage != record.get("inputRevision"):
+    if stage_revision(app) != record.get("inputRevision"):
         raise Refused(409, "input-changed", "What this was asked to run on is no longer on your Project's stage.",
                       next="open the input again, then ask with a new request key")
     await progress(1, 2, f"Running {record.get('capabilityName') or 'it'}")
+    # Publishing progress yields: recheck before handing the captured Stage to the tool.
+    refused = own_project(app, record["project"], record["by"])
+    if refused is not None:
+        raise refused
+    if stage_revision(app) != record.get('inputRevision'):
+        raise Refused(409, 'input-changed', 'The retained input changed before this operation started.',
+                      next='open the intended revision, then ask with a new request key')
     # A catalog row names its entry in the preset, and the agent's arguments are its parameters; otherwise (any other
     # tool) the arguments are the tool's own.
     tool_args = {**preset, "params": args} if tool == "run_capability" and "capability" in preset else {**preset, **args}

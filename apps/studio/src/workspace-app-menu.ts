@@ -10,6 +10,8 @@ interface Options {
   sessions: () => Session[];
   newSession: () => void;
   scientificSessions?: () => void;
+  projectFolder?: () => void;
+  openProjectFolder?: () => void;
   /** Opens the Spending panel (the Stage's status pill owns it). */
   spending?: () => void;
   openSession: (id: string) => void;
@@ -49,6 +51,8 @@ export class WorkspaceAppMenu {
     };
     const closeThen = (action: () => void) => { this.close(); action(); };
     add('New project', () => closeThen(opts.newSession), '+');
+    if (opts.openProjectFolder) add('Open Project folder…', () => closeThen(opts.openProjectFolder!));
+    if (opts.projectFolder) add('Project folder…', () => closeThen(opts.projectFolder!));
     add('Workflows', () => closeThen(() => opts.navigate('#workflows'))); this.main.append(node('hr'));
     const sessions = this.sessionsItem = add('All Projects', () => closeThen(() => opts.navigate('#sessions')), '›');
     const theme = add('Theme', () => this.openBranch('theme', theme, true), '›');
@@ -59,7 +63,7 @@ export class WorkspaceAppMenu {
     }
     this.main.append(node('hr'));
     if (opts.spending) add('Spending', () => closeThen(opts.spending!));
-    if (opts.scientificSessions) add('Scientific sessions', () => closeThen(opts.scientificSessions!)); // the sheet's own title
+    if (opts.scientificSessions) add('Open analysis windows', () => closeThen(opts.scientificSessions!)); // the sheet's own title
     add('Settings', () => closeThen(() => opts.navigate('#settings')));
     add('Help', () => closeThen(() => opts.navigate('#help')));
     this.main.append(node('hr'));

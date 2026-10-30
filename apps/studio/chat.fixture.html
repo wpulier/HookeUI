@@ -4,7 +4,9 @@
      scrolling: chat-cards.ts, chat-scroll.ts) and the production composer (composer.ts) in an Assistant panel built as
      the workspace builds it, with the workspace's own stylesheets, over synthetic server messages and researcher records
      (no server, no model, no researcher runs). Parameters: ?state=start|start-working|chat-follow|chat-away|empty|
-     workspace, &theme=light. -->
+     workspace|handoffs|handoffs-landed, &theme=light. handoffs: two requests the voice handed to Hooke's brain still
+     working, and the strip over the composer (handoffs.ts); handoffs-landed: one done, one Hooke could not confirm on
+     screen, and one that started Researcher 2 with a later step waiting on it, opened. -->
 <style>
  body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased}
  .fx-top{position:fixed;inset:0 0 auto 0;height:44px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;font:600 13px var(--mm-sans)}
@@ -36,25 +38,29 @@
 </aside>
 <script type="module">
 import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
-import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';import '/src/handoffs.css';import '/src/experiment-card.css';
 import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
-import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';
-import cells from '../../design/workspace-feel/assets/human-cells.png';
+import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';import {FlightStrip} from '/src/handoffs.ts';
+import cells from '../../catalog/models/basic-bright-objects/example-human-cells.png';
 const params=new URLSearchParams(location.search),state=params.get('state')||'start';
 document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
 document.getElementById('specimen').style.backgroundImage=`url(${cells})`;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // A Project's id differs from its calendar day (the day's second Project), so a card scoped by the wrong one shows here.
 const DAY='2026-10-24',PROJECT='2026-10-24.2',now=Date.now()/1000;
-const sessions=new Map();
+const sessions=new Map();const strip=new FlightStrip();
 const researcher=(rid,n,fields)=>({rid,n,name:`Researcher ${n}`,brief:'',deliverable:null,effort:'standard',engine:'GPT-6.1 Sol',purpose:'research',label:'',
  objectId:null,status:'running',step:'',spent:0,cap:1,seconds:3600,created:now-12,started:now-12,finished:null,snapshot:cells,outputs:[],items:[],findings:[],
  corrections:[],history:[],canFollowUp:true,sitting:PROJECT,day:DAY,thread:'t1',turnId:null,requestId:null,result:null,...fields});
+const experiments=new Map();
 const chat=new ChatLog(document.getElementById('log'),document.getElementById('starters'),{
+ experimentCards:{list:()=>experiments.values(),act:(action,x)=>console.log('experiment',action,x.id,x.version)},
  research:rid=>sessions.get(rid),show:()=>{},describe:()=>{},hint:()=>{},voiceLive:()=>false,unread:()=>{},steps:()=>{},
  researchCards:{list:()=>sessions.values(),view:researcherCardView,open:rid=>console.log('open',rid)},
  cells:{make:(s,l)=>litCell(s,{size:12,label:l}),set:(c,s,l)=>setLitCell(c,s,{size:12,label:l})},ResizeObserver,
+ flight:entries=>strip.set('handoffs',entries),openActivity:()=>console.log('activity'),
 });
+document.getElementById('ask').before(strip.root);
 document.getElementById('wrap').append(chat.newMessages);
 const composer=new Composer(document.getElementById('ask'),{fieldId:'question',label:'Message to the Assistant',placeholder:'Ask anything',
  attach:{label:'Add a specimen',items:()=>[{label:'Choose from Data…',act:()=>{}},{label:'Open a picture or video…',act:()=>{}}]},
@@ -83,6 +89,53 @@ const twoOlder=()=>{
  answer('Sure.',2,[start('r3','RUN/r2'),start('r4','RUN/r2')]);research();
 };
 if(state==='empty'){/* nothing yet: the starters */}
+const spoken=(role,text)=>say({type:'chat',role,text,voice:true,thread:'t1',day:PROJECT});
+const handoff=(id,fields)=>say({type:'handoff',id,lineId:`handoff:${id}`,state:'working',thread:'t1',day:PROJECT,...fields});
+const PHOTO_ASKED='Can you search online and open a reference image of a stoma?';
+if(state==='handoffs'||state==='handoffs-landed'){
+ user('What am I looking at?');request(1);answer('A leaf peel: the paired, bean-shaped cells around each pore are guard cells, so these are stomata.',1);
+ spoken('user',PHOTO_ASKED);
+ spoken('assistant','I’ll ask Hooke to search online and open a reference image.');
+ handoff('h1',{label:'Reference photo of a stoma',request:'search online and open a reference image of a stoma',startedAt:now-(state==='handoffs'?9:31)});
+ spoken('user','Can you open a new tab for me?');
+ spoken('assistant','I’ll have Hooke open a new Tab for you.');
+ handoff('h2',{label:'A new Tab',request:'open a new tab',startedAt:now-2});
+}
+if(state==='handoffs-landed'){
+ handoff('h1',{label:'Reference photo of a stoma',request:'search online and open a reference image of a stoma',startedAt:now-31,endedAt:now-20,long:false,state:'done',turnId:3,
+  answer:'Opened “Stomata | Microscopy of Nature” in Stoma Reference, with its credit.',
+  steps:[{tool:'reference_photo',ok:true,summary:'found “Stomata | Microscopy of Nature” (microscopyofnature.com)',ms:8200,requestId:'R/3',actionId:'a1'},
+   {tool:'present',ok:true,summary:'the studio shows the requested window change',ms:640,requestId:'R/3',actionId:'a2'}]});
+ handoff('h2',{label:'A new Tab',request:'open a new tab',startedAt:now-26,endedAt:now-24,state:'uncertain',turnId:4,
+  steps:[{tool:'tabs',ok:true,summary:'sent, but not confirmed on screen',ms:2000,requestId:'R/4',actionId:'a1'}]});
+ spoken('user','Make a small educational graphic of a stoma, then put it in the Stoma Reference tab.');
+ spoken('assistant','Researcher 2 is making it; Hooke will put it in Stoma Reference when it’s ready.');
+ handoff('h3',{label:'A stoma graphic',request:'make a small educational graphic of a stoma, then put it in the Stoma Reference tab',startedAt:now-14,endedAt:now-11,state:'started',turnId:5,
+  answer:'Researcher 2 is making the graphic.',steps:[{tool:'start_researcher',ok:true,summary:'started Researcher 2',ms:300,requestId:'R/5',actionId:'a1'}],
+  then:{words:'put the picture in the Stoma Reference tab',state:'waiting',after:'Researcher 2',rid:'r2'}});
+ sessions.set('r2',researcher('r2',2,{turnId:5,requestId:'R/5',brief:'A small educational graphic of a stoma',step:'drawing the guard cells',started:now-11}));research();
+ strip.set('researchers',[{key:'researcher:r2',name:'Researcher 2',since:now-11,doing:'Researcher 2 · Drawing the guard cells',go:()=>chat.revealResearcher('r2')}]);
+ await sleep(50);
+ document.querySelector('[data-handoff="h1"] .chat-handoff-head').click();
+}
+// experiment: a plan waiting for the yes (experiment-card.ts), and one running under an earlier request.
+if(state==='experiment'){
+ const plan={id:'x2',key:'p2',n:2,name:'Experiment 2',title:'Cellpose-SAM vs micro-sam (light microscopy)',session:PROJECT,thread:'t1',version:1,
+  status:'proposed',requestId:'R/7',turnId:7,steps:['Hold 5 frames of this footage, 4 s apart (about 16 s)',
+  'Cellpose-SAM finds every cell on each frame (this Mac)','micro-sam (light microscopy) finds every cell on each frame (this Mac)',
+  'Measure each model’s cells','Compare them frame by frame: cells both found, counts, where outlines differ',
+  'A researcher audits the run’s records: what holds and what doesn’t (quick)',
+  'Results in a Tab of their own: the table, the outlines side by side and the audit'],
+  cost:'Nothing spent: the models run on this Mac; the audit at most $0.25',input:'5 frames',progress:'',why:'',outcome:{},canRun:true,canStop:false,created:now,ended:null};
+ user('Compare EdgeTAM and SAM 2.1 on one frame.');request(6);
+ answer('Experiment 1 is running.',6,[{tool:'experiment',ok:true,summary:'Started Experiment 1',ms:40,requestId:'R/6',actionId:'a1'}]);
+ experiments.set('x1',{...plan,id:'x1',key:'p1',n:1,name:'Experiment 1',title:'EdgeTAM vs SAM 2.1',status:'running',requestId:'R/6',turnId:6,canRun:false,canStop:true,
+  progress:'Frame 1 of 1: SAM 2.1 cells; 1 of 2 model runs done'});
+ user('I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it.');request(7);
+ answer('Here’s the plan: five frames of this footage, Cellpose-SAM and micro-sam on each, compared frame by frame, then a researcher audits it. The models cost nothing; the audit at most $0.25. Shall I run it?',7,
+  [{tool:'experiment',ok:true,summary:'Experiment 2 planned',ms:30,requestId:'R/7',actionId:'a1'}]);
+ experiments.set('x2',plan);chat.experimentsChanged();
+}
 if(state==='start'||state==='start-working'){
  user('What am I looking at?');request(1);answer(ANSWER1,1);
  user('spawn two research agents to use a model of their choice, and then return their results, two different ones');chat.sent();

@@ -1,7 +1,7 @@
 // The Working strip's other sources (strip-sources.ts): a hand-started run, agent steps still running after their
 // answer, and models loading. Each says only what the app knows; none shows a percent; work under a second shows none.
 import { expect, test } from 'vitest';
-import { KEPT_RUNS, LoadPills, pillName, QUICK_MS, runPill, RunPills, StepPills, type HandRun, type RunFacts, type StepFact } from './strip-sources';
+import { isVoiceSession, KEPT_RUNS, LoadPills, pillName, QUICK_MS, runPill, RunPills, StepPills, type HandRun, type RunFacts, type StepFact } from './strip-sources';
 import type { ActivityEvent } from './protocol';
 import type { StripPill } from './working-strip';
 
@@ -280,8 +280,9 @@ test('a download is Ready only when its model is: with an install still to come 
 });
 
 
-// Ticket 67, fix 4: a finished download whose model Hooke has not checked yet is not "Ready" (Models says Not checked).
-test('a finished download says Downloaded · not checked until Hooke has checked its model', async () => {
+// Ticket 67, fix 4: a finished download whose model Hooke has not checked yet is not "Ready" (Models says Ready, not
+// checked yet), and it can run, so its cell is the green outline, never the grey of what isn't there.
+test('a finished download says Downloaded · not checked yet until Hooke has checked its model', async () => {
   const { DownloadPills } = await import('./strip-sources');
   let shown: StripPill[] = [];
   const pills = new DownloadPills(() => {}, (next) => { shown = next; }, () => T);
@@ -289,7 +290,19 @@ test('a finished download says Downloaded · not checked until Hooke has checked
   const model = (face: string) => [{ id: 'cellpose-sam', status: 'ready', group: 'ready', runs: 'this-mac', size: 1e9, face: { state: face } }];
   pills.update([row('downloading')], model('unchecked'));
   pills.update([row('done')], model('unchecked'));
-  expect(shown[0]).toMatchObject({ cell: 'idle', words: 'Downloaded · not checked' });
+  expect(shown[0]).toMatchObject({ cell: 'partial', words: 'Downloaded · not checked yet' });
   pills.update([row('done')], model('on'));
   expect(shown[0]).toMatchObject({ cell: 'ready', words: 'Ready' });
+});
+
+test('a voice session\'s Activity line is kept in Activity, never a loading pill ("gpt-realtime-2.1 18:21")', () => {
+  let pills: StripPill[] = [];
+  const loads = new LoadPills(() => {}, (p) => { pills = p; });
+  const voice: ActivityEvent = { type: 'activity', id: 'voice-0123456789abcdef', kind: 'model', text: 'The voice provider acknowledged the session',
+    at: T / 1000, state: 'running', ref: { model: 'gpt-realtime-2.1' }, details: { ids: { voiceSession: 'voice-0123456789abcdef', model: 'gpt-realtime-2.1' } } };
+  expect(isVoiceSession(voice)).toBe(true);
+  loads.apply(voice);
+  expect(pills).toEqual([]);
+  loads.apply({ ...voice, id: 'model:micro-sam:1', details: undefined, ref: { model: 'micro-sam' } });
+  expect(pills.map((p) => p.name)).toEqual(['micro-sam']);
 });

@@ -109,10 +109,10 @@ def _installed_studio_tab_capture(client, _pending, metadata) -> bool:
                for actual, value in zip(metadata["workspaceToImage"], expected))
 
 
-def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None) -> FastAPI:
+def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None, *, project_locations=None) -> FastAPI:
     from .build_info import identity, runtime_identity
     build = identity()  # backend source identity is fixed at process startup
-    built = App.build(bridge_url, paths, use_gpu=use_gpu)
+    built = App.build(bridge_url, paths, use_gpu=use_gpu, project_locations=project_locations)
     built._workspace_capture_authority = _installed_studio_tab_capture
     hub = built.hub
     hub.execution.context_provider = lambda: {
@@ -129,7 +129,12 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
         ledger = api_usage.UsageLedger(built.paths.research / "api-usage")
         ledger.seed_research(built.research.today(), built.research.spending.spent())
         app.state.usage = ledger
-        api_usage.configure(ledger, provider_allowed=lambda: not built.day.local_only)
+        from . import observed
+        # Each model's real use is kept (observed.py "use"): a model that ran here is working here on its card, one that
+        # failed says why, and every studio is sent the Models page again when one turns.
+        api_usage.configure(ledger, provider_allowed=lambda: not built.day.local_only, outcome=observed.call_used)
+        observed.record_use(built.paths.checks.parent / observed.USES,
+                            changed=lambda: built.hub.broadcast(built.capabilities_wire()))
         lifecycle = app.state.research_lifecycle
         try:
             await built.start()
@@ -137,6 +142,9 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
             yield
         finally:
             try:
+                experiments = getattr(built.hub, 'experiments', None)
+                if experiments is not None:
+                    await experiments.close()  # its jobs end with the app; their records stay
                 await app.state.workflow_service.close()
             finally:
                 try:
@@ -146,6 +154,7 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
                         await built.stop()
                     finally:
                         api_usage.configure(None)
+                        observed.record_use(None)
                         try:
                             ledger.close()
                         finally:
@@ -1202,8 +1211,17 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--bridge-url", default="http://127.0.0.1:8765")
     parser.add_argument("--no-gpu", action="store_true")
+    parser.add_argument('--project-folders', default=os.environ.get('HOOKE_PROJECTS_DIR'),
+                        help='Explicit staged Project-folder parent; existing Projects stay in place')
+    parser.add_argument('--reopen-project', default=os.environ.get('HOOKE_REOPEN_PROJECT'),
+                        help='Explicitly recover the new location of a registered inactive Project; does not import or grant access')
+    parser.add_argument('--open-project', default=os.environ.get('HOOKE_OPEN_PROJECT'),
+                        help='Explicit owner opening of a working Project folder; does not import agent access or replay work')
     args = parser.parse_args()
-    server = create_app(args.bridge_url, use_gpu=not args.no_gpu)
+    from .project_launch import configured_locations
+    paths = Paths.from_env()
+    locations = configured_locations(paths, args.project_folders, reopen=args.reopen_project, opening=args.open_project)
+    server = create_app(args.bridge_url, use_gpu=not args.no_gpu, paths=paths, project_locations=locations)
     # Where researchers read the session's index (their session tool; resources.py, Amendment 2.7): its researchers'
     # view, which reads as it did before ticket 66 (RESEARCHER_VIEW in create_app).
     server.state.app.research.resources_url = f"http://127.0.0.1:{args.port}/for-researchers"

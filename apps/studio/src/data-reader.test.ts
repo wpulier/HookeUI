@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { DataReader, byLine, countWords, howRows, kindWord, makerOf, readerShape, readerTitle, readerWidth, researcherOf, sameItem, sourcesItem, switchLabel, thingView, windowRows, workOf,
+import { DataReader, byLine, countWords, howRows, kindWord, makerOf, readerDocument, readerShape, readerTitle, readerWidth, researcherOf, sameItem, sourcesItem, switchLabel, thingView, windowRows, workOf,
   type ReaderDeps, type ReaderEntry, type ReaderPage } from './data-reader';
 import { syntheticDOM, TestElement } from './workspace-windows.test-support';
 
@@ -28,6 +28,28 @@ describe('what the reader shows for each kind', () => {
     expect(readerShape(entry({ kind: 'asset', asset: { kind: 'recording' } as ReaderEntry['asset'] }))).toBe('recording');
     expect(readerShape(entry({ kind: 'asset', asset: { kind: 'still' } as ReaderEntry['asset'] }))).toBe('picture');
     expect(readerShape(entry({ kind: 'bookmark' }))).toBe('other');
+    // A document the Assistant wrote from the Project's records (documents.py): its own renderer, a Document.
+    expect(readerShape(entry({ kind: 'result', media: 'document' }))).toBe('document');
+    expect([kindWord(entry({ kind: 'result', media: 'document' })), thingView(entry({ kind: 'result', media: 'document' }))]).toEqual(['Document', 'Document']);
+  });
+  it('reads a document’s sections leniently, each paragraph with the records it cites', () => {
+    expect(readerDocument({ values: { leftOut: { paragraphs: 2 }, document: { title: 'Findings', sections: [
+      { heading: 'Cells', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }, { title: 'no id' }] }, { text: '' }] },
+      { heading: 'Empty', paragraphs: [] }, 'not a section'] } } })).toEqual({ title: 'Findings', leftOut: 2, sections: [
+      { heading: 'Cells', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }] }] }] });
+    expect(readerDocument({ values: { title: 'no document' } })).toBeNull();
+    expect(readerDocument(undefined)).toBeNull();
+  });
+  it('reads an experiment’s results: its byline, a section’s table and its figure, each cell as kept (experiments.py)', () => {
+    const doc = readerDocument({ values: { byline: 'Made by the app from Experiment 1’s run records', document: { title: 'Experiment 1', sections: [
+      { heading: 'The comparison', paragraphs: [{ text: 'On 2 frames.', cites: [] }],
+        table: { columns: ['Frame', 'Model', 'Cells', 'Reused'], rows: [[1, 'Cellpose-SAM', 41, false], ['all', 'Cellpose-SAM', 40.5, { x: 1 }], 'not a row'] },
+        figure: { picture: 0, caption: 'The outlines side by side' } },
+      { heading: 'Bad parts', paragraphs: [{ text: 'Kept.', cites: [] }], table: { columns: 'no', rows: [] }, figure: { picture: -1 } }] } } });
+    expect(doc?.byline).toBe('Made by the app from Experiment 1’s run records');
+    expect(doc?.sections[0].table).toEqual({ columns: ['Frame', 'Model', 'Cells', 'Reused'], rows: [[1, 'Cellpose-SAM', 41, false], ['all', 'Cellpose-SAM', 40.5, null]] });
+    expect(doc?.sections[0].figure).toEqual({ picture: 0, caption: 'The outlines side by side' });
+    expect(doc?.sections[1]).toEqual({ heading: 'Bad parts', paragraphs: [{ text: 'Kept.', cites: [] }] });
   });
   it('names the kind and the first view as the mock does: Outlines, Table, Page for a write-up, Source for a source', () => {
     expect([kindWord(entry({})), thingView(entry({}))]).toEqual(['Outlines', 'Outlines']);
@@ -166,6 +188,95 @@ describe('the reader on screen', () => {
     reader.show(entry({ kind: 'result', table: true, id: 'd9', title: 'Areas · 10:00' }));
     expect(root.querySelectorAll('.rd-picture')).toEqual([]);
   });
+  it.each(['Project', 'revision', 'digest'])('opens exact inspection reports and excludes metadata from a different %s', async (mismatch) => {
+    mount();
+    const id = 'p' + '1'.repeat(32), report = 'p' + '2'.repeat(32), day = '2026-10-25.4';
+    const digest = 'a'.repeat(64), reportDigest = 'b'.repeat(64);
+    const fetcher = vi.fn(async (url: string) => {
+      if (String(url).startsWith(`/api/scientific-projects/${report}?`))
+        return {ok: true, json: async () => ({project: {id: report, session: day, revision: 3, digest: reportDigest,
+          document: {kind: 'matrix-result', title: 'Recorded inspection', state: {}}}})};
+      if (String(url).startsWith(`/api/scientific-projects/${id}?`))
+        return {ok: true, json: async () => ({project: {id, session: day, revision: 1, digest,
+          document: {kind: 'source-file', title: 'Original dataset', state: {sourceFile: {
+            format: 1, name: 'original.bin', size: 3, sha256: 'c'.repeat(64)}}}}})};
+      return {ok: false, json: async () => ({error: 'No fixture reader'})};
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const second = 'p' + '5'.repeat(32);
+    const retainedEntry = vi.fn((ref: {id: string}) => ref.id === report ? entry({id: report, day, version: 3,
+      kind: 'project', at: today, source: {sha256: reportDigest}, maker: {kind: 'agent', name: 'Codex (research)'}})
+      : entry({id: second, day: mismatch === 'Project' ? 'another-project' : day,
+        version: mismatch === 'revision' ? 4 : 3, source: {sha256: mismatch === 'digest' ? 'f'.repeat(64) : reportDigest},
+        maker: {kind: 'agent', name: 'Unrelated author'}}));
+    const openInNewTab = vi.fn(), reader = new DataReader(deps({openInNewTab, retainedEntry}), 'tab');
+    const root = reader.root as unknown as TestElement;
+    reader.show(entry({id, day, kind: 'project', title: 'Original dataset', version: 1, source: {sha256: digest},
+      material: {kind: 'matrix', origin: 'imported', input: true, section: 'files', category: 'import',
+        record: false, dependencies: [], shape: [2, 3], inspection: {status: 'reported', total: 2,
+          reports: [{id: report, session: day, revision: 3, digest: reportDigest},
+            {id: second, session: day, revision: 3, digest: reportDigest}]}}}));
+    await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
+    const captions = root.querySelectorAll('.rd-inspection-caption').map(node => node.textContent);
+    expect(captions[0]).toContain('Codex (research)');
+    expect(captions[1]).toBe('Revision 3');
+    expect(root.querySelectorAll('.rd-inspection-words').map(node => node.children[0].textContent))
+      .toEqual(['Inspection 1', 'Inspection 2']);
+    expect(fetcher).toHaveBeenCalledTimes(1); // labels use existing metadata, never extra content reads
+    root.querySelector('.rd-material-inspection')!.querySelector('button')!.dispatchEvent(new Event('click'));
+    await vi.waitFor(() => expect(openInNewTab).toHaveBeenCalledWith(expect.objectContaining({
+      id: report, day, version: 3, kind: 'project', source: {sha256: reportDigest}})));
+    expect(reader.current()?.id).toBe(id);
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes(`${report}?session=${day}&revision=3`))).toBe(true);
+    reader.clear();
+  });
+  it.each(['before response', 'after response', 'show again'])('enriches a restored exact source %s without resetting its preview', async (timing) => {
+    mount();
+    const id = 'p' + '3'.repeat(32), report = 'p' + '4'.repeat(32), day = '2026-10-25.4';
+    const digest = 'd'.repeat(64);
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    const fetcher = vi.fn(async () => {
+      await ready;
+      return {ok: true, json: async () => ({project: {id, session: day, revision: 1, digest,
+        document: {kind: 'source-file', title: 'Retained source', state: {sourceFile: {
+          format: 1, name: 'source.bin', size: 3, sha256: 'c'.repeat(64)}}}}})};
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const changed = vi.fn();
+    const reader = new DataReader(deps({changed}), 'tab'), root = reader.root as unknown as TestElement;
+    const fallback = entry({id, day, version: 1, kind: 'project', title: 'Saved material'});
+    const known = {...fallback, material: {kind: 'matrix' as const, origin: 'imported' as const,
+      input: true, section: 'files' as const, category: 'import', record: false, dependencies: [],
+      shape: [2, 3], inspection: {status: 'reported' as const, total: 1,
+        reports: [{id: report, session: day, revision: 3, digest: 'b'.repeat(64)}]}}};
+    reader.show(fallback);
+    if (timing === 'before response') reader.refresh(known);
+    release();
+    await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
+    const content = root.querySelector('.rd-body')!, original = content.querySelector('.scientific-source-inspector');
+    changed.mockClear();
+    if (timing === 'after response') { reader.refresh(known); expect(changed).toHaveBeenCalledTimes(1); }
+    if (timing === 'show again') reader.show(known);
+    expect(reader.kindLine()).toBe('Matrix');
+    const inspection = root.querySelector('.rd-material-inspection')!;
+    expect(inspection).toBeTruthy();
+    const details = inspection as unknown as HTMLDetailsElement;
+    details.open = true;
+    changed.mockClear();
+    reader.refresh({...known});
+    expect(changed).not.toHaveBeenCalled();
+    expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
+    expect(details.open).toBe(true);
+    expect(content.querySelector('.scientific-source-inspector')).toBe(original);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    reader.refresh({...known, version: 2, material: {...known.material, shape: [9, 9]}});
+    expect(reader.current()?.version).toBe(1);
+    expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
+    reader.clear();
+    reader.refresh(known);
+    expect(root.querySelector('.rd-material-inspection')).toBeNull();
+  });
   it('gives a researcher’s work Talk to Researcher N, the one action that goes to its Tab', () => {
     mount();
     const talk = vi.fn(), reader = new DataReader(deps({ talk }), 'side'), root = reader.root as unknown as TestElement;
@@ -186,6 +297,26 @@ describe('the reader on screen', () => {
     root.querySelector('.rd-edit')!.dispatchEvent(new Event('click'));
     expect(editNote).toHaveBeenCalledWith(note);
     expect(root.querySelector('.rd-by')!.textContent).toMatch(/^Note · You/);
+  });
+  it('draws a document on its page, each paragraph’s records by name, each opening here', async () => {
+    mount();
+    const values = { leftOut: { paragraphs: 1 }, document: { title: 'Interesting findings so far', sections: [
+      { heading: 'What was measured', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }, { id: 'r1', title: 'Researcher 1’s notes' }] }] }] } };
+    const fetch = vi.fn(async (_url: string) => ({ ok: true, json: async () => ({ entry: {}, detail: { text: 'its text', values } }) }));
+    vi.stubGlobal('fetch', fetch);
+    const open = vi.fn(), reader = new DataReader(deps({ open }), 'tab'), root = reader.root as unknown as TestElement;
+    reader.show(entry({ id: 'd7', kind: 'result', media: 'document', title: 'Document · 14:05', day: 'p', version: undefined, untrusted: true }));
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    expect(root.dataset.displayState).toBe('rendered');
+    expect(String(fetch.mock.calls[0][0])).toMatch(/^\/api\/resources\/d7\?day=p/);
+    const page = root.querySelector('.rd-doc')!;
+    expect(page.querySelector('h2')!.textContent).toBe('Interesting findings so far');
+    expect(page.querySelectorAll('h3').map((h) => h.textContent)).toEqual(['What was measured']);
+    expect(page.querySelectorAll('.rd-doc-cite').map((c) => c.textContent)).toEqual(['Count', 'Researcher 1’s notes']);
+    expect(page.querySelector('.rd-doc-from')!.textContent).toBe('From Count and Researcher 1’s notes');
+    page.querySelectorAll('.rd-doc-cite')[1].dispatchEvent(new Event('click'));
+    expect(open).toHaveBeenCalledWith({ id: 'r1', day: 'p' });
+    expect(texts(page, 'rd-note')).toEqual(['Left out: 1 paragraph that cited no record of this Project.']);
   });
   it('in a reader Tab keeps only its views, Talk and ⋯ (its title is on the Stage bar; no × and no Open in new Tab)', () => {
     mount();
@@ -238,7 +369,7 @@ describe('the reader on screen', () => {
 describe('the workspace opens Data in the reader', () => {
   const study = readFileSync(new URL('./workspace-study.ts', import.meta.url), 'utf8');
   it('opens a Data row (and an input) in the reader on the Tab you are on, never moving you to another Tab', () => {
-    expect(study).toContain('const open=()=>openInReader(entry as ReaderEntry);');
+    expect(study).toContain("if (entry.material?.kind === 'assignment') void openStudy(entry.id); else openInReader(entry as ReaderEntry);");
     expect(study).toContain('()=>openInReader(inputEntry(asset))');
     expect(study).toContain("{label:'How it was made',title:'Who made it, from what and with what, in the reader on the right',act:()=>openInReader(entry as ReaderEntry,'how')}");
   });

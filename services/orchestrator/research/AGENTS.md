@@ -102,6 +102,9 @@ other files.
     "research" class is in the runner's key, so it never joins or holds back the user's measurement of the same
     frames. Its capture and decodes are in the "research" allowance. It is never measured on a held clip (a
     frame every 0.5 s, and spots are followed from frame to frame only at the live view's rate) nor on one view.
+    The "research" allowance is working memory for one run at a time: once a run's cells are saved, their table stays
+    loaded in an allowance of its own ("kept", capture.py; evidence.BACKGROUND), never in "research" (will-experiment,
+    29 Oct: an experiment's ten saved tables filled it and the next experiment stopped at frame 4).
   - **On what:** the live view now, or a sample the session still keeps (`input`): a population's view, or a held
     clip's frames (`frame`). A sample no longer kept is said so ("that view is not kept any more"), never captured
     again in its place; anything else is refused with what it is.
@@ -114,6 +117,20 @@ other files.
     item ("Motion, for Researcher 2"). Each is read with the session tool and never shown. It is never what a request
     of the user's means unless shown or named (`Population.made_for`, as M2.2's comparisons; "the motion",
     `TracksStore.latest` and the board's lines skip a researcher's), and anyone reaches it by its id.
+  - **Classifiers compared** (Part 2.5, W5; "have a researcher run five classifying models on these cells and report
+    comparing them"): `run` operation "classify" with `models` (two to six ids; the run is told the ones that can run
+    here, `manager._door` "classifiers") and `classes` names the same cells of a population of its own session
+    (`input`, else the one on screen) with each model through the runner at research priority, made for it
+    (`model_comparison.compare_classes`), and keeps the comparison as one result entry with its table ("Model
+    comparison, for Researcher 2"). Every outline is classified (`classify.chosen_members`); only past 400 cells, or
+    past an expected $2.00 (`classify.expected_cost`, known before anything runs), is an even sample taken, and its
+    words say how it was chosen and that the rest can be classified (will-research, 29 Oct: the first 60 of 161,
+    said nowhere). Its reply names the models, the cells, the closest and furthest pairs, time, cost and the expected
+    cost, and carries every number a report compares (columns, a row per model, every pair by name), so the entry is
+    read only for a cell's own labels; the entry keeps its table and pairs first and each cell's labels last (a quick
+    researcher paged 21,000 characters to reach the table and ran over budget). Its report compares the models from
+    those records, cited as evidence, never from its own guess, and its spoken outcome carries the app's own record of
+    the comparison (`voice/partner.research_text`). One operation of its run, whatever the number of models.
   - **Limits:** one at a time across the app, at most 3 in a run, refused with the reason and a next step a
     researcher can take when the camera has no fresh picture (live), memory is full or another session is open; the
     session keeps what it ran and on what (`ran`).
@@ -147,12 +164,15 @@ other files.
   the step's `detail` (`Researcher.step(text, kind, detail)`, kept in `steps.jsonl` for Activity). The app's own
   words about a run are said without the ids the researcher reads by (`researcher.said_words`). A viewer notice says
   "shown" only once the studio confirmed it (`announcer.shown_words`). `tests/test_research_progress_words.py` reads
-  every step call.
+  every step call. Showing its work beside the view (`Announcer._open_beside`) asks its original studio for a current
+  report first when the last is stale, as every actor's request does (`screen.fresh_report`; live 2026-10-29 17:25 it
+  failed "unavailable or stale"), and a report with no viewer keeps the work in Data instead of raising.
 - Each run's conversation with its model is kept round by round (`research_worker/transcript.py`): what each request
   added, the tools offered and the model's whole reply with its tool calls, the instructions by their hash, pictures by
-  their size, a line at most 64 KB (long strings cut, marked), in `logs/transcripts/<day>/<rid>.jsonl` (a performance log,
-  pruned with the dated logs; the app names it, spec `transcript`). Web pages inside are untrusted data the app never
-  reads back.
+  their size, a line at most 64 KB (long strings cut, marked), in `research/transcripts/<day>/<rid>.jsonl` (retained research evidence; the app names it, spec `transcript`).
+  Existing `logs/transcripts/` files are also excluded from pruning and remain in place until explicit collection.
+  These bounded traces can be incomplete if writing failed; they are not a promise of a complete provider transcript.
+  Web pages inside are untrusted data the app never reads back as instructions.
 - Discipline (W6-4), all in the research process: researchers are told an honest "not found"
   outranks an invented number or claim; a researcher whose last 3 rounds (`budget.STALL_ROUNDS`)
   brought no new page, finding, picture or output is told to write up (a "stall" step, logged);
@@ -166,6 +186,18 @@ other files.
   model with no picture answers each quiz step and the steps it gets right are logged (default
   "check"); "rewrite" sends them back once, with the photo, to need it (the bench found it does
   not beat the lesson as written: `bench/lesson_check_bench.py`).
+- **Their model** (Will, 2026-10-30): researchers think with Claude Opus 5.5 by default (RESEARCH_ENGINE
+  `claude-opus-5-5`, `research_worker/engines.ClaudeEngine`: the Messages API over httpx with Anthropic's web search
+  `web_search_20260209`, ANTHROPIC_API_KEY, the effort's reasoning as `output_config.effort`). GPT-6.1 Sol stays an option
+  (Settings, or the user's "use OpenAI / GPT"). This model refuses a forced tool choice, so a write-up round offers only
+  `finish` and says "Call finish now".
+- **Pages it writes itself** (`make_page`, from quick up, budget `PAGE_TOOLS`): one self-contained HTML document, a
+  short slide presentation (`kind` "presentation", `contentKind` "report") or a small interactive or animated visual
+  (`kind` "visual", `contentKind` "visual"), built from the numbers it read (`data_from` names the entries). Kept as an
+  `html` output and served like a lesson under the research files' no-network sandbox CSP, so the studio's viewer and
+  reader show it rendered (a sandboxed iframe), never as text. The prompt tells it to make one when the user asks for a
+  presentation, slides, a visual or "a little animation explaining the data" (the 30 Oct live miss: a quick researcher
+  read the table, stalled and wrote "the animation itself has not been created").
 - **Charts and animations of saved data** (`research_worker/measurement_charts.py`; Part 2.5): from quick up a researcher
   has `make_chart` and `animate_measurements` (budget `CHART_TOOLS`), offered only when it can read the session's index
   and never for a follow-up answer, a new version or a description. It names a table the session kept (an entry's id,
@@ -173,15 +205,26 @@ other files.
   measurements table's `/detail/members`) and the number in each row (`/extras/areaPx`), with an optional label, group,
   order and kind (one bar per row, or a histogram). The worker reads the whole entry itself, page by page off the model's
   rounds, checks it against the revision, and copies the values: a row with no number is left out and counted, never
-  imputed. The chart is drawn on this Mac by the app (Pillow; no model, provider or money); the animation builds that
+  imputed; `only` (a pointer to a true/false in each row, motion tracks' `/moving`) keeps the rows where it is true.
+  Several runs of one operation are one chart (Will, 30 Oct: "run a motion model 4 times ... make diagram of average
+  speed"): make_chart kind "means" names `tables` (one to eight entries, each read whole at its revision, the same rows
+  and value in each; motion: `/detail/values/tracks`, `/net`) and draws one bar per table at its mean, a whisker of one
+  standard deviation and every value a dot, n under it; its reply and `content` carry each table's n, mean, SD, SEM,
+  median and range and the mean of the means, and every table is among what it was made from (`derived.sources`).
+  The chart is drawn on this Mac by the app (Pillow; no model, provider or money); the animation builds that
   chart row by row in the chosen order and ends on the whole chart, an animated PNG every browser plays as a picture.
   Each is kept as one of its outputs with `derived` (its exact source id, revision, kind) and its values in `content`:
   media `derived`, said "Drawn by the app from a saved table" or "An animation ... not a video of the specimen", in Data
   as "Researcher N's chart/animation" whose picture reopens, and its table is among what it was made from. When the
   animation can't be drawn here, the chart is made instead and that is said. A generated video stays its own deliverable
-  (`make_video`, Veo), made only when it is asked for by name; one that fails says the model and the provider's own status
-  on the researcher's card ("The video model was unavailable (Veo 3.1 Fast, HTTP 404, NOT_FOUND: ...)"), and its model
-  is told it can animate a table instead. `tests/test_researcher_outputs.py` reproduces the 2026-10-28 request.
+  (`make_video`, `research_worker/video.py`: Gemini Omni 1.1 Flash through the Interactions API since Google retired Veo
+  3.1 Fast on 22 Oct 2026, recorded in `catalog/models/maintenance.toml`), made only when it is asked for by name; one
+  that fails says the model, why in a person's words and what to do (`api_usage.refusal`: retired, out of credit, no key,
+  rate limited...), with the provider's own status as its detail, on the researcher's card ("The video model (Gemini Omni
+  1.1 Flash) couldn't be used: your Google account is out of credit; add credit to your Google account, or choose another
+  model; no video was made"). The run keeps it as a fact its result carries (`unavailable`: model, reason, said, todo,
+  status), whatever the write-up says, so the voice says the reason when the researcher lands; its model is told it can
+  animate a table instead. `tests/test_researcher_outputs.py` reproduces the 2026-10-28 request and Will's try-out of 29 Oct.
 - Out of time or money after making something, a researcher keeps its work: status "partial",
   a result described from its outputs, restored and shown like "done". A URL that failed is
   not fetched again by the same researcher.
@@ -302,7 +345,10 @@ other files.
   user asked for, whose result is spoken. No word list decides which deliverable a request wants or admits one: the
   "keywords" option (the EXPLICIT word lists, as before 2026-10-06) is gone (2026-10-29; it refused "show me step by step
   how it works", and its `animat\w*` matched "create an animation" of a measurements table to a Veo video, live
-  2026-10-28). The model picks the deliverable from the ones and the tools it is shown; a record retained under
+  2026-10-28). The model picks the deliverable from the ones and the tools it is shown: `image` is a made illustration
+  or diagram of a kind of thing, labelled or not, needing nothing outlined; `annotated_image` draws labels on a photo
+  of the user's own outlined thing, and with nothing outlined it is refused to the model as its call to correct
+  (`argument`), never told to the user (live 2026-10-29, "a small labeled graphic of a stoma"); a record retained under
   "keywords" is checked by the quote. `admit` runs
   inside `ResearchManager.start` and `followup`, so "continue" and a new version of a video are
   held to it too and no path skips it; the tool refuses otherwise, and the answer says so.
@@ -440,6 +486,19 @@ The current UI keeps this conversation inline, separately from reviewed findings
 connector recipient operates externally: no subprocess launcher, provider billing or new
 workflow attempt ledger is implied by saving a question.
 
+### A researcher auditing an experiment
+
+An experiment (`orchestrator/experiments.py`, Part 2.5 W5) the user approved with an audit runs a second frozen
+workflow whose one step is a researcher through this app's researchers (`workflow_research`, provider
+`local-researcher`; `docs/architecture/scientific-workflows.md` "Experiments"). Its input is the run's record (a JSON
+file: the plan, each frame with each model's run and counts, the matched cells, the comparison step's areas, and the
+Data ids to read); its brief is the question and criteria the user approved, the records to read with its session tool
+(the comparison table, each model's cells per frame) and how to judge them (check the table's counts against each
+model's cells, cite the records each point rests on, say what the run cannot settle, agreement is not accuracy). It is
+started `confirmed` (the plan the user said yes to admits it, at its effort's cap), with origin `experiment` and
+`asked` false: no camera snapshot, no beside-the-view opening of its own, and its finish is the experiment's step, said
+once in the experiment's outcome. Its finding becomes the step's `research-findings` output, not reviewed by anyone.
+
 ### One saved workflow from every entrance
 
 `tests/test_workflow_entrances.py` qualifies the integrated WorkflowService across the entrances (Part 2.5): one saved
@@ -453,3 +512,23 @@ Assistant is not listed or runnable from the door, which reaches only the workfl
 door for that Project (`door/projects.py` `require_workflow`; duplicating needs that association too).
 
 Study listings expose `createdAt` from revision 1 and `updatedAt` from the current retained revision. These are saved-document timestamps, not inferred execution start/end times. Legacy missing initiators remain unknown. Reads never add a revision or start work.
+
+With optional Project locations, `research/storage.py` resolves retained researcher
+records and files under their captured Project. Previous metadata is preserved by
+content hash; failed publication leaves a durable pending marker and readers refuse
+uncertain current state. Root replacement/closure and same-ID foreign work refuse.
+Historical interrupted jobs are projected without automatic dispatch or rewriting
+read-only folders. Provider starts/follow-ups/presentations in portable Projects are
+explicitly unavailable pending host billing and lifecycle qualification; ordinary
+legacy Projects retain their existing execution behavior. Shared acquisitions and
+global description caches are not yet collected by this adapter.
+
+Study evidence reads its original workflow receipts from one bounded Project inventory scan per request. The same workflow status derivation and observed driver ownership serve individual and batch reads; no persistent status cache or dispatch is added. Missing runs remain interrupted admissions, and unreadable records prevent a false completion claim.
+# Portable copy verification
+
+Folder sealing verifies current and archived researcher metadata against their
+Project/date/researcher identity, content-addressed archive names and retained
+finding payload digests. Pending publication refuses. Verification starts no
+manager or provider and does not qualify complete external dependency collection.
+
+Material questions retain explicit exact attachments alongside the pinned Study basis. Changed attachments cannot reuse a request identity. Reading the question context returns those references for the authorized contributor to inspect; it does not launch an agent. Studio single-capability experiments may use Study admission, which keeps the same authoritative workflow execution and original operation identity.

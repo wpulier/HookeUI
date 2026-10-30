@@ -57,10 +57,12 @@ class Prefs:
         elif e.get("type") == "current-session" and isinstance(e.get("session"), str):
             self.current = e["session"]
 
-    def _record(self, event: dict) -> dict:
+    def _record(self, event: dict, *, strict=False) -> dict:
         try:
-            event = self.journal.append(event)
+            event = self.journal.append(event, durable=True) if strict else self.journal.append(event)
         except (OSError, ValueError) as exc:  # disk full, permissions, unencodable text
+            if strict:
+                raise
             # Kept in memory; only a restart would lose it (as the day journal does).
             event = {"at": round(time.time(), 3), **event}
             if not getattr(self, "_write_failed", False):
@@ -78,13 +80,13 @@ class Prefs:
             self._record({"type": "preferences-started", "from": None})
         return self._record({"type": "preference", "key": key, "value": value})
 
-    def point(self, sid: str) -> None:
+    def point(self, sid: str, *, strict=False) -> None:
         """Keep `sid` as the session the app is in, so a start opens it again."""
-        if self.current == sid:
+        if self.current == sid and not strict:
             return
         if not self.started:
-            self._record({"type": "preferences-started", "from": None})
-        self._record({"type": "current-session", "session": sid})
+            self._record({"type": "preferences-started", "from": None}, strict=strict)
+        self._record({"type": "current-session", "session": sid}, strict=strict)
 
     def migrate(self, upto: str) -> str | None:
         """Once, when there is no preferences file yet: seed it with the user's preferences of the day journal of

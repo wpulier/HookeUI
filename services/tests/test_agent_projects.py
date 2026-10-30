@@ -136,7 +136,7 @@ def test_import_read_and_download_retain_full_source_and_scope(project_door,tmp_
     from orchestrator.resources import Index, maker_of
     saved = built.hub.resources.projects.read(ref['id'], sid, revision=ref['revision'])
     indexed = Index.project_entry(saved)
-    assert indexed.made_by == {'actor':'agent:'+a['connection']['id'], 'operation':result['id']}
+    assert indexed.made_by == {'actor':'agent:'+a['connection']['id'], 'operation':result['id'], 'label':result['byLabel']}
     assert maker_of(indexed.kind, indexed.id, indexed.made_by) == {
         'kind':'agent', 'id':a['connection']['id'], 'name':result['byLabel']}
     assert first['content']['text']==content[:65536].decode()

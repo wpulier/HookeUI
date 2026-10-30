@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   chipSubWords, chipView, countWords, dayLabel, daysAgo, factsLine, groupByDay, lastUsedWords, monthDay, READ_FAILED, rowView,
-  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords, savedWhereWords } from './sessions';
+  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords, inputCountWords, savedWhereWords } from './sessions';
 import type { ClientCommand } from './protocol';
 import { at, list, NOW, row, state } from './sessions.test-support';
 
@@ -189,6 +189,18 @@ describe('the one source both views read', () => {
     expect(rows[0]).toMatchObject({ name: 'Leaf', counts: { made: 4, researchers: 1, conversations: 2 } });
   });
 
+  test('live camera-source counts cannot erase the catalogue scientific inputs', () => {
+    const { m } = model();
+    const counts = {sources: 31, made: 4, researchers: 0, conversations: 1};
+    m.applyList(list('a', [row('a', {counts})]));
+    m.applySession(state('a', {counts: {...counts, sources: 0, made: 5}}));
+    expect(m.rows()[0].counts).toMatchObject({sources: 31, made: 5});
+    m.applyList(list('a', [row('a', {counts: {...counts, sources: 32}})]));
+    expect(m.rows()[0].counts.sources).toBe(32);
+    m.applyList(list('a', [row('a', {counts: {...counts, sources: 0}})]));
+    expect(m.rows()[0].counts.sources).toBe(0);
+  });
+
   test('offline: nothing waits, and it says to reconnect', () => {
     const { m } = model(false);
     m.applySession(state('a'));
@@ -257,4 +269,27 @@ describe('where Projects are saved', () => {
     expect(model.reveal()).toBe(true);
     expect(sent).toEqual([{ type: 'sessions-reveal' }]);
   });
+});
+
+test('incomplete input counts stay qualified when a live session update arrives', () => {
+  const m = new SessionsModel(() => true, () => NOW * 1000);
+  const counts = {sources: 2, sourcesIncomplete: true, made: 0, researchers: 0, conversations: 1};
+  m.applyList(list('a', [row('a', {counts})]));
+  m.applySession(state('a', {counts: {...counts, sources: 0, sourcesIncomplete: false}}));
+  expect(m.rows()[0].counts.sourcesIncomplete).toBe(true);
+  expect(countWords(m.rows()[0].counts).join(' ')).toContain('some unavailable');
+  expect(countWords({...counts, sources: 0}).join(' ')).toContain('Inputs unavailable');
+});
+
+
+test('Project-menu input counts distinguish empty, complete and unavailable inventories', () => {
+  expect(inputCountWords({sources: 0})).toBe('0 inputs');
+  expect(inputCountWords({sources: 1})).toBe('1 input');
+  expect(inputCountWords({sources: 0, sourcesIncomplete: true})).toBe('Inputs unavailable');
+  expect(inputCountWords({sources: 2, sourcesIncomplete: true})).toBe('2 inputs · some unavailable');
+  const m = new SessionsModel(() => true, () => NOW * 1000);
+  const counts = {sources: 0, sourcesIncomplete: true, made: 0, researchers: 0, conversations: 1};
+  m.applyList(list('a', [row('a', {counts})]));
+  m.applyList(list('a', [row('a', {counts: {sources: 1, made: 0, researchers: 0, conversations: 1}})]));
+  expect(inputCountWords(m.rows()[0].counts)).toBe('1 input');
 });

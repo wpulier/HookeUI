@@ -99,12 +99,24 @@ class ActionRunner:
         sight = self.sight()
         return sight.view if sight is not None else None
 
+    async def _current_report(self, ctx: ToolContext) -> None:
+        """The requesting studio's report is current before its steps run: one older than REPORT_FRESH_S (a studio
+        that stopped reporting for a while, or whose reports were not taken) is asked for again, never failed as
+        stale by each tool in turn. The one way in every actor's request takes (screen.fresh_report)."""
+        from ..screen import fresh_report
+
+        client = getattr(ctx, "client", None)
+        if client is not None:
+            await fresh_report(self.hub, client)
+
     async def run(self, actions: list[tuple[str, dict]], ctx: ToolContext, numbers: list[int] | None = None) -> list[ToolRun]:
         """Run one answer's steps in order. `numbers`: the number the model gave each step, when the
         answer's steps are run in more than one call (the brain runs a look's clearing steps before
         its outlines and the rest after them); without it these steps are a new answer, numbered 1..."""
         if ctx.board is None:
             ctx.board = self.board
+        if actions:
+            await self._current_report(ctx)
         # In the order the model gave them (its judgment; a clear it lists after a highlight
         # runs after it).
         runs = [ToolRun(name, dict(args) if isinstance(args, dict) else {}) for name, args in actions]
@@ -150,8 +162,17 @@ class ActionRunner:
             bind_occurrence(run, ctx)
         made: dict[str, str | None] = {}
 
+        def alongside(k: int) -> bool:
+            """Whether step k may start with the next one still to come: both the same tool that runs alongside its
+            own kind, and the next one waiting on no step (Tool.alongside)."""
+            if k + 1 >= len(runs) or runs[k + 1].tool != runs[k].tool or dependent(actions[k + 1]):
+                return False
+            tool = self.registry.tools.get(runs[k].tool)
+            return bool(getattr(tool, "alongside", False))
+
         async def in_order() -> None:
-            for n, run, action in zip(numbers, runs, actions):
+            together: list = []  # steps started alongside one another, waited for as one
+            for k, (n, run, action) in enumerate(zip(numbers, runs, actions)):
                 dependencies = getattr(action, "after_steps", None)
                 reason = None
                 if dependent(action):
@@ -185,10 +206,22 @@ class ActionRunner:
                 args = await self._seen_as_outlines(run.tool, run.args, ctx, made, run)
                 ctx.step = n  # what this step produces is filed under n ("@n" to the steps after it)
                 self.registry.start(run.tool, args, ctx, run=run)
+                if holder is not None:
+                    holder.started(run.task)  # a stop of the whole request (stop_work) cancels it
                 if run.task is not None:
-                    await asyncio.wait([run.task])
+                    together.append(run.task)
+                if together and not alongside(k):
+                    await asyncio.wait(together)
+                    together = []
+            if together:
+                await asyncio.wait(together)
 
+        from .. import user_stop
+
+        holder = user_stop.current()  # the request's stop holder (a voice hand-off's), when it has one
         steps = asyncio.ensure_future(in_order())
+        if holder is not None:
+            holder.started(steps)
         for run in runs:
             run.sequence = steps
         from ..ticket import current

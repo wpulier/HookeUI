@@ -1,0 +1,8 @@
+.material-organization { display: grid; gap: 18px; width: min(100%, 440px); padding: 4px; }
+.material-organization strong { font-size: 16px; overflow-wrap: anywhere; }
+.material-organization label { display: grid; gap: 8px; font-size: 13px; }
+.material-organization input:not([type=checkbox]) { min-width: 0; padding: 10px 12px; border: 1px solid var(--line, #45454a); border-radius: 9px; color: inherit; background: var(--panel, #232326); font: inherit; }
+.material-organization .material-organization-choice { display: flex; align-items: center; gap: 10px; }
+.material-organization p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted, #a2a2ac); }
+.material-organization p:empty { display: none; }
+.project-input-group { margin: 20px 0 8px; font-size: 12px; font-weight: 600; color: var(--muted, #a2a2ac); }

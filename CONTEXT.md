@@ -3,9 +3,18 @@
 The domain glossary. Module names use these words, and reviews and plans use them the same way.
 How things are built is in `AGENTS.md` and the files it maps; why some things are the way they are is in `docs/adr/`.
 
+## Research ownership
+
+- **Project**: the complete ongoing body of research: its material, conversations, Studies, contributors, methods, results and decisions. People, Hooke researchers and connected agents work in the same Project.
+- **Study**: a question, protocol and research effort within a Project, rather than a researcher or only its final report.
+- **Researcher**: a person or agent contributing attributed work to a Project.
+- **Artifact**: a retained input, model, measurement, report or other output with exact revisions and provenance.
+- **Material**: an artifact used by a Project or Study. Origin and use differ: a generated model stays generated when used as a later input.
+- **Project folder**: a portable home for a Project's retained records and dependencies. Moving it preserves the Project's identity; copying it does not grant access.
+
 ## The project and its conversations
 
-- **Project** (called **Session** in existing protocols and historical documentation): the durable owner (ADR 0017): its name, its conversations, what was seen in it, its memory (summaries, settled
+- **Session** (the historical protocol name for **Project** in existing protocols and historical documentation): the durable owner (ADR 0017): its name, its conversations, what was seen in it, its memory (summaries, settled
   facts) and its work (researchers, cell outlines, motion, bookmarks, snapshots, results). A day can hold several and
   one can span days. Its id is the date it began, with ".N" for a date's later ones (`day/sid.py`). One journal per
   session (`services/sessions/<sid>/journal.jsonl`), rebuilt into `SessionStore` (old name `DayStore`). Only the user
@@ -103,7 +112,9 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 - **Moment**: everything a model is told about one request, captured once: the view, what is
   outlined and on screen, the researchers, the conversation, the digest, the preferences.
 - **Hands**: acting on spoken words as soon as they are heard, before the voice hands over.
-- **Hand-off** (delegation): the voice (GPT-Live) handing a request to the brain.
+- **Hand-off** (delegation): the voice (GPT-Live, or the one-brain voice's `do_in_hooke`) handing a request to
+  the brain. The one-brain voice's is a job of its own (kind "hooke", Hooke's own work in progress), listed and
+  numbered with think jobs and researchers, and stopped with `stop_work`.
 - **User leads**: the user finds things themselves; the app points and names only when asked.
 - **Level**: how the user wants things explained, *simple* (the default) or *technical*,
   and whether a hint comes before the answer (*hints first*). A preference the user sets
@@ -216,7 +227,8 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 
 ## Datasets
 
-- **Dataset** (`ds-20261006-012923`): everything about a stretch of looking, collected while the
+- **Dataset**: a collection of research data used within a Project. A dataset can include recordings, images, matrices or other explicitly selected data.
+- **Recorded dataset** (`ds-20261006-012923`, historically called Dataset): everything about a stretch of looking, collected while the
   user records, for later analysis by programs and agents (`docs/datasets.md`). Its edges are
   Record and its Stop and nothing else (ADR 0009). It is not tied to the day.
 - **Record**: the studio's one switch: the studio's own recording, the camera's video and a dataset.

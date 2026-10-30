@@ -92,9 +92,13 @@ def test_ids_targets_labels_and_aliases_as_before():
 
 
 def test_nothing_on_screen_says_so():
+    """Nothing outlined is Hooke's to meet (Will, 30 Oct: "Outline the target structure first"): the refusal carries
+    the step that meets it, a find of what the user means in their own words, which the registry takes first."""
     hub, board, _ = setup()
-    with pytest.raises(ToolFailed, match="ask me to find it first"):
+    with pytest.raises(ToolFailed, match="nothing is outlined for 'that' to mean") as refused:
         board.resolve("that", ctx())
+    tool, args = refused.value.needs
+    assert tool == "find" and "what the user means by 'that'" in args["what"] and args["all"] is False
 
 
 def test_a_target_this_answer_did_not_outline_says_what_to_do():
@@ -368,3 +372,18 @@ def test_how_it_was_made_is_each_model_in_order_from_the_outlines_own_record():
     assert facts.splitlines()[1] == f"How it was made, each model in order: {how_made(find)}."
     # And each part names a model only as names.py says it (one name each, no commas inside a part).
     assert all("," not in part for part in known.chain(repaired))
+
+
+def test_an_outline_named_the_way_marks_name_it_is_the_same_outline():
+    """Will's feel check, 29 Oct: the voice selected "outline:o7" (the marks' way of naming the user's clicked outline)
+    and was told it was not on screen."""
+    from types import SimpleNamespace
+
+    from orchestrator.board import Board
+
+    o7 = SimpleNamespace(id="o7", label="")
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={"o7": o7}))
+    board = Board.__new__(Board)
+    board.hub = hub
+    ctx = SimpleNamespace(aliases={}, targets=None, objects=[])
+    assert board.resolve("outline:o7", ctx) is o7

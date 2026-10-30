@@ -108,7 +108,7 @@ def test_try_medical_ranking_is_one_click_not_a_changed_default(tmp_path, monkey
     monkeypatch.setenv('GEMINI_API_KEY', 'synthetic-test-key')
     rig = Rig(tmp_path)
     app = rig.app
-    app.hub.settings.update({'zeroshot': 'off', 'vision': 'gemini'})
+    assert not app.hub.settings.update({'zeroshot': 'off', 'vision': 'gemini-3.8-flash'})  # a Gemini model, on the Google key
     app.hub.checks.record(model_checks.find('zeroshot', 'medsiglip-always'), 'works', by='synthetic test')
     async def go():
         app._loop = asyncio.get_running_loop()

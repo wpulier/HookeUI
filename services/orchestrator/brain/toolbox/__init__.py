@@ -47,7 +47,10 @@ from .tables import add_table_tools
 from .scientific import add_scientific_tools
 from .datatable_tools import add_datatable_tools
 from .tabs import add_tab_tools
+from .web import add_web_tools
+from .documents import add_document_tools
 from .workflows import add_workflow_tools
+from .experiments import add_experiment_tools
 
 
 @dataclass
@@ -72,6 +75,7 @@ class Services:
     workspace_context: Callable | None = None  # accepted socket -> original action PresentationContext
     segment_all: Callable | None = None  # every match of an exemplar (default tools.segment_all: SAM 3.1 on fal)
     find_reference: Callable | None = None  # (subject, n[, search_terms=...]) -> reference.Found; omitted terms keep the legacy call
+    find_video: Callable | None = None  # async (subject) -> video_search.FoundVideo (None: the web search, checked)
     scale: Any = None  # scale.Scale: the objective in use, so outlines have sizes
     outline_seen: Callable | None = None  # (ref, ctx) -> outline id, for a thing the look saw
     publish_settings: Callable | None = None  # tell every studio the settings changed
@@ -144,8 +148,11 @@ def build(services: Services) -> Registry:
     add_volume_tools(registry, services)
     add_table_tools(registry, services)
     add_tab_tools(registry, services)
+    add_web_tools(registry, services)
+    add_document_tools(registry, services)
     add_scientific_tools(registry, services)
     add_workflow_tools(registry, services)
+    add_experiment_tools(registry, services)
     add_datatable_tools(registry, services)
     if services.log is not None:
         log_research_control(registry, services.log)

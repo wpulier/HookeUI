@@ -21,6 +21,17 @@ MAGNIFIER_MIN_W = 160  # the studio's narrowest magnifier (magnifier.ts resizeTo
 # How long a window change waits for a studio in the background to be in view again, within its request's life
 # (ticket.MAX_TICKET_S): after it, the change was sent and applied but is said not confirmed, never "could not".
 BACKGROUND_WAIT_S = 300.0
+# A window change with no report since it was sent asks the studio for one this often while it waits (`screen-ask`).
+ASK_REPORT_S = 0.5
+# A report that disagrees with the app about a window an action touches is asked for again once, waiting at most this
+# for the studio's next report, before the action's checks run on it (`_native_present`).
+CAUGHT_UP_S = 1.0
+
+
+def _no_report_since(result, actual, fence) -> bool:
+    """The comparison found no report newer than the command (REPORT_STALE): none taken from the studio since."""
+    return (result.get("status") == "unobserved" and (result.get("error") or {}).get("code") == "REPORT_STALE"
+            and actual is not None and type(actual.get("seq")) is int and actual["seq"] <= fence["afterReportSeq"])
 # A look at the screen that did not happen says only that, and that it says nothing about what the user sees (live
 # 2026-10-28: a capture past its deadline became "I can't see your screen ... try refreshing", then "quit and reopen the
 # app"); the windows the studio reports still say what is shown.
@@ -605,7 +616,10 @@ async def act(services, args: dict, by: str | None = None, ctx=None) -> str:
     elif kind in ("magnifier", "viewer", "slidemap", "card", "made-today", "sidebar", "sessions", "document"):
         shown_now = shown(pid) or {}
         if verb in ("move", "resize", "front") and not shown_now.get("open"):
-            raise ToolFailed(f"{name} is not open", next="open it first")
+            # The magnifier not open is Hooke's to meet: it opens it on the thing meant (zoom), then this runs again
+            # (registry `needs`; Will, 30 Oct: "the magnifier isn't open… outline the target structure first").
+            raise ToolFailed(f"{name} is not open", next="open it first",
+                             needs=("zoom", {}) if kind == "magnifier" else None)
         if kind in ("sidebar", "sessions") and verb in ("close", "hide"):
             values = {"open": False} if verb == "close" else {"visible": False}
 
@@ -1017,7 +1031,15 @@ async def reader_close(services, ctx, item: dict) -> str:
 
 
 async def reshow_outlines(services, ctx=None) -> str:
-    """Restore outlines on their requesting browser; unknown receipt is not hidden."""
+    """Restore outlines on their requesting browser; unknown receipt is not hidden. Drawn on the live view, they are
+    brought into sight first: Main to the front when the Tab in front hides the specimen (placement.live_in_sight)."""
+    from ...placement import live_in_sight
+
+    in_sight = await live_in_sight(services.hub, ctx) if ctx is not None else ""
+    return in_sight + await _outlines_shown(services, ctx)
+
+
+async def _outlines_shown(services, ctx=None) -> str:
     from ...screen import laid_out, screen_of
 
     screen = screen_of(services.hub)
@@ -1201,6 +1223,8 @@ def _window_action(ctx, args):
 
 def _window_expectations(message, presentation_area=None, before_report=None, arrangement=None):
     """Use the existing closed completion vocabulary; no model or extra judge."""
+    from ...completion import tab_window
+
     expected = []
     targets, op = message["targets"], message["op"]
     def add(predicate, ids, values, phase="drawn", tolerance=None):
@@ -1256,10 +1280,23 @@ def _window_expectations(message, presentation_area=None, before_report=None, ar
         add("pan", targets, {"center": message["instances"][0]["view"]["pan"]})
     if op == "front":
         scope = (before_report or {}).get("foreground")
-        if scope and scope.get("scope") == "workspace-windows":
-            own_roots = {row.get("rootId") for row in before_report.get("items", []) if row["id"] in targets}
+        own_roots = {row.get("rootId") for row in (before_report or {}).get("items", []) if row["id"] in targets}
+        if (scope and scope.get("scope") == "workspace-windows"
+                and own_roots & {root.get("rootId") for root in scope.get("roots") or ()}):
             add("front", targets, {"scope": scope["scope"], "hostId": scope["hostId"],
                 "above": [row["rootId"] for row in scope["roots"] if row["rootId"] not in own_roots]})
+        elif scope and scope.get("scope") == "workspace-windows":
+            # The window lives inside one of the host's roots, not as a root of its own: in the Project workspace
+            # every native window is mounted in the study artifacts beside the document windows (main.ts
+            # onPresentation), so the stage's foreground never lists it and could never prove it in front (will-leaf,
+            # 30 Oct: front on the open reference photo timed out, and the user was told to ask again). Its Tab's own
+            # order proves it: in front is above every window shown on that Tab (workspace_observation.front, the
+            # window highest on the Tab), by the z the studio measured for each.
+            add("front", targets, {"scope": "tab-windows", "above": [
+                row["id"] for row in before_report.get("items", [])
+                if row["id"] not in targets and tab_window(row) and row.get("open") is True
+                and row.get("visible") is True and row.get("connected") is True
+                and type(row.get("z")) in (int, float)]})
         else:
             above = [row['id'] for row in (before_report or {}).get('items', [])
                      if row['id'] not in targets and row.get('open') and row.get('visible') and row.get('connected')]
@@ -1303,33 +1340,90 @@ def _window_expectations(message, presentation_area=None, before_report=None, ar
     return expected
 
 
-def _placement_observation(states, report, ids):
-    """Exact original CSS geometry, shared by initial and later placement."""
-    import copy
+def _rectangle(value) -> bool:
     import math
+    return (isinstance(value, (list, tuple)) and len(value) == 4
+            and all(type(v) in (int, float) and math.isfinite(v) for v in value)
+            and value[2] > 0 and value[3] > 0)
+
+
+def _not_shown_where(row, report) -> str:
+    """Where a window open but laid out nowhere is, from the report: on another Tab than the one in front (its
+    arrangement's Tab and the Tab strip's titles), or plainly not shown there."""
+    from ...untrusted import inline
+    from ...workspace_observation import front
+
+    tab = (((row or {}).get("view") or {}).get("arrangement") or {}).get("tab")
+    now = front(report)
+    strip = next((i for i in report.get("items") or () if i.get("id") == "workspace-tabs"), None)
+    tabs = ((((strip or {}).get("view") or {}).get("legacy") or {}).get("workspace") or {}).get("tabs") or ()
+    titles = {t.get("id"): t.get("title") for t in tabs if isinstance(t, dict)}
+    if tab and now.get("tab") and tab != now["tab"]:
+        there = f'the "{inline(titles[tab], 80)}" Tab' if titles.get(tab) else "another Tab"
+        here = f'the "{inline(now["tabTitle"], 80)}" Tab' if now.get("tabTitle") else "another Tab"
+        return f"it is on {there}, and {here} is in front"
+    return "it is not shown on the Tab in front"
+
+
+def _placement_issue(state, row, report):
+    """Why the report's `row` cannot place anything against the Core's window `state` now, or None when it can.
+    One truth for what is on screen: the Core says what the window is, the report where it is.
+
+    - "disagrees": the report and the Core differ about the window (no row, another lifetime or source, an older
+      version or another owner of one of its properties): the report may simply be behind, so Hooke asks the studio
+      for a fresh one and looks again before it says so (`_native_present`).
+    - "gone": the Core has it closed.
+    - "hidden": the same window, open in both, laid out nowhere the person sees (on a Tab not in front, hidden):
+      nothing can be placed against it, and nobody changed it.
+
+    Each comes with the check that failed, in words. A studio in the background paints nothing, so no window in it
+    reports visible: one laid out shown there (`screen.laid_out`) still anchors, as `completion` counts it shown."""
+    from ...screen import laid_out
+
+    if not state.open:
+        return "gone", "it was closed"
+    if row is None:
+        return "disagrees", "the studio's report does not show it"
+    if (row.get("lifetimeGeneration") != state.lifetime_generation
+            or row.get("sourceGeneration") != state.source_generation):
+        return "disagrees", "the studio's report shows another opening of it"
+    if row.get("sourceRef") != state.source.to_wire():
+        return "disagrees", "the studio's report shows another source in it"
+    for k, v in state.property_versions.items():
+        name = "rect" if k == "geometry" else k
+        if row.get("propertyVersions", {}).get(name) != v:
+            return "disagrees", f"the studio's report has another version of its {name} than the app"
+        if row.get("propertyOwners", {}).get(name) != state.owners.get(k):
+            return "disagrees", f"the studio's report has another owner of its {name} than the app"
+    if row.get("open") is not True:
+        return "disagrees", "the studio's report shows it closed"
+    shown = row.get("visible") is True or (report.get("visible") is False and laid_out(row))
+    if row.get("connected") is not True or not shown or not _rectangle(row.get("rect")):
+        return "hidden", _not_shown_where(row, report)
+    return None
+
+
+def _placement_observation(states, report, ids):
+    """Exact original CSS geometry, shared by initial and later placement. A window that cannot anchor raises with
+    `placement` set to why (`_placement_issue`) and its reason in words."""
+    import copy
     from ...presentations import PresentationError
     area = report["viewport"].get("presentationArea")
-    def rectangle(value):
-        return (isinstance(value, (list, tuple)) and len(value) == 4
-                and all(type(v) in (int, float) and math.isfinite(v) for v in value)
-                and value[2] > 0 and value[3] > 0)
-    if not rectangle(area):
+    if not _rectangle(area):
         raise PresentationError("layout_unavailable", "beside needs the original measured visible presentation area",
                                 next="show the workspace and ask again")
     rows = {row["id"]: row for row in report["items"]}
     observed = {}
     for iid in ids:
         state, row = states[iid], rows.get(iid)
-        if (row is None or not rectangle(row.get("rect"))
-                or not all(row.get(k) is True for k in ("open", "visible", "connected"))
-                or row.get("lifetimeGeneration") != state.lifetime_generation
-                or row.get("sourceGeneration") != state.source_generation
-                or row.get("sourceRef") != state.source.to_wire()
-                or any(row.get("propertyVersions", {}).get("rect" if k == "geometry" else k) != v
-                       or row.get("propertyOwners", {}).get("rect" if k == "geometry" else k) != state.owners.get(k)
-                       for k, v in state.property_versions.items())):
-            raise PresentationError("target_revised", "beside needs both exact current window rectangles and owners",
-                                    next="check the two windows and ask again")
+        issue = _placement_issue(state, row, report)
+        if issue is not None:
+            kind, why = issue
+            error = PresentationError("target_hidden" if kind == "hidden" else "target_revised",
+                                      f"window {iid} cannot be placed against: {why}",
+                                      next="show that window, then arrange again" if kind == "hidden" else None)
+            error.placement, error.why = kind, why
+            raise error
         # Placement depends on the original window, source and owned geometry,
         # not the next camera sample or paint receipt. A live anchor redraws while
         # the new source is being prepared without moving or changing owners.
@@ -1460,7 +1554,118 @@ async def close_window(services, ctx, item_id: str, by: str | None = None) -> st
     return await act(services, {"what": str(item_id), "do": "close"}, by=by, ctx=ctx)
 
 
+# A change that ends the same however often it is sent (an absolute position, size, centre or order), and the failures
+# that are only the screen not showing it in time: Hooke sends it once more itself, never the user (spec 4.8,
+# horizontal 3; will-leaf, 30 Oct: "ask again in a moment" was spoken after front timed out).
+SAME_TWICE = ("front", "move", "resize", "pan", "hide", "restore", "opacity")
+NOT_SHOWN_YET = ("CONFIRM_TIMEOUT", "TOPOLOGY_MISMATCH", "VERIFICATION_UNAVAILABLE", "DISPLAY_UNVERIFIED")
+
+
+async def _its_tab_in_front(services, ctx, reference) -> None:
+    """Front on a window laid out on a Tab not in front (a Project reopened with it on another Tab): its Tab is
+    brought forward first, the person's own Tab click, so the window can come to the front where they look. A window
+    the report does not place on a Tab, or one already on the Tab in front, is left to front as it is."""
+    from ...placement import strip
+    from ...screen import screen_of
+
+    broker = getattr(services, "workspace_tabs", None)
+    if broker is None:
+        return
+    try:
+        iid = _window_ref(ctx, reference)
+    except ToolFailed:
+        return  # the action itself says what was wrong with its window reference
+    screen = screen_of(services.hub)
+    observed = screen.observation(ctx.client) if getattr(ctx, "client", None) is not None else None
+    wire = observed.wire() if observed is not None else None
+    row = next((i for i in (wire or {}).get("items") or () if i.get("id") == iid), None)
+    tab = (((row or {}).get("view") or {}).get("arrangement") or {}).get("tab")
+    front = strip(wire).get("tab")
+    if not tab or not front or tab == front:
+        return
+    await broker(ctx, {"action": "switch", "tab": str(tab)})
+    if callable(getattr(screen, "refresh", None)):
+        await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
+
+
+async def _native_settled(services, ctx, args):
+    """A native window change, sent once more by Hooke when the screen did not show it the first time (SAME_TWICE,
+    NOT_SHOWN_YET); a second miss is said as what the screen shows, with nothing for the user to repeat."""
+    from ...screen import screen_of
+    from ..registry import CURRENT_RUN
+
+    if args.get("do") in ("front", "restore"):
+        await _its_tab_in_front(services, ctx, args.get("instance", args.get("what")))
+    try:
+        return await _native_present(services, ctx, args)
+    except ToolFailed as first:
+        run = CURRENT_RUN.get()
+        failure = (((run.outcome or {}).get("failure") or {}) if run is not None else {})
+        if args.get("do") not in SAME_TWICE or failure.get("code") not in NOT_SHOWN_YET:
+            raise
+        screen = screen_of(services.hub)
+        if callable(getattr(screen, "refresh", None)):
+            await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
+        try:
+            return await _native_present(services, ctx, args)
+        except ToolFailed as second:
+            if args.get("do") not in SAME_TWICE:
+                raise
+            raise ToolFailed(f"{second}; it was sent twice and the screen still does not show it",
+                             next=None) from first  # no next: Hooke already tried again; nothing is the user's to repeat
+
+
 async def _native_present(services, ctx, args):
+    """A native window change (`_native_present_core`); a window a request opens goes to that request's own Tab."""
+    out = await _native_present_core(services, ctx, args)
+    if args.get("do") == "open":
+        moved = await _home_tab(services, ctx)
+        if moved:
+            out = f"{out}; {moved}" if isinstance(out, str) else out
+    return out
+
+
+async def _home_tab(services, ctx) -> str:
+    """The window this request just opened, moved to the Tab the request was asked in when another Tab came to the front
+    meanwhile that the request did not bring forward itself (Will's try-out, 30 Oct: two reference photos asked for in
+    Close-up; the second landed in the new Tab the next request had opened). The person's own Move, so the Tab in front
+    stays in front. Words for its receipt, or "" when it is already where it belongs."""
+    from ...placement import strip
+    from ...screen import screen_of
+    from ...workspace_tabs import request_key
+    from ..registry import CURRENT_RUN
+
+    pin = getattr(ctx, "request_snapshot", None)
+    broker = getattr(services.hub, "workspace_tabs", None)
+    run = CURRENT_RUN.get()
+    if pin is None or broker is None or run is None:
+        return ""
+    try:
+        asked_in = strip(pin.observation.wire()).get("tab")
+        observed = screen_of(services.hub).observation(ctx.client)
+        now = strip(observed.wire() if observed is not None else None)
+    except Exception:  # nothing to read: left where it opened
+        return ""
+    front = now.get("tab")
+    if not asked_in or not front or asked_in == front:
+        return ""
+    if front in getattr(broker, "fronted", {}).get(request_key(ctx) or "", set()):
+        return ""  # this request brought that Tab forward itself: what it opens belongs there
+    home = next((t for t in now.get("tabs") or () if t.get("id") == asked_in), None)
+    window = next((o.get("instanceId") for o in reversed(run.outputs) if o.get("kind") == "presentation"), None)
+    if home is None or not window:
+        return ""
+    listed = await broker.run(ctx, {"action": "list"}, verify=False)
+    item = next((i for t in listed.get("tabs") or () if t.get("id") == front for i in t.get("items") or ()
+                 if i.get("window") == window and i.get("placement")), None)
+    if item is None:
+        return ""
+    await broker.run(ctx, {"action": "move", "tab": asked_in, "from": front, "placement": str(item["placement"])})
+    title = " ".join(str(home.get("title") or asked_in).split())[:60]
+    return f'put in Tab "{title}", where it was asked for (another Tab came to the front meanwhile, and stays in front)'
+
+
+async def _native_present_core(services, ctx, args):
     import copy
     from dataclasses import replace
     from ...apply import apply, WORKSPACE, blocked
@@ -1478,7 +1683,7 @@ async def _native_present(services, ctx, args):
     original_ticket = tickets.current()
     leases, prepared, effect = [], None, None
     receipts, initial_children = [], {}
-    unseen = {"background": False}  # a change the studio applied while in the background, never seen in time
+    unseen = {"background": False, "unreported": False}  # applied in the background / no report since it was sent
     arrangement = None
     children_receipt, cleanup = None, None
     core, store, screen = services.presentations, services.prepared_sources, screen_of(services.hub)
@@ -1520,6 +1725,18 @@ async def _native_present(services, ctx, args):
             "commandId": effect.command_id if effect else None, "status": "failed",
             "failure": {"code": code.upper(), "reason": reason}, "receipts": list(receipts)}
         raise ToolFailed(reason, next=next_step or "check the original window or source, then ask again")
+
+    beside_note = []  # why an open asked for beside its anchor was opened where the person is instead
+
+    def unplaced(opening, why):
+        """An open asked for beside a window laid out nowhere the person sees (on a Tab not in front, hidden): nobody
+        changed that window, it is just not there to be beside. One part that cannot be done never takes the whole
+        action down (live 2026-10-29 18:54: the photo was kept and never shown), so the new window opens where the
+        studio opens any (on the Tab in front), its anchor left out of the action, and the receipt says why."""
+        reference = (opening.values.get('relation') or opening.values.get('placement', {}).get('relation') or {}).get('reference')
+        before.pop(reference, None)
+        beside_note.append(f"not beside window {reference}: {why}")
+        return replace(opening, values={k: v for k, v in opening.values.items() if k not in ('relation', 'placement')})
     try:
         pctx = services.workspace_context(ctx.client, request_id=occurrence.request_id, owner=occurrence.action_id)
         pin = ctx.request_snapshot
@@ -1549,6 +1766,20 @@ async def _native_present(services, ctx, args):
         if action.op in ("arrange", "open") and action.values.get("relation", {}).get("reference"):
             anchor = action.values["relation"]["reference"]
             before.setdefault(anchor, core.get(pctx.workspace_id, anchor))
+        # One truth for what is on screen: when the studio's last report is not current, or disagrees with the app
+        # about a window this action touches, the report may only be behind. Hooke asks the studio for one now and
+        # looks again, once, before any check below says the window changed (an internal conflict is Hooke's to
+        # resolve, never the user's to ask again).
+        try:
+            observed = screen.observation(ctx.client)
+            latest = screen.completion_report(ctx.client)
+        except ObservationError:
+            observed = latest = None
+        if latest is not None and (not screen._current_observation(observed) or any(
+                (_placement_issue(state, next((r for r in latest["items"] if r["id"] == iid), None), latest)
+                 or ("",))[0] == "disagrees" for iid, state in before.items())):
+            if callable(getattr(screen, "refresh", None)):
+                await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
         baseline = screen.completion_report(ctx.client)
         if baseline is None:
             failure("observation_incomplete", "the accepted workspace has no current observation")
@@ -1584,7 +1815,8 @@ async def _native_present(services, ctx, args):
             # was refused "that window changed" while the first waited in the background).
             running = [prior for prior in candidates if prior.ok is None and prior.occurrence is not None
                        and prior.occurrence.request_id == occurrence.request_id]
-            owners = {prior.occurrence.action_id for prior in earlier + running}
+            # This action's own first attempt changed it too, when Hooke sends it once more (_native_settled).
+            owners = {prior.occurrence.action_id for prior in earlier + running} | {occurrence.action_id}
             for iid, state in before.items():
                 row = pinned.get(iid)
                 # Same-request successful outputs, including earlier rounds,
@@ -1616,10 +1848,16 @@ async def _native_present(services, ctx, args):
             child_deliveries.append(lease)
             action = replace(action, source=lease.source)
             if 'relation' in action.values:
-                arrangement = _opening_basis(action.values['relation'], before, baseline, lease.to_wire().get('originalSize'))
-                values = {k:v for k,v in action.values.items() if k != 'relation'}
-                values['placement'] = {'position':arrangement[0][:2], 'size':arrangement[0][2:], 'relation':arrangement[3]}
-                action = replace(action, values=values)
+                try:
+                    arrangement = _opening_basis(action.values['relation'], before, baseline, lease.to_wire().get('originalSize'))
+                except PresentationError as exc:
+                    if getattr(exc, "placement", None) != "hidden":
+                        raise
+                    action = unplaced(action, getattr(exc, "why", exc.reason))
+                else:
+                    values = {k:v for k,v in action.values.items() if k != 'relation'}
+                    values['placement'] = {'position':arrangement[0][:2], 'size':arrangement[0][2:], 'relation':arrangement[3]}
+                    action = replace(action, values=values)
         elif action.op in ("duplicate", "split"):
             parent = before[action.instance]
             refs = parent.source.components if action.op == "split" else (parent.source,)
@@ -1635,8 +1873,15 @@ async def _native_present(services, ctx, args):
             await ctx.prepared_source_check()
         if action.op == 'open' and arrangement is not None:
             current_report = screen.completion_report(ctx.client)
-            current = _placement_observation(before,current_report,(arrangement[2]['id'],)) if current_report else None
-            if current is None or current[0] != arrangement[1] or current[1][arrangement[2]['id']] != arrangement[2]:
+            try:
+                current = _placement_observation(before,current_report,(arrangement[2]['id'],)) if current_report else None
+            except PresentationError as exc:
+                if getattr(exc, "placement", None) != "hidden":
+                    raise
+                current, arrangement = "unplaced", None
+                action = unplaced(action, getattr(exc, "why", exc.reason))
+            if current != "unplaced" and (current is None or current[0] != arrangement[1]
+                                          or current[1][arrangement[2]['id']] != arrangement[2]):
                 failure('target_revised','the original report or visible area changed while preparing its captured view')
         for iid, original in before.items():
             now = core.get(pctx.workspace_id, iid)
@@ -1659,7 +1904,7 @@ async def _native_present(services, ctx, args):
                 raise PresentationError("request_canceled", "the original request Ticket is no longer current")
             core.compensation_guard(committed, pctx)
 
-        async def deliver(committed, op, original, *, compensation=False):
+        async def deliver(committed, op, original, *, compensation=False, required=False):
             if compensation:
                 compensation_guard(committed)
             states = tuple(core.get(pctx.workspace_id, iid) for iid in committed.targets)
@@ -1691,6 +1936,7 @@ async def _native_present(services, ctx, args):
             # The deadline counts only time the studio is in view: in the background it paints nothing, and paints
             # what it was given once shown again, so that wait is the user's, never a failure (completion.compare).
             background_s, background_since, waited_since = 0.0, None, None
+            asked_at = screen._observation_clock()
             while True:
                 error = None
                 if compensation:
@@ -1769,6 +2015,12 @@ async def _native_present(services, ctx, args):
                     break
                 if not in_background and screen._observation_clock() >= effective["deadlineMono"]:
                     break
+                if (not in_background and _no_report_since(result, actual, fence)
+                        and screen._observation_clock() - asked_at >= ASK_REPORT_S):
+                    # No report since the command: Hooke asks the studio for one (a studio reports on a change and
+                    # every few seconds), rather than waiting the deadline out and failing it as "stale".
+                    asked_at = screen._observation_clock()
+                    services.hub.broadcast({"type": "screen-ask"})
                 await asyncio.sleep(0.25 if in_background else 0.025)
             receipts.append(result)
             if facet is not None:
@@ -1781,7 +2033,23 @@ async def _native_present(services, ctx, args):
             if result["status"] == "unobserved" and (result.get("error") or {}).get("code") == "STUDIO_IN_BACKGROUND":
                 unseen["background"] = True
                 return False  # sent and applied by the studio, not a failure: it shows once the studio is in view
+            if not compensation and not required and _no_report_since(result, actual, fence):
+                # Sent, and the studio took no report Hooke could read since, though it was asked: not confirmed,
+                # said as that, never a failure with "ask again" (an internal check is not the user's to repeat).
+                unseen["unreported"] = True
+                plain = {"code": "STUDIO_UNREPORTED", "boundary": "observe", "retryable": False, "next": None,
+                         "reason": "the studio has not reported what it shows since the change was sent"}
+                receipts[-1] = {**result, "error": plain}
+                run.outcome = {**receipts[-1], "receipts": list(receipts), "failure": plain}
+                if facet is not None:
+                    facet["row"].update(status="unobserved", confirmation=copy.deepcopy(receipts[-1]), error=dict(plain))
+                return False
             if result["status"] != "confirmed":
+                if _no_report_since(result, actual, fence):
+                    # A step the whole action needs (a split's retirement of its original): not confirmed is not done.
+                    raise ToolFailed(f"the {op} was sent, but not confirmed on screen: the studio has not reported "
+                                     "what it shows since",
+                                     next=None)  # no next: it was asked for a report already; nothing is the user's to do
                 raise ToolFailed((result.get("error") or {}).get("reason") or "the display could not be verified",
                                  next=(result.get("error") or {}).get("next") or REPORT_NEXT)
             raw = screen.observation(ctx.client).wire()
@@ -1878,13 +2146,17 @@ async def _native_present(services, ctx, args):
             retired = await apply(services.hub, lambda _place: core.retire_group(effect, pctx), scope="session", destination=WORKSPACE)
             if not retired.ok:
                 failure("request_canceled", retired.reason)
-            await deliver(retired.value.retirement, "close", parent_before)
+            await deliver(retired.value.retirement, "close", parent_before, required=True)
             run.outcome = {**children_receipt, "retirement": receipts[-1], "receipts": list(receipts)}
+        note = "".join(f"; {line}" for line in beside_note)
         if not confirmed and unseen["background"]:
             return ("the window change was sent to the studio, which stayed in the background: it shows once the "
-                    "studio is in view again, not confirmed on screen yet")
+                    "studio is in view again, not confirmed on screen yet" + note)
+        if not confirmed and unseen["unreported"]:
+            return ("sent, but not confirmed on screen: the studio has not reported what it shows since it was sent "
+                    "(not known whether it happened; not done and not failed)" + note)
         if not confirmed:
-            return "the window change was sent; its display is unverified"
+            return "the window change was sent; its display is unverified" + note
         # This is also the receipt carried into conversation/voice reconciliation.
         # A generic success loses which retained source actually changed, letting
         # an older assistant claim rename an unrelated image as the original: each
@@ -1893,6 +2165,10 @@ async def _native_present(services, ctx, args):
         from ...untrusted import inline
 
         changed = []
+        try:
+            drawn = {row.get("id"): row.get("drawRef") for row in (screen.completion_report(ctx.client) or {}).get("items", ())}
+        except ObservationError:  # the connection went since its confirmation: the words lose only the held note
+            drawn = {}
         for iid in effect.targets:
             state = core.get(pctx.workspace_id, iid)
             source = state.source.to_wire()
@@ -1900,12 +2176,15 @@ async def _native_present(services, ctx, args):
             address = source['identity'].get('resource') or {}
             shown = source['identity'].get('object') or source['identity'].get('objectId') or address.get('id')
             line = f"{source['kind']} {source['media']}" + (f" {shown}" if shown else "")
+            if source['kind'] == 'live' and isinstance(drawn.get(iid), dict) and set(drawn[iid]) == {'held'}:
+                # Never "live" for a frame that is not (ADR 0006): its object left the view, and it shows its last frame.
+                line += " (held: its last frame, since what it shows left the view)"
             if web.get('title'):
                 line += f" \"{inline(web['title'], 200)}\"" + (f" from {inline(web['site'], 200)}" if web.get('site') else "")
             if web.get('page'):
                 line += f" ({inline(web['page'], 1000)})"
             changed.append(f"{line} in window {iid}")
-        return f"shown on screen ({action.op}, confirmed by the studio): " + "; ".join(changed)
+        return f"shown on screen ({action.op}, confirmed by the studio): " + "; ".join(changed) + note
     except PresentationError as exc:
         failure({"components_unavailable": "component_unavailable"}.get(exc.code, exc.code), exc.reason,
                 next_step=exc.next)
@@ -1928,6 +2207,7 @@ async def _native_present(services, ctx, args):
 
 def add_present_tools(registry: Registry, services) -> None:
     import json
+    from ...placement import DESCRIPTION as PLACEMENT_WORDS, SCHEMA as PLACEMENT_SCHEMA
     from ...screen import TAKES, VERBS
 
     hub = services.hub
@@ -1936,7 +2216,7 @@ def add_present_tools(registry: Registry, services) -> None:
               and callable(getattr(services, "workspace_context", None)))
     native_verbs = ("open", "close", "duplicate", "split", "zoom", "pan", "move",
                     "resize", "front", "arrange", "beside", "opacity", "hide", "restore", "group", "ungroup")
-    operations = list(VERBS)
+    operations = list(VERBS) + ["place"]  # place: put `what` where `placement` says (placement.py)
     targets = {kind: list(verbs) for kind, verbs in TAKES.items()}
     for kind in ("population", "tracks"):
         targets[kind] += ["open", "close"]  # the existing show/hide aliases
@@ -1962,8 +2242,20 @@ def add_present_tools(registry: Registry, services) -> None:
                  "description": "document or legacy magnifier move/resize: [x,y,width,height] workspace CSS pixels, width at least 160; native windows use their own layout fields"},
         "over": {"type": "boolean", "description": "legacy magnifier move/resize: asked for over the view or its object"},
         "revision": {"type": "integer", "description": "population open/show only: 0 for retained original, or its current revision; no recomputation"},
+        "placement": {**PLACEMENT_SCHEMA, "description": "do=place only: " + PLACEMENT_WORDS
+                      + ". Outlines (eN, layer:eN): overlay draws them on the live view; new-tab gives them a Tab with "
+                      "their capture and table"},
+        "tab": {"type": "string", "maxLength": 80,
+                "description": "with placement: the Tab to put it in, by title or id, made when none has that title "
+                               "(default: in front); it is opened there from Data when not open there"},
+        "instead": {"type": "boolean",
+                    "description": "with placement: move it here from the Tab it is open in, when the user wants it "
+                                   "here rather than there; otherwise it opens here too"},
     }
     description = ("Present layers, document windows and the magnifier" + (" or independent native windows" if native else "") + ". "
+                   "do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, "
+                   "window, replace, close, only), done once the screen shows it; with tab it puts it in that Tab "
+                   "(a window, a saved picture, a researcher's picture, a table), wherever it is now. "
                    "Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; "
                    "they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population "
                    "can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its "
@@ -2057,6 +2349,10 @@ def add_present_tools(registry: Registry, services) -> None:
     params["examples"] = examples
 
     async def present(ctx: ToolContext, args: dict) -> str:
+        if args.get("do") == "place" or args.get("placement") is not None:  # the one placement vocabulary (placement.py)
+            from ...placement import place
+
+            return await place(services, ctx, registry, args)
         if ("source" in args or "instance" in args or "targets" in args
                 or isinstance(args.get("what"), dict) or str(args.get("what", "")).startswith("w-")):
             if (getattr(services, "presentations", None) is None
@@ -2064,7 +2360,7 @@ def add_present_tools(registry: Registry, services) -> None:
                     or not callable(getattr(services, "workspace_context", None))):
                 raise ToolFailed("native workspace presentations are unavailable",
                                  next="ask for an installed display capability")
-            return await _native_present(services, ctx, args)
+            return await _native_settled(services, ctx, args)
         return await act(services, args, ctx=ctx)
 
     registry.add(Tool("present", description, params, present, inline_ms=1500, family="display", verbs=VERBS))

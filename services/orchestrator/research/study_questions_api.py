@@ -29,7 +29,7 @@ def register(app, built, studio_origin, header):
     async def ask(study: str, request: Request):
         try:
             body = await _body(request)
-            if set(body) != {'session', 'request', 'question', 'basis', 'recipient'}:
+            if set(body) - {'materials'} != {'session', 'request', 'question', 'basis', 'recipient'}:
                 raise ValueError('Use the declared Study question fields')
             session = body.pop('session')
             owner(request, session, True)

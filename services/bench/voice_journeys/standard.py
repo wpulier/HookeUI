@@ -7,7 +7,7 @@ Everything is on one clock, epoch seconds (the player keeps milliseconds; `load_
   view's frames ("frames"), faults injected ("fault"), the researchers board ("researchers") and the checks after a
   restart ("check");
 - the stack's conversation log (conversation.jsonl): what each voice said (chat lines) and each tool card (chat-action);
-- the stack's interaction log (interactions.jsonl): the one brain's partner-* records (PARTNER-CONTRACT.md: talk, turn,
+- the stack's interaction log (interactions.jsonl): the one brain's partner-* records (live-partner-contract.md: talk, turn,
   response, barge, tool, marks, proactive, reconnect), and GPT-Live's voice-handoff records.
 
 Both voices are scored by the same code. What only the one brain has (marks, proactive lines, reconnect, do_in_hooke)
@@ -31,12 +31,24 @@ SPEAKS_S = 3.0  # a mark drawn this long before the voice starts speaking is "be
 SPEECH_END_CLEAR_S = 2.0  # marks clear about 1.5 s after the voice stops (contract); this is the bound checked
 USER_BUSY_S = 1.5  # "not talking": no key held, no speech in the last 1.5 s (Amendment 4)
 POINTING = {"mark"}  # tools that point rather than act: never the "first try"
+# The fallback hand-off ("no tool for this": the whole request to the brain), capped by the standard at under 5% of the
+# one brain's acting calls. think (the frontier mind behind the voice, claude/p25-think) is the intended route for hard
+# and multi-step work, not a fallback (the coordinator, 2026-10-29): it is the right tool where a step expects it and the
+# wrong one where not, and its share is reported by kind of step, never capped.
 FALLBACK = "do_in_hooke"
+THINK = "think"
 
-# The standard's numbers (PARTNER-CONTRACT.md "The acceptance standard"). One place, so the scoreboard and the tests
+# The scorer's version, recorded with every result: a kept run rescored by the same version gives the same result
+# (hooke-web part-2.5-live-partner-spec.md, section 2 "The rescore is a warning about the gate itself"). Raise it with
+# any change to what is scored.
+SCORER_VERSION = "2026-10-29.4"
+
+# The standard's numbers (live-partner-contract.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
 STANDARD = {
-    "firstAudioP50": 0.8, "firstAudioP95": 1.5,
+    "heardMax": 0.3,  # a sign it heard you, after release (decision 1)
+    "meaningfulP50": 1.2, "meaningfulP95": 1.8,  # the first meaningful words (decision 1, replacing first audio)
+    "qualityMean": 2.5, "qualityMin": 2,  # Overall: the judge's partner quality
     "bargeSilentMax": 0.15,
     "singleP50": 3.0, "singleP95": 5.0,
     "multiMax": 8.0,
@@ -46,15 +58,28 @@ STANDARD = {
     "markLatencyMax": 0.2,
     "eventSpokenMax": 2.0,
     "reconnectMax": 2.0,
+    "takeoverMax": 0.15,  # Drive: from the studio's input to the server knowing
     "fpsKept": 0.9,  # live view frame rate at least this share of the baseline before Talk
     "delayAddedMaxS": 0.05,  # live view delay p90 no more than this above the baseline
     "plainShare": 0.9,  # answers of one or two sentences (the bench's reading of "one or two plain sentences")
+    # The watcher (orchestrator/view_watch.py): an event it says, from the moment it was established to the first audio,
+    # when nobody is talking; and its events on a steady stretch where nothing happens, per hour. The rate is
+    # provisional until Will accepts one (the live partner's brief, item 4).
+    "watchSpokenMax": 2.0,
+    "watchFalsePerHour": 1.0,
 }
 
 # What was meant for the model and must never be spoken (live 2026-10-28 and the app's own note wording).
 LEAK_PHRASES = ("nothing was outlined", "nothing's outlined", "nothing is outlined", "context only", "silent context",
                 "not a user request", "do not acknowledge", "ask_app", "do_in_hooke", "look_hard", "function call",
-                "tool call", "the delegation", "screen now:", "project brief", "untrusted")
+                "tool call", "the delegation", "screen now:", "project brief", "untrusted",
+                # Hooke's internal checks, never the user's to hear (the live partner spec, 4.8 horizontal 3; Will's
+                # try-out, 29 Oct: "the workspace report was out of date ... ask again in a moment").
+                "workspace report", "workspace view was out of date", "report was out of date", "report was stale",
+                "ask again in a moment", "saved revision", "the observation", "source grant", "bounded name",
+                # The voice and Hooke are one to the user ("I"), never a hand-off narrated (will-workspace, 29 Oct: "I'll
+                # have Hooke find a reference image", "I'll ask Hooke to close all windows").
+                "ask hooke", "have hooke", "hooke's brain", "hand it off", "handed it off", "handing it off")
 LEAK_PATTERNS = (
     re.compile(r"[{\[]\s*\""),  # JSON
     re.compile(r"\"\s*:\s*[\"{\[\d]"),
@@ -89,6 +114,18 @@ def phrases(text: str, among: tuple[str, ...]) -> list[str]:
 
 def sentences(text: str) -> int:
     return max(1, len([s for s in re.split(r"(?<=[.!?])\s+", text.strip()) if s.strip()])) if text.strip() else 0
+
+
+# First words that say nothing yet (a measurement list, deciding nothing for the app): a reply opening with only these is
+# not yet meaningful; the first word beyond them is.
+FILLER = {"mm", "mmm", "mhm", "hmm", "hm", "um", "uh", "okay", "ok", "sure", "right", "alright", "so", "yeah", "yes",
+          "yep", "got", "it", "one", "sec", "second", "moment", "let", "me", "see", "check", "look", "well", "oh", "ah",
+          "great", "thanks", "on", "it's", "i'm", "just", "a"}
+
+
+def meaningful(text: str) -> bool:
+    """Whether a reply's words so far say something beyond filler ("mm", "okay", "one sec", "let me look")."""
+    return any(w not in FILLER for w in re.findall(r"[a-z0-9']+", text.lower()))
 
 
 def researcher_numbers(text: str) -> list[int]:
@@ -230,10 +267,15 @@ def released(step: dict) -> float:
     return step["up"] if isinstance(step.get("up"), (int, float)) else step["end"]
 
 
-def windows(steps: list[dict]) -> list[tuple[float, float]]:
+def windows(steps: list[dict], ended: float | None = None) -> list[tuple[float, float]]:
+    """Each step's window: from its words to the next step's. The last runs TAIL_S after its words, but never past its
+    run's end (`ended`): the next run's opening words are that run's (will-workspace, 30 Oct: the next run's opener,
+    "That central bright oval looks like a stoma…", was read as close-all's second outcome)."""
     out = []
     for i, step in enumerate(steps):
         until = opened(steps[i + 1]) if i + 1 < len(steps) else released(step) + TAIL_S
+        if i + 1 == len(steps) and isinstance(ended, (int, float)):
+            until = max(released(step), min(until, ended))
         out.append((opened(step), until))
     return out
 
@@ -292,6 +334,19 @@ def lines_from_responses(inter: list[dict], start: float, end: float) -> list[di
     return sorted(out, key=lambda l: l["first"])
 
 
+def api_researchers(bench: dict) -> dict[str, dict]:
+    """The researchers the orchestrator listed during the run (/api/research, harness "researchers" events from the
+    API): rid -> its latest row (number, created, finished, status). Empty for runs from before the player read it."""
+    out: dict[str, dict] = {}
+    for e in bench["events"]:
+        if e.get("e") != "researchers":
+            continue
+        for row in e.get("rows") or []:
+            if row.get("source") == "api" and row.get("rid"):
+                out[row["rid"]] = {**out.get(row["rid"], {}), **row}
+    return out
+
+
 @dataclass
 class Call:
     name: str
@@ -303,6 +358,10 @@ class Call:
     rid_at: float | None = None
     error: str = ""
     end: float | None = None
+    number: int | None = None  # the researcher's number ("Researcher 2"), when the call says it
+    call_id: str | None = None
+    inner: list = None  # think: the frontier mind's own tool calls ({name, ok, confirmed})
+    summary: str = ""  # what its receipt says it did (a brain step's summary), for the judge to check claims against
 
 
 def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[Call]:
@@ -319,16 +378,114 @@ def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[C
         confirmed = r.get("reportT") if r.get("confirmed") is True and isinstance(r.get("reportT"), (int, float)) else None
         out.append(Call(str(r.get("name")), t, r.get("ok"), confirmed, bool(r.get("screenChange")), r.get("rid"),
                         r.get("ridT") if isinstance(r.get("ridT"), (int, float)) else None, str(r.get("error") or ""),
-                        r.get("endT") if isinstance(r.get("endT"), (int, float)) else None))
+                        r.get("endT") if isinstance(r.get("endT"), (int, float)) else None, call_id=r.get("callId")))
     return sorted(out, key=lambda c: c.start)
+
+
+def thinks(inter: list[dict]) -> dict[str, dict]:
+    """think's tasks by the call that started them (claude/p25-think): the call returns at once; partner-think says how
+    the frontier mind's work ended (its own tool calls inside, doneT); partner-think-said when its result was handed
+    to the voice; the voice's next "think" response says it, often during a later step. callId -> the task."""
+    sayings: dict = {}  # task -> when each response saying it was asked for, the first first (a cut one comes back)
+    for r in inter:
+        if r.get("kind") == "partner-think-said" and isinstance(r.get("responseCreatedT"), (int, float)):
+            sayings.setdefault(r.get("task"), []).append(r["responseCreatedT"])
+    said = {task: min(times) for task, times in sayings.items()}
+    ends = audio_ends(inter)
+    spoken = sorted((r["firstAudioT"], response_end(r, ends) or r["firstAudioT"] + 10) for r in inter
+                    if r.get("kind") == "partner-response" and r.get("cause") == "think"
+                    and isinstance(r.get("firstAudioT"), (int, float)))
+    # Calls that run in the background the same way (reference_photo, retrieve_page): the call's record names its task,
+    # partner-background says how it ended.
+    call_of = {r["task"]: r["callId"] for r in inter if r.get("kind") == "partner-tool" and r.get("task") and r.get("callId")}
+    out = {}
+    for r in inter:
+        if r.get("kind") not in ("partner-think", "partner-background"):
+            continue
+        call_id = r.get("callId") or call_of.get(r.get("task"))
+        if not call_id:
+            continue
+        at = said.get(r.get("task"))
+        span = next(((a, b) for a, b in spoken if at is not None and a >= at - NEAR_S), None)
+        spans = list(dict.fromkeys(found for t in sorted(sayings.get(r.get("task")) or [])
+                                   if (found := next(((a, b) for a, b in spoken if a >= t - NEAR_S), None))))
+        out[call_id] = {"task": r.get("task"), "n": r.get("n"), "ok": r.get("ok"), "doneT": r.get("doneT"),
+                        "spans": spans,
+                        "tools": [t for t in r.get("tools") or [] if isinstance(t, dict)], "error": r.get("error"),
+                        "refused": r.get("refused"), "saidT": at, "span": span,
+                        "background": r.get("kind") == "partner-background", "confirmed": r.get("confirmed")}
+    return out
+
+
+BACKGROUND_SCREEN = {"reference_photo"}  # background calls whose result is put on screen
+
+
+def with_thinks(calls: list[Call], tasks: dict[str, dict]) -> list[Call]:
+    """A think call carries its task's end: done when the frontier mind finished, confirmed on screen then when one of
+    its own tool calls was."""
+    for c in calls:
+        task = tasks.get(c.call_id or "")
+        if task is None:
+            continue
+        done = task["doneT"] if isinstance(task["doneT"], (int, float)) else None
+        c.end, c.ok = done or c.end, task["ok"] if task["ok"] is not None else c.ok
+        c.error = str(task.get("error") or c.error or "")
+        if task["background"]:  # a picture shown, a page read: done (and on screen, for a picture) when it lands
+            c.screen_change = c.screen_change or c.name in BACKGROUND_SCREEN
+            c.confirmed_at = done if c.screen_change and c.ok is True and task.get("confirmed") is not False else None
+            continue
+        c.inner = task["tools"]
+        c.screen_change = any(t.get("confirmed") is not None for t in c.inner)
+        c.confirmed_at = done if any(t.get("confirmed") is True for t in c.inner) else None
+    return calls
+
+
+def _unseen(step: dict) -> bool:
+    """A step's receipt saying its change was sent but not seen on screen (voice/handoffs.py `unconfirmed`)."""
+    outcome = step.get("outcome") if isinstance(step.get("outcome"), dict) else {}
+    failure = outcome.get("failure") if isinstance(outcome.get("failure"), dict) else {}
+    return (outcome.get("status") in ("unobserved", "timed_out", "pending")
+            or failure.get("code") in ("STUDIO_UNREPORTED", "STUDIO_IN_BACKGROUND", "REPORT_STALE"))
 
 
 def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
     """Tool cards (chat-action lines) in [start, end): one per action, at its first showing; ok and the time it first
     showed ok (a late ✓ is shown again with the same action id)."""
     calls: dict[str, Call] = {}
+    # A hand-off is its step's from its first row on, with every later state of it (will-alive, 30 Oct: the next words
+    # came while the video search still ran, as the plan asks, and its result, landed after, was lost to the step).
+    first: dict[str, float] = {}
+    for r in conv:
+        if r.get("type") == "handoff" and isinstance(r.get("at"), (int, float)) and r.get("id") is not None:
+            first.setdefault(str(r["id"]), r["at"])
     for r in conv:
         at = r.get("at")
+        began_at = first.get(str(r.get("id")), at) if r.get("type") == "handoff" else at
+        if (r.get("type") == "handoff" and isinstance(at, (int, float)) and isinstance(began_at, (int, float))
+                and start <= began_at < end and isinstance(r.get("steps"), list)):
+            # A voice hand-off's row (PARTNER_ACTS "brain"): the brain's steps, as the chat shows them, each settled
+            # when the row was (a step done there was confirmed by the studio before the brain answered); a late
+            # step's own card (chat-action, same action id) settles it again below.
+            began = r.get("startedAt") if isinstance(r.get("startedAt"), (int, float)) else at
+            for i, step in enumerate(s for s in r["steps"] if isinstance(s, dict)):
+                key = step.get("actionId") or f"{step.get('tool')}@{began}:{i}"
+                call = calls.get(key)
+                if call is None:
+                    call = calls[key] = Call(str(step.get("tool")), began + i * 1e-3, step.get("ok"), None, False)
+                call.ok = step.get("ok") if step.get("ok") is not None else call.ok
+                call.summary = str(step.get("summary") or call.summary)
+                if step.get("ok") is True and call.confirmed_at is None and not _unseen(step):
+                    call.confirmed_at = at
+                if call.name == "start_researcher" and step.get("ok") is True and call.rid is None:
+                    # Its researcher, from the step's research-run output (as a chat-action card's, below).
+                    refs = [o.get("resource") for o in step.get("outputs") or [] if isinstance(o, dict)]
+                    call.rid = next((r.get("researcherId") for r in refs if isinstance(r, dict) and r.get("researcherId")),
+                                    None)
+                    call.rid_at = at if call.rid else None
+                    named = re.search(r"\bResearcher (\d+)\b", str(step.get("summary") or ""))
+                    call.number = int(named.group(1)) if named else None
+                call.end = at
+            continue
         if r.get("type") != "chat-action" or not isinstance(at, (int, float)) or not start <= at < end:
             continue
         key = r.get("actionId") or f"{r.get('tool')}@{at}"
@@ -336,13 +493,29 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
         if call is None:
             call = calls[key] = Call(str(r.get("tool")), at, r.get("ok"), None, False)
         call.ok = r.get("ok") if r.get("ok") is not None else call.ok
+        call.summary = str(r.get("summary") or call.summary)
         if r.get("ok") is True and call.confirmed_at is None:
             call.confirmed_at = at
         if call.name == "start_researcher" and r.get("ok") is True and call.rid_at is None:
+            # Its researcher: the card's research-run output names it, its summary says its number.
+            outputs = [o.get("resource") for o in r.get("outputs") or [] if isinstance(o, dict) and isinstance(o.get("resource"), dict)]
             resource = r.get("resource") if isinstance(r.get("resource"), dict) else {}
-            call.rid, call.rid_at = r.get("rid") or resource.get("id") or key, at
+            rid = r.get("rid") or next((o.get("researcherId") for o in outputs if o.get("researcherId")), None) or resource.get("id")
+            call.rid, call.rid_at = rid or key, at
+            named = re.search(r"\bResearcher (\d+)\b", str(r.get("summary") or ""))
+            call.number = int(named.group(1)) if named else None
         call.end = at
     return sorted(calls.values(), key=lambda c: c.start)
+
+
+def heard_cues(bench: dict, inter: list[dict]) -> list[float]:
+    """When a sign it heard you was given (decision 1): the server's partner-heard record (its cueT), else the studio's
+    own heard cue as the page saw it (a /ws/voice message of type heard)."""
+    out = [r.get("cueT") if isinstance(r.get("cueT"), (int, float)) else r.get("t") for r in inter
+           if r.get("kind") == "partner-heard"]
+    out += [e["t"] for e in bench["events"] if e.get("e") in ("ws-in", "ws-out")
+            and (e.get("m") or {}).get("type") in ("heard", "heard-cue")]
+    return sorted(t for t in out if isinstance(t, (int, float)))
 
 
 def turn_number(bench_events: list[dict], start: float, end: float):
@@ -354,22 +527,199 @@ def turn_number(bench_events: list[dict], start: float, end: float):
     return None
 
 
-def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
-    """When the one brain spoke on its own (a proactive event, a reconnect line): those lines belong to no step."""
-    ends, out = audio_ends(inter), []
-    for r in inter:
-        if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "reconnect") \
-                and isinstance(r.get("firstAudioT"), (int, float)):
-            end = response_end(r, ends)
-            out.append((r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10))
+def resaid_spans(inter: list[dict]) -> list[tuple[float, float]]:
+    """The responses that brought back a result the user had cut off ("as I started to say…"): its partner-proactive or
+    partner-think-said record says `again` (times it was cut before). The response carrying it is the one whose
+    `events` name it, else the first of its cause to start after it was asked for. Its line is the same outcome said
+    once more, not a second one: every outcome is counted once."""
+    again = [r for r in inter if r.get("kind") in ("partner-proactive", "partner-think-said")
+             and (r.get("again") or 0) > 0 and isinstance(r.get("responseCreatedT"), (int, float))]
+    if not again:
+        return []
+    ends = audio_ends(inter)
+    responses = sorted((r for r in inter if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "think")
+                        and isinstance(r.get("firstAudioT"), (int, float))), key=lambda r: r["firstAudioT"])
+    out = []
+    for a in again:
+        cause = "think" if a["kind"] == "partner-think-said" else "proactive"
+        found = next((r for r in responses if a.get("eventId") and a["eventId"] in (r.get("events") or [])), None)
+        if found is None:
+            found = next((r for r in responses if r.get("cause") == cause
+                          and r["firstAudioT"] >= a["responseCreatedT"] - NEAR_S), None)
+        if found is not None:
+            end = response_end(found, ends)
+            out.append((found["firstAudioT"] - NEAR_S, end if end is not None else found["firstAudioT"] + 10))
     return out
 
 
-def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=()) -> list[dict]:
+def outcome_spans(inter: list[dict]) -> dict[str, list[tuple[float, float]]]:
+    """The spoken outcome of a tool the voice called, said when it landed (a hand-off's, a slow tool's: the bus's
+    tool-done event, ref its call id): by call id, the lines that said only such outcomes. Each belongs to the step that
+    made the call, wherever it falls (will-leaf, 29 Oct: Cellpose's outcome, said in its step, was dropped as unprompted;
+    a reference photo's, cut off by the next words and said again then, was counted in that step)."""
+    events = {r.get("eventId"): r for r in inter if r.get("kind") == "partner-proactive" and r.get("eventId")}
+    turns = sorted(r["releasedT"] for r in inter if r.get("kind") == "partner-turn"
+                   and isinstance(r.get("releasedT"), (int, float)))
+    ends, out = audio_ends(inter), {}
+    for r in inter:
+        if r.get("kind") != "partner-response" or r.get("cause") != "proactive" \
+                or not isinstance(r.get("firstAudioT"), (int, float)) or not r.get("events"):
+            continue
+        said = [events.get(i) for i in r["events"]]
+        # A called tool's outcome (tool-done, ref its call id) or a started researcher's (researcher-done, ref its id).
+        if not said or any(e is None or e.get("event") not in ("tool-done", "researcher-done") or not e.get("ref")
+                           for e in said):
+            continue
+        end = response_end(r, ends)
+        if end is None:  # its end unrecorded: at most until the user's next words
+            end = min([t for t in turns if t > r["firstAudioT"]] + [r["firstAudioT"] + 10])
+        span = (r["firstAudioT"] - NEAR_S, end)
+        for ref in {e["ref"] for e in said}:
+            out.setdefault(str(ref), []).append(span)
+    return out
+
+
+def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
+    """When the one brain spoke on its own (a proactive event, a reconnect line): those lines belong to no step. A
+    called tool's outcome said when it landed is its step's (outcome_spans), not unprompted."""
+    ends, out = audio_ends(inter), []
+    owned = {span for spans in outcome_spans(inter).values() for span in spans}
+    # The next words said (any response) or asked (the user's release) end an unprompted line whose end is unrecorded:
+    # they are their own (will-experiment, 30 Oct: an event line's guessed 10 s swallowed the answer to "How is the
+    # experiment going?" said 2.5 s later, and the step was judged as never answered).
+    after = sorted([r["firstAudioT"] if isinstance(r.get("firstAudioT"), (int, float)) else r["responseCreatedT"]
+                    for r in inter if r.get("kind") == "partner-response"
+                    and isinstance(r.get("firstAudioT") or r.get("responseCreatedT"), (int, float))]
+                   + [r["releasedT"] for r in inter if r.get("kind") == "partner-turn"
+                      and isinstance(r.get("releasedT"), (int, float))])
+    for r in inter:
+        if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "reconnect") \
+                and isinstance(r.get("firstAudioT"), (int, float)):
+            if r.get("cause") == "proactive" and any(span[0] == r["firstAudioT"] - NEAR_S for span in owned):
+                continue
+            end = response_end(r, ends)
+            if end is None:
+                end = min([t for t in after if t > r["firstAudioT"]] + [r["firstAudioT"] + 10])
+            span = (r["firstAudioT"] - NEAR_S, end)
+            if span not in owned:
+                out.append(span)
+    return out
+
+
+VISIBLE_INTENTS = {"open", "close", "focus", "highlight", "select", "zoom", "outline", "present"}
+
+
+def backed(receipt: dict, calls: list[Call], bench: dict) -> bool:
+    """Whether the app's state backs a verified receipt: its tool's call confirmed by the studio's report (a visible
+    change) or the state a note or a setting changes; True where the page kept no such state to contradict it."""
+    tool = receipt.get("tool")
+    mine = [c for c in calls if c.name == tool and c.start <= receipt["t"] + NEAR_S]
+    if receipt.get("intent") in VISIBLE_INTENTS or any(c.screen_change for c in mine):
+        return any(c.confirmed_at is not None and c.confirmed_at <= receipt["t"] + 1.0 for c in mine)
+    for c in mine:
+        if c.ok is True and state_backed(c, bench) is not None:
+            return True
+    return not mine
+
+
+SETTING_TOOLS = {"set_default", "use", "set_level", "set_lead", "set_research_cap", "set_objective"}
+NOTE_TOOLS = {"researcher_note", "researcher_followup"}
+
+
+def state_backed(call: Call, bench: dict) -> float | None:
+    """When the app's own state shows what a call that changes nothing on screen did (think-broad-2: "Researcher 2 got
+    the message", "Done." after set_default): a researcher's notes rising (/api/research), a setting changing (the
+    settings the studios are sent); other such calls by their result. None when the state the page saw never changed;
+    the call's end when the page kept no such state (runs from before it did)."""
+    after = call.start - NEAR_S
+    events = bench["events"]
+    if call.name in NOTE_TOOLS:
+        rows = [(e["t"], r) for e in events if e.get("e") == "researchers" for r in e.get("rows") or []
+                if r.get("source") == "api" and isinstance(r.get("notes"), int)]
+        if rows:
+            before = {r["rid"]: r["notes"] for t, r in rows if t < after}  # each researcher's notes before the call
+            return next((t for t, r in rows if t >= after and r["notes"] > before.get(r["rid"], 0)), None)
+    elif call.name in SETTING_TOOLS:
+        changes = [e for e in events if e.get("e") == "settings"]
+        if changes:
+            return next((e["t"] for e in changes if e["t"] >= after and not e.get("first") and e.get("changed")), None)
+    return call.end or call.start
+
+
+def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, unprompted=(), own=(), others=()) -> list[dict]:
     """The voice's lines answering a step (what the judge numbers and the scorer reads, in the same order): the
-    journal's, else the one brain's responses, without what it said on its own (events, reconnects)."""
+    journal's, else the one brain's responses, without what it said on its own (events, reconnects). A think result
+    belongs to the step that handed it over: its spoken span (`own`) is this step's wherever it falls, and another
+    step's (`others`) is not."""
     lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
-    return [l for l in lines if not any(a <= l["first"] <= b for a, b in unprompted)]
+    # Each span is one response: the first line that starts in it is that response's, and a later line starting
+    # inside it is another response's (will-experiment, 30 Oct: an event line's span, its end unrecorded, swallowed the
+    # answer said 2.5 s after it, and the step was judged as never answered).
+    dropped = set()
+    for a, b in [*unprompted, *others]:
+        inside = [l for l in lines if a <= l["first"] <= b and l["id"] not in dropped]
+        if inside:
+            dropped.add(min(inside, key=lambda l: l["first"])["id"])
+    lines = [l for l in lines if l["id"] not in dropped]
+    seen = {l["id"] for l in lines}
+    for a, b in own:
+        for l in voice_lines(conv, a - NEAR_S, b) or lines_from_responses(inter, a - NEAR_S, b):
+            if l["id"] not in seen:
+                seen.add(l["id"])
+                lines.append(l)
+    return sorted(lines, key=lambda l: l["first"])
+
+
+def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[float, float], unprompted=(),
+              tasks: dict | None = None):
+    """A step's turn number, its tool calls (think's with their tasks) and the lines answering it."""
+    start, end = window
+    n = turn_number(bench["events"], start, end)
+    calls = partner_calls(inter, n, start, end)
+    source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
+    calls = with_thinks(calls, tasks or {}) if calls else card_calls(conv, start, end)
+    if source == "partner" and any(c.name == FALLBACK for c in calls) and all(c.name in (FALLBACK, *POINTING) for c in calls):
+        # The voice handed it to Hooke's brain (PARTNER_ACTS "brain"): the tools that did it are the brain's own, read
+        # from its tool cards as GPT-Live's are; the voice's pointing stays its own.
+        cards = card_calls(conv, start, end)
+        if cards:
+            calls, source = [c for c in calls if c.name in POINTING] + cards, "brain"
+    mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
+    own = [x for cid, t in (tasks or {}).items() if cid in mine for x in (t.get("spans") or [t["span"]]) if x]
+    others = [x for cid, t in (tasks or {}).items() if cid not in mine for x in (t.get("spans") or [t["span"]]) if x]
+    # A called tool's outcome said when it landed is this step's when it called it, and no other step's; so is the
+    # outcome of a researcher it started (will-research, 29 Oct: "Researcher 2 finished, and the five-model comparison
+    # showed substantial disagreement…" was dropped as unprompted, and the step judged as never answered).
+    called = {c.call_id for c in partner_calls(inter, n, start, end) if c.call_id}
+    called |= {c.rid for c in calls if c.name == "start_researcher" and c.rid}
+    for cid, spans in (bench.get("_outcomes") or {}).items():
+        (own if cid in called else others).extend(spans)
+    return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)
+
+
+def restart_checks(checks: list[dict], conv: list[dict], step: dict) -> list[dict]:
+    """A restart keeps where it was: the Project the journal filed lines in just before the restart is the one it files
+    them in after it. That is the project check for any run (the page's own check says the same for runs since it
+    compares with the Project open before the restart). Checks the first player wrote (2026-10-29) asked for a fixed
+    Project and read researchers from a board the bench's studio does not draw: its project check is the journal's,
+    and its researcher check, which could see none, is not measured."""
+    at = step["start"]
+    filed = [(r["at"], r.get("day")) for r in conv if isinstance(r.get("at"), (int, float)) and r.get("day")]
+    before = max((x for x in filed if x[0] < at - 1), default=(None, None))[1]
+    after = min((x for x in filed if x[0] > at + 1), default=(None, None))[1]
+    out = []
+    for check in checks:
+        name, detail = str(check.get("name", "")), str(check.get("detail", ""))
+        legacy = "before the restart" not in detail and "Researcher " not in detail
+        if name.startswith("project:") and legacy and before and after:
+            check.update(ok=before == after, detail=f"the journal's Project before the restart {before}, after it {after}")
+        elif name.startswith("researcher:") and legacy and detail.startswith("rows: ;"):
+            check.update(ok=None, detail="not measured: the first player read researchers from a board not drawn here")
+        out.append(check)
+    if not any(str(c.get("name", "")).startswith("project:") for c in out) and before and after:
+        out.append({"name": "project (journal)", "ok": before == after,
+                    "detail": f"the journal's Project before the restart {before}, after it {after}"})
+    return out
 
 
 def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dict, conv: list[dict],
@@ -377,14 +727,12 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     """One step against its expectation. Every number is None when it does not apply or was not observed."""
     start, end = window
     release = released(step)
-    n = turn_number(bench["events"], start, end)
-    lines = step_lines(conv, inter, start, end, unprompted)
+    n, calls, source, lines = step_view(bench, conv, inter, window, unprompted, bench.get("_thinks"))
     grown = bench.get("_fragments") or {}
+    resaid = bench.get("_resaid") or []
     for l in lines:
         l["growth"] = grown.get(l["id"], [])
-    calls = partner_calls(inter, n, start, end)
-    source = "partner" if calls else "cards"  # the one brain's own tool records, else the brain's tool cards (GPT-Live)
-    calls = calls or card_calls(conv, start, end)
+        l["again"] = any(a <= l["first"] <= b for a, b in resaid)
     acting = [c for c in calls if c.name not in POINTING]
     tools = expect.get("tools")  # acceptable first acting tools; [] = none expected
     row: dict = {"id": step["id"], "kind": step.get("kind"), "say": step.get("say"), "n": n, "toolSource": source,
@@ -396,6 +744,15 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     spoken_step = step.get("kind") not in ("idle", "restart")
     first = first_on_after(segments, release, end) if spoken_step else None
     row["firstAudioS"] = round(first - release, 3) if first is not None else None
+    # The first meaningful words: when the page first showed a line's words beyond filler (else when such a line began).
+    row["meaningfulS"] = None
+    if spoken_step:
+        times = [at for l in lines for at, text in (l.get("growth") or [(l["first"], l["text"])]) if meaningful(text)]
+        times += [l["first"] for l in lines if not l.get("growth") and meaningful(l["text"])]
+        after = [t for t in times if t >= release - NEAR_S]
+        row["meaningfulS"] = round(max(0.0, min(after) - release), 3) if after else None
+    cue = next((t for t in bench.get("_heard") or [] if release - NEAR_S <= t < end), None) if spoken_step else None
+    row["heardS"] = round(max(0.0, cue - release), 3) if cue is not None else None
 
     # Barge-in: the key down while the voice was audible, to silence (and staying silent while held).
     if step.get("interrupt"):
@@ -407,8 +764,7 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
             row["bargeS"] = round(heard[1] - down, 3)
             again = first_on_after(segments, heard[1], release)
             row["bargeLeak"] = again is not None
-            if row["bargeS"] > STANDARD["bargeSilentMax"] or again is not None:
-                fail("barge-in not silent")
+            # A timing: reported on its line, never a step failure (spec #80).
 
     # Acting: the right tool on the first try.
     first_tool = acting[0].name if acting else None
@@ -421,13 +777,30 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         if not row["toolRight"]:
             fail(f"first tool {first_tool or 'none'}, expected {' or '.join(tools) or 'none'}")
     row["doInHooke"] = sum(1 for c in calls if c.name == FALLBACK)
+    row["think"] = sum(1 for c in calls if c.name == THINK)
+    row["thinkExpected"] = THINK in (tools or [])
+    if any(c.inner is not None for c in calls):  # what the frontier mind did behind think
+        row["thinkTools"] = [t.get("name") for c in calls for t in (c.inner or [])]
     row["acting"] = len(acting)
 
-    # Researchers: started in this step, and how soon.
+    # Researchers: started in this step, and how soon. The orchestrator's own list says which researchers were made in
+    # the step (its `created`), whoever started them; without it, the start_researcher calls that succeeded.
     started = {}
-    for c in acting:
-        if c.name == "start_researcher" and c.ok is not False and (c.rid or c.rid_at):
-            started.setdefault(c.rid or f"{c.start}", c.rid_at or c.start)
+    listed = bench.get("_researchers") or {}
+    if listed:
+        for rid, r in listed.items():
+            if isinstance(r.get("created"), (int, float)) and opened(step) - 0.5 <= r["created"] < end:
+                started[rid] = r["created"]
+    else:
+        for c in acting:
+            if c.name == "start_researcher" and c.ok is not False and (c.rid or c.rid_at):
+                started.setdefault(c.rid or f"{c.start}", c.rid_at or c.start)
+    # Their numbers in the order they were started (the orchestrator's created time), as the app numbered them.
+    numbered = {rid: (listed.get(rid) or {}).get("number") for rid in started}
+    numbered.update({c.rid: c.number for c in acting if c.name == "start_researcher" and c.rid in started
+                     and isinstance(c.number, int) and not isinstance(numbered.get(c.rid), int)})
+    row["researcherNumbers"] = [numbered[rid] for rid in sorted(started, key=lambda rid: started[rid])
+                                if isinstance(numbered.get(rid), int)]
     row["researchers"] = len(started)
     row["researcherIds"] = sorted(started)
     expected_researchers = expect.get("researchers", 0)
@@ -466,11 +839,16 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         outcome_lines = [l for l in lines if grew_after(l, anchor - NEAR_S) is not None]
         if any(c.confirmed_at is not None and c.screen_change for c in acting):
             fail("a request that cannot succeed changed the screen")
-    # Said once: lines after the confirmation (the judge's count when it ran).
+    # Said once: the lines with words after the confirmation (scored from the record, never by the judge). A line that
+    # brings back a result the user cut off is that outcome again, not another one (resaid_spans).
     if expect.get("visible") or expect.get("outcome"):
-        said = (verdict or {}).get("outcome_mentions")
-        counted = len(outcome_lines) if visible_at is not None or expect.get("fails") else None
-        row["outcomesSaid"] = said if isinstance(said, int) else counted
+        # A researcher this step started says its own result when it lands, once (its event): that is the researcher's
+        # outcome, not this request's a second time (will-research, 30 Oct: "Researcher 2 is testing five classifiers"
+        # then, 150 s later, "Researcher 2 finished the comparison…" counted as the start said twice).
+        theirs = [x for rid in started for x in (bench.get("_outcomes") or {}).get(rid, [])]
+        firsts = [l for l in outcome_lines if not l.get("again") and not any(a <= l["first"] <= b for a, b in theirs)]
+        said_lines = len(firsts) if firsts else min(len(outcome_lines), 1)
+        row["outcomesSaid"] = said_lines if visible_at is not None or expect.get("fails") else None
         if row["outcomesSaid"] is not None and row["outcomesSaid"] != 1:
             fail(f"outcome said {row['outcomesSaid']} times")
     else:
@@ -500,46 +878,59 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         want = bench.get("_expectedResearcher")
         said = sorted({k for l in lines for k in researcher_numbers(l["text"])})
         row["statusNamed"], row["statusExpected"] = said, want
-        row["statusRight"] = want is not None and said == [want]
-        if not row["statusRight"]:
+        # No researcher from the plan's researcher step: that step failed, and there is no right answer to check here.
+        row["statusRight"] = None if want is None else said == [want]
+        if row["statusRight"] is False:
             fail(f"status named researcher {said or 'none'}, expected {want}")
 
     # Nothing on screen that was not asked for.
     row["unaskedChanges"] = sum(1 for c in acting if c.screen_change and c.confirmed_at is not None
                                 and tools is not None and c.name not in (tools or []))
 
-    # False done: a line the judge says claims a visible change, with no confirmation by the time it was said.
-    # A claim is {"line": i, "words": "..."} (or just i): it was said when the page first showed its words.
-    claims = (verdict or {}).get("claims_on_screen")
-    if isinstance(claims, list):
-        confirmed = sorted(c.confirmed_at for c in calls if c.confirmed_at is not None)
-        false = []
-        for claim in claims:
-            i, words = (claim.get("line"), claim.get("words")) if isinstance(claim, dict) else (claim, None)
-            if isinstance(i, int) and 0 <= i < len(lines):
-                at = said_at(lines[i], words)
-                if not any(t <= at + NEAR_S for t in confirmed):
-                    false.append((words or lines[i]["text"])[:60])
-        row["falseDone"] = len(false)
-        if false:
-            fail(f"said done without a studio report: {false}")
-    else:
-        row["falseDone"] = None
+    # Receipts (the spec, section 4.2): every action ends in one (verified, failed, uncertain, running). A false "done" is
+    # a receipt saying verified that the app's own state does not back (no studio report of a visible change; for a
+    # note or a setting, the researcher's notes or the setting unchanged): scored from receipts and app state, never
+    # by the judge.
+    receipts = [r for r in inter if r.get("kind") == "partner-hands" and isinstance(r.get("t"), (int, float))
+                and start <= r["t"] < end]
+    row["receipts"] = {k: sum(1 for r in receipts if r.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}
+    false = [r for r in receipts if r.get("result") == "verified" and not backed(r, calls, bench)]
+    row["falseDone"] = len(false) if receipts else None
+    if false:
+        named = [" ".join(str(r.get(k) or "") for k in ("intent", "target")).strip() for r in false]
+        fail(f"verified without the app's state behind it: {named}")
     # Without the judge: a screen change that was never confirmed, and the voice spoke after it (to be read).
     row["unconfirmedThenSpoke"] = sum(1 for c in acting if c.screen_change and c.confirmed_at is None
                                       and any(l["first"] > c.start for l in lines))
 
     # The restart step's checks (the Project, its table, Tab and researcher output are there after reopening).
-    checks = [e for e in bench["events"] if e.get("e") == "check" and e.get("step") == step["id"]]
-    if checks:
-        row["checks"] = {e["name"]: bool(e.get("ok")) for e in checks}
+    checks = [dict(e) for e in bench["events"] if e.get("e") == "check" and e.get("step") == step["id"]]
+    if step.get("restart"):
+        checks = restart_checks(checks, conv, step)
+    if checks:  # ok None: it was not there before the restart (an earlier step's failure, not counted again here)
+        row["checks"] = {e["name"]: e.get("ok") for e in checks}
         for e in checks:
-            if not e.get("ok"):
+            if e.get("ok") is False:
                 fail(f"after restart: {e['name']} missing ({e.get('detail', '')})")
+    if expect.get("takeover"):  # the bench took over while the partner acted: scored on stopping, not on finishing
+        mine = [r for r in inter if r.get("kind") == "partner-takeover" and isinstance(r.get("atServer"), (int, float))
+                and start <= r["atServer"] < end]
+        row["takeover"] = [round(r["atServer"] - r["atStudio"], 3) for r in mine if isinstance(r.get("atStudio"), (int, float))]
+        if not mine:
+            skipped = next((e.get("skipped") for e in bench["events"] if e.get("e") == "takeover" and e.get("step") == step["id"]), None)
+            fail(f"no takeover reached the server{f' ({skipped})' if skipped else ''}")
+    recovered = [e for e in bench["events"] if e.get("e") == "recovered" and e.get("step") == step["id"]]
+    if recovered:
+        row["recovered"] = [{"what": e.get("what"), "from": e.get("from"), "ok": e.get("ok")} for e in recovered]
+    if any(e.get("e") == "staged" and e.get("step") == step["id"] for e in bench["events"]):
+        row["staged"] = True  # the bench put the specimen back on the stage after this step
     if not lines and spoken_step and not expect.get("silent"):
         fail("no answer")
     if verdict and verdict.get("answered") is False:
         fail(f"not answered: {verdict.get('why', '')}")
+    # How it felt as a colleague (judge.py partner_quality, 0-3): reported, never a step failure.
+    quality = (verdict or {}).get("partner_quality")
+    row["partnerQuality"] = quality if isinstance(quality, (int, float)) and not isinstance(quality, bool) and 0 <= quality <= 3 else None
     row["judge"] = verdict
     return row
 
@@ -603,19 +994,32 @@ def overlap(a, b) -> float:
 
 
 def holds(steps: list[dict]) -> list[tuple[float, float]]:
-    """When the user was talking: each key hold, else each step's words, plus the quiet after (USER_BUSY_S)."""
-    return [(opened(s), released(s) + USER_BUSY_S) for s in steps]
+    """When the user was talking: each key hold, else each step's words, plus the quiet after (USER_BUSY_S). A step
+    with no words and no key (an idle wait, a restart) is nobody talking: an event told during it is not over the user."""
+    return [(opened(s), released(s) + USER_BUSY_S) for s in steps
+            if s.get("say") or isinstance(s.get("down"), (int, float))]
 
 
-def proactive(inter: list[dict], segments, busy) -> list[dict]:
-    """Each event the one brain told unprompted: event to speech, whether it spoke over the user, one line per event."""
+def proactive(inter: list[dict], segments, busy, researchers: dict | None = None) -> list[dict]:
+    """Each event the one brain told unprompted: event to speech, whether it spoke over the user, one line per event.
+    A researcher's event happened when it finished (the orchestrator's list); the record's eventT is when the line
+    was sent, after any wait for quiet."""
     out, seen = [], {}
     for r in inter:
-        if r.get("kind") != "partner-proactive":
-            continue
+        if r.get("kind") != "partner-proactive" or (r.get("again") and any(
+                o["event"] == r.get("event") and o["ref"] == r.get("ref") for o in out)):
+            continue  # a re-said event's record is its first one's line, timed by that one
         key = f"{r.get('event')}|{r.get('ref')}"
-        seen[key] = seen.get(key, 0) + (1 if r.get("responseCreatedT") else 0)
+        # A first saying counts; one that brings back what the user cut off (again) is the same line once more.
+        first = bool(r.get("responseCreatedT")) and not r.get("again")
+        seen[key] = seen.get(key, 0) + (1 if first else 0)
+        if r.get("responseCreatedT") and r.get("again") and not seen[key]:
+            seen[key] = 1
         event_t = r.get("eventT") if isinstance(r.get("eventT"), (int, float)) else r.get("t")
+        finished = ((researchers or {}).get(str(r.get("ref"))) or {}).get("finished")
+        if str(r.get("event", "")).startswith("researcher") and isinstance(finished, (int, float)) \
+                and isinstance(event_t, (int, float)) and finished <= event_t:
+            event_t = finished
         created = r.get("responseCreatedT")
         spoke = first_on_after(segments, created, created + 15) if isinstance(created, (int, float)) else None
         if spoke is None and isinstance(created, (int, float)):
@@ -632,8 +1036,226 @@ def proactive(inter: list[dict], segments, busy) -> list[dict]:
     return out
 
 
+RECEIPTS = ("verified", "failed", "uncertain", "running")
+CUE_WAIT_S = 0.5  # Hands waits this long for the studio to show its cue before the effect (voice/hands.py)
+
+
+def drive(inter: list[dict], bench: dict) -> dict:
+    """Hands, the partner's drive (docs/architecture/on-screen.md, claude/p25-best): each cue shown before its effect
+    (drive-shown within CUE_WAIT_S of its sending, else the effect ran without it), each user takeover's way from the
+    studio to the server, every cue ended (drive-end, seen in the page), and no action after a takeover planned against
+    an earlier control version."""
+    # An action on the whole picture has no cue (what it draws shows it: hands.Hands._cue), so it is no cue missed.
+    drives = [r for r in inter if r.get("kind") == "partner-drive" and not r.get("skipped")]
+    hands = [r for r in inter if r.get("kind") == "partner-hands"]
+    takeovers = [r for r in inter if r.get("kind") == "partner-takeover"]
+    first = [r for r in drives if r.get("ok") and isinstance(r.get("shownT"), (int, float))
+             and isinstance(r.get("sentT"), (int, float)) and r["shownT"] - r["sentT"] <= CUE_WAIT_S]
+    ways = [round(r["atServer"] - r["atStudio"], 3) for r in takeovers
+            if isinstance(r.get("atServer"), (int, float)) and isinstance(r.get("atStudio"), (int, float))]
+    stale = [h for t in takeovers for h in hands if isinstance(t.get("atServer"), (int, float))
+             and isinstance(h.get("t"), (int, float)) and h["t"] > t["atServer"]
+             and isinstance(h.get("version"), int) and isinstance(t.get("version"), int) and h["version"] < t["version"]]
+    sent = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive"}
+    ended = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive-end"}
+    receipted = {h.get("driveId") for h in hands if h.get("result") in RECEIPTS}
+    return {"cues": len(drives), "cueFirst": len(first), "notShown": [r.get("why") for r in drives if not r.get("ok")],
+            "unreceipted": sum(1 for r in drives if r.get("id") not in receipted),
+            "invalidReceipts": sum(1 for h in hands if h.get("result") not in RECEIPTS or "expected" not in h),
+            "takeovers": len(takeovers), "takeoverS": ways, "staleAfterTakeover": len(stale),
+            "unended": len(sent - ended) if sent else None,
+            "results": {k: sum(1 for h in hands if h.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}}
+
+
+def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[str, dict]) -> dict:
+    """The watcher's events (its "watch-event" records): each one told to the voice to be said (rule idle or interrupt),
+    from its eventT to the first audio of its line (partner-proactive with its id as the reference), and whether that
+    was over the user; and the plan's watch steps (`expect.watch`): a list of kinds that must be raised within the step,
+    or [] for a steady stretch where every event is a false alarm. Steps are their own start to end (an idle step's
+    footage is switched before it starts, so the cut that brings it is not counted in it). An event raised in a watch
+    step that expects some (nobody talks there) must be said; elsewhere one may wait out a user who keeps talking."""
+    events = [r for r in inter if r.get("kind") == "watch-event" and isinstance(r.get("eventT"), (int, float))]
+    lines: dict[str, dict] = {}
+    for r in inter:  # its first saying times it; one folded into another (merged) was said by that one's line
+        if r.get("kind") == "partner-proactive" and r.get("responseCreatedT"):
+            for ref in [r.get("ref"), *(r.get("merged") or [])]:
+                lines.setdefault(str(ref), r)
+    spans = [(s["id"], s["start"], s["end"] if isinstance(s.get("end"), (int, float)) else s["start"]) for s in steps
+             if (expects.get(s["id"]) or {}).get("watch") and isinstance(s.get("start"), (int, float))]
+    said = []
+    for e in events:
+        if e.get("delivery") not in ("idle", "interrupt") or e.get("to") != "voice":
+            continue
+        line = lines.get(str(e.get("id")))
+        created = line.get("responseCreatedT") if line else None
+        spoke = first_on_after(segments, created, created + 15) if isinstance(created, (int, float)) else None
+        if spoke is None and isinstance(created, (int, float)):
+            spoke = next((x.get("firstAudioT") for x in inter if x.get("kind") == "partner-response"
+                          and x.get("cause") == "proactive" and isinstance(x.get("firstAudioT"), (int, float))
+                          and x["firstAudioT"] >= created), None)
+        said.append({"event": e.get("event"), "id": e.get("id"), "delivery": e.get("delivery"),
+                     "spokenS": round(spoke - e["eventT"], 3) if spoke is not None else None,
+                     "overUser": spoke is not None and any(a <= spoke < b for a, b in busy),
+                     "skipped": (line or {}).get("skipped"),
+                     # raised in a watch step where it was expected (nobody talking there): it must be said
+                     "inStep": next((sid for sid, a, b in spans if a <= e["eventT"] < b), None)})
+    planned, missed, steady_s, false = 0, [], 0.0, []
+    steady_planned = sum(1 for e in expects.values() if (e or {}).get("watch") == [])
+    for step in steps:
+        want = (expects.get(step["id"]) or {}).get("watch")
+        if want is None or not isinstance(step.get("start"), (int, float)):
+            continue
+        planned += 1
+        end = step.get("end") if isinstance(step.get("end"), (int, float)) else step["start"]
+        inside = [e for e in events if step["start"] <= e["eventT"] < end]
+        if want == []:
+            steady_s += end - step["start"]
+            false += [{"event": e.get("event"), "id": e.get("id"), "step": step["id"]} for e in inside]
+        else:
+            missed += [f"{step['id']}: {kind}" for kind in want if not any(e.get("event") == kind for e in inside)]
+    return {"said": said, "planned": planned, "missed": missed, "steadyS": round(steady_s, 1), "falseAlarms": false,
+            "raised": len(events), "steadyPlanned": steady_planned}
+
+
+# Alive and available (W3; the live partner spec 4.8, horizontal 2): the voice's state as the studio showed it.
+ALIVE_GAP_S = 2.0  # a wait longer than this with nothing playing must show a state (the finish line: no silent gap)
+ALIVE_STATES = frozenset({"listening", "heard", "thinking", "working", "speaking"})  # a state that says something goes on
+# A state shown for less than this is a flicker between two, not a gap without one (will-alive, 29 Oct: "idle" for 0 ms
+# as a hand-off's row ended and the voice began its outcome, counted as a 7.6 s wait uncovered).
+ALIVE_FLICKER_S = 0.3
+PRESENCE_GRACE_S = 1.0  # the presence pill shows within this of the Assistant closing
+
+
+def shown_states(bench: dict, inter: list[dict]) -> tuple[list[dict], str | None]:
+    """The voice's state over time as shown, oldest first: what the page showed (harness `voice-shown`: state, n,
+    pill, assistant), else the server's voice-state messages the page received (ws-in), else the server's own log of
+    them (partner-state records, an acoustic run with no page). With it, where it came from; none: ([], None)."""
+    page = [{"t": e["t"], "state": e.get("state"), "n": e.get("n"), "pill": e.get("pill"), "assistant": e.get("assistant")}
+            for e in bench["events"] if e.get("e") == "voice-shown" and isinstance(e.get("t"), (int, float))]
+    if page:
+        return page, "page"
+    sent = [{"t": e["t"], "state": (e.get("m") or {}).get("state"), "n": (e.get("m") or {}).get("n")}
+            for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "voice-state"
+            and isinstance(e.get("t"), (int, float))]
+    if sent:
+        return sent, "voice-state messages"
+    logged = sorted(({"t": r["t"], "state": r.get("state"), "n": r.get("n")} for r in inter
+                     if r.get("kind") == "partner-state" and isinstance(r.get("t"), (int, float))), key=lambda r: r["t"])
+    return (logged, "server log") if logged else ([], None)
+
+
+def _merge(spans: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    out: list[list[float]] = []
+    for a, b in sorted(s for s in spans if s[1] > s[0]):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out]
+
+
+def _silences(segments, start: float, end: float) -> list[tuple[float, float]]:
+    """The silences in [start, end] between the audio segments (as longest_gap reads them)."""
+    out, at = [], start
+    for a, b in sorted(segments):
+        if b <= start or a >= end:
+            continue
+        if a > at:
+            out.append((at, a))
+        at = max(at, b)
+    if end > at:
+        out.append((at, end))
+    return out
+
+
+def handoff_spans(inter: list[dict], until: float) -> dict[str, tuple[float, float]]:
+    """Each hand-off's working span from the server's partner-handoff records: its first working record to its first
+    record in another state (still working at the end: to `until`)."""
+    spans: dict[str, list] = {}
+    for r in sorted((r for r in inter if r.get("kind") == "partner-handoff" and r.get("id")
+                     and isinstance(r.get("t"), (int, float))), key=lambda r: r["t"]):
+        span = spans.get(r["id"])
+        if r.get("state") == "working":
+            if span is None:
+                spans[r["id"]] = [r["t"], None]
+        elif span is not None and span[1] is None:
+            span[1] = r["t"]
+        elif span is None:
+            spans[r["id"]] = [r["t"], r["t"]]  # seen only once it had ended: no wait to cover
+    return {hid: (a, b if b is not None else max(until, a)) for hid, (a, b) in spans.items()}
+
+
+def alive(bench: dict, inter: list[dict], steps: list[dict], wins, segments, expects: dict[str, dict]) -> dict:
+    """What the studio showed of the voice while it worked (the finish line: "no gap over 2 s without a visible state"):
+    - every silence over ALIVE_GAP_S inside a wait (a spoken step's release to its first audio, a partner tool's call, a
+      hand-off while it works) had a state that says something goes on shown the whole time (never idle, off or none);
+    - every hand-off the server filed has its row in the chat (harness `handoff-row`);
+    - with Talk on and the Assistant closed, the presence pill showed within PRESENCE_GRACE_S and stayed."""
+    end = wins[-1][1] if wins else (bench.get("ended") or 0)
+    origin = wins[0][0] if wins else (bench.get("started") or 0)
+    shown, source = shown_states(bench, inter)
+    waits: list[tuple[float, float]] = []
+    for step, (start, until) in zip(steps, wins):
+        if step.get("kind") in ("idle", "restart", "stage", "typed") or not step.get("say"):
+            continue
+        release = released(step)
+        first = first_on_after(segments, release, until)
+        if first is not None:
+            waits.append((release, first))
+        elif not (expects.get(step.get("id")) or {}).get("silent"):
+            waits.append((release, until))  # never answered: the whole step is a wait
+    waits += [(r["startT"], r["endT"]) for r in inter if r.get("kind") == "partner-tool"
+              and isinstance(r.get("startT"), (int, float)) and isinstance(r.get("endT"), (int, float))]
+    # This run's hand-offs (the stack's log may hold an earlier run's): those begun from its first step on.
+    handoffs = {hid: span for hid, span in handoff_spans(inter, end).items() if origin - 1.0 <= span[0] <= end}
+    waits += list(handoffs.values())
+    waits = [(max(a, origin), min(b, end)) for a, b in waits]  # inside the run's steps (not the opener before them)
+    gaps = [(a, b) for wa, wb in _merge(waits) for a, b in _silences(segments, wa, wb) if b - a > ALIVE_GAP_S]
+
+    def states_in(a: float, b: float) -> list:
+        before = [s for s in shown if s["t"] <= a]
+        return ([before[-1]["state"]] if before else [None]) + [s["state"] for s in shown if a < s["t"] < b]
+
+    def lapses(a: float, b: float) -> bool:
+        """Whether a state that says nothing goes on (idle, off, none) was shown for longer than a flicker in (a, b)."""
+        before = [s for s in shown if s["t"] <= a]
+        timeline = ([(a, before[-1]["state"])] if before else [(a, None)]) + \
+            [(s["t"], s["state"]) for s in shown if a < s["t"] < b]
+        for (t, state), (nxt, _) in zip(timeline, timeline[1:] + [(b, None)]):
+            if state not in ALIVE_STATES and nxt - t > ALIVE_FLICKER_S:
+                return True
+        return False
+
+    uncovered = [{"atS": round(a - origin, 1), "s": round(b - a, 1), "shown": sorted({str(x) for x in states_in(a, b)})}
+                 for a, b in gaps if lapses(a, b)]
+    rows = {e.get("id") for e in bench["events"] if e.get("e") == "handoff-row" and e.get("id")}
+    missing = sorted(hid for hid in handoffs if hid not in rows)
+    # Closed spans: Talk on (a state shown, not off) with the Assistant closed; the pill shown from the grace on.
+    closed, misses = 0, []
+    page = [s for s in shown if "assistant" in s]
+    for i, s in enumerate(page):
+        if s.get("assistant") is not False or s.get("state") in (None, "off"):
+            continue
+        if i > 0 and page[i - 1].get("assistant") is False and page[i - 1].get("state") not in (None, "off"):
+            continue  # the same closed span, a later change in it
+        j = i
+        while j + 1 < len(page) and page[j + 1].get("assistant") is False and page[j + 1].get("state") not in (None, "off"):
+            j += 1
+        a, b = s["t"], page[j + 1]["t"] if j + 1 < len(page) else end
+        if b - a < PRESENCE_GRACE_S:
+            continue  # closed for less than the grace: nothing to show yet
+        closed += 1
+        # The pill as shown from the grace on: the last sample at or before a + grace, then every change before b.
+        settled = [x for x in page[i:j + 1] if x["t"] <= a + PRESENCE_GRACE_S][-1:] + \
+            [x for x in page[i:j + 1] if a + PRESENCE_GRACE_S < x["t"] < b]
+        if not all(x.get("pill") for x in settled):
+            misses.append({"atS": round(a - origin, 1), "s": round(b - a, 1)})
+    return {"measured": bool(shown), "source": source, "gaps": len(gaps), "uncovered": uncovered,
+            "handoffs": len(handoffs), "missingRows": missing, "closed": closed, "presenceMissed": misses}
+
+
 def reconnects(inter: list[dict], bench: dict) -> list[dict]:
-    faults = [e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
+    faults =[e["t"] for e in bench["events"] if e.get("e") == "fault" and e.get("fault") == "close-provider"]
     out = []
     for r in inter:
         if r.get("kind") != "partner-reconnect":
@@ -647,29 +1269,46 @@ def reconnects(inter: list[dict], bench: dict) -> list[dict]:
     return out
 
 
-def live_view(bench: dict) -> dict:
-    """Frames on /ws per second (fps) and their delay, before Talk (the baseline) and while the journey ran."""
+def live_view(bench: dict, baseline: list[dict] | None = None) -> dict:
+    """Frames on /ws per second (fps) and their delay, before Talk (the baseline) and while the journey ran. Only the
+    seconds with a source on the stage count: the empty stage (nothing to view) is no live view, not a slow one. Runs
+    from before the player said so count from their first frame on. Without frames before Talk, the baseline is the
+    setup's (`baseline`)."""
     steps = bench["steps"]
     first = opened(steps[0]) if steps else None
-    before = [e for e in bench["events"] if e.get("e") == "frames" and first is not None and e["t"] < first]
-    during = [e for e in bench["events"] if e.get("e") == "frames" and (first is None or e["t"] >= first)]
+    frames = [e for e in bench["events"] if e.get("e") == "frames"]
+
+    def live(rows):
+        if any("stage" in r for r in rows):
+            return [r for r in rows if r.get("stage") != "empty"]
+        flowing = next((i for i, r in enumerate(rows) if r.get("n")), None)
+        return rows[flowing:] if flowing is not None else []
+
+    # The baseline is the live view while it was on (its seconds with frames); the journey's seconds count as they
+    # came, a freeze with a source on the stage included.
+    before = [r for r in live([e for e in frames if first is not None and e["t"] < first]) if r.get("n")]
+    during = live([e for e in frames if first is None or e["t"] >= first])
+    if not before and baseline:
+        before = [r for r in live(baseline) if r.get("n")]
 
     def stats(rows):
         return {"fps": median([r["fps"] for r in rows if isinstance(r.get("fps"), (int, float))]),
                 "delayP90": pct([r["delayP90"] for r in rows if isinstance(r.get("delayP90"), (int, float))], 90),
                 "samples": len(rows)}
 
-    return {"baseline": stats(before), "during": stats(during)}
+    return {"baseline": stats(before), "during": stats(during), "live": bool(during)}
 
 
 # --- a run -----------------------------------------------------------------------------------------------------------
 
-def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verdicts: dict | None = None) -> dict:
-    """One repetition of a plan: its steps and its run-wide numbers."""
+def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verdicts: dict | None = None,
+              baseline: list[dict] | None = None) -> dict:
+    """One repetition of a plan: its steps and its run-wide numbers. `baseline`: the setup's frames events, the live
+    view's baseline when the run has none before Talk."""
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     expects = {s["id"]: s.get("expect") or {} for s in plan.get("steps") or []}
-    wins = windows(steps)
+    wins = windows(steps, bench.get("ended"))
     end = wins[-1][1] if wins else 0
     # What was heard: in the page; else the one brain's own audio records; else (GPT-Live heard acoustically) each
     # spoken line's first words, as an instant.
@@ -682,32 +1321,68 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
         heard_from = "transcripts"
     rows = []
     unprompted = unprompted_spans(inter)
-    started_numbers: list[int] = []  # the researchers this run started, by their board number
-    board = {}  # rid -> the number its board row shows ("Researcher 3"); else the number in an "r3" id
+    # The researcher a status step must name: the one the plan's researcher step started (its number, from the
+    # orchestrator's list, else the board, else what its start_researcher card said), the one the user named, or the
+    # i-th a named step started, in the order it started them ({"from": step id, "index": i}): the app numbers them.
+    started_numbers: list[int] = []
+    by_step: dict[str, list[int]] = {}
+    board = {}
     for e in bench["events"]:
         if e.get("e") == "researchers":
             for row in e.get("rows") or []:
                 if row.get("rid") and row.get("number") is not None:
                     board[row["rid"]] = row["number"]
+    bench["_researchers"] = api_researchers(bench)
     bench["_fragments"] = fragments(bench)
+    bench["_heard"] = heard_cues(bench, inter)
+    bench["_thinks"] = thinks(inter)
+    bench["_resaid"] = resaid_spans(inter)
+    bench["_outcomes"] = outcome_spans(inter)
     for step, win in zip(steps, wins):
         expect = expects.get(step["id"], {})
-        if expect.get("status") and started_numbers:
-            bench["_expectedResearcher"] = started_numbers[-1]
-        row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), unprompted)
-        for rid in row["researcherIds"]:
-            number = board.get(rid)
-            if number is None and re.fullmatch(r"r\d+", str(rid)):
-                number = int(str(rid)[1:])
-            if number is not None:
-                started_numbers.append(number)
+        # "latest": the one the plan's researcher step started; a number: the researcher the user named ("researcher 2").
+        status = expect.get("status")
+        if isinstance(status, dict):
+            made = by_step.get(str(status.get("from")), [])
+            index = status.get("index", 0)
+            bench["_expectedResearcher"] = made[index] if isinstance(index, int) and -len(made) <= index < len(made) else None
+        else:
+            bench["_expectedResearcher"] = status if isinstance(status, int) and not isinstance(status, bool) else \
+                started_numbers[-1] if status and started_numbers else None
+        # A step with no words of its own that waits for an outcome (idle: an experiment, a researcher) is answered only by what Hooke
+        # says on its own when that lands: those lines are its outcome (will-experiment, 30 Oct: "Experiment 1 finished
+        # and its write-up is … open in its own Tab", said in the step that waited for it, was dropped as unprompted).
+        mine = () if step.get("kind") == "idle" and (expect.get("outcome") or expect.get("visible")) else unprompted
+        row = score_step(step, expect, win, bench, conv, inter, segments, (verdicts or {}).get(step["id"]), mine)
+        if expect.get("researchers"):
+            numbers = row["researcherNumbers"] or sorted(board[rid] for rid in row["researcherIds"] if rid in board)
+            by_step[step["id"]] = numbers
+            started_numbers += numbers[-1:]
         rows.append(row)
-    bench.pop("_expectedResearcher", None)
-    bench.pop("_fragments", None)
+    for key in ("_expectedResearcher", "_fragments", "_researchers", "_thinks", "_heard", "_resaid", "_outcomes"):
+        bench.pop(key, None)
     busy = holds(steps)
     return {"steps": rows, "marks": marks(bench, segments, expects, steps, wins),
-            "proactive": proactive(inter, segments, busy), "reconnects": reconnects(inter, bench),
-            "liveView": live_view(bench), "error": bench.get("error"), "audioFrom": heard_from}
+            "proactive": proactive(inter, segments, busy, api_researchers(bench)), "reconnects": reconnects(inter, bench),
+            "drive": drive(inter, bench),
+            "watch": watch(inter, segments, busy, steps, expects),
+            "alive": alive(bench, inter, steps, wins, segments, expects),
+            "liveView": live_view(bench, [{**e, "t": seconds(e.get("t"))} for e in baseline or []]),
+            "error": bench.get("error"), "audioFrom": heard_from}
+
+
+def think_share(steps: list[dict]) -> dict:
+    """think's calls over the one brain's acting calls, by kind of step (act, view, ask, status...), and the steps that
+    used it where the plan did not expect it (a quick step: its first-try line fails there too)."""
+    by_kind: dict[str, list[int]] = {}
+    for r in steps:
+        k = by_kind.setdefault(str(r.get("kind") or "?"), [0, 0])
+        k[0] += r.get("think", 0)
+        k[1] += r["acting"]
+    calls, of = sum(k[0] for k in by_kind.values()), sum(k[1] for k in by_kind.values())
+    return {"calls": calls, "of": of, "share": round(calls / of, 3) if of else None,
+            "byKind": {kind: k for kind, k in sorted(by_kind.items()) if k[0]},
+            "unexpected": [r["id"] for r in steps if r.get("think") and not r.get("thinkExpected")]}
 
 
 def summarise(runs: list[dict]) -> dict:
@@ -716,6 +1391,10 @@ def summarise(runs: list[dict]) -> dict:
     marks_ = [m for run in runs for m in run["marks"]]
     events = [p for run in runs for p in run["proactive"]]
     recon = [r for run in runs for r in run["reconnects"]]
+    watched = [run.get("watch") or {} for run in runs]
+    watch_said = [w for run in watched for w in run.get("said", [])]
+    steady_s = sum(run.get("steadyS", 0.0) for run in watched)
+    false_alarms = sum(len(run.get("falseAlarms", [])) for run in watched)
     first = [r["firstAudioS"] for r in steps if r.get("firstAudioS") is not None]
     single = [r["outcomeS"] for r in steps if r.get("outcomeS") is not None and not r["multi"]]
     multi = [r["outcomeS"] for r in steps if r.get("outcomeS") is not None and r["multi"]]
@@ -735,9 +1414,14 @@ def summarise(runs: list[dict]) -> dict:
     run_fps = median([v["during"]["fps"] for v in views if v["during"]["fps"] is not None])
     base_delay = median([v["baseline"]["delayP90"] for v in views if v["baseline"]["delayP90"] is not None])
     run_delay = median([v["during"]["delayP90"] for v in views if v["during"]["delayP90"] is not None])
+    no_live = sum(1 for v in views if not v.get("live", True))
     return {
         "runs": len(runs), "steps": len(steps),
         "firstAudio": {"p50": median(first), "p95": pct(first, 95), "n": len(first)},
+        "meaningful": {"p50": median(m := [r["meaningfulS"] for r in steps if r.get("meaningfulS") is not None]),
+                       "p95": pct(m, 95), "n": len(m)},
+        "heard": {"max": max(h) if (h := [r["heardS"] for r in steps if r.get("heardS") is not None]) else None, "n": len(h),
+                  "of": sum(1 for r in steps if r.get("meaningfulS") is not None or r.get("firstAudioS") is not None)},
         "barge": {"max": max(barge) if barge else None, "leaks": sum(1 for r in steps if r.get("bargeLeak")), "n": len(barge)},
         "single": {"p50": median(single), "p95": pct(single, 95), "n": len(single)},
         "multi": {"max": max(multi) if multi else None, "n": len(multi)},
@@ -750,12 +1434,22 @@ def summarise(runs: list[dict]) -> dict:
         "restartAdvice": sum(len(r["restartAdvice"]) for r in steps),
         "toolFirstTry": {"right": sum(1 for r in tool_rows if r["toolRight"]), "n": len(tool_rows)},
         "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
+        "think": think_share([r for r in steps if r["toolSource"] == "partner"]),
+        "drive": {k: sum((run.get("drive") or {}).get(k, 0) for run in runs)
+                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover", "unreceipted", "invalidReceipts")}
+                 | {"takeoverMax": max((w for run in runs for w in (run.get("drive") or {}).get("takeoverS", [])), default=None),
+                    "unended": sum((run.get("drive") or {}).get("unended") or 0 for run in runs),
+                    "verified": sum(((run.get("drive") or {}).get("results") or {}).get("verified", 0) for run in runs),
+                    "hands": sum(sum(((run.get("drive") or {}).get("results") or {}).values()) for run in runs)},
         "falseDone": {"count": sum(r["falseDone"] for r in judged), "judgedSteps": len(judged),
+                      "receipts": {k: sum((r.get("receipts") or {}).get(k, 0) for r in steps)
+                                   for k in ("verified", "failed", "uncertain", "running")},
                       "unconfirmedThenSpoke": sum(r["unconfirmedThenSpoke"] for r in steps)},
         "researchers": {"wrongCount": sum(1 for r in steps if any("researchers started" in f for f in r["failures"])),
                         "startMax": max((r["researcherStartS"] for r in researcher_rows), default=None),
                         "n": len(researcher_rows)},
-        "status": {"right": sum(1 for r in status if r["statusRight"]), "n": len(status)},
+        "status": {"right": sum(1 for r in status if r["statusRight"]), "n": len(status),
+                   "unchecked": sum(1 for r in steps if r.get("statusExpected", 0) is None)},
         "marks": {"n": len(marks_),
                   "latencyMax": max((m["latencyS"] for m in marks_ if m["latencyS"] is not None), default=None),
                   "latencyP95": pct([m["latencyS"] for m in marks_ if m["latencyS"] is not None], 95),
@@ -771,35 +1465,89 @@ def summarise(runs: list[dict]) -> dict:
                    "repeated": sum(1 for p in events if p["lines"] > 1),
                    "pointed": sum(1 for p in events if p["pointed"])},
         "reconnect": {"max": max((r["s"] for r in recon if r["s"] is not None), default=None), "n": len(recon)},
+        "watch": {"planned": sum(run.get("planned", 0) for run in watched),
+                  "toSay": len(watch_said), "steadyPlanned": sum(run.get("steadyPlanned", 0) for run in watched),
+                  "n": len([w for w in watch_said if w["spokenS"] is not None]),
+                  "spokenMax": max((w["spokenS"] for w in watch_said if w["spokenS"] is not None), default=None),
+                  "spokenP50": median([w["spokenS"] for w in watch_said if w["spokenS"] is not None]),
+                  "unsaid": sum(1 for w in watch_said if w["spokenS"] is None and w.get("inStep")),
+                  "overUser": sum(1 for w in watch_said if w["overUser"]),
+                  "missed": [m for run in watched for m in run.get("missed", [])],
+                  "steadyMinutes": round(steady_s / 60, 1), "falseAlarms": false_alarms,
+                  "falsePerHour": round(false_alarms / (steady_s / 3600), 2) if steady_s else None},
         "plain": {"share": round(sum(1 for s in spoken if s <= 2) / len(spoken), 3) if spoken else None, "n": len(spoken)},
+        "quality": {"mean": round(statistics.mean(q), 2) if (q := [r["partnerQuality"] for r in steps
+                                                                    if r.get("partnerQuality") is not None]) else None,
+                    "n": len(q), "under2": [r["id"] for r in steps if r.get("partnerQuality") is not None
+                                            and r["partnerQuality"] < 2]},
         "unasked": sum(r["unaskedChanges"] for r in steps),
-        "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay},
+        "alive": alive_summary([run.get("alive") or {} for run in runs]),
+        "liveView": {"baselineFps": base_fps, "fps": run_fps, "baselineDelayP90": base_delay, "delayP90": run_delay,
+                     "runsWithoutLiveView": no_live},
         "stepFailures": sum(1 for r in steps if r["failures"]),
         "runsClean": sum(1 for run in runs if not any(r["failures"] for r in run["steps"]) and not run.get("error")),
         "errors": [run["error"] for run in runs if run.get("error")],
     }
 
 
+def alive_summary(runs: list[dict]) -> dict:
+    """Every run's `alive` pooled; measured when any run showed a state."""
+    measured = [r for r in runs if r.get("measured")]
+    return {"measured": bool(measured), "runs": len(measured),
+            "gaps": sum(r.get("gaps", 0) for r in measured),
+            "uncovered": [{"run": i + 1, **u} for i, r in enumerate(runs) if r.get("measured") for u in r.get("uncovered", [])],
+            "handoffs": sum(r.get("handoffs", 0) for r in measured),
+            "missingRows": [h for r in measured for h in r.get("missingRows", [])],
+            "closed": sum(r.get("closed", 0) for r in measured),
+            "presenceMissed": [{"run": i + 1, **m} for i, r in enumerate(runs) if r.get("measured")
+                               for m in r.get("presenceMissed", [])],
+            "sources": sorted({r["source"] for r in measured if r.get("source")})}
+
+
 # --- the scoreboard --------------------------------------------------------------------------------------------------
 
-def _line(area, name, value, threshold, ok) -> dict:
+NOT_APPLICABLE = "not applicable to this voice"
+# Lines of what only the one brain does (its own tools, marks, events told unprompted, its reconnect): GPT-Live hands
+# every request to the brain and has none of them. Barge-in applies to both (GPT-Live's open microphone is interrupted
+# by speaking over it).
+ONE_BRAIN_ONLY = {"do_in_hooke share", "think share", "Drive", "Receipts", "Mark after speech starts", "Id marks correct and following", "Cleared at speech end",
+                  "Event spoken when idle", "Never over the user, one line, pointing", "Reconnect"}
+# ...and of the lines only a plan with watch steps has (the watcher's false alarms are the app's, for every voice).
+ONE_BRAIN_WATCH = {"Watch: an event said when idle"}
+VOICES_WITHOUT = {"gpt-live-1"}
+
+
+# The gates, first and in this order (spec #80); every timing is reported only.
+GATES_FIRST = ("Partner quality (0-3, judged)", 'False "done"', "Receipts", "Drive")
+TIMING_LINES = {"A sign it heard you", "First meaningful words", "Barge-in silent", "Single-step: visible and spoken",
+                "Multi-step: visible and spoken", "Longest silence while working", "Researcher started",
+                "Mark after speech starts", "Cleared at speech end", "Event spoken when idle", "Reconnect",
+                "Live view frame rate and delay unchanged"}
+
+
+def _line(area, name, value, threshold, ok, why: str = "") -> dict:
     """ok: True pass, False fail, None not measured (never counted as a pass)."""
     return {"area": area, "line": name, "value": value, "threshold": threshold,
-            "result": "pass" if ok is True else "FAIL" if ok is False else "not measured"}
+            "result": "pass" if ok is True else "FAIL" if ok is False else "not measured" + (f": {why}" if why else "")}
 
 
 def _fmt(v, unit=" s"):
     return "—" if v is None else f"{v:.2f}{unit}" if isinstance(v, float) else f"{v}{unit}"
 
 
-def scoreboard(s: dict) -> list[dict]:
-    """The standard's lines, each pass, FAIL or not measured, from a summary."""
+def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
+    """The standard's lines, each pass, FAIL or not measured, from a summary; for a voice without the one brain's own
+    features, those lines are not applicable to it (still not a pass)."""
     S = STANDARD
     L = []
-    fa = s["firstAudio"]
-    L.append(_line("Feel", "Release to first audio", f"p50 {_fmt(fa['p50'])}, p95 {_fmt(fa['p95'])} (n {fa['n']})",
-                   f"p50 ≤ {S['firstAudioP50']} s, p95 ≤ {S['firstAudioP95']} s",
-                   None if not fa["n"] else fa["p50"] <= S["firstAudioP50"] and fa["p95"] <= S["firstAudioP95"]))
+    fa, mw, hd = s["firstAudio"], s["meaningful"], s["heard"]
+    L.append(_line("Feel", "A sign it heard you", f"max {_fmt(hd['max'])} ({hd['n']} of {hd['of']} turns)",
+                   f"≤ {S['heardMax']} s after release, every turn",
+                   None if not hd["n"] else hd["max"] <= S["heardMax"] and hd["n"] == hd["of"],
+                   "no heard cue recorded (partner-heard, or the studio's heard message)" if not hd["n"] else ""))
+    L.append(_line("Feel", "First meaningful words", f"p50 {_fmt(mw['p50'])}, p95 {_fmt(mw['p95'])} (n {mw['n']}); first audio "
+                   f"p50 {_fmt(fa['p50'])}, p95 {_fmt(fa['p95'])}", f"p50 ≤ {S['meaningfulP50']} s, p95 ≤ {S['meaningfulP95']} s",
+                   None if not mw["n"] else mw["p50"] <= S["meaningfulP50"] and mw["p95"] <= S["meaningfulP95"]))
     b = s["barge"]
     L.append(_line("Feel", "Barge-in silent", f"max {_fmt(b['max'])}, came back {b['leaks']} (n {b['n']})",
                    f"≤ {S['bargeSilentMax']} s, stays silent", None if not b["n"] else b["max"] <= S["bargeSilentMax"] and not b["leaks"]))
@@ -816,6 +1564,23 @@ def scoreboard(s: dict) -> list[dict]:
     so = s["saidOnce"]
     L.append(_line("Feel", "Each outcome said exactly once", f"{so['once']} of {so['n']} (never {so['never']}, more {so['more']})",
                    "all", None if not so["n"] else so["once"] == so["n"]))
+    al = s.get("alive") or {}
+    if al.get("measured"):
+        uncovered, missing, missed = al["uncovered"], al["missingRows"], al["presenceMissed"]
+        gaps_at = ", ".join("%s s (%s s, shown %s)" % (u["atS"], u["s"], "/".join(u["shown"])) for u in uncovered[:3])
+        pills_at = ", ".join("%s s" % m["atS"] for m in missed[:3])
+        value = (f"gaps covered {al['gaps'] - len(uncovered)} of {al['gaps']}; rows {al['handoffs'] - len(missing)} of "
+                 f"{al['handoffs']}; presence {al['closed'] - len(missed)} of {al['closed']}"
+                 + (f"; uncovered at {gaps_at}" if uncovered else "")
+                 + (f"; no row for {', '.join(missing[:3])}" if missing else "")
+                 + (f"; no pill at {pills_at}" if missed else "")
+                 + (f" (from the {', '.join(al['sources'])})" if al.get("sources") and al["sources"] != ["page"] else ""))
+        ok = not uncovered and not missing and not missed
+    else:
+        value, ok = "—", None
+    L.append(_line("Feel", "Alive: a state shown in every wait", value,
+                   f"every wait over {ALIVE_GAP_S:.0f} s shows a state; every hand-off its row; the pill while the "
+                   "Assistant is closed", ok, "the studio's shown voice state was not recorded" if not al.get("measured") else ""))
     L.append(_line("Feel", "Nothing meant for the model spoken", f"{s['leaks']} {s['leakLines'][:3]}", "0",
                    s["leaks"] == 0 if s["steps"] else None))
     L.append(_line("Seeing", 'Never "I can\'t see your screen"', str(s["cantSee"]), "0", s["cantSee"] == 0 if s["steps"] else None))
@@ -823,19 +1588,57 @@ def scoreboard(s: dict) -> list[dict]:
     L.append(_line("Acting", "Right tool on the first try", f"{t['right']} of {t['n']}", "all",
                    None if not t["n"] else t["right"] == t["n"]))
     d = s["doInHooke"]
-    L.append(_line("Acting", "do_in_hooke share", f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
-                   f"< {S['doInHookeShare']:.0%}", None if not d["of"] else d["share"] < S["doInHookeShare"]))
+    # Reported, never a gate: the voice handing the work to Hooke's brain is the design (PARTNER_ACTS "brain", Will
+    # 29 Oct); this line rewarded the voice running the tools itself, which scored 0.86 against the hand-off's 1.57.
+    L.append({"area": "Acting", "line": "do_in_hooke share", "gate": False, "threshold": "reported, not a gate",
+              "value": f"{d['calls']} of {d['of']}" + (f" ({d['share']:.0%})" if d["share"] is not None else ""),
+              "result": "reported" if d["of"] else "not measured"})
+    th = s.get("think") or {}
+    kinds = ", ".join(f"{kind} {k[0]} of {k[1]}" for kind, k in (th.get("byKind") or {}).items())
+    unexpected = th.get("unexpected") or []
+    # Drive (the spec, section 1): every action visible as it happens, a takeover stops it within 150 ms, and no queued
+    # action runs after. Actions verified and cues never ended are details within the line.
+    dv = s.get("drive") or {}
+    # Drive's truthful parts gate (spec #80): a cue for every action, nothing after a takeover on an older control
+    # version. The takeover's milliseconds are reported (every timing is).
+    measured = bool(dv.get("cues")) and bool(dv.get("takeovers"))
+    L.append(_line("Acting", "Drive",
+                   (f"cues before the effect {dv['cueFirst']} of {dv['cues']}; actions after a takeover on an older "
+                    f"version {dv['staleAfterTakeover']}; takeovers {dv['takeovers']}"
+                    + (f" (studio to server max {dv['takeoverMax']:.2f} s, reported)" if dv.get("takeoverMax") is not None else "")
+                    + f"; actions verified {dv['verified']} of {dv['hands']}"
+                    + (f"; cues never ended {dv['unended']}" if dv.get("unended") else "")) if dv.get("cues") or dv.get("hands") else "—",
+                   "a cue for every action, 0 after a takeover",
+                   False if dv.get("staleAfterTakeover") or (dv.get("cues") and dv["cueFirst"] < dv["cues"])
+                   else True if measured else None,
+                   "no takeover in the run" if dv.get("cues") and not dv.get("takeovers") else ""))
+    L.append(_line("Acting", "Receipts",
+                   f"actions without a receipt {dv.get('unreceipted', 0)} of {dv.get('cues', 0)}; receipts without a checked "
+                   f"result {dv.get('invalidReceipts', 0)} of {dv.get('hands', 0)}" if dv.get("cues") or dv.get("hands") else "—",
+                   "every action ends in a receipt checked against its expected result",
+                   None if not (dv.get("cues") or dv.get("hands")) else not dv.get("unreceipted") and not dv.get("invalidReceipts"),
+                   "no receipts (no Hands)" if not (dv.get("cues") or dv.get("hands")) else ""))
+    L.append({"area": "Acting", "line": "think share", "gate": False, "threshold": "reported, not a gate",
+              "value": (f"{th['calls']} of {th['of']}" + (f" ({th['share']:.0%})" if th.get("share") is not None else "")
+                        + (f"; by step kind: {kinds}" if kinds else "")
+                        + (f"; where not expected: {len(unexpected)} ({', '.join(dict.fromkeys(unexpected))})" if unexpected else ""))
+              if th.get("of") else "—",
+              "result": "reported" if th.get("of") else "not measured"})
     f = s["falseDone"]
-    L.append(_line("Acting", 'False "done"', f"{f['count']} in {f['judgedSteps']} judged steps; unconfirmed then spoke "
-                   f"{f['unconfirmedThenSpoke']}", "0", None if not f["judgedSteps"] else f["count"] == 0))
+    rc = f.get("receipts") or {}
+    L.append(_line("Acting", 'False "done"', f"{f['count']} of {rc.get('verified', 0)} verified receipts; receipts "
+                   + ", ".join(f"{k} {v}" for k, v in rc.items()) + f"; unconfirmed then spoke {f['unconfirmedThenSpoke']}",
+                   "0, from receipts and app state", None if not f["judgedSteps"] else f["count"] == 0,
+                   "no receipts (no Hands)" if not f["judgedSteps"] else ""))
     r = s["researchers"]
     L.append(_line("Acting", "One researcher per request", f"{r['wrongCount']} steps wrong", "0",
                    r["wrongCount"] == 0 if s["steps"] else None))
     L.append(_line("Acting", "Researcher started", f"max {_fmt(r['startMax'])} (n {r['n']})", f"≤ {S['researcherStartMax']} s",
                    None if not r["n"] else r["startMax"] <= S["researcherStartMax"]))
     st = s["status"]
-    L.append(_line("Acting", "Status names the right researcher", f"{st['right']} of {st['n']}", "all",
-                   None if not st["n"] else st["right"] == st["n"]))
+    L.append(_line("Acting", "Status names the right researcher", f"{st['right']} of {st['n']}"
+                   + (f" ({st['unchecked']} with no researcher from the plan's researcher step)" if st.get("unchecked") else ""),
+                   "all", None if not st["n"] else st["right"] == st["n"]))
     mk = s["marks"]
     L.append(_line("Pointing", "Mark after speech starts", f"p95 {_fmt(mk['latencyP95'])}, max {_fmt(mk['latencyMax'])} (n {mk['n']})",
                    f"≤ {S['markLatencyMax']} s", None if mk["latencyMax"] is None else mk["latencyMax"] <= S["markLatencyMax"]))
@@ -850,6 +1653,23 @@ def scoreboard(s: dict) -> list[dict]:
     L.append(_line("Knowing", "Never over the user, one line, pointing",
                    f"over {ev['overUser']}, repeated {ev['repeated']}, pointed {ev['pointed']} of {ev['n']}", "0, 0, all",
                    None if not ev["n"] else not ev["overUser"] and not ev["repeated"] and ev["pointed"] == ev["n"]))
+    w = s.get("watch") or {}
+    # Only a plan with watch steps measures the watcher (part-2.5-watch, part-2.5-broad): its events said when WATCH
+    # gives them a spoken rule (chatty: part-2.5-watch; the default quiet only tells a slide's move silently, which the
+    # judge checks by asking what changed), and its false alarms on a steady stretch.
+    if w.get("planned") and (w["toSay"] or w["missed"]):
+        L.append(_line("Knowing", "Watch: an event said when idle",
+                       f"p50 {_fmt(w['spokenP50'])}, max {_fmt(w['spokenMax'])} (n {w['n']}); unsaid {w['unsaid']}, "
+                       f"over the user {w['overUser']}, missed {len(w['missed'])} {w['missed'][:3]}",
+                       f"≤ {S['watchSpokenMax']} s from the event, never over the user, none missed",
+                       False if w["overUser"] or w["missed"] or w["unsaid"] else
+                       None if w["spokenMax"] is None else w["spokenMax"] <= S["watchSpokenMax"]))
+    if w.get("steadyPlanned"):
+        L.append(_line("Knowing", "Watch: false alarms per hour",
+                       f"{_fmt(w['falsePerHour'], '/h')} ({w['falseAlarms']} in {w['steadyMinutes']} min with nothing "
+                       "happening)", f"≤ {S['watchFalsePerHour']}/h (provisional, until Will accepts a rate)",
+                       None if w["falsePerHour"] is None else w["falsePerHour"] <= S["watchFalsePerHour"],
+                       "its steady stretch did not run"))
     rc = s["reconnect"]
     L.append(_line("Conversation", "Reconnect", f"max {_fmt(rc['max'])} (n {rc['n']})", f"≤ {S['reconnectMax']} s",
                    None if rc["max"] is None else rc["max"] <= S["reconnectMax"]))
@@ -857,10 +1677,14 @@ def scoreboard(s: dict) -> list[dict]:
     fps_ok = None if lv["fps"] is None or lv["baselineFps"] is None else lv["fps"] >= S["fpsKept"] * lv["baselineFps"]
     delay_ok = None if lv["delayP90"] is None or lv["baselineDelayP90"] is None else \
         lv["delayP90"] <= lv["baselineDelayP90"] + S["delayAddedMaxS"] * 1000
+    no_live = lv.get("runsWithoutLiveView", 0)
     L.append(_line("Robustness", "Live view frame rate and delay unchanged",
                    f"fps {_fmt(lv['fps'], '')} vs {_fmt(lv['baselineFps'], '')}, delay p90 {_fmt(lv['delayP90'], ' ms')} vs "
-                   f"{_fmt(lv['baselineDelayP90'], ' ms')}", f"fps ≥ {S['fpsKept']:.0%}, delay +≤ {S['delayAddedMaxS'] * 1000:.0f} ms",
-                   None if fps_ok is None or delay_ok is None else fps_ok and delay_ok))
+                   f"{_fmt(lv['baselineDelayP90'], ' ms')}" + (f"; {no_live} run(s) with nothing on the stage" if no_live else ""),
+                   f"fps ≥ {S['fpsKept']:.0%}, delay +≤ {S['delayAddedMaxS'] * 1000:.0f} ms",
+                   False if False in (fps_ok, delay_ok) else None if None in (fps_ok, delay_ok) else True,
+                   "no live view on the stage" if no_live and no_live == s["runs"] else
+                   "no live view before Talk to compare with" if lv["baselineFps"] is None else ""))
     L.append(_line("Robustness", "Runs with zero step failures", f"{s['runsClean']} of {s['runs']} ({s['stepFailures']} failed steps)",
                    "all runs", None if not s["runs"] else s["runsClean"] == s["runs"]))
     L.append(_line("Robustness", 'Never "restart the app"', str(s["restartAdvice"]), "0", s["restartAdvice"] == 0 if s["steps"] else None))
@@ -868,21 +1692,52 @@ def scoreboard(s: dict) -> list[dict]:
     L.append(_line("Elegance", "One or two sentences", f"{_fmt(pl['share'], '')} of {pl['n']} lines", f"≥ {S['plainShare']:.0%}",
                    None if pl["share"] is None else pl["share"] >= S["plainShare"]))
     L.append(_line("Elegance", "Nothing on screen not asked for", str(s["unasked"]), "0", s["unasked"] == 0 if s["steps"] else None))
-    return L
+    # Overall (the spec's section 1): the judge's partner quality, 0-3, a mean of at least 2.5 and no step under 2.
+    q = s.get("quality") or {}
+    under = q.get("under2") or []
+    L.append(_line("Overall", "Partner quality (0-3, judged)",
+                   (f"mean {q['mean']:.2f} over {q['n']} steps; under 2: {len(under)}"
+                    + (f" ({', '.join(dict.fromkeys(under))})" if under else "")) if q.get("mean") is not None else "—",
+                   f"mean ≥ {S['qualityMean']}, no step under {S['qualityMin']}",
+                   None if q.get("mean") is None else q["mean"] >= S["qualityMean"] and not under))
+    # Every timing line is reported, not a gate (spec #80: the subjective benchmark matters most); it says whether it is
+    # within its number. The gates come first, in the spec's order.
+    for line in L:
+        if line["line"] in TIMING_LINES and line.get("gate", True):
+            line["gate"] = False
+            line["result"] = {"pass": "reported: within", "FAIL": "reported: over"}.get(line["result"], line["result"])
+    if voice in VOICES_WITHOUT:
+        for line in L:
+            if line["line"] in ONE_BRAIN_ONLY or line["line"] in ONE_BRAIN_WATCH:
+                line["result"] = NOT_APPLICABLE
+    first = [next(l for l in L if l["line"] == name) for name in GATES_FIRST]
+    rest = [l for l in L if l["line"] not in GATES_FIRST]
+    return first + [l for l in rest if l.get("gate", True)] + [l for l in rest if not l.get("gate", True)]
 
 
 def meets(board: list[dict]) -> bool:
-    """The standard holds only when every line passes: a line not measured is not a pass."""
-    return all(line["result"] == "pass" for line in board)
+    """The standard holds only when every line passes: a line not measured, or not applicable to the voice, is not a
+    pass (a voice without a feature the standard asks for does not meet it). Reported lines (think's share, partner
+    quality) are never a gate."""
+    return all(line["result"] == "pass" for line in board if line.get("gate", True))
 
 
 def markdown(result: dict) -> str:
     """The short scoreboard: one table, then each failed step."""
     head = result.get("about", {})
+    head = {**head, "scorer": head.get("scorer", SCORER_VERSION)}
     out = [f"# Live partner journey: {head.get('voice', '?')} ({head.get('talk', '?')}), plan {head.get('plan', '?')}", "",
            f"{result['summary']['runs']} run(s), {result['summary']['steps']} steps. Audio heard {head.get('audioFrom', 'in the page')}; "
-           f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room.", "",
+           f"{head.get('evidence', 'recorded audio injected as the microphone')}. Not Will in a room. "
+           f"Scorer {head['scorer']}. Judged by {head.get('judge', 'none')} (answer quality only; judges are not "
+           "interchangeable: compare runs judged by the same one)."
+           + (f" Settings: {json.dumps(head['settings'])}." if head.get("settings") else ""), "",
            f"**Standard met: {'yes' if meets(result['scoreboard']) else 'no'}**", "",
+           *([f"The bench put the journey back in its Project after {len(result['recovered'])} step(s) that left it "
+              "elsewhere (scored as they were; the steps after them are not scored again for it)."] if result.get("recovered") else []),
+           *([f"The bench put the specimen back on an empty stage {result['staged']} time(s) (a Project reopened, or a step "
+              "left the stage empty)."] if result.get("staged") else []),
+           *([""] if result.get("recovered") or result.get("staged") else []),
            "| Area | Line | Measured | Standard | Result |", "|---|---|---|---|---|"]
     for line in result["scoreboard"]:
         out.append(f"| {line['area']} | {line['line']} | {line['value']} | {line['threshold']} | {line['result']} |")
@@ -896,7 +1751,7 @@ def markdown(result: dict) -> str:
 
 # --- pricing (the runner settles the budget from these) --------------------------------------------------------------
 
-# Per 1M tokens (PARTNER-CONTRACT.md "Verified facts"): gpt-realtime-2.1.
+# Per 1M tokens (live-partner-contract.md "Verified facts"): gpt-realtime-2.1.
 REALTIME_PRICE = {"inText": 4.0, "inAudio": 32.0, "inImage": 5.0, "outText": 24.0, "outAudio": 64.0}
 
 

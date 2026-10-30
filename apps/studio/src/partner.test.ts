@@ -46,3 +46,32 @@ test('a snapshot request is answered as soon as it is composed; a set of marks i
   handle({ type: 'marks-clear', id: 'm1' });
   expect(marks.clear).toHaveBeenCalledWith('m1');
 });
+
+test('Hands: control and cues reach the cursor; a cue from before the user took control back is never drawn', () => {
+  const sent: PartnerCommand[] = [];
+  const shown: string[] = [], ended: string[] = [];
+  let version = 0;
+  const takeover = { get version() { return version; }, control: (m: { version: number }) => { version = m.version; } };
+  const handle = partnerHandler({ reply: (c) => { sent.push(c); return true; }, capture: capture(false),
+    marks: { show: () => [], clear: () => {} },
+    drive: { cursor: { show: (m) => shown.push(m.id), end: (m) => ended.push(m.id) }, takeover } });
+  handle({ type: 'control', version: 5, owner: 'partner' });
+  handle({ type: 'drive', id: 'd1', version: 5, intent: { kind: 'open', target: 'control:talk', caption: 'Opening it' } });
+  handle({ type: 'control', version: 6, owner: 'user', ack: true });
+  handle({ type: 'drive', id: 'd2', version: 5, intent: { kind: 'close', target: 'window:w-1' } }); // planned before the takeover
+  handle({ type: 'drive-end', id: 'd1', outcome: 'uncertain' });
+  expect(shown).toEqual(['d1']);
+  expect(ended).toEqual(['d1']);
+  expect(sent).toEqual([{ type: 'drive-shown', id: 'd2', ok: false, why: 'stale' }]);
+});
+
+test('the voice\'s state goes to its display, and nothing is answered for it', () => {
+  const replies: PartnerCommand[] = [];
+  const shown: unknown[] = [];
+  const handle = partnerHandler({ reply: (c) => { replies.push(c); return true; }, capture: { share: async () => null, compose: async () => ({ jpeg: 'x', w: 1, h: 1 }) },
+    marks: { show: () => [], clear: () => {} }, voiceState: (m) => shown.push(m) });
+  const message = { type: 'voice-state' as const, state: 'thinking' as const, n: 0, working: [], seq: 2, at: 1 };
+  handle(message);
+  expect(shown).toEqual([message]);
+  expect(replies).toEqual([]);
+});

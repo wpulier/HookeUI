@@ -31,20 +31,29 @@ class Studies:
         self.workflows.owner(session)
         return self.efforts.create(session, attribution=self.attribution(actor, label), **fields)
 
-    def read(self, study, session):
+    def _read_intent(self, study, session):
         self.workflows.owner(session)
         self.collect_local(study, session)
-        row = summary(self.efforts.read(study, session))
-        # Stop records admission intent. Only original workflow receipts establish termination.
+        return summary(self.efforts.read(study, session))
+
+    @staticmethod
+    def _observe_stop(row, runs):
+        # Stop is intent; original receipts, including absent ones, determine settlement.
+        if row['status'] == 'stopped' and any(
+                run is None or run['status'] not in ('completed', 'failed', 'rejected', 'stopped')
+                for run in runs):
+            row['stopPending'] = True
+        return row
+
+    def read(self, study, session):
+        row = self._read_intent(study, session)
         if row['status'] == 'stopped':
-            for item in row.get('experiments', {}).values():
-                try:
-                    status = self.workflows.workflows.status(item['execution']['id'], session)['status']
-                except (ValueError, OSError):
-                    row['stopPending'] = True
-                    continue
-                if status not in ('completed', 'failed', 'rejected', 'stopped'):
-                    row['stopPending'] = True
+            ids = [item['execution']['id'] for item in row.get('experiments', {}).values()]
+            try:
+                runs = self.workflows.workflows.statuses(ids, session)
+                self._observe_stop(row, (runs.get(id_) for id_ in ids))
+            except (ValueError, OSError):
+                row['stopPending'] = True
         return row
 
     def collect_local(self, study, session):
@@ -124,14 +133,16 @@ class Studies:
                 await self.workflows.command(command, actor=record['by'])
             return await self.operation(record), made
 
-    async def operation(self, record):
+    async def operation(self, record, *, observed=None):
         execution = record.get('execution')
         if not execution:
             return record
         check(execution, 'operation-execution')
         self.workflows.owner(execution['session'])
         try:
-            run = await asyncio.to_thread(self.workflows.observed_status, execution['id'], execution['session'])
+            run = observed if observed is not None else await asyncio.to_thread(self.workflows.observed_status, execution['id'], execution['session'])
+            if run['id'] != execution['id'] or run['session'] != execution['session']:
+                raise InvalidProject('Workflow observation belongs to another admission')
         except (FileNotFoundError, InvalidProject) as error:
             return {**record, 'state': 'interrupted', 'outcome': {
                 'says': 'The original workflow admission has no readable run. Nothing was replayed.',
@@ -150,10 +161,18 @@ class Studies:
                             'says': 'Read the retained workflow attempts for results, failures and review.'}}
 
     async def evidence(self, study, session):
-        row = await asyncio.to_thread(self.read, study, session)
-        runs = []
-        for item in row.get('experiments', {}).values():
-            runs.append(await self.operation(self.operations.get(item['operation'])))
+        row = await asyncio.to_thread(self._read_intent, study, session)
+        records = [self.operations.get(item['operation']) for item in row.get('experiments', {}).values()]
+        if any(record['project'] != session for record in records):
+            raise InvalidProject('Study operation belongs to another Project')
+        executions = [record['execution'] for record in records if record.get('execution')]
+        for execution in executions:
+            check(execution, 'operation-execution')
+            if execution['session'] != session:
+                raise InvalidProject('Study execution belongs to another Project')
+        observed = await asyncio.to_thread(self.workflows.observed_statuses, [e['id'] for e in executions], session)
+        runs = [await self.operation(record, observed=observed.get(record.get('execution', {}).get('id'))) for record in records]
+        self._observe_stop(row, (operation.get('workflow') for operation in runs))
         return {'study': row, 'operations': runs}
 
     def evidence_read(self, study, session, reference, *, actor, label):

@@ -45,7 +45,8 @@ describe('a built-in model: Cellpose-SAM outlines every cell', () => {
   test('the model list is in Models’ sections, each model with its one step and one size', () => {
     const wire = clone(); const { map } = rowsOf(wire);
     const choices = taskChoices(wire, task(wire, 'cells'), map);
-    // This isolated Hooke has checked no model yet, so the ready ones are Not checked; then those that can be set up.
+    // This isolated Hooke has checked and run no model yet, so the ready ones are Ready, not checked yet; then those that
+    // can be set up.
     expect(choices.map((c) => [c.name, c.section])).toEqual([
       ['Cellpose-SAM', 'unchecked'], ['micro-sam (light microscopy)', 'unchecked'], ['EdgeTAM automatic masks', 'unchecked'],
       ['Bright objects', 'unchecked'],
@@ -272,14 +273,15 @@ describe('words', () => {
 
 
 // Ticket 67, fix 4: "Ready" meant two things (the small-models offer and the run page said Ready while Models and Tools
-// said Not checked). Models' sections are the one meaning: Ready once Hooke's own check passed here.
+// said Not checked). Models' sections are the one meaning: Ready once Hooke's own check passed here or a real use of it
+// worked here (Will, 2026-10-29); ready to run with neither is Ready · not checked yet.
 describe('one meaning of Ready', () => {
   const cellpose = () => structuredClone(base.models!.find((m) => m.id === 'cellpose-sam')!);
   test('a model that can run but is not checked here is said that way, wherever a word is needed', () => {
     const row = cellpose();
     row.face = { state: 'unchecked', says: 'Ready to run; not checked on this Mac yet', action: null, also: [] };
-    expect(runnableWords({ ...row, size: 1_000 })).toBe('Downloaded · not checked');
-    expect(runnableWords({ ...row, runs: 'cloud', size: 0 })).toBe('Not checked');
+    expect(runnableWords({ ...row, size: 1_000 })).toBe('Downloaded · not checked yet');
+    expect(runnableWords({ ...row, runs: 'cloud', size: 0 })).toBe('Ready · not checked yet');
     row.face = { state: 'on', says: 'On · last check: works', action: null, also: [] };
     expect(runnableWords(row)).toBe('Ready');
     expect(runnableWords(undefined)).toBe('Ready'); // no catalog row to disagree with

@@ -100,6 +100,17 @@ test('temporary fitting routes native placements through their canonical geometr
  Reflect.get(WorkspaceViews.prototype,'place').call(current,root,[10,20,300,250]);
  expect(placeItem).toHaveBeenCalledWith({...item,coordinates:'stage',position:[10,20],size:[300,250]});
 });
+test('Arrange tiles a native window with no retained resource (the live magnifier) through its own geometry',()=>{
+ // will-workspace, 30 Oct: the Tab's Arrange tiled the table and the specimen but left the live magnifier where it
+ // was (it has no shell of the study artifacts' own), so the table's tile still lay under it: "its windows still overlap".
+ const asked:unknown[]=[];vi.stubGlobal('window',{dispatchEvent:(event:{type:string;detail:unknown})=>{asked.push([event.type,event.detail]);return true;}});
+ vi.stubGlobal('CustomEvent',class{type:string;detail:unknown;constructor(type:string,init:{detail:unknown}){this.type=type;this.detail=init.detail;}});
+ const root={matches:(selector:string)=>selector==='.workspace-window',dataset:{presentationId:'w-magnifier',placementId:'live-one'}};
+ const placeItem=vi.fn(),current=Object.assign(Object.create(WorkspaceViews.prototype),{opts:{placeItem,captureItems:()=>[]}});
+ Reflect.get(WorkspaceViews.prototype,'place').call(current,root,[12,20,600,400]);
+ expect(placeItem).not.toHaveBeenCalled();expect(artifacts.applyDocument).not.toHaveBeenCalled();
+ expect(asked).toEqual([['workspace-place-window',{id:'w-magnifier',rect:[12,20,600,400]}]]);
+});
 test('new notepad opens in its initiating tab before the first save acknowledgement',async()=>{
  let finish!:()=>void;
  const pending=new Promise<void>(resolve=>{finish=resolve;});

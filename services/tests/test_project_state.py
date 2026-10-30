@@ -148,7 +148,12 @@ def test_the_state_fits_its_versioned_schema_and_keeps_untrusted_facts_labelled(
     schema.check(state, "project-state")
     [study] = state["studies"]["items"]
     assert study["title"] == "Compare sizes" and study["ref"]["revision"] == 1 and len(study["ref"]["digest"]) == 64
-    assert not any(i["ref"]["id"] == study["ref"]["id"] for i in state["data"]["items"])  # no findings yet: not data
+    [assignment] = [i for i in state["data"]["items"] if i["ref"]["id"] == study["ref"]["id"]]
+    assert assignment["material"]["kind"] == "assignment"
+    assert assignment["material"]["input"] is True
+    assert assignment["material"]["origin"] == "authored"
+    assert assignment["ref"] == study["ref"]
+    assert assignment["summary"] == "0 findings, 0 claims"
 
 
 def test_the_ui_state_is_unavailable_without_a_studio_and_never_another_projects(tmp_path):
@@ -469,3 +474,97 @@ def test_the_brief_is_bounded_ordered_and_keeps_others_words_inside_its_wrapper(
     assert len(small) <= 1500 and small.rstrip().endswith("</project>")
     empty = project_state.brief(owner_state(app_at(tmp_path / "empty").state.app))
     assert "Data (none yet)" in empty and len(empty) < 1500
+
+
+def test_think_jobs_are_listed_beside_the_researchers_numbered_together_and_the_wire_is_unchanged(tmp_path):
+    """The part 2.5 spec, 4.4: researchers are jobs too. project_state.jobs numbers the Project's researchers and the
+    partner's think jobs together, by when each started, so "the second one" is the same thing to the voice, think and
+    the brain; the brief and the resources answer list them; project.state's wire (a closed schema) is unchanged."""
+    from orchestrator.voice.jobs import Job, jobs_of
+    from orchestrator.voice.think import ThinkTask
+
+    built = app_at(tmp_path).state.app
+    hub, sid = built.hub, built.day.sid
+    researcher(built, 1, "done", finding="Nuclei measured")
+    researcher(built, 2, "running", step="reading the table")
+    job = jobs_of(hub).add(Job(ThinkTask("compare three outline models"), project=sid, started=NOW - 100 + 1.5))
+    jobs_of(hub).set(job, "running")
+    jobs_of(hub).add(Job(ThinkTask("another Project's work"), project="elsewhere", started=NOW))
+    rows = project_state.jobs(hub, sid)
+    assert [(r["n"], r["kind"], r["id"]) for r in rows] == [(1, "researcher", "r1"), (2, "think", job.id),
+                                                            (3, "researcher", "r2")], "one list, by when each started"
+    state = owner_state(built)
+    schema.check(state, "project-state")  # the think jobs are not on the wire: its schema is closed
+    assert job.id not in json.dumps(state)
+    brief = project_state.brief(state, jobs=rows)
+    assert "Jobs (researchers and think jobs, numbered together by when each started" in brief
+    assert f"#2 think job ({job.id}): running" in brief and "#3 Researcher 2 (r2): running" in brief
+    assert brief.index("#3 Researcher 2") < brief.index("#1 Researcher 1"), "running first"
+    wrapped = brief[brief.index('untrusted="true">'):]
+    assert "compare three outline models" in wrapped, "its request is the user's words, inside the wrapper"
+    assert "Researchers (" not in brief and "another Project" not in brief
+    # Without a think job the researchers are said as before.
+    assert "Researchers (running first" in project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
+    said = asyncio.run(built.brain.registry.tools["resources"].handler(ToolContext("chat", 1, None, "what's running?"), {}))
+    assert f"#2 think job ({job.id})" in said
+
+
+def test_hookes_own_work_on_a_hand_off_is_a_job_numbered_with_the_others_in_the_brief_and_the_resources_answer(tmp_path):
+    """W1 (the spec, 4.8 horizontal 1): a voice hand-off is Hooke's own work in progress (voice/jobs.py HandoffJob, kind
+    "hooke"), in the one list beside researchers and think jobs, numbered by when each started, so "the second one" and
+    "stop that" mean the same thing everywhere; its label is the voice's words, inside the wrapper; the wire is
+    unchanged (its schema is closed: the addition is a contract change of its own)."""
+    from orchestrator.voice.handoffs import Handoffs
+    from orchestrator.voice.jobs import HandoffJob, Job, jobs_of
+    from orchestrator.voice.think import ThinkTask
+
+    built = app_at(tmp_path).state.app
+    hub, sid = built.hub, built.day.sid
+    researcher(built, 1, "done", finding="Nuclei measured")
+    think = jobs_of(hub).add(Job(ThinkTask("compare three outline models"), project=sid, started=NOW - 100 + 1.5))
+    jobs_of(hub).set(think, "running")
+    flight = Handoffs().start("find a YouTube video about stomata", "A video about stomata")
+    handed = jobs_of(hub).add(HandoffJob(flight, project=sid, started=NOW - 100 + 2.5))
+    late = jobs_of(hub).add(HandoffJob(Handoffs().start("open the table", "The table"), project=sid, started=NOW))
+    jobs_of(hub).set(late, "uncertain")
+    rows = project_state.jobs(hub, sid)
+    assert [(r["n"], r["kind"], r["id"]) for r in rows] == [(1, "researcher", "r1"), (2, "think", think.id),
+                                                            (3, "hooke", handed.id), (4, "hooke", late.id)]
+    state = owner_state(built)
+    schema.check(state, "project-state")
+    assert handed.id not in json.dumps(state), "not on the wire"
+    brief = project_state.brief(state, jobs=rows)
+    assert "Jobs (researchers, think jobs and Hooke's own work, numbered together by when each started" in brief
+    assert f"#3 Hooke's work ({handed.id}): running" in brief
+    assert f"#4 Hooke's work ({late.id}): uncertain (sent, not confirmed on screen)" in brief
+    wrapped = brief[brief.index('untrusted="true">'):]
+    assert "A video about stomata" in wrapped and "A video about stomata" not in brief[:brief.index('untrusted="true">')]
+    said = asyncio.run(built.brain.registry.tools["resources"].handler(ToolContext("chat", 1, None, "what's running?"), {}))
+    assert f"#3 Hooke's work ({handed.id}): running" in said
+    only = project_state.brief(state, jobs=[r for r in rows if r["kind"] != "think"])
+    assert "Jobs (researchers and Hooke's own work, numbered together" in only
+
+
+def test_the_ui_state_says_each_open_tabs_specimen_and_what_it_holds(tmp_path):
+    """The live partner spec 4.8, horizontal 2 (one truth for what is on screen), as Codex agreed on the board
+    (2026-10-30): an agent reading project.state sees the open Tabs as the Tab strip reports them, each Tab's specimen
+    and what it holds by kind, so "which Tab has the measurements?" is answered from what each holds, never a title. A
+    Tab the report garbles is left out, never the rest; a kind it does not know is not said."""
+    from orchestrator.screen import screen_of
+
+    built = app_at(tmp_path).state.app
+    sid = built.day.sid
+    screen_of(built.hub).report({"visible": True, "items": [
+        {"id": "workspace-tabs", "kind": "panel", "workspace": {"project": sid, "tab": "t2", "tabs": [
+            {"id": "main", "title": "Main", "front": False, "kind": "work", "specimen": {"state": "float"},
+             "holds": {"table": 1, "magnifier": 1}},
+            {"id": "t2", "title": "Cell results", "front": True, "kind": "output", "specimen": {"state": "hidden"},
+             "holds": {"outlines": 1, "sparkle": 4}},
+            {"title": "no id"}, "garbled"]}}]}, client=object())
+    state = owner_state(built)
+    schema.check(state, "project-state")
+    assert state["ui"]["tabs"] == [
+        {"id": "main", "title": "Main", "front": False, "kind": "work", "specimen": "float",
+         "holds": {"table": 1, "magnifier": 1}},
+        {"id": "t2", "title": "Cell results", "front": True, "kind": "output", "specimen": "hidden",
+         "holds": {"outlines": 1}}]

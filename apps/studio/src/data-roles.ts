@@ -8,8 +8,27 @@ import type { AssetMeta } from './protocol';
 import type { StudyResource } from './workspace-study-model';
 import { kindWords, matchesSearch } from './workspace-data-card';
 import { daysAgo, monthDay } from './sessions';
+import {isRetainedMaterial} from './material-identity';
 
-export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other';
+export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' | 'files' | 'model' | 'study' | 'history';
+export interface MatrixPreview {
+  integerEncoding?:'unsafe-as-decimal-string';selection:'first-observations-and-variables'; observations:string[]; variables:string[]; values:(number|string)[][];
+  observationAnnotations:{name:string;values:(string|number|boolean|null)[]}[];
+  variableAnnotations:{name:string;values:(string|number|boolean|null)[]}[];
+}
+export interface MatrixInspectionFacts {
+  shape?:number[];
+  report:{id:string;session:string;revision:number;digest:string}; dtype?:string;rawCounts?:boolean;sparse?:boolean;
+  observationColumns?:string[];variableColumns?:string[];preview?:MatrixPreview;
+}
+export interface ProjectMaterial {
+  kind: string; origin: 'imported' | 'generated' | 'authored' | 'unknown'; input: boolean;
+  section: DataRole; category: string; record: boolean; run?: string;
+  uses?: {study?: string; studyTitle?:string; membership?: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
+  organization?: {role: string; input: boolean; by: string; revision: number};
+  inspection?: {facts?:MatrixInspectionFacts[];status: 'reported' | 'conflicting'; reports: {id: string; session: string; revision: number; digest: string}[]; total: number};
+  format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
+}
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
 export interface DataMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent'; id?: string; name: string }
 /** A write-up's form, newest first (S4): its presentation ("Presentation") and each findings version ("Findings v2"). */
@@ -18,6 +37,7 @@ export interface DataForm { label: string; version?: number; outputId?: string; 
 export interface SourceValues { url?: string; site?: string; title?: string; authors?: string; licence?: string; credit?: string; picture?: string }
 /** An index entry with Data's fields (the wire contract of ticket 66); every one is optional, so an older index reads. */
 export interface DataEntry extends StudyResource {
+  material?: ProjectMaterial;
   role?: DataRole | null;
   maker?: DataMaker | null;
   run?: string | null;
@@ -29,12 +49,12 @@ export interface DataEntry extends StudyResource {
 
 /** Data's sections, in order (the words Data shows). */
 export const ROLE_SECTIONS: readonly (readonly [DataRole, string])[] = [
-  ['acquired', 'Pictures and recordings'], ['analysis', 'Analyses'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['other', 'Other'],
+  ['acquired', 'Pictures and recordings'], ['files', 'Files and folders'], ['model', 'Models'], ['analysis', 'Analyses'], ['study', 'Studies'], ['writeup', 'Write-ups'], ['source', 'Sources'], ['history', 'Research history'], ['other', 'Files'],
 ];
 
 /** A section's heading as Data shows it ("Write-ups"): Help and every message that points into Data say it this way. */
 export function sectionWords(role: DataRole): string {
-  return ROLE_SECTIONS.find(([r]) => r === role)?.[1] ?? 'Other';
+  return ROLE_SECTIONS.find(([r]) => r === role)?.[1] ?? 'Files';
 }
 
 /** The section an entry is listed in: the server's role (S1), or null for a kind Data does not list. An index from before
@@ -66,6 +86,7 @@ export interface DataRow {
 /** Which of a run's entries its row opens: its outlines before its table, a table before an answer. */
 const OPENS_FIRST = ['population', 'named-outline', 'individual', 'tracks', 'dataset-table', 'analysis', 'graph', 'finding-table', 'finding-chart'];
 function opensFirst(entry: DataEntry): number {
+  if (entry.material?.kind === 'workflow' && !entry.material.run) return -1;
   const at = OPENS_FIRST.indexOf(entry.kind);
   if (at >= 0) return at;
   return entry.kind === 'result' && entry.table === true ? OPENS_FIRST.length : OPENS_FIRST.length + 1;
@@ -82,12 +103,14 @@ export function dataRows(entries: readonly DataEntry[], sources: readonly AssetM
   const listed = entries.filter((entry) => roleOf(entry) !== null && !unwritten(entry));
   const assets = new Map(listed.filter((entry) => entry.kind === 'asset').map((entry) => [entry.id, entry]));
   const inputs: DataRow[] = sources.map((asset) => {
-    const entry = assets.get(asset.id) ?? null;
+    const entry = asset.retained ? listed.find(entry=>isRetainedMaterial(entry,asset)) ?? null : assets.get(asset.id) ?? null;
     return { key: asset.id, role: 'acquired', entry, parts: entry ? [entry] : [], asset, maker: entry?.maker ?? null, at: entry?.at ?? asset.capturedAt ?? 0 };
   });
-  const joined = new Set(sources.map((asset) => asset.id));
+  const joined = new Set(sources.filter(asset=>!asset.retained).map((asset) => asset.id));
+  const retained = new Set(inputs.flatMap(row=>row.entry?[row.entry]:[]));
   const rows: DataRow[] = [], runs = new Map<string, DataRow>();
   for (const entry of listed) {
+    if (retained.has(entry)) continue;
     if (entry.kind === 'asset' && joined.has(entry.id)) continue;
     const role = roleOf(entry)!;
     // Folded within its section only: a run's parts are one thing, and a thing is in one section.
@@ -123,7 +146,7 @@ export function titleParts(title: string): { head: string; rest: string[]; time:
  * words; an input by its title's first part ("Human cells", its credit going to the quiet line). */
 export function rowTitle(row: DataRow): string {
   const entry = row.entry;
-  if (!entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
+  if (row.asset || !entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
   // Your note by its own title ("Your note · Field A looks denser" is "Field A looks denser"; its line says Note).
   if (entry.kind === 'annotation') return entry.title.replace(/^Your note · /, '') || entry.title;
   if (entry.untrusted || row.role === 'writeup' || row.role === 'source') return entry.title;
@@ -285,7 +308,7 @@ export const seenKey = (entry: { id: string; version?: number | null }) => `${en
 /** The keys a row is seen by: each of its parts. An input and a source are never marked New, nor counted on Data's
  * badge (a researcher reads many sources; the inputs are yours). */
 export function rowSeenKeys(row: DataRow): string[] {
-  if (row.role === 'source' || !row.entry || row.entry.kind === 'asset') return [];
+  if (row.role === 'history' || row.entry?.material?.origin === 'imported' || row.role === 'source' || !row.entry || row.entry.kind === 'asset') return [];
   return row.parts.map(seenKey);
 }
 export function rowIsNew(row: DataRow, seen: ReadonlySet<string>): boolean {

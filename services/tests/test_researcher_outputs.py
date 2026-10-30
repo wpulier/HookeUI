@@ -230,25 +230,220 @@ def test_when_the_animation_cannot_be_drawn_the_chart_is_made_and_that_is_said(t
     assert any(e["event"] == "step" and e.get("kind") == "warning" and "drew the chart instead" in e["text"] for e in events)
 
 
-def test_a_video_the_provider_refuses_says_the_model_and_its_status(tmp_path, monkeypatch):
-    """Live 2026-10-28: "It was a third-party video generation service ... I can't see the exact error message"."""
+def _video_client(monkeypatch, create):
+    """google.genai.Client whose Interactions API (research_worker/video.py) answers with `create`."""
     import google.genai as genai
-
-    class NotFound(Exception):
-        code, status = 404, "NOT_FOUND"
-        message = "models/veo-3.1-fast-generate-preview is not found for API version v1beta, or is not supported"
 
     class Client:
         def __init__(self, **kwargs):
-            async def generate_videos(**kwargs):
-                raise NotFound(NotFound.message)
-            self.aio = SimpleNamespace(models=SimpleNamespace(generate_videos=generate_videos))
+            self.aio = SimpleNamespace(interactions=SimpleNamespace(create=create))
 
     monkeypatch.setattr(genai, "Client", Client)
+
+
+def _photo() -> bytes:
+    import cv2
+    import numpy as np
+
+    return cv2.imencode(".jpg", np.full((480, 640, 3), 120, np.uint8))[1].tobytes()
+
+
+def test_a_video_the_provider_refuses_says_the_model_and_its_status(tmp_path, monkeypatch):
+    """Live 2026-10-28: "It was a third-party video generation service ... I can't see the exact error message". Will's
+    try-out of 29 Oct: Google had retired the video model, and the voice said it failed without the reason. The reason
+    (retired) and what to do are said on the card, told to the model, and kept on the run's result as a fact."""
+    monkeypatch.setenv("GEMINI_API_KEY", "test-not-a-key")
+
+    class NotFound(Exception):
+        status_code = 404
+        message = "models/gemini-omni-1.1-flash is not found for API version v1beta, or is not supported"
+
+    async def create(**kwargs):
+        raise NotFound(NotFound.message)
+
+    _video_client(monkeypatch, create)
     r, events = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="standard", deliverable="video")
     reply, _ = asyncio.run(r.call_tool("make_video", {"motion": "the nuclei grow", "seconds": 8}))
-    said = "the video model was unavailable (Veo 3.1 Fast, HTTP 404, NOT_FOUND: models/veo-3.1-fast-generate-preview is not found"
-    assert reply["error"].startswith(said) and "animate_measurements" in reply["error"]
+    assert reply["error"].startswith("the video model (Gemini Omni 1.1 Flash) couldn't be used: Google has retired Gemini "
+                                     "Omni 1.1 Flash (HTTP 404: models/gemini-omni-1.1-flash is not found")
+    assert reply["reason"] == "retired" and "animate_measurements" in reply["error"]
     card = [e for e in events if e["event"] == "step" and e.get("kind") == "warning"]
-    assert card and card[-1]["text"].startswith("The video model was unavailable (Veo 3.1 Fast, HTTP 404, NOT_FOUND")
+    assert card and card[-1]["text"] == ("The video model (Gemini Omni 1.1 Flash) couldn't be used: Google has retired Gemini "
+                                         "Omni 1.1 Flash; use its successor, or choose another model; no video was made")
+    assert r.unavailable == [{"model": "Gemini Omni 1.1 Flash", "for": "the video", "reason": "retired",
+                              "said": "Google has retired Gemini Omni 1.1 Flash",
+                              "todo": "use its successor, or choose another model",
+                              "status": "HTTP 404: models/gemini-omni-1.1-flash is not found for API version v1beta, or is "
+                                        "not supported"}]
     assert r.budget.spent == 0 and not [e for e in events if e["event"] == "output"]
+    asyncio.run(r.tool_finish({"summary": "No video could be made.", "limitations": ["the video model was retired"]}))
+    assert r.result["unavailable"][0]["reason"] == "retired"  # the fact rides with the result, whatever its words
+
+
+def test_a_video_refused_for_want_of_credit_says_so_with_what_to_do(tmp_path, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-not-a-key")
+
+    class Exhausted(Exception):
+        status_code = 429
+        body = '{"error": {"code": 429, "message": "Your prepayment credits are depleted.", "status": "RESOURCE_EXHAUSTED"}}'
+
+    async def create(**kwargs):
+        raise Exhausted("Your prepayment credits are depleted.")
+
+    _video_client(monkeypatch, create)
+    r, events = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="standard", deliverable="video")
+    reply, _ = asyncio.run(r.call_tool("make_video", {"motion": "the guard cells close"}))
+    assert reply["reason"] == "no-credit" and reply["todo"] == "add credit to your Google account, or choose another model"
+    card = [e for e in events if e["event"] == "step" and e.get("kind") == "warning"][-1]["text"]
+    assert card.startswith("The video model (Gemini Omni 1.1 Flash) couldn't be used: your Google account is out of credit; add "
+                           "credit to your Google account")
+    assert "couldn't be used: your Google account is out of credit" in reply["error"]
+
+
+def test_a_video_is_made_by_the_successor_from_the_photo(tmp_path, monkeypatch):
+    """Veo 3.1 Fast's successor, Gemini Omni 1.1 Flash, through the Interactions API: the photo as an image part, 16:9, the
+    length asked, the video back in the interaction; priced as one admitted call."""
+    import base64
+
+    import research_worker.researcher as researcher_module
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-not-a-key")
+    monkeypatch.setattr(researcher_module, "mark_video", lambda *a: True)
+    asked = []
+
+    async def create(**kwargs):
+        asked.append(kwargs)
+        return SimpleNamespace(output_video=SimpleNamespace(data=base64.b64encode(b"MP4 BYTES").decode(), uri=None))
+
+    _video_client(monkeypatch, create)
+    r, events = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="standard", deliverable="video")
+    r.frame_jpeg = _photo()
+    reply, _ = asyncio.run(r.call_tool("make_video", {"motion": "the guard cells close", "seconds": 4}))
+    assert reply["ok"] and (r.dir / reply["output"]).read_bytes() == b"MP4 BYTES"
+    call = asked[0]
+    assert call["model"] == "gemini-omni-1.1-flash" == researcher_module.VIDEO_MODEL
+    assert call["response_format"] == {"type": "video", "aspect_ratio": "16:9", "resolution": "720p", "duration": "4s"}
+    assert [p["type"] for p in call["input"]] == ["image", "text"] and call["input"][0]["mime_type"] == "image/png"
+    assert call["generation_config"] == {"video_config": {"task": "image_to_video"}}
+    output = next(e for e in events if e["event"] == "output")
+    assert output["kind"] == "video" and "gemini-omni-1.1-flash" in output["caption"]
+    assert r.budget.spent == pytest.approx(0.40)
+
+
+def test_a_video_with_no_photo_is_made_from_the_words_alone(tmp_path, monkeypatch):
+    """No camera (or nothing in view): "a short video showing how stomata open and close" is made text-to-video, its
+    prompt never speaks of a photo that is not there and its caption never says it started from one."""
+    import base64
+
+    import research_worker.researcher as researcher_module
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-not-a-key")
+    monkeypatch.setattr(researcher_module, "mark_video", lambda *a: True)
+    asked = []
+
+    async def create(**kwargs):
+        asked.append(kwargs)
+        return SimpleNamespace(output_video=SimpleNamespace(data=base64.b64encode(b"MP4").decode(), uri=None))
+
+    _video_client(monkeypatch, create)
+    r, events = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="standard", deliverable="video")
+    reply, _ = asyncio.run(r.call_tool("make_video", {"motion": "guard cells swell and the stoma opens", "seconds": 4}))
+    assert reply["ok"] and isinstance(asked[0]["input"], str) and "this photo" not in asked[0]["input"]
+    assert "generation_config" not in asked[0]
+    output = next(e for e in events if e["event"] == "output")
+    assert "from your photo" not in output["caption"]
+
+
+def test_a_video_under_a_spending_limit_is_made_shorter_never_refused_for_its_length(tmp_path, monkeypatch):
+    """A limited run ($1.00 at standard) that has spent $0.45 can't pay for 6 s ($0.60) but can for 4 s: it makes 4 s and
+    says so, rather than refusing the video the user asked for."""
+    import base64
+
+    import research_worker.researcher as researcher_module
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-not-a-key")
+    monkeypatch.setattr(researcher_module, "mark_video", lambda *a: True)
+    asked = []
+
+    async def create(**kwargs):
+        asked.append(kwargs)
+        return SimpleNamespace(output_video=SimpleNamespace(data=base64.b64encode(b"MP4").decode(), uri=None))
+
+    _video_client(monkeypatch, create)
+    r, _ = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="standard", deliverable="video")
+    assert not r.budget.unlimited
+    r.budget.spent = 0.45
+    reply, _ = asyncio.run(r.call_tool("make_video", {"motion": "the stoma opens", "seconds": 6}))
+    assert reply["ok"] and reply["seconds"] == 4 and asked[0]["response_format"]["duration"] == "4s"
+    assert r.budget.spent == pytest.approx(0.85)
+    r2, _ = worker(tmp_path / "r2", "http://127.0.0.1:1", effort="standard", deliverable="video", unlimited_budget=True)
+    reply, _ = asyncio.run(r2.call_tool("make_video", {"motion": "the stoma opens", "seconds": 8}))
+    assert reply["ok"] and "seconds" not in reply and asked[-1]["response_format"]["duration"] == "8s"
+
+
+def _openai_images(monkeypatch, generate):
+    import openai
+
+    class Client:
+        def __init__(self, **kwargs):
+            self.images = SimpleNamespace(generate=generate, edit=generate)
+
+    monkeypatch.setattr(openai, "AsyncOpenAI", Client)
+
+
+@pytest.mark.parametrize("status, body, reason, todo", [
+    (429, {"error": {"code": "insufficient_quota", "message": "You exceeded your current quota", "type": "insufficient_quota"}},
+     "no-credit", "add credit to your OpenAI account, or choose another model"),
+    (401, {"error": {"code": "invalid_api_key", "message": "Incorrect API key provided", "type": "invalid_request_error"}},
+     "key-refused", "check your OpenAI key in Models › Keys"),
+    (404, {"error": {"code": "model_not_found", "message": "The model `gpt-image-2.5-flare` does not exist", "type": "x"}},
+     "retired", "use its successor, or choose another model"),
+])
+def test_a_picture_the_provider_refuses_says_why_with_the_one_thing_to_do(tmp_path, monkeypatch, status, body, reason, todo):
+    """Will, 30 Oct: no permissions or ability error in the demo. A picture model's refusal (out of credit, key refused,
+    retired) is said on the card with why and what to do, kept on the run's result, and told to the model: never
+    "one of its steps didn't work" with the provider's raw words."""
+    monkeypatch.setenv("OPENAI_API_KEY", "test-not-a-key")
+
+    class Refused(Exception):
+        status_code = status
+
+    Refused.body = body
+
+    async def generate(**kwargs):
+        raise Refused(body["error"]["message"])
+
+    _openai_images(monkeypatch, generate)
+    r, events = worker(tmp_path / "r1", "http://127.0.0.1:1", effort="quick", deliverable="image")
+    reply, _ = asyncio.run(r.call_tool("generate_image", {"prompt": "a plant cell"}))
+    assert reply["reason"] == reason and reply["todo"] == todo
+    assert reply["error"].startswith("the picture model (GPT Image 2.5 Flare) couldn't be used: ")
+    card = [e for e in events if e["event"] == "step" and e.get("kind") == "warning"]
+    assert card and card[-1]["text"].startswith("The picture model (GPT Image 2.5 Flare) couldn't be used: ")
+    assert not any("didn't work" in e.get("text", "") for e in card)
+    assert r.unavailable[0]["model"] == "GPT Image 2.5 Flare" and r.unavailable[0]["for"] == "the picture"
+    assert r.budget.images == 0 and not [e for e in events if e["event"] == "output"]
+
+
+def test_the_picture_models_names_are_their_catalog_names():
+    import tomllib
+    from pathlib import Path
+
+    from research_worker.researcher import IMAGE_MODEL_DEFAULT, IMAGE_NAMES
+
+    root = Path(__file__).resolve().parents[2] / "catalog" / "models"
+    for model, name in IMAGE_NAMES.items():
+        entry = tomllib.loads((root / model / "model.toml").read_text())
+        assert entry["name"] == name and entry["version"] == model
+    assert IMAGE_MODEL_DEFAULT in IMAGE_NAMES
+
+
+def test_a_video_or_picture_asked_for_with_no_effort_named_starts_at_an_effort_that_makes_it():
+    """The brain may leave effort out; a video then starts at standard (the smallest that has make_video) rather than
+    being refused at quick. An effort that was chosen is kept, never raised to fit."""
+    said = "have a researcher make a short video explaining how stomata open and close"
+    admitted = policy.admit("start", words=said, deliverable="video", asked_with="make a short video explaining how stomata open")
+    assert admitted.effort == "standard" and admitted.deliverable == "video"
+    assert policy.default_effort("image") == "quick" and policy.default_effort("research") == "quick"
+    with pytest.raises(policy.ResearchRefused):
+        policy.admit("start", words=said, effort="quick", deliverable="video", asked_with="make a short video explaining")

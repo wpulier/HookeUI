@@ -4,7 +4,7 @@ import {WorkspaceViews} from './workspace-views';
 afterEach(()=>vi.unstubAllGlobals());
 function fixture(){
  vi.stubGlobal('document',{hidden:false,querySelector:()=>null,body:{dataset:{}}});
- const view={id:'main',title:'Main',items:[] as any[],notes:[]};
+ const view={id:'main',title:'Main',specimen:{visible:true,rect:null},items:[] as any[],notes:[]};
  const current=Object.assign(Object.create(WorkspaceViews.prototype),{session:'p',generation:1,layout:{schema:5,active:'main',views:[view]},openIds:['main'],
   completionRestores:new Set(),loaded:new Set(['main']),capture:vi.fn(),changed:vi.fn(),render:vi.fn(),flush:vi.fn(async()=>{}),roots:()=>[],
   activate:vi.fn(async()=>true),opts:{notice:vi.fn()},dirty:false,conflict:false});
@@ -45,4 +45,55 @@ test('researcher Tabs join the Assistant\'s Tab report; while one is in front no
  const {current}=fixture();current.opts.research={report:()=>[{id:'research:r1',title:'Researcher 1 · Counting',open:true,selected:true,kind:'researcher'},{id:'research:r2',title:'Researcher 2 · Shapes',open:false,selected:false,kind:'researcher'}],switch:vi.fn(),close:vi.fn()};
  const result=await current.agentCommand('p',{action:'list'});
  expect(result.tabs.map((t:{id:string;selected:boolean;open:boolean})=>`${t.id}:${t.selected}:${t.open}`)).toEqual(['main:false:true','research:r1:true:true','research:r2:false:false']);
+});
+
+test('the Assistant opens one saved item in a Tab of its own the way Open in new Tab does (a document: documents.py)',async()=>{
+ const {current}=fixture();
+ current.openReaderTab=vi.fn(async(item:{resource:{id:string}})=>{current.layout.views.push({id:'reader-1',title:'Findings',kind:'reader',specimen:{visible:false,rect:null},items:[item],notes:[]});current.openIds.push('reader-1');current.layout.active='reader-1';return true;});
+ const result=await current.agentCommand('p',{action:'reader',item:{resource:{day:'p',id:'d7',version:null},title:'Interesting findings so far'}});
+ expect(result.ok).toBe(true);
+ expect(current.openReaderTab).toHaveBeenCalledWith({resource:{day:'p',id:'d7',version:null},title:'Interesting findings so far'},{session:'p',generation:1});
+ expect(result.tabs.find((t:{id:string})=>t.id==='reader-1')).toMatchObject({kind:'reader',selected:true});
+ // Another Project's item, or none, is refused, and nothing opens.
+ current.openReaderTab.mockClear();
+ for(const item of [{resource:{day:'other',id:'d7',version:null},title:'x'},undefined]){
+  const refused=await current.agentCommand('p',{action:'reader',item});
+  expect(refused.ok).toBe(false);
+ }
+ expect(current.openReaderTab).not.toHaveBeenCalled();
+ // A Tab that does not open is said, never taken as shown.
+ current.openReaderTab=vi.fn(async()=>false);
+ const failed=await current.agentCommand('p',{action:'reader',item:{resource:{day:'p',id:'d8',version:null},title:'Other'}});
+ expect(failed).toEqual({ok:false,error:'Its Tab did not open. Open it from Data.'});
+});
+
+/** A live close-up's window as the Stage holds it: a native window the Tab lists, its arrangement never saves. */
+function liveWindow(tab:string){
+ const dataset:Record<string,string>={project:'p',workspaceView:tab,placementId:'pm',presentationId:'w-live',sourceKind:'live',sourceMedia:'capture'};
+ return {dataset,classList:{contains:(name:string)=>name==='workspace-window'},getAttribute:(name:string)=>name==='aria-label'?'the stoma · live magnification':null,querySelector:()=>null} as unknown as HTMLElement;
+}
+
+test('a live close-up the Tab lists moves to another Tab as itself, though its arrangement never saves it (will-tabs, 30 Oct)',async()=>{
+ // "Move that new enlargement into a new Tab": the live magnifier was listed on Main, and the move was refused
+ // "That exact placement is no longer in the named source Tab." It is the same window, now on the Tab asked for.
+ const {current}=fixture(),root=liveWindow('main');
+ current.layout.views.push({id:'mag',title:'Magnified View',specimen:{visible:false,rect:null},items:[],notes:[]});
+ current.openIds.push('mag');current.layout.active='mag';current.loaded.add('mag');
+ Object.assign(current,{roots:()=>[root],visibility:vi.fn()});
+ const listed=await current.agentCommand('p',{action:'list'});
+ const held=listed.tabs.find((t:{id:string})=>t.id==='main').items[0];
+ expect(held).toMatchObject({placement:'pm',kind:'magnifier',window:'w-live'});
+ const moved=await current.agentCommand('p',{action:'move',tab:'mag',from:'main',placement:held.placement});
+ expect(moved.ok).toBe(true);
+ expect(root.dataset.workspaceView).toBe('mag');
+ expect(current.visibility).toHaveBeenCalled();
+ expect(moved.tabs.find((t:{id:string})=>t.id==='main').items).toEqual([]);
+ expect(moved.tabs.find((t:{id:string})=>t.id==='mag').items[0]).toMatchObject({placement:'pm',window:'w-live'});
+ expect(current.layout.views.every((v:{items:unknown[]})=>v.items.length===0)).toBe(true); // nothing saved for it
+ // Undo, and a person's own Move, take the same way back.
+ expect(Reflect.get(WorkspaceViews.prototype,'relocate').call(current,'pm','mag','main',false)).toBe('pm');
+ expect(root.dataset.workspaceView).toBe('main');
+ // A window it does not list is still refused, as before.
+ const gone=await current.agentCommand('p',{action:'move',tab:'mag',from:'main',placement:'other'});
+ expect(gone).toEqual({ok:false,error:'That exact placement is no longer in the named source Tab.'});
 });

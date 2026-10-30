@@ -115,7 +115,7 @@ def test_no_scale_keeps_pixels_said_and_a_third_algorithm_arm_is_agreement_not_a
     (lambda r: r[1].pop("factor"), "declares the factor"),
     (lambda r: r[1].update(says=" "), "says what it is"),
     (lambda r: r[1].update(mask=np.zeros((3, 3), bool)), "differ in size"),
-    (lambda r: r[1].update(id="c"), "two or three arms"),
+    (lambda r: r[1].update(id="c"), "compare 2 to 6 arms"),
 ])
 def test_an_arm_must_declare_its_factor_on_the_same_frozen_source(change, words):
     rows = arms()

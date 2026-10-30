@@ -73,7 +73,8 @@ test('saved source uses exact revision for original-byte download and does not s
   const host = document.createElement('section');
   showScientificSource(host, { sourceFile: { format: 1, name: 'native.npy', size: 8, sha256: 'a'.repeat(64) } },
     { id: 'p' + 'b'.repeat(32), day: 'origin', version: 3 });
-  expect(host.textContent).toContain('compatible reader integration is still needed');
+  expect(host.textContent).toContain('Revision 3 · 8 bytes · Retained original');
+  expect(host.textContent).toContain('Preview as text');
   expect(host.querySelector('a')?.href).toContain('session=origin&revision=3');
   expect(request).not.toHaveBeenCalled();
 });
@@ -230,8 +231,8 @@ test('a drop fills the matching choice without uploading; folders are refused wi
   importer.accept({ files: [one], uri: '', folder: false });
   expect(root.querySelector('select')!.value).toBe('file'); expect(root.textContent).toContain('native.npy · 1 bytes');
   importer.accept({ files: planes, uri: '', folder: false });
-  expect(root.querySelector('select')!.value).toBe('stack'); expect(root.textContent).toContain('stacked in this order: p1.tif, p2.tif');
-  expect(root.textContent).toContain('Dropped as a stack');
+  expect(root.querySelector('select')!.value).toBe('files'); expect(root.textContent).toContain('2 separate files');
+  expect(root.textContent).not.toContain('Dropped as a stack');
   importer.accept({ files: [], uri: '# a comment\r\nhttps://data.example.org/cells.npy\r\n', folder: false });
   expect(root.querySelector('select')!.value).toBe('url'); expect(button('Save source to Project').disabled).toBe(false);
   importer.accept({ files: [one], uri: '', folder: true });

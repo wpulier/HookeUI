@@ -355,6 +355,7 @@ asked and never pushed into a prompt:
 |---|---|
 | "what do I need to set up?" | `models`: what your choices need, what is ready, what is available to add, and your keys |
 | "why can't you use SAM 3.1?" | `models` about it: its status, uses, facts and next step; a download is offered ("Want me to get it? 3.5 GB") |
+| "what segmentation models do we have, and what could we add?" | `models` with `does` (the kinds of work the request means, the model's own reading: outline, cells): every catalog entry that does them, installed or not, split into working here, here but not run yet, not set up (every step each needs: a download and its size, a key, a licence, its own Python), and can't run here; what is new in the catalog for it; how one not in the catalog is added from a link; the other kinds of work. A job named ("outlining") is answered the same way. A model not listed is said not to be in the catalog |
 | "yes, download it" | `get_model`: the offered download starts, only on your own yes (the offer's id, your words quoted and checked), and is said started, never done |
 | "add my OpenAI key" | `open_models`: the Models page opens at a card that waits on that key, with Add key there, done once the studio says it shows it |
 | "what does my Google key turn on?" | the catalog's own words for it, the models that use it, and that it turns on only what it lists |
@@ -411,6 +412,16 @@ observation too: refused for want of access, or done.
 its licence on its page (approval can take a while) (checked 21:29)", or "Its licence: not confirmed yet" when nobody
 could ask (offline, no key). **Unknown is never a refusal.** No ✗ on a card is a declaration: each is read here or
 carries when it was said (a test walks every card).
+
+**Real use is an observation too** (kind "use"; Will, 2026-10-29: Claude Opus 5.5 answered him all session while its
+card said "Not checked", grey). Every run of an entry the running app makes (a run of a model or method, a cloud call, a
+voice session that opened) keeps its latest outcome with when: it ran and returned, or it ran and failed with its own
+error. What the app cut short itself (its deadline, a newer request, the monthly cap), what never reached the model
+(busy, unavailable, refused in words), a blind trial before its vote and the app's own check are not use. The card says
+**Working here · last ran 14:02** from a run that worked, **Broken** with the failure's words from one that failed (the
+next run that works clears it), and **Ready · not checked yet** when it can run and nothing of it is recorded; the newer
+of a real use and the app's own check counts. They are kept beside the app's own checks (`uses.json` in the logs
+folder, docs/saves.md), so a test's or the sim's home keeps its own; benches and `make capability-check` record none.
 
 Answers are kept in `<catalog>/observed.json`, so a restart shows the last one with its time until it is asked again. No
 key's value is ever kept there, logged or said.

@@ -14,6 +14,8 @@ import type { RetryRequest } from './operation-retry';
 import type { StepFact } from './strip-sources';
 import { arrive, cardGroups, ResearchCard, type ResearchCardSource } from './chat-cards';
 import { ChatFollow, type ObserverClass, type ScrollBox } from './chat-scroll';
+import { HandoffRow, handoffView, handoffsInFlight, type FlightEntry } from './handoffs';
+import { ExperimentCard, experimentGroups, type ExperimentView, type ExperimentWire } from './experiment-card';
 import type { LitCellState } from './lit-cell';
 
 /** How long the answer's slot waits for its answer after the server says the request stopped thinking (its answer is
@@ -40,6 +42,12 @@ export interface ChatHooks {
   steps?(steps: StepFact[]): void;
   /** The researchers a request of this conversation started, as cards under it (chat-cards.ts); none, no cards. */
   researchCards?: ResearchCardSource;
+  /** The experiments a request of this conversation planned, as cards under it (experiment-card.ts), and what their
+   * buttons do; none, no cards. */
+  experimentCards?: { list(): Iterable<ExperimentWire>; act(action: ExperimentView['actions'][number], x: ExperimentWire): Promise<void> | void };
+  /** The voice's hand-offs to Hooke's brain still working in this conversation, after every change, for the strip over
+   * the composer (handoffs.ts FlightStrip); each entry jumps to its row. */
+  flight?(entries: FlightEntry[]): void;
   /** Draws the lit cell (lit-cell.ts) of the answer's slot and its receipts; none, words only. */
   cells?: { make(state: LitCellState, label: string): Element; set(cell: Element, state: LitCellState, label: string): void };
   /** The browser's ResizeObserver, so the end stays in view while an answer grows (chat-scroll.ts); none, only as
@@ -68,6 +76,14 @@ export class ChatLog {
   private readonly cardItems = new Map<string, HTMLLIElement>();
   private readonly cards = new Map<string, ResearchCard>();
   private cardClock: ReturnType<typeof setInterval> | null = null;
+  /** Experiment cards: one element per request's group, one card per experiment (experiment-card.ts). */
+  private readonly experimentItems = new Map<string, HTMLLIElement>();
+  private readonly experimentCards = new Map<string, ExperimentCard>();
+  private readonly experimentAnchors = new Map<string, number>();
+  /** The voice's hand-offs, one row each by the line's key (handoffs.ts); their clocks tick while one works. */
+  private readonly handoffRows = new Map<number, HandoffRow>();
+  private handoffClock: ReturnType<typeof setInterval> | null = null;
+  private flightKey = '';
   /** Scrolling that respects reading (chat-scroll.ts). */
   private readonly scroller: ChatFollow;
   private readonly execution: ExecutionLogView;
@@ -124,6 +140,13 @@ export class ChatLog {
   /** A Project's saved reading position, put back (following only if that is the end). */
   restoreReading(scrollTop: number): void {
     this.scroller.restoreReading(scrollTop);
+  }
+
+  /** The server's experiments changed (an `experiment` or `experiments` message): their cards follow. */
+  experimentsChanged(): void {
+    const added = this.placeExperiments(true);
+    if (added) this.hooks.unread();
+    this.scroller.changed({ news: added });
   }
 
   /** The server's researchers changed (a `research` or `research-list` message): their cards follow. */
@@ -298,8 +321,9 @@ export class ChatLog {
   /** The researcher cards, each group right after its request's answer (or the slot while it is written). Returns
    * whether a card arrived. `settle`: a card that arrives now lights with its one settle (not one redrawn by a replay). */
   private placeCards(settle: boolean): boolean {
+    const experiments = this.placeExperiments(settle);
     const source = this.hooks.researchCards;
-    if (!source) return false;
+    if (!source) return experiments;
     const sessions = [...source.list()];
     const byRid = new Map(sessions.map((s) => [s.rid, s]));
     const groups = cardGroups(this.model.lines, sessions, { day: this.model.activeDay, thread: this.model.active },
@@ -342,6 +366,49 @@ export class ChatLog {
       this.scroller.watch(item);
     }
     this.tickCards(counting);
+    return added || experiments;
+  }
+
+  /** The experiment cards, each group right after its request's answer (or the slot while it is written). */
+  private placeExperiments(settle: boolean): boolean {
+    const source = this.hooks.experimentCards;
+    if (!source) return false;
+    const all = [...source.list()];
+    const byId = new Map(all.map((x) => [x.id + ':' + x.session, x]));
+    const groups = experimentGroups(this.model.lines, all, { day: this.model.activeDay, thread: this.model.active },
+      (line) => { const item = this.items.get(line.key); return !!item && !item.hidden; }, this.experimentAnchors);
+    const keep = new Set(groups.map((group) => group.key)), listed = new Set(groups.flatMap((group) => group.ids));
+    for (const [key, item] of this.experimentItems) if (!keep.has(key)) { this.scroller.unwatch(item); item.remove(); this.experimentItems.delete(key); }
+    for (const id of [...this.experimentCards.keys()]) if (!listed.has(id)) this.experimentCards.delete(id);
+    let added = false;
+    for (const group of groups) {
+      let item = this.experimentItems.get(group.key);
+      if (!item) {
+        item = document.createElement('li');
+        item.className = 'chat-cards chat-xcards';
+        item.dataset.role = 'cards';
+        this.experimentItems.set(group.key, item);
+      }
+      const wanted = group.ids.map((id) => {
+        const x = all.find((e) => e.id === id && (!this.model.activeDay || e.session === this.model.activeDay))
+          ?? byId.get(id + ':' + (this.model.activeDay ?? ''))!;
+        let card = this.experimentCards.get(id);
+        const fresh = !card;
+        if (!card) { card = new ExperimentCard(id, (action, wire) => source.act(action, wire)); this.experimentCards.set(id, card); added = true; }
+        card.update(x, fresh && settle);
+        return card.root;
+      });
+      const have = Array.from(item.children);
+      if (have.length <= wanted.length && have.every((card, i) => wanted[i] === card)) item.append(...wanted.slice(have.length));
+      else item.replaceChildren(...wanted);
+      const anchor = group.after === null ? this.thinkingItem : this.items.get(group.after) ?? null;
+      const kids = Array.from(this.root.children);
+      if (anchor && kids.includes(anchor)) {
+        const next = kids[kids.indexOf(anchor) + 1] ?? null;
+        if (next !== item) this.root.insertBefore(item, next);
+      } else if (!item.parentElement) this.root.append(item);
+      this.scroller.watch(item);
+    }
     return added;
   }
 
@@ -386,6 +453,7 @@ export class ChatLog {
           for (const item of this.cardItems.values()) { this.scroller.unwatch(item); item.remove(); }
           this.cardItems.clear();
           this.cards.clear();
+          this.handoffRows.clear();
           if (!this.keepWaiting) this.endWaiting(); // another conversation: its slot is not this one's
           this.marks.clear();
           this.hooks.activity?.replaceChildren();
@@ -397,7 +465,7 @@ export class ChatLog {
           break;
         case 'add': {
           if (change.line.event) break; // an Activity line only: nothing of it in the conversation
-          const item = this.render(change.line);
+          const item = change.line.handoff ? this.handoffItem(change.line, !cleared) : this.render(change.line);
           this.items.set(change.line.key, item);
           const after = this.model.lines.slice(this.model.lines.indexOf(change.line) + 1)
             .map(line => this.items.get(line.key)).find(Boolean);
@@ -425,6 +493,10 @@ export class ChatLog {
         case 'event':
           // drawActivity draws Activity again from the lines as they are now.
           break;
+        case 'handoff':
+          // Its later state, in place; one that settled is news for a reader scrolled away.
+          if (this.drawHandoff(change.line) && !cleared) news = true;
+          break;
         case 'tag': {
           const tag = this.items.get(change.line.key)?.querySelector('.arm-tag');
           if (tag) tag.textContent = change.line.tag ?? '';
@@ -450,6 +522,7 @@ export class ChatLog {
     this.drawWorking();
     if (this.placeCards(!cleared) && !cleared) news = true;
     this.reportSteps();
+    this.reportFlight();
     // Starters until the conversation itself begins: Activity's own lines ("You started a new session") are not it,
     // or a Project made with + never showed them.
     this.starters.hidden = this.model.lines.some(line => this.conversationLine(line));
@@ -504,7 +577,80 @@ export class ChatLog {
   }
 
   private conversationLine(line: LogLine): boolean {
-    return !!line.answerStatus || (line.role !== 'activity' && line.role !== 'system' && !!line.text.trim());
+    return !!line.handoff || !!line.answerStatus || (line.role !== 'activity' && line.role !== 'system' && !!line.text.trim());
+  }
+
+  /** A hand-off's row (handoffs.ts), as it stands. `settle`: it arrived now (not redrawn by a replay). */
+  private handoffItem(line: LogLine, settle: boolean): HTMLLIElement {
+    const row = new HandoffRow(line.handoff!.id, { activity: (turnId) => this.focusTurn(turnId) });
+    this.handoffRows.set(line.key, row);
+    row.update(line.handoff!, handoffView(line.handoff!, Date.now() / 1000, line.replayed), settle);
+    return row.root;
+  }
+
+  /** A hand-off's later state drawn in place. Returns whether it settled now (done, did not work, or not known). */
+  private drawHandoff(line: LogLine): boolean {
+    const row = this.handoffRows.get(line.key);
+    if (!row || !line.handoff) return false;
+    const was = row.view?.state;
+    const view = handoffView(line.handoff, Date.now() / 1000, line.replayed);
+    row.update(line.handoff, view, true);
+    return was === 'working' && view.state !== 'working';
+  }
+
+  /** The hand-offs still working, for the strip; while one is, the rows' clocks tick each second (nothing else moves). */
+  private reportFlight(): void {
+    const rows = this.model.lines.filter((line) => line.handoff && this.handoffRows.has(line.key))
+      .map((line) => ({ line: line.handoff!, replayed: line.replayed }));
+    const entries = handoffsInFlight(rows, (id) => this.revealHandoff(id));
+    const key = entries.map((entry) => `${entry.key}|${entry.name}|${entry.doing}`).join('\n');
+    if (key !== this.flightKey) { this.flightKey = key; this.hooks.flight?.(entries); }
+    this.tickHandoffs(entries.length > 0);
+  }
+
+  private tickHandoffs(on: boolean): void {
+    if (!on) { if (this.handoffClock !== null) { clearInterval(this.handoffClock); this.handoffClock = null; } return; }
+    if (this.handoffClock !== null) return;
+    this.handoffClock = setInterval(() => {
+      let still = false;
+      for (const line of this.model.lines) {
+        const row = line.handoff ? this.handoffRows.get(line.key) : undefined;
+        if (!row || row.view?.state !== 'working') continue;
+        row.update(line.handoff!, handoffView(line.handoff!, Date.now() / 1000, line.replayed), false);
+        still = true;
+      }
+      if (!still) this.tickHandoffs(false);
+    }, 1000);
+  }
+
+  /** Brings a hand-off's row into view, marked for a moment, with focus on it (its strip entry was chosen). */
+  revealHandoff(id: string): boolean {
+    const row = [...this.handoffRows.values()].find((r) => r.id === id);
+    if (!row || row.root.hidden) return false;
+    this.bringIntoView(row.root, row.head);
+    return true;
+  }
+
+  /** Brings a researcher's chat card into view the same way; false when this conversation has none for it. */
+  revealResearcher(rid: string): boolean {
+    for (const item of this.cardItems.values()) {
+      const card = Array.from(item.children).find((node) => (node as HTMLElement).dataset?.rid === rid) as HTMLElement | undefined;
+      if (card) { this.bringIntoView(card, card); return true; }
+    }
+    return false;
+  }
+
+  private bringIntoView(target: HTMLElement, focus: HTMLElement): void {
+    target.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    focus.focus?.({ preventScroll: true });
+    target.dataset.flash = '';
+    setTimeout(() => { delete target.dataset.flash; }, 1400);
+  }
+
+  /** Activity at a request, by its turn (a hand-off's row opens the brain's request there). */
+  private focusTurn(turnId: number): void {
+    const line = this.model.lines.find((l) => l.turnId === turnId && l.handoff) ?? this.model.lines.find((l) => l.turnId === turnId);
+    if (line) this.focusEntry(line);
   }
 
   /** Activity, newest first: each entry drawn again only when what it shows changed. */

@@ -544,7 +544,7 @@ def test_columns_keep_their_case_categories_are_lists_and_a_lone_number_is_a_low
     assert "6 members" in ask(world, registry, "query_population", {"of": population.id, "where": {"MEANRED": [0, None]}})
     listed = ask(world, registry, "query_population", {"of": population.id, "where": {"group": ["g1", "g2"]}})
     assert "6 members (look group (DINOv2 small) g1 or g2)" in listed
-    assert "meanRed: median" in ask(world, registry, "query_population", {"of": population.id, "columns": ["meanred"]})
+    assert "meanRed: mean" in ask(world, registry, "query_population", {"of": population.id, "columns": ["meanred"]})  # the mean first, then the median (population.summary)
     view, _screen, studio = setup(world)
     present(view, world, what=population.id, do="show")
     said = present(view, world, what=population.id, do="colour", value="meanRed")

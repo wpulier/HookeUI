@@ -10,8 +10,10 @@ Arms, each on the same subjects (the ones asked for live, with their words):
   check-lite  the pixel check alone with a faster model on every photo the others downloaded, against the
               default check's decision (agreement), and how long it takes
 
-A photo any arm returns is judged by a model of another family (GPT-6.1 Sol): is it a real photograph of what was
-asked? So a fast arm that returns the wrong thing does not win on time.
+A photo any arm returns is judged by a model of another family (GPT-6.1 Sol): is it a real photograph that meets the
+whole request, its count, kind of view and imaging included? So a fast arm that returns the wrong thing does not win on
+time. (Until 2026-10-29 the judge asked only "a real photograph of <subject>", which passes a cross-section for "just a
+single stoma, surface view"; the founder's request of 17:16 is one of the subjects now.)
 
   cd services && .venv/bin/python -m bench.reference_bench [--subjects 20]
 
@@ -29,7 +31,8 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "reference"
 LOGS = Path.home() / "MicroscopeMind/profiles/companion-20261010/logs/interactions.jsonl"
 EXTRA = ["onion epidermis cells", "human sperm cells", "paramecium", "hydra", "diatom", "red blood cells blood smear",
-         "celery cross section", "xylem vessels"]  # the demo's other specimens, asked of nobody yet
+         "celery cross section", "xylem vessels",  # the demo's other specimens, asked of nobody yet
+         "a single stoma, surface view, light microscopy"]  # live 2026-10-29 17:16: a cross-section came back
 
 
 def asked_subjects(limit: int) -> list[dict]:
@@ -54,14 +57,14 @@ def asked_subjects(limit: int) -> list[dict]:
 async def commons(subject: str, query: str):
     """Catalogue candidates for the subject, downloaded and checked at once: the first the pixel check accepts."""
     from research_worker import safe_fetch
-    from research_worker.retrieval import matches_photo
+    from research_worker.retrieval import look_at_photo
 
     words = subject if any(w in subject.lower() for w in ("microscop", "micrograph")) else subject + " microscope"
     pages = await safe_fetch.commons_search(words, limit=3)
 
     async def one(url):
         image = await safe_fetch.fetch_image(url)
-        return image if await matches_photo(query, image.jpeg) else None
+        return image if (await look_at_photo(query, image.jpeg)).matches else None
 
     for done in asyncio.as_completed([asyncio.create_task(one(u)) for u in pages]):
         try:
@@ -73,8 +76,11 @@ async def commons(subject: str, query: str):
 
 
 async def judged(judge, subject: str, jpeg: bytes) -> bool | None:
-    reply = await judge.ask([jpeg], f'Is this image a real photograph of: "{subject}"? A diagram, chart, drawing or a '
-                                    'photo of something else is not. Reply JSON {"real_photo_of_it": true|false}.',
+    reply = await judge.ask([jpeg], f'Is this image a real photograph that meets this whole request: "{subject}"? It '
+                                    'must be the subject and meet every requirement the request states (how many, the '
+                                    'kind of view such as a surface view or a cross-section, the imaging). A diagram, '
+                                    'chart, drawing or a photo of something else is not. Reply JSON '
+                                    '{"real_photo_of_it": true|false}.',
                             max_output_tokens=200)
     value = (reply.data or {}).get("real_photo_of_it")
     return value if isinstance(value, bool) else None
@@ -134,7 +140,7 @@ async def main() -> None:
             retrieval.LOOKUP_MODEL = args.lite
             t1 = time.monotonic()
             try:
-                verdict = await retrieval.matches_photo(query, jpeg)
+                verdict = (await retrieval.look_at_photo(query, jpeg)).matches
             except Exception as exc:
                 verdict = f"failed: {type(exc).__name__}"
             finally:

@@ -273,9 +273,10 @@ def test_the_count_line_says_what_each_missing_key_adds():
     counts = capabilities.wire(options.Settings(), {"GEMINI_API_KEY": True}, counts=True)["setup"]["counts"]
     assert counts["total"] == len(capabilities.load()["capabilities"]) + len(capabilities.contributed(None)) and 0 < counts["works"] < counts["total"]
     added = {u["key"]: u["adds"] for u in counts["unlock"]}
-    assert "GEMINI_API_KEY" not in added and added.get("OPENAI_API_KEY", 0) > 0
-    more = capabilities.wire(options.Settings(), {"GEMINI_API_KEY": True, "OPENAI_API_KEY": True}, counts=True)["setup"]["counts"]
-    assert more["works"] == counts["works"] + added["OPENAI_API_KEY"]
+    # The researchers' default is Claude Opus 5.5 since 30 Oct, so the Anthropic key is what unlocks them.
+    assert "GEMINI_API_KEY" not in added and added.get("ANTHROPIC_API_KEY", 0) > 0
+    more = capabilities.wire(options.Settings(), {"GEMINI_API_KEY": True, "ANTHROPIC_API_KEY": True}, counts=True)["setup"]["counts"]
+    assert more["works"] == counts["works"] + added["ANTHROPIC_API_KEY"]
 
 
 def test_reading_readiness_loads_no_model_starts_nothing_and_calls_no_one(tmp_path):

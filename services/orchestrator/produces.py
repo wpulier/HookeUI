@@ -67,7 +67,8 @@ ROLES = {
     "bookmark": "other", "calibration": "other", "taught-label": "other", "project": "other",
     "member": None, "outcome": None, "fact": None, "job": None,  # not listed in Data (as before)
 }
-RESULT_ROLES = {"reference": "source"}  # a result's media -> its role (media.REFERENCE: a photo from the web)
+RESULT_ROLES = {"reference": "source",  # a result's media -> its role (media.REFERENCE: a photo from the web)
+                "document": "writeup"}  # a document write_document wrote from the Project's records (documents.py)
 
 # Kinds the brain's `resources` tool and a researcher's listing leave out unless asked for by kind (or one read by
 # its id): a researcher's sources, tables, charts and other work are many entries, and context earns its place
@@ -93,7 +94,9 @@ PRODUCT_KINDS = frozenset({"population", "tracks", "research", "recording", "boo
 # A result entry is a product only when its producer made a picture to keep that is not one of the user's sources (a
 # reference photo); counts, measurements, comparisons and where-is answers are answers. A clearer picture (enhance)
 # and a snapshot's own "result" entry are sources (library.py), not products.
-PRODUCT_RESULTS = frozenset({"reference_photo"})
+PRODUCT_RESULTS = frozenset({"reference_photo", "show_web",  # a reference photo, a video or page from the web
+                             "write_document",  # a document written from the Project's records
+                             "experiment"})  # an experiment's results and its comparison table (experiments.py)
 
 
 # What a researcher makes: its report (`research`) and the rest of its work, read from its research session (S4).
@@ -166,6 +169,12 @@ TOOLS = {
     "focus_check": "result",
     "show_in_magnifier": "none: shows a picture that exists",
     "reference_photo": "result",  # a reference photo from the web, kept with its source and licence (media.REFERENCE)
+    "show_web": "result",  # a video or web page from the web, kept with its source and link, opened in a window
+    "write_document": "result",  # a document written from the Project's records, kept under Write-ups (documents.py)
+    # An experiment (experiments.py): its frames, workflow runs and the models' cells, then its comparison table and its
+    # results document (Write-ups), kept when it finishes; planning it makes only its plan.
+    "experiment": "project, population, result",
+    "experiment_status": "none: reads an experiment's records",
     "close_magnifier": "none: closes the magnifier",
     "enhance": "result",
     "snapshot": "snapshot, result",  # its file, and with native windows the result a window opens by its id
@@ -237,11 +246,31 @@ COMMANDS = {
     "research-presentation": "research",
     "research-open-capture": "none: opens the original retained frame without acquisition or analysis",
     "research-cancel": "none: stops a researcher",
+    # An experiment's card (experiments.py): Run it makes what the experiment tool's run makes; Stop and Open results
+    # make nothing new.
+    "experiment": "project, population, result",
     "dataset": "dataset",
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",
     "dataset-reveal": "none: shows a dataset in the Finder",
     "sessions-reveal": "none: shows the folder every Project is saved in, in the Finder",
+    "project-export-prepare": "none: reads an estimate and dependency limitations before exporting",
+    "project-export": "none: starts a tracked immutable folder snapshot outside accepted research records",
+    "project-export-status": "none: reads an existing Project export operation",
+    "project-export-reveal": "none: reveals the verified exported folder identity in Finder",
+    "project-export-stop": "none: requests cancellation of the original Project export operation",
+    "project-record-review": "none: owner reviews whole shared Record inclusion and required space",
+    "project-record-include": "none: owner explicitly copies the whole reviewed Record dataset into a Project",
+    "project-record-status": "none: owner observes an admitted whole Record inclusion",
+    "project-record-stop": "none: owner requests stopping an admitted whole Record inclusion",
+    "project-copy-prepare": "none: reviews a verified export and space before working-copy restoration",
+    "project-copy-restore": "none: starts a tracked working copy without registration, grants or execution",
+    "project-copy-status": "none: reads a working-copy restoration operation",
+    "project-copy-stop": "none: requests cancellation of the original restoration operation",
+    "project-copy-reveal": "none: reveals the verified working-copy destination in Finder",
+    "project-storage": "none: reads the current Project location and collection readiness",
+    "project-open-folder": "none: registers an owner-selected working Project folder without granting agent access or moving the stage",
+    "project-reveal": "none: reveals the verified current Project folder in Finder",
     "rig": "calibration",
     "scale": "calibration",
     "arena": "temporary: a blind trial's outlines, until its vote",
@@ -259,6 +288,7 @@ COMMANDS = {
     "observe-confirm": "none: keeps the user's word that they accepted a licence (observed.py)",
     "page-opened": "none: the studio says it shows a page the agent opened (open_models)",
     "table-window-result": "none: the studio says whether it opened the table window an agent asked for (table_window.py)",
+    "web-window-result": "none: the studio says whether it opened the web page or video window Hooke asked for (web_window.py)",
     "model-download-cancel": "none: stops a download; what it fetched stays in its staging folder for next time",
     "model-install": "none: makes a model's own Python in the catalog's envs folder (envs.py); said in Activity",
     "model-prepare": "none: prepares candidate dependencies for private review, without operation activation or qualification",
@@ -327,6 +357,7 @@ COMMANDS = {
     "view": "none: the studio covers the live view to look back at a session, or shows it again (no looks meanwhile)",
     # A session's sources (library.py, sources.py; ADR 0022): kept in the session's journal and the library's file.
     "source": "asset",
+    "source-retain": "asset",
     "source-remove": "none: takes an asset out of the session (its journal); the library keeps it",
     "source-restore": "none: puts a removed asset back in the session (its journal)",
     "asset-meta": "none: the user's fields of an asset, kept in the library (library.jsonl)",

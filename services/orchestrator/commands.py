@@ -603,7 +603,7 @@ def _manual_proposal(message):
 # (clicks and questions have their own records; reports, timing and the blind test's own are left out).
 USER_ACTIONS = frozenset({"clear", "remove", "restore", "select", "cells", "magnifier", "present", "settings", "slidemap",
                           "presenter", "showing", "thread", "session", "scale", "focus", "flag", "pin-note", "dataset",
-                          "view", "source", "source-remove", "source-restore", "asset-meta", "asset-trash", "asset-restore", "action", "action-cancel",
+                          "view", "source", "source-retain", "source-remove", "source-restore", "asset-meta", "asset-trash", "asset-restore", "action", "action-cancel",
                           "population-correct"})
 
 
@@ -635,6 +635,7 @@ async def _handle(app, client: Client, message: dict) -> None:
     reply: dict = {"type": "result", "for": kind, "requestId": message.get("requestId")}
     handler = COMMANDS.get(kind)
     before = activity.before_command(app, kind, message) if kind in USER_ACTIONS else None
+    source_asked = app.day.here() if kind == 'source-retain' else None
     try:
         if handler is None:
             reply.update(ok=False, error=f"unknown command {kind}")
@@ -657,7 +658,7 @@ async def _handle(app, client: Client, message: dict) -> None:
                            "args": {k: v for k, v in message.items() if k not in ("type", "requestId")
                                     and isinstance(v, (str, int, float, bool)) and len(str(v)) <= 120}})
         try:  # and in Activity, in plain words (activity.py)
-            activity.command(app, kind, message, reply, before)
+            activity.command(app, kind, message, reply, before, asked=source_asked)
         except Exception:
             pass
     if reply.get("ok") is False:
@@ -735,6 +736,11 @@ async def run_tool(app, name: str, args: dict, *, question: str = '', client=Non
             stop = user_stop.STOP.get()
             if stop is not None and stop.requested:
                 raise asyncio.CancelledError  # the user pressed Stop between the steps of their action: none starts after it
+            if client is not None or door_actor.current():
+                # One way in (screen.fresh_report): the studio's report current before the tool acts, for the studio's
+                # own Run and a connected agent's run (which names no studio: the one whose report counts).
+                from .screen import fresh_report
+                await fresh_report(app.hub, client)
             run = app.brain.registry.start(name, args, ctx)
             if run.task is not None:
                 if stop is not None:
@@ -776,8 +782,10 @@ async def workspace_layout(app, client, msg) -> dict:
         if registrations is not None:
             from .day import SessionStore
             session, root, clock = msg['session'], app.day.root, app.day.clock
+            locations, prefs, catalogue = app.day.locations, app.day.user_prefs, app.day.catalogue
             def reconcile_owned_jobs():
-                owner = SessionStore(root, clock, session=session)
+                owner = SessionStore(root, clock, session=session, locations=locations,
+                                     prefs=prefs, catalogue=catalogue)
                 workspace_views.reconcile_jobs(owner, registrations.records('j', session))
             await asyncio.to_thread(reconcile_owned_jobs)
             if msg['session'] != app.day.sid:
@@ -1571,6 +1579,14 @@ async def table_window_result(app, client, msg):
     from .table_window import table_windows
 
     return {'ok': table_windows(app.hub).reply(client, msg)}
+
+
+@command('web-window-result')
+async def web_window_result(app, client, msg):
+    """The studio's answer to `web-window` (web_window.py): the web window it opened on that Tab, or why not."""
+    from .web_window import web_windows
+
+    return {'ok': web_windows(app.hub).reply(client, msg)}
 
 
 @command('workspace-tabs-result')
@@ -2866,41 +2882,97 @@ async def source(app, client, msg) -> dict:
     if isinstance(asked, str) and asked and asked != sid:
         raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
     target = str(msg.get("open") or "")
+    selection = app._source_selection = getattr(app, '_source_selection', 0) + 1
     library = getattr(app.hub, "library", None)
-    asset = None
+    asset = prepared = None
+    stage_media = getattr(app, '_project_stage_media', None)
     if target != "live":
         if not is_asset_id(target):
-            raise tools.ToolError("open is an asset's id or \"live\"", next=None)  # no next: the studio's own command format
-        if library is None:
-            raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
-        asset = await asyncio.to_thread(library.get, target)
-        if asset is None:
-            raise tools.ToolError(f"there is no asset {target}", next="pick one from this session's Assets or from All assets")
-    # One at a time, in the order asked, so the bridge ends on the last one (switching sessions quickly sends one landing
-    # each: run together, a slow seek of the first finished last). One asked in a session left while it waited, or while
-    # the bridge switched, is not this session's (its own landing follows).
-    async with _source_lock(app):
-        if app.day.sid != sid:
-            raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
-        if msg.get("switch") is not False:
-            await note_position(app)
+            raise tools.ToolError('open is an asset id or "live"', next=None)  # no next: malformed protocol input; UI supplies the source identity
+        locations = getattr(app.day, 'locations', None)
+        portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
+        selected = msg['retained'] if 'retained' in msg else getattr(app.day, 'source_references', {}).get(target)
+        if portable is not None:
+            if selected is None:
+                raise tools.ToolError('Choose the retained revision of this Project source',
+                                      next='collect the source into this Project before opening it')
+            if msg.get('switch') is False:
+                raise tools.ToolError('Retained media must be opened through the camera bridge', next=None)  # no next: the caller must use the supported source-selection path
+            from .project_stage_media import manager
+            stage_media = manager(app)
+            try:
+                prepared = await stage_media.prepare(selected, sid, target)
+            except (OSError, ValueError) as error:
+                raise tools.ToolError(str(error), next='check the retained source in Project data') from error
+            asset = prepared.asset
+        elif selected is not None:
+            raise tools.ToolError('This host has not opened the retained Project location', next='open the original Project before selecting its source')
+        else:
+            if library is None:
+                raise tools.ToolError('The Library is not available here', next=None)  # no next: this host has no Library implementation
+            asset = await asyncio.to_thread(library.get, target)
             if asset is None:
-                await _bridge(app, "POST", "/feed?source=camera")
+                raise tools.ToolError(f'there is no asset {target}', next='choose a source from Inputs or Library')
+    try:
+        async with _source_lock(app):
+            if app.day.sid != sid or app._source_selection != selection:
+                raise tools.ToolError('That source selection was superseded', next=None)  # no next: the newer selection owns the Stage
+            if msg.get("switch") is not False:
+                await note_position(app)
+                if prepared is not None or (getattr(app.hub, 'stage_meta', None) or {}).get('retained'):
+                    from .project_stage_media import invalidate_stage
+                    invalidate_stage(app)
+                if stage_media is not None:
+                    # A lost bridge reply is uncertain: keep its possible decoder
+                    # input until another feed replacement is acknowledged.
+                    stage_media.offered(prepared)
+                if asset is None:
+                    await _bridge(app, "POST", "/feed?source=camera")
+                else:
+                    from urllib.parse import urlencode
+                    at = msg.get("at")
+                    params = {"source": "asset", "path": str(asset.path), "title": asset.title_now(),
+                              **({"paused": "1"} if msg.get("paused") or asset.kind == "still" else {}),
+                              **({"at": f"{float(at):.3f}"} if isinstance(at, (int, float)) and at >= 0 else {})}
+                    await _bridge(app, "POST", "/feed?" + urlencode(params))
+                if stage_media is not None:
+                    await stage_media.replaced(prepared)
+            if app.day.sid != sid or app._source_selection != selection:
+                raise tools.ToolError('That source selection was superseded', next=None)  # no next: the newer selection owns the Stage
+            previous = app.day.on_stage
+            from .door import actor as source_actor
+            source_by = source_actor.current() or 'user'
+            if prepared is not None:
+                try:
+                    app.day.open_source(target, by=source_by, retained=asset.exact_reference())
+                except (ValueError, OSError) as error:
+                    raise tools.ToolError('The source opened, but its history could not be saved',
+                                          next='check Project storage and choose the source again before analyzing') from error
             else:
-                from urllib.parse import urlencode
+                app.day.open_source(target, by=source_by)
+            await app.stage_changed(asset)
+            app.hold_until_landed(False)
+        return {"ok": True, "onStage": target, "previous": previous, **({"title": asset.title_now()} if asset else {})}
+    finally:
+        if prepared is not None and prepared not in stage_media.held:
+            await asyncio.to_thread(prepared.close)
 
-                at = msg.get("at")
-                params = {"source": "asset", "path": str(asset.path), "title": asset.title_now(),
-                          **({"paused": "1"} if msg.get("paused") or asset.kind == "still" else {}),
-                          **({"at": f"{float(at):.3f}"} if isinstance(at, (int, float)) and at >= 0 else {})}
-                await _bridge(app, "POST", "/feed?" + urlencode(params))
-        if app.day.sid != sid:
-            raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
-        previous = app.day.on_stage
-        app.day.open_source(target)
-        await app.stage_changed(asset)
-        app.hold_until_landed(False)  # its source is on stage: it is looked at again (a session's opening held it)
-    return {"ok": True, "onStage": target, "previous": previous, **({"title": asset.title_now()} if asset else {})}
+
+
+@command('source-retain')
+async def source_retain(app, client, msg) -> dict:
+    """Owner's explicit Add material; copying does not select or navigate the Stage."""
+    from .project_source_intake import retain
+    import uuid
+    sid = msg.get('session')
+    if sid != app.day.sid:
+        raise tools.ToolError('That Project is no longer open', next=None)  # no next: the newly opened Project owns the UI
+    try:
+        result = await retain(app, sid, str(msg.get('asset') or ''), str(msg.get('requestId') or uuid.uuid4().hex))
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next='check the source and Project storage, then add the material again') from error
+    app.broadcast_sources(await app.session_sources(sid))
+    return result
 
 
 @command("source-remove")
@@ -2909,8 +2981,11 @@ async def source_remove(app, client, msg) -> dict:
     history; its specimens leave the session's list unless another source shows them). Undo is `source-restore`. When
     it was on stage, the studio puts `next` there (the newest other source, else the live camera)."""
     aid = str(msg.get("asset") or "")
-    library = getattr(app.hub, "library", None)
-    asset = await asyncio.to_thread(library.get, aid) if library is not None else None
+    from .project_stage_media import source_asset
+    try:
+        asset = await source_asset(app, aid)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     if not app.day.remove_source(aid):
         raise tools.ToolError("that is not one of this session's sources" if aid != "live" else "the live camera is always a source",
                               next=None)  # no next: the studio offers × only on the session's own assets
@@ -2928,11 +3003,14 @@ async def source_remove(app, client, msg) -> dict:
 async def source_restore(app, client, msg) -> dict:
     """Undo of a source's removal: it is the session's again, with its specimens."""
     aid = str(msg.get("asset") or "")
+    from .project_stage_media import source_asset
+    try:
+        asset = await source_asset(app, aid)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     if not app.day.restore_source(aid):
         raise tools.ToolError("that source was not removed from this session", next=None)  # no next: Undo is offered only right after a removal
     app.broadcast_sources(await app.session_sources(app.day.sid))
-    library = getattr(app.hub, "library", None)
-    asset = await asyncio.to_thread(library.get, aid) if library is not None else None
     return {"ok": True, "restored": aid, **({"title": asset.title_now()} if asset else {})}
 
 
@@ -2940,6 +3018,11 @@ async def source_restore(app, client, msg) -> dict:
 async def asset_meta(app, client, msg) -> dict:
     """The user's own fields of an asset (its specimen, magnification, title, notes): kept on it in the library, so they
     follow it into every session. On stage, its scale and its specimen change at once."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
@@ -2962,6 +3045,11 @@ async def asset_trash(app, client, msg) -> dict:
     """All assets' Move to trash (the user's, after a confirm naming the sessions that use it): out of the library and
     every session's list; the work made from it stays; a file the library holds goes to a trash folder, never deleted.
     When it was on stage here, it leaves the stage (`wasOnStage`: the studio goes live). Undo is `asset-restore`."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
@@ -2980,6 +3068,11 @@ async def asset_trash(app, client, msg) -> dict:
 @command("asset-restore")
 async def asset_restore(app, client, msg) -> dict:
     """Undo of Move to trash: back in the library and in every session that had it."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
@@ -3076,6 +3169,279 @@ async def sessions_reveal(app, client, msg) -> dict:
     return {"ok": True, "path": str(folder)}
 
 
+@command('project-open-folder')
+async def project_open_folder(app, client, msg) -> dict:
+    """Owner-selected working folder; never exposed through the agent door."""
+    from .project_launch import register_owner_folder
+    day, generation = app.day, app.day.generation
+    if msg.get('session') != day.sid:
+        raise tools.ToolError('The Project changed.', next='open the folder again from the current Project')
+    try:
+        root = await asyncio.to_thread(register_owner_folder, app.paths, day.locations, msg.get('path'),
+                                       use_location=msg.get('useLocation', False))
+    except (OSError, ValueError) as error:
+        raise tools.ToolError(str(error), next='keep the original folder and choose an available working Project') from error
+    # Registration is durable even if navigation changed while verification ran.
+    # The UI decides whether it can leave its current edits; no stage moves here.
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin,
+            'name': root.name, 'location': str(root.path)},
+            'current': app.day is day and day.current(generation)}
+
+
+@command('project-storage')
+async def project_storage(app, client, msg) -> dict:
+    """The owner's current-Project inspector shares the connector's location facts."""
+    from .project_storage_status import describe
+
+    day = app.day
+    generation = day.generation
+    if msg.get('session') != day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    value = await asyncio.to_thread(describe, day, day.sid)
+    if app.day is not day or not day.current(generation) or msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    return {'ok': True, 'storage': value}
+
+
+@command('project-reveal')
+async def project_reveal(app, client, msg) -> dict:
+    """Reveal only the captured Project's verified folder, never a supplied path."""
+    import subprocess
+    import sys
+
+    status = (await project_storage(app, client, msg))['storage']
+    if status['availability'] != 'available':
+        raise tools.ToolError(status['reason'] or 'This Project folder is unavailable.',
+                              next='restore the Project folder at its registered location, then retry')
+    # Legacy records remain in the host store; revealing them is not collection.
+    folder = status['location'] or str(app.day.root / msg['session'])
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': folder, 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': folder}
+
+
+@command('project-export-prepare')
+async def project_export_prepare(app, client, msg) -> dict:
+    from .project_export import prepare
+    from .door.schema import check
+    day, generation, session = app.day, app.day.generation, msg.get('session')
+    if session != day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    value = await asyncio.to_thread(prepare, day, session)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    check(value, 'project-export-plan')
+    return {'ok': True, 'export': value}
+
+
+@command('project-export')
+async def project_export(app, client, msg) -> dict:
+    from .project_export import export, owned_export
+    from .door.schema import check as validate
+    day, session = app.day, msg.get('session')
+    if session != day.sid or msg.get('acknowledgeIncomplete') is not True:
+        raise tools.ToolError('Review this Project’s export scope first.', next='reopen Project folder and review the copy')
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Project export stopped before publication')
+        def perform():
+            value = export(day, session, record['id'], acknowledge_incomplete=True, check=check)
+            validate(value, 'project-export')
+            return {'export': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Copying and verifying saved Project files')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.export',
+        project=session, input_revision=None, generation='project-folder-snapshot-v1',
+        params={'acknowledgeIncomplete': True}, request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_export_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg.get('session') or record['tool'] != 'project.export':
+        raise tools.ToolError('This is not an export from this Project.', next='open the Project that owns the export')
+    return record
+
+
+@command('project-export-status')
+async def project_export_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_export_operation(app, msg)}
+
+
+@command('project-export-reveal')
+async def project_export_reveal(app, client, msg) -> dict:
+    import subprocess
+    import sys
+    from .project_export import reveal_path
+    record = _project_export_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('export')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('This export has not completed.', next='wait for its saved completion receipt')
+    day, generation = app.day, app.day.generation
+    path = await asyncio.to_thread(reveal_path, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': str(path), 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': str(path)}
+
+
+@command('project-export-stop')
+async def project_export_stop(app, client, msg) -> dict:
+    record = _project_export_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
+
+
+@command('project-copy-prepare')
+async def project_copy_prepare(app, client, msg) -> dict:
+    from .project_working_copy import prepare
+    record = _project_export_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('export')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('This export has not completed.', next='wait for its saved receipt')
+    day, generation = app.day, app.day.generation
+    value = await asyncio.to_thread(prepare, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='review the copy from its owning Project')
+    return {'ok': True, 'copy': value}
+
+
+@command('project-copy-restore')
+async def project_copy_restore(app, client, msg) -> dict:
+    from .project_working_copy import restore
+    from .project_export import owned_export
+    source = _project_export_operation(app, msg)
+    receipt = (source.get('outcome') or {}).get('export')
+    if source['state'] != 'succeeded' or not isinstance(receipt, dict) or msg.get('acknowledgeIncomplete') is not True:
+        raise tools.ToolError('Review the completed export first.', next='prepare its working copy')
+    day, session = app.day, msg['session']
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Working-copy restoration stopped before publication')
+        def perform():
+            from .door.schema import check as validate
+            value = restore(day, session, receipt, record['id'], check=check)
+            validate(value, 'project-working-copy')
+            return {'copy': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Restoring and verifying a separate working copy')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.restore',
+        project=session, input_revision=None, generation='project-working-copy-v1',
+        params={'export': source['id'], 'manifestSha256': receipt['manifestSha256'], 'acknowledgeIncomplete': True},
+        request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_copy_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='return to the Project that owns the copy')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg['session'] or record['tool'] != 'project.restore':
+        raise tools.ToolError('This is not a working copy of this Project.', next='choose its owning Project')
+    return record
+
+
+@command('project-copy-status')
+async def project_copy_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_copy_operation(app, msg)}
+
+
+@command('project-copy-stop')
+async def project_copy_stop(app, client, msg) -> dict:
+    record = _project_copy_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
+
+
+@command('project-copy-reveal')
+async def project_copy_reveal(app, client, msg) -> dict:
+    import subprocess
+    import sys
+    from .project_working_copy import reveal
+    record = _project_copy_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('copy')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('The working copy has not completed.', next='wait for its saved receipt')
+    day, generation = app.day, app.day.generation
+    path = await asyncio.to_thread(reveal, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='return to its copy details')
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': str(path), 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': str(path)}
+
+
+@command('project-record-review')
+async def project_record_review(app, client, msg) -> dict:
+    from .project_record_inclusion import prepare
+    day, generation, session = app.day, app.day.generation, msg.get('session')
+    if session != day.sid:
+        raise tools.ToolError('The Project changed.', next='review the recording from its destination Project')
+    _, value = await asyncio.to_thread(prepare, day, app.hub.resources.projects,
+        app.paths.datasets, session, msg.get('dataset'))
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='review the recording from its destination Project')
+    from .door.schema import check
+    check(value, 'project-record-review')
+    return {'ok': True, 'review': value}
+
+
+@command('project-record-include')
+async def project_record_include(app, client, msg) -> dict:
+    from .project_record_inclusion import include
+    from .project_export import owned_export
+    day, session = app.day, msg.get('session')
+    if session != day.sid or msg.get('includeWholeDataset') is not True:
+        raise tools.ToolError('Review and confirm the whole recorded dataset.', next='review inclusion in this Project')
+    stores, datasets = app.hub.resources.projects, app.paths.datasets
+    identity, digest = msg.get('dataset'), msg.get('reviewDigest')
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Recorded dataset inclusion stopped before publication')
+        def perform():
+            value = include(day, stores, datasets, session, identity, digest, record['id'], check=check)
+            from .door.schema import check as validate
+            validate(value, 'project-record-inclusion')
+            return {'inclusion': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Verifying and copying the whole recorded dataset')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.record.include',
+        project=session, input_revision=None, generation='whole-record-inclusion-v1',
+        params={'dataset': identity, 'reviewDigest': digest, 'includeWholeDataset': True},
+        request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_record_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='return to the Project receiving the recording')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg['session'] or record['tool'] != 'project.record.include':
+        raise tools.ToolError('This is not a recording inclusion for this Project.', next='choose its owning Project')
+    return record
+
+
+@command('project-record-status')
+async def project_record_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_record_operation(app, msg)}
+
+
+@command('project-record-stop')
+async def project_record_stop(app, client, msg) -> dict:
+    record = _project_record_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
+
+
 # --- researchers --------------------------------------------------------------------------------
 @command('research-open-capture')
 async def research_open_capture(app, client, msg) -> dict:
@@ -3168,6 +3534,31 @@ async def research_followup(app, client, msg) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+@command("experiment")
+async def experiment_command(app, client, msg) -> dict:
+    """The experiment card's buttons (experiments.py): Run it runs exactly the plan the card shows (its version), the
+    user's own press; Stop stops it. Both go through the brain's `experiment` tool, as the brain's would."""
+    action = msg.get("action")
+    if action not in ("run", "stop", "open"):
+        return {"ok": False, "error": "Choose Run it, Stop or Open results on the experiment's card."}
+    if action == "open":  # its results, in a Tab of their own, on this studio (done once its report shows them)
+        from .experiments import experiments_of
+
+        xs = experiments_of(app.hub, app.day, app)
+        try:
+            x = xs.get(str(msg.get("id") or ""), app.day.sid)
+            said = await xs.open(x, client)
+        except ToolFailed as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": not said.startswith("not opened"), "summary": said,
+                **({"error": said} if said.startswith("not opened") else {})}
+    args = {"do": action, "experiment": str(msg.get("id") or "")}
+    if action == "run":
+        args.update(by="card", **({"version": msg["version"]} if type(msg.get("version")) is int else {}))
+    return await run_tool(app, "experiment", args, question="Run the experiment" if action == "run"
+                          else "Stop the experiment", client=client)
+
+
 @command("research-note")
 async def research_note(app, client, msg) -> dict:
     import uuid
@@ -3249,16 +3640,48 @@ async def screen(app, client, msg) -> dict:
     from .screen import screen_of
     from .workspace_observation import ObservationError
 
+    screen = screen_of(app.hub)
     try:
-        screen_of(app.hub).report(msg, client=client)
+        screen.report(msg, client=client)
         transport = getattr(app, "workspace_transport", None)
         if transport is not None:
             transport.save(client)
     except ObservationError as exc:
         correlation = getattr(exc, "screen_report", None)
+        _report_refused(app, client, exc.code, str(exc))
         return {"ok": False, "code": exc.code, "error": str(exc),
                 **({"screenReport": correlation} if correlation is not None else {})}
+    partial = screen.partial(client) if callable(getattr(screen, "partial", None)) else None
+    if partial:
+        # Taken without the windows whose source has no grant here: the rest of the screen still counts. Said in the
+        # log only (the studio shows no notice for it: it is Hooke's own bookkeeping, not something the user did).
+        _report_refused(app, client, "SOURCE_UNRESOLVED", "; ".join(row["reason"] for row in partial["unresolved"]),
+                        partial=partial)
+        return {"ok": True, "partial": partial}
     return {"ok": True}
+
+
+_REFUSAL_LOG_S = 5.0  # one log line per client and reason this often: a studio reports every few seconds
+
+
+def _report_refused(app, client, code: str, reason: str, *, partial: dict | None = None) -> None:
+    """A studio report refused or taken in part, in the interaction log (`screen-refused`, `screen-partial`): which
+    source or entry and why, so a screen that stops confirming is explained by the log (2026-10-29: it was not)."""
+    seen = getattr(app, "_report_refusals", None)
+    if seen is None:
+        seen = app._report_refusals = {}
+    key = (id(client), code, reason)
+    now = time.monotonic()
+    if now - seen.get(key, -_REFUSAL_LOG_S) < _REFUSAL_LOG_S:
+        return
+    seen[key] = now
+    if len(seen) > 64:
+        for old in sorted(seen, key=seen.get)[:-32]:
+            seen.pop(old, None)
+    record = {"kind": "screen-partial" if partial else "screen-refused", "code": code, "reason": reason[:300]}
+    if partial:
+        record.update(seq=partial.get("seq"), unresolved=partial.get("unresolved"))
+    _log_quietly(app, record)
 
 
 @command("present")

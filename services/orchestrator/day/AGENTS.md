@@ -18,7 +18,8 @@ establish ownership across a Project switch.
   - **Portable ownership:** new journal creation records one durable `session-origin` UUID before its first event.
     Equal date IDs or equal event timestamps in independent profiles do not establish the same Project. The origin
     remains in the journal, not a second registry. Opening or exporting a legacy journal never invents an origin.
-    `day/ownership.py` reads bounded owner envelopes (16 MiB journal, 64 KiB line); imported scientific work retains
+    `day/ownership.py` reads bounded transfer owner envelopes (16 MiB journal, 64 KiB line);
+    ordinary retained-folder ownership streams the journal without these export ceilings, under the same publication guard; resource-bounded inspection can supply its own byte/line allowance and cancellation check; imported scientific work retains
     the original origin and an explicit `session-imported` event with name/local-only metadata. This is a partial
     work import, not restoration of absent conversations, assets or workspace layout. Re-export preserves that origin.
     Import refuses a same-ID Project with a different or unavailable origin, including the initial same-day Project
@@ -293,3 +294,118 @@ through the same journal/namespace ownership machinery without switching the liv
 store or resume preference. The new store is cached for background filing. Connector
 ownership is recorded separately by its authorized action; a failed registration
 never silently resumes or recreates an interrupted admission.
+
+`SessionStore` and `Catalogue` accept a host `ProjectLocations` resolver. When supplied,
+new journals live in their own Project folder; old journals remain in place. Reads,
+switches and background filing resolve the captured session, never the active UI's
+folder. The resolver retains writer leases until host shutdown, and missing locations
+refuse instead of creating replacement journals. Host preferences stay in the legacy
+host directory. Registry format 2 also retains the compatible session handle so an
+offline folder's handle cannot be allocated again. It carries no research or grants.
+This seam is not enabled in App.build until scientific and legacy artifact routing
+is qualified; it is not a claim of complete portable creation or collection.
+
+An unavailable registered folder stays in the Project list with `storageUnavailable`;
+healthy Projects can still be found and read. It is excluded from last-used resume.
+Global legacy result-ID allocation refuses while any registered journal is unavailable,
+because treating its IDs as zero could reuse IDs in shared day storage. A failed
+post-lock ownership check releases the lease without caching trusted ownership.
+
+Opt-in portable microscopy populations keep every accepted save in an immutable
+folder under their owning Project. Their journal path is origin-qualified and
+relative, with the accepted manifest digest; reopening resolves that same origin
+through the host location registry. Corrections and same-revision links create new
+saved folders, preserving earlier accepted bytes. Legacy absolute references keep
+their prior layout; a portable Project cannot silently adopt them. Background writes
+require the captured owner and its writer lease, never the active workspace.
+
+Motion-track saves use the same opt-in immutable evidence folders and origin-qualified
+journal references as populations. Their points, captured image, rendered tracks,
+provenance and each prior save move with the Project. Workspace recovery and inactive
+Project reads share that resolver; missing/corrupt archives cannot be resaved as fresh
+accepted measurements. Legacy tracks keep their current layout.
+
+Opt-in portable bookmarks resolve the captured Project before decoding and again before publication. Records and their pictures are retained under artifacts/bookmarks; reads and Record capture use that same owner after a UI switch. Pictures carry their retained digest. Legacy bookmark paths remain unchanged.
+
+Staged portable snapshots retain annotated and clean images under their captured Project. The index resolves the same owner after relocation. Publication retains a pending marker until durable completion; incomplete captures are never accepted results. Library/source reassociation remains unqualified and live portable activation stays off.
+
+Staged portable volume storage retains metadata snapshots before replacements. These are history, not independently accepted findings. Restart reconciliation only changes jobs in writable owner Projects; another host’s lease leaves its running records untouched. Complete collection and live App activation remain unqualified.
+
+With portable locations enabled, Identity’s original append-only events resolve under their Project. Reads need no runtime; second hosts cannot append while the writer lease is held. Links, observations and merged IDs retain their existing replay meaning. Legacy identity files keep their layout; this does not activate portable Projects or collect global learned examples.
+
+Portable identity publication keeps a durable pending marker before append. Failed
+publication leaves the journal uncertain: retries and fresh replay refuse, retaining
+all bytes for explicit reconciliation. Removing that marker is the final acceptance
+action; a crash may conservatively restore uncertainty. Background identity lifecycle
+binding and reconciliation UI remain open gates: the staged adapter explicitly
+refuses event-loop use, rather than blocking live frames or silently claiming a save.
+
+`project_media.ProjectMedia` retains selected Library images/recordings with the
+existing FileIntake transaction and exact origin/revision/hash references. It copies
+bytes, retains known metadata, and refuses changed sources, event-loop work and
+individual Record parts. Readers use retained chunks rather than host Library IDs.
+Library alias/playback integration and complete capture/history collection remain
+unqualified; live portable activation stays off.
+
+`identity_io` qualifies portable identity reads and existing tool mutations on a
+serialized background path. Captured Project/generation fences prevent late state
+from replacing a later selection. A cancelled caller leaves its actual worker
+serialized; accepted events remain in the original Project. Loading/read failures
+are explicit. The shared ProjectEvents instance retains inode pins across calls.
+This does not qualify complete collection or turn on ordinary portable creation.
+
+`ProjectMedia.candidates` resolves a historical Library ID only within the captured
+Project origin, returning exact accepted revisions instead of choosing a newer file.
+The bounded worker refuses unreadable history. `project_media_decoder.retained_path`
+verifies retained chunks and its disposable host copy before a path-based decoder
+uses them. The caller owns that copy through decoder shutdown. It never registers a
+global Library alias; live playback and workspace restoration remain unqualified.
+
+The material inventory joins recorded matrix inspections to exact source revisions and file hashes. Report references remain available; conflicting dimensions do not select a preferred report. These are recorded tool facts, not independent scientific acceptance or a new content read.
+
+The opt-in retained Stage path journals the selected origin/document/revision/digest with
+its source. Source rows and original-image analysis read that exact Project revision,
+never a host Library alias. The bridge uses a verified disposable file under the host
+results cache, held until an acknowledged feed replacement; uncertain requests and host
+stop retain ownership. Saved optics are read-only until a revision-editing path exists.
+Legacy Library edit/trash commands refuse in portable Projects, and retained subjects
+do not write into equal Library IDs. Overlay matching includes the exact retained
+reference. Ordinary portable startup remains off pending complete collection and UI
+qualification.
+
+`source-retain` is the owner Studio intake step for selected Library media. Portable Projects copy through ProjectMedia off the event loop and journal an exact `source`/`retained` association without selecting the Stage. Request retries retain the original receipt even if the source was deleted. The captured Project and actor survive a UI Project switch; no fallback may file into another Project. Existing connector file-open uses this same step after its own authorization and intake. Global Library browsing is not newly granted.
+
+Detached workspace reconciliation and delayed quiz replies carry the host’s ProjectLocations, preferences and catalogue. They resolve the captured Project and must not create a second legacy journal with the same session handle. Real server restoration checks exercise workspace-layout reconciliation before shutdown.
+
+`python -m orchestrator.project_recovery --home <host> --session <handle>` inspects
+an empty legacy shadow conflicting with a registered portable Project. With the
+host stopped, `--preserve-empty-shadow <inspected-sha256>` moves only a two-event,
+otherwise empty legacy creation into host-local project-recovery, with its original
+bytes and a recovery receipt. It refuses active portable writers, changed bytes,
+additional events/files and ambiguous owners. It does not merge origins, alter
+portable evidence or grants, and is never invoked automatically. An interrupted
+recovery preserves its prepared receipt and bytes for explicit inspection.
+
+The Projects list counts scientific inputs through the same material projection as
+Inputs, including selected generated artifacts and historical Study pins. Explicit
+non-input membership is honored. An exact retained source alias is not counted
+again as a Library input; same names or equal bytes do not establish that identity.
+The catalogue projection runs off the event loop and creates no records.
+Count preparation groups one accepted-head scan per backing store, then applies the
+shared membership projection. Unreadable records leave a qualified partial input
+count; live Stage-only updates cannot erase that qualification.
+
+Staged owner startup can select an existing working folder with `--open-project`
+(or `HOOKE_OPEN_PROJECT`). It verifies retained ownership/history before registering
+an unknown origin and points only host preferences at the chosen Project. Colliding
+legacy/portable handles and pre-existing agent permission rows refuse. No historical
+actor receives access. Known-location replacement still uses explicit relocation;
+immutable exports must first become an explicitly restored working copy.
+
+Startup checks the remembered Project through the catalogue's availability state.
+A moved/offline folder cannot prevent opening an otherwise available Project and
+its owner recovery dialog. The unavailable locator remains listed; no replacement
+journal is created for it. Explicit location recovery and ordinary opening restore
+that Project. A profile with no available Project still needs startup recovery.
+
+When every registered Project is unavailable at startup, the portable host uses normal allocation for one separate Project recovery workspace. Offline locators stay visible and their handles are never reused; no original bytes or grants change. Restart reuses that workspace. This bootstrap does not reconnect the missing Project or admit scientific work.

@@ -66,6 +66,7 @@ def renderer(runtime, environ):
 
 
 def folder(store, saved):
+    store = store.for_session(saved.session, write=False)
     root = store._folder(saved.id) / 'view-exports'
     if root.is_symlink(): raise InvalidProject('The export folder must remain inside its saved document')
     return root
@@ -136,6 +137,7 @@ class ViewIntake(FileIntake):
 
 
 def publish(store, saved, frame, pixels, request, scope, region=None, *, previous=None, stopping=lambda: False, environ=os.environ):
+    store = store.for_session(saved.session, write=True)
     if type(request) is not str or not REQUEST.fullmatch(request):
         raise InvalidProject('Use the original bounded export request identity')
     signature, runtime = source_signature(saved)
