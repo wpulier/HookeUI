@@ -170,7 +170,7 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
         if folder in pending and chosen is not None:
             from .judge import judge_run
 
-            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge))
+            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge), logs=logs)
             old = verdicts or {}
             still = [k for k, v in old.items() if not k.startswith("_") and k not in fresh and isinstance(v, dict)
                      and not v.get("error")]

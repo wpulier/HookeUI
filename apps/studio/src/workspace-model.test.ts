@@ -108,3 +108,13 @@ test('the Tab strip\'s report says each Tab\'s kind and what it holds, the same 
  expect(Reflect.get(WorkspaceViews.prototype,'holdsReport').call(current)).toEqual({
   main:{kind:'work',holds:{table:1,video:1}},t1:{kind:'work',holds:{outlines:1}},r:{kind:'reader',holds:{document:1}}});
 });
+
+test('a window closed by its × is no longer held by its Tab, though its arrangement is kept',()=>{
+ // will-display, 29 Oct: after "only the video", Main still listed the closed table, and Hooke hedged it might be open.
+ const table=root({workspaceView:'main',placementId:'b',dismissed:'true'});
+ const video=root({workspaceView:'main',placementId:'v1',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'https://www.youtube.com/watch?v=abc'})});
+ const v={id:'main',title:'Main',specimen:{visible:true,rect:null},items:[item('table','e3','b')],notes:[]} as WorkspaceView;
+ expect(holds(tabItems(v,[table,video]))).toEqual({video:1});
+ // A Tab whose windows are not mounted (not opened yet) still lists what it holds.
+ expect(holds(tabItems(v,[]))).toEqual({table:1});
+});

@@ -147,7 +147,7 @@ What the voice said afterwards, in order (seconds after the user finished):
 {lines}
 What the app did (seconds after the user finished; "confirmed" = the studio reported the change on screen):
 {actions}
-
+{rows}
 Judge from these facts only:
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
 - meets_expectation: true if the answer does what "a good answer does here" says; null if that says nothing.
@@ -185,7 +185,17 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
         # The next request interrupted this answer on purpose (the plan's barge-in): judge what was said before it.
         cut = steps[i + 1] if i + 1 < len(steps) and steps[i + 1].get("interrupt") else None
         _, calls, _, lines = step_view(bench, conv, inter, (start, end), unprompted, tasks)
+        # The requests Hooke had in its rows in the chat as the user spoke, each in its latest state then (what the user
+        # sees): "is the video search done?" is judged against the search's own row, however many steps back it was.
+        latest: dict[str, dict] = {}
+        for r in conv:
+            if r.get("type") == "handoff" and isinstance(r.get("at"), (int, float)) and r["at"] <= release + 0.5:
+                latest[str(r.get("id"))] = r
+        rows = [f'- "{r.get("label") or r.get("request") or ""}": {r.get("state")}'
+                + (f' ({receipt(r.get("answer"), 160)})' if r.get("answer") and r.get("state") != "working" else "")
+                for r in latest.values()][-6:]
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
+                    "rows": rows,
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "
@@ -203,7 +213,8 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
 
 
 async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict, picture: bytes | None,
-                   model=None, name: str = DEFAULT_JUDGE, only: set | None = None) -> dict:
+                   model=None, name: str = DEFAULT_JUDGE, only: set | None = None,
+                   pictures: dict[str, bytes] | None = None) -> dict:
     """{step id: verdict} for every scored step (answered, meets_expectation, partner_quality, why), and
     "_judge": the judge's name."""
     if model is None:
@@ -232,8 +243,11 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
                                expect=expect.get("judge") or (f"shows {expect['visible']}" if expect.get("visible") else
                                                               "answers what was asked"),
                                lines="\n".join(step["lines"]) or "(nothing)",
-                               actions="\n".join(step["actions"]) or "(nothing)")
-        result = await model.ask([picture] if picture else [], prompt, max_output_tokens=600)
+                               actions="\n".join(step["actions"]) or "(nothing)",
+                               rows=("Requests in Hooke's chat when the user spoke (their rows, latest state):\n"
+                                     + "\n".join(step["rows"]) + "\n") if step.get("rows") else "")
+        seen = picture or (pictures or {}).get(step["id"])
+        result = await model.ask([seen] if seen else [], prompt, max_output_tokens=600)
         data = result.data if isinstance(getattr(result, "data", None), dict) else None
         if data is None:
             out[step["id"]] = {"error": (getattr(result, "error", None) or getattr(result, "raw_text", ""))[:200]}
@@ -244,11 +258,34 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
     return out
 
 
+def step_pictures(bench: dict, inter: list[dict], logs: Path | None) -> dict[str, bytes]:
+    """What the camera showed at each step, for a plan played from footage (no still): the newest frame the app kept
+    at or just after the user spoke (a brain turn's view, the running look's), from the stack's logs. Without it the
+    judge saw no picture and guessed (will-alive, 29 Oct: a stoma on the leaf footage judged "a fluorescent cell")."""
+    if logs is None:
+        return {}
+    kept = sorted((r["t"], logs / r["image"]) for r in inter if r.get("kind") in ("turn", "sight")
+                  and isinstance(r.get("t"), (int, float)) and isinstance(r.get("image"), str))
+    kept += sorted((p.stat().st_mtime, p) for p in (logs / "crops").rglob("*-sight-*.jpg")) if (logs / "crops").exists() else []
+    kept.sort()
+    out = {}
+    for step in [s for s in load_bench(bench)["steps"] if not s.get("setup")]:
+        release = released(step)
+        if not isinstance(release, (int, float)):
+            continue
+        chosen = [p for t, p in kept if t <= release + 8.0 and p.exists()]
+        if chosen:
+            out[step["id"]] = chosen[-1].read_bytes()
+    return out
+
+
 def judge_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, checkout: Path, *, name: str = DEFAULT_JUDGE,
-              model=None, only: set | None = None) -> dict:
+              model=None, only: set | None = None, logs: Path | None = None) -> dict:
     still = (plan.get("camera") or {}).get("still")
     picture = (checkout / still).read_bytes() if still and (checkout / still).exists() else None
-    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name, only=only))
+    pictures = {} if picture else step_pictures(bench, inter, logs)
+    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name, only=only,
+                                pictures=pictures))
 
 
 def judged_by(verdicts: dict | None) -> str | None:

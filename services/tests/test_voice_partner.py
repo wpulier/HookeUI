@@ -1606,6 +1606,8 @@ def test_with_hookes_brain_doing_the_work_the_voice_talks_looks_points_and_hands
     written = prompts.partner_prompt("brain")
     assert "do_in_hooke" in written and "call find" not in written and "think" not in written.split("# Acting")[1]
     assert prompts.partner_prompt("direct") == prompts.PARTNER
+    # The lead-in rule is replaced, never left beside its brain-mode form (Will's journeys, 29 Oct).
+    assert prompts.LEAD_IN in prompts.PARTNER and prompts.LEAD_IN not in written and prompts.LEAD_IN_BRAIN in written
 
 
 def test_do_in_hooke_asks_the_brain_in_the_users_own_words_with_what_they_pointed_at(monkeypatch):

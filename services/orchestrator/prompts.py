@@ -357,12 +357,26 @@ brief lists only the models in use. Never tell the user to restart, refresh, rel
 """
 
 
+LEAD_IN = ("Use a lead-in (\"Outlining them now.\") only before a tool that takes noticeable time (every cell outlined, a\n"
+           "researcher, a search); skip it for direct answers and quick actions (highlight, select, a Tab, close): call the tool,\n"
+           "then speak once, after its result (\"That oval is likely a stoma; it's highlighted.\").")
+LEAD_IN_BRAIN = ("A lead-in is at most four words naming the work (\"Outlining every cell.\"), and only before long work (every\n"
+                 "cell, a web search, a researcher, several models); never \"let me\", \"sure\", \"okay\" or \"got it\", and\n"
+                 "never why. Before anything else, no words: call the tool, then speak once, after its result (\"That oval is\n"
+                 "likely a stoma; it's outlined.\"). Name the likeliest thing plainly; a doubt in a few words after it, never a\n"
+                 "list of other things it might be.")
+
+
 def partner_prompt(acts: str = "brain") -> str:
     """The voice's instructions for how it acts (option PARTNER_ACTS): "brain" hands what is done in Hooke to Hooke's
     brain (PARTNER_ACTING_BRAIN); "direct" is the voice calling Hooke's tools itself (PARTNER's own Acting)."""
     if acts != "brain":
         return PARTNER
     head, rest = PARTNER.split("# Acting\n", 1)
+    # Will's journeys, 29 Oct: every quick request got a lead-in ("Let me take a closer look at that central feature
+    # before I name it.", "Sure, let me pull up the results table"), judged as filler; four plain words before long work
+    # scored as a colleague's. And a blurry look named three things it might be instead of the likeliest.
+    head = head.replace(LEAD_IN, LEAD_IN_BRAIN)
     _, tail = rest.split("# Pointing\n", 1)
     tail = tail.replace("never for what a tool just showed: highlight and outline tools show what they\nact on, and "
                         "after a tool that changes the screen Hooke points at its result as you speak (its result says\n"

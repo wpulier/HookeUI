@@ -72,6 +72,8 @@ class WorkspaceTabs:
             if key in args and (not isinstance(args[key], str) or not 1 <= len(args[key]) <= 256):
                 raise ToolFailed('Tab names and identities must be nonempty bounded text', next='list the Tabs first')
         action = args['action']
+        if action == 'only' and isinstance(args.get('keep'), str):
+            args = {**args, 'keep': [args['keep']]}  # one id as a string (the brain sent it so, 29 Oct): that one stays
         if action == 'only' and 'keep' not in args:
             # Nothing named to keep: "close everything on this Tab" (will-workspace, 29 Oct: refused, so the brain closed
             # each window by hand). Every window there closes; Main's specimen floats small, as it always stays.
