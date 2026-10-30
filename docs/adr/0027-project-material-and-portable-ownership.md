@@ -262,3 +262,17 @@ fall back to legacy creation. Inspection acquires no writer lease and transfers 
 authority. Collection status remains `not-assessed` until the complete dependency
 collector is qualified. A host without local storage support reports unavailability
 under the same contract. This slice adds no collection/open/migration mutation.
+
+## Owning-host snapshot checkpoint
+
+A host that already owns the Project writer can invoke the same bounded folder
+copy stage without releasing its lease or replaying an operation. Its captured
+location and continued writer ownership are rechecked during copying. Both stores
+retain their existing shared publication guards throughout, so a concurrent bundle
+import cannot be sealed halfway through its transaction. Source
+changes refuse acceptance and preserve the incomplete marker. The resulting
+read-only snapshot retains observed running states as history, not commands.
+
+This internal primitive does not establish dependency closure, guarantee a copy
+will finish while research keeps changing, or expose a complete Project export.
+The ordinary host still does not enable portable locations by default.

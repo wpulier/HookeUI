@@ -52,7 +52,7 @@ def test_assignment_is_input_and_opens_authoritative_study(tmp_path):
     entry = Index.project_entry(saved)
     assert entry.wire()['material']['kind'] == 'assignment'
     assert entry.wire()['material']['input']
-    assert _item(entry) is None  # project.state lists Studies separately
+    assert _item(entry) is None  # project.state joins the authoritative Study once below
 
 
 def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
@@ -95,3 +95,27 @@ def test_historical_input_is_retained_with_its_original_title(tmp_path):
     [use] = entry.material['uses']
     assert use['title'] == 'Original model' and use['available']
     assert use['digest'] == original.digest and use['revision'] == 1
+
+
+def test_empty_study_is_the_same_material_to_owner_and_connected_reader(tmp_path):
+    import asyncio
+    from orchestrator.project_state import state_of, OWNER
+    from orchestrator.research.efforts import Efforts
+    from orchestrator.door.projects import access
+    from tests.test_resources import app_at
+    built = app_at(tmp_path).state.app
+    study = Efforts(built.hub.resources.projects).create(built.day.sid, request="assignment-parity",
+        title="Compare measurements", objective="Read the evidence", criteria="Retain revisions", budget_usd=0)
+    # Synthetic grant here; actual connected-client qualification is separate.
+    actor = "agent:ac_" + "a" * 24
+    access(built).grant(built.day.sid, actor, "read", authority="development", user_project=True)
+    owner = asyncio.run(state_of(built.hub).read(built.day.sid, OWNER))
+    reader = asyncio.run(state_of(built.hub).read(built.day.sid, actor, access=access(built)))
+    own = next(i for i in owner['data']['items'] if i['ref']['id'] == study.id)
+    other = next(i for i in reader['data']['items'] if i['ref']['id'] == study.id)
+    entry = next(e for e in built.hub.resources.collect(built.day.sid)[0] if e.id == study.id)
+    assert own == other
+    assert own['material'] == entry.wire()['material']
+    assert own['material']['input'] and own['material']['kind'] == 'assignment'
+    assert owner['studies']['items'][0]['ref'] == own['ref']
+    check(owner, 'project-state'); check(reader, 'project-state')
