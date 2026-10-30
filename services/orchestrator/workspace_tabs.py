@@ -123,8 +123,18 @@ class WorkspaceTabs:
                                                                  'version': entry.version}, 'title': title}}
         if action == 'add':
             ref = args.get('resource')
+            # Named by its id alone ("d1", or {id} with no version): the version saved now, read here. Hooke resolves
+            # that itself (will-workspace, 29 Oct: "put that photo in it" was refused for want of a version, and the
+            # voice said "Hooke needs an exact saved version chosen"); an explicit version that is not the saved one
+            # is still refused.
+            if isinstance(ref, str):
+                ref = {'id': ref}
+            if isinstance(ref, dict) and set(ref) <= {'id', 'version'} and ref.get('version') is None and isinstance(ref.get('id'), str):
+                found = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session)
+                current()
+                ref = {'id': ref['id'], 'version': found.version if found is not None else -1}
             if not isinstance(ref, dict) or set(ref) != {'id', 'version'} or not isinstance(ref['id'], str) or type(ref['version']) is not int or ref['version'] < 0:
-                raise ToolFailed('choose an exact retained resource version', next='read the saved resource first')
+                raise ToolFailed('that item is not saved in this Project', next='read the saved resource first')
             entry = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session)
             current()
             if entry is None or entry.version != ref['version']:
@@ -133,8 +143,12 @@ class WorkspaceTabs:
             if args.get('presentation') == 'table' and entry.kind == 'population':
                 presentation = 'table'  # a population's measurements table, the window its masks' Measurements opens
             if presentation is None:
-                raise ToolFailed('this resource has no supported Tab insertion through this action',
-                                 next='open it through its existing result control')
+                # A photo, a video or a document is placed, not added: present do=place puts it where it is asked, on
+                # the Tab in front (will-workspace, 29 Oct: the brain tried tabs add for a reference photo, was refused
+                # without where to go, and the user was told about saved versions).
+                raise ToolFailed(f'a {entry.kind} is not added to a Tab this way',
+                                 next=f'switch to the Tab, then present with do place, what {entry.id} and placement '
+                                      'window, only or beside')
             payload['item'] = {'resource': {'day': owner.session, 'id': entry.id, 'version': entry.version, 'picture': None},
                                'title': entry.title, 'presentation': presentation, 'zoom': 1, 'pan': [.5, .5]}
             payload.pop('resource', None)

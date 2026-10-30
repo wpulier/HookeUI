@@ -367,6 +367,10 @@ LEAD_IN_BRAIN = ("A lead-in is at most four words naming the work (\"Outlining e
                  "list of other things it might be.")
 
 
+BEFORE_YOU_SPEAK = ("\n\n# Before you speak\nA quick request gets no words before its tool: call it, then say its "
+                    "outcome once. Never open with \"let me\", \"sure\", \"okay\" or \"got it\".")
+
+
 def partner_prompt(acts: str = "brain") -> str:
     """The voice's instructions for how it acts (option PARTNER_ACTS): "brain" hands what is done in Hooke to Hooke's
     brain (PARTNER_ACTING_BRAIN); "direct" is the voice calling Hooke's tools itself (PARTNER's own Acting)."""
@@ -382,7 +386,8 @@ def partner_prompt(acts: str = "brain") -> str:
                         "after a tool that changes the screen Hooke points at its result as you speak (its result says\n"
                         "pointed_at)", "never for what Hooke just showed: what it outlines or opens shows itself, and "
                         "Hooke points at its result as you speak (its result says pointed_at)")
-    return head + PARTNER_ACTING_BRAIN + "# Pointing\n" + tail
+    # Said last as well, where the voice reads it last: its habit of "let me…" before every request outlived the rule above.
+    return head + PARTNER_ACTING_BRAIN + "# Pointing\n" + tail + BEFORE_YOU_SPEAK
 
 
 LIVE_VOICE_DELEGATE = MIND + """

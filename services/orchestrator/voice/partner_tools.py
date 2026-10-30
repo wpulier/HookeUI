@@ -965,8 +965,11 @@ class PartnerTools:
         option = getattr(self.hub.settings, "look_hard", None)
         try:
             vision = self.brain.agent.vision(option)
+            # The likeliest thing first, plainly (will-alive, 29 Oct: "might be a stoma, but it could also be a surface
+            # artifact or an out-of-focus structure" on the leaf's stoma, judged as hedging).
             result = await vision.ask(images, "Answer the question about the picture(s) as JSON {\"answer\": \"...\"}: "
-                                      "one or two plain sentences, saying what you are unsure of.\nQuestion: " + question,
+                                      "the likeliest answer first, plainly, in one or two sentences; a doubt only in a "
+                                      "few words after it, never a list of other things it might be.\nQuestion: " + question,
                                       max_output_tokens=600)
         except Exception as exc:  # a missing key or a provider error is said, plainly
             return {"ok": False, "error": f"the vision model could not look ({type(exc).__name__})"}

@@ -2308,6 +2308,7 @@
     },
     "resource": {
      "additionalProperties": false,
+     "description": "add: the saved item by its id (its saved version unless one is named)",
      "properties": {
       "id": {
        "type": "string"
@@ -2317,8 +2318,7 @@
       }
      },
      "required": [
-      "id",
-      "version"
+      "id"
      ],
      "type": "object"
     },

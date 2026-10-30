@@ -44,5 +44,7 @@ def add_tab_tools(registry, services):
                 'tab': {'type': 'string'}, 'from': {'type': 'string'}, 'placement': {'type': 'string'},
                 'title': {'type': 'string', 'maxLength': 80},
                 'resource': {'type': 'object', 'properties': {'id': {'type': 'string'}, 'version': {'type': 'integer'}},
-                             'required': ['id', 'version'], 'additionalProperties': False}}, required=['action']),
+                             'required': ['id'], 'additionalProperties': False,
+                             'description': 'add: the saved item by its id (its saved version unless one is named)'}},
+               required=['action']),
         tabs, kind='query', inline_ms=1500, family='display', retained_input=True))
