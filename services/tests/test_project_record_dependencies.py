@@ -166,3 +166,42 @@ def test_exact_producer_reference_cannot_drop_its_digest(tmp_path, field):
     # exact producer evidence must not silently downgrade to that older format.
     assert result['referencesChecked'] == 2 and result['resolvedRevisions'] == 1
     assert [item['status'] for item in result['issues']] == ['unsupported-reference']
+
+
+def test_execution_locator_observation_does_not_rewrite_historical_provenance(tmp_path):
+    root, _, _, first = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    citing = store.create(root.session, {'kind': 'note', 'title': 'Execution receipt',
+        'resources': [], 'runtimes': [], 'state': {'workflowOutput': {'run': first.id}}})
+    old_digest = citing.digest
+    original = RecordDependencyReview(store, root.session)
+    original.inspect(citing)
+    first_receipt = original.result()['issues'][0]
+    assert first_receipt['status'] == 'unpinned-execution-locator'
+    assert first_receipt['reference'] == {'id': first.id, 'session': root.session}
+    assert first_receipt['observedRevision'] == identity(first)
+    updated = first.document
+    updated['title'] = 'Later execution progress'
+    later = store.save(first.id, root.session, updated, expected_revision=first.revision)
+    review = RecordDependencyReview(store, root.session)
+    review.inspect(citing)
+    assert review.result()['issues'][0]['observedRevision'] == identity(later)
+    assert first_receipt['observedRevision'] == identity(first)
+    assert store.read(citing.id, root.session).digest == old_digest
+
+
+def test_failed_locator_cannot_borrow_observation_for_another_owner(tmp_path):
+    root, _, _, first = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    refs = [identity(first), {**identity(first), 'session': '2025-01-01'},
+        {**identity(first), 'digest': '0' * 64}, {'id': 'p' + 'e' * 32, 'session': root.session}]
+    review = RecordDependencyReview(store, root.session)
+    for number, ref in enumerate(refs):
+        saved = store.create(root.session, {'kind': 'note', 'title': str(number),
+            'resources': [], 'runtimes': [], 'state': {'workflowOutput': {'run': ref}}})
+        review.inspect(saved)
+    issues = review.result()['issues']
+    assert issues[0]['observedRevision'] == identity(first)
+    assert [item['status'] for item in issues[1:]] == [
+        'external-project-inclusion-required', 'digest-mismatch', 'missing-or-unreadable']
+    assert all('observedRevision' not in item for item in issues[1:])

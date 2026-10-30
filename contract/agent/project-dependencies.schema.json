@@ -118,6 +118,10 @@
               }
             },
             "additionalProperties": false
+          },
+          "observedRevision": {
+            "$ref": "artifact-reference.schema.json",
+            "description": "Current accepted revision observed for an unpinned execution locator. Not the revision used by historical work."
           }
         }
       },

@@ -1230,3 +1230,5 @@ to the captured Project; starting captures the requested owner before background
 work. Navigation does not retarget admitted copying. Status/Stop read/control only
 that Project's export operations. Completed copies remain explicitly unverified for
 external dependencies; failure/cancellation preserve incomplete destinations.
+
+Dependency review reports an optional observedRevision for successfully resolved execution locators, with exact captured Project/id/revision/digest. The original unpinned-execution-locator issue remains; current resolution is not historical evidence. External, missing, malformed and digest-mismatched links never gain that observation. No accepted document is rewritten.

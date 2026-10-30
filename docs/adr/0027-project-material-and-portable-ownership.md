@@ -521,3 +521,8 @@ verify retained history, refuse either active writer, and publish only the locat
 The Project origin, accepted bytes and local grants stay unchanged. An unknown
 origin cannot use this mode or adopt historical permissions. Default opening still
 refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
+
+
+### Execution locators during collection review
+
+A run/attempt locator in old evidence remains a locator, never a retroactively pinned reference. Dependency review may report the exact revision observed now beside that original link, retaining its unresolved `unpinned-execution-locator` status. This observation supports explicit collection planning; it does not rewrite historical evidence or establish that the citing experiment used today's run head. Captured Project boundaries and the stable accepted-head basis still govern the read.

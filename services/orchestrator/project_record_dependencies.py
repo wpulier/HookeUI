@@ -103,6 +103,7 @@ class RecordDependencyReview:
         self.store, self.session = store, session
         self.links = 0
         self.resolved = {}
+        self.observed = {}
         self.issues = []
         self._seen_issues = set()
 
@@ -120,9 +121,11 @@ class RecordDependencyReview:
                 if len(self.issues) >= MAX_ISSUES:
                     raise ProjectLocationError('Project dependency review exceeds its issue allowance')
                 self._seen_issues.add(key)
+                observed = self.observed.get(ref['id']) if locator and type(ref) is dict and issue == 'unpinned-execution-locator' else None
                 self.issues.append({'source': {'id': saved.id, 'session': saved.session,
                     'revision': saved.revision, 'digest': saved.digest},
-                    'field': path[:1000], 'status': issue, 'reference': _shown_reference(ref)})
+                    'field': path[:1000], 'status': issue, 'reference': _shown_reference(ref),
+                    **({'observedRevision': observed} if observed else {})})
 
     def _resolve(self, ref, locator):
         if type(ref) is not dict or type(ref.get('id')) is not str or not PROJECT_ID.fullmatch(ref['id']):
@@ -142,7 +145,11 @@ class RecordDependencyReview:
         key = (ref['id'], None if locator else revision)
         try:
             if key not in self.resolved:
-                self.resolved[key] = self.store.read(ref['id'], self.session, revision=key[1]).digest
+                saved = self.store.read(ref['id'], self.session, revision=key[1])
+                self.resolved[key] = saved.digest
+                if locator:
+                    self.observed[ref['id']] = {'id': saved.id, 'session': saved.session,
+                        'revision': saved.revision, 'digest': saved.digest}
             result = self.resolved[key]
         except (OSError, ValueError):
             return 'missing-or-unreadable'

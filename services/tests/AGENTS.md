@@ -842,3 +842,5 @@ relocates/reopens without shadow storage or replay. The red trace and actual
 isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
+
+Execution-locator dependency tests preserve original workflow records while reporting their observed current revision. Later progress changes a new review, not an earlier receipt; missing or external locators cannot borrow another observed revision. These fixture tests do not certify complete collection.
