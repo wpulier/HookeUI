@@ -291,14 +291,26 @@ def build(operation: str, arms: list[dict], *, on: dict, policy: str = "raw", su
             "summary": summary, "totals": totals, "columns": columns, "rows": rows, "says": NOT_ACCURACY}
 
 
+# A comparison's summary in the order a reader needs it: what the models say together first, each cell's own labels
+# last (will-research, 29 Oct: a researcher paged through 11,099 characters of per-cell labels to reach the table).
+SUMMARY_FIRST = ("pairs", "counts", "everyNamed", "allAgree", "classes", "vocabulary", "calibration", "alike")
+SUMMARY_LAST = ("majority", "members", "labels")
+
+
 def values(record: dict) -> dict:
-    """What a result entry keeps of a comparison: the record, and its table bound to its sha256 (tables.result_table),
-    so the measurements table can show it and anyone reading it gets the same numbers."""
+    """What a result entry keeps of a comparison: its table (bound to its sha256: tables.result_table) first, so the
+    measurements table can show it and anyone reading it gets the same numbers from the first page, then the record:
+    what was compared, the totals, every pair's agreement, and each cell's labels last."""
     from .tables import kept_table_digest
 
     body = {"columns": record["columns"], "rows": record["rows"]}
-    comparison = {k: v for k, v in record.items() if k not in ("columns", "rows")}
-    return {"comparison": comparison, **body,
+    comparison = {k: v for k, v in record.items() if k not in ("columns", "rows", "arms", "summary")}
+    summary = record.get("summary") or {}
+    ordered = {k: summary[k] for k in SUMMARY_FIRST if k in summary}
+    ordered.update({k: v for k, v in summary.items() if k not in SUMMARY_FIRST and k not in SUMMARY_LAST})
+    comparison["arms"] = record.get("arms")
+    comparison["summary"] = {**ordered, **{k: summary[k] for k in SUMMARY_LAST if k in summary}}
+    return {**body, "comparison": comparison,
             "producer": {"implementation": "model-comparison", "version": FORMAT, "sha256": kept_table_digest(body)}}
 
 
@@ -369,9 +381,22 @@ async def compare_classes(hub, population, impls: list, *, classes=None, origin:
     from .brain.registry import ToolFailed
 
     names, vocabulary, template, calibration = classify.classes_for(hub, classes)
+    live = len(population.live())
     members = classify.chosen_members(population, limit or classify.MAX_MEMBERS)
     if not members:
         raise ToolFailed(f"{population.title} has no cells to classify", next="outline the cells first")
+    # What it is expected to cost, known before anything runs; past what one comparison may cost, an even sample that fits.
+    expected = classify.expected_cost(impls, len(members))
+    why = ""
+    if expected["usd"] > classify.MAX_EXPECTED_USD:
+        fits = max(classify.PER_SHEET, int(len(members) * classify.MAX_EXPECTED_USD / expected["usd"])
+                   // classify.PER_SHEET * classify.PER_SHEET)
+        members = classify.chosen_members(population, min(fits, len(members)))
+        expected = classify.expected_cost(impls, len(members))
+        why = f"to keep it under ${classify.MAX_EXPECTED_USD:.2f}"
+    elif len(members) < live:
+        why = f"one comparison names at most {classify.MAX_MEMBERS}"
+    chosen = classify.chosen_words(len(members), live, why)
 
     async def one(impl) -> dict:
         try:
@@ -392,21 +417,34 @@ async def compare_classes(hub, population, impls: list, *, classes=None, origin:
         a.pop("labels", None)  # kept once, by member, in the summary
     return build("classify", arms, policy=policy, summary=summary,
                  on={"population": population.id, "revision": population.revision, "title": population.title,
-                     "capture": population.capture_id, "members": len(members), "of": len(population.live())})
+                     "capture": population.capture_id, "members": len(members), "of": live, "chosen": chosen,
+                     "expectedUsd": expected["usd"], "expectedComplete": expected["complete"]})
 
 
 def headline(record: dict) -> str:
-    """The record in one line (a researcher's card): how many ran, how far they agree, the totals; the numbers are in
-    the record itself."""
+    """The record in one line (a researcher's card, what the voice says from): how many ran, how far they agree (the
+    closest and furthest pairs by name), the totals; the numbers are in the record itself."""
     t, summary = record["totals"], record["summary"]
+    labels = {a["impl"]: a["label"] for a in record["arms"]}
     ran = f"{t['ran']} of {t['models']} models ran" + (f" ({t['failed']} failed)" if t["failed"] else "")
     if record["operation"] == "classify":
-        shares = [p["agreement"] for p in summary.get("pairs") or () if p.get("agreement") is not None]
-        spread = (f"; pairs agreed on {min(shares) * 100:.0f}% to {max(shares) * 100:.0f}% of the cells both named"
-                  if shares else "")
-        ran += (f"; of {len(summary.get('members') or ())} cells, {summary['allAgree']} were named alike by every model "
-                f"that ran{spread}")
+        pairs = [p for p in summary.get("pairs") or () if p.get("agreement") is not None]
+        spread = ""
+        if pairs:
+            close, far = max(pairs, key=lambda p: p["agreement"]), min(pairs, key=lambda p: p["agreement"])
+            spread = (f"; the closest pair, {labels[close['a']]} and {labels[close['b']]}, agreed on "
+                      f"{close['agreement'] * 100:.0f}% of the cells both named"
+                      + (f", the furthest, {labels[far['a']]} and {labels[far['b']]}, on {far['agreement'] * 100:.0f}%"
+                         if far is not close else ""))
+        alike = summary["allAgree"]
+        ran += (f"; of {len(summary.get('members') or ())} cells, {alike} {'was' if alike == 1 else 'were'} named alike "
+                f"by every model that ran{spread}")
     return ran + f"; {t['seconds']:.1f} s of runs, ${t['costUsd']:.4f}" + ("" if t["costComplete"] else " (some not reported)")
+
+
+def said_names(names: list[str]) -> str:
+    """Names in a list said aloud: "A, B and C"."""
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1] if names else ""
 
 
 def digest(record: dict) -> str:

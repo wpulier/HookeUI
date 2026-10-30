@@ -386,13 +386,19 @@ class Hands:
         compact["pairs"] = record["summary"]["pairs"]
         compact["allAgree"], compact["everyNamed"] = record["summary"]["allAgree"], record["summary"]["everyNamed"]
         left = chosen.said()
+        on = record["on"]
+        cost = (f"; it was expected to cost about ${on['expectedUsd']:.2f} before it ran"
+                if on.get("expectedUsd") else "")
         return {"id": entry["id"], "title": entry["title"], "kind": "result",
                 "ran": {"models": [i.id for i in chosen.impls], "of": population.id, "executions": executions},
                 "values": {"comparison": compact},
-                "words": (f"classified {record['on']['members']} of {population.title}'s cells ({population.id}) with "
-                          f"{len(chosen.impls)} models and kept the comparison ({entry['id']}): "
-                          f"{model_comparison.headline(record)}" + (f"; not compared: {left}" if left else "")
-                          + ". Its numbers are in the entry")}
+                "words": (f"classified {on.get('chosen') or str(on['members']) + ' cells'} of {population.title} "
+                          f"({population.id}) with {len(chosen.impls)} models "
+                          f"({model_comparison.said_names([i.label for i in chosen.impls])}) and kept the comparison as "
+                          f"one entry ({entry['id']}): {model_comparison.headline(record)}{cost}"
+                          + (f"; not compared: {left}" if left else "")
+                          + ". Every model's counts, every pair's agreement, the time and the cost are in these values; "
+                            "the entry adds each cell's label")}
 
     async def _measure(self, session, selection, attempt):
         """The same accepted-label measurement as Studio/Ask, scoped to this research run."""

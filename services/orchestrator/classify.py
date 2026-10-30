@@ -28,7 +28,12 @@ import os
 import re
 from typing import Any
 
-MAX_MEMBERS = 60  # members named in one run (every model of a comparison names the same ones)
+# Members named in one run (every model of a comparison names the same ones): every outline up to this, then an even
+# sample said as one (chosen_words). It was 60, the first 60 in order, said nowhere (will-research, 29 Oct: "on 60 of the
+# 161 outlined objects—not the entire set"); 400 is 20 sheets a model, 2 to 7 s each, four at once.
+MAX_MEMBERS = 400
+MAX_EXPECTED_USD = 2.00  # what one comparison may be expected to cost before it runs; past it, an even sample that fits
+SHEETS_AT_ONCE = 4  # sheets of one model asked at once
 PER_SHEET = 20  # tiles in one picture a vision model is shown
 TILE = 160  # px, one member's crop on a sheet
 # A sheet's answer: room for a model's own thinking (counted in its output by OpenAI and Gemini), then ~50 a tile.
@@ -76,8 +81,52 @@ def classes_for(hub, given) -> tuple[list[str], str, str, str]:
 
 
 def chosen_members(population, limit: int = MAX_MEMBERS) -> list:
-    """The members a comparison names: the population's live ones, in their order, at most `limit`."""
-    return list(population.live())[:limit]
+    """The members a comparison names: every live one, in their order; past `limit`, `limit` of them evenly across
+    the population (every k-th), never the first ones only."""
+    live = list(population.live())
+    if len(live) <= limit:
+        return live
+    step = len(live) / limit
+    return [live[int(i * step)] for i in range(limit)]
+
+
+def chosen_words(chosen: int, of: int, why: str = "") -> str:
+    """Which cells a comparison named, in plain words: all of them, or how the sample was chosen and that the rest can
+    be classified."""
+    if chosen >= of:
+        return f"all {of} cells" if of != 1 else "the 1 cell"
+    every = of / chosen if chosen else 0
+    how = f"every {every:.0f}{'nd' if round(every) == 2 else 'rd' if round(every) == 3 else 'th'}" if every else ""
+    return (f"{chosen} of the {of} cells, evenly across them ({how}{', ' + why if why else ''}); "
+            "the rest can be classified on request")
+
+
+def expected_cost(impls: list, members: int) -> dict:
+    """What naming `members` cells is expected to cost before anything runs: for each cloud model, its sheets at its
+    list price (a sheet's picture and words in, about 30 words a tile out, at least a sheet's own thinking); a model on
+    this Mac costs nothing. An estimate, said as one."""
+    from research_worker.budget import IMAGE_TOKENS, PRICES
+
+    sheets = math.ceil(members / PER_SHEET) if members else 0
+    by_model = {}
+    for impl in impls:
+        if impl.worker != "cloud":
+            by_model[impl.id] = 0.0
+            continue
+        from .options import VISION
+
+        key = str(getattr(impl, "option", "") or impl.id)
+        option = VISION.get(key)
+        price = PRICES.get(getattr(option, "model", "") or key) or PRICES.get(impl.id)
+        if not isinstance(price, dict) or "in" not in price:
+            by_model[impl.id] = None
+            continue
+        fast = 2 if key.endswith("-fast") else 1
+        per_sheet = ((IMAGE_TOKENS + 400) * price["in"] + (REPLY_TOKENS // 3 + 30 * PER_SHEET) * price["out"]) / 1e6
+        by_model[impl.id] = round(per_sheet * sheets * fast, 4)
+    known = [v for v in by_model.values() if v is not None]
+    return {"usd": round(sum(known), 4), "complete": len(known) == len(by_model), "sheets": sheets,
+            "byModel": by_model, "basis": "list prices for each sheet's usual size, before the run"}
 
 
 # --- running it through the runner -------------------------------------------------------------------------------
@@ -238,9 +287,15 @@ def register() -> None:
         labels: dict[str, dict] = {}
         usage = {"input": 0, "output": 0}
         cost, priced, calls = 0.0, True, 0
-        for jpeg, numbers in pictures:
-            result = await client.ask([jpeg], ask_words(numbers, classes, vocabulary, specimen),
-                                      max_output_tokens=REPLY_TOKENS + 50 * len(numbers))
+        gate = asyncio.Semaphore(SHEETS_AT_ONCE)
+
+        async def ask(jpeg, numbers):
+            async with gate:
+                return await client.ask([jpeg], ask_words(numbers, classes, vocabulary, specimen),
+                                        max_output_tokens=REPLY_TOKENS + 50 * len(numbers))
+
+        answers = await asyncio.gather(*(ask(jpeg, numbers) for jpeg, numbers in pictures))
+        for (jpeg, numbers), result in zip(pictures, answers):
             calls += 1
             if result.error or not isinstance(result.data, dict):
                 why = result.error.split(": ", 1)[-1][:160] if result.error else "its answer could not be read"

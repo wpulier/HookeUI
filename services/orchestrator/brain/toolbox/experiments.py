@@ -133,9 +133,7 @@ def add_experiment_tools(registry: Registry, services) -> None:
         return xs.status_words(x) + rest
 
     registry.add(Tool(
-        "experiment_status", "How an experiment is going, or how it ended (\"how is the experiment going?\"), from one "
-        "reading of its records: how many model runs are done of how many, which model runs on which frame now, the "
-        "results so far, the audit's state and the time left (an estimate). Say those, in that order. The latest by "
-        "default.",
+        "experiment_status", "How an experiment is going, or how it ended (\"how is the experiment going?\"), from its "
+        "records: its state, its frames, each model's runs so far, its audit, its results. The latest by default.",
         schema({"experiment": {"type": "string", "description": "its id (x1) or number; default the latest"}}, []),
         experiment_status, kind="query", inline_ms=300, family="researchers"))
