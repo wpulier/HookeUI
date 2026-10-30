@@ -34,6 +34,8 @@ import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
 import { RunPills } from './strip-sources';
 import { StudyRefused, controlStudy, createStudy, listStudies, readStudy, studyName, studyNeeds, studySpending, taskCounts, type Effort, type StudyProvider, type StudyInput, studyInputDescription, studyState, studyInputs, studyReadiness, startStudy, collectStudyTask, recoverStudyTask, studyEvidence, reviewStudyTask, retainStudyFinding } from './research-efforts';
+import { openMaterialCapability } from './workflow-capabilities';
+import type { Reference } from './study-conversation';
 import { studyConversation } from './study-conversation';
 import { renderStudy, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import { ADOPT_WAIT_MS, adoptedResearcher, beginStart, draftLine, notStartedWords, settleStart, type DraftStart } from './researcher-draft';
@@ -978,8 +980,8 @@ let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
 window.addEventListener('workflow-open-study',event=>{const value=(event as CustomEvent<{id:string;session:string}>).detail;if(value.session===snapshot.session&&/^p[0-9a-f]{32}$/.test(value.id)){bridge.navigate('#');void openStudy(value.id);}});
-async function openStudy(id:string):Promise<void>{
-  if(!canLeaveStudy(()=>void openStudy(id)))return;
+async function openStudy(id:string,material?:{reference:Reference;title:string}):Promise<void>{
+  if(!canLeaveStudy(()=>void openStudy(id,material)))return;
   const owner=workspaceViews.tabOwner(),session=owner.session,opening=++studyOpening;
   const current=()=>opening===studyOpening&&inputOwnerCurrent(owner)&&!switching;
   let study:Effort,providers:StudyProvider[]=[],availableInputs:StudyInput[]=[];
@@ -1001,6 +1003,7 @@ async function openStudy(id:string):Promise<void>{
     if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
+    material,
     current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
     open:async(ref,title)=>{
       if(ref.session!==session)throw new Error('Return to the originating Study.');
@@ -1055,7 +1058,7 @@ async function openStudy(id:string):Promise<void>{
   },4000);
 }
 /** New Study saves a draft. Provider execution requires the separate Start action. */
-function newStudy():void{
+function newStudy(initial?:{reference:Reference;title:string},created?:(study:Effort)=>void):void{
   const owner=workspaceViews.tabOwner(),session=owner.session;if(!session)return;
   const dialog=el('dialog','workspace-recovery-dialog study-new-study'),form=el('form');form.method='dialog';
   const current=()=>inputOwnerCurrent(owner)&&!switching&&dialog.isConnected;
@@ -1085,9 +1088,10 @@ function newStudy():void{
   footer.append(el('p','study-note study-new-study-starts','Creating a study starts nothing. You start each experiment.'),cancel,save);form.append(body,footer);
   const load=()=>{void studyInputs(session).then(inputs=>{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
+    if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!!initial&&input.id===initial.reference.id&&input.revision===initial.reference.revision&&input.digest===initial.reference.digest&&!check.disabled;
       const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
@@ -1100,7 +1104,7 @@ function newStudy():void{
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();
@@ -1213,7 +1217,7 @@ function renderTabs(): void {
       else if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const index=event.key==='Home'?0:event.key==='End'?tabs!.order.length-1:(tabs!.order.indexOf(id)+(event.key==='ArrowLeft'?-1:1)+tabs!.order.length)%tabs!.order.length;tabStrip.querySelector<HTMLElement>(`[data-session="${tabs!.order[index]}"] [role="tab"]`)?.focus();}});
     const close=button('×',()=>void closeSessionTab(id),'study-tab-close');close.setAttribute('aria-label',`Close project ${title}`);
     holder.addEventListener('dragstart',event=>event.dataTransfer?.setData('text/plain',id));holder.addEventListener('dragover',event=>event.preventDefault());holder.addEventListener('drop',event=>{event.preventDefault();const from=event.dataTransfer?.getData('text/plain');if(from&&tabs){tabs=moveTab(tabs,from,tabs.order.indexOf(id));persistTabs();}});
-    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton,close);tabStrip.append(holder);
+    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton);if(tabs.active===id){const folder=button('',()=>openCurrentProjectFolder(),'study-tab-rename');folder.append(tabMark('folder'));folder.setAttribute('aria-label',`Project folder for ${title}`);folder.title='Project folder';holder.append(folder);}holder.append(close);tabStrip.append(holder);
   }
   requestAnimationFrame(()=>tabStrip.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({block:'nearest',inline:'nearest'}));
   document.body.dataset.studyNeutral=String(tabs.active===null);
@@ -1246,21 +1250,7 @@ function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesInco
   const now=Date.now()/1000,when=daysAgo(row.lastActive,now)===0?new Date(row.lastActive*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):monthDay(row.lastActive,now);
   return `${when} · ${inputCountWords(row.counts)}`;
 }
-const appMenu = new WorkspaceAppMenu({
-  opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
-  openProjectFolder: () => {
-    const owner = workspaceViews.tabOwner();
-    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
-    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
-      open: async (path, useLocation) => {
-        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
-        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
-        return reply.project;
-      },
-      navigate: session => changeSession(session),
-    });
-  },
-  projectFolder: () => {
+function openCurrentProjectFolder():void {
     const owner = workspaceViews.tabOwner();
     if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
     const row = snapshot.projects.find(item => item.id === owner.session);
@@ -1298,7 +1288,22 @@ const appMenu = new WorkspaceAppMenu({
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
         if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
     });
+}
+const appMenu = new WorkspaceAppMenu({
+  opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
+  openProjectFolder: () => {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
+      open: async (path, useLocation) => {
+        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
+        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
+        return reply.project;
+      },
+      navigate: session => changeSession(session),
+    });
   },
+  projectFolder: openCurrentProjectFolder,
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });
@@ -2090,8 +2095,30 @@ function renderReaderLabel(): void {
   slot.replaceChildren(title, kind);
 }
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
+/** Opening setup never starts work; all choices retain the originating revision. */
+function materialAction(entry:ReaderEntry,action:'inspect'|'experiment'|'ask'):void{
+ const material=entry.material;if(!material){actionError(new Error('Refresh this material before continuing.'));return;}
+ const reference={id:entry.id,session:entry.day??snapshot.session,revision:Number(entry.version),digest:entry.source?.sha256??''},session=reference.session;
+ if(!Number.isInteger(reference.revision)||!reference.digest){actionError(new Error('Refresh this material to read its exact revision.'));return;}
+ if(session!==snapshot.session)return;
+ const selected={reference,title:entry.title};
+ const proceed=(study?:Effort)=>{
+  if(snapshot.session!==session)return;
+  if(action==='ask'){if(study)void openStudy(study.id,selected);return;}
+  openMaterialCapability({material:{input:reference,title:entry.title},study:study?{id:study.id,title:studyName(study)}:undefined,
+   capability:action==='inspect'?'matrix-inspect':undefined},()=>snapshot.session,run=>bridge.navigate(`#workflows?run=${encodeURIComponent(run.id)}`));
+ };
+ const dialog=el('dialog','workspace-recovery-dialog material-study-chooser');dialog.setAttribute('aria-label','Choose a Study');
+ dialog.append(el('h2','','Choose a Study'),el('p','',`${entry.title} · revision ${reference.revision}`),el('p','','Keep this question or experiment with a research effort. Opening setup starts nothing.'));
+ const list=el('div','material-study-options');
+ for(const study of knownStudies){list.append(button(studyName(study),()=>{dialog.close();proceed(study);}));}
+ list.append(button('New Study…',()=>{dialog.close();newStudy(selected,proceed);}));
+ if(action==='inspect')list.append(button('Inspect without a Study',()=>{dialog.close();proceed();}));
+ dialog.append(list,button('Cancel',()=>dialog.close()));dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+}
 function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
   return {
+    materialAction, openStudy:id=>{void openStudy(id);},
     retainedEntry: (ref) => resourceSession === snapshot.session && ref.day === snapshot.session
       ? indexedRevision(entries, ref, snapshot.session) as ReaderEntry | null : null,
     researchers: () => bridge.researchers().map((row) => ({ rid: row.rid, name: row.name, day: row.day, status: row.status })),

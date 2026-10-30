@@ -4,7 +4,7 @@ import type {Effort} from './research-efforts';
 export interface Reference { id:string; session:string; revision:number; digest:string }
 export interface Recipient { actor:string; label:string }
 export interface StudyQuestion {
-  id:string; question:string; basis:Reference; recipient:Recipient; byLabel:string;
+  id:string; question:string; materials?:Reference[]; basis:Reference; recipient:Recipient; byLabel:string;
   answer:null|{statement:string; limitations:string; evidence:Reference[]; byLabel:string; by:string};
 }
 export interface QuestionState { basis:Reference; questions:StudyQuestion[]; recipients:Recipient[] }
@@ -20,7 +20,7 @@ const node=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',words='')=>{cons
 /** Questions and answers live in the Study. No provider, subprocess or side-panel dispatch here. */
 export function studyConversation(initial:Effort, options:{
   current:()=>boolean; open:(ref:Reference,title:string)=>Promise<void>;
-  fetcher?:typeof fetch; copy?:(text:string)=>Promise<void>;
+  material?:{reference:Reference;title:string}; fetcher?:typeof fetch; copy?:(text:string)=>Promise<void>;
 }) {
   let study=initial, sending=false, reading=false, signature='', loaded=false, sendError='';
   let basis:Reference={id:initial.id,session:initial.session,revision:initial.revision,digest:initial.digest};
@@ -35,6 +35,7 @@ export function studyConversation(initial:Effort, options:{
   const recipientLabel=node('label','study-recipient-control');
   recipientLabel.append(node('span','study-recipient-label','Reply with'),select);
   compose.actions.prepend(recipientLabel);
+  if(options.material){const attachment=node('p','study-question-attachment',`${options.material.title} · revision ${options.material.reference.revision}`);compose.root.prepend(attachment);}
   const refreshButton=node('button','study-quiet study-replies-refresh','Refresh');refreshButton.type='button';
   refreshButton.setAttribute('aria-label','Refresh replies');refreshButton.title='Check for saved replies';
   const heading=node('header','study-discussion-heading');
@@ -54,6 +55,7 @@ export function studyConversation(initial:Effort, options:{
       const card=node('article','study-question');card.dataset.questionId=question.id;card.dataset.signature=rowSignature;
       const prompt=node('div','study-question-prompt');
       prompt.append(node('small','study-question-author',question.byLabel),node('p','study-question-words',question.question));card.append(prompt);
+      for(const ref of question.materials??[]){const link=node('button','study-quiet',`Attached material · revision ${ref.revision}`);link.type='button';link.addEventListener('click',()=>{void options.open(ref,'Question material').catch(error=>{status.textContent=String(error);});});card.append(link);}
       if(question.answer){
         const answer=question.answer;
         card.append(node('strong','study-answer-author',answer.byLabel),node('p','study-answer-words',answer.statement));
@@ -94,7 +96,7 @@ export function studyConversation(initial:Effort, options:{
   refreshButton.addEventListener('click',()=>void refresh());
   compose.root.addEventListener('submit',event=>{
     event.preventDefault();const text=compose.field.value.trim();if(!text||sending||!select.value||!loaded||!options.current())return;
-    if(!retry||retry.text!==text||retry.recipient!==select.value)retry={text,recipient:select.value,body:{session:study.session,request:crypto.randomUUID(),question:text,basis,recipient:select.value}};
+    if(!retry||retry.text!==text||retry.recipient!==select.value)retry={text,recipient:select.value,body:{session:study.session,request:crypto.randomUUID(),question:text,basis,recipient:select.value,...(options.material?{materials:[options.material.reference]}:{})}};
     const captured=retry;sendError='';sending=true;root.dataset.pending='true';ready();status.textContent='Saving your question…';
     void responseAfterSave(captured);
   });

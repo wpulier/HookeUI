@@ -2034,3 +2034,5 @@ Project inventory and Study refreshes coalesce while their same-Project read is 
 Navigation cancels the old browser read; refresh events do not invalidate an arriving
 answer. A ten-second notice offers Retry, and a thirty-second read timeout keeps
 already loaded material. Retry repeats reads only, never scientific operations.
+
+Material overviews promote exact retained inspection facts and bounded previews above file details. Material questions pin their attachment beside the Study revision; experiment setup uses the same catalog form as Tools and admits through Study/WorkflowService only after Run. A historical selection never silently becomes the latest input. Open analysis windows is the private-window manager, not research activity. The Project-title folder control opens the existing folder inspector.

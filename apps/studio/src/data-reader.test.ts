@@ -232,7 +232,7 @@ describe('the reader on screen', () => {
     if (timing === 'before response') reader.refresh(known);
     release();
     await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
-    const content = root.querySelector('.rd-body')!, original = content.children[0];
+    const content = root.querySelector('.rd-body')!, original = content.querySelector('.scientific-source-inspector');
     changed.mockClear();
     if (timing === 'after response') { reader.refresh(known); expect(changed).toHaveBeenCalledTimes(1); }
     if (timing === 'show again') reader.show(known);
@@ -246,7 +246,7 @@ describe('the reader on screen', () => {
     expect(changed).not.toHaveBeenCalled();
     expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
     expect(details.open).toBe(true);
-    expect(content.children[0]).toBe(original);
+    expect(content.querySelector('.scientific-source-inspector')).toBe(original);
     expect(fetcher).toHaveBeenCalledTimes(1);
     reader.refresh({...known, version: 2, material: {...known.material, shape: [9, 9]}});
     expect(reader.current()?.version).toBe(1);

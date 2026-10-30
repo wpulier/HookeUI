@@ -153,7 +153,8 @@ def test_inspection_attaches_to_exact_source_with_report_provenance(tmp_path):
     assert entry.material['format'] == 'AnnData' and entry.material['shape'] == [18400, 18533]
     assert entry.material['origin'] == 'imported'
     assert entry.material['inspection'] == {'status': 'reported', 'total': 1, 'reports': [
-        {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}]}
+        {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}], 'facts': [
+        {'shape': [18400,18533], 'report': {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}}]}
     assert store.read(source.id, source.session) == before
     check(entry.material, 'project-material')
     assert _item(entry)['material'] == entry.wire()['material']
@@ -302,3 +303,17 @@ def test_pending_legacy_publication_keeps_project_list_with_qualified_count(web)
     assert response.status_code == 200
     row = next(row for row in response.json()['sessions'] if row['id'] == app.day.sid)
     assert row['counts']['sourcesIncomplete']
+
+
+def test_inspection_preview_projection_is_bounded_and_preserves_older_facts():
+    from orchestrator.project_material import inspection_facts
+    import copy
+    preview={'selection':'first-observations-and-variables','observations':['one'],'variables':['gene'],
+             'values':[[2]],'observationAnnotations':[{'name':'batch','values':['A']}],'variableAnnotations':[]}
+    assert inspection_facts({'preview':preview})['preview']==preview
+    for change in ({'values':[[float('nan')]]},{'values':[[2,3]]},{'observations':['x']*11},
+                   {'observationAnnotations':[{'name':'bad','values':['x'*257]}]}):
+        bad=copy.deepcopy(preview);bad.update(change)
+        facts=inspection_facts({'dtype':'float32','preview':bad})
+        assert facts=={'dtype':'float32'}
+    assert inspection_facts({'dtype':'float32','shape':[2,3]})=={'dtype':'float32','shape':[2,3]}

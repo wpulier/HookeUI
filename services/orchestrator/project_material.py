@@ -67,6 +67,51 @@ def describe(document: dict) -> dict:
     return material
 
 
+def inspection_facts(summary):
+    """Bounded, literal inspection facts; older reports remain valid without a preview."""
+    import math
+    result = {}
+    shape=summary.get('shape')
+    if isinstance(shape,list) and len(shape)==2 and all(type(n) is int and n>=0 for n in shape):result['shape']=shape
+    for key in ('observationColumns', 'variableColumns'):
+        values = summary.get(key)
+        if isinstance(values, list) and all(isinstance(v, str) for v in values):
+            result[key] = [v[:256] for v in values[:128]]
+    for key in ('dtype',):
+        if isinstance(summary.get(key), str):
+            result[key] = summary[key][:256]
+    for key in ('rawCounts', 'sparse'):
+        if type(summary.get(key)) is bool:
+            result[key] = summary[key]
+    preview = summary.get('preview')
+    if not isinstance(preview, dict) or preview.get('selection') != 'first-observations-and-variables':
+        return result
+    rows, columns, values = preview.get('observations'), preview.get('variables'), preview.get('values')
+    if not (isinstance(rows, list) and isinstance(columns, list) and 0 < len(rows) <= 10
+            and 0 < len(columns) <= 10 and all(isinstance(v, str) and len(v) <= 256 for v in rows + columns)
+            and isinstance(values, list) and len(values) == len(rows)
+            and all(isinstance(row, list) and len(row) == len(columns)
+                    and all(type(v) in (int, float) and math.isfinite(v) for v in row) for row in values)):
+        return result
+    clean = {key: preview[key] for key in ('selection', 'observations', 'variables', 'values')}
+    for key, count in (('observationAnnotations', len(rows)), ('variableAnnotations', len(columns))):
+        annotations = preview.get(key, [])
+        if not (isinstance(annotations, list) and len(annotations) <= 10):
+            return result
+        kept = []
+        for annotation in annotations:
+            if not (isinstance(annotation, dict) and isinstance(annotation.get('name'), str)
+                    and len(annotation['name']) <= 256 and isinstance(annotation.get('values'), list)
+                    and len(annotation['values']) == count
+                    and all(v is None or type(v) is bool or isinstance(v, str) and len(v) <= 256
+                            or type(v) in (int, float) and math.isfinite(v) for v in annotation['values'])):
+                return result
+            kept.append({'name': annotation['name'], 'values': annotation['values']})
+        clean[key] = kept
+    result['preview'] = clean
+    return result
+
+
 def _inspections(entries):
     """Index recorded matrix inspections by exact input, never by title or filename."""
     import re
@@ -100,7 +145,7 @@ def _inspections(entries):
                 or not isinstance(ref.get('digest'), str) or not re.fullmatch(r'[a-f0-9]{64}', ref['digest'])):
             continue
         key = (entry.day, ref['id'], ref['revision'], ref['digest'])
-        found.setdefault(key, []).append((ref, shape, {
+        found.setdefault(key, []).append((ref, shape, inspection_facts(summary), {
             'id': entry.id, 'session': entry.day, 'revision': entry.version,
             'digest': entry.source['sha256']}))
     return found
@@ -113,16 +158,17 @@ def _inspected(material, document, reference, inspections):
     if document.get('kind') != 'source-file' or material.get('kind') != 'file' or not isinstance(source, dict):
         return material
     file_ref = source.get('reference', {})
-    matches = [(shape, report) for input_ref, shape, report in inspections.get(reference, [])
+    matches = [(shape, report, facts) for input_ref, shape, facts, report in inspections.get(reference, [])
                if input_ref.get('sha256') == source.get('sha256')
                and type(input_ref.get('bytes')) is int and input_ref['bytes'] == source.get('size')
                and isinstance(file_ref, dict) and isinstance(file_ref.get('component'), str)
                and file_ref['component'].startswith('file.') and input_ref.get('component') == file_ref['component']]
     if not matches:
         return material
-    shapes = {tuple(shape) for shape, _ in matches}
+    shapes = {tuple(shape) for shape, _, _ in matches}
     material['inspection'] = {'status': 'reported' if len(shapes) == 1 else 'conflicting',
-                              'reports': [report for _, report in matches[:64]], 'total': len(matches)}
+                              'reports': [report for _, report, _ in matches[:64]], 'total': len(matches),
+                              'facts': [dict(facts, report=report) for _, report, facts in matches[:64]]}
     if len(shapes) == 1:
         material.update(kind='matrix', format='AnnData', shape=list(next(iter(shapes))))
     return material

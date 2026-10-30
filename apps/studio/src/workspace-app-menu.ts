@@ -63,7 +63,7 @@ export class WorkspaceAppMenu {
     }
     this.main.append(node('hr'));
     if (opts.spending) add('Spending', () => closeThen(opts.spending!));
-    if (opts.scientificSessions) add('Scientific sessions', () => closeThen(opts.scientificSessions!)); // the sheet's own title
+    if (opts.scientificSessions) add('Open analysis windows', () => closeThen(opts.scientificSessions!)); // the sheet's own title
     add('Settings', () => closeThen(() => opts.navigate('#settings')));
     add('Help', () => closeThen(() => opts.navigate('#help')));
     this.main.append(node('hr'));

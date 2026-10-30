@@ -152,6 +152,163 @@
         "total": {
           "type": "integer",
           "minimum": 1
+        },
+        "facts": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "report"
+            ],
+            "properties": {
+              "report": {
+                "$ref": "artifact-reference.schema.json"
+              },
+              "dtype": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "rawCounts": {
+                "type": "boolean"
+              },
+              "sparse": {
+                "type": "boolean"
+              },
+              "observationColumns": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "variableColumns": {
+                "type": "array",
+                "maxItems": 128,
+                "items": {
+                  "type": "string",
+                  "maxLength": 256
+                }
+              },
+              "preview": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "selection",
+                  "observations",
+                  "variables",
+                  "values",
+                  "observationAnnotations",
+                  "variableAnnotations"
+                ],
+                "properties": {
+                  "selection": {
+                    "const": "first-observations-and-variables"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  },
+                  "variables": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  },
+                  "values": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "array",
+                      "maxItems": 10,
+                      "items": {
+                        "type": "number"
+                      }
+                    }
+                  },
+                  "observationAnnotations": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "values"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "values": {
+                          "type": "array",
+                          "maxItems": 10,
+                          "items": {
+                            "type": [
+                              "string",
+                              "number",
+                              "boolean",
+                              "null"
+                            ],
+                            "maxLength": 256
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "variableAnnotations": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "values"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "values": {
+                          "type": "array",
+                          "maxItems": 10,
+                          "items": {
+                            "type": [
+                              "string",
+                              "number",
+                              "boolean",
+                              "null"
+                            ],
+                            "maxLength": 256
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "shape": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
         }
       }
     }

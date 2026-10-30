@@ -259,7 +259,7 @@ test('Stop from the global inventory disables the matching open console and cont
   const input = fixture.window.querySelector('textarea')!; input.value = '7'; fire(input, 'input');
   request.mockImplementationOnce(async () => reply({ reviews: [{ review, placement: 'placement', tab: 'tab-one', state: 'idle', document: saved.resource }] }));
   openScientificSessions(); await settle();
-  const stop = fixture.sheet.querySelectorAll('button').find(row => row.textContent === 'Stop this session')!;
+  const stop = fixture.sheet.querySelectorAll('button').find(row => row.textContent === 'Stop analysis window')!;
   fire(stop, 'click'); await settle();
   expect(button('Run code').disabled).toBe(true); expect(button('Refresh preview').disabled).toBe(true);
   expect(fixture.window.textContent).toContain('Scientific session stopped');
@@ -277,14 +277,14 @@ test('memory refusal offers owned sessions and explicit retry preserves the exac
     return original(path,init);
   });
   await openStudyScientific(saved);fire(button('Open session'),'click');await settle();
-  const recovery=button('Review running sessions');
+  const recovery=button('Review open analysis windows');
   expect(recovery.hidden).toBe(false);
   expect(calls.filter(call=>call.init?.method==='POST')).toHaveLength(1);
   fire(recovery,'click');await settle();
-  expect(fixture.sheet.textContent).toContain('No scientific sessions are running');
-  expect(fixture.sheet.textContent).toContain('save work in other applications');
-  expect(fixture.sheet.textContent).toContain('reopen a refused session, or refresh the preview for completed work');
-  expect(fixture.sheet.textContent).toContain('Do not rerun code or plugin actions just to recover the preview');
+  expect(fixture.sheet.textContent).toContain('No analysis windows are open.');
+  expect(fixture.sheet.textContent).not.toContain('save work in other applications');
+  expect(fixture.sheet.textContent).not.toContain('reopen a refused session, or refresh the preview for completed work');
+  expect(fixture.sheet.textContent).not.toContain('Do not rerun code or plugin actions just to recover the preview');
   expect(calls.some(call=>call.init?.method==='DELETE')).toBe(false);
   fire(button('Open session'),'click');await settle();
   const starts=calls.filter(call=>call.path==='/api/scientific-reviews'&&call.init?.method==='POST');
@@ -296,16 +296,16 @@ test('a failed session inventory can retry without stopping work or reopening th
   request.mockRejectedValueOnce(new Error('Connection interrupted'));
   openScientificSessions();await settle();
   expect(fixture.sheet.textContent).toContain('Connection interrupted');
-  const refresh=fixture.sheet.querySelectorAll('button').find(row=>row.textContent==='Refresh sessions')!;
+  const refresh=fixture.sheet.querySelectorAll('button').find(row=>row.textContent==='Refresh windows')!;
   fire(refresh,'click');await settle();
-  expect(fixture.sheet.textContent).toContain('No scientific sessions are running');
+  expect(fixture.sheet.textContent).toContain('No analysis windows are open.');
   expect(calls.some(call=>call.init?.method==='POST'||call.init?.method==='DELETE')).toBe(false);
 });
 
 test('unrelated session failures do not claim that freeing memory is the remedy',async()=>{
   request.mockRejectedValueOnce(new Error('The integration is unavailable'));
   await openStudyScientific(saved);fire(button('Open session'),'click');await settle();
-  expect(button('Review running sessions').hidden).toBe(true);
+  expect(button('Review open analysis windows').hidden).toBe(true);
   expect(fixture.window.textContent).toContain('The integration is unavailable');
 });
 
@@ -1400,15 +1400,15 @@ test('declared native panels use the admitted session, bounded pixels and explic
   expect(calls.filter(call=>call.path.endsWith('/request')&&body(call.init).request.op==='native-panel-change')).toHaveLength(attempts);
   request.mockImplementationOnce(async()=>new Response(JSON.stringify({ok:false,code:'SCIENTIFIC_MEMORY',error:'Not enough memory',next:'Review running sessions.'}),{status:503}));
   await expect(fixture.native.load(32,24)).rejects.toThrow('Not enough memory');
-  expect(button('Review running sessions').hidden).toBe(false);
+  expect(button('Review open analysis windows').hidden).toBe(false);
   expect(fixture.window.textContent).not.toContain('Not enough memory');
   await fixture.native.load(32,24);
-  expect(button('Review running sessions').hidden).toBe(true);
+  expect(button('Review open analysis windows').hidden).toBe(true);
   request.mockImplementationOnce(async()=>new Response(JSON.stringify({ok:false,code:'SCIENTIFIC_MEMORY',error:'Image preview exceeds available memory',next:'Review running sessions.'}),{status:503}));
   fire(button('Refresh preview'),'click');await settle();
-  expect(button('Review running sessions').hidden).toBe(false);
+  expect(button('Review open analysis windows').hidden).toBe(false);
   await fixture.native.load(32,24);
-  expect(button('Review running sessions').hidden).toBe(false);
+  expect(button('Review open analysis windows').hidden).toBe(false);
   expect(fixture.window.textContent).toContain('Image preview exceeds available memory');
 });
 
@@ -1505,7 +1505,7 @@ test.each([null,'SCIENTIFIC_MEMORY'])('native acknowledgement survives image ref
   await expect(fixture.native.send({panel:'a'.repeat(32),frame:'b'.repeat(64),op:'text',value:'µm'},'panel-paint')).resolves.toBeUndefined();
   expect(fixture.window.textContent).toContain('Plugin interaction delivered');
   expect(fixture.window.textContent).toContain('Image preview unavailable');
-  expect(button('Review running sessions').hidden).toBe(code!=='SCIENTIFIC_MEMORY');
+  expect(button('Review open analysis windows').hidden).toBe(code!=='SCIENTIFIC_MEMORY');
   expect(calls.filter(call=>call.init?.body&&body(call.init).request?.op==='native-panel-change')).toHaveLength(1);
 });
 test('missing native acknowledgement is not reported as delivered',async()=>{
@@ -1752,9 +1752,9 @@ test('unchanged background observations preserve a panel-owned memory recovery a
   await openStudyScientific(saved);fire(button('Open session'),'click');await settle();
   request.mockResolvedValueOnce(new Response(JSON.stringify({ok:false,code:'SCIENTIFIC_MEMORY',error:'Panel needs memory'}),{status:503}));
   await expect(fixture.native.load(32,24)).rejects.toThrow('Panel needs memory');
-  expect(button('Review running sessions').hidden).toBe(false);
+  expect(button('Review open analysis windows').hidden).toBe(false);
   await vi.advanceTimersByTimeAsync(1500);await settle();expect(tool.observe).toHaveBeenCalledTimes(1);
-  expect(button('Review running sessions').hidden).toBe(false);
+  expect(button('Review open analysis windows').hidden).toBe(false);
 });
 
 test('queued background image paint still refreshes the specialist controls', async () => {

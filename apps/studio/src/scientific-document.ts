@@ -143,7 +143,7 @@ function arraySave(value: unknown): ArraySave | null {
   if (!object(value) || typeof value.request !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(value.request) ||
       !['staged', 'saved', 'copied', 'conflict', 'failed'].includes(String(value.state)) ||
       (value.kind === 'families' ? value.layer !== undefined : typeof value.layer !== 'string'))
-    throw new Error('The array save outcome is invalid. Inspect Scientific sessions before retrying.');
+    throw new Error('The array save outcome is invalid. Inspect Open analysis windows before retrying.');
   if (value.kind !== undefined && value.kind !== 'new-output' && value.kind !== 'families') throw new Error('Unknown scientific save kind. Check the original session.');
   // Drafts from Python and plugins: the tables, embeddings and files saved together, by name.
   if ((value.kind === 'families') !== (value.drafts !== undefined) || (value.drafts !== undefined && (!Array.isArray(value.drafts) ||
@@ -153,9 +153,9 @@ function arraySave(value: unknown): ArraySave | null {
     throw new Error('The saved draft set is invalid. Check array save before retrying.');
   if (value.tool !== undefined && (value.kind !== 'new-output' || typeof value.tool !== 'boolean')) throw new Error('Invalid tool document save receipt. Check the original session.');
   if (value.copyCaptured !== undefined && (value.state !== 'conflict' || typeof value.copyCaptured !== 'boolean'))
-    throw new Error('The copy capture status is invalid. Inspect Scientific sessions.');
+    throw new Error('The copy capture status is invalid. Inspect Open analysis windows.');
   if (value.copyNeedsPreview !== undefined && (value.state !== 'conflict' || typeof value.copyNeedsPreview !== 'boolean'))
-    throw new Error('The copy requirements are invalid. Inspect Scientific sessions.');
+    throw new Error('The copy requirements are invalid. Inspect Open analysis windows.');
   if (value.layers !== undefined && (!Array.isArray(value.layers) || value.layers.length < 2 || value.layers.length > 64 ||
       value.layers.some(layer => typeof layer !== 'string' || !/^[0-9a-f]{32}$/.test(layer)) ||
       new Set(value.layers).size !== value.layers.length || value.layers[0] !== value.layer))
@@ -176,7 +176,7 @@ function arraySave(value: unknown): ArraySave | null {
   if (value.conflicts !== undefined && (value.state !== 'conflict' || !Array.isArray(value.conflicts) || !value.conflicts.length ||
       value.conflicts.length > 64 || value.conflicts.some(row => !object(row) || typeof row.layer !== 'string' ||
         typeof row.input !== 'string' || !['unchanged-in-latest', 'changed-in-latest', 'removed-in-latest'].includes(String(row.state)))))
-    throw new Error('The per-layer conflict report is invalid. Inspect Scientific sessions.');
+    throw new Error('The per-layer conflict report is invalid. Inspect Open analysis windows.');
   if (value.onto !== undefined && (value.state !== 'saved' || !object(value.onto) || !Number.isSafeInteger(value.onto.version) ||
       !Number.isSafeInteger(value.onto.since) || Number(value.onto.version) <= Number(value.onto.since)))
     throw new Error('The saved revision placement is invalid. Open accepted Data to check it.');
@@ -238,7 +238,7 @@ class ScientificDocument {
   private readonly start = button('Open session', () => void this.startView());
   private readonly controlStart = button('Open saved view', () => void this.startView());
   private readonly controlWelcome = node('div');
-  private readonly memoryRecovery = button('Review running sessions', openScientificSessions);
+  private readonly memoryRecovery = button('Review open analysis windows', openScientificSessions);
   private memoryRecoveryOwner: 'document' | 'panel' | null = null;
   private readonly withoutPreview = button('Start without preview', () => void this.startView(false, false));
   private readonly refreshLayers = button('Refresh layers', () => void this.run(binding => this.loadLayers(binding)));
@@ -501,7 +501,7 @@ class ScientificDocument {
     const sessionOptions = node('details'), secondary = node('div');
     secondary.className = 'scientific-session-options';
     this.resumeObservation.hidden = true; this.observationStatus.setAttribute('role', 'status');
-    secondary.append(this.withoutPreview, this.defaultView, this.refreshLayers, button('Scientific sessions', openScientificSessions));
+    secondary.append(this.withoutPreview, this.defaultView, this.refreshLayers, button('Open analysis windows', openScientificSessions));
     sessionOptions.append(node('summary', 'Session'), secondary);
     toolbar.append(this.start, this.refresh, sessionOptions);
     secondary.prepend(this.stopButton);
@@ -1361,7 +1361,7 @@ export async function openStudyScientific(requested: StudyRetainedView, presenta
 }
 
 
-/** The tool sessions open in this workspace (`GET /api/scientific-reviews`, the same list as Scientific sessions),
+/** The tool sessions open in this workspace (`GET /api/scientific-reviews`, the same list as Open analysis windows),
  * named by their saved document: what restarting or quitting Hooke would stop (restart-readiness.ts). Throws when
  * the list can't be read. With no workspace connection for scientific tools and no scientific window open here, this
  * workspace has none. */
@@ -1380,7 +1380,7 @@ export async function openToolSessionTitles(): Promise<string[]> {
 }
 
 export function openScientificSessions(): void {
-  const sheet = new StudioSheet('Scientific sessions'), content = node('section'), list = node('div');
+  const sheet = new StudioSheet('Open analysis windows'), content = node('section'), list = node('div');
   content.className = 'scientific-document';
   const status = node('p'); status.setAttribute('role', 'status');
   let closed = false, loading = false;
@@ -1423,13 +1423,15 @@ export function openScientificSessions(): void {
           } else details.append(node('p', 'A control change completed. Resume its saved document to inspect the current view.'));
           section.append(details);
         }
-        const stop = button('Stop this session', () => { void (async () => {
+        const stop = button('Stop analysis window', () => { void (async () => {
           stop.disabled = true;
           try {
             await json(await transport.request(`/api/scientific-reviews/${id}`, { method: 'DELETE' }));
             transport.check(); notifyStopped(id); if (!closed) { section.replaceChildren(node('p', 'Stopped. Saved Project data stays.')); }
           } catch (error) { if (!closed) { status.textContent = words(error); stop.disabled = false; } }
         })(); });
+        stop.title='Stops this private window. Any unsaved edits in it will be discarded; saved Project results remain.';
+        if(savedArrays && !['saved','copied'].includes(savedArrays.state))section.append(node('p','Stopping this window discards its unsaved changes. Saved results remain.'));
         section.append(stop); list.append(section);
       }
       const project = options.currentProject?.();
@@ -1453,11 +1455,11 @@ export function openScientificSessions(): void {
         };
         appendPage();
       }
-      status.textContent = result.reviews.length ? 'Hidden windows keep their sessions. Stop discards private changes, not saved Project data.' : 'No scientific sessions are running on this workspace connection. If memory is unavailable, save work in other applications and close those you no longer need. Return to your original window: reopen a refused session, or refresh the preview for completed work. Do not rerun code or plugin actions just to recover the preview. Saved Project data stays unchanged.';
+      status.textContent = result.reviews.length ? 'Analysis windows can keep running while hidden. Saved results remain in Project Data.' : 'No analysis windows are open.';
     } catch (error) { if (!closed) status.textContent = words(error); }
     finally { loading = false; }
   };
-  content.append(status, list, button('Refresh sessions', () => void load()));
+  content.append(status, list, button('Refresh windows', () => void load()));
   sheet.onDismiss = () => { closed = true; content.remove(); };
   sheet.open(content); void load();
 }
