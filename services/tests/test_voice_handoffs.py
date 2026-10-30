@@ -274,7 +274,8 @@ async def with_research(monkeypatch):
 
 def landed(research, status="done"):
     finished = SimpleNamespace(purpose="research", status=status, rid="R2", name="Researcher 2",
-                               result={"one_liner": "A labelled stoma diagram"})
+                               result={"one_liner": "A labelled stoma diagram"},
+                               outputs=[{"id": "o1", "kind": "image", "path": "outputs/01-illustration.png"}])
     for hook in list(research.on_done):
         hook(finished)
 
@@ -300,6 +301,8 @@ def test_a_later_step_is_kept_with_the_researcher_done_when_it_lands_and_said_on
                                             and r["state"] == "done"])
         assert follow[-1]["id"] != parent["id"] and follow[-1]["label"] == "Put the picture in the Stoma Reference tab"
         assert asked[1][1] == PLACE and "Researcher 2 has finished now" in asked[1][0] and GRAPHIC in asked[1][0]
+        # What it made, by the id Hooke's tools name it by (will-research, 30 Oct: "o1" alone was refused as not in Data)
+        assert "what it made: R2:o1 (image)" in asked[1][0]
         assert rows(shown, parent["id"])[-1]["then"]["state"] == "done"
         await until_async(lambda: t.sb.responses == 1)
         result = next(s for s in said_items(t) if '"researcher": "Researcher 2"' in s)

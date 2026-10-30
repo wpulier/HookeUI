@@ -1416,9 +1416,16 @@ class PartnerTools:
         words, with its row in the chat after that work's."""
         after = followup.after if followup.rid else "the first part"
         status = str(getattr(session, "status", "") or "")
+        # What it made, by the ids Hooke's tools name it by (the spec 4.8, horizontal 1: the request carries what it
+        # refers to; will-research, 30 Oct: "put the picture in a new Tab called Graphic" named the picture "o1", was
+        # refused as not in Data, and the picture was opened in the reader instead).
+        rid = str(getattr(session, "rid", "") or followup.rid or "")
+        made = [f"{rid}:{o['id']} ({o.get('kind') or 'output'})" for o in (getattr(session, "outputs", None) or [])
+                if isinstance(o, dict) and o.get("id")][:8] if rid else []
         text = (f"{followup.words}\n(This is the step the user asked for after {after} finished, when they said: "
                 f"\"{followup.request}\". {after} has finished now"
                 + (f" ({status}); its work is in Hooke, in its Tab" if followup.rid else "")
+                + (f"; what it made: {', '.join(made)}" if made else "")
                 + ". Do this step now.)")
         flight = self.handoffs.start(followup.words, title(followup.words[:1].upper() + followup.words[1:], 60),
                                      followup.asked, after=after if followup.rid else "")
