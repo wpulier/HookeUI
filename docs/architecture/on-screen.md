@@ -161,6 +161,22 @@ other files.
     takes `instead` the same way and says when the table is also still open in another Tab. Hands checks `only`
     against the window opened (its presentation output). `tabs add` of a photo says it is placed this way; a
     researcher's Tab lists its work by its Data id (`r3:o1`). Tests: `tests/test_placement_put.py`.
+  - **A window the arrangement never saves moves as itself** (will-tabs, 30 Oct: "move that new enlargement into a
+    new Tab" was refused "That exact placement is no longer in the named source Tab"). What `tabs list` lists on a Tab,
+    `tabs move` moves: the live magnifier or a web page open on no Data item is put on the other Tab by its root
+    (`WorkspaceViews.relocate`; a person's Move takes the same way), the same window, its live view, zoom and size, and
+    nothing is saved for it. Placed in another Tab it is moved there with or without `instead` (there is nothing to
+    open it from a second time; `placement._move_here`), done once the report shows it on that Tab, then fronted or
+    kept by its own instance (`present` native front and close, never the panel path: closing it to open it again went
+    that way, TARGET_GONE). A zoom on a close-up whose Tab is not in front brings that Tab forward first.
+  - **A live close-up never fails for good** (will-tabs 11:07 and ab-fast-off 05:54 on the June 14 leaf footage: "the
+    renderer could not load the requested content"). Its object carried off the frame by the slide, while its centre
+    is still inside an eyepiece disc that reaches past the frame, is out of view (`live_sources._crop`): the window
+    holds its last frame ("Held"), or waits for its first, and the encoder is never handed an empty crop (it refused
+    it, the delivery answered 404, and the studio failed every window of that source for good). A held frame is that
+    source's own drawing for every window control (`completion._held_frame`), said as held, never as live; a frame that
+    arrived while its window was out of sight is painted with its own sample once its Tab is in front
+    (`WorkspaceWindows.shownSample`). Tests: `tests/test_live_closeup_off_frame.py`, `workspace-windows.test.ts`.
   - **Defaults by kind** (`placement.DEFAULTS`): a run's outlines as an overlay with their table beside (the table's
     default is `beside`), a reference image beside, a document in a Tab of its own, a video or web page as a window.
   - **A window opened on a reader Tab is in front of its reader** (live 2026-10-29: a video asked for while a
