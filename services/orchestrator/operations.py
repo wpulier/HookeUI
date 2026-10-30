@@ -834,7 +834,7 @@ class Runner:
             source = getattr(capture, 'source_image', None) or {}
             actual = ({'resource': source['resource']} if source.get('resource') is not None
                       else {'source': source.get('asset') or 'live'})
-            if expected != actual:
+            if not same_input(expected, actual):
                 raise Unavailable('The input changed before dispatch; the admitted work was not retargeted.', next='review the input and run again')
         if origin not in ORIGINS:
             raise ValueError(f"origin {origin!r}")
@@ -1814,3 +1814,13 @@ def _classifying() -> None:
 
 
 _classifying()
+
+
+def same_input(expected: dict, actual: dict) -> bool:
+    """Whether a request's work still runs on the input it was admitted for. A saved resource (or a volume) must be that
+    same one; the camera feed is one input whatever plays into it (the live camera, or test footage or a recording the
+    bridge plays as the camera, invisible downstream), so nothing named on stage and "live" are the same (Will's
+    try-out, 30 Oct: every typed "outline the stoma" was refused "the input changed before dispatch" on the feed)."""
+    def feed(value) -> bool:
+        return isinstance(value, dict) and set(value) == {"source"}
+    return expected == actual or (feed(expected) and feed(actual))
