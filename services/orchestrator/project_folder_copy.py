@@ -142,7 +142,30 @@ def _copy_admitted(root, destination, *, check):
         return _copy_visible(root, destination, check=check)
 
 
-def _copy_visible(root, destination, *, check):
+def restore_snapshot(location: Path, destination: Path, *, check=lambda: None):
+    """Make an explicitly requested working copy; do not register, grant or run it.
+
+    This preserves the original Project identity. Choosing this location over an
+    existing one remains a separate registry action, with writer/collision checks.
+    A partial snapshot stays partial: its closure status survives in the receipt.
+    """
+    from .scientific_import_transaction import reading
+    root = ProjectRoot.open(location)
+    with reading(document_root(root)), reading(session_root(root)):
+        snapshot_stamp = _stamp((root.path / SNAPSHOT).lstat())
+        snapshot = ProjectStore._read(root.path / SNAPSHOT, MAX_MANIFEST)
+        verify_snapshot(location, check=check)
+
+        def unchanged():
+            check()
+            if _stamp((root.path / SNAPSHOT).lstat()) != snapshot_stamp:
+                raise ProjectLocationError('The snapshot manifest changed during restoration; preserve the original')
+
+        unchanged()
+        return _copy_visible(root, destination, check=unchanged, restored_from=snapshot)
+
+
+def _copy_visible(root, destination, *, check, restored_from=None):
     destination = Path(destination).expanduser()
     parent = destination.parent.resolve(strict=True)
     destination = parent / destination.name
@@ -187,7 +210,23 @@ def _copy_visible(root, destination, *, check):
     body = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
     if len(body) > MAX_MANIFEST:
         raise ProjectLocationError('Project snapshot manifest exceeds its supported size')
-    ProjectStore._write(destination / SNAPSHOT, body, immutable=True)
+    if restored_from is None:
+        ProjectStore._write(destination / SNAPSHOT, body, immutable=True)
+    else:
+        if manifest != json.loads(restored_from):
+            raise ProjectLocationError('Restored bytes do not match the source snapshot; preserve the incomplete copy')
+        # The snapshot remains a source record, never an active root-level seal.
+        # Retain its exact bytes and limitations without changing any journal or
+        # accepted document. No host paths or new credentials enter this receipt.
+        digest = hashlib.sha256(restored_from).hexdigest()
+        receipt = destination / 'history' / 'restorations' / digest
+        receipt.mkdir(parents=True, exist_ok=True)
+        previous = receipt / SNAPSHOT
+        if previous.exists():
+            if ProjectStore._read(previous, MAX_MANIFEST) != restored_from:
+                raise ProjectLocationError('Conflicting snapshot restoration evidence; preserve the incomplete copy')
+        else:
+            ProjectStore._write(previous, restored_from, immutable=True)
     # Shared readers use these new empty inodes even on read-only media.
     # Never carry an original writer's lock inode or acquisition state.
     for section in ('history/sessions', 'artifacts/records'):
