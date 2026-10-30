@@ -29,7 +29,7 @@ def _hands_words() -> str:
 HANDS_WORDS = _hands_words()
 
 from ...research.desk import made, named
-from ...research.policy import CHOOSABLE, DELIVERABLES, NeedsTheirWords, ResearchRefused
+from ...research.policy import CHOOSABLE, DELIVERABLES, NeedsTheirWords, ResearchRefused, default_effort
 from ...research.run import Delivery
 from ...untrusted import block
 from ..registry import CURRENT_RUN, Registry, Tool, ToolContext, ToolFailed, record_made, record_output, schema, typed_step_output
@@ -260,7 +260,7 @@ def add_research_tools(registry: Registry, services) -> None:
         # since); its results are written there.
         thread = day.thread_for(ctx.asked) if day is not None else None
         try:
-            session = await manager.start(str(args.get("brief") or ctx.question), effort=str(args.get("effort") or "quick"),
+            session = await manager.start(str(args.get("brief") or ctx.question), effort=str(args.get("effort") or default_effort(deliverable)),
                                           deliverable=deliverable, object_id=obj.id if obj else None,
                                           origin=origin(ctx, thread=thread), words=authorized_words,
                                           asked_with=str(args.get("asked_with") or ""), delivery=delivery(ctx), dependencies=dependencies,

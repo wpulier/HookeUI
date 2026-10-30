@@ -5,6 +5,9 @@
 # deprecations page, updated 2026-10-22). Will's try-out of 29 Oct: a researcher's video failed on it. The video model
 # researchers use is its successor from this version of Hooke (research_worker/video.py, catalog/models/gemini-omni-flash),
 # reviewed as a change of model under ADR 0025 (new weights: a person's review, here the pull request's).
+# Checked again with the app's Gemini key on 30 Oct 2026: no Veo model is listed for it, and both veo-3.1-fast-generate-preview
+# and veo-3.1-generate-preview answer 404 "no longer available ... use models/gemini-omni-1.1-flash"; a researcher made a real 8 s
+# video with gemini-omni-1.1-flash (research_worker/video.py) from a request typed in the studio the same day.
 [[revoked]]
 entry = "veo-3.1-fast"
 version = "veo-3.1-fast-generate-preview"
