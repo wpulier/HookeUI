@@ -240,6 +240,7 @@ def test_multi_chunk_original_is_analyzed_from_all_retained_bytes(app_media, tmp
 
 def test_slow_preparation_cannot_replace_newer_live_selection(app_media, monkeypatch):
     from orchestrator.project_stage_media import manager
+    from tests.waiting import HANG_S
     app, sid, ref, observed = app_media
     media = manager(app)
     original = media.prepare
@@ -247,15 +248,21 @@ def test_slow_preparation_cannot_replace_newer_live_selection(app_media, monkeyp
         entered, release = asyncio.Event(), asyncio.Event()
         async def delayed(*args):
             entered.set()
-            await release.wait()
+            await asyncio.wait_for(release.wait(), HANG_S)
             return await original(*args)
         monkeypatch.setattr(media, 'prepare', delayed)
         earlier = asyncio.create_task(commands.source(app, Client(), {'open': 'a1', 'retained': asdict(ref)}))
-        await entered.wait()
-        assert (await commands.source(app, Client(), {'open': 'live'}))['ok']
-        release.set()
-        with pytest.raises(Exception, match='superseded'):
-            await earlier
+        try:
+            await asyncio.wait_for(entered.wait(), HANG_S)
+            assert (await commands.source(app, Client(), {'open': 'live'}))['ok']
+            release.set()
+            with pytest.raises(Exception, match='superseded'):
+                await asyncio.wait_for(earlier, HANG_S)
+        finally:
+            release.set()
+            if not earlier.done():
+                earlier.cancel()
+            await asyncio.gather(earlier, return_exceptions=True)
         assert observed == [] and app.day.on_stage == 'live'
         assert not list(media.cache.glob('hooke-media-*'))
     asyncio.run(run())
@@ -269,10 +276,11 @@ def test_failed_retained_history_cannot_leave_previous_scientific_source(app_med
     async def run():
         app.hub.stage_meta = {'id': 'a999', 'title': 'Previous specimen'}
         app.hub.stage_image_json = json.dumps({'asset': 'a999', 'path': '/previous.png', 'session': sid})
-        with pytest.raises(OSError, match='disk full'):
+        with pytest.raises(Exception, match='history could not be saved'):
             await commands.source(app, Client(), {'open': 'a1', 'retained': asdict(ref)})
         assert observed[0].exists()  # bridge owns new pixels, even though publication failed
         assert app.hub.stage_meta is None
+        assert app._landing is None  # unresolved acceptance cannot expire into live looks
         with pytest.raises(Exception, match='has not been retained'):
             await source_images.for_analysis(app.hub)
         assert app.day.source_references == {}

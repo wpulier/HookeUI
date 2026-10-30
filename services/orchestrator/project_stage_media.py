@@ -167,7 +167,7 @@ def invalidate_stage(app):
         'The source change has not been retained; choose the source again before analyzing'})
     ticket.generations(app.hub).bump('cell', why='the retained source is changing', by=ticket.current())
     layer_of(app.hub).hide()
-    app.hold_until_landed(True)
+    app.hold_until_landed(True, expires=False)
 
 
 async def source_asset(app, identity):

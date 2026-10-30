@@ -2925,7 +2925,11 @@ async def source(app, client, msg) -> dict:
                 raise tools.ToolError('That source selection was superseded', next=None)
             previous = app.day.on_stage
             if prepared is not None:
-                app.day.open_source(target, retained=asset.exact_reference())
+                try:
+                    app.day.open_source(target, retained=asset.exact_reference())
+                except (ValueError, OSError) as error:
+                    raise tools.ToolError('The source opened, but its history could not be saved',
+                                          next='check Project storage and choose the source again before analyzing') from error
             else:
                 app.day.open_source(target)
             await app.stage_changed(asset)
