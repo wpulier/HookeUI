@@ -1707,11 +1707,11 @@ class RealtimeSession(VoiceSession):
         names.discard(None)
         words = spoken(written)
         says = response.get("status") == "completed" and bool(words) and names <= {"mark"}
+        if says:  # asked for first: its own context is its words, so nothing it says waits on the deletes below
+            self._say_decided(cause["n"], words, rid)
         for item in response.get("output") or []:
             if item.get("type") == "message" and item.get("id"):
                 await self.delete(item["id"])
-        if says:
-            self._say_decided(cause["n"], words, rid)
         self._log({"kind": "partner-decided", "n": cause["n"], "responseId": rid, "createdT": cause.get("createdT"),
                    "doneT": self.wall(), "status": response.get("status"), "calls": sorted(n for n in names if n),
                    "how": "said" if says else "tools" if names else "nothing", "words": written[:600]})
