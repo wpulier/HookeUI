@@ -37,7 +37,7 @@ from .common import OBJECT, RESEARCHER, describe, resolve_object
 
 RECENT_SPEECH_S = 30.0  # the explicit request may have come a moment earlier, in other words
 SUMMARY_MAX = 6000  # characters of summarize_research's whole lines (newest first); the rest are counted
-MAKING = {"research": "a research note", "report": "a report", "lesson": "a lesson", "video": "a short video", "annotated_image": "a labelled picture", "image": "a picture"}
+MAKING = {"research": "its write-up (with any slides or visual asked for)", "report": "a report", "lesson": "a lesson", "video": "a short video", "annotated_image": "a labelled picture", "image": "a picture"}
 
 
 def _effort_words() -> str:
@@ -304,7 +304,8 @@ def add_research_tools(registry: Registry, services) -> None:
         "standard. Deep requires an explicit request for thorough/deep research. "
         "For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. "
         "deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, "
-        "drawn from the table's own values), annotated_image "
+        "drawn from the table's own values, and write a slide presentation or a small interactive or animated visual "
+        "of the data as a page the user opens rendered: ask for those in the brief, never say it can't), annotated_image "
         "(labels drawn on a photo of the user's own outlined thing on this slide), image (a made AI illustration or "
         "diagram of a kind of thing, labelled or not, needing nothing outlined; never a real photo: for a real photo "
         "use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the "
