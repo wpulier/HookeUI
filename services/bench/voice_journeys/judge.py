@@ -205,6 +205,13 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
                 result = facts_.get("result") if isinstance(facts_.get("result"), dict) else {}
                 results.append(f'- {facts_.get("name") or "A researcher"} ({facts_.get("status")}): '
                                + receipt(result.get("summary") or result.get("one_liner") or facts_.get("cause") or "", 500))
+        # What the page showed of the voice while the Assistant was closed (the presence pill), as the user saw it.
+        shown = [e for e in bench.get("events") or [] if e.get("e") == "voice-shown"
+                 and start - 1.0 <= (e.get("t") or 0) < end and e.get("assistant") is False]  # loaded: seconds
+        if shown:
+            rows = rows + [f"The Assistant was closed during this step; the presence pill "
+                           f"{'showed' if any(e.get('pill') for e in shown) else 'did not show'} ("
+                           + ", ".join(dict.fromkeys(str(e.get("pillWords") or e.get("state")) for e in shown))[:160] + ")."]
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
                     "rows": rows + (["Researchers started in this step, by their own records:"] + results if results else []),
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,

@@ -975,6 +975,37 @@ def _outlined(state, info, positions: bool, *, workspace_scoped=False, provenanc
     return rows[-20:] + away[-6:] + tail
 
 
+def _last_result_words(brain, request_snapshot=None) -> str:
+    """The last thing Hooke showed or said in this conversation (board.last_result), in a line: what "that" and "it"
+    mean in "explain that" (will-research, 29 Oct: the quick pass explained stomata in general instead of the
+    researcher's graphic just placed). Its record is read with resources(id="that"). Empty when there is none."""
+    try:
+        from ..board import last_result
+        from ..screen import screen_of
+
+        store = getattr(getattr(brain, "services", None), "day", None)
+        if store is None:
+            return ""
+        thread = store.threads.get(store.thread_for(None))
+        at = getattr(request_snapshot, "at", None) or time.time()
+        found = last_result(thread.turns if thread is not None else [], at, screen_of(brain.hub))
+    except Exception:
+        return ""
+    if found is None:
+        return ""
+    parts = []
+    if found.said:
+        parts.append(f"said: {inline(found.said[-1], 200)}")
+    if found.resources:
+        parts.append(f"made or shown: {', '.join(found.resources[:4])}")
+    if found.outlines:
+        parts.append(f"outlines: {', '.join(found.outlines[:4])}")
+    if not parts:
+        return ""
+    return ('The last result the user saw or heard ("that", "it"): ' + "; ".join(parts)
+            + '. Its own record (what made it, from what, when): resources with id "that".')
+
+
 def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
     """What the user has on screen besides the live view, in a line."""
     if request_snapshot is not None:
@@ -1052,6 +1083,9 @@ def _screen(brain, for_voice: bool, request_snapshot=None) -> str:
         others = other_tabs_words(wire)
         if others:
             inventory += others + ".\n"
+        last = _last_result_words(brain, request_snapshot)
+        if last:
+            inventory += last + "\n"
         inventory += ("Resolve the original versus new reference from these exact window resource IDs, "
                       "source websites and this conversation's action receipts, not a nearby Made today entry. "
                       "When the requested retained source is already visible, keep that window without another action; "
