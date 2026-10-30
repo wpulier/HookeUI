@@ -1935,3 +1935,22 @@ def test_quick_work_handed_over_says_nothing_before_its_outcome(monkeypatch):
         await answer_snapshots(t, lambda: t.sb.responses == 2)
         assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn", "look"]
     asyncio.run(go())
+
+
+def test_an_experiments_audit_is_said_with_the_experiments_outcome_never_on_its_own(monkeypatch):
+    """will-experiment, 30 Oct: the audit researcher's end was said on its own ("Researcher 1 went over budget…"), then
+    the experiment's outcome said it again ("… but the audit didn't complete"). The audit is part of the experiment:
+    its end is context, said once, with the experiment's job-result."""
+    async def go():
+        t = await partner_session(monkeypatch)
+        t.session._last_user_at = 0.0
+        t.partner._research_done(SimpleNamespace(purpose="research", status="failed", rid="R1", name="Researcher 1",
+                                                 origin={"asked": False, "experiment": {"run": "w1", "attempt": "a1"}},
+                                                 result=None))
+        await settle()
+        assert t.sb.responses == 0, "nothing said on its own"
+        assert t.partner._finished["R1"][0] == "context"
+        t.partner._research_done(SimpleNamespace(purpose="research", status="done", rid="R2", name="Researcher 2",
+                                                 origin={"channel": "voice"}, result=None))
+        await until_async(lambda: t.sb.responses == 1)  # a researcher the user started is said as before
+    asyncio.run(go())

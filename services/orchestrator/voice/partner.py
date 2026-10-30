@@ -684,6 +684,12 @@ class Partner:
             # outcome, once; the announcer's own line about it meanwhile is context.
             self._finished[rid] = ("context", self.clock())
             return
+        if isinstance((getattr(session, "origin", None) or {}).get("experiment"), dict):
+            # An experiment's audit is a part of that experiment: its end is said with the experiment's own outcome
+            # (the job-result event), once (will-experiment, 30 Oct: "Researcher 1 went over budget…", then
+            # "Experiment 1 finished … but the audit didn't complete": one outcome said twice).
+            self._finished[rid] = ("context", self.clock())
+            return
         self._finished[rid] = (event, self.clock())
         self._spawn(self.happened(event, self.research_text(session), ref=rid, mark=f"researcher:{rid}"))
 
