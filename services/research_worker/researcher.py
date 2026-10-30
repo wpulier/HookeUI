@@ -1217,7 +1217,8 @@ class Researcher:
                 value=str(args.get("value") if args.get("value") is not None else ""),
                 label=args.get("label") if isinstance(args.get("label"), str) else None,
                 group=args.get("group") if isinstance(args.get("group"), str) and args.get("group") else None,
-                order=str(args.get("order") or "ascending"))
+                order=str(args.get("order") or "ascending"),
+                only=args.get("only") if isinstance(args.get("only"), str) and args.get("only") else None)
         except ValueError as exc:
             return None, "", "", {"error": str(exc)}
         return series, title, kind, None
@@ -1238,9 +1239,60 @@ class Researcher:
                                   **({"frames": frames} if animated else {})})
         return rel
 
+    async def _chart_means(self, args: dict):
+        """make_chart kind "means": one bar per table (one per run of an operation, e.g. motion run 4 times) at the mean
+        of its values with one standard deviation either side and every value a dot. Each table is read whole by the
+        app at its revision, the same rows and value in each; the numbers are the tables' own, never the model's."""
+        from . import measurement_charts as charts
+
+        title = " ".join(str(args.get("title") or "").split())
+        if not 1 <= len(title) <= 90:
+            return {"error": "give the chart a title of 1-90 characters"}, None
+        tables = args.get("tables")
+        if not isinstance(tables, list) or not 1 <= len(tables) <= charts.TABLES_MAX:
+            return {"error": f"a means chart names tables: one to {charts.TABLES_MAX} session entries "
+                             "({id, revision}), one bar each, e.g. one per run"}, None
+        names = args.get("names")
+        if names is not None and (not isinstance(names, list) or len(names) != len(tables)
+                                  or not all(isinstance(n, str) and n.strip() for n in names)):
+            return {"error": "names are one short name per table, in the same order (e.g. Run 1, Run 2)"}, None
+        only = args.get("only") if isinstance(args.get("only"), str) and args.get("only") else None
+        unit = " ".join(str(args.get("unit") or "").split())[:20]
+        sets = []
+        for n, table in enumerate(tables):
+            document, revision, why = await self._table(table)
+            if document is None:
+                return {"error": f"table {n + 1}: {why}"}, None
+            try:
+                sets.append(await asyncio.to_thread(
+                    charts.series, document, revision=revision, rows=str(args.get("rows") or ""),
+                    value=str(args.get("value") if args.get("value") is not None else ""), order="table", only=only))
+            except ValueError as exc:
+                return {"error": f"table {n + 1} ({(table or {}).get('id')}): {exc}"}, None
+        names = [" ".join(n.split())[:16] for n in names] if names else [f"Run {i + 1}" for i in range(len(sets))]
+        png = await asyncio.to_thread(charts.means_png, sets, names, title, unit)
+        content = charts.means_content(sets, names, title, unit)
+        rel = self._save_output("chart", png)
+        across = content["acrossTables"]
+        caption = (f"Chart of the mean {sets[0].column} of {len(sets)} tables (bar: mean, whisker: one standard deviation), "
+                   "drawn by the app from " + ", ".join(str(s.source.get("title") or s.source.get("id")) for s in sets)
+                   + "; its values are the tables' own")
+        self.emit_output("image", rel, caption, content, generated=False,
+                         derived={"from": "tables", "source": dict(sets[0].source),
+                                  "sources": [dict(s.source) for s in sets], "chart": charts.MEANS, "animated": False})
+        self.step(f"Drew a chart of the mean {sets[0].column} of {len(sets)} saved tables")
+        return ({"ok": True, "output": rel, "tables": [{k: t[k] for k in ("name", "n", "mean", "sd", "sem", "median", "min",
+                                                                             "max", "excluded")} | {"id": t["source"].get("id")}
+                                                          for t in content["tables"]],
+                 "acrossTables": across, "unit": unit or None,
+                 "note": "the chart is attached; the user sees it with your result. Report these numbers as they are"},
+                await asyncio.to_thread(_as_jpeg, png))
+
     async def tool_make_chart(self, args: dict):
         from . import measurement_charts as charts
 
+        if args.get("kind") == charts.MEANS:
+            return await self._chart_means(args)
         series, title, kind, error = await self._chart_series(args)
         if error is not None:
             return error, None

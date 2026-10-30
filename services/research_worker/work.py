@@ -305,6 +305,24 @@ TABLE_CHART = {
     "order": {"type": "string", "enum": ["ascending", "descending", "table"], "description": "ascending if not given"},
     "kind": {"type": "string", "enum": ["sorted", "histogram"],
              "description": "sorted: one bar per row in that order; histogram: rows counted in equal bins (sorted if not given)"},
+    "only": {"type": "string", "description": "optional JSON pointer from one row to a true/false: only rows where it is "
+                                              "true are drawn, the rest counted as left out (motion tracks: /moving)"},
+}
+# make_chart also draws several tables of the same shape side by side (kind "means"): one per run of an operation.
+MAKE_CHART = {
+    **TABLE_CHART,
+    "table": {**TABLE_CHART["table"], "description": TABLE_CHART["table"]["description"] + "; for kind means, tables instead"},
+    "kind": {"type": "string", "enum": ["sorted", "histogram", "means"],
+             "description": "sorted: one bar per row in that order; histogram: rows counted in equal bins; means: one bar "
+                            "per table in tables at the mean of its values, a whisker of one standard deviation and every "
+                            "value a dot (e.g. the average speed of each of 4 motion runs). sorted if not given"},
+    "tables": {"type": "array", "minItems": 1, "maxItems": 8, "description": "kind means only: the session entries, one "
+               "bar each in this order ({id, revision} as for table); the same rows and value are read in each",
+               "items": {"type": "object", "properties": {"id": {"type": "string"}, "revision": {"type": "string"}},
+                         "required": ["id"], "additionalProperties": False}},
+    "names": {"type": "array", "items": {"type": "string"}, "description": "kind means only: a short name per table, "
+              "in the same order (Run 1, Run 2... if not given)"},
+    "unit": {"type": "string", "description": "kind means only: the values' unit as the table says it (e.g. px/s, µm/s)"},
 }
 
 SCHEMAS: dict[str, dict] = {
@@ -340,8 +358,10 @@ SCHEMAS: dict[str, dict] = {
     "make_chart": {
         "description": "Draw a chart of one numeric column of a table this session kept (a measurements table, any saved "
                        "result's rows), read whole by the app at its exact revision: its values are the table's own, never "
-                       "numbers you supply. Kept as a picture with its source; it is attached for you to see.",
-        "parameters": {"type": "object", "properties": TABLE_CHART, "required": ["title", "table", "rows", "value"]}},
+                       "numbers you supply. With kind means and tables, one bar per table at its mean with its spread "
+                       "(the same operation run several times: motion tracks' rows /detail/values/tracks, value /net, "
+                       "unit from the entry's scale). Kept as a picture with its source; it is attached for you to see.",
+        "parameters": {"type": "object", "properties": MAKE_CHART, "required": ["title", "rows", "value"]}},
     "animate_measurements": {
         "description": "Animate one numeric column of a table this session kept: the chart builds row by row in the order "
                        "you choose (smallest to largest, largest to smallest, or the table's own) and ends on the whole "
