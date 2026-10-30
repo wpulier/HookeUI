@@ -26,19 +26,20 @@ class IdentityIO:
     def owner(self):
         return self.identity._sid(), getattr(self.identity.store, 'generation', 0)
 
-    def portable(self):
-        locations = getattr(self.identity.store, 'locations', None)
-        return locations is not None and locations.project(self.identity._sid()) is not None
+    def background(self):
+        # Configuration is an in-memory fact. Resolving a locator here would
+        # still block the camera loop on slow/offline Project storage.
+        return getattr(self.identity.store, 'locations', None) is not None
 
     def opened(self):
-        self.error, self.ready = None, False
+        self.error, self.ready, self.pending = None, False, None
         try:
             asyncio.get_running_loop()
         except RuntimeError:
             self.identity._load()
             self.ready = True
             return
-        if not self.portable():
+        if not self.background():
             self.identity._load()
             self.ready = True
             return
@@ -76,7 +77,7 @@ class IdentityIO:
             raise ValueError('Unsupported identity mutation')
         if self.closed or owner != self.owner():
             raise ProjectLocationError('The Project changed or closed before identity work was admitted')
-        if not self.portable():
+        if not self.background():
             return getattr(self.identity, method)(*args, **kwargs)
         # The task, not its awaiting caller, owns serialization until the actual
         # worker returns. A lost reply cannot overlap another write/replay.
@@ -89,7 +90,7 @@ class IdentityIO:
         except RuntimeError:
             self.identity._write(event)
             return
-        if not self.portable():
+        if not self.background():
             self.identity._write(event)
             return
         owner = self.owner()
@@ -107,17 +108,17 @@ class IdentityIO:
         pinned = SimpleNamespace(sid=owner[0], days=tuple(store.days), locations=store.locations, listeners=[])
         original = SimpleNamespace(root=store.root, clock=store.clock,
             user_prefs=store.user_prefs, catalogue=store.catalogue)
-        return pinned, original, store.locations.project(owner[0]), self.identity.today()
+        return pinned, original, store.journal.root, self.identity.today()
 
     async def _run(self, owner, captured, method=None, args=(), kwargs=None):
-        pinned, store, root, date = captured
+        pinned, store, journal_root, date = captured
         live = self.identity
         async with self.lock:
             try:
-                if self.closed or root is None or pinned.locations.project(pinned.sid) != root:
-                    raise ProjectLocationError('The captured Project location changed')
+                if self.closed:
+                    raise ProjectLocationError('This identity host has closed')
                 state, given, result = await asyncio.to_thread(
-                    self._worker, pinned, store, root, date, method, args, kwargs or {})
+                    self._worker, pinned, store, journal_root, date, method, args, kwargs or {})
             except Exception as error:
                 if owner == self.owner():
                     self.ready, self.error = False, str(error)
@@ -131,23 +132,25 @@ class IdentityIO:
                     live.start()
             return result
 
-    def _worker(self, pinned, original, root, date, method, args, kwargs):
+    def _worker(self, pinned, original, journal_root, date, method, args, kwargs):
         from .identity import Identity
         from .day.store import SessionStore
         from .project_repository import verify_owner
-        if pinned.locations.project(pinned.sid) != root:
+        root = pinned.locations.project(pinned.sid)
+        if pinned.locations.root_for(pinned.sid) != journal_root:
             raise ProjectLocationError('The captured Project location changed')
         if method is not None:
             pinned.locations.writable(pinned.sid)
-            pinned.locations.check_writer(root)
-            verify_owner(root)
+            if root is not None:
+                pinned.locations.check_writer(root)
+                verify_owner(root)
             # Detached SessionStore reconstructs existing accepted journal data;
             # it cannot follow the original store's later UI selection.
             pinned = SessionStore(original.root, original.clock, session=pinned.sid,
                 prefs=original.user_prefs, catalogue=original.catalogue, locations=pinned.locations)
         view = Identity(self.identity.root, today=lambda: date, store=pinned,
                         _events=self.identity._project_events)
-        if pinned.locations.project(pinned.sid) != root:
+        if pinned.locations.project(pinned.sid) != root or pinned.locations.root_for(pinned.sid) != journal_root:
             raise ProjectLocationError('The captured Project location changed')
         result = getattr(view, method)(*args, **kwargs) if method is not None else None
         return {field: getattr(view, field) for field in FIELDS}, view._given, result

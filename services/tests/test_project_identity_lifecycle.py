@@ -173,3 +173,64 @@ def test_retirement_refuses_new_admission(project, tmp_path):
             await identity.io.mutate('observe', 'p1/c1', {'at': 1}, owner=owner)
         assert identity.observations == {}
     asyncio.run(run())
+
+
+def test_locator_itself_never_runs_on_live_loop(project, tmp_path, monkeypatch):
+    day, locations, _, _ = project
+    locate = locations.project
+    entered, release = threading.Event(), threading.Event()
+    loop_thread = threading.get_ident()
+    def blocked(session):
+        assert threading.get_ident() != loop_thread, 'location I/O ran on live loop'
+        entered.set()
+        assert release.wait(HANG_S)
+        return locate(session)
+    monkeypatch.setattr(locations, 'project', blocked)
+    async def run():
+        identity = identities(day, tmp_path)
+        try:
+            await until_async(entered.is_set)
+            # This coroutine still executes while the location worker is blocked.
+            assert not identity.io.ready
+            assert identity.followed_outlines() == []
+        finally:
+            release.set()
+        await identity.io.ensure_ready()
+        await identity.io.mutate('observe', 'p1/c1', {'at': 1}, owner=identity.io.owner())
+        assert identity.observations['p1/c1'] == [{'at': 1}]
+    asyncio.run(run())
+
+
+def test_missing_locator_replaces_old_pending_with_actionable_error(project, tmp_path, monkeypatch):
+    day, locations, _, _ = project
+    async def run():
+        identity = identities(day, tmp_path)
+        await identity.io.ensure_ready()
+        prior = identity.io.pending
+        def missing(_):
+            raise ProjectLocationError('Project folder is missing')
+        monkeypatch.setattr(locations, 'project', missing)
+        identity.io.opened()
+        assert identity.io.pending is not prior
+        with pytest.raises(ProjectLocationError, match='folder is missing'):
+            await identity.io.ensure_ready()
+        assert not identity.io.ready and identity.io.error
+        with pytest.raises(ProjectLocationError, match='folder is missing'):
+            identity.individuals()
+    asyncio.run(run())
+
+
+def test_background_calls_preserve_cross_call_inode_checks(project, tmp_path):
+    day, locations, _, _ = project
+    async def run():
+        identity = identities(day, tmp_path)
+        await identity.io.ensure_ready()
+        await identity.io.mutate('observe', 'p1/c1', {'at': 1}, owner=identity.io.owner())
+        path = await asyncio.to_thread(identity._path)
+        original = path.read_bytes()
+        path.rename(path.with_name('original.jsonl'))
+        path.write_bytes(original)
+        with pytest.raises(ProjectLocationError, match='changed'):
+            await identity.io.mutate('observe', 'p1/c1', {'at': 2}, owner=identity.io.owner())
+        assert path.read_bytes() == original
+    asyncio.run(run())
