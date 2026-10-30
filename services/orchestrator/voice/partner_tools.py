@@ -105,7 +105,10 @@ def pointing_at(actions) -> list[str]:
                       f"population:{output['id']}" if kind == "population" and output.get("id") else
                       f"window:{output['instanceId']}" if kind == "presentation" and output.get("instanceId") else
                       f"researcher:{ref['researcherId']}" if kind == "resource" and isinstance(ref, dict)
-                      and ref.get("kind") == "research-run" and ref.get("researcherId") else None)
+                      and ref.get("kind") == "research-run" and ref.get("researcherId") else
+                      # a web page or video it opened (web_window.py): the window it is in
+                      output["window"] if kind == "resource" and str(output.get("window") or "").startswith("document:")
+                      else None)
             if target and target not in out:
                 out.append(target)
     return out[:4]

@@ -150,6 +150,13 @@ async def show(services, ctx, studio: ReaderStudio, *, shown: dict, title: str, 
             asked_at = now
         await asyncio.sleep(0.05)
     item = window_in(report, window, entry, project, tab_id)
+    try:  # what it showed, and the window it is in, so the line about it points at it (voice/partner_tools pointing_at)
+        from .brain.registry import record_output
+
+        record_output(ctx, {"kind": "resource", "resource": {"day": project, "id": entry, "version": None},
+                            "window": item["id"]})
+    except Exception:  # a record it cannot keep never undoes what the screen shows
+        pass
     new = " (a new Tab)" if made else ""
     how = {"beside": ", beside what is open there, tiled side by side",
            "only": ", the only window there" + (" (the live view floats small in its corner)" if tab_id == "main"

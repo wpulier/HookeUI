@@ -436,7 +436,7 @@ class Partner:
         for target in targets:
             name = target.get("target") if isinstance(target, dict) else target
             kind, _, ref = str(name or "").partition(":")
-            if (kind == "window" and ref in windows) or kind == "researcher" or (
+            if (kind == "window" and ref in windows) or (kind == "document" and name in windows) or kind == "researcher" or (
                     kind in ("outline", "population", "member", "frame") and specimen):
                 out.append(target)
         return out

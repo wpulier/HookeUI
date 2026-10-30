@@ -2209,3 +2209,16 @@ def test_a_hand_offs_progress_line_not_yet_heard_is_let_go_once_its_work_has_lan
         await done(t.sb, "resp_2", status="cancelled")
         answered.set()
     asyncio.run(go())
+
+
+def test_a_web_page_or_video_hooke_opened_is_pointed_at_with_its_outcome():
+    """will-display and will-alive, 30 Oct: the YouTube video's window opened, and its outcome line pointed at nothing
+    (Knowing: "pointed 0 of 1"): the web window recorded no output. It records what it shows and the window it is in;
+    the outcome points at that window, a document window the screen report shows."""
+    from orchestrator.voice.partner_tools import pointing_at
+
+    actions = [{"tool": "show_web", "ok": True, "outputs": [
+        {"kind": "resource", "resource": {"day": "2026-10-30", "id": "d4", "version": None}, "window": "document:p9"}]},
+        {"tool": "show_web", "ok": False, "outputs": [
+            {"kind": "resource", "resource": {"day": "2026-10-30", "id": "d5", "version": None}, "window": "document:p8"}]}]
+    assert pointing_at(actions) == ["document:p9"], "only steps that worked"

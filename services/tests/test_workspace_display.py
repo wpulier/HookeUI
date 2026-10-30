@@ -480,6 +480,9 @@ def test_a_youtube_video_about_stomata_opens_in_a_window_kept_in_data_and_done_o
         assert 'in a window in Tab "Main", in front' in run.summary and VIDEO in run.summary
         assert 'Plant Bio' in run.summary and 'checked against what was asked' in run.summary
         placement = next(p for p, w in studio.windows.items() if w.get('representation') == 'video')
+        # What it showed and the window it is in, so its outcome line points at it (30 Oct: "pointed 0 of 1").
+        from orchestrator.voice.partner_tools import pointing_at
+        assert pointing_at([run.wire()]) == [f'document:{placement}']
         # Hands: verified once the report shows its window.
         intent = intent_of('show_web', {'video': 'stomata'})
         assert intent.kind == 'open' and intent.check == 'record' and intent.background
