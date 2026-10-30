@@ -382,17 +382,29 @@ class Hands:
         entry = await store.confirm_save(entry)
         if entry["state"] != "done":
             raise Refusal("the comparison could not be saved", next="check local storage and run it again")
-        compact = {k: record[k] for k in ("operation", "on", "totals", "columns", "rows", "says")}
-        compact["pairs"] = record["summary"]["pairs"]
+        # Everything a report compares, small enough to go back with the reply whole (research_worker caps it at 6000
+        # characters): the columns by name, a row per model, every pair by the models' names; each cell's labels stay in
+        # the entry.
+        compact = {k: record[k] for k in ("operation", "on", "totals", "rows", "says")}
+        compact["columns"] = [c["name"] + (f" ({c['unit']})" if c.get("unit") else "") for c in record["columns"]]
+        names = {a["impl"]: a["label"] for a in record["arms"]}
+        compact["pairs"] = [{**p, "a": names.get(p["a"], p["a"]), "b": names.get(p["b"], p["b"])}
+                            for p in record["summary"]["pairs"]]
         compact["allAgree"], compact["everyNamed"] = record["summary"]["allAgree"], record["summary"]["everyNamed"]
         left = chosen.said()
+        on = record["on"]
+        cost = (f"; it was expected to cost about ${on['expectedUsd']:.2f} before it ran"
+                if on.get("expectedUsd") else "")
         return {"id": entry["id"], "title": entry["title"], "kind": "result",
                 "ran": {"models": [i.id for i in chosen.impls], "of": population.id, "executions": executions},
                 "values": {"comparison": compact},
-                "words": (f"classified {record['on']['members']} of {population.title}'s cells ({population.id}) with "
-                          f"{len(chosen.impls)} models and kept the comparison ({entry['id']}): "
-                          f"{model_comparison.headline(record)}" + (f"; not compared: {left}" if left else "")
-                          + ". Its numbers are in the entry")}
+                "words": (f"classified {on.get('chosen') or str(on['members']) + ' cells'} of {population.title} "
+                          f"({population.id}) with {len(chosen.impls)} models "
+                          f"({model_comparison.said_names([i.label for i in chosen.impls])}) and kept the comparison as "
+                          f"one entry ({entry['id']}): {model_comparison.headline(record)}{cost}"
+                          + (f"; not compared: {left}" if left else "")
+                          + ". Every model's counts, every pair's agreement, the time and the cost are in these values; "
+                            "the entry adds each cell's label")}
 
     async def _measure(self, session, selection, attempt):
         """The same accepted-label measurement as Studio/Ask, scoped to this research run."""

@@ -102,6 +102,9 @@ other files.
     "research" class is in the runner's key, so it never joins or holds back the user's measurement of the same
     frames. Its capture and decodes are in the "research" allowance. It is never measured on a held clip (a
     frame every 0.5 s, and spots are followed from frame to frame only at the live view's rate) nor on one view.
+    The "research" allowance is working memory for one run at a time: once a run's cells are saved, their table stays
+    loaded in an allowance of its own ("kept", capture.py; evidence.BACKGROUND), never in "research" (will-experiment,
+    29 Oct: an experiment's ten saved tables filled it and the next experiment stopped at frame 4).
   - **On what:** the live view now, or a sample the session still keeps (`input`): a population's view, or a held
     clip's frames (`frame`). A sample no longer kept is said so ("that view is not kept any more"), never captured
     again in its place; anything else is refused with what it is.
@@ -119,9 +122,15 @@ other files.
     here, `manager._door` "classifiers") and `classes` names the same cells of a population of its own session
     (`input`, else the one on screen) with each model through the runner at research priority, made for it
     (`model_comparison.compare_classes`), and keeps the comparison as one result entry with its table ("Model
-    comparison, for Researcher 2"). Its reply is a headline and the numbers (pairs' agreement and kappa, the cells all
-    named alike, counts, time, cost); its report compares the models from that entry, cited as evidence, never from
-    its own guess. One operation of its run, whatever the number of models.
+    comparison, for Researcher 2"). Every outline is classified (`classify.chosen_members`); only past 400 cells, or
+    past an expected $2.00 (`classify.expected_cost`, known before anything runs), is an even sample taken, and its
+    words say how it was chosen and that the rest can be classified (will-research, 29 Oct: the first 60 of 161,
+    said nowhere). Its reply names the models, the cells, the closest and furthest pairs, time, cost and the expected
+    cost, and carries every number a report compares (columns, a row per model, every pair by name), so the entry is
+    read only for a cell's own labels; the entry keeps its table and pairs first and each cell's labels last (a quick
+    researcher paged 21,000 characters to reach the table and ran over budget). Its report compares the models from
+    those records, cited as evidence, never from its own guess, and its spoken outcome carries the app's own record of
+    the comparison (`voice/partner.research_text`). One operation of its run, whatever the number of models.
   - **Limits:** one at a time across the app, at most 3 in a run, refused with the reason and a next step a
     researcher can take when the camera has no fresh picture (live), memory is full or another session is open; the
     session keeps what it ran and on what (`ran`).

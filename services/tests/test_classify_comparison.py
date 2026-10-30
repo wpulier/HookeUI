@@ -95,8 +95,10 @@ def test_five_classifiers_name_the_same_cells_and_the_comparison_is_their_record
     for a in arms.values():
         execution = runner(world).get(a["execution"])
         assert execution.operation == "classify" and execution.executed == a["impl"] and execution.policy == "raw"
-    assert record["on"] == {"population": population.id, "revision": 0, "title": population.title,
-                            "capture": population.capture_id, "members": 6, "of": 6}
+    on = {k: v for k, v in record["on"].items() if k not in ("expectedUsd", "expectedComplete")}
+    assert on == {"population": population.id, "revision": 0, "title": population.title,
+                  "capture": population.capture_id, "members": 6, "of": 6, "chosen": "all 6 cells"}
+    assert record["on"]["expectedUsd"] > 0 and record["on"]["expectedComplete"]
     summary = record["summary"]
     members = summary["members"]
     assert summary["labels"][members[0]] == {**{m: RED for m in MODELS}, "medsiglip-448": RED}
@@ -213,10 +215,10 @@ def test_a_researcher_classifies_with_five_models_and_keeps_the_comparison_made_
     reply = asyncio.run(Hands(world, log=logged.append).run(s, "classify", "compare five classifiers on these cells", input=population.id,
                                          models=[*MODELS, "medsiglip-448"], classes=CLASSES))
     assert reply["ok"] and reply["id"].startswith("d"), (reply, logged[-1].get("error"))
-    assert reply["words"].startswith(f"classified 6 of {population.title}'s cells ({population.id}) with 5 models "
-                                     f"and kept the comparison ({reply['id']}): 5 of 5 models ran; of 6 cells, 2 were "
-                                     "named alike by every model that ran; pairs agreed on ")
-    assert reply["words"].endswith("Its numbers are in the entry")
+    assert reply["words"].startswith(f"classified all 6 cells of {population.title} ({population.id}) with 5 models (")
+    assert f"and kept the comparison as one entry ({reply['id']}): 5 of 5 models ran; of 6 cells, 2 were named alike " \
+           "by every model that ran; the closest pair, " in reply["words"]
+    assert reply["words"].endswith("the entry adds each cell's label")
     entry = world.resources.results.get(reply["id"])
     assert entry["for"] == "Researcher 2" and entry["title"].startswith("Model comparison, for Researcher 2 · ")
     kept = world.resources.results.values(reply["id"])
@@ -353,3 +355,105 @@ def test_an_unknown_classifier_is_refused_with_every_classifier_named(stand_ins)
     with pytest.raises(ToolFailed, match="not a place"):
         compare(world, {"operation": "classify", "implementations": ["gemini-3.8-flash", "gpt-6.1-sol"],
                         "placement": "overlay"})
+
+
+# --- will-research, 29 Oct (measure-c4acc90), "classify-five" -------------------------------------------------------
+class _Many:
+    """A population of `n` outlines (what chosen_members reads)."""
+
+    def __init__(self, n):
+        self.members = [SimpleNamespace(id=f"c{i + 1}") for i in range(n)]
+
+    def live(self):
+        return self.members
+
+
+def test_every_outline_is_classified_and_a_sample_says_how_it_was_chosen():
+    """"I completed a five-model comparison on 60 of the 161 outlined objects—not the entire set" (Researcher 2), and
+    "60 of 153", "60 of 159" in runs 2 and 3: classify.MAX_MEMBERS (60) took the first 60 cells in order, silently.
+    Every outline is now classified; only past what one comparison holds is a sample taken, evenly across the cells,
+    and said so with how it was chosen."""
+    chosen = classify.chosen_members(_Many(161))
+    assert len(chosen) == 161
+    assert classify.chosen_words(161, 161) == "all 161 cells"
+    big = _Many(2 * classify.MAX_MEMBERS)
+    sample = classify.chosen_members(big)
+    assert len(sample) == classify.MAX_MEMBERS and sample[0].id == "c1" and sample[1].id == "c3"  # every 2nd
+    said = classify.chosen_words(len(sample), 2 * classify.MAX_MEMBERS)
+    assert said.startswith(f"{classify.MAX_MEMBERS} of the {2 * classify.MAX_MEMBERS} cells, evenly across them")
+    assert "the rest can be classified" in said and "(every 2nd" in said
+    assert "(spread through them" in classify.chosen_words(160, 161)  # never "every 1th"
+
+
+def test_the_expected_cost_is_known_before_the_models_run(stand_ins):
+    world, population, clients = stand_ins
+    impls = model_comparison.select(world, "classify", ["gemini-3.8-flash", "claude-opus-5-5", "medsiglip-448"]).impls
+    expected = classify.expected_cost(impls, 161)
+    # 9 sheets of 20 tiles for each cloud model, at its list price; nothing for the model on this Mac.
+    assert expected["sheets"] == 9 and expected["byModel"]["medsiglip-448"] == 0.0
+    assert 0 < expected["byModel"]["gemini-3.8-flash"] < expected["byModel"]["claude-opus-5-5"] < 0.5
+    assert expected["usd"] == pytest.approx(sum(expected["byModel"].values()))
+    record = run(model_comparison.compare_classes(world, population, impls[:1] + impls[2:], classes=CLASSES))
+    assert record["on"]["chosen"] == "all 6 cells" and record["on"]["expectedUsd"] > 0
+
+
+def test_the_kept_comparison_reads_table_first_and_each_cells_labels_last(stand_ins):
+    """Researcher 5 (quick, $0.25) read its comparison entry in three pages of 8000 characters to reach the table: the
+    entry's values began with every cell's label from every model (11,099 characters of 21,387), then the table. It
+    wrote up with its budget spent ("over_budget"). The table and every pair's agreement now come first."""
+    import json
+
+    world, population, _ = stand_ins
+    impls = model_comparison.select(world, "classify", [*MODELS, "medsiglip-448"]).impls
+    record = run(model_comparison.compare_classes(world, population, impls, classes=CLASSES))
+    kept = model_comparison.values(record)
+    assert list(kept)[:2] == ["columns", "rows"]
+    summary = list(kept["comparison"]["summary"])
+    assert summary.index("pairs") < summary.index("labels") and summary[-1] in ("labels", "members")
+    text = json.dumps(kept)
+    assert text.index('"pairs"') < text.index('"labels"') and text.index('"rows"') < text.index('"labels"')
+
+
+def test_a_researchers_comparison_names_its_models_and_says_its_numbers_are_in_the_reply(stand_ins, tmp_path):
+    from orchestrator.day import DayStore
+    from orchestrator.research.hands import Hands
+    from orchestrator.resources import Index, Results
+    from tests.test_research_hands import session
+
+    world, population, _ = stand_ins
+    day = DayStore(root=tmp_path / "sessions", day=getattr(population, "session", "") or population.day)
+    world.resources = Index(world, day=day, results=Results(tmp_path / "results", day=day))
+    s = session()
+    s.sitting = day.sid
+    reply = asyncio.run(Hands(world).run(s, "classify", "compare five", input=population.id,
+                                         models=[*MODELS, "medsiglip-448"], classes=CLASSES))
+    assert reply["ok"], reply
+    words = reply["words"]
+    assert words.startswith(f"classified all 6 cells of {population.title} ({population.id}) with 5 models (Gemini 3.8 "
+                            "Flash, Gemini 3.5 Flash, GPT-6.1 Sol, Gemini 4 Argon and MedSigLIP 448)"), words
+    assert "the closest pair, " in words and "agreed on " in words
+    assert "every pair's agreement, the time and the cost are in these values" in words
+    import json
+
+    compact = reply["values"]["comparison"]
+    assert len(json.dumps(compact)) < 6000 and compact["columns"][0] == "Model"
+    assert {p["a"] for p in compact["pairs"]} <= {"Gemini 3.8 Flash", "Gemini 3.5 Flash", "GPT-6.1 Sol", "Gemini 4 Argon"}
+
+
+def test_the_spoken_outcome_of_a_researcher_carries_the_apps_own_record_of_what_it_ran():
+    """Researcher 2's outcome was said from its own one-liner ("Five models compared 60 outlined objects, but agreed on
+    only one"): no model named, no agreement. The voice is now also given what the app ran for it, in the app's own
+    words (its record of the comparison: the models by name, the cells, the pairs' agreement, time and cost)."""
+    from orchestrator.voice.partner import Partner
+
+    ran = ("classified all 161 cells of Cell outlines (e2) with 5 models (Gemini 3.8 Flash, Gemini 3.5 Flash-Lite, "
+           "Gemini 3.5 Flash, GPT-6 Luna and Claude Opus 5.5) and kept the comparison as one entry (d8): 5 of 5 models "
+           "ran; of 161 cells, 1 was named alike by every model that ran")
+    session = SimpleNamespace(rid="r5", name="Researcher 5", status="done", run_number=lambda: 0,
+                              result={"one_liner": "They disagreed strongly.", "summary": "I ran five classifiers."},
+                              ran=[{"id": "e9", "operation": "segment", "run": 0, "words": "segmented the live view"},
+                                   {"id": "d8", "operation": "classify", "run": 0, "words": ran},
+                                   {"id": "d2", "operation": "classify", "run": -1, "words": "an earlier run's"}])
+    text = Partner.research_text(SimpleNamespace(), session)
+    assert "What the app ran for it" in text and "Gemini 3.5 Flash-Lite" in text and "1 was named alike" in text
+    assert "an earlier run's" not in text

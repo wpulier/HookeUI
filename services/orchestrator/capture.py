@@ -45,10 +45,15 @@ MB = 1024 * 1024
 # saved in another run is never taken for the live frame that has its id now (Captures.read_back).
 RUN = f"{os.getpid()}-{time.time():.0f}"
 
-BOUND_MB = 280
-# "research": a researcher's own operations (research/hands.py), apart from the user's: a run waiting behind
-# the live view's work never takes the room the user's own analyses need (review of #173). One fits at 1080p.
-ALLOWANCES_MB = {"interactive": 64, "analysis": 160, "unsaved": 32, "research": 24}
+BOUND_MB = 376
+# "research": a researcher's own operations (research/hands.py) and an experiment's model runs, apart from the user's:
+# a run waiting behind the live view's work never takes the room the user's own analyses need (review of #173). One
+# fits at 1080p.
+# "kept": the tables of saved analyses made in the background (that "research" allowance's runs), resident for as long
+# as their population is loaded. They were split from the run's own hold and stayed in "research", so ten runs of one
+# experiment filled the room the next run needed (will-experiment, 29 Oct: "a researcher's analyses fill their
+# allowance (24 of 24 MB)", Experiment 2 at frame 4); a table is about 1.5-3 MB at 160 cells.
+ALLOWANCES_MB = {"interactive": 64, "analysis": 160, "unsaved": 32, "research": 24, "kept": 96}
 CLASSES = tuple(ALLOWANCES_MB)
 TEMPORARY_SHARE = 0.25  # copies made while working (crops, re-encodes) on top of what is kept
 # Which decoded images each kind of hold reserves room for (footprint below). A Capture keeps a
@@ -182,6 +187,8 @@ class Memory:
                             "wait a moment for saving, or clear earlier analyses"),
                 "research": (f"a researcher's analyses fill their allowance ({used:.0f} of {allowed:.0f} MB)",
                              "carry on without it, and say what could not be measured"),
+                "kept": (f"the tables of analyses made in the background fill their allowance ({used:.0f} of "
+                         f"{allowed:.0f} MB)", "carry on without it, and say what could not be measured"),
             }.get(cls, (f"held views are full: {used:.0f} of {allowed:.0f} MB", "clear earlier analyses, or wait for them to finish"))
             self.last_refusal[cls] = f"{why}: {reason}"
             raise Refused(reason, next=next_step)

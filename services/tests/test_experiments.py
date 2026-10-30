@@ -312,7 +312,8 @@ def test_the_brain_runs_it_only_on_the_users_own_yes_and_the_card_runs_the_versi
     async def go():
         planned = await call("experiment", {"do": "plan", "models": MODELS, "frames": 2, "every": 1.0})
         assert planned.ok, planned.summary
-        assert "planned (version 1; not run yet)" in planned.summary and "nothing has run" in planned.summary
+        assert "Experiment 1, not run yet: " in planned.summary and "(plan version 1)" in planned.summary
+        assert "nothing has run" in planned.summary
         x = xs.get(None, built.day.sid)
         # A yes the user did not say is refused, and nothing runs.
         refused = await call("experiment", {"do": "run", "asked_with": "yes, run it"})
@@ -378,3 +379,158 @@ def test_the_results_land_through_present_place_new_tab_on_the_studio_that_appro
     assert (tool, args) == ("present", {"what": "d9", "do": "place", "placement": "new-tab"})
     assert ctx.client is client and ctx.request_snapshot.timing == "server-handoff-arrival" and ctx.channel == "system"
     built.hub.clients.discard(client)
+
+
+# --- will-experiment, 29 Oct (measure-c4acc90): what the voice is given to say -------------------------------------
+def _ran_here(hub, impl: str, ms: float, n: int = 3) -> None:
+    """Earlier runs of a model in this app's runner: the records an estimate is made from."""
+    from orchestrator.operations import Execution, runner
+
+    for _ in range(n):
+        record = Execution("cells", impl, "raw", "background", None, "explicit", executed=impl, ms=ms)
+        runner(hub).executions[record.id] = record
+
+
+def test_the_plan_is_said_with_its_substance_in_two_sentences_and_a_question(rig):
+    """"I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it",
+    judged 1, 1, 2: "the voice omitted the model names, explicit frame-by-frame comparison and costs" (the receipt led
+    with a numbered list of seven steps). The receipt now leads with what a scientist approves, short enough to say:
+    the models by name, what runs on what, what is compared, the audit and what it checks, how long and what it may
+    cost (estimates from the app's records, said as estimates), and that nothing runs before a yes."""
+    from orchestrator.brain.registry import ToolContext
+    from orchestrator.experiments import plan_said
+
+    built, xs = rig.built, rig.xs
+    _ran_here(built.hub, "cellpose-sam", 6000.0)
+    _ran_here(built.hub, "micro-sam-lm", 8000.0)
+
+    async def call():
+        ctx = ToolContext("voice", 1, None, question="I want to run an experiment comparing Cellpose and micro-sam on "
+                          "this footage and have a researcher audit it.", asked=built.conversation.here())
+        run = built.brain.registry.start("experiment", {"do": "plan", "models": MODELS, "audit": True,
+                                                        "question": "audit it"}, ctx)
+        if run.task is not None:
+            await run.task
+        return run
+
+    run = asyncio.run(call())
+    assert run.ok, run.summary
+    x = xs.get(None, built.day.sid)
+    said = plan_said(x)
+    # Said first, whole: the receipt's opening is the plan in words a scientist approves.
+    assert run.summary.startswith(said)
+    for part in ("Cellpose-SAM", "micro-sam (light microscopy)", "5 frames of this footage, 4 s apart",
+                 "frame by frame", "cells both found", "researcher", "records", "$0.25", "on this Mac",
+                 "nothing runs until you say yes"):
+        assert part in said, part
+    # How long, from the records: 5 frames 4 s apart (16 s), 5 x (6 s + 8 s) of model runs, the audit's usual 75 s.
+    assert x.plan["estimate"]["seconds"] == 16 + 5 * 14 + 75
+    assert "About 3 min" in said and "estimate" in said
+    # Short enough to say: two sentences, no step list, no ids.
+    assert said.count(". ") <= 2 and "1)" not in said and "x1" not in said and len(said) <= 480
+    # The card still shows the full plan, step by step.
+    assert len(x.wire()["steps"]) == 7 and x.wire()["estimate"] == said.split(". ")[1].split(";")[0]
+
+
+def test_a_plan_with_a_model_that_never_ran_here_says_its_time_is_not_known(rig):
+    from orchestrator.experiments import plan_said
+
+    built, xs = rig.built, rig.xs
+    _ran_here(built.hub, "cellpose-sam", 6000.0)
+    x = xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=3, every=2.0, audit=False)
+    said = plan_said(x)
+    assert x.plan["estimate"]["seconds"] is None and x.plan["estimate"]["unknown"] == ["micro-sam (light microscopy)"]
+    assert "At least 22 s" in said and "micro-sam (light microscopy) has not run here yet" in said
+    assert "researcher" not in said  # no audit planned, none said
+
+
+class _Status:
+    """WorkflowService's observed status of a run, as a stand-in: the attempts so far."""
+
+    def __init__(self, attempts, models):
+        nodes = [{"id": f"m{i}", "name": f"{m} cells"} for i, m in enumerate(models)] + [{"id": "compare", "name": "Compare"}]
+        self.value = {"status": "running", "attempts": attempts, "definition": {"graph": {"nodes": nodes}},
+                      "executionObservation": {"state": "running"}}
+
+    def observed_status(self, run, session):
+        return self.value
+
+
+def test_how_it_is_going_is_read_from_its_live_record_in_one_reading(rig, monkeypatch):
+    """"How is the experiment going?", judged 2: "omits that only 1 of 10 model runs is complete and that micro-sam is
+    currently processing frame 1 of 5". The answer said "Frame 1 of 5: micro-sam (light microscopy) cells; 1 of 10 model
+    runs done; so far Cellpose-SAM 159 cells; micro-sam (light microscopy) 1 cells": the progress from the last poll and
+    the counts from a later reading, so micro-sam was both running and done. It is now one reading of the run's record,
+    said in the order a person asks: where it is, what is running now, results so far, what comes next."""
+    from orchestrator import workflow_service
+
+    built, xs = rig.built, rig.xs
+    x = xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=5, every=4.0)
+    x.status, x.run = "running", {"id": "run-1", "workflow": "w", "revision": 1}
+    x.frames = [{"id": f"f{i}"} for i in range(5)]
+    x.approved = {"at": xs.clock() - 35}
+    x.progress = "Frame 1 of 5: micro-sam (light microscopy) cells; 1 of 10 model runs done"  # the last poll's
+    attempts = [{"node": "m0", "item": 0, "status": "completed", "output": {"id": "o1"}},
+                {"node": "m1", "item": 0, "status": "running"}]
+    monkeypatch.setattr(workflow_service, "service", lambda hub, day: _Status(attempts, [m["label"] for m in x.plan["models"]]))
+    monkeypatch.setattr(xs, "_ran_count", lambda x, attempt: 159)
+    said = xs.status_words(x)
+    assert said.startswith("Experiment 1 is running, 35 s in: 1 of 10 model runs done; now micro-sam (light "
+                           "microscopy) on frame 1 of 5"), said
+    assert "So far Cellpose-SAM found 159 cells on frame 1" in said
+    assert "micro-sam (light microscopy) found" not in said  # still running: no count for it
+    assert "the researcher's audit starts when the last run is done" in said
+    # Its run moved on between two readings: each answer is one reading.
+    attempts[1] = {"node": "m1", "item": 0, "status": "completed", "output": {"id": "o2"}}
+    attempts.append({"node": "m0", "item": 1, "status": "running"})
+    again = xs.status_words(x)
+    assert "2 of 10 model runs done; now Cellpose-SAM on frame 2 of 5" in again
+    assert "micro-sam (light microscopy) found 159 cells on frame 1" in again
+
+
+def test_the_audit_is_said_where_it_is_while_it_audits(rig, monkeypatch):
+    from orchestrator import workflow_service
+
+    built, xs = rig.built, rig.xs
+    x = xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=1, every=4.0)
+    x.status, x.run, x.audit = "auditing", {"id": "run-1"}, {"id": "run-2", "researcher": "r1"}
+    x.frames, x.approved = [{"id": "f0"}], {"at": xs.clock() - 120}
+    attempts = [{"node": "m0", "item": 0, "status": "completed", "output": {"id": "o1"}},
+                {"node": "m1", "item": 0, "status": "completed", "output": {"id": "o2"}}]
+    monkeypatch.setattr(workflow_service, "service", lambda hub, day: _Status(attempts, [m["label"] for m in x.plan["models"]]))
+    monkeypatch.setattr(xs, "_ran_count", lambda x, attempt: 7)
+    monkeypatch.setattr(xs, "_auditor", lambda x: "Researcher 3")
+    said = xs.status_words(x)
+    assert said.startswith("Experiment 1 is auditing, 2 min in: all 2 model runs done; Researcher 3 is auditing the "
+                           "run's records"), said
+    assert "Cellpose-SAM found 7 cells on frame 1" in said
+
+
+def test_an_audit_todays_research_cap_cannot_cover_is_said_in_the_plan_never_after_the_yes(rig):
+    """Experiment 1 of the measure "finished" with "The audit did not finish: today's research budget ($0.00) has $0.00
+    left, and this could cost up to $0.25" (the bench's own cap for a journey it counted no researcher in), after its
+    plan had said "the audit at most $0.25" and the user had said yes. The plan checks the day's cap for the audit's
+    most before it is proposed, and the yes holds that amount until the audit starts."""
+    from orchestrator.experiments import Refused
+
+    built, xs = rig.built, rig.xs
+    built.hub.settings.research_cap = 0.0
+    with pytest.raises(Refused, match=r"today's research budget \(\$0.00\) has \$0.00 left") as refused:
+        xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=2, every=1.0)
+    assert "without the audit" in refused.value.next
+    # Without the audit it is planned as asked; with the cap raised, the audit too.
+    assert xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=2, every=1.0, audit=False).plan["audit"] is None
+    built.hub.settings.research_cap = 0.30
+    x = xs.draft(session=built.day.sid, thread=None, models=MODELS, frames=2, every=1.0)
+    spending = built.research.spending
+
+    async def go():
+        xs.approve(x, version=x.version, by="card", actor="user")
+        held = spending.committed()
+        await until_async(lambda: x.status in ("done", "failed", "stopped"), seconds=120)
+        return held
+
+    held = asyncio.run(go())
+    assert held >= 0.25  # the yes held the audit's most until the audit started
+    assert x.status == "done", x.why
+    assert f"experiment:{x.key}" not in spending._held  # and let it go then

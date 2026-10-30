@@ -43,6 +43,9 @@ SCREEN_CHARS = 1000  # the screen now as text, at most
 NOTICE_TAG_S = 120.0  # a researcher's finish is matched to the narrator's lines naming it within this long
 BRIEF_CHARS = 3000
 REATTACH_AGAIN_S = 10.0
+# The operations of a researcher's run whose app record goes with its spoken outcome (research_text): a comparison of
+# models is the result itself.
+RAN_SAID = frozenset({"classify"})
 RETIRED_WORDS = {"researcher-done": "a researcher's finding", "researcher-failed": "a researcher stopping",
                  "job-result": "a task's result", "job-failed": "a task that did not work",
                  "job-question": "a task's question for you", "job-cancelled": "a task stopping as you asked",
@@ -703,6 +706,14 @@ class Partner:
             # unavailable (HTTP 404)"), which the one-liner leaves out: the voice says the reason, not only the miss.
             text += "\nIts summary, with what did not work and why:\n" + block(result["summary"], tag="researchers",
                                                                                  source="web", limit=700)
+        # What the app itself ran for it, in the app's own words from its records (will-research, 29 Oct: five
+        # classifiers' outcome was said from the researcher's one-liner alone, no model named, no agreement).
+        ran = [r for r in (getattr(session, "ran", None) or []) if isinstance(r, dict) and r.get("words")]
+        newest = max((int(r.get("run") or 0) for r in ran), default=0)
+        made = [r for r in ran if int(r.get("run") or 0) == newest and r.get("operation") in RAN_SAID]
+        if made:
+            text += ("\nWhat the app ran for it (the app's own record, not the researcher's words):\n"
+                     + "\n".join(f"- {str(r['words'])[:600]}" for r in made[-3:]))
         return text
 
     # --- reconnecting ------------------------------------------------------------------------------

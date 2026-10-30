@@ -7,13 +7,18 @@ audit it"; docs/architecture/scientific-workflows.md "Experiments").
   ids, as `use` lists them), the input (this footage: N frames of the live view, one every S seconds; or the view now)
   and whether a researcher audits it, in the user's words. Code checks each fact before anything is proposed: every model
   is one that can run here (model_comparison.select: two to six, the unknown and the unrunnable said apart), there is a
-  picture from the camera, the researchers' model has its key when an audit is asked, and the steps fit a workflow. The
-  plan says its steps, what runs where and what it may cost (the models on this Mac cost nothing; the audit at most its
-  effort's cap), and is shown as a card (`wire`, the studio's `experiment` message) the user can approve or change.
+  picture from the camera, the researchers' model has its key and today's research cap can cover the audit's most when
+  an audit is asked, and the steps fit a workflow. The plan says its steps, what runs where, how long it should take
+  (`estimate_of`: each model's usual run time in this app's runner, the audit's usual time; said as an estimate) and
+  what it may cost (the models on this Mac cost nothing; the audit at most its effort's cap), and is shown as a card
+  (`wire`, the studio's `experiment` message) the user can approve or change. Its receipt leads with `plan_said`: the
+  plan in two sentences a scientist approves (the models by name, the frames, the comparison, the audit, the time, the
+  cost, nothing before a yes), so the voice says its substance (will-experiment, 29 Oct, judged 1, 1, 2 without it).
 - **Nothing runs before a yes** (`approve`): the card's Run it (a press of the user's own, from the studio) or the user's
   own words quoted by the brain (`research.policy.quoted`, from what they just said). A plan changed since the card was
   drawn is not the one approved (its version must be the one shown). A plan waits PROPOSAL_S for its yes. What runs is
-  exactly what the plan says: its models, its frames, its audit, nothing added.
+  exactly what the plan says: its models, its frames, its audit, nothing added. The yes holds the audit's most in
+  today's research spend until its researcher starts (`_hold_audit`).
 - **The run** is a job of its own (`_job`, never awaited by a request): it holds the frames from the live view (each kept
   as a retained frame: experiment_steps.keep_frame), then runs one frozen workflow in WorkflowService with a frame per
   item: each model's step (experiment_steps: the app's own runner at research priority, so the live view and clicks
@@ -121,6 +126,7 @@ class Experiment:
                 "session": self.session, "thread": self.thread, "version": self.version, "status": self.status,
                 "requestId": self.request_id, "turnId": self.turn_id, "steps": [s["says"] for s in self.plan["steps"]],
                 "cost": self.plan["cost"]["says"], "input": self.plan["input"]["says"],
+                "estimate": time_words(self.plan),
                 "progress": self.progress, "why": self.why,
                 "outcome": {k: v for k, v in (self.outcome or {}).items() if k in ("words", "document", "tab", "shown")},
                 "canRun": self.status == "proposed" and now < expires, "canStop": self.status in LIVE,
@@ -147,8 +153,11 @@ def said_list(items: list[str]) -> str:
 
 # --- the plan -------------------------------------------------------------------------------------------------------
 def plan_of(hub, *, models, on: str, frames, every, audit: bool, question: str | None, effort: str, measure: bool,
-            research_ready: Callable[[], str | None]) -> dict:
-    """The plan from the brain's choices, each checked against what this app has (never the request's words)."""
+            research_ready: Callable[[], str | None], research_budget: Callable[[float], str | None] | None = None) -> dict:
+    """The plan from the brain's choices, each checked against what this app has (never the request's words). An audit
+    is planned only when a researcher can run here and today's research cap can cover its most (`research_budget`):
+    will-experiment, 29 Oct, Experiment 1 planned "the audit at most $0.25", was approved, and its audit was then refused
+    by a cap of $0.00 the plan never looked at."""
     from . import model_comparison
     from .brain.toolbox.choosing import PICK_AGAIN, pick
     from .workflows import MAX_NODES
@@ -189,6 +198,11 @@ def plan_of(hub, *, models, on: str, frames, every, audit: bool, question: str |
     from research_worker.budget import EFFORTS as BUDGETS
 
     audit_cap = BUDGETS[effort].cap_usd if audit else 0.0
+    if audit and research_budget is not None:
+        why = research_budget(audit_cap)
+        if why:
+            raise Refused(f"the audit can't run today: {why}",
+                          next="plan it without the audit, or raise today's research cap in the settings first")
     local = [i for i in impls if i.worker != "cloud"]
     cloud = [i for i in impls if i.worker == "cloud"]
     held = (f"{frames} frames of this footage, {every:g} s apart (about {span:.0f} s)" if on == "footage"
@@ -215,14 +229,83 @@ def plan_of(hub, *, models, on: str, frames, every, audit: bool, question: str |
             "audit": ({"question": " ".join(str(question or QUESTION).split())[:2000], "criteria": CRITERIA,
                        "effort": effort, "maximumUsd": audit_cap} if audit else None),
             "steps": steps, "cost": {"modelsUsd": 0.0 if not cloud else None, "auditUsd": audit_cap, "says": says,
-                                     "local": len(local), "cloud": len(cloud)}}
+                                     "local": len(local), "cloud": len(cloud)},
+            "estimate": estimate_of(hub, impls, frames, span, BUDGETS[effort].seconds if audit else None)}
+
+
+def _typical_s(hub, impl_id: str) -> float | None:
+    """How long one run of a cell finder takes here: the median of its latest runs in this app's runner (its own
+    records of each execution's time), None when it has not run here yet."""
+    from .operations import runner
+
+    try:
+        records = list(runner(hub).executions.values())
+    except Exception:  # noqa: BLE001 - no runner here: nothing is known
+        return None
+    times = sorted(float(r.ms) for r in records[-200:]
+                   if r.operation == OPERATION and r.executed == impl_id and float(r.ms or 0) > 0)[-12:]
+    if not times:
+        return None
+    return times[len(times) // 2] / 1000.0
+
+
+def estimate_of(hub, impls, frames: int, span: float, audit_s: float | None) -> dict:
+    """How long the plan should take, from the records the app has: the frames held over their span, each model's
+    usual run time here on every frame, and the audit's usual time (its effort's). A model that has not run here has
+    no time to go on: the estimate is then the least it will take, and says which."""
+    known, unknown = float(span), []
+    for impl in impls:
+        typical = _typical_s(hub, impl.id)
+        if typical is None:
+            unknown.append(impl.label)
+        else:
+            known += frames * typical
+    known += float(audit_s or 0.0)
+    return {"seconds": None if unknown else round(known), "least": round(known), "unknown": unknown,
+            "auditS": audit_s, "basis": "earlier runs of these models here, and the audit's usual time"}
+
+
+def duration(seconds: float) -> str:
+    return f"{seconds:.0f} s" if seconds < 90 else f"{seconds / 60:.0f} min"
+
+
+def time_words(plan: dict) -> str:
+    """The plan's time, said as the estimate it is."""
+    e = plan.get("estimate") or {}
+    if e.get("seconds") is not None:
+        return f"About {duration(e['seconds'])} (an estimate from earlier runs here)"
+    if e.get("unknown"):
+        return (f"At least {duration(e.get('least') or 0)} (more: {said_list(e['unknown'])} "
+                f"{'has' if len(e['unknown']) == 1 else 'have'} not run here yet, so that time is not known)")
+    return "How long it takes is not known yet"
+
+
+def plan_said(x: "Experiment") -> str:
+    """The plan as a scientist approves it, in two sentences the voice can say whole (the card shows every step):
+    the models by name, what runs on what, what is compared and measured, the audit and what it checks, how long and
+    what it may cost (estimates said as estimates), and that nothing runs before a yes."""
+    p = x.plan
+    models = [m["label"] for m in p["models"]]
+    on = p["input"]
+    where = (f"{on['frames']} frames of this footage, {on['everyS']:g} s apart" if on["kind"] == "footage"
+             else "the view now")
+    what = (f"{x.name}, not run yet: {said_list(models)} each outline every cell on {where}, compared frame by frame "
+            "(counts, cells both found, where outlines differ)"
+            + (" with each model's cells measured" if p.get("measure") else "")
+            + (", then a researcher audits whether the run's records support each comparison" if p.get("audit") else ""))
+    cloud = [m["label"] for m in p["models"] if m.get("runs") == "cloud"]
+    cost = ("the models are free on this Mac" if not cloud else
+            f"{said_list(cloud)}' cost is not reported" + ("" if len(cloud) == len(models) else
+                                                            ", the others are free on this Mac"))
+    if p.get("audit"):
+        cost += f", the audit at most ${p['audit']['maximumUsd']:.2f}"
+    return f"{what}. {time_words(p)}; {cost}; nothing runs until you say yes."
 
 
 def plan_words(x: Experiment) -> str:
-    """The plan in plain words, for the brain to say (the card shows the same)."""
-    steps = "; ".join(f"{i + 1}) {s['says']}" for i, s in enumerate(x.plan["steps"]))
-    return (f"{x.name}, {x.title}, planned (version {x.version}; not run yet): {steps}. {x.plan['cost']['says']}. Its "
-            "card shows the plan with Run it; it runs only on the user's yes")
+    """The plan's receipt: first the plan as it is said (`plan_said`, whole), then where the rest of it is."""
+    return (f"{plan_said(x)} Its card shows every step with Run it (plan version {x.version}); it runs only on the "
+            "user's yes")
 
 
 # --- the service ----------------------------------------------------------------------------------------------------
@@ -323,6 +406,45 @@ class Experiments:
             if getattr(getattr(manager, "_worker", None), "runs_a_model", True) else None
         return str(missing) if missing is not None else None
 
+    def _spending(self):
+        from . import experiment_steps
+
+        manager = experiment_steps.manager_of(self.hub)
+        return getattr(manager, "spending", None) if manager is not None else None
+
+    def research_budget(self, usd: float) -> str | None:
+        """Why today's research cap (or the month's cloud cap) cannot cover `usd` more, None when it can."""
+        spending = self._spending()
+        if spending is None or not hasattr(spending, "check"):
+            return None
+        from .research.policy import ResearchRefused
+
+        try:
+            spending.check(getattr(getattr(self.hub, "settings", None), "research_cap", None), float(usd))
+        except ResearchRefused as exc:
+            return str(exc)
+        return None
+
+    def _hold_audit(self, x: Experiment) -> None:
+        """The yes holds the audit's most in today's research spend until its researcher starts (and holds its own),
+        so what was approved is never refused on the day's cap meanwhile; refused now, with why, when it can't."""
+        audit = x.plan.get("audit")
+        if not audit:
+            return
+        why = self.research_budget(audit["maximumUsd"])
+        if why:
+            raise Refused(f"{x.name}'s audit can't run today: {why}; nothing was started",
+                          next="change it to run without the audit, or raise today's research cap first")
+        spending = self._spending()
+        if spending is not None and hasattr(spending, "reserve"):
+            spending.reserve(f"experiment:{x.key}", float(audit["maximumUsd"]))
+
+    def _let_audit_go(self, x: Experiment) -> None:
+        spending = self._spending()
+        if spending is not None and hasattr(spending, "release"):
+            with contextlib.suppress(Exception):
+                spending.release(f"experiment:{x.key}")
+
     def _has_picture(self) -> None:
         if self.sample is not None:
             return
@@ -338,7 +460,8 @@ class Experiments:
               asked: str = "", request_id: str | None = None, turn_id: int | None = None, asked_in=None) -> Experiment:
         self._has_picture()
         plan = plan_of(self.hub, models=models, on=on, frames=frames, every=every, audit=audit, question=question,
-                       effort=effort, measure=measure, research_ready=self.research_ready)
+                       effort=effort, measure=measure, research_ready=self.research_ready,
+                       research_budget=self.research_budget)
         n = max((x.n for x in self.of_session(session)), default=0) + 1
         key = "p" + _token({"experiment": session, "n": n, "at": self.clock()})[:32]
         x = Experiment(key=key, n=n, session=session, plan=plan, thread=thread, asked=" ".join(asked.split())[:600],
@@ -363,7 +486,8 @@ class Experiments:
         self._has_picture()
         x.plan = plan_of(self.hub, models=merged["models"], on=merged["on"], frames=merged["frames"],
                          every=merged["every"], audit=bool(merged["audit"]), question=merged["question"],
-                         effort=merged["effort"], measure=bool(merged["measure"]), research_ready=self.research_ready)
+                         effort=merged["effort"], measure=bool(merged["measure"]), research_ready=self.research_ready,
+                         research_budget=self.research_budget)
         x.version += 1
         x.created = self.clock()  # a changed plan waits again for its yes
         self._changed(x)
@@ -387,6 +511,7 @@ class Experiments:
                           next="look at the plan as it is now, then say yes to it")
         if self.day is not None and getattr(self.day, "sid", x.session) != x.session:
             raise Refused(f"{x.name} belongs to another Project", next="open its Project first")
+        self._hold_audit(x)
         x.approved = {"by": by, "actor": actor, "at": self.clock(), "words": " ".join(words.split())[:300]}
         x.status, x.progress = "sampling", "Holding the frames"
         x.client = client
@@ -394,6 +519,7 @@ class Experiments:
         try:
             task = asyncio.get_running_loop().create_task(self._job(x))
         except RuntimeError:  # no loop (a bare construction): nothing runs, and that is said
+            self._let_audit_go(x)
             x.status, x.why = "failed", "it could not be started here"
             self._changed(x)
             raise Refused(x.why, next=None) from None  # no next: a test's construction only
@@ -471,6 +597,7 @@ class Experiments:
                 x.why = str(exc)[:400] or "something went wrong while it ran"
                 log.warning("experiment %s failed: %s", x.key, exc, exc_info=True)
         finally:
+            self._let_audit_go(x)
             if not self.closing:
                 x.ended = self.clock()
                 x.progress = ""
@@ -772,6 +899,7 @@ class Experiments:
                                        "experiment-record.json", body)
         from .scientific_comparisons import identity
 
+        self._let_audit_go(x)  # its researcher holds its own most from here (ResearchManager.start)
         x.audit = await self._start(x, f"{x.name} · audit", self.audit_graph(x), [identity(kept)], "audit")
         self._changed(x)
 
@@ -1004,44 +1132,99 @@ class Experiments:
 
     # --- telling ---------------------------------------------------------------------------------------------------
     def status_words(self, x: Experiment) -> str:
-        """How it is going, from its records (never a guess): its state, its frames, its run's attempts, its audit."""
+        """How it is going, from its records (never a guess): one reading of its run, said in the order a person asks
+        (will-experiment, 29 Oct: "omits that only 1 of 10 model runs is complete and that micro-sam is currently
+        processing frame 1 of 5"): where it is, what runs now, the results so far, what comes next."""
         head = f"{x.name} ({x.title})"
         if x.status == "proposed":
             return f"{head} is planned and waiting for your yes (version {x.version}): {x.plan['input']['says']}"
         if x.status == "expired":
             return f"{head} was planned but never run: its plan waited over {PROPOSAL_S / 60:.0f} minutes"
         elapsed = (x.ended or self.clock()) - ((x.approved or {}).get("at") or x.created)
-        clock = f"{elapsed / 60:.0f} min" if elapsed >= 90 else f"{elapsed:.0f} s"
         if x.status in LIVE:
-            words = f"{head} is {x.status} ({clock} so far): {x.progress or 'working'}"
-            if x.run and x.status in ("running", "auditing"):
-                with contextlib.suppress(Exception):
-                    from .workflow_service import service
-
-                    status = service(self.hub, self.day).observed_status(x.run["id"], x.session)
-                    counts = self._counts(x, status)
-                    if counts:
-                        words += "; so far " + counts
-            return words
+            return self._live_words(x, elapsed)
+        clock = duration(elapsed)
         if x.status == "done":
             return f"{head} finished after {clock}: {(x.outcome or {}).get('words') or 'its results are in Data'}"
         return f"{head} {x.status} after {clock}: {x.why}"
 
-    def _counts(self, x: Experiment, status: dict) -> str:
+    def _ran_count(self, x: Experiment, attempt: dict) -> int | None:
+        """A finished model run's count of cells, from the step's own record of it."""
         from . import experiment_steps
         from .scientific_comparisons import exact
 
-        parts = []
-        for i, m in enumerate(x.plan["models"]):
-            counts = []
-            for a in status["attempts"]:
-                if a["node"] == f"m{i}" and a["status"] == "completed" and a.get("output"):
-                    with contextlib.suppress(Exception):
-                        saved = exact(self.store, a["output"], x.session)
-                        counts.append(str((saved.document["state"].get(experiment_steps.RAN) or {}).get("count")))
-            if counts:
-                parts.append(f"{m['label']} {', '.join(counts)} cells")
-        return "; ".join(parts)
+        try:
+            saved = exact(self.store, attempt["output"], x.session)
+            count = (saved.document["state"].get(experiment_steps.RAN) or {}).get("count")
+        except Exception:  # noqa: BLE001 - an unreadable record is left out, never guessed
+            return None
+        return count if isinstance(count, int) else None
+
+    def _auditor(self, x: Experiment) -> str | None:
+        from . import experiment_steps
+
+        rid = (x.audit or {}).get("researcher")
+        manager = experiment_steps.manager_of(self.hub)
+        found = getattr(manager, "sessions", {}).get(rid) if rid and manager is not None else None
+        return getattr(found, "name", None)
+
+    def _live_words(self, x: Experiment, elapsed: float) -> str:
+        n, models = x.plan["input"]["frames"], x.plan["models"]
+        total = n * len(models)
+        lead = f"{x.name} is {x.status}, {duration(elapsed)} in"
+        audit = x.plan.get("audit")
+        if x.status == "sampling":
+            return (f"{lead}: holding frame {min(len(x.frames) + 1, n)} of {n} from the live view; then "
+                    f"{said_list([m['label'] for m in models])} each run on every frame"
+                    + (", then the researcher's audit" if audit else "") + ".")
+        status = None
+        if x.run:
+            with contextlib.suppress(Exception):
+                from .workflow_service import service
+
+                status = service(self.hub, self.day).observed_status(x.run["id"], x.session)
+        attempts = (status or {}).get("attempts") or []
+
+        def model(a) -> int | None:
+            node = str(a.get("node") or "")
+            return int(node[1:]) if node[:1] == "m" and node[1:].isdigit() and int(node[1:]) < len(models) else None
+
+        ran = [a for a in attempts if model(a) is not None]
+        done = sorted((a for a in ran if a.get("status") == "completed" and a.get("output")),
+                      key=lambda a: (model(a), a.get("item", 0)))
+        running = [a for a in ran if a.get("status") == "running"]
+        found = []
+        for i, m in enumerate(models):
+            counts = [(a["item"] + 1, c) for a in done if model(a) == i
+                      for c in [self._ran_count(x, a)] if c is not None]
+            if len(counts) == 1:
+                found.append(f"{m['label']} found {cells(counts[0][1])} on frame {counts[0][0]}")
+            elif counts:
+                found.append(f"{m['label']} found {said_list([str(c) for _, c in counts])} cells on frames "
+                             f"{said_list([str(f) for f, _ in counts])}")
+        so_far = (" So far " + "; ".join(found) + ".") if found else ""
+        if x.status == "running":
+            words = f"{lead}: {len(done)} of {total} model runs done"
+            if running:
+                words += "; now " + " and ".join(f"{models[model(a)]['label']} on frame {a['item'] + 1} of {n}"
+                                                 for a in running)
+            elif len(done) < total:
+                words += "; the next run is waiting for the live view's own work to finish"
+            words += "." + so_far
+            if audit:
+                words += " Then the researcher's audit starts when the last run is done."
+            e = x.plan.get("estimate") or {}
+            if e.get("seconds") is not None and e["seconds"] > elapsed:
+                words += f" About {duration(e['seconds'] - elapsed)} left (an estimate)."
+            return words
+        if x.status == "auditing":
+            who = self._auditor(x) or "a researcher"
+            usual = (audit or {}).get("effort")
+            from research_worker.budget import EFFORTS as BUDGETS
+
+            within = f" (usually within {duration(BUDGETS[usual].seconds)})" if usual in BUDGETS else ""
+            return f"{lead}: all {total} model runs done; {who} is auditing the run's records{within}.{so_far}"
+        return f"{lead}: every run{' and the audit' if audit else ''} done; putting the results in a Tab of their own."
 
     def _tell(self, x: Experiment) -> None:
         """One outcome, once: on the voice's bus (said at a pause, owed until heard) and in the conversation."""
