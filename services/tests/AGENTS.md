@@ -707,3 +707,8 @@ observations to check copying under the existing host lease, continued writer
 exclusion, concurrent bundle publication exclusion, pending transaction refusal,
 source-change/shutdown refusal and unchanged historical running state.
 It is folder-byte evidence, not complete collection, live execution or UI proof.
+
+Project material parity checks include a fresh Study with no findings: the owner,
+a synthetically granted reader and the resource index expose the same assignment
+metadata and exact revision. This is contract/storage evidence, distinct from
+actual client reconnection and browser inspection of a populated Project.

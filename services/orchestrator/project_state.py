@@ -65,7 +65,7 @@ CATEGORY = {"population": "outline-layer", "named-outline": "outline-layer",
 # Kinds whose measurements the Measurements page reads (a result says so itself: Entry.table).
 WITH_TABLE = frozenset({"population", "tracks", "dataset-table", "finding-table"})
 CATEGORY_WORDS = {"table": "table", "measurement": "measurement", "outline-layer": "outline layer",
-                  "import": "import", "finding": "researcher's findings", "study-result": "Study result",
+                  "import": "import", "finding": "researcher's findings", "study-result": "Study",
                   "workflow": "workflow result", "organization": "organization record", "analysis": "analysis", "note": "note", "other": "other"}
 
 
@@ -121,7 +121,7 @@ def _author_of_actor(actor, label=None) -> dict:
 
 
 def _project_category(document) -> str | None:
-    """A scientific Project document as data; None for a Study (listed in `studies`, its results as study results)."""
+    """A scientific Project document as data; None for a Study (joined once with its authoritative assignment below)."""
     from .project_material import describe
     return None if document.get('kind') == 'research-effort' else describe(document)['category']
 
@@ -140,8 +140,8 @@ def _public_line(s) -> str:
 
 
 def _item(entry, *, owner: bool = True, researchers: dict | None = None) -> dict | None:
-    """One index entry as a data item, or None when it is not data (members, outcomes, facts, jobs) or a Study. For
-    any reader but the owner, a researcher's report is summarised by its public line (`_public_line`)."""
+    """One index entry as a data item, or None when it is not data (members, outcomes, facts, jobs) or a Study
+    handled by the assignment join. For any reader but the owner, a researcher's report is summarised by its public line (`_public_line`)."""
     from .operations import label_of
     from .untrusted import inline
 
@@ -197,13 +197,14 @@ def _study(row: dict) -> dict:
             "experiments": len(row.get("experiments") or {})}
 
 
-def _study_result(row: dict, study: dict, at: float) -> dict:
+def _study_item(row: dict, study: dict, at: float, material: dict) -> dict:
     from .untrusted import inline
 
     newest = (row.get("findings") or [{}])[-1].get("statement") if row.get("findings") else None
     said = f"{study['findings']} findings, {study['claims']} claims" + (f"; newest: {inline(newest, 200)}" if newest else "")
     return {"ref": dict(study["ref"]), "category": "study-result", "title": study["title"], "summary": said,
-            "at": at, "state": study["status"], "source": {"store": "study", "trusted": False}, "author": dict(study["author"])}
+            "at": at, "state": study["status"], "source": {"store": "study", "trusted": False}, "author": dict(study["author"]),
+            "material": copy.deepcopy(material)}
 
 
 def _researcher(s, *, owner: bool) -> dict:
@@ -499,11 +500,17 @@ class ProjectState:
             items.append(item)
             kinds[entry.kind] = kinds.get(entry.kind, 0) + 1
         study_rows = []
+        study_entries = {entry.id: entry for entry in entries if entry.kind == "project"}
         for row, at in studies:
             study = _study(row)
             study_rows.append(study)
-            if study["findings"] or study["claims"]:
-                items.append(_study_result(row, study, float(at or 0)))
+            # An assignment is working material before it produces a result.
+            # Reuse the exact inventory projection, including explicit membership.
+            from .project_material import describe
+            entry = study_entries[row["id"]]
+            material = entry.material or describe(entry.values)
+            items.append(_study_item(row, study, float(at or 0), material))
+            kinds["project"] = kinds.get("project", 0) + 1
         items = sorted(reversed(items), key=lambda i: -i["at"])  # newest first; of one time, the later made first
         rows = [_researcher(s, owner=owner) for s in researchers]
         counts = {g: sum(1 for r in rows if r["group"] == g) for g in GROUP_RANK}
@@ -513,7 +520,8 @@ class ProjectState:
         by_category = {}
         for item in items:
             by_category[item["category"]] = by_category.get(item["category"], 0) + 1
-        line = ", ".join(f"{n} {CATEGORY_WORDS[c]}{'' if n == 1 or c == 'finding' else 's'}"
+        plurals = {"analysis": "analyses", "finding": CATEGORY_WORDS["finding"]}
+        line = ", ".join(f"{n} {CATEGORY_WORDS[c] if n == 1 else plurals.get(c, CATEGORY_WORDS[c] + 's')}"
                          for c, n in sorted(by_category.items(), key=lambda kv: -kv[1])) or "no data yet"
         running = [r["name"] for r in rows if r["group"] == "running"]
         if running:

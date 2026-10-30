@@ -249,3 +249,9 @@ capture the original session, pending saves are scoped to their store, and saved
 reads follow the journal owner after relocation. Changed/missing result folders
 refuse rather than recreating evidence. App activation still waits for the other
 legacy asset/research stores; this adapter does not certify complete collection.
+
+Study assignments are working material from creation, before findings exist.
+`project.state` joins each authoritative Study once into its data list with the
+same material metadata as the resource index and its exact Study reference. The
+separate Studies summary remains navigation/status for that same object, not a
+second output. No finding or scientific completion is inferred from an assignment.

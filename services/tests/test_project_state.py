@@ -148,7 +148,12 @@ def test_the_state_fits_its_versioned_schema_and_keeps_untrusted_facts_labelled(
     schema.check(state, "project-state")
     [study] = state["studies"]["items"]
     assert study["title"] == "Compare sizes" and study["ref"]["revision"] == 1 and len(study["ref"]["digest"]) == 64
-    assert not any(i["ref"]["id"] == study["ref"]["id"] for i in state["data"]["items"])  # no findings yet: not data
+    [assignment] = [i for i in state["data"]["items"] if i["ref"]["id"] == study["ref"]["id"]]
+    assert assignment["material"]["kind"] == "assignment"
+    assert assignment["material"]["input"] is True
+    assert assignment["material"]["origin"] == "authored"
+    assert assignment["ref"] == study["ref"]
+    assert assignment["summary"] == "0 findings, 0 claims"
 
 
 def test_the_ui_state_is_unavailable_without_a_studio_and_never_another_projects(tmp_path):
