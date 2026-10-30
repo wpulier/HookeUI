@@ -140,13 +140,15 @@ def add_table_tools(registry: Registry, services) -> None:
         "`placement`: beside (the default: side by side with what is open, the live view included; a new Tab has no "
         "live view, so for beside the live view name tab Main), new-tab (a Tab of its own: a population's outlines on "
         "their capture with this table beside them, \"open the cell results in a new tab\"), only, replace, window, "
-        "close. `instead`: move it from the Tab it is open in. Done only when the studio shows it; otherwise its answer "
-        "says where the table is saved.",
+        "close. `instead`: when the user wants it here rather than where it is open (\"instead\", \"move it\"), it moves "
+        "from the Tab it is open in; otherwise it opens here too, and the answer says where else it still is. Done only "
+        "when the studio shows it; otherwise its answer says where the table is saved.",
         schema({"of": {"type": "string", "description": "a population (e3) or motion item (m1); empty: the newest"},
                 "tab": {"type": "string", "maxLength": 80,
                         "description": "a Tab inside this Project to open it in, by title or id; made when none has it; "
                                        "empty: the Tab in front"},
                 "placement": {"type": "string", "enum": ["beside", "new-tab", "only", "replace", "window", "close"],
                               "description": "where it goes (default beside)"},
-                "instead": {"type": "boolean", "description": "move it here from the Tab it is open in"}}),
+                "instead": {"type": "boolean", "description": "move it here from the Tab it is open in, when the user "
+                                                              "wants it here rather than there"}}),
         show_measurements, kind="effect", inline_ms=4000, family="measuring"))

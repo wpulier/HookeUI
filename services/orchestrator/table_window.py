@@ -438,28 +438,35 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
         return (f'{new} "{inline(tab_title, 80)}" in front holds {holds}: {what}; '
                 + facts(target, revision, rows, displayed=f'yes, Tab "{inline(tab_title, 80)}"', front="yes"))
 
-    # beside and only: on the Tab named (made when none has that title) or the Tab in front
-    moved = None
-    if instead:  # moved here from the Tab it is open in, the person's own "Move this view instead"
-        if tab:
-            tab_id, _title, _made = await _tab(services, ctx, tab)
-        else:
-            tab_id = _strip(_current(studio, guard)).get("tab") or studio.tab
-        listed = await _tabs(services, ctx, {"action": "list"})
-        for other in listed.get("tabs") or ():
-            if other.get("id") == tab_id:
-                continue
-            item = next((i for i in other.get("items") or () if i.get("kind") == "table"
-                         and (i.get("resource") or {}).get("id") == target), None)
-            if item is not None and item.get("placement"):
-                await _tabs(services, ctx, {"action": "move", "tab": tab_id, "from": other["id"],
-                                            "placement": item["placement"]})
-                moved = item["placement"]
-                break
+    # beside and only: on the Tab named (made when none has that title) or the Tab in front. Where else the table is
+    # open is read from the Tabs: with `instead` (the model's, from the user's words: "instead", "move it") one is moved
+    # here, the person's own "Move this view instead"; otherwise it opens here too, and the answer says where else it
+    # still is (will-display, 29 Oct: "put the table beside the live view instead" opened a second table, the voice said
+    # it was moved, and "which Tab has the measurements?" then found both).
+    moved, also = None, []
+    if tab:
+        tab_id, _title, _made = await _tab(services, ctx, tab)
+    else:
+        tab_id = _strip(_current(studio, guard)).get("tab") or studio.tab
+    listed = await _tabs(services, ctx, {"action": "list"})
+    guard()
+    copies = [(other, i) for other in listed.get("tabs") or () if other.get("id") != tab_id
+              and (other.get("kind") or "work") == "work" for i in other.get("items") or ()
+              if i.get("kind") == "table" and (i.get("resource") or {}).get("id") == target and i.get("placement")]
+    here = any(t.get("id") == tab_id and any(i.get("kind") == "table" and (i.get("resource") or {}).get("id") == target
+                                             for i in t.get("items") or ()) for t in listed.get("tabs") or ())
+    if instead and copies and not here:
+        other, item = copies.pop(0)
+        await _tabs(services, ctx, {"action": "move", "tab": tab_id, "from": other["id"], "placement": item["placement"]})
+        moved = item["placement"]
         guard()
+    also = list(dict.fromkeys(str(other.get("title") or "") for other, _ in copies))
+    names = ", ".join('"' + inline(t, 60) + '"' for t in also[:3])
+    still = (f" It is also still open in Tab {names} (instead moves it "
+             "here from there, rather than opening it here too)." if also else "")
     if placement == "beside":
         return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
-                          tab=tab, guard=guard, beside=True, moved=moved)
+                          tab=tab, guard=guard, beside=True, moved=moved) + still
     # only: shown first (as a window), then everything else on its Tab closed and the specimen put away
     said = await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
                       tab=tab, guard=guard, moved=moved, fit=True)
@@ -467,7 +474,7 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
     tab_id = _strip(report).get("tab") or studio.tab
     table = table_on(report, tab_id)
     if table is None:
-        return said
+        return said + still
     await _tabs(services, ctx, {"action": "only", "tab": tab_id, "keep": [table["id"]]})
     home = tab_id == "main"
     report, why = await _wait_for(studio, guard, lambda r: only_shown(r, tab_id, [table["id"]], home=home))
@@ -476,4 +483,4 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
         refused(why, where)
     rest = "the live view floats small in its corner" if home else "the live view is hidden there"
     return (f"{what} is now the only window {where}; {rest}. "
-            + facts(target, revision, rows, displayed=f"yes, {where}", front="yes"))
+            + facts(target, revision, rows, displayed=f"yes, {where}", front="yes") + still)

@@ -130,7 +130,7 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         verb = str(args.get("do") or "").lower()
         what = _target_of(args.get("what") or args.get("instance"))
         placement = str(args.get("placement") or "")
-        if verb == "place":  # the placement words (placement.py): close closes, the rest open or arrange
+        if verb == "place" or placement:  # the placement words (placement.py; present takes any do with one as place)
             kind_ = "close" if placement == "close" else "open" if placement in ("new-tab", "window") else "present"
             caption = {"overlay": "Drawing it on the view", "beside": "Putting it beside", "new-tab": "Opening a Tab",
                        "only": "Closing the rest", "close": "Closing it", "replace": "Swapping it in",
@@ -424,15 +424,24 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
         if facts["drawn"] is None and not facts["layers"]:
             return None
         return all(f in set(facts["drawn"] or []) or f in facts["layers"] for f in found)
-    if intent.tool == "present" and str(intent.args.get("do") or "") == "place":
+    if intent.tool == "present" and (str(intent.args.get("do") or "") == "place" or intent.args.get("placement")):
         # A placement is decided by its tool's own receipt, which read the report (placement.py); only and close are
         # also read here.
         placement, observation = str(intent.args.get("placement") or ""), facts.get("observation")
         if placement == "only" and ids and observation is not None and front:
-            from ..placement import only_shown
+            from ..placement import identities, only_shown, windows_on
 
+            # The window kept is the one put there (a picture opened from Data is a new window, placement.put), never
+            # the Data id it was asked by: the window it opened, else the one asked for when it is on screen there;
+            # otherwise its receipt, which read the report, decides.
+            opened = [str(o.get("instanceId")) for o in result.get("outputs") or ()
+                      if isinstance(o, dict) and o.get("kind") == "presentation" and o.get("instanceId")]
+            keep = opened[-1] if opened else ids[0].removeprefix("document:")
+            if not opened and not any(keep in identities(w) or f"document:{keep}" in identities(w)
+                                      for w in windows_on(observation, front.get("id"))):
+                return None
             home = front.get("id") == "main" or front.get("title") == "Main"
-            return only_shown(observation, front.get("id"), [ids[0].removeprefix("document:")], home=home)[0]
+            return only_shown(observation, front.get("id"), [keep], home=home)[0]
         if placement == "close" and ids and not re.fullmatch(r"[em]\d+", ids[0]):
             return not any(i in facts["windows"] or f"document:{i}" in facts["windows"] for i in ids)
         return None
