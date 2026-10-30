@@ -101,6 +101,7 @@
    "family": "feed",
    "how": {
     "also": [
+     "source-retain",
      "source-remove",
      "source-restore",
      "asset-meta"
