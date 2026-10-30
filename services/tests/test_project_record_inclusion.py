@@ -14,6 +14,7 @@ from orchestrator.project_roots import ProjectLocationError
 from orchestrator.tools import ToolError
 from test_project_media import setup
 from test_project_record_collection import dataset, retained
+from tests.waiting import until_async
 
 
 def capture(tmp_path):
@@ -85,10 +86,8 @@ def test_owner_admission_is_idempotent_keeps_destination_and_refuses_unrelated_s
         retry = await COMMANDS['project-record-include'](app, None, params)
         assert first['operation']['id'] == retry['operation']['id']
         day.new('Another Project')
-        for _ in range(100):
-            row = operations.get(first['operation']['id'])
-            if row['state'] in ('succeeded', 'failed', 'cancelled'): break
-            await asyncio.sleep(.01)
+        await until_async(lambda: operations.get(first['operation']['id'])['state'] in ('succeeded', 'failed', 'cancelled'))
+        row = operations.get(first['operation']['id'])
         assert row['state'] == 'succeeded', row
         assert row['by'] == 'user' and row['outcome']['inclusion']['session'] == session
         assert day.sid != session

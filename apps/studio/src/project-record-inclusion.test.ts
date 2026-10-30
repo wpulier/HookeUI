@@ -2,7 +2,7 @@ import {afterEach, expect, test, vi} from 'vitest';
 import {recordInclusion, type RecordActions, type RecordOperation, type RecordReview} from './project-record-inclusion';
 import {syntheticDOM} from './workspace-windows.test-support';
 
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 function setup() {
   vi.stubGlobal('document', syntheticDOM().document);
   const memory = new Map<string, string>();
@@ -68,4 +68,64 @@ test('navigation during review cannot offer inclusion in a different Project', a
   await Promise.resolve();
   expect(view.element.textContent).not.toContain('Include whole dataset');
   expect(actions.start).not.toHaveBeenCalled(); view.dispose();
+});
+
+test('unavailable browser recovery storage refuses admission before copying', async () => {
+  const {actions} = setup();
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await review(view.element);
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => { throw new Error('Quota exceeded'); }});
+  click(view.element, 'Include whole dataset');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('No copy was started'));
+  expect(actions.start).not.toHaveBeenCalled(); view.dispose();
+});
+
+test('polling pauses during Stop and cannot overwrite its terminal receipt', async () => {
+  const {actions, memory, done} = setup(); vi.useFakeTimers();
+  memory.set('hooke.record-inclusion.origin-1', JSON.stringify({operation: 'op-1', requestKey: 'confirmed', selection: 'ds-1', digest: 'hash'}));
+  const running = {...done, state: 'running', outcome: undefined};
+  vi.mocked(actions.read).mockResolvedValue(running);
+  let finish!: (row: RecordOperation) => void;
+  vi.mocked(actions.stop).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Stop inclusion'));
+  click(view.element, 'Stop inclusion');
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(actions.read).toHaveBeenCalledTimes(1);
+  finish({...done, state: 'cancelled', outcome: {says: 'Copy stopped'}});
+  await Promise.resolve(); await vi.advanceTimersByTimeAsync(2000);
+  expect(view.element.textContent).toContain('Copy stopped');
+  expect(actions.read).toHaveBeenCalledTimes(1); view.dispose();
+});
+
+test('a poll already in flight cannot replace a later Stop receipt', async () => {
+  const {actions, memory, done} = setup(); vi.useFakeTimers();
+  memory.set('hooke.record-inclusion.origin-1', JSON.stringify({operation: 'op-1', requestKey: 'confirmed', selection: 'ds-1', digest: 'hash'}));
+  const running = {...done, state: 'running', outcome: undefined};
+  let late!: (row: RecordOperation) => void;
+  vi.mocked(actions.read).mockResolvedValueOnce(running).mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+  vi.mocked(actions.stop).mockResolvedValue({...done, state: 'cancelled', outcome: {says: 'Stopped'}});
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Stop inclusion'));
+  await vi.advanceTimersByTimeAsync(1000);
+  click(view.element, 'Stop inclusion'); await Promise.resolve();
+  late(running); await Promise.resolve();
+  expect(view.element.textContent).toContain('Stopped');
+  expect(view.element.textContent).not.toContain('Stop inclusion'); view.dispose();
+});
+
+
+test('capture notes remain visible before confirming even when capture checks pass', async () => {
+  const {actions} = setup();
+  const plan = await actions.review('ds-1');
+  vi.mocked(actions.review).mockResolvedValue({...plan, captureCheck: {ok: true, notes: ['Includes captured work from a second Project.']}});
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  click(view.element, 'Choose recording');
+  await vi.waitFor(() => expect(view.element.querySelector('select')).toBeTruthy());
+  view.element.querySelector('select')!.value = 'ds-1';
+  click(view.element, 'Review inclusion');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Include whole dataset'));
+  expect(view.element.textContent).toContain('Includes captured work from a second Project.');
+  expect(actions.start).not.toHaveBeenCalled();
+  view.dispose();
 });

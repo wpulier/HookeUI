@@ -2,7 +2,7 @@
 export interface RecordReview {
   session: string; origin: string; dataset: string; title: string; reviewDigest: string;
   files: number; bytes: number; requiredFreeBytes: number; scope: 'whole-record-folder';
-  captureCheck: {ok?: boolean; problems?: unknown[]}; reason: string;
+  captureCheck: {ok?: boolean; problems?: unknown[]; notes?: unknown[]}; reason: string;
 }
 export interface RecordOperation {
   id: string; project: string; state: string; progress?: {says?: string};
@@ -33,7 +33,11 @@ export function recordInclusion(actions: RecordActions, session: string, origin:
   const save = (admitting = false) => { try {
     const previous = JSON.parse(localStorage.getItem(key) ?? 'null');
     if (admitting || previous?.requestKey === requestKey) localStorage.setItem(key, JSON.stringify({operation, requestKey, selection, digest}));
-  } catch { /* optional recovery hint */ } };
+  } catch {
+    if (admitting) throw new Error('This browser cannot retain the retry identity. No copy was started. Enable local storage and retry.');
+    // If acknowledgement persistence fails, the already saved pending request
+    // remains recoverable with the same identity.
+  } };
   const button = (title: string, action: () => void | Promise<void>, primary = false) => {
     const b = node('button', title, primary ? 'study-primary' : 'study-quiet'); b.type = 'button';
     b.addEventListener('click', () => { if (active() && !busy) void action(); }); buttons.append(b); return b;
@@ -65,13 +69,15 @@ export function recordInclusion(actions: RecordActions, session: string, origin:
   };
   const poll = async () => {
     if (!active()) return;
+    if (busy) { timer = setTimeout(() => void poll(), 1000); return; }
     const epoch = ++readEpoch;
     try { const row = await actions.read(operation); if (epoch === readEpoch) render(row); }
     catch (error) { if (active() && epoch === readEpoch) { message(error); buttons.replaceChildren(); button('Refresh status', poll); } }
   };
   const start = async () => {
-    busy = true; readEpoch++; buttons.replaceChildren(); save(true); status.textContent = 'Admitting the reviewed whole dataset…';
+    busy = true; readEpoch++; buttons.replaceChildren(); status.textContent = 'Admitting the reviewed whole dataset…';
     try {
+      save(true);
       const row = await actions.start(selection, digest, requestKey);
       if (row.project !== session) throw new Error('Inclusion acknowledgement belongs to another Project.');
       operation = row.id; save(); render(row);
@@ -89,6 +95,7 @@ export function recordInclusion(actions: RecordActions, session: string, origin:
       body.replaceChildren(node('strong', plan.title), node('p', `${plan.files.toLocaleString()} files · ${size(plan.bytes)} · needs ${size(plan.requiredFreeBytes)} free`), node('p', plan.reason));
       if (plan.captureCheck.ok !== true) body.append(node('p', 'The capture reported problems. Copying preserves them; it does not repair missing data.'));
       for (const problem of plan.captureCheck.problems ?? []) if (typeof problem === 'string') body.append(node('p', problem));
+      for (const note of plan.captureCheck.notes ?? []) if (typeof note === 'string') body.append(node('p', note));
       status.textContent = 'Confirm inclusion of all material, including any captured work from other Projects.';
       button('Include whole dataset', start, true); button('Choose another', choose);
     } catch (error) { if (active()) { message(error); button('Choose another', choose); } }
