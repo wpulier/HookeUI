@@ -407,3 +407,5 @@ A moved/offline folder cannot prevent opening an otherwise available Project and
 its owner recovery dialog. The unavailable locator remains listed; no replacement
 journal is created for it. Explicit location recovery and ordinary opening restore
 that Project. A profile with no available Project still needs startup recovery.
+
+When every registered Project is unavailable at startup, the portable host uses normal allocation for one separate Project recovery workspace. Offline locators stay visible and their handles are never reused; no original bytes or grants change. Restart reuses that workspace. This bootstrap does not reconnect the missing Project or admit scientific work.

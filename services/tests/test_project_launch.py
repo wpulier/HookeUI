@@ -183,3 +183,38 @@ def test_server_startup_can_reopen_previously_selected_moved_project(tmp_path, m
             asyncio.run(built.stop())
     monkeypatch.setattr(server.uvicorn, 'run', serve)
     server.main()
+
+
+def test_all_locations_offline_startup_preserves_original_and_allocates_once(tmp_path):
+    from orchestrator.day.store import SessionStore
+    from orchestrator.day.prefs import Prefs
+    from orchestrator.project_repository import session_root
+    paths = Paths.under(tmp_path / 'host')
+    parent = tmp_path / 'Projects'
+    clock = lambda: 1793354400.0
+    locations = configured_locations(paths, str(parent))
+    prefs = Prefs(paths.sessions)
+    original = locations.create('Research', date='2026-10-30', preferences=prefs,
+        actor='user', clock=clock)
+    prefs.point(original.session)
+    journal = session_root(original) / original.session / 'journal.jsonl'
+    before = journal.read_bytes()
+    original_locator = locations.registry.locations()[original.origin]
+    locations.close()
+    moved = tmp_path / 'Disconnected Research'
+    original.path.rename(moved)
+    locations = configured_locations(paths, str(parent))
+    try:
+        resumed = SessionStore.resume(paths.sessions, clock=clock, locations=locations)
+        assert resumed.sid != original.session and resumed.name == 'Project recovery'
+        assert locations.registry.locations()[original.origin] == original_locator
+        assert resumed.catalogue.get(original.session).unavailable
+        assert not original.path.exists()
+        assert not (paths.sessions / original.session).exists()
+        assert (moved / 'history/sessions' / original.session / 'journal.jsonl').read_bytes() == before
+        count = len(locations.handles())
+        again = SessionStore.resume(paths.sessions, clock=clock, locations=locations)
+        assert again.sid == resumed.sid and len(locations.handles()) == count
+        assert not (paths.home / 'agent-projects.json').exists()
+    finally:
+        locations.close()

@@ -542,3 +542,7 @@ The owner may explicitly restore a completed Project export to a new host-select
 ### Owner-reviewed whole Record inclusion
 
 The existing Datasets surface may offer copying a stopped Record dataset into the current portable Project. Review identifies the whole dataset, its shared/cross-Project scope, capture warnings, hashed membership and disk requirement. The owner's explicit confirmation authorizes that whole inclusion; a review digest is not authority. The action uses the existing `collect_record` immutable intake, returns an exact Project artifact reference, keeps the original intact and does not claim external dependency closure. Agents cannot invoke this owner-only path or browse host datasets through it. Any future agent path needs explicit dataset-scoped authority. Admitted work retains its destination Project despite navigation and exposes its durable operation and cancellation status.
+
+### Startup when all remembered locations are unavailable
+
+The existing empty-startup fallback must never reuse a registered offline Project's host handle. If no retained Project can be resumed, an explicitly portable host creates a separate empty recovery workspace through normal Project allocation. Existing locators and unavailable entries remain visible, with their origin, permissions and evidence untouched. This opens no missing Project, performs no migration, and starts no scientific work. A subsequent restart reuses the recovery workspace rather than creating another. Owner Open Project remains the path to reconnect the missing research.
