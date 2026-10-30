@@ -565,3 +565,15 @@ def test_only_says_in_plain_words_what_stayed_and_where_the_live_view_is():
     strip['view']['legacy']['workspace']['tab'] = 't2'
     said = only_words({'items': [strip]}, 't2', {'id': 't2', 'title': 'Reference'}, home=False)
     assert said == 'nothing is open on Tab "Reference"; the live view is hidden from it'
+
+
+def test_place_takes_a_window_named_as_the_other_screen_verbs_name_one(tmp_path, monkeypatch):
+    """will-workspace, 30 Oct: "put that photo in it" named the photo's window {"instanceId": "w-…"}, as present's
+    other verbs take a window, and place refused it twice as naming nothing."""
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        for named in ({'what': {'instanceId': 'document:p1'}}, {'instance': {'instanceId': 'document:p1'}}):
+            run = await asked(app, studio, 'present', {'do': 'place', **named, 'placement': 'overlay'})
+            assert run.ok is False and 'document:p1 is not outlines or tracks' in run.summary, run.summary
+            assert 'name what to place' not in run.summary
+    asyncio.run(go())

@@ -293,8 +293,13 @@ async def place(services, ctx, registry, args: dict) -> str:
     from .brain.registry import ToolFailed
     from .brain.toolbox.present import act
 
-    what = args.get("what") if isinstance(args.get("what"), str) else ""
-    what = what.strip()
+    # A window named as present's other verbs name one ({"instanceId": "w-…"}, or `instance`), a saved item by its
+    # id or resource: one name (will-workspace, 30 Oct: "put that photo in it" named its window by instanceId and was
+    # refused twice as naming nothing).
+    raw = args.get("what") if args.get("what") not in (None, "") else args.get("instance")
+    if isinstance(raw, dict):
+        raw = raw.get("instanceId") or raw.get("id") or (raw.get("resource") or {}).get("id") or ""
+    what = raw.strip() if isinstance(raw, str) else ""
     placement = str(args.get("placement") or "")
     tab = " ".join(str(args.get("tab") or "").split())[:80] or None
     instead = args.get("instead") is True
