@@ -725,3 +725,19 @@ synthetic identities and worker barriers. It checks asynchronous opening, stale
 read suppression, retained writes across UI switches, cancellation serialization,
 uncertain-history refusal and shutdown admission. This is storage/lifecycle
 evidence, not actual microscopy tracking or full portable UI qualification.
+
+`test_project_media_decoder.py` decodes synthetic retained pixels with real Pillow
+after removing the original and relocating the Project. It checks origin collisions,
+ambiguous historical Library IDs, disk/allowance/cancellation refusals and cleanup.
+This is actual decoder evidence on synthetic input, not browser playback, recording
+seek qualification or a complete mixed-Project restoration claim.
+
+The mixed `test_project_server_routing.py` case combines ordinary connector imports
+and Studies with synthetic microscopy accepted/corrected through real evidence
+services, retained media decoded by Pillow, conversation lines, note revisions and
+saved workspace layout. After host exit, it snapshots, relocates, restarts the full
+server and compares retained evidence. A new resume notice is expected; historical
+conversation lines remain identical. It does not certify live playback or complete
+dependency collection. The delayed image-inspection regression waits for actual
+worker admission after the inline response; scheduler speed is not a prerequisite
+for the late-answer contract.

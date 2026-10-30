@@ -19,6 +19,7 @@ from .scientific_files import CHUNK_BYTES
 from .scientific_projects import _json
 
 MAX_MEDIA_METADATA = 1 << 20
+MAX_MEDIA_REVISIONS = 10_000
 
 
 def _background():
@@ -67,6 +68,40 @@ class _MediaIntake(FileIntake):
 class ProjectMedia:
     def __init__(self, stores):
         self.stores = stores
+
+    def candidates(self, session, asset_id):
+        """Resolve a historical Library ID only inside its owning Project.
+
+        Several retained revisions may explain the same historical ID. Return
+        exact references for selection; never choose the newest bytes or consult
+        this host's unrelated global Library as a fallback.
+        """
+        _background()
+        if not is_asset_id(asset_id):
+            raise ProjectLocationError('Choose a retained Library source identity')
+        root = self.stores.locations.project(session)
+        if root is None:
+            raise ProjectLocationError('Retained media lookup needs a portable Project')
+        documents, problems = self.stores.scan(session)
+        if problems:
+            raise ProjectLocationError('Project media records are unreadable; restore them before choosing a source')
+        if sum(head.revision for head in documents) > MAX_MEDIA_REVISIONS:
+            raise ProjectLocationError('This Project has too many revisions for Library-ID lookup; choose an exact retained media reference')
+        found = []
+        for head in documents:
+            # A later edit must not conceal a previously accepted source binding.
+            for revision in range(1, head.revision + 1):
+                saved = self.stores.read(head.id, session, revision=revision)
+                metadata = saved.document['state'].get('librarySource', {})
+                asset = metadata.get('asset') if isinstance(metadata, dict) else None
+                if not isinstance(asset, dict) or asset.get('id') != asset_id:
+                    continue
+                ref = MediaReference(root.origin, session, saved.id, saved.revision, saved.digest)
+                self.read(ref)  # require the accepted source and original origin
+                found.append(ref)
+        if self.stores.locations.project(session) != root:
+            raise ProjectLocationError('The Project changed while resolving its retained media')
+        return found
 
     def retain_library(self, session, library, identity, **options):
         """Copy selected bytes and all available Library metadata revisions together."""

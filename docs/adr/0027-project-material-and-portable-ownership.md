@@ -301,3 +301,13 @@ Loading and uncertain history are explicit, never an empty accepted identity lis
 The follower waits for known history. Synchronous portable mutation still refuses
 on the event loop. These tests qualify the identity lifecycle, not full Library
 playback, complete dependency collection or ordinary portable-folder activation.
+
+### Retained media decoder boundary
+
+A historical Library ID is scoped by its Project origin. Exact retained references
+remain authoritative; multiple accepted sources are choices, never newest-wins.
+For decoders requiring a filename, an off-loop adapter creates a bounded, verified,
+read-only temporary copy outside accepted Project storage. Its context lasts through
+decoder shutdown and removes only disposable bytes. No Library alias, automatic
+execution or accepted record is created. Actual playback and workspace restoration
+still require qualification before ordinary portable creation is enabled.

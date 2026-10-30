@@ -353,3 +353,10 @@ from replacing a later selection. A cancelled caller leaves its actual worker
 serialized; accepted events remain in the original Project. Loading/read failures
 are explicit. The shared ProjectEvents instance retains inode pins across calls.
 This does not qualify complete collection or turn on ordinary portable creation.
+
+`ProjectMedia.candidates` resolves a historical Library ID only within the captured
+Project origin, returning exact accepted revisions instead of choosing a newer file.
+The bounded worker refuses unreadable history. `project_media_decoder.retained_path`
+verifies retained chunks and its disposable host copy before a path-based decoder
+uses them. The caller owns that copy through decoder shutdown. It never registers a
+global Library alias; live playback and workspace restoration remain unqualified.
