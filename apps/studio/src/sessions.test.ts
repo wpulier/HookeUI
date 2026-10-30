@@ -270,3 +270,13 @@ describe('where Projects are saved', () => {
     expect(sent).toEqual([{ type: 'sessions-reveal' }]);
   });
 });
+
+test('incomplete input counts stay qualified when a live session update arrives', () => {
+  const m = new SessionsModel(() => true, () => NOW * 1000);
+  const counts = {sources: 2, sourcesIncomplete: true, made: 0, researchers: 0, conversations: 1};
+  m.applyList(list('a', [row('a', {counts})]));
+  m.applySession(state('a', {counts: {...counts, sources: 0, sourcesIncomplete: false}}));
+  expect(m.rows()[0].counts.sourcesIncomplete).toBe(true);
+  expect(countWords(m.rows()[0].counts).join(' ')).toContain('some unavailable');
+  expect(countWords({...counts, sources: 0}).join(' ')).toContain('Inputs unavailable');
+});

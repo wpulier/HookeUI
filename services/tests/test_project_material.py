@@ -253,3 +253,40 @@ def test_project_menu_deduplicates_only_exact_retained_source_aliases(tmp_path):
     record.source_references['a1'] = ref
     record.removed_sources.add('a1')
     assert additional_inputs([entry], record) == 1  # retained Project input survives Stage removal
+
+
+def test_project_menu_keeps_healthy_inputs_and_marks_unreadable_membership(web):
+    from tests.test_scientific_file_api import upload
+    client, app = web
+    sid = app.day.sid
+    upload(client, app)
+    app.hub.resources.projects.create(sid, document('project-material-membership'))
+    counts = next(row for row in client.get('/api/sessions').json()['sessions'] if row['id'] == sid)['counts']
+    assert counts['sources'] == 1 and counts['sourcesIncomplete']
+
+
+def test_grouped_material_scan_reads_each_shared_head_only_once(tmp_path, monkeypatch):
+    from pathlib import Path
+    store = ProjectStore(tmp_path)
+    sessions = ['2026-10-01', '2026-10-02', '2026-10-03']
+    saved = [store.create(sid, document('matrix-result')) for sid in sessions]
+    reads = []
+    original = store.read
+    def counted(identity, session, **kwargs):
+        reads.append((identity, session))
+        return original(identity, session, **kwargs)
+    monkeypatch.setattr(store, 'read', counted)
+    scans = []
+    original_iterdir = Path.iterdir
+    def iterated(path):
+        if path == store.root:
+            scans.append(path)
+        return original_iterdir(path)
+    monkeypatch.setattr(Path, 'iterdir', iterated)
+    grouped = store.scan_sessions(sessions)
+    assert len(scans) == 1 and len(reads) == len(saved)
+    assert all(len(grouped[sid][0]) == 1 and not grouped[sid][1] for sid in sessions)
+    # Unattributable damage cannot silently report a complete count for any owner.
+    (store.root / saved[0].id / 'head.json').write_text('broken')
+    grouped = store.scan_sessions(sessions)
+    assert all(grouped[sid][1] for sid in sessions)

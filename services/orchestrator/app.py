@@ -1911,19 +1911,20 @@ class App:
                 out[session.sitting] = out.get(session.sitting, 0) + 1
         return out
 
-    def material_input_adjustments(self, infos) -> dict[str, int]:
-        """Off-loop inventory counts, adjusted for source aliases already in the journal."""
-        from .project_material import additional_inputs
+    def material_input_adjustments(self, infos) -> dict:
+        """Off-loop canonical inventory projection, scanning each backing store once."""
+        from .project_material import additional_inputs, attach_usage
         index = getattr(self.hub, "resources", None)
-        if index is None:
+        if index is None or index.projects is None:
             return {}
+        groups = index.projects.scan_sessions(info.id for info in infos)
         result = {}
-        with index.one_pass():
-            for info in infos:
-                entries, unreadable = index.collect(info.id, kinds=("project",))
-                # Do not advertise a partial scan as a complete count.
-                if not unreadable:
-                    result[info.id] = additional_inputs(entries, info)
+        for info in infos:
+            saved, problems = groups[info.id]
+            entries = [index.project_entry(item) for item in saved]
+            unreadable = [*problems, *attach_usage(entries, index.projects)]
+            result[info.id] = {'additional': additional_inputs(entries, info),
+                               'incomplete': bool(unreadable)}
         return result
 
     def sessions_wire(self, infos=None, working: dict | None = None, inputs: dict | None = None) -> dict:
@@ -1941,7 +1942,8 @@ class App:
             if info.id == self.day.sid:  # the open session's, as its own wire counts it (held footage too)
                 row["counts"] = self.subjects.counts(info)
             if inputs.get(info.id):
-                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]}
+                row["counts"] = {**row["counts"], "sources": row["counts"].get("sources", 0) + inputs[info.id]['additional'],
+                                 "sourcesIncomplete": inputs[info.id]['incomplete']}
             rows.append(row)
         # Where every Project is saved on this Mac, said with ~ (thesis question 12: the Projects page and Help say it).
         root = str(self.paths.sessions).replace(str(Path.home()), "~", 1)

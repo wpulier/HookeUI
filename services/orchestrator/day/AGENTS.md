@@ -391,3 +391,6 @@ Inputs, including selected generated artifacts and historical Study pins. Explic
 non-input membership is honored. An exact retained source alias is not counted
 again as a Library input; same names or equal bytes do not establish that identity.
 The catalogue projection runs off the event loop and creates no records.
+Count preparation groups one accepted-head scan per backing store, then applies the
+shared membership projection. Unreadable records leave a qualified partial input
+count; live Stage-only updates cannot erase that qualification.
