@@ -208,7 +208,8 @@ describe('the reader on screen', () => {
           format: 1, name: 'source.bin', size: 3, sha256: 'c'.repeat(64)}}}}})};
     });
     vi.stubGlobal('fetch', fetcher);
-    const reader = new DataReader(deps(), 'tab'), root = reader.root as unknown as TestElement;
+    const changed = vi.fn();
+    const reader = new DataReader(deps({changed}), 'tab'), root = reader.root as unknown as TestElement;
     const fallback = entry({id, day, version: 1, kind: 'project', title: 'Saved material'});
     const known = {...fallback, material: {kind: 'matrix' as const, origin: 'imported' as const,
       input: true, section: 'files' as const, category: 'import', record: false, dependencies: [],
@@ -219,14 +220,17 @@ describe('the reader on screen', () => {
     release();
     await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
     const content = root.querySelector('.rd-body')!, original = content.children[0];
-    if (timing === 'after response') reader.refresh(known);
+    changed.mockClear();
+    if (timing === 'after response') { reader.refresh(known); expect(changed).toHaveBeenCalledTimes(1); }
     if (timing === 'show again') reader.show(known);
     expect(reader.kindLine()).toBe('Matrix');
     const inspection = root.querySelector('.rd-material-inspection')!;
     expect(inspection).toBeTruthy();
     const details = inspection as unknown as HTMLDetailsElement;
     details.open = true;
+    changed.mockClear();
     reader.refresh({...known});
+    expect(changed).not.toHaveBeenCalled();
     expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
     expect(details.open).toBe(true);
     expect(content.children[0]).toBe(original);

@@ -440,7 +440,13 @@ export class DataReader {
     this.deps.changed?.();
   }
   /** Redraws the header from the newest facts (a Tab it is on, the picture's layer), keeping the body. */
-  refresh(entry?: ReaderEntry): void { if (!this.entry) return; if (entry && sameItem(entry, this.entry)) this.entry = { ...entry, asset: entry.asset ?? this.entry.asset }; this.refreshMaterial?.(this.entry); this.drawHead(); }
+  refresh(entry?: ReaderEntry): void {
+    if (!this.entry) return;
+    const before = this.kindLine();
+    if (entry && sameItem(entry, this.entry)) this.entry = { ...entry, asset: entry.asset ?? this.entry.asset };
+    this.refreshMaterial?.(this.entry); this.drawHead();
+    if (before !== this.kindLine()) this.deps.changed?.();
+  }
   clear(): void {
     this.refreshMaterial = null;
     this.controller?.abort(); this.controller = null; this.entry = null; this.session = null; this.detail = null;
