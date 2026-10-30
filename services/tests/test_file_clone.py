@@ -18,6 +18,10 @@ def test_native_clone_uses_captured_source_and_has_independent_writes(tmp_path):
             pytest.skip('Native clone is unavailable on this platform/filesystem')
     assert copied.read_bytes() == b'original retained bytes'
     assert copied.stat().st_ino != moved.stat().st_ino
+    with source.open('rb') as stream, pytest.raises(OSError) as error:
+        file_clone.clone(stream.fileno(), copied)
+    assert error.value.errno == errno.EEXIST
+    assert copied.read_bytes() == b'original retained bytes'
     copied.write_bytes(b'changed working copy')
     assert moved.read_bytes() == b'original retained bytes'
     moved.unlink()
