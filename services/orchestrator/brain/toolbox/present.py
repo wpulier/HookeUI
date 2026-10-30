@@ -1613,6 +1613,56 @@ async def _native_settled(services, ctx, args):
 
 
 async def _native_present(services, ctx, args):
+    """A native window change (`_native_present_core`); a window a request opens goes to that request's own Tab."""
+    out = await _native_present_core(services, ctx, args)
+    if args.get("do") == "open":
+        moved = await _home_tab(services, ctx)
+        if moved:
+            out = f"{out}; {moved}" if isinstance(out, str) else out
+    return out
+
+
+async def _home_tab(services, ctx) -> str:
+    """The window this request just opened, moved to the Tab the request was asked in when another Tab came to the front
+    meanwhile that the request did not bring forward itself (Will's try-out, 30 Oct: two reference photos asked for in
+    Close-up; the second landed in the new Tab the next request had opened). The person's own Move, so the Tab in front
+    stays in front. Words for its receipt, or "" when it is already where it belongs."""
+    from ...placement import strip
+    from ...screen import screen_of
+    from ...workspace_tabs import request_key
+    from ..registry import CURRENT_RUN
+
+    pin = getattr(ctx, "request_snapshot", None)
+    broker = getattr(services.hub, "workspace_tabs", None)
+    run = CURRENT_RUN.get()
+    if pin is None or broker is None or run is None:
+        return ""
+    try:
+        asked_in = strip(pin.observation.wire()).get("tab")
+        observed = screen_of(services.hub).observation(ctx.client)
+        now = strip(observed.wire() if observed is not None else None)
+    except Exception:  # nothing to read: left where it opened
+        return ""
+    front = now.get("tab")
+    if not asked_in or not front or asked_in == front:
+        return ""
+    if front in getattr(broker, "fronted", {}).get(request_key(ctx) or "", set()):
+        return ""  # this request brought that Tab forward itself: what it opens belongs there
+    home = next((t for t in now.get("tabs") or () if t.get("id") == asked_in), None)
+    window = next((o.get("instanceId") for o in reversed(run.outputs) if o.get("kind") == "presentation"), None)
+    if home is None or not window:
+        return ""
+    listed = await broker.run(ctx, {"action": "list"}, verify=False)
+    item = next((i for t in listed.get("tabs") or () if t.get("id") == front for i in t.get("items") or ()
+                 if i.get("window") == window and i.get("placement")), None)
+    if item is None:
+        return ""
+    await broker.run(ctx, {"action": "move", "tab": asked_in, "from": front, "placement": str(item["placement"])})
+    title = " ".join(str(home.get("title") or asked_in).split())[:60]
+    return f'put in Tab "{title}", where it was asked for (another Tab came to the front meanwhile, and stays in front)'
+
+
+async def _native_present_core(services, ctx, args):
     import copy
     from dataclasses import replace
     from ...apply import apply, WORKSPACE, blocked

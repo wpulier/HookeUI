@@ -433,3 +433,43 @@ def test_a_live_window_moved_to_another_tab_opens_there_again_from_its_live_sour
         assert asyncio.run(placement._live_here(services, ctx, "w-3", "x")) is None, "not live: left as it was"
     finally:
         registry.CURRENT_RUN.reset(token)
+
+
+def test_a_window_a_request_opens_goes_to_the_tab_it_was_asked_in(monkeypatch):
+    """Will's try-out, 30 Oct: "In this close-up tab, pull up two images from online", then, while it ran, "open a new
+    tab": the second photo landed in that new Tab. What a request opens goes to the Tab it was asked in when another
+    Tab came to the front meanwhile, moved as the person's own Move (the Tab in front stays); a Tab the request brought
+    forward itself keeps what it opens."""
+    from types import SimpleNamespace
+    from orchestrator.brain import registry
+    from orchestrator.brain.toolbox import present
+    from orchestrator import screen as screen_module
+
+    def wire(tab, tabs):
+        return {"items": [{"id": "workspace-tabs", "view": {"legacy": {"workspace": {
+            "project": "p", "tab": tab, "tabs": [{"id": i, "title": t, "front": i == tab} for i, t in tabs]}}}}]}
+    tabs = [("main", "Main"), ("close", "Close-up"), ("ws", "Tab 4")]
+    pin = SimpleNamespace(observation=SimpleNamespace(wire=lambda: wire("close", tabs)))
+    now = wire("ws", tabs)
+    sent = []
+
+    class Broker:
+        fronted = {}
+
+        async def run(self, ctx, args, verify=True):
+            sent.append(args)
+            return {"tabs": [{"id": "ws", "items": [{"placement": "p2", "window": "w-2"}]}]} if args["action"] == "list" else {}
+    services = SimpleNamespace(hub=SimpleNamespace(workspace_tabs=Broker()))
+    monkeypatch.setattr(screen_module, "screen_of", lambda hub: SimpleNamespace(
+        observation=lambda client: SimpleNamespace(wire=lambda: now)))
+    ctx = SimpleNamespace(request_snapshot=pin, client=object(), admission=SimpleNamespace(request_id="R1"))
+    token = registry.CURRENT_RUN.set(SimpleNamespace(outputs=[{"kind": "presentation", "instanceId": "w-2"}]))
+    try:
+        said = asyncio.run(present._home_tab(services, ctx))
+        assert sent[-1] == {"action": "move", "tab": "close", "from": "ws", "placement": "p2"}
+        assert 'put in Tab "Close-up"' in said
+        sent.clear()
+        Broker.fronted = {"R1": {"ws"}}  # this request brought that Tab forward itself
+        assert asyncio.run(present._home_tab(services, ctx)) == "" and not sent
+    finally:
+        registry.CURRENT_RUN.reset(token)

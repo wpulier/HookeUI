@@ -71,6 +71,9 @@ class WorkspaceTabs:
         # already called that (will-workspace, 30 Oct: refused "several Tabs are called 'Reference'", then the user was
         # asked which one).
         self.made: dict[str, list[dict]] = {}
+        # The Tabs each request brought to the front itself (made or switched to): what it opens there stays there; a Tab
+        # someone else brought forward meanwhile is not the request's (its windows go to its own Tab: `home_tab`).
+        self.fronted: dict[str, set[str]] = {}
 
     def made_for(self, ctx, asked: str) -> list[str]:
         """The ids of the Tabs this request made when asked for a Tab called `asked`, newest last."""
@@ -223,6 +226,13 @@ class WorkspaceTabs:
             current()
             if not reply.get('ok'):
                 raise ToolFailed(str(reply.get('error') or 'the Tab action was not confirmed'), next='check the workspace before retrying')
+            if action in ('create', 'switch'):
+                key = request_key(ctx)
+                selected = [str(t.get('id')) for t in reply.get('tabs') or () if t.get('selected')]
+                if key and selected:
+                    self.fronted.setdefault(key, set()).update(selected)
+                    while len(self.fronted) > MADE_KEPT:
+                        self.fronted.pop(next(iter(self.fronted)))
             if action == 'create':
                 new = [t for t in reply.get('tabs') or () if t.get('id') not in before_ids]
                 if len(new) == 1:
