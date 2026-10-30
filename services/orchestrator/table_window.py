@@ -379,10 +379,12 @@ def _tab_title(report: dict | None, tab_id: str) -> str:
 
 
 async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: int, title: str, rows: int, what: str,
-                tab: str | None, guard, placement: str, instead: bool = False) -> str:
+                tab: str | None, guard, placement: str, instead: bool = False, outlines: bool = False) -> str:
     """The measurements table of `target` placed as asked (placement.py): `beside` the live view and what else is on
     the Tab, tiled (the Tab named or the Tab in front; `instead` moves it there from the Tab it is open in), in a
-    `new-tab` with its cells' outlines on their capture beside it (a population's), `only` it on its Tab, or `close`d.
+    `new-tab` filling it full screen with no live feed (Will, 30 Oct: "if I ask for the table in a new tab, it should
+    open the table full screen"), or, with `outlines` (the outlines were asked for there), with its cells' outlines on
+    their capture beside it, the two sharing the Tab; `only` it on its Tab, or `close`d.
     `window` (and `replace`, which first closes the window in front) is `show`. Each done only once the studio's report
     shows it; otherwise said with what the report shows and where the table is saved."""
     from .placement import beside_shown, identities, only_shown, windows_on
@@ -433,7 +435,32 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
         # (workspace_tabs.fresh_title): a new Tab is asked for, so one is made.
         tab_id, tab_title, made = await _tab(services, ctx, tab or NEW_TAB_TITLE, new=True)
         guard()
-        outlines = bool(re.fullmatch(r"e\d+", target))
+        outlines = outlines and bool(re.fullmatch(r"e\d+", target))
+        if not outlines:
+            # The table alone: opened there, then the only window, fitted to fill the Tab, with no live feed there.
+            await _open_on(services, ctx, studio, ref=ref, title=title, tab_id=tab_id, guard=guard)
+
+            def drawn(report):
+                if _strip(report).get("tab") != tab_id:
+                    return False, "another Tab came to the front"
+                table = table_on(report, tab_id)
+                if table is None or (table.get("document") or {}).get("state") != "rendered":
+                    return False, "its table is not drawn there yet"
+                return True, ""
+
+            report, why = await _wait_for(studio, guard, drawn)
+            if why:
+                refused(why, f'in Tab "{inline(tab_title, 80)}"')
+            table = table_on(report, tab_id)
+            await _tabs(services, ctx, {"action": "only", "tab": tab_id, "keep": [table["id"]]})
+            guard()
+            report, why = await _wait_for(studio, guard, lambda r: only_shown(r, tab_id, [table["id"]], home=False))
+            if why:
+                refused(why, f'in Tab "{inline(tab_title, 80)}"')
+            new = "a new Tab" if made else "the Tab"
+            return (f'{new} "{inline(tab_title, 80)}" in front holds its table, filling the Tab, with no live feed '
+                    f'there: {what}; '
+                    + facts(target, revision, rows, displayed=f'yes, Tab "{inline(tab_title, 80)}"', front="yes"))
         if outlines:  # its outlines on their capture first (the masks window), then its table beside them
             entry = await asyncio.to_thread(services.hub.resources.get, target, project)
             guard()

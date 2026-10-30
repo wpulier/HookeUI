@@ -483,11 +483,14 @@ def _holds(value) -> dict:
 
 def _specimen(value) -> dict:
     """A Tab's specimen as its Tab strip reports it (main.ts, workspace-views.ts specimenReport): filling the Tab behind
-    its windows, floating as a window (its place in workspace px, when laid out), or hidden from the Tab."""
-    value = _legacy_fields(value, ("state",), ("rect",))
-    if value["state"] not in SPECIMEN_STATES or ("rect" in value and value["state"] != "float"):
+    its windows, floating as a window (its place in workspace px, when laid out), or hidden from the Tab. `minimized`:
+    floating as an empty new Tab's minimized live feed (Will, 30 Oct), which goes away once something is placed there."""
+    value = _legacy_fields(value, ("state",), ("rect", "minimized"))
+    if value["state"] not in SPECIMEN_STATES or ("rect" in value and value["state"] != "float") or (
+            "minimized" in value and (value["minimized"] is not True or value["state"] != "float")):
         _refuse("INVALID_REPORT", "invalid structural specimen")
-    return {"state": value["state"], **({"rect": _rect(value["rect"])} if "rect" in value else {})}
+    return {"state": value["state"], **({"rect": _rect(value["rect"])} if "rect" in value else {}),
+            **({"minimized": True} if "minimized" in value else {})}
 
 
 def _legacy(value):

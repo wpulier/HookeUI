@@ -305,8 +305,9 @@ function observedLegacy(value: StudioSurfaceLegacy): StudioSurfaceLegacy {
 }
 
 /** A Tab's specimen (the live view) as the report says it: filling the Tab behind its windows, floating as a window
- * (its place in workspace px, when laid out), or hidden from the Tab. */
-export type VerifierSpecimen = { state: 'fill' | 'float' | 'hidden'; rect?: Rect4 };
+ * (its place in workspace px, when laid out), or hidden from the Tab. `minimized`: floating as an empty new Tab's
+ * minimized live feed, small in its corner, which goes away once something is placed there (workspace-views.ts pip). */
+export type VerifierSpecimen = { state: 'fill' | 'float' | 'hidden'; rect?: Rect4; minimized?: true };
 export type VerifierTab = { id: string; title: string; front: boolean; specimen?: VerifierSpecimen;
   /** The Tab's kind (work, output, compare, reader) and what it holds, counted by item kind (workspace-model.ts). */
   kind?: string; holds?: Partial<Record<string, number>> };
@@ -343,7 +344,7 @@ function verifierHolds(holds: Partial<Record<string, number>>): Record<string, n
 /** A specimen fact within the bounds workspace_observation accepts: a place only when floating, whole px. */
 function verifierSpecimen(s: VerifierSpecimen): VerifierSpecimen {
   const rect = s.state === 'float' && s.rect && s.rect.every(Number.isFinite) && s.rect[2] >= 0 && s.rect[3] >= 0 ? s.rect.map(Math.round) as Rect4 : undefined;
-  return { state: s.state, ...(rect ? { rect } : {}) };
+  return { state: s.state, ...(rect ? { rect } : {}), ...(s.state === 'float' && s.minimized === true ? { minimized: true as const } : {}) };
 }
 /** The report's own closed check of a surface observation, for tests. */
 export const observeLegacyForTest = (value: StudioSurfaceLegacy): StudioSurfaceLegacy => observedLegacy(value);

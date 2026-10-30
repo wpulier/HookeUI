@@ -22,7 +22,8 @@ def _accepted(ctx, screen) -> bool:
 
 
 async def open_table(services, ctx, *, session: str, target: str, revision: int, title: str, rows: int, what: str,
-                     tab: str | None, guard, placement: str | None = None, instead: bool = False) -> str:
+                     tab: str | None, guard, placement: str | None = None, instead: bool = False,
+                     outlines: bool = False) -> str:
     """The measurements table of `target` on screen, said as the studio showed it (table_window.py): in its table
     window where the studio has the Project workspace; the Measurements page in a studio without it (an older studio, a
     test's fixture), as before. Refuses, saying where the table is saved, when nothing shows it."""
@@ -42,7 +43,8 @@ async def open_table(services, ctx, *, session: str, target: str, revision: int,
             return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows,
                               what=what, tab=tab, guard=guard)
         return await place(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
-                           tab=tab, guard=guard, placement=placement or default("table"), instead=instead)
+                           tab=tab, guard=guard, placement=placement or default("table"), instead=instead,
+                           outlines=outlines)
     saved = f"it is saved in Data as {target}, where its row's Open in Measurements opens it"
     if _accepted(ctx, screen):
         raise ToolFailed(f"{what} is not shown: the studio that asked is not showing this Project's Tabs; {saved}",
@@ -127,7 +129,8 @@ def add_table_tools(registry: Registry, services) -> None:
             raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
         return await open_table(services, ctx, session=session, target=target, revision=revision,
                                 title=str(table['title']), rows=int(table['count']), what=what, tab=tab, guard=guard,
-                                placement=placement, instead=args.get("instead") is True)
+                                placement=placement, instead=args.get("instead") is True,
+                                outlines=args.get("outlines") is True)
 
     registry.add(Tool(
         "show_measurements", "Open the measurements table in a table window on a Tab, the window the user's own Open in "
@@ -138,8 +141,8 @@ def add_table_tools(registry: Registry, services) -> None:
         "put it in (\"put the table in a new tab called Measurements\"): its title, or exact id from tabs list; a title no "
         "Tab has makes that Tab. One action: the Tab is made or brought forward and the table fitted to it, in front. "
         "`placement`: beside (the default: side by side with what is open, the live view included; a new Tab has no "
-        "live view, so for beside the live view name tab Main), new-tab (a Tab of its own: a population's outlines on "
-        "their capture with this table beside them, \"open the cell results in a new tab\"), only, replace, window, "
+        "live view, so for beside the live view name tab Main), new-tab (a Tab of its own, the table filling it full "
+        "screen with no live feed: \"open the table in a new tab\"), only, replace, window, "
         "close. `instead`: when the user wants it here rather than where it is open (\"instead\", \"move it\"), it moves "
         "from the Tab it is open in; otherwise it opens here too, and the answer says where else it still is. Done only "
         "when the studio shows it; otherwise its answer says where the table is saved.",

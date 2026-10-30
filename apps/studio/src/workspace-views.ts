@@ -138,6 +138,9 @@ export class WorkspaceViews {
 private revision=0;private generation=0;private revealSequence=0;
  private queuedReveal?:{id:string;tab?:string;version?:number|null;session:string;generation:number;sequence:number};
  private completionRestores=new Set<string>();
+ /** The Tabs whose specimen is an empty new Tab's minimized live feed (Will, 30 Oct: picture-in-picture, small in its
+  * corner), not one asked for there: it goes away once something is placed in the Tab (feedAway). Kept for the session. */
+ private pip=new Set<string>();
  private openingInput=false;
  private loaded=new Set<string>();private changing=false;private navigating=false;private dirty=false;
  private saving:Promise<void>|null=null;private timer=0;private lastSaved='';private conflict=false;
@@ -293,6 +296,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(root.dataset.project&&root.dataset.project!==this.session){root.dataset.workspaceHidden='true';return;}
   if(!this.active())return;
   root.dataset.workspaceView??=this.layout.active;root.dataset.placementId??=uuid();root.dataset.project=this.session;
+  if(root.dataset.dismissed!=='true'&&!root.hidden)this.feedAway(this.layout.views.find(v=>v.id===root.dataset.workspaceView));
   const bar=root.querySelector<HTMLElement>(':scope > header');if(bar&&!bar.querySelector('.workspace-send')){
    // One way to put a window in another Tab: "Add to Tab…" (Add, or Move this view instead; every Tab or a new one). Native image
    // windows keep it in their tools menu so narrow titles and Close stay reachable; "Also in" says which other Tabs show it.
@@ -626,30 +630,46 @@ private revision=0;private generation=0;private revealSequence=0;
   const s=v?.specimen;this.specimen.hidden=!s?.visible;document.body.dataset.workspaceSpecimenVisible=String(!!s?.visible);this.specimen.classList.toggle('workspace-specimen-full',!s?.rect);if(s?.rect)this.specimen.dataset.savedRect=JSON.stringify(s.rect);else delete this.specimen.dataset.savedRect;if(s?.visible&&s.rect){this.specimenShell.resizeTo(s.rect[2],s.rect[3]);this.specimenShell.moveTo(s.rect[0],s.rect[1]);}}
  /** Shows the Tab's specimen on the Stage, as its backdrop when it was hidden (the Assistant's specimen chip, Tabs…). */
  showInput(){this.showSpecimen();}
- private showSpecimen(){if(!this.active())return;const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
+ private showSpecimen(){if(!this.active())return;this.pip.delete(this.active()!.id);const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
  /** The one way a Tab's specimen changes, for its Float or Fill and Hide and for the Assistant (tabs specimen): filling
   * the Stage behind the Tab's windows, floating as a small window (where it last floated, else the corner), or hidden.
   * Main always keeps it: it floats, never hides. */
  private setSpecimen(v:WorkspaceView,want:'fill'|'float'|'hide'){
+  this.pip.delete(v.id); // asked for there: it stays as asked when something is placed in the Tab
   if(want==='hide'){if(this.isHome(v.id))throw new Error('Main always keeps the specimen: it can float, never hide.');v.specimen.visible=false;}
   else{v.specimen.visible=true;v.specimen.rect=want==='fill'?null:v.specimen.rect??this.floatingRect();}
   if(v.id===this.layout.active){if(want==='float')this.specimen.dataset.front='true';this.applySpecimen();}
   this.changed();
  }
+ /** Whether a Tab shows the live feed, in the Tabs list's words: an empty Tab's minimized feed in its corner, the
+  * specimen filling the Tab or floating as a window there, or none (what it holds fills it). */
+ private feedWords(v:WorkspaceView):'minimized'|'filling'|'floating'|'none'{
+  const state=specimenState(v.specimen);
+  return state==='hidden'?'none':state==='fill'?'filling':this.pip.has(v.id)?'minimized':'floating';
+ }
  private floatingRect():Rect{return floatingSpecimen(this.stage?.clientWidth??0,this.stage?.clientHeight??0);}
+ /** Something was placed in Tab `v`: when its specimen is an empty new Tab's minimized feed, the feed goes away, so what
+  * the Tab is now for fills it (Will, 30 Oct: "a new tab that isn't empty, made for or from something, doesn't need
+  * that there"). A specimen asked for there (tabs specimen, Float or Fill, Show specimen) stays; Main always keeps it. */
+ private feedAway(v:WorkspaceView|undefined){
+  if(!v||!this.pip.delete(v.id)||this.isHome(v.id))return;
+  v.specimen.visible=false;v.specimen.rect=null;if(v.id===this.layout.active)this.applySpecimen();this.changed();
+ }
  /** Each Tab's specimen for the screen report's Tab strip (main.ts; workspace_observation): the Tab in front's as the
   * Stage shows it (hidden, filling it, or floating at its place in workspace px), another's as its arrangement keeps it
   * (its saved place, from the Stage's corner). */
- specimenReport():Record<string,{state:SpecimenState;rect?:Rect}>{
-  const out:Record<string,{state:SpecimenState;rect?:Rect}>={},stage=this.stage.getBoundingClientRect();
+ specimenReport():Record<string,{state:SpecimenState;rect?:Rect;minimized?:true}>{
+  const out:Record<string,{state:SpecimenState;rect?:Rect;minimized?:true}>={},stage=this.stage.getBoundingClientRect();
   for(const v of this.layout.views){
    if(v.id===this.layout.active){
     const box=this.specimen.getBoundingClientRect(),state:SpecimenState=this.specimen.hidden?'hidden':this.specimen.classList.contains('workspace-specimen-full')?'fill':'float';
     out[v.id]=state==='float'&&box.width>0&&box.height>0?{state,rect:[box.left,box.top,box.width,box.height].map(Math.round) as Rect}:{state};
+    if(state==='float'&&this.pip.has(v.id))out[v.id].minimized=true; // an empty Tab's minimized live feed
     continue;
    }
    const state=specimenState(v.specimen),r=v.specimen.rect;
    out[v.id]=state==='float'&&r?{state,rect:[stage.left+r[0],stage.top+r[1],r[2],r[3]].map(Math.round) as Rect}:{state};
+   if(state==='float'&&this.pip.has(v.id))out[v.id].minimized=true;
   }
   return out;
  }
@@ -665,7 +685,7 @@ private revision=0;private generation=0;private revealSequence=0;
    const close=root.querySelector<HTMLButtonElement>(':scope > header .workspace-window-close, :scope > header button[aria-label^="Close"]');
    close?.click();
   }
-  const home=this.isHome(v.id);
+  const home=this.isHome(v.id);this.pip.delete(v.id);
   v.specimen.visible=home;v.specimen.rect=home?this.floatingRect():null;if(v.id===this.layout.active)this.applySpecimen();
   const width=this.stage.clientWidth,height=this.stage.clientHeight-60;
   if(stay.length===1&&width>0&&height>0){
@@ -681,10 +701,12 @@ private revision=0;private generation=0;private revealSequence=0;
   for(const v of this.layout.views)out[v.id]={kind:v.kind??'work',holds:holds(tabItems(v,roots,this.loaded.has(v.id)))};
   return out;
  }
- /** A new Tab: the specimen floating small in its corner (Will, 2026-10-29: a new Tab's own content is not covered), for
-  * "+", ⌘T and the Assistant's tabs create alike; a run's result Tab passes its specimen filling, as it draws there. */
+ /** A new Tab. An empty one ("+", ⌘T, New Tab, the Assistant's tabs create) shows a minimized live feed of the main
+  * input, small in its corner, which goes away once something is placed there (Will, 30 Oct; feedAway). A Tab made for
+  * or from something passes its specimen: hidden, so what it holds fills it; a run's result Tab filling, as it draws
+  * there. */
  private async addView(title?:string,activate=true,specimen?:WorkspaceView['specimen']){if(this.changing||this.navigating||this.openingInput)return;const session=this.session,generation=this.generation;if(this.layout.views.length>=24){this.opts.notice('24 Tabs are saved. Remove one you no longer use to make room; its Data stays.');this.manage();return;}
-  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:specimen??{visible:false,rect:null},items:[],notes:[]};this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
+  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:specimen??{visible:true,rect:this.floatingRect()},items:[],notes:[]};if(!specimen)this.pip.add(v.id);this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
  }
  private render(){
   this.renderCompletions();
@@ -784,14 +806,14 @@ private revision=0;private generation=0;private revealSequence=0;
   if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
   this.capture();await this.flush();
   if(!this.ownsTabChoice(owner)||this.dirty||this.conflict)throw new Error('The layout isn’t saved. Use Retry on the layout line, then add it again.');
-  const id=to??await this.addView(tabName(item.title),false);
+  const id=to??await this.addView(tabName(item.title),false,{visible:false,rect:null});
   const target=id?this.layout.views.find(v=>v.id===id):undefined;
   if(!target||!this.ownsTabChoice(owner))throw new Error('That Tab is no longer in this Project. Nothing was added.');
   if(target.kind==='reader')throw new Error('That Tab shows one thing on its own. Choose another Tab.');
   if(target.items.length>=64)throw new Error('That Tab is full. Choose another Tab.');
   let placed=target.items.find(i=>sameStudyResource(i.resource,item.resource)&&i.presentation===item.presentation)?.placementId;
   if(!placed){
-   placed=uuid();target.items.push({...structuredClone(item),placementId:placed});
+   placed=uuid();target.items.push({...structuredClone(item),placementId:placed});this.feedAway(target);
    if(target.id===this.layout.active)this.completionRestores.add(placed);
    this.loaded.delete(target.id);this.changed();await this.flush();
   }
@@ -1078,7 +1100,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(!current()||root.dataset.workspaceUnsaved==='true')return;
   const {session,generation}=owner;
   // A new Tab is named after what it holds, kept short: a result's first words ("Bright regions"), not its full line.
-  const to=target.to??await this.addView(tabName(target.title??''),false);if(!to||!current())return;
+  const to=target.to??await this.addView(tabName(target.title??''),false,{visible:false,rect:null});if(!to||!current())return;
   // Undo may restore this move's comparison lanes, but never overwrite a later comparison edit.
   const beforeMove=!copy?structuredClone(this.layout.views.find(v=>v.id===from)!):undefined;
   const afterMove=beforeMove?structuredClone(beforeMove):undefined;
@@ -1122,6 +1144,7 @@ private revision=0;private generation=0;private revealSequence=0;
   else if(item){target.items.push({...structuredClone(item),placementId:next});if(!copy)source.items=source.items.filter(n=>n!==item);}
   else return null;
   if(!copy)pruneLanes(source);
+  this.feedAway(target);
   return next;
  }
  private async move(root:HTMLElement,to:string,copy:boolean):Promise<string|null>{
@@ -1139,7 +1162,7 @@ private revision=0;private generation=0;private revealSequence=0;
   else if(root.matches('.workspace-window')&&root.dataset.presentationId)window.dispatchEvent(new CustomEvent('workspace-place-window',{detail:{id:root.dataset.presentationId,rect:[...rect]}}));
   else studyArtifacts().place(root,rect);
  }
- private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
+ private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);if(roots.length)this.feedAway(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
  private fit(){this.capture();const roots=this.visibleRoots(),rects=tileRects(roots.length,this.stage.clientWidth,this.stage.clientHeight-60);this.changing=true;try{roots.forEach((root,i)=>{root.dataset.savedRect=JSON.stringify(this.rect(root));this.place(root,rects[i]);});}finally{this.changing=false;}this.opts.notice('Windows fitted temporarily. Saved desktop positions are unchanged. Use Arrange to save a new arrangement.');}
  locations(id:string){return this.layout.views.filter(v=>v.items.some(i=>i.resource.id===id)||v.notes.some(n=>n.id===id)).map(v=>v.title);}
  /** The Tabs showing a saved result at this revision (or a note), each with whether it is open: Data's "In" chips. */
@@ -1155,7 +1178,7 @@ private revision=0;private generation=0;private revealSequence=0;
   // arrangement does not save), counted by kind in `holds`, its input and its specimen; a researcher's or Study's Tab
   // with what it shows. "Which Tab has the measurements?" is answered from these kinds, never from a title.
   const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected),roots=this.roots(),limit=args.tab?LIST_ITEMS:this.layout.views.length>12?4:8;/* within the reply's 64 KiB; holds counts them all */return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
-   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>{const items=tabItems(v,roots,this.loaded.has(v.id));return {id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),
+   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>{const items=tabItems(v,roots,this.loaded.has(v.id));return {id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),feed:this.feedWords(v),
     ...(v.input?{input:{source:v.input.source,kind:this.opts.describeInput?.(v.input.source)??'live'}}:{}),holds:holds(items),omittedItems:Math.max(0,items.length-limit),items:items.slice(0,limit)};}),
    ...research.filter(t=>args.action!=='list'||!args.tab||t.id===args.tab).map(t=>({...t,omittedItems:0,items:[]}))]};};
   try{
@@ -1225,7 +1248,7 @@ private revision=0;private generation=0;private revealSequence=0;
     const item=args.item as StudyRetainedView;
     if(!item?.resource||item.resource.day!==session||!item.resource.id||target!.items.length>=64)throw new Error('Choose a retained resource in this Project and a Tab with room.');
     if(!target!.items.some(i=>sameStudyResource(i.resource,item.resource)&&i.presentation===item.presentation)){
-     const added={...structuredClone(item),placementId:uuid()};target!.items.push(added);
+     const added={...structuredClone(item),placementId:uuid()};target!.items.push(added);this.feedAway(target!);
      if(target!.id===this.layout.active)this.completionRestores.add(added.placementId);
      this.loaded.delete(target!.id);this.changed();
     }
