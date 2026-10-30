@@ -741,3 +741,5 @@ conversation lines remain identical. It does not certify live playback or comple
 dependency collection. The delayed image-inspection regression waits for actual
 worker admission after the inline response; scheduler speed is not a prerequisite
 for the late-answer contract.
+
+Project material tests use synthetic inspection receipts to qualify exact-reference joins, historical pins, conflicting reports and UI/agent contract parity. They do not establish a matrix computation; real connector/worker and browser evidence is recorded separately.

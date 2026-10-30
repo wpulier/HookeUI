@@ -125,6 +125,35 @@
           "minimum": 1
         }
       }
+    },
+    "inspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reports",
+        "total"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "reported",
+            "conflicting"
+          ]
+        },
+        "reports": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "artifact-reference.schema.json"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
     }
   }
 }

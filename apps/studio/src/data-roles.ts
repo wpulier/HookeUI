@@ -15,6 +15,7 @@ export interface ProjectMaterial {
   section: DataRole; category: string; record: boolean; run?: string;
   uses?: {study?: string; membership?: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
   organization?: {role: string; input: boolean; by: string; revision: number};
+  inspection?: {status: 'reported' | 'conflicting'; reports: {id: string; session: string; revision: number; digest: string}[]; total: number};
   format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
 }
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */

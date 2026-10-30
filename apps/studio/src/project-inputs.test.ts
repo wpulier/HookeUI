@@ -58,3 +58,14 @@ it('searches explicit Project groups while preserving generated origin', () => {
   expect(materialFacts(model)).toBe('Candidate models · Model · Revision 2');
   expect(model.material?.origin).toBe('generated');
 });
+
+
+it('shows declared matrix and media kinds with inspection facts, not filename guesses', () => {
+  const matrix = entry('unknown.bin', true, {kind: 'matrix', format: 'AnnData', shape: [18400,18533]});
+  expect(materialFacts(matrix)).toBe('Matrix · AnnData · 18,400 × 18,533 · Revision 2');
+  for (const [kind, word] of [['image', 'Image'], ['recording', 'Recording'], ['recorded-dataset', 'Recorded dataset']])
+    expect(materialFacts(entry('unknown.bin', true, {kind}))).toBe(`${word} · Revision 2`);
+  expect(materialFacts(entry('fake.h5ad', true))).toBe('File · Revision 2');
+  expect(materialFacts(entry('conflict', true, {inspection: {status:'conflicting', reports:[], total:2}})))
+    .toContain('Inspection reports disagree');
+});

@@ -311,3 +311,7 @@ read-only temporary copy outside accepted Project storage. Its context lasts thr
 decoder shutdown and removes only disposable bytes. No Library alias, automatic
 execution or accepted record is created. Actual playback and workspace restoration
 still require qualification before ordinary portable creation is enabled.
+
+### Recorded inspection facts in the shared inventory
+
+An exact retained matrix-inspect result may describe its input as an AnnData matrix with recorded dimensions. Join by Project, document revision/digest and file component/hash/size. Keep the report references and origin; never infer from filenames, revise inputs, or apply an old report to a new head. Conflicting dimensions remain explicit. UI and agents receive the same projection.
