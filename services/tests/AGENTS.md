@@ -725,3 +725,9 @@ synthetic identities and worker barriers. It checks asynchronous opening, stale
 read suppression, retained writes across UI switches, cancellation serialization,
 uncertain-history refusal and shutdown admission. This is storage/lifecycle
 evidence, not actual microscopy tracking or full portable UI qualification.
+
+`test_project_media_decoder.py` decodes synthetic retained pixels with real Pillow
+after removing the original and relocating the Project. It checks origin collisions,
+ambiguous historical Library IDs, disk/allowance/cancellation refusals and cleanup.
+This is actual decoder evidence on synthetic input, not browser playback, recording
+seek qualification or a complete mixed-Project restoration claim.
