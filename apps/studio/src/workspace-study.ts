@@ -1,3 +1,4 @@
+import {ProjectRead} from './project-read';
 import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
@@ -454,7 +455,7 @@ let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
   openResearcher: id => openResearcher(id),
-  retry: () => { void refreshResults(); },
+  retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
@@ -462,16 +463,20 @@ let studiesAvailable=false;
 let studiesNote='';
 let studiesLoadedSession='';
 let studyReadGeneration = 0;
-async function refreshStudies():Promise<void>{
+const studyReads = new ProjectRead(()=>renderBoard());
+function refreshStudies():Promise<void>{
+  return studyReads.run(snapshot.session, (signal, ownsRead) => loadStudies(signal, ownsRead));
+}
+async function loadStudies(signal:AbortSignal, ownsRead:()=>boolean):Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
-  const current = () => snapshot.session === session && generation === studyReadGeneration;
+  const current = () => snapshot.session === session && generation === studyReadGeneration && ownsRead();
   if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  try{studies=await listStudies(session, fetch, signal);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
   studiesLoadedSession=session;studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
-  const activity=await readProjectActivity(knownStudies);
+  const activity=await readProjectActivity(knownStudies, fetch, signal);
   if(!current())return;
   projectActivity=activity;
   knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
@@ -519,7 +524,7 @@ researcherBrowser.append(board.root);
 function renderBoard():void{
   const material=resourceSession===snapshot.session?projectInputs(entries):[];
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
-    {count:material.length,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
+    {count:material.length,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -1554,10 +1559,10 @@ function renderInputs(): void {
     materialList.replaceChildren();
     const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
     if (empty) empty.hidden = resultsFailed() || resourceSession !== snapshot.session || !!inputQuery || !!snapshot.sources.length || !!projectInputs(entries).length;
-    if (resultsFailed() || resourceSession !== snapshot.session) {
-      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : 'Loading Project material…');
+    if (resultsFailed() || resourceSession !== snapshot.session || resourceReads.slow) {
+      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : resourceReads.slow?'Loading is taking longer than usual.': 'Loading Project material…');
       notice.setAttribute('role', 'status'); materialList.append(notice);
-      if (resultsFailed()) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) void refreshResults(); }, 'mm-control'));
+      if (resultsFailed() || resourceReads.slow) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) retryProjectReads(); }, 'mm-control'));
     }
     const needle = inputQuery.trim().toLocaleLowerCase();
     let matchingMedia = 0;
@@ -1674,9 +1679,14 @@ async function refreshBackgroundRun(): Promise<void> {
     if (run === owner && reconcileBackgroundRun(owner, data.entries, job.session)) { renderContext(); renderTabs(); }
   } catch { /* Retained state is authoritative; a failed poll never marks a job complete. */ }
 }
-async function refreshResults(): Promise<void> {
-  // Project research is visible on return, independent of which drawer is open.
+const resourceReads = new ProjectRead(()=>{renderBoard();if(drawerOpen&&section==='inputs')refreshInputRows?.();});
+function retryProjectReads():void { resourceReads.cancel();studyReads.cancel();void refreshResults(); }
+function refreshResults():Promise<void>{
   void refreshStudies();
+  return resourceReads.run(snapshot.session,(signal,ownsRead)=>loadResults(signal,ownsRead));
+}
+async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<void> {
+  // Project research is visible on return, independent of which drawer is open.
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
@@ -1685,10 +1695,10 @@ async function refreshResults(): Promise<void> {
     // The 10 s poll and the server's events send back the revision Data last read (ticket 66, S7): an unchanged index
     // answers in a few bytes, and nothing is redrawn.
     const since = resourceSession === session && resourceRevision ? `&since=${encodeURIComponent(resourceRevision)}` : '';
-    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store' });
+    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store', signal });
     if (!response.ok) throw new Error('Retained results could not be read.');
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
-    if (generation !== refreshGeneration || snapshot.session !== session) return;
+    if (!ownsRead() || generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
     if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
@@ -1706,7 +1716,7 @@ async function refreshResults(): Promise<void> {
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
   } catch (error) {
-    if (generation === refreshGeneration && snapshot.session === session) {
+    if (ownsRead() && generation === refreshGeneration && snapshot.session === session) {
       resultsFailedSession = session;
       renderBoard();
       if (dataOpen) dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults()));
@@ -2382,6 +2392,7 @@ bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
   if (next.session !== previous.session) {
+    resourceReads.cancel();studyReads.cancel();
     // Retire the inventory owner with its contents before any view renders. An A→B→A switch
     // can otherwise mistake A's emptied cache for a completed read while B is still pending.
     entries = []; resourceSession = ''; resourceRevision = ''; resultsFailedSession = '';

@@ -161,3 +161,11 @@ test('a return to the same Project waits for new reads and rejects its previous 
  home.update('p1',[],'',{},[],{count:2,groups:[],loading:false});
  expect(root.textContent).toContain('2 Project inputs');
 });
+
+ test('slow initial reads offer recovery without presenting an empty Project',()=>{
+ const {home,root,button,actions}=setup();
+ home.update('p1',[],'',{},[],{count:0,groups:[],loading:true,slow:true});
+ expect(root.textContent).toContain('Loading is taking longer');
+ fire(button('Retry') as unknown as TestElement,'click');expect(actions.retry).toHaveBeenCalledOnce();
+ fire(button('Browse Project data') as unknown as TestElement,'click');expect(actions.data).toHaveBeenCalledOnce();
+ });

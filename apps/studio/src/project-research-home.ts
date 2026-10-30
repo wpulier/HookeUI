@@ -8,7 +8,7 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')
   const item=document.createElement(tag);item.textContent=text;item.className=className;return item;
 };
 type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void};
-export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean};
+export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean;slow?:boolean};
 export class ProjectResearchHome {
   readonly root=node('section');
   private session='';private signature='';private opening=0;
@@ -36,9 +36,9 @@ export class ProjectResearchHome {
       b.addEventListener('click',()=>{if(this.opening===opening&&this.actions.current()===session)run();});return b;
     };
     if(waiting||unavailable){
-      const status=node('p',unavailable?'Project history could not be loaded.':'Opening your Project…','project-research-caption');
+      const status=node('p',unavailable?'Project history could not be loaded.':material.slow?'Loading is taking longer than usual.':'Opening your Project…','project-research-caption');
       status.setAttribute('role','status');this.root.append(status);
-      if(unavailable){
+      if(unavailable||material.slow){
         this.root.append(node('p',[error,material.error].filter(Boolean).join(' '),'project-research-notice'));
         if(this.actions.retry)this.root.append(action('Retry','retry',this.actions.retry,'mm-primary'));
         this.root.append(action('Browse Project data','data',this.actions.data));

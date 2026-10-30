@@ -50,8 +50,8 @@ async function reply(response: Response): Promise<Record<string, unknown>> {
 }
 
 /** This Project's studies, or null when this build has no studies (the route is absent): then nothing about them shows. */
-export async function listStudies(session: string, fetcher: typeof fetch = fetch): Promise<Effort[] | null> {
-  const response = await fetcher(`/api/research-efforts?session=${encodeURIComponent(session)}`, { cache: 'no-store' });
+export async function listStudies(session: string, fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<Effort[] | null> {
+  const response = await fetcher(`/api/research-efforts?session=${encodeURIComponent(session)}`, { cache: 'no-store', signal });
   if (response.status === 404) return null;
   return (await reply(response)).efforts as Effort[];
 }
