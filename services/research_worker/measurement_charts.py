@@ -5,7 +5,10 @@ The table is one session entry read whole at one exact revision (the index's JSO
 that text, the same revision the session tool's pages carry). `rows` points at an array inside it (under /detail/),
 `value` at a number in each row (a JSON pointer from the row; "" when the row is the number itself), `label` and `group`
 at text in each row. A row with no finite number is left out and counted, never imputed. Two kinds: "sorted" (one bar
-per row, in the chosen order) and "histogram" (rows counted in equal bins). An animation builds that same chart row by
+per row, in the chosen order) and "histogram" (rows counted in equal bins). A third, "means", reads several tables of the
+same shape (one per run of an operation: "run motion 4 times and chart the average speed") and draws one bar per table
+at its mean, its spread (one standard deviation) as a whisker and every value as a dot, with n under it. `only` keeps the
+rows whose value at that pointer is true ("/moving"): the rest are left out and counted. An animation builds that same chart row by
 row in the chosen order and ends on the whole chart, its axes fixed from the first frame; it is an animated PNG, a
 picture every browser plays, made here on this Mac: no model and no provider.
 """
@@ -17,6 +20,8 @@ import statistics
 from dataclasses import dataclass, field
 
 KINDS = ("sorted", "histogram")
+MEANS = "means"  # one bar per table at its mean, with its spread (several tables: means_png)
+TABLES_MAX = 8  # tables one "means" chart reads
 ORDERS = ("ascending", "descending", "table")
 ROWS_MAX = 20_000  # rows one chart reads
 SHOWN_MAX = 500  # rows kept with the output as its values (the rest are counted)
@@ -40,6 +45,7 @@ class Series:
     total: int  # rows in the table's array
     excluded: int  # rows with no finite number there
     source: dict = field(default_factory=dict)  # {"id", "revision", "day", "title", "version"}
+    only: str | None = None  # the pointer to a true/false that kept a row ("/moving"), if one was given
 
     @property
     def n(self) -> int:
@@ -81,7 +87,7 @@ def pointer(value, path: str, *, where: str):
 
 
 def series(document: dict, *, revision: str, rows: str, value: str, label: str | None = None, group: str | None = None,
-           order: str = "ascending") -> Series:
+           order: str = "ascending", only: str | None = None) -> Series:
     """The numbers at `value` in each row of the array at `rows`, in `order`. Raises ValueError, said for the model."""
     if order not in ORDERS:
         raise ValueError(f"order is one of {', '.join(ORDERS)}")
@@ -94,7 +100,17 @@ def series(document: dict, *, revision: str, rows: str, value: str, label: str |
         raise ValueError(f"the table has {len(array):,} rows; one chart reads at most {ROWS_MAX:,}")
     picked = []
     excluded = 0
+    if only is not None and (not isinstance(only, str) or not only.startswith("/")):
+        raise ValueError("only is a JSON pointer from one row to a true/false, such as /moving")
     for n, row in enumerate(array):
+        if only is not None:
+            try:
+                kept = pointer(row, only, where="only")
+            except ValueError:
+                kept = None
+            if kept is not True:
+                excluded += 1
+                continue
         try:
             number = pointer(row, value, where="value")
         except ValueError:
@@ -106,13 +122,14 @@ def series(document: dict, *, revision: str, rows: str, value: str, label: str |
         kind = _text(row, group, None) if group else ""
         picked.append((n, name, float(number), kind or ""))
     if not picked:
-        raise ValueError(f"no row has a number at {value}: the table's columns are in its rows; pick one that is numeric")
+        raise ValueError(f"no row has a number at {value}" + (f" where {only} is true" if only else "")
+                         + ": the table's columns are in its rows; pick one that is numeric")
     if order != "table":
         picked.sort(key=lambda p: p[2], reverse=order == "descending")
     entry = document.get("entry") if isinstance(document.get("entry"), dict) else {}
     column = value.rsplit("/", 1)[-1].replace("~1", "/").replace("~0", "~") if value else rows.rsplit("/", 1)[-1]
     return Series(values=[p[2] for p in picked], labels=[p[1] for p in picked], groups=[p[3] for p in picked],
-                  column=column or "value", rows=rows, value=value, order=order, total=len(array), excluded=excluded,
+                  column=column or "value", rows=rows, value=value, order=order, total=len(array), excluded=excluded, only=only,
                   source={"id": entry.get("id"), "revision": revision, "day": entry.get("day"),
                           "title": entry.get("title"), **({"version": entry["version"]} if isinstance(entry.get("version"), int) else {})})
 
@@ -136,6 +153,17 @@ def _font(size: int):
         return ImageFont.load_default(size=size)
     except TypeError:  # an older Pillow: its one bitmap font
         return ImageFont.load_default()
+
+
+# The default font draws Latin-1 only: a title's dash or curly quote would be an empty box (live 30 Oct: "Average net
+# speed □ all tracked spots").
+PLAIN = str.maketrans({"\u2014": "-", "\u2013": "-", "\u2212": "-", "\u2018": "'", "\u2019": "'", "\u201c": '"',
+                       "\u201d": '"', "\u2026": "...", "\u2022": "\u00b7", "\u00a0": " "})
+
+
+def plain(text: str) -> str:
+    """Text the chart's font can draw: common punctuation as its Latin-1 twin, anything else beyond Latin-1 as "?"."""
+    return "".join(c if ord(c) < 256 else "?" for c in str(text).translate(PLAIN))
 
 
 def _number(x: float) -> str:
@@ -207,7 +235,7 @@ def _draw(s: Series, title: str, layout: _Layout, upto: int, caption: str):
     image = Image.new("RGB", SIZE, "#ffffff")
     d = ImageDraw.Draw(image)
     ink, faint, rule = "#1d232b", "#5f6875", "#d5d9df"
-    d.text((layout.left, 16), title[:90], fill=ink, font=_font(17))
+    d.text((layout.left, 16), plain(title)[:90], fill=ink, font=_font(17))
     small = _font(11)
     for t in _ticks(layout.y_low, layout.y_high):
         y = layout.y(t)
@@ -285,6 +313,92 @@ def chart_png(s: Series, title: str, kind: str) -> bytes:
         raise ValueError(f"kind is one of {', '.join(KINDS)}")
     words = source_words(s)
     return _png(_draw(s, title, _Layout(s, kind), s.n, words), words + "; not a picture of the specimen")
+
+
+# --- several tables: one bar per table at its mean, with its spread ------------------------------------------------
+def spread(values: list[float]) -> dict:
+    """A table's mean and spread: n, mean, its sample standard deviation (0 for one value), the standard error, the
+    range and the median, rounded as the chart says them."""
+    n = len(values)
+    mean = statistics.fmean(values)
+    sd = statistics.stdev(values) if n > 1 else 0.0
+    return {"n": n, "mean": _round(mean), "sd": _round(sd), "sem": _round(sd / math.sqrt(n)) if n > 1 else 0.0,
+            "median": _round(statistics.median(values)), "min": _round(min(values)), "max": _round(max(values))}
+
+
+def means_content(sets: list[Series], names: list[str], title: str, unit: str = "") -> dict:
+    """What is kept with a "means" chart: each table's source, its stats and its values, and across the tables the mean
+    of their means and its spread (each table counted once)."""
+    tables = [{"name": name, "source": dict(s.source), "total": s.total, "excluded": s.excluded, **spread(s.values),
+               "values": [_round(v) for v in s.values[:SHOWN_MAX]]} for s, name in zip(sets, names)]
+    across = spread([statistics.fmean(s.values) for s in sets])
+    first = sets[0]
+    return {"title": title, "kind": "chart", "chart": MEANS, "rows": first.rows, "value": first.value,
+            "column": first.column, **({"only": first.only} if first.only else {}), **({"unit": unit} if unit else {}),
+            "spread": "one standard deviation of each table's values", "tables": tables,
+            "acrossTables": {"tables": len(sets), "meanOfMeans": across["mean"], "sdOfMeans": across["sd"],
+                             "min": across["min"], "max": across["max"]}}
+
+
+def means_png(sets: list[Series], names: list[str], title: str, unit: str = "") -> bytes:
+    """One bar per table at the mean of its values, a whisker of one standard deviation either side, every value a dot
+    and n under its bar; the footnote names each table it was drawn from. Drawn here (Pillow): no model, no provider."""
+    from PIL import Image, ImageDraw
+
+    if not 1 <= len(sets) <= TABLES_MAX or len(names) != len(sets):
+        raise ValueError(f"a means chart reads one to {TABLES_MAX} tables, each with a name")
+    stats = [spread(s.values) for s in sets]
+    top_value = max(max(max(s.values), st["mean"] + st["sd"]) for s, st in zip(sets, stats))
+    low_value = min(0.0, min(min(s.values) for s in sets))
+    if top_value <= low_value:
+        top_value = low_value + 1.0
+    image = Image.new("RGB", SIZE, "#ffffff")
+    d = ImageDraw.Draw(image)
+    ink, faint, rule = "#1d232b", "#5f6875", "#d5d9df"
+    left, top, right, bottom = 74, 58, SIZE[0] - 24, SIZE[1] - 96
+    d.text((left, 16), plain(title)[:90], fill=ink, font=_font(17))
+    small = _font(11)
+
+    def y(v: float) -> float:
+        return bottom - (v - low_value) / (top_value * 1.08 - low_value) * (bottom - top)
+
+    for t in _ticks(low_value, top_value * 1.08):
+        d.line([(left, y(t)), (right, y(t))], fill=rule)
+        d.text((left - 8, y(t)), _number(t), fill=faint, font=small, anchor="rm")
+    d.line([(left, top), (left, bottom), (right, bottom)], fill=faint)
+    step = (right - left) / len(sets)
+    bar = min(80.0, step * 0.55)
+    for i, (s, st, name) in enumerate(zip(sets, stats, names)):
+        middle = left + (i + 0.5) * step
+        colour = COLOURS[i % len(COLOURS)]
+        d.rectangle([middle - bar / 2, y(st["mean"]), middle + bar / 2, y(0.0 if low_value <= 0 else low_value)],
+                    fill=colour)
+        for k, v in enumerate(s.values[:SHOWN_MAX]):  # every value, spread a little sideways so they can be seen
+            dx = ((k * 7) % 11 - 5) / 5 * bar * 0.35
+            d.ellipse([middle + dx - 2, y(v) - 2, middle + dx + 2, y(v) + 2], outline=ink, fill="#ffffff")
+        if st["n"] > 1:
+            hi, lo = y(st["mean"] + st["sd"]), y(max(low_value, st["mean"] - st["sd"]))
+            d.line([(middle, hi), (middle, lo)], fill=ink, width=2)
+            d.line([(middle - 8, hi), (middle + 8, hi)], fill=ink, width=2)
+            d.line([(middle - 8, lo), (middle + 8, lo)], fill=ink, width=2)
+        words = f"mean {_number(st['mean'])}"  # on a white box above its whisker, so dots never hide it
+        at = (middle, y(st["mean"] + st["sd"]) - 6)
+        box = d.textbbox(at, words, font=small, anchor="mb")
+        d.rectangle([box[0] - 3, box[1] - 2, box[2] + 3, box[3] + 2], fill="#ffffff", outline=rule)
+        d.text(at, words, fill=ink, font=small, anchor="mb")
+        d.text((middle, bottom + 6), plain(name)[:16], fill=ink, font=small, anchor="ma")
+        d.text((middle, bottom + 20), f"n = {st['n']}" + (f", sd {_number(st['sd'])}" if st["n"] > 1 else ""),
+               fill=faint, font=small, anchor="ma")
+    first = sets[0]
+    axis = plain(first.column + (f" ({unit})" if unit else ""))
+    d.text((14, top - 16), axis[:40], fill=faint, font=small)
+    d.text((left + (right - left) / 2, bottom + 38), "bar: mean · whisker: ±1 standard deviation · dots: each value"
+           + (f" (only rows where {first.only[1:]} is true)" if first.only else ""), fill=faint, font=small, anchor="ma")
+    words = "Drawn by the app from " + ", ".join(f"{s.source.get('id')}" for s in sets) + (
+        f" ({sum(s.n for s in sets)} values" + (f"; {sum(s.excluded for s in sets)} rows left out" if any(s.excluded for s in sets)
+                                               else "") + ")")
+    d.text((14, SIZE[1] - 30), words[:130], fill=faint, font=small)
+    return _png(image, words + "; not a picture of the specimen")
 
 
 def animation_png(s: Series, title: str, kind: str, seconds: float = 6.0) -> tuple[bytes, int]:

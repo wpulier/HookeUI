@@ -193,7 +193,13 @@ other files.
   measurements table's `/detail/members`) and the number in each row (`/extras/areaPx`), with an optional label, group,
   order and kind (one bar per row, or a histogram). The worker reads the whole entry itself, page by page off the model's
   rounds, checks it against the revision, and copies the values: a row with no number is left out and counted, never
-  imputed. The chart is drawn on this Mac by the app (Pillow; no model, provider or money); the animation builds that
+  imputed; `only` (a pointer to a true/false in each row, motion tracks' `/moving`) keeps the rows where it is true.
+  Several runs of one operation are one chart (Will, 30 Oct: "run a motion model 4 times ... make diagram of average
+  speed"): make_chart kind "means" names `tables` (one to eight entries, each read whole at its revision, the same rows
+  and value in each; motion: `/detail/values/tracks`, `/net`) and draws one bar per table at its mean, a whisker of one
+  standard deviation and every value a dot, n under it; its reply and `content` carry each table's n, mean, SD, SEM,
+  median and range and the mean of the means, and every table is among what it was made from (`derived.sources`).
+  The chart is drawn on this Mac by the app (Pillow; no model, provider or money); the animation builds that
   chart row by row in the chosen order and ends on the whole chart, an animated PNG every browser plays as a picture.
   Each is kept as one of its outputs with `derived` (its exact source id, revision, kind) and its values in `content`:
   media `derived`, said "Drawn by the app from a saved table" or "An animation ... not a video of the specimen", in Data
