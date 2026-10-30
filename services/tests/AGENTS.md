@@ -712,3 +712,9 @@ Project material parity checks include a fresh Study with no findings: the owner
 a synthetically granted reader and the resource index expose the same assignment
 metadata and exact revision. This is contract/storage evidence, distinct from
 actual client reconnection and browser inspection of a populated Project.
+
+`test_project_identity_lifecycle.py` uses actual isolated Project journals with
+synthetic identities and worker barriers. It checks asynchronous opening, stale
+read suppression, retained writes across UI switches, cancellation serialization,
+uncertain-history refusal and shutdown admission. This is storage/lifecycle
+evidence, not actual microscopy tracking or full portable UI qualification.

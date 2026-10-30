@@ -1666,6 +1666,7 @@ class App:
 
     async def _stop(self) -> None:
         self._stopping = True
+        self.hub.identity.io.retire()
         if getattr(self, "scientific_uploads", None) is not None:
             await asyncio.to_thread(self.scientific_uploads.close)
         from . import readiness
