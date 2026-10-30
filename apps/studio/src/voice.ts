@@ -9,6 +9,7 @@
 // PartnerMessage): hold to talk (talkDown/talkUp/talkCancel; the microphone is on only while held, and a little after
 // so the last word reaches the model), barge-in (pressing while it speaks silences its audio element at once), the
 // window snapshots and marks it asks for (handed to `onPartner`), and a fresh offer when its call has to be renewed.
+import { betterMicrophone } from './mic-choice';
 import { PARTNER_MESSAGES, studioSocketURL, type PartnerCommand, type PartnerMessage } from './protocol';
 
 /** The voice that hears, sees and acts in one model (options.py VOICE "gpt-realtime-2.1"). */
@@ -164,6 +165,21 @@ export class VoiceClient {
    * arena trial is still being created. */
   private connectionAttempt = 0;
 
+  /** A phone the Mac made its default input (Continuity) gives way to the Mac's own microphone (mic-choice.ts).
+   * Anything that goes wrong keeps the microphone already open. */
+  private async ownMicrophone(mic: MediaStream, audio: MediaTrackConstraints): Promise<MediaStream> {
+    try {
+      const label = mic.getAudioTracks()[0]?.label ?? '';
+      const better = betterMicrophone(label, label ? await navigator.mediaDevices.enumerateDevices() : []);
+      if (!better) return mic;
+      const own = await navigator.mediaDevices.getUserMedia({ audio: { ...audio, deviceId: { exact: better } } });
+      mic.getTracks().forEach((track) => track.stop());
+      return own;
+    } catch {
+      return mic;
+    }
+  }
+
   async start(target?: VoiceTarget | Promise<VoiceTarget>): Promise<void> {
     if (this.state === 'connecting' || this.state === 'live') return;
     const attempt = ++this.connectionAttempt;
@@ -187,10 +203,10 @@ export class VoiceClient {
           'Waiting for microphone access. Allow the microphone prompt, or end Talk and check microphone permissions.');
       }, 8_000);
       let mic: MediaStream;
+      const audio = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
       try {
-        mic = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
+        mic = await navigator.mediaDevices.getUserMedia({ audio });
+        if (attempt === this.connectionAttempt) mic = await this.ownMicrophone(mic, audio);
       } finally {
         this.awaitingMic = false;
       }
