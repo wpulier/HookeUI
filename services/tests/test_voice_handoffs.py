@@ -381,3 +381,62 @@ def test_a_call_the_brain_corrected_in_the_same_turn_is_no_failure_and_never_sai
         out = await t.partner.tools.do_in_hooke({"request": "close that and open this", "label": "Windows"})
         assert out["ok"] is False and out["failed"] == ["present: the window did not close"]
     asyncio.run(go())
+
+
+# will-research run 1, 30 Oct (measure-c4acc90): the step kept for after Researcher 1, "Put the picture in a new Tab named
+# Graphic and show it when it lands", as the brain ran it. Its place was first refused for its own argument (no id), so
+# the Tab switch planned after it was skipped; the place was then made again and confirmed in that Tab, in front.
+GRAPHIC_TAB = [
+    {**step("tabs", True, '{"ok": true, "tabs": [{"title": "Graphic", "selected": true}]}', 1),
+     "args": {"action": "create", "title": "Graphic"}},
+    {**step("present", False, "name what to place: its id from the screen or Data; look at what is on screen", 2),
+     "argument": True, "next": "look at what is on screen"},
+    {**step("tabs", False, "step 3 skipped: dependency 2 did not succeed", 3), "args": {"action": "switch", "tab": "Graphic"}},
+    {**step("present", True, "Researcher 1's picture is open in a window in Tab \"Graphic\", in front (w-4225a2fd); "
+                             "opened there from its saved work (r386151:o1)", 4),
+     "outputs": [{"kind": "presentation", "instanceId": "w-4225a2fd"}]},
+]
+
+
+def test_a_step_skipped_only_because_of_a_refusal_the_brain_put_right_is_no_failure_of_the_request(monkeypatch):
+    """will-research "graphic-tab", runs 1-3 judged 1-2: the kept step's row ended "failed" ("An earlier step to switch to
+    the tab was skipped because its previous action failed…") and the voice said "though one earlier tab-switch step
+    failed, so that part didn't fully complete", with the picture in place. A step skipped only because a step it waited
+    on was refused, when the brain then made that step again and it worked, is part of the attempt the brain redid: the
+    request's outcome holds, its row is done, and nothing of it is a failure told to the voice. A skip after a failure
+    that still stands is still one."""
+    async def go():
+        t, shown = await handing_off(monkeypatch)
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {
+            "answer": "I created the Graphic Tab and placed Researcher 1's stoma illustration there in front.",
+            "actions": GRAPHIC_TAB})
+        out = await t.partner.tools.do_in_hooke({"request": "Put the picture in a new Tab named Graphic and show it",
+                                                 "label": "Picture in Graphic"})
+        assert out["ok"] is True and "failed" not in out
+        assert "skipped" not in json.dumps(out) and "name what to place" not in json.dumps(out)
+        last = rows(shown)[-1]
+        assert last["state"] == "done" and not last.get("reason")
+        # The place never worked: the skip after it is part of a failure that stands.
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {"answer": "", "actions": GRAPHIC_TAB[:3]})
+        out = await t.partner.tools.do_in_hooke({"request": "Put the picture in a new Tab named Graphic",
+                                                 "label": "Picture in Graphic"})
+        assert out["ok"] is False and rows(shown)[-1]["state"] == "failed"
+        assert any("step 3 skipped" in f for f in out["failed"])
+    asyncio.run(go())
+
+
+def test_the_brains_own_answer_is_not_told_a_skip_it_put_right_as_a_problem():
+    """The same turn, brain side: the answer check listed "tabs: step 3 skipped: dependency 2 did not succeed" as a
+    problem the answer had to state, so the answer was rewritten to add "An earlier step to switch to the tab was
+    skipped" (its override "answer-recheck"), and "explain that" then repeated it. One rule for what still stands
+    (claims.unresolved, as handoffs.corrected): that skip is settled with the refusal the brain put right."""
+    from orchestrator.brain.claims import unresolved
+    from orchestrator.brain.registry import ToolRun
+
+    runs = [ToolRun(a["tool"], a.get("args") or {}, ok=a["ok"], summary=a["summary"]) for a in GRAPHIC_TAB]
+    assert unresolved(runs) == []
+    assert [r.summary for r in unresolved(runs[:3])] == [runs[1].summary, runs[2].summary], "not put right: both stand"
+    # A skip after a real failure that was put right by another call stands only with that failure.
+    failed_find = ToolRun("find", {}, ok=False, summary="nothing there could be outlined")
+    skipped = ToolRun("zoom", {}, ok=False, summary="step 2 skipped: dependency 1 did not succeed")
+    assert unresolved([failed_find, skipped]) == [failed_find, skipped]

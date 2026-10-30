@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from functools import lru_cache
 from itertools import islice
 
@@ -184,10 +185,47 @@ def _supplied_scope(scope, refs, images):
 def unresolved(runs) -> list:
     """Steps that did not work and were not tried again successfully in the same request: a later run of the same
     tool that worked settles the earlier failure (live 2026-10-11: a refused `use` "SAM 3.1 (local)" and then
-    `use` micro-sam that worked). The studio's "!" applies the same rule (chatlog.ts unresolvedFailures)."""
-    runs = list(runs)
-    return [r for n, r in enumerate(runs) if getattr(r, "ok", None) is False
-            and not any(getattr(later, "tool", None) == r.tool and getattr(later, "ok", None) is True for later in runs[n + 1:])]
+    `use` micro-sam that worked), and a step skipped only because of a failure that was settled is settled with it
+    (`standing`). The studio's "!" applies the same rule (activity.ts unresolvedFailures)."""
+    return standing(runs, lambda failure, later: _field(later, "tool") == _field(failure, "tool")
+                    and _field(later, "ok") is True)
+
+
+# A step the brain's ActionRunner never ran because a step it waited on did not succeed: its own words (brain/actions.py).
+DEPENDENCY_SKIPPED = re.compile(r"^step \d+ skipped: dependency \d+ did not succeed\b")
+
+
+def _field(step, key: str):
+    """A step's fact, from a ToolRun or from its wire (a hand-off's actions)."""
+    return step.get(key) if isinstance(step, dict) else getattr(step, key, None)
+
+
+def skipped_after(step) -> bool:
+    """A step never run because a step it waited on did not succeed: nothing of its own happened."""
+    return _field(step, "ok") is False and bool(DEPENDENCY_SKIPPED.match(str(_field(step, "summary") or "")))
+
+
+def standing(steps, settles) -> list:
+    """The failures of one request's steps that still stand, in order (ToolRuns or their wire). `settles(failure,
+    later)`: whether a later step of the request settles that failure (`unresolved`'s rule, or handoffs.corrected's).
+    A step skipped because a step it waited on did not succeed stands only while a failure before it stands: once every
+    earlier failure is settled, the skip was part of the attempt the brain made again (will-research, 30 Oct: a picture
+    was placed with a refused id, so the Tab switch planned after it was skipped; the brain placed it again in that Tab,
+    in front, and the request's outcome held, yet its row said failed and the answer told of the skipped switch)."""
+    rows = list(steps)
+    out: list = []
+    for n, step in enumerate(rows):
+        if _field(step, "ok") is not False:
+            continue
+        if any(settles(step, later) for later in rows[n + 1:]):
+            continue
+        if skipped_after(step):
+            earlier = [id(s) for s in rows[:n] if _field(s, "ok") is False]
+            kept = {id(s) for s in out}
+            if earlier and not any(i in kept for i in earlier):
+                continue
+        out.append(step)
+    return out
 
 
 def choice_scopes(runs) -> list[dict]:

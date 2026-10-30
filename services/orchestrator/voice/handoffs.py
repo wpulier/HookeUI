@@ -63,11 +63,15 @@ def corrected(actions) -> list[dict]:
     """The steps of a brain turn that still stand: a refusal of the brain's own call (`argument`: its arguments did not
     fit, ToolFailed.argument) that a later call of the same tool replaced is the brain correcting itself, left out
     (will-research, 29 Oct: an annotated picture refused for want of an outline, then the illustration started; the
-    row said "did not work" and the voice told the user nothing was outlined). Any other failure stays."""
+    row said "did not work" and the voice told the user nothing was outlined); so is a step skipped only because of such
+    a refusal (claims.standing: will-research, 30 Oct, the Tab switch skipped after a refused place that the brain made
+    again, in that Tab, in front). Any other failure stays."""
+    from ..brain.claims import standing
+
     rows = [a for a in actions or () if isinstance(a, dict)]
-    return [a for i, a in enumerate(rows)
-            if not (a.get("ok") is False and a.get("argument") is True
-                    and any(b.get("tool") == a.get("tool") and b.get("ok") is not False for b in rows[i + 1:]))]
+    stands = {id(a) for a in standing(rows, lambda failure, later: failure.get("argument") is True
+                                      and later.get("tool") == failure.get("tool") and later.get("ok") is not False)}
+    return [a for a in rows if a.get("ok") is not False or id(a) in stands]
 
 
 def started_researcher(result: dict) -> str | None:
