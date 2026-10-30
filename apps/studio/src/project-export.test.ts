@@ -72,6 +72,32 @@ test('lost admission reply survives closing the panel and takes precedence over 
   reopened.dispose();
 });
 
+test('an old panel acknowledgement cannot erase a newer export recovery key', async () => {
+  const {actions, saved} = setup();
+  let oldReply!: (value: ExportOperation) => void;
+  let newReply!: (value: ExportOperation) => void;
+  vi.mocked(actions.start)
+    .mockImplementationOnce(() => new Promise(done => { oldReply = done; }))
+    .mockResolvedValueOnce({id: 'export-1', state: 'failed', outcome: {says: 'First copy stopped'}})
+    .mockImplementationOnce(() => new Promise(done => { newReply = done; }));
+  const first = projectExport(actions, () => true, 'origin'); click(first.element, 'Review export');
+  await vi.waitFor(() => expect(first.element.textContent).toContain('Export this partial copy'));
+  click(first.element, 'Export this partial copy'); first.dispose();
+  const second = projectExport(actions, () => true, 'origin'); click(second.element, 'Recover export');
+  await vi.waitFor(() => expect(second.element.textContent).toContain('First copy stopped'));
+  click(second.element, 'Prepare another copy');
+  await vi.waitFor(() => expect(second.element.textContent).toContain('Export this partial copy'));
+  click(second.element, 'Export this partial copy');
+  const latestKey = saved.get('hooke.project-export.origin.pending');
+  expect(latestKey).toBeTruthy();
+  oldReply({id: 'export-1', state: 'running'});
+  await Promise.resolve(); await Promise.resolve();
+  expect(saved.get('hooke.project-export.origin.pending')).toBe(latestKey);
+  newReply({id: 'export-2', state: 'running'});
+  await vi.waitFor(() => expect(saved.get('hooke.project-export.origin')).toBe('export-2'));
+  second.dispose();
+});
+
 test('late polling cannot undo an observed stop and disposal never cancels admitted work', async () => {
   const {actions, saved} = setup(); saved.set('hooke.project-export.origin', 'export-1');
   vi.useFakeTimers();

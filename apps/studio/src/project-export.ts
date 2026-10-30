@@ -36,14 +36,19 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
     b.addEventListener('click', () => { if (active() && !busy) void fn(); }); controls.append(b); return b;
   };
   const showError = (error: unknown) => { status.textContent = error instanceof Error ? error.message : String(error); };
-  const remember = (id: string) => {
-    operation = id;
-    try { localStorage.setItem(storageKey, id); localStorage.removeItem(pendingKey); } catch { /* optional */ }
+  const acknowledge = (id: string, admittedKey: string) => {
+    try {
+      // Another panel can have recovered this request and started a newer one.
+      // Its recovery identity must survive this older panel's delayed reply.
+      if (localStorage.getItem(pendingKey) === admittedKey) {
+        localStorage.setItem(storageKey, id); localStorage.removeItem(pendingKey);
+      }
+    } catch { /* retained pending identity remains safe to retry */ }
   };
   const render = (row: ExportOperation) => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
-    remember(row.id); controls.replaceChildren(); content.replaceChildren();
+    operation = row.id; controls.replaceChildren(); content.replaceChildren();
     if (row.state === 'succeeded' && row.outcome?.export) {
       const result = row.outcome.export;
       status.textContent = 'Folder copy saved and verified.';
@@ -94,10 +99,11 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
     try { localStorage.setItem(pendingKey, requestKey); }
     catch { status.textContent = 'Export recovery cannot be saved in this browser. Enable local storage and retry.'; return; }
     busy = true; readEpoch++; status.textContent = 'Admitting the export…'; controls.replaceChildren();
+    const admittedKey = requestKey;
     try {
-      const result = await actions.start(requestKey);
+      const result = await actions.start(admittedKey);
       // Keep the locator even if navigation closed this view during admission.
-      remember(result.id); render(result);
+      acknowledge(result.id, admittedKey); render(result);
     }
     catch (error) { if (active()) { showError(error); button('Retry this export', start); } }
     finally { busy = false; }
