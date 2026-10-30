@@ -335,9 +335,11 @@ def test_stop_work_stops_a_running_hand_off_and_says_stopped_only_once_it_has(mo
         assert [l[2] for l in lines if l[0] == f"command:job-{job.id}"][-2:] == ["cancelling", "cancelled"]
         assert lines[-1][3] == "Assistant: A video about stomata: stopped"
         again = await stop.handler({"id": job.id})
-        assert again["result"] == "failed" and "already ended (stopped)" in again["said"]
+        assert again["ok"] is True and again["stopped"] is False and "already ended (stopped)" in again["said"]
         nothing = await stop.handler({})
-        assert nothing["result"] == "failed" and "nothing to stop" in nothing["said"]
+        assert nothing["ok"] is True and nothing["stopped"] is False and "nothing to stop" in nothing["said"]
+        unknown = await stop.handler({"id": "h-none"})
+        assert unknown["ok"] is False and unknown["result"] == "failed", "an id it does not know is a failure"
     asyncio.run(go())
 
 
@@ -428,17 +430,27 @@ def test_a_hand_off_whose_late_step_lands_ends_from_that_steps_receipt(monkeypat
 
 def test_stop_that_after_the_work_finished_says_what_finished(monkeypatch):
     """will-research, 29 Oct: the video had opened, then "actually, stop that" was answered only "nothing was running".
-    With nothing running, the newest request that finished on its own is named, so the voice can offer to undo it."""
-    from orchestrator.voice.jobs import HandoffJob
-
+    With nothing running, the newest request that finished on its own is named, so the voice can offer to undo it.
+    will-research "stop-video", 30 Oct, all runs judged 2 of 3, "the stop action failed": stop_work answered ok false
+    (its partner-tool record said so). Nothing to stop is not a failure: ok, with what finished and the offer to undo it
+    (close what it opened)."""
     async def go():
         t = await handing_off(monkeypatch)
 
         async def turn(text, channel, **kw):
-            return {"answer": "Opened a video about stomata.", "actions": []}
+            return {"answer": "I found the video \"Stomata under microscope\" and opened it in front.",
+                    "actions": [{"tool": "show_web", "ok": True, "summary": "the studio shows the video in a window",
+                                 "outputs": [{"kind": "presentation", "instanceId": "w-v1"}]}]}
         t.brain.turn = turn
         await t.partner.tools.do_in_hooke({"request": "find a YouTube video about stomata", "label": "A stomata video"})
-        out = await t.partner.tools.stop_work({})
-        assert out["result"] == "failed" and out["finished"] == "A stomata video"
-        assert "already finished" in out["said"] and "undo" in out["note"]
+        stop = next(s for s in t.partner.tools.specs() if s.name == "stop_work")
+        out = await stop.handler({})
+        assert out["ok"] is True and out["stopped"] is False and out["finished"] == "A stomata video"
+        assert out["result"] != "failed" and "already finished" in out["said"] and "undo" in out["note"]
+        assert "Stomata under microscope" in out["what_it_did"], "what finished, in Hooke's own words"
+        await t.session.handle({"type": "response.function_call_arguments.done", "response_id": "r", "call_id": "s1",
+                                "name": "stop_work", "arguments": "{}"})
+        record = await until_async(lambda: next((r for r in t.logged if r.get("kind") == "partner-tool"
+                                                 and r.get("name") == "stop_work"), None))
+        assert record["ok"] is True, "the call is never recorded as a failed stop"
     asyncio.run(go())
