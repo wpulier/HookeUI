@@ -1084,6 +1084,9 @@ export class ActionsPanel {
     if (row && this.comparing === row.id) return 'comparing';
     if (state.running) return state.stopping ? 'stopping' : 'running';
     if (state.armed) return 'armed';
+    // A run that didn't run belongs to the Tab it was asked on: on another Tab the row is ready to run there.
+    if (state.result && !state.result.ok && !state.result.stopped && state.tabId && typeof document !== 'undefined'
+      && (document.body?.dataset?.activeWorkspaceView ?? state.tabId) !== state.tabId) state.result = null;
     if (state.result) return state.result.stopped ? 'stopped' : state.result.ok ? 'done' : 'failed';
     const chosen = spec.chosen;
     if (chosen?.download || chosen?.runnable) state.starting = '';
@@ -1441,11 +1444,12 @@ export class ActionsPanel {
         const words = resultWords(state.result!);
         foot.append(el('div', { className: 'run-fail', role: 'status' }, litCell('attention', { size: 14, label: 'Didn’t run' }),
           el('div', {}, el('b', { textContent: `${state.ranWith || short} didn’t run` }), el('p', { className: 'action-result-text', textContent: words }))));
-        // Another model when the task has one to choose; with only this one, back to its page to run it again.
-        const next = spec.choices.length > 1
-          ? act('Choose another model', 'mm-btn btn-sm', () => { state.result = null; state.list = true; this.render(); }, { 'data-focus': `${id}:another` })
-          : act('Run again', 'mm-btn btn-sm action-again', () => { state.result = null; this.render(); }, { 'data-focus': `${id}:again` });
-        foot.append(rowOf(next, act('Details', 'mm-btn btn-sm btn-quiet', () => this.deps.openActivity())));
+        // Run again always (the next view may be one it can run on); another model too when the task has one to choose.
+        const again = act('Run again', 'mm-btn btn-sm action-again', () => { state.result = null; this.render(); }, { 'data-focus': `${id}:again` });
+        const another = spec.choices.length > 1
+          ? [act('Choose another model', 'mm-btn btn-sm btn-quiet', () => { state.result = null; state.list = true; this.render(); }, { 'data-focus': `${id}:another` })]
+          : [];
+        foot.append(rowOf(again, ...another, act('Details', 'mm-btn btn-sm btn-quiet', () => this.deps.openActivity())));
         return foot;
       }
       case 'stopped': {

@@ -185,6 +185,44 @@ def test_the_users_own_pictures_and_recordings_are_sources_with_the_librarys_sma
     assert asyncio.run(thumbs.get("a4", LIBRARY, "v1")) is None
 
 
+def test_a_library_recording_the_camera_bridge_already_pictured_is_shown_from_its_picture(tmp_path, monkeypatch):
+    """The camera bridge keeps a small picture of every footage file on disk (footage_media.Library.thumb_path). The
+    library's recordings in that folder (the examples, the real recordings) are shown from it, so opening Examples never
+    queues one ffmpeg run per card ahead of the preview the person clicked. A file the bridge hasn't pictured yet, or
+    one outside the footage folder, gets its poster frame as before."""
+    import orchestrator.thumbnails as thumbnails
+
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / "experiments" / "iphone-camera-feed" / "scripts"))
+    from footage_media import Library as Footage
+
+    footage = tmp_path / "footage"
+    clip = footage / "corpus" / "corpus-amoeba.mp4"
+    clip.parent.mkdir(parents=True)
+    clip.write_bytes(b"not decoded here")
+    stat = clip.stat()
+    pictured = Footage(footage, tmp_path / "none.json", tmp_path / "none.json").thumb_path(
+        {"name": "corpus/corpus-amoeba.mp4", "bytes": stat.st_size, "mtime": int(stat.st_mtime)})
+    pictured.parent.mkdir()
+    pictured.write_bytes(jpeg(240, 135))
+    later = footage / "corpus" / "corpus-hydra.mp4"
+    later.write_bytes(b"not pictured yet")
+    elsewhere = tmp_path / "datasets" / "camera.mp4"
+    elsewhere.parent.mkdir()
+    elsewhere.write_bytes(b"a dataset's video")
+    paths = {"a7": clip, "a8": later, "a9": elsewhere}
+    library = SimpleNamespace(footage=footage,
+                              get=lambda aid: SimpleNamespace(kind="recording", path=paths[aid]) if aid in paths else None)
+    posters = []
+    monkeypatch.setattr(thumbnails, "poster", lambda path: posters.append(path) or jpeg())
+    thumbs = Thumbnails(FakeIndex(hub=SimpleNamespace(library=library)))
+
+    assert max(size_of(asyncio.run(thumbs.get("a7", LIBRARY, "v1")))) == THUMB_PX
+    assert posters == []
+    assert asyncio.run(thumbs.get("a8", LIBRARY, "v1")) is not None
+    assert asyncio.run(thumbs.get("a9", LIBRARY, "v1")) is not None
+    assert posters == [later, elsewhere]
+
+
 @pytest.mark.timing  # its ffmpeg runs at background priority (taskpolicy -b), which a loaded Mac starves past any limit
 def test_a_recording_shows_its_poster_frame_made_by_ffmpeg_at_background_priority(tmp_path, monkeypatch):
     if shutil.which("ffmpeg") is None:
