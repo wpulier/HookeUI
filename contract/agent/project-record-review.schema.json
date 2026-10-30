@@ -1,0 +1,75 @@
+{
+  "$id": "hooke:agent/project-record-review",
+  "type": "object",
+  "required": [
+    "session",
+    "origin",
+    "dataset",
+    "reviewDigest",
+    "scope",
+    "files",
+    "bytes",
+    "title",
+    "requiredFreeBytes",
+    "captureCheck",
+    "reason"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "dataset": {
+      "type": "string",
+      "pattern": "^ds-[0-9]{8}-[0-9]{6}(-[0-9]+)?$"
+    },
+    "reviewDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scope": {
+      "enum": [
+        "whole-record-folder"
+      ]
+    },
+    "files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requiredFreeBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "captureCheck": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

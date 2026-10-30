@@ -538,3 +538,7 @@ A run/attempt locator in old evidence remains a locator, never a retroactively p
 ### Working copy of an owned export
 
 The owner may explicitly restore a completed Project export to a new host-selected folder after reviewing its retained size and incomplete collection scope. The same operation service owns progress, retries and cancellation. Restoration preserves the original identity, accepted history and snapshot receipt, without registering a location, navigating, importing grants or replaying executions. Opening the working copy remains a separate owner choice subject to duplicate-origin and writer checks. Neither an export receipt nor its path authorizes agents to restore/import Projects.
+
+### Owner-reviewed whole Record inclusion
+
+The existing Datasets surface may offer copying a stopped Record dataset into the current portable Project. Review identifies the whole dataset, its shared/cross-Project scope, capture warnings, hashed membership and disk requirement. The owner's explicit confirmation authorizes that whole inclusion; a review digest is not authority. The action uses the existing `collect_record` immutable intake, returns an exact Project artifact reference, keeps the original intact and does not claim external dependency closure. Agents cannot invoke this owner-only path or browse host datasets through it. Any future agent path needs explicit dataset-scoped authority. Admitted work retains its destination Project despite navigation and exposes its durable operation and cancellation status.

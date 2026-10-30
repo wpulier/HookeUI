@@ -161,6 +161,11 @@ DOOR_RESOURCES = {
 # Owner storage actions accept local paths and cannot be admitted by connected
 # agents. Importing historical authorship never establishes present-day authority.
 OWNER_STORAGE_ACTIONS = {
+    'project-record-review': 'owner reviews whole shared Record inclusion and required space',
+    'project-record-include': 'owner explicitly copies the whole reviewed Record dataset into a Project',
+    'project-record-status': 'owner observes an admitted whole Record inclusion',
+    'project-record-stop': 'owner requests stopping an admitted whole Record inclusion',
+
     'project-open-folder': 'owner selects a local Project folder; no inherited agent authority',
     'project-copy-prepare': 'owner reviews a completed export before restoring a working copy',
     'project-copy-restore': 'owner restores an exported identity without registration or inherited access',
