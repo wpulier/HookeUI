@@ -42,3 +42,14 @@ test('refusal preserves the path for recovery and a subsequent retry', async () 
   expect(dialog.querySelector('input')!.value).toBe('/Projects/Research');
   submit(dialog); await vi.waitFor(() => expect(navigate).toHaveBeenCalledOnce());
 });
+
+test('native selection fills the path without registering or navigating', async () => {
+  dom(); const postMessage = vi.fn(async () => '/Projects/Selected');
+  vi.stubGlobal('window', {webkit: {messageHandlers: {hookeFolder: {postMessage}}}});
+  const open = vi.fn(), navigate = vi.fn();
+  const dialog = showOpenProject({current: () => true, open, navigate});
+  Array.from(dialog.querySelectorAll('button')).find(b => b.textContent === 'Choose folder…')!.dispatchEvent(new Event('click'));
+  await vi.waitFor(() => expect(dialog.querySelector('input')!.value).toBe('/Projects/Selected'));
+  expect(postMessage).toHaveBeenCalledWith({op: 'choose-project'});
+  expect(open).not.toHaveBeenCalled(); expect(navigate).not.toHaveBeenCalled();
+});

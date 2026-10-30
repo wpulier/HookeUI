@@ -1,3 +1,5 @@
+Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.
+
 Open Project folder in the Project menu accepts a local folder path. Registration and navigation are separate: the ordinary Project switch checks unsaved work, and closing/changing workspace during verification prevents late navigation. Failed registration preserves the typed path. Native picker and read-only/copy choices remain separate qualification gates.
 
 Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.

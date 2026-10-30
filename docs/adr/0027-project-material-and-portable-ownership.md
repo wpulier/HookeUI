@@ -494,6 +494,6 @@ verification runs cannot cause late navigation. A registered folder remains in A
 Projects if navigation is declined. This owner command is deliberately unavailable
 to connected agents; they still need locally established Project access.
 
-This browser-compatible path entry is not the native folder chooser, snapshot
-restoration, read-only opening, independent-copy creation or legacy migration.
+The native shell supplies its origin-checked directory chooser; browser path entry
+uses the same owner admission. Neither entrance is snapshot restoration, read-only opening, independent-copy creation or legacy migration.
 Portable-mode activation remains an operator choice.
