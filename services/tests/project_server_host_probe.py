@@ -15,7 +15,7 @@ from tests.test_agent_projects import run
 from tests.waiting import until
 
 
-def main(mode, folder):
+def main(mode, folder, material="protocol"):
     base = Path(folder)
     os.environ['HOOKE_CONFIRM_KEY'] = WINDOW_PUBLIC
     os.environ['HOOKE_STUDIO_TOKEN'] = OWNER['X-Hooke-Studio']
@@ -54,6 +54,16 @@ def main(mode, folder):
             receipt = json.loads((base / 'server-receipt.json').read_text())
             h, sid, ref, study = (receipt[k] for k in ('headers', 'session', 'reference', 'study'))
             assert built.day.sid == sid
+
+        if material == 'mixed':
+            from tests import project_mixed_probe
+            if mode == 'create':
+                receipt['mixed'] = project_mixed_probe.create(built, client, h, base, sid)
+            mixed_evidence = project_mixed_probe.inspect(built, receipt, base)
+            if mode == 'create':
+                receipt['mixedEvidence'] = mixed_evidence
+            else:
+                assert mixed_evidence == receipt['mixedEvidence'], {key: {'before': receipt['mixedEvidence'].get(key), 'after': value} for key, value in mixed_evidence.items() if value != receipt['mixedEvidence'].get(key)}
 
         until(lambda: built.hub.identity.io.ready)
         response = client.get('/api/resources', params={'day': sid})

@@ -128,7 +128,8 @@ def test_delayed_inspection_passes_pixels_and_identity_to_late_answer(tmp_path,m
             if run.answer:answered.set()
         brain.report_late=report
         result=await brain.turn('Inspect the first saved picture')
-        assert result['calls']==1 and opened.is_set()
+        assert result['calls']==1
+        assert await asyncio.to_thread(opened.wait,HANG_S)
         release.set()
         await asyncio.wait_for(answered.wait(),HANG_S)
         assert len(received)==1 and len(received[0][0])==1
