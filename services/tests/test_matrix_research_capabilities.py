@@ -149,7 +149,8 @@ def test_numeric_inspection_is_explicit_and_does_not_relax_count_operations(tmp_
     source = adata(tmp_path / 'values.h5ad', [values], ['a'], ['x'], ['g1', 'g2'])
     params = parameters('matrix-inspect', {'require_raw_counts': False})
     _, result = engine.inspect({'matrix': source}, params, output(tmp_path, 'describe'), lambda: None)
-    assert result['shape'] == [1, 2] and result['rawCounts'] is whole
+    assert result['shape'] == [1, 2] and result['wholeNonnegativeValues'] is whole
+    assert 'rawCounts' not in result
     assert result['valueSemantics'] == 'unverified' and 'libraryDepth' not in result
     assert result['rowTotals']['mean'] == sum(values)
     if not whole:

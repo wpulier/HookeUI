@@ -125,10 +125,13 @@ def inspect(inputs, params, output, check):
         result = {'format': 'annotated-matrix-summary-v1', 'shape': list(data.shape),
                   'dtype': str(data.X.dtype), 'sparse': getattr(data.X, 'format', None) in ('csr', 'csc'),
                   'genes': data.n_vars, 'observations': data.n_obs, 'storedEntries': nnz,
-                  'rawCounts': whole_nonnegative, 'observationColumns': list(data.obs.columns),
+                  'observationColumns': list(data.obs.columns),
                   ('libraryDepth' if require_counts else 'rowTotals'): {'min': min(totals), 'max': max(totals), 'mean': float(np.mean(totals))},
                   'geneAxisSha256': hashlib.sha256('\n'.join(data.var_names).encode()).hexdigest()}
-        if not require_counts:
+        if require_counts:
+            result['rawCounts'] = True
+        else:
+            result['wholeNonnegativeValues'] = whole_nonnegative
             result['valueSemantics'] = 'unverified'
             result['interpretation'] = 'Finite numeric values inspected without raw-count admission. Whole-valued entries alone do not establish experimental counts or preprocessing history.'
     return _json(output / 'summary.json', result), result
