@@ -835,7 +835,11 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
     # Said once: the lines with words after the confirmation (scored from the record, never by the judge). A line that
     # brings back a result the user cut off is that outcome again, not another one (resaid_spans).
     if expect.get("visible") or expect.get("outcome"):
-        firsts = [l for l in outcome_lines if not l.get("again")]
+        # A researcher this step started says its own result when it lands, once (its event): that is the researcher's
+        # outcome, not this request's a second time (will-research, 30 Oct: "Researcher 2 is testing five classifiers"
+        # then, 150 s later, "Researcher 2 finished the comparison…" counted as the start said twice).
+        theirs = [x for rid in started for x in (bench.get("_outcomes") or {}).get(rid, [])]
+        firsts = [l for l in outcome_lines if not l.get("again") and not any(a <= l["first"] <= b for a, b in theirs)]
         said_lines = len(firsts) if firsts else min(len(outcome_lines), 1)
         row["outcomesSaid"] = said_lines if visible_at is not None or expect.get("fails") else None
         if row["outcomesSaid"] is not None and row["outcomesSaid"] != 1:

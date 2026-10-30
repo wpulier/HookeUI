@@ -1266,3 +1266,19 @@ def test_an_event_line_drops_only_its_own_line():
     spans = unprompted_spans(inter)
     lines = step_lines(conv, inter, 100.0, 130.0, spans)
     assert [l["text"] for l in lines] == ["It's done running, but it didn't finish."]
+
+
+def test_a_researchers_own_result_is_not_its_start_said_twice():
+    """will-research, 30 Oct: "Researcher 2 is testing five classifiers" when it started, then 150 s later "Researcher 2
+    finished the comparison…" when it landed: the start's outcome said once, and the researcher's own, once. The scorer
+    counted them as one outcome said twice."""
+    bench, conv, inter, verdicts = good()
+    for r in inter:
+        if r.get("kind") == "partner-proactive" and r.get("ref") == "r2":
+            r["eventId"] = "ev-r2"
+        if r.get("kind") == "partner-response" and r.get("cause") == "proactive":
+            r["events"] = ["ev-r2"]
+    run, _, _ = board(bench, conv, inter, verdicts)
+    row = {r["id"]: r for r in run["steps"]}["researcher"]
+    assert any("Researcher 2 is done" in l for l in row["lines"]), "its result is this step's"
+    assert row["outcomesSaid"] == 1 and "outcome said 2 times" not in row["failures"]
