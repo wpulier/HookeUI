@@ -7,13 +7,18 @@ audit it"; docs/architecture/scientific-workflows.md "Experiments").
   ids, as `use` lists them), the input (this footage: N frames of the live view, one every S seconds; or the view now)
   and whether a researcher audits it, in the user's words. Code checks each fact before anything is proposed: every model
   is one that can run here (model_comparison.select: two to six, the unknown and the unrunnable said apart), there is a
-  picture from the camera, the researchers' model has its key when an audit is asked, and the steps fit a workflow. The
-  plan says its steps, what runs where and what it may cost (the models on this Mac cost nothing; the audit at most its
-  effort's cap), and is shown as a card (`wire`, the studio's `experiment` message) the user can approve or change.
+  picture from the camera, the researchers' model has its key and today's research cap can cover the audit's most when
+  an audit is asked, and the steps fit a workflow. The plan says its steps, what runs where, how long it should take
+  (`estimate_of`: each model's usual run time in this app's runner, the audit's usual time; said as an estimate) and
+  what it may cost (the models on this Mac cost nothing; the audit at most its effort's cap), and is shown as a card
+  (`wire`, the studio's `experiment` message) the user can approve or change. Its receipt leads with `plan_said`: the
+  plan in two sentences a scientist approves (the models by name, the frames, the comparison, the audit, the time, the
+  cost, nothing before a yes), so the voice says its substance (will-experiment, 29 Oct, judged 1, 1, 2 without it).
 - **Nothing runs before a yes** (`approve`): the card's Run it (a press of the user's own, from the studio) or the user's
   own words quoted by the brain (`research.policy.quoted`, from what they just said). A plan changed since the card was
   drawn is not the one approved (its version must be the one shown). A plan waits PROPOSAL_S for its yes. What runs is
-  exactly what the plan says: its models, its frames, its audit, nothing added.
+  exactly what the plan says: its models, its frames, its audit, nothing added. The yes holds the audit's most in
+  today's research spend until its researcher starts (`_hold_audit`).
 - **The run** is a job of its own (`_job`, never awaited by a request): it holds the frames from the live view (each kept
   as a retained frame: experiment_steps.keep_frame), then runs one frozen workflow in WorkflowService with a frame per
   item: each model's step (experiment_steps: the app's own runner at research priority, so the live view and clicks

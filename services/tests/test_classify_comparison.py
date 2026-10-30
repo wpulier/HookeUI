@@ -432,6 +432,11 @@ def test_a_researchers_comparison_names_its_models_and_says_its_numbers_are_in_t
                             "Flash, Gemini 3.5 Flash, GPT-6.1 Sol, Gemini 4 Argon and MedSigLIP 448)"), words
     assert "the closest pair, " in words and "agreed on " in words
     assert "every pair's agreement, the time and the cost are in these values" in words
+    import json
+
+    compact = reply["values"]["comparison"]
+    assert len(json.dumps(compact)) < 6000 and compact["columns"][0] == "Model"
+    assert {p["a"] for p in compact["pairs"]} <= {"Gemini 3.8 Flash", "Gemini 3.5 Flash", "GPT-6.1 Sol", "Gemini 4 Argon"}
 
 
 def test_the_spoken_outcome_of_a_researcher_carries_the_apps_own_record_of_what_it_ran():
