@@ -335,6 +335,16 @@ other files.
   (`pointed_at`), and the mark is drawn as the answer about it starts to be heard (the first `output_audio_buffer.started`
   of the response after the tool round), with no round trip through the model's `mark`. The model calls `mark` when
   the user asks where or which, or when its answer is about one thing in view, after speaking.
+- **Pointing is structural, not the model's choice** (will-leaf, 30 Oct: "It's most likely a stoma with guard cells"
+  said with nothing pointed at; every scoreboard "Knowing … pointed 0 of N"). `look_hard` asks its model where the
+  thing its answer names is (`box_2d` on the camera picture it looked at, as the app's vision models give boxes), and
+  its result carries a frame mark on that very frame (`partner_tools.frame_region`); a hand-off's result carries what
+  its steps made or opened (`partner_tools.pointing_at`: outline, layer, window, researcher), so the outcome is heard
+  with its mark. A line said later about a thing (a hand-off that ran past the voice's wait, a kept step's outcome with
+  its researcher's result, a late step) carries the same marks, drawn as it is said (`Partner.pointing`, its
+  `partner-proactive` record's `markTarget`). Only what the studio's latest report shows is pointed at
+  (`Partner.pointable`: a window open and visible, an outline, layer or frame place while the Tab in front shows the
+  specimen, a researcher's card), so no mark is sent that cannot be drawn.
 - **A mark goes with the words** (Will's feel check, 29 Oct): a mark shown after the reply's words asks for no reply of
   its own (the Realtime API leaves the next `response.create` to the client); only a mark that was not shown, or one
   called before any words, goes on to a reply. Nothing on screen is said twice.

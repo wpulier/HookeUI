@@ -78,6 +78,20 @@ PROGRESS_AFTER_S = 5.0
 # After the voice's own lead-in ("Outlining that now.") the wait is already said: a line comes only if it runs long.
 # Its row shows the work meanwhile (Will's rule of 2026-10-11: one acknowledgement, its row, one outcome).
 PROGRESS_AFTER_LEADIN_S = 20.0
+# A hand-off with no lead-in (will-alive "slow", 30 Oct: a 15 s web search said nothing until its outcome, judged "no
+# brief acknowledgment that the search was under way"): one line on what Hooke is doing right now, from its brain's live
+# progress, once the voice has been quiet HANDOFF_PROGRESS_AFTER_S and one of its steps has run HANDOFF_STEP_S (long
+# work: a web search 11-16 s, every cell outlined 5-20 s), or once quiet HANDOFF_THINKING_S with none. Quick work says
+# nothing before its outcome (the 30 Oct journeys: most hand-offs ended in 5-7 s, every find, zoom, Tab and window step
+# under 2.5 s; lead-ins before quick work were judged "preliminary narration").
+HANDOFF_PROGRESS_AFTER_S = 4.5
+HANDOFF_STEP_S = 2.5
+HANDOFF_THINKING_S = 9.0
+# Words for that line: what is being done right now, as the voice's own ("I"), from the facts alone.
+HANDOFF_PROGRESS_WORDS = ("In one short sentence (under 10 words), say as yourself (\"I\") what you are doing for this "
+                          "request right now, in the user's words, from these facts alone: only what is being done, "
+                          "never what it may find, that it is done, or what comes next; no tool's name and no "
+                          "\"Hooke\". The user has heard nothing about it yet.")
 PROGRESS_LINES = 1
 # A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
 # length is set by its instructions; this only stops a runaway.
@@ -263,7 +277,7 @@ class RealtimeSession(VoiceSession):
         # tag_notice(text) -> {"event", "ref", "mark", "before"} or None.
         self.tag_notice: Callable[[str], dict | None] = lambda text: None
         # Points at what a tool just put on screen, as the answer about it starts to be heard (partner: marks).
-        self.on_point: Callable[[list[str]], None] = lambda targets: None
+        self.on_point: Callable[[list], None] = lambda targets: None
         # --- conversation state ---
         self.n = 0  # the user's turn number (talk presses, or speech in open mic)
         self._held: int | None = None
@@ -293,6 +307,8 @@ class RealtimeSession(VoiceSession):
         self._rounds_open = 0  # tool rounds being answered (`_finish_round`), between a call ending and the next response
         self.started_tools: frozenset[str] = frozenset({"think"})  # answered "started", said when they land (partner)
         self.running_facts: Callable[[], str] = lambda: ""  # what is still running (partner_tools), for progress lines
+        # What the hand-off a do_in_hooke call started is doing now ({"facts", "stepS"}, or None: partner_tools).
+        self.handoff_doing: Callable[[str], dict | None] = lambda call_id: None
         self.handed_late: Callable[..., bool] = lambda ctx, run: False  # a hand-off keeps its late steps (partner_tools)
         self._first_audio: dict[str, float] = {}
         self._calls: dict[str, asyncio.Task] = {}  # call id -> its handler's task
@@ -304,7 +320,7 @@ class RealtimeSession(VoiceSession):
         self._images: list[str] = []  # image items of the last turn: deleted at the next
         self._early_n: int | None = None  # the turn whose perception went in while its key was held
         self._turn_items: dict[int, list[str]] = {}  # turn -> its perception's item ids (a cancelled turn's are deleted)
-        self._point: list[str] = []  # targets to point at when the next answer is heard
+        self._point: list = []  # targets (ids, or frame marks) to point at when the next answer is heard
         self._cancelled: set[int] = set()
         self._turn_notes: dict[int, list[str]] = {}
         self._brief: tuple[str, str] | None = None  # (item id, revision)
@@ -1723,19 +1739,26 @@ class RealtimeSession(VoiceSession):
             # would feel broken is filled.
             now = self.clock()
             quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
-            # A hand-off's row shows its work (handoffs.py), as a lead-in would have said it: the long wait either way.
             handed = bool(ids) and all(self._call_names.get(cid) == "do_in_hooke" for cid in ids)
-            wait = PROGRESS_AFTER_LEADIN_S if led_in or handed else PROGRESS_AFTER_S
-            if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= wait
+            if handed and not led_in:
+                # Nothing said of it yet: one line on what Hooke is doing now, once it is long work (`_handoff_due`).
+                facts = self._handoff_due(ids, now - quiet_since) if pending and not progress else None
+                due, head, words = facts is not None, "Being done in Hooke now, for what the user just asked: ", \
+                    HANDOFF_PROGRESS_WORDS
+            else:
+                # Its lead-in said it is under way: a line only if it runs long.
+                wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
+                due, facts = now - quiet_since >= wait, None
+                head, words = "Still running in Hooke for what the user asked: ", PROGRESS_WORDS
+            if (pending and len(progress) < PROGRESS_LINES and due
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
-                facts = self.running_facts() or "the tool you called"
+                facts = facts or self.running_facts() or "the tool you called"
                 self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress) + 1})
                 progress.append(self.respond(
                     "progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
                     tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
-                    instructions=self.config.system_prompt + "\n\nStill running in Hooke for what the user asked: "
-                    + facts + ". " + PROGRESS_WORDS))
+                    instructions=self.config.system_prompt + "\n\n" + head + facts + ". " + words))
         if progress:
             self._unsay_progress(n)  # its result is here: a line not yet heard is let go, and the result said instead
         for cid in ids:
@@ -1750,7 +1773,8 @@ class RealtimeSession(VoiceSession):
             # now."), said it is under way; outputs that only say so again are not said a second time (the outcome
             # comes as one line when it lands). Will's try-out, 29 Oct: three "still working" lines for one request.
             self._log({"kind": "partner-round-quiet", "n": n,
-                       "why": "a progress line said it is under way" if progress else "its lead-in said it is under way"})
+                       "why": "a progress line said it is under way" if progress else
+                       "its lead-in said it is under way" if led_in else "its row shows it working"})
             return
         if pointing and shown:
             self._log({"kind": "partner-round-quiet", "n": n, "why": "the marks went with the words"})
@@ -1768,6 +1792,22 @@ class RealtimeSession(VoiceSession):
             self.respond("tool", n=n, tool_choice="none")
             return
         self.respond("look" if looked else "tool", n=n)
+
+    def _handoff_due(self, ids: list[str], quiet: float) -> str | None:
+        """The facts for a hand-off's one progress line when it is due (HANDOFF_PROGRESS_AFTER_S quiet and one of its
+        steps running HANDOFF_STEP_S, or HANDOFF_THINKING_S quiet with none), from what its brain is doing right now;
+        None while it is not (quick work, or nothing known of it)."""
+        if quiet < HANDOFF_PROGRESS_AFTER_S:
+            return None
+        doing = []
+        for cid in ids:
+            with contextlib.suppress(Exception):
+                found = self.handoff_doing(cid)
+                if isinstance(found, dict) and found.get("facts"):
+                    doing.append(found)
+        if not doing or not (quiet >= HANDOFF_THINKING_S or any(d.get("stepS", 0) >= HANDOFF_STEP_S for d in doing)):
+            return None
+        return "; ".join(str(d["facts"]) for d in doing)
 
     @staticmethod
     def _still_running(task: asyncio.Task) -> bool:
@@ -1817,7 +1857,9 @@ class RealtimeSession(VoiceSession):
         look = result.pop("_look", None)
         points = result.pop("_point", None)
         if isinstance(points, list) and points:
-            self._point = [str(t) for t in points][:4]
+            # Ids, or a frame mark ({target: "frame", region, frame}): what the answer about this names, pointed at as
+            # it starts to be heard.
+            self._point = [t if isinstance(t, dict) else str(t) for t in points][:4]
         # The receipt first (its result and its words): what the voice says comes from them; the rest is detail for
         # when the user asks how (smoke-ux-2 still said "the outlines are now on the layer" from the tool's summary).
         first = {k: result[k] for k in ("result", "said") if k in result}

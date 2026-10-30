@@ -86,7 +86,11 @@ other files.
   brain's own call (`ToolFailed(argument=True)`: its arguments did not fit, such as an annotated picture with nothing
   outlined) that a later call of the same tool in the turn replaced is the brain correcting itself (`handoffs.corrected`):
   no failure, and neither it nor its words are told to the voice (live 2026-10-29: the user heard "it couldn't annotate
-  your stoma because nothing was outlined first" for an illustration that had started). `Dialogue.flying`
+  your stoma because nothing was outlined first" for an illustration that had started). A step skipped only because a
+  step it waited on did not succeed ("step 3 skipped: dependency 2 did not succeed") stands only while a failure before
+  it stands (`claims.standing`, one rule for the row, `claims.unresolved` and the studio's "!"): will-research, 30 Oct,
+  a refused place, the Tab switch after it skipped, the place made again in that Tab, in front, and the row said failed,
+  the answer check made the answer tell of the switch and "explain that" repeated it. `Dialogue.flying`
   holds those still running, so a replay shows one an app restart cut off as unknown. The voice is told the row shows a
   long one (`STILL_HANDED_OFF`) and, in PARTNER_ACTING_BRAIN, to say one short line for a new request only and each
   outcome once. **A later step** (`then`, `voice/followups.py`): the voice cannot act when work lands (its unasked
@@ -110,7 +114,9 @@ other files.
     brief too): its brain turn and every step it started are cancelled (it runs under its own `user_stop.Stop`; the
     `ActionRunner` registers its sequence and each step's run there, `Stop.stop_steps`), its ticket's later effects are
     called off, and "Stopped." is said only once they have ended within `STOP_WAIT_S`; otherwise "being stopped", and
-    the stop is told once when it lands (`job-cancelled`). Work that had finished before the stop reached it says so.
+    the stop is told once when it lands (`job-cancelled`). Work that had finished before the stop reached it says so,
+    and nothing to stop is no failure: ok (`NOTHING_TO_STOP`), with what finished in Hooke's own words and the offer to
+    undo it (will-research "stop-video", 30 Oct: every run judged "the stop action failed").
     A cancelled step is stopped, never a failure. Its row ends `unknown` with `stopped`. Researchers are still stopped
     through `do_in_hooke` (the brain's `cancel_researcher`). Tests: `tests/test_one_way_in.py`.
 - **The voice's state on screen** (`voice/presence.py`; W3): the one brain's session says its own phase

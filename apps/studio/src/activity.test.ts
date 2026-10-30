@@ -2,7 +2,7 @@
 // per step (what was done, its models, how long, whether it worked), one line for each click, studio action, setting,
 // model load or researcher; every line from a recorded fact, replayed as it was.
 import { afterEach, expect, test, vi } from 'vitest';
-import { activityDays, activityRows, actionSummary, buildActivity, entryOf, hoverLine, noticeText, type ActivityEntry } from './activity';
+import { activityDays, activityRows, actionSummary, buildActivity, entryOf, hoverLine, noticeText, unresolvedFailures, type ActivityEntry } from './activity';
 import { drawActivityCells } from './activity-render';
 import { clockWords } from './sessions';
 import { ChatLog } from './chatlog';
@@ -402,4 +402,15 @@ test('Activity lights green only for outcomes: a command is done on a quiet cell
     renderActivityEntry(entry({ kind: 'model', lines: [line({ text: 'Cellpose-SAM is ready (loaded in 3 s)' })] }), hooks());
     expect(made).toEqual(['idle:Done', 'ready:Done', 'idle:Done', 'ready:Done']);
   } finally { drawActivityCells(null); }
+});
+
+test('a step skipped only because of a failure the brain put right is not a failure of the request', () => {
+  // will-research, 30 Oct: the place was refused (no id), the Tab switch after it skipped, then the place made again in
+  // that Tab, in front. The request held; its "!" said a step failed. A skip after a failure that stands still does.
+  const created = step({ tool: 'tabs', actionId: 'a1' });
+  const refused = step({ ok: false, summary: 'name what to place: its id from the screen or Data', actionId: 'a2' });
+  const skipped = step({ tool: 'tabs', ok: false, summary: 'step 3 skipped: dependency 2 did not succeed', actionId: 'a3' });
+  const placed = step({ summary: 'open in a window in Tab "Graphic", in front', actionId: 'a4' });
+  expect(unresolvedFailures([created, refused, skipped, placed])).toEqual([]);
+  expect(unresolvedFailures([created, refused, skipped])).toEqual([refused, skipped]);
 });
