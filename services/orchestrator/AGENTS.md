@@ -1127,10 +1127,13 @@ with write intent. Never derive a scientific destination from the visible Stage.
 The shared workflow library remains host-owned; runs retain frozen definitions.
 Live App activation and complete legacy collection remain separate qualification.
 
-`project_folder_copy` is a verified byte-copy stage for inactive Project folders,
-not proof of dependency closure. Incomplete destinations cannot open; sealed
-snapshots cannot acquire a writer. Caller settlement, external/shared dependencies
-and eventual explicit working-copy import remain separate responsibilities.
+`project_folder_copy` is a verified byte-copy stage, not proof of dependency
+closure. Inactive copies acquire a writer lease; an owning host can copy under
+its retained lease without releasing it. Source membership and captured file
+identities/hashes are checked again before publication; observed changes, shutdown
+or location changes leave an incomplete destination for explicit recovery.
+Snapshots cannot acquire a writer. External/shared dependencies and eventual
+explicit working-copy import remain separate responsibilities.
 
 Selected Library intake can retain its metadata history alongside copied bytes.
 `project_media_history.py` reads bounded complete journal lines on the intake

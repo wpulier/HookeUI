@@ -2,7 +2,8 @@
 
 This is the byte-copy stage, not the legacy dependency collector. Its manifest
 explicitly makes no claim that external/shared dependencies were collected.
-The caller must settle admitted work and release the host writer before copying.
+Inactive copies acquire their own writer lease. The owning host may copy under
+its existing lease; every admitted byte and membership is checked for change.
 No journal event, accepted revision, grant or registry entry is rewritten here.
 """
 from dataclasses import dataclass
@@ -111,67 +112,88 @@ def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
     Removing the durable intent is the sole completion publication. The resulting
     snapshot remains read-only; it is never registered or automatically executed.
     """
+    with writer(root):
+        return _copy_admitted(root, destination, check=check)
+
+
+def copy_owned_snapshot(locations, session, destination: Path, *, check=lambda: None):
+    """Copy under this host's retained writer lease, without releasing or replaying work.
+
+    Concurrent source mutations refuse publication; a stopped/relocated host does
+    too. This copies retained folder bytes only, not external dependencies.
+    """
+    root = locations.project(session)
+    if root is None:
+        raise ProjectLocationError('Collect legacy dependencies before exporting a Project folder')
+    locations.writable(session)
+    def owned():
+        check()
+        locations.check_writer(root)
+    owned()
+    return _copy_admitted(root, destination, check=owned)
+
+
+def _copy_admitted(root, destination, *, check):
     destination = Path(destination).expanduser()
     parent = destination.parent.resolve(strict=True)
     destination = parent / destination.name
     if destination == root.path or root.path in destination.parents:
         raise ProjectLocationError('Choose a snapshot destination outside the source Project')
-    with writer(root):
-        verify_owner(root)
-        directories = []
-        members = _members(root.path, check, directories)
-        required = sum(item.size for item in members) + MAX_MANIFEST + HEADROOM
-        if shutil.disk_usage(parent).free < required:
-            raise ProjectLocationError(f'Project copying needs {required} free bytes; no copy was started')
+    verify_owner(root)
+    directories = []
+    members = _members(root.path, check, directories)
+    required = sum(item.size for item in members) + MAX_MANIFEST + HEADROOM
+    if shutil.disk_usage(parent).free < required:
+        raise ProjectLocationError(f'Project copying needs {required} free bytes; no copy was started')
+    check()
+    destination.mkdir(mode=0o700)
+    intent = destination / COPY_INTENT
+    ProjectStore._write(intent, b'Copy incomplete. Preserve the original Project.\n')
+    ProjectStore._sync_directory(destination)
+    ProjectStore._sync_directory(parent)
+    entries = []
+    # Empty retained folders are part of the storage layout too.
+    for directory in directories:
+        (destination / directory).mkdir(parents=True, exist_ok=True)
+    for member in members:
         check()
-        destination.mkdir(mode=0o700)
-        intent = destination / COPY_INTENT
-        ProjectStore._write(intent, b'Copy incomplete. Preserve the original Project.\n')
-        ProjectStore._sync_directory(destination)
-        ProjectStore._sync_directory(parent)
-        entries = []
-        # Empty retained folders are part of the storage layout too.
-        for directory in directories:
-            (destination / directory).mkdir(parents=True, exist_ok=True)
-        for member in members:
-            check()
-            target = destination / member.name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with target.open('xb') as output:
-                size, digest = _stream(root.path / member.name, member.stamp, output, check)
-                output.flush(); os.fsync(output.fileno())
-            if _stream(target, check=check) != (size, digest):
-                raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
-            entries.append({'path': member.name, 'bytes': size, 'sha256': digest})
-        current_directories = []
-        if _members(root.path, check, current_directories) != members or current_directories != directories:
-            raise ProjectLocationError('Project membership changed during copying; preserve the incomplete copy and retry')
-        # Detect writes after an individual member was copied, before sealing.
-        for member, entry in zip(members, entries):
-            if _stream(root.path / member.name, member.stamp, check=check)[1] != entry['sha256']:
-                raise ProjectLocationError('Project content changed before the snapshot was sealed')
-        manifest = {'format': 'hooke-project-folder-snapshot-v1', 'origin': root.origin,
-                    'scope': 'project-folder', 'externalDependencies': 'not-verified',
-                    'directories': directories, 'entries': entries}
-        body = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
-        if len(body) > MAX_MANIFEST:
-            raise ProjectLocationError('Project snapshot manifest exceeds its supported size')
-        ProjectStore._write(destination / SNAPSHOT, body, immutable=True)
-        # Shared readers use these new empty inodes even on read-only media.
-        # Never carry an original writer's lock inode or acquisition state.
-        for section in ('history/sessions', 'artifacts/records'):
-            ProjectStore._write(destination / section / '.bundle-visibility.lock', b'')
-        for folder in sorted((p for p in destination.rglob('*') if p.is_dir()), reverse=True):
-            ProjectStore._sync_directory(folder)
-        ProjectStore._sync_directory(destination)
-        ProjectStore._sync_directory(parent)
-        check()
-        # These exact identity bytes were copied and checked above. Do not make
-        # a further fallible read/sync after publishing completion: a reported
-        # failure must still have the durable incomplete marker on restart.
-        copied = ProjectRoot(destination, root.origin, root.session, root.name)
-        intent.unlink()
-        return copied
+        target = destination / member.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open('xb') as output:
+            size, digest = _stream(root.path / member.name, member.stamp, output, check)
+            output.flush(); os.fsync(output.fileno())
+        if _stream(target, check=check) != (size, digest):
+            raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
+        entries.append({'path': member.name, 'bytes': size, 'sha256': digest})
+    current_directories = []
+    if _members(root.path, check, current_directories) != members or current_directories != directories:
+        raise ProjectLocationError('Project membership changed during copying; preserve the incomplete copy and retry')
+    # Detect writes after an individual member was copied, before sealing.
+    for member, entry in zip(members, entries):
+        if _stream(root.path / member.name, member.stamp, check=check)[1] != entry['sha256']:
+            raise ProjectLocationError('Project content changed before the snapshot was sealed')
+    manifest = {'format': 'hooke-project-folder-snapshot-v1', 'origin': root.origin,
+                'scope': 'project-folder', 'externalDependencies': 'not-verified',
+                'directories': directories, 'entries': entries}
+    body = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+    if len(body) > MAX_MANIFEST:
+        raise ProjectLocationError('Project snapshot manifest exceeds its supported size')
+    ProjectStore._write(destination / SNAPSHOT, body, immutable=True)
+    # Shared readers use these new empty inodes even on read-only media.
+    # Never carry an original writer's lock inode or acquisition state.
+    for section in ('history/sessions', 'artifacts/records'):
+        ProjectStore._write(destination / section / '.bundle-visibility.lock', b'')
+    for folder in sorted((p for p in destination.rglob('*') if p.is_dir()), reverse=True):
+        ProjectStore._sync_directory(folder)
+    ProjectStore._sync_directory(destination)
+    ProjectStore._sync_directory(parent)
+    check()
+    # These exact identity bytes were copied and checked above. Do not make
+    # a further fallible read/sync after publishing completion: a reported
+    # failure must still have the durable incomplete marker on restart.
+    copied = ProjectRoot(destination, root.origin, root.session, root.name)
+    intent.unlink()
+    return copied
 
 
 def verify_snapshot(location: Path, *, check=lambda: None):

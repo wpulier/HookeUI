@@ -86,6 +86,13 @@ class ProjectLocations:
                     self._held.enter_context(acquiring.pop_all())
                     self._leases[root.origin] = lease
 
+    def check_writer(self, root):
+        """Confirm a captured host lease without allocating or changing authority."""
+        with self._lock:
+            self._check()
+            if self._leases.get(root.origin) != root or self.project(root.session) != root:
+                raise ProjectLocationError('This host no longer owns the captured Project writer')
+
     def create(self, name, *, date, preferences, actor, clock, local_only=True, started_from=None, guide=None):
         """Allocate a compatible handle over legacy and portable Projects together."""
         with self._lock, namespace(self.legacy):

@@ -701,3 +701,8 @@ session switch, provider, media decoder or complete collection is implied.
 synthetic-consent door requests. It covers missing/mismatched owners, no writer
 acquisition, shared contract validation, discovery/default-deny and unrelated
 Project refusal. These are not live hosted storage or complete collection proofs.
+
+`test_project_owned_snapshot` uses real isolated journals and synthetic workflow
+observations to check copying under the existing host lease, continued writer
+exclusion, source-change/shutdown refusal and unchanged historical running state.
+It is folder-byte evidence, not complete collection, live execution or UI proof.
