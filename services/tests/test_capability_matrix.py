@@ -79,6 +79,15 @@ PLANS: dict[str, Plan] = {
         "graph": {"format": 1, "input": {"kind": "scientific-scene"}, "nodes": [
             {"id": "export", "name": "Export input", "kind": "export", "needs": ["input"], "settings": {}}]},
     }})]),
+    # An experiment (W5): planning it runs nothing before the user's yes, so its models and its audit researcher are
+    # not on this path; the approved run reaches each through the runner and the research manager (test_experiments).
+    "experiment": Plan("compare Cellpose and micro-sam on this footage and have a researcher audit it", [
+        ("experiment", {"do": "plan", "models": ["cellpose-sam", "micro-sam-lm"], "frames": 3})],
+        not_on_path={"cells": "a plan runs nothing before the user's yes; the approved run segments each frame with each "
+                              "model through the runner (test_experiments)",
+                     "research": "the audit researcher starts only in the approved run (test_experiments)"}),
+    "experiment-status": Plan("how is the experiment going?", [("experiment_status", {})],
+                              before=[("experiment", {"do": "plan", "models": ["cellpose-sam", "micro-sam-lm"]})]),
     "saved-make-table": Plan("keep these measurements in an editable table", [
         ("make_table", {"sources": [{"id": "e1", "revision": 0}], "mode": "frozen"})], ("cells",)),
     "saved-edit-table": Plan("name the saved table", [

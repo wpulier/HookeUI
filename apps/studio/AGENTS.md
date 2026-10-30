@@ -1758,6 +1758,18 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   each. While the answer is written the cards sit under the slot; then under the answer ("Sure." then the cards). No
   card for a manual start, another conversation or session, or a quick lookup. "Show it" goes through
   `openStudyResearch` too. A new answer and a card rise in once (`[data-arrived]`, 200 ms; reduced motion none).
+  **An experiment's card** (`experiment-card.ts`, `experiment-card.css`; Part 2.5 W5, `orchestrator/experiments.py`):
+  the server's `experiment` record drawn under the answer of the request that planned it (the request id on its steps;
+  one whose request is not in the log stays under the line it arrived after): its lit cell (needs you while it is a
+  plan, working, ready, attention), "Experiment 1 · Cellpose-SAM vs micro-sam (light microscopy)", its state in the
+  server's words ("Planned · runs on your yes", "Running · Frame 2 of 5: micro-sam (light microscopy) cells; 3 of 10
+  model runs done", "Done · its results are in a Tab of their own", "Didn't finish · <why>"), the plan's steps and cost
+  while it is a plan, and its actions: Run it (the column's primary button; sends the plan's version the card shows,
+  `{type:'experiment', action:'run', id, version}`), Change… (the composer, ready for the user's words), Stop while it
+  runs, Open results once it landed. Nothing on it is the studio's own: a plan changed since it was drawn is refused by
+  the server. `experiments` (the open Project's, on connect and on a Project switch) and `experiment` messages keep it.
+  The Data reader draws its results document with its `byline`, each section's `figure` (one of the entry's pictures)
+  and `table` (data-reader.ts `readerDocument`).
   **Work in flight while you keep talking** (`handoffs.ts`, `handoffs.css`; Will, 29 Oct: two things ran and nothing
   said so). Each request the voice hands to Hooke's brain (`do_in_hooke`; a server `handoff` line, filed with its
   conversation under one `lineId`, so a later state replaces it and a replay shows its last) is one row under the voice

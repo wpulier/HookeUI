@@ -857,6 +857,8 @@ class App:
                                                 {'analysis': analyze, 'graph': graph})
         from .workspace_tabs import WorkspaceTabs
         hub.workspace_tabs = WorkspaceTabs(app)
+        from .experiments import experiments_of
+        experiments_of(hub, day, app)  # experiments (Part 2.5, W5): their plans' cards, their runs and their results
         from .capabilities import Verdicts
 
         app.verdicts = Verdicts(paths.verdicts)
@@ -1767,6 +1769,8 @@ class App:
                        "why": event.get("why")}
             self.hub.broadcast(cleared)
             self.dialogue.marker(dict(cleared))
+            for wire in self.experiments_wire():  # the Project opened's experiments, as its cards
+                self.hub.broadcast(wire)
             if event.get("why") == "switch":
                 self.say_resumed()
         if kind == "quiz-outcome":
@@ -2368,7 +2372,19 @@ class App:
                 *([self.slidemap.wire()] if self.slidemap is not None else []), self.subjects.wire(),
                 *([self.datasets.wire()] if self.datasets is not None else []),
                 *([self.rig.wire()] if self.rig is not None else []),
-                self.research_list(), self.day.wire(), self.dialogue.history(), self.execution_wire()]
+                self.research_list(), *self.experiments_wire(), self.day.wire(), self.dialogue.history(),
+                self.execution_wire()]
+
+    def experiments_wire(self) -> list[dict]:
+        """The open Project's experiments, as cards (experiments.py); none when there are none."""
+        experiments = getattr(self.hub, "experiments", None)
+        if experiments is None:
+            return []
+        try:
+            wire = experiments.wire_list(self.day.sid)
+        except Exception:  # noqa: BLE001 - a store that cannot be read never fails a studio's connect
+            return []
+        return [wire] if wire["experiments"] else []
 
     def layer_wires(self) -> list[dict]:
         """The population and the motion tracks shown over the live view (if any) and their layers' state, as

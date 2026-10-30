@@ -142,6 +142,9 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
             yield
         finally:
             try:
+                experiments = getattr(built.hub, 'experiments', None)
+                if experiments is not None:
+                    await experiments.close()  # its jobs end with the app; their records stay
                 await app.state.workflow_service.close()
             finally:
                 try:

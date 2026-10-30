@@ -326,7 +326,9 @@ def text_of(values) -> str:
     doc = values["document"]
     lines = [str(doc.get("title") or "Document")]
     asked = values.get("asked")
-    lines.append("Written by the Assistant from this Project's records" + (f', asked: "{asked}"' if asked else ""))
+    # An experiment's results (experiments.py) are made by the app from its run's records, and say so.
+    byline = inline(values.get("byline"), 200) or "Written by the Assistant from this Project's records"
+    lines.append(byline + (f', asked: "{asked}"' if asked else ""))
     for s in doc.get("sections") or []:
         lines += ["", f"## {s.get('heading') or ''}"]
         for p in s.get("paragraphs") or []:
@@ -334,6 +336,11 @@ def text_of(values) -> str:
             cites = [c for c in p.get("cites") or [] if isinstance(c, dict)]
             if cites:
                 lines.append("From: " + "; ".join(f"{c.get('title')} [{c.get('id')}]" for c in cites))
+        table = s.get("table") if isinstance(s.get("table"), dict) else None
+        if table and isinstance(table.get("columns"), list) and isinstance(table.get("rows"), list):
+            lines.append(" | ".join(str(c) for c in table["columns"]))
+            lines += [" | ".join("" if v is None else str(v) for v in row) for row in table["rows"][:200]
+                      if isinstance(row, list)]
     left = values.get("leftOut") or {}
     if left.get("paragraphs"):
         n = left["paragraphs"]

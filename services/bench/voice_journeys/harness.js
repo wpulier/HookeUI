@@ -413,9 +413,18 @@
     return Date.now();
   }
 
-  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one).
+  // An experiment's card (experiment-card.ts) that has ended: its results landed, or it said why not.
+  const ENDED = new Set(['done', 'failed', 'stopped', 'expired']);
+  const endedExperiments = () => [...document.querySelectorAll('.chat-xcard[data-experiment]')]
+    .filter((c) => ENDED.has(c.dataset.state)).map((c) => `x:${c.dataset.experiment}`);
+  // What is known before a step: its researchers and the experiments already ended (so a wait is for a new one).
+  const known = () => new Set([...researchers().map((r) => r.rid), ...endedExperiments()]);
+
+  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one), or
+  // an experiment ended ("experiment": "done", its card's state done, failed or stopped).
   function satisfied(waitFor, before) {
     if (!waitFor) return false;
+    if (waitFor.experiment === 'done') return endedExperiments().some((id) => !before.has(id));
     const rows = researchers();
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
     if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }
@@ -522,7 +531,7 @@
             return JSON.parse(JSON.stringify(state));
           }
           if (step.kind === 'idle') {
-            const at = Date.now(), before = new Set(researchers().map((r) => r.rid));
+            const at = Date.now(), before = known();
             const limit = (step.wait ?? 120) * 1000;
             while (Date.now() - at < limit && !satisfied(step.waitFor, before)) await sleep(500);
             await quiet(quietMs, 30000, 8000); // the event's one line, if it is told
@@ -542,7 +551,7 @@
           if (step.kind === 'typed') {
             // Asked in the chat after the talking (the demo's memory question); setup is typed before Talk.
             if (!setup && talkButton()?.dataset.state === 'live') { await connect(false); await sleep(2000); }
-            const before = new Set(researchers().map((r) => r.rid));
+            const before = known();
             const at = await typed(step.say);
             state.steps.push({ id: step.id, kind: step.kind, say: step.say, start: at, end: at, setup });
             const limit = (step.wait ?? maxMs / 1000) * 1000;
@@ -555,7 +564,7 @@
           if (step.assistant) await setAssistant(step.assistant, step.id);
           const record = { id: step.id, kind: step.kind, say: step.say };
           if (step.interrupt) record.interrupt = true;
-          const startedBefore = step.waitFor ? new Set(researchers().map((r) => r.rid)) : null;
+          const startedBefore = step.waitFor ? known() : null;
           if (step.assistant) record.assistant = step.assistant;
           if (mode === 'hold') {
             record.down = await hold(true);

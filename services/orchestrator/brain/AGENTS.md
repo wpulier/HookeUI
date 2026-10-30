@@ -130,6 +130,17 @@ other files.
   record of this Project before saving it under Write-ups. Opened when asked, in a Tab of its own by default, done once
   the studio shows it (docs/architecture/on-screen.md "Documents"). Only on an explicit request (a large deliverable,
   below); a deep report that reads the web stays a researcher's.
+- **Experiments** (`experiment`, `experiment_status`; `brain/toolbox/experiments.py`, `orchestrator/experiments.py`; W5):
+  "compare Cellpose and micro-sam on this footage and have a researcher audit it" is planned first (do=plan): the brain
+  chooses the models by their ids as `use` lists them, the input (footage: N frames of the live view, one every S
+  seconds; or the view now) and the audit, in the user's words; code checks each fact (two to six models that can run
+  here, a picture, the researchers' key) and the plan is shown as a card with its steps and what it may cost. Nothing
+  runs before the user's yes: do=run with their words quoted (`asked_with`, checked against what they said:
+  `research.policy.quoted`) or the card's Run it (the version it shows). The run is a job of its own (WorkflowService:
+  each model through the runner at research priority, measured and compared per frame; then the audit researcher), its
+  card saying how it goes; `experiment_status` answers "how is it going?" from its records. Its results land in a Tab of
+  their own and its outcome is told once (`job-result` on the voice's bus, a note in the conversation). One model on
+  the view now stays `compare_models`.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

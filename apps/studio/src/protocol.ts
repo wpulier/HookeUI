@@ -839,6 +839,9 @@ export type ServerMessage =
   | { type: 'notes'; full?: Record<string, NoteEntry>; upsert?: Record<string, NoteEntry> }
   | { type: 'research'; session: ResearchSession; spentToday: number; estimatedToday?: number }
   | { type: 'research-list'; sessions: ResearchSession[]; spentToday: number; estimatedToday?: number }
+  // An experiment's card, as its server record says it (experiments.py), and the open Project's experiments.
+  | { type: 'experiment'; experiment: import('./experiment-card').ExperimentWire }
+  | { type: 'experiments'; session: string; experiments: import('./experiment-card').ExperimentWire[] }
   | PresentMessage // a change of something on screen, done once a screen report shows it (screen.ts)
   | { type: 'screen-look'; id: string; schema?: never } // legacy approximate composition only
   | WorkspaceCaptureRequest
@@ -1705,6 +1708,8 @@ export type ClientCommand =
   | { type: 'research-note'; rid: string; text: string; requestId?: string;
       expectedBase?: number | null; selection?: ResearchTarget }
   | { type: 'research-cancel'; rid: string }
+  // An experiment's card (experiment-card.ts; experiments.py): Run it (exactly the plan's version shown), Stop, Open results.
+  | { type: 'experiment'; action: 'run' | 'stop' | 'open'; id: string; version?: number }
   | { type: 'research-evidence'; rid: string; day: string; questionId: string; run: number; choice: 'hold' | 'decline'; requestId: string }
   | { type: 'research-presentation'; action: 'produce'; rid: string; requestId: string; findingVersion: number;
       findingDigest: string; expectedBase: string | null; model?: string; change?: string; contentKind?: 'report' | 'lesson' }

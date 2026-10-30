@@ -38,7 +38,7 @@
 </aside>
 <script type="module">
 import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
-import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';import '/src/handoffs.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';import '/src/handoffs.css';import '/src/experiment-card.css';
 import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
 import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';import {FlightStrip} from '/src/handoffs.ts';
 import cells from '../../catalog/models/basic-bright-objects/example-human-cells.png';
@@ -52,7 +52,9 @@ const sessions=new Map();const strip=new FlightStrip();
 const researcher=(rid,n,fields)=>({rid,n,name:`Researcher ${n}`,brief:'',deliverable:null,effort:'standard',engine:'GPT-6.1 Sol',purpose:'research',label:'',
  objectId:null,status:'running',step:'',spent:0,cap:1,seconds:3600,created:now-12,started:now-12,finished:null,snapshot:cells,outputs:[],items:[],findings:[],
  corrections:[],history:[],canFollowUp:true,sitting:PROJECT,day:DAY,thread:'t1',turnId:null,requestId:null,result:null,...fields});
+const experiments=new Map();
 const chat=new ChatLog(document.getElementById('log'),document.getElementById('starters'),{
+ experimentCards:{list:()=>experiments.values(),act:(action,x)=>console.log('experiment',action,x.id,x.version)},
  research:rid=>sessions.get(rid),show:()=>{},describe:()=>{},hint:()=>{},voiceLive:()=>false,unread:()=>{},steps:()=>{},
  researchCards:{list:()=>sessions.values(),view:researcherCardView,open:rid=>console.log('open',rid)},
  cells:{make:(s,l)=>litCell(s,{size:12,label:l}),set:(c,s,l)=>setLitCell(c,s,{size:12,label:l})},ResizeObserver,
@@ -115,6 +117,24 @@ if(state==='handoffs-landed'){
  strip.set('researchers',[{key:'researcher:r2',name:'Researcher 2',since:now-11,doing:'Researcher 2 · Drawing the guard cells',go:()=>chat.revealResearcher('r2')}]);
  await sleep(50);
  document.querySelector('[data-handoff="h1"] .chat-handoff-head').click();
+}
+// experiment: a plan waiting for the yes (experiment-card.ts), and one running under an earlier request.
+if(state==='experiment'){
+ const plan={id:'x2',key:'p2',n:2,name:'Experiment 2',title:'Cellpose-SAM vs micro-sam (light microscopy)',session:PROJECT,thread:'t1',version:1,
+  status:'proposed',requestId:'R/7',turnId:7,steps:['Hold 5 frames of this footage, 4 s apart (about 16 s)',
+  'Cellpose-SAM finds every cell on each frame (this Mac)','micro-sam (light microscopy) finds every cell on each frame (this Mac)',
+  'Measure each model’s cells','Compare them frame by frame: cells both found, counts, where outlines differ',
+  'A researcher audits the run’s records: what holds and what doesn’t (quick)',
+  'Results in a Tab of their own: the table, the outlines side by side and the audit'],
+  cost:'Nothing spent: the models run on this Mac; the audit at most $0.25',input:'5 frames',progress:'',why:'',outcome:{},canRun:true,canStop:false,created:now,ended:null};
+ user('Compare EdgeTAM and SAM 2.1 on one frame.');request(6);
+ answer('Experiment 1 is running.',6,[{tool:'experiment',ok:true,summary:'Started Experiment 1',ms:40,requestId:'R/6',actionId:'a1'}]);
+ experiments.set('x1',{...plan,id:'x1',key:'p1',n:1,name:'Experiment 1',title:'EdgeTAM vs SAM 2.1',status:'running',requestId:'R/6',turnId:6,canRun:false,canStop:true,
+  progress:'Frame 1 of 1: SAM 2.1 cells; 1 of 2 model runs done'});
+ user('I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it.');request(7);
+ answer('Here’s the plan: five frames of this footage, Cellpose-SAM and micro-sam on each, compared frame by frame, then a researcher audits it. The models cost nothing; the audit at most $0.25. Shall I run it?',7,
+  [{tool:'experiment',ok:true,summary:'Experiment 2 planned',ms:30,requestId:'R/7',actionId:'a1'}]);
+ experiments.set('x2',plan);chat.experimentsChanged();
 }
 if(state==='start'||state==='start-working'){
  user('What am I looking at?');request(1);answer(ANSWER1,1);

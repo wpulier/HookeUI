@@ -90,6 +90,7 @@ RESULT_TITLES = {
     "where_is": "Where it is", "focus_check": "Focus check", "dissect": "Parts", "watch": "Watch",
     "reference_photo": "Reference photo", "show_web": "From the web", "write_document": "Document",
     "compare_models": "Model comparison",
+    "experiment": "Experiment results", "experiment_table": "Experiment comparison",  # experiments.py
 }
 
 # A researcher's deliverable in plain words (an entry's title uses only the app's words).

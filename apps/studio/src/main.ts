@@ -80,6 +80,7 @@ import './drive.css';
 import { FlightStrip, flightPills, voiceEntries, VOICE_SOURCE, type FlightEntry } from './handoffs';
 import { VoicePresence } from './voice-presence';
 import './handoffs.css';
+import './experiment-card.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
 import './mic-card.css';
@@ -1098,6 +1099,19 @@ const downloadPills = new DownloadPills((model) => { if (!actionsPanel.showDownl
   (pills) => shell.strip.set('downloads', pills));
 element<HTMLButtonElement>('activity-toggle').addEventListener('click', () => showActivity(!activityShown()));
 element<HTMLButtonElement>('activity-close').addEventListener('click', () => showActivity(false));
+/** The experiments the server has told this studio of, by Project and id (experiment-card.ts; experiments.py). */
+const experiments = new Map<string, import('./experiment-card').ExperimentWire>();
+async function experimentAct(action: 'run' | 'change' | 'stop' | 'open', x: import('./experiment-card').ExperimentWire): Promise<void> {
+  if (action === 'change') { // the user's own words change it: the composer, ready for them
+    const fill = `Change ${x.name}: `;
+    composer.set(fill); question.focus(); question.setSelectionRange(fill.length, fill.length);
+    return;
+  }
+  try {
+    const reply = await connection.request('experiment', { action, id: x.id, ...(action === 'run' ? { version: x.version } : {}) });
+    if (!reply.ok) showHint(String(reply.error || 'That did not work.'), true);
+  } catch { showHint('The connection was lost; the experiment’s card shows what happened once it is back.', true); }
+}
 const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   activity: element<HTMLOListElement>('activity-log'),
   openActivity: () => showActivity(true),
@@ -1124,6 +1138,8 @@ const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   },
   // Researcher cards under the request that started each (chat-cards.ts), said as their Tab and pill say them.
   researchCards: { list: () => research.sessions.values(), view: researcherCardView, open: (rid) => openStudyResearch(rid) },
+  // Experiment cards under the request that planned each: the plan, Run it and Change, how it goes, its results.
+  experimentCards: { list: () => experiments.values(), act: experimentAct },
   cells: { make: (state, label) => litCell(state, { size: 12, label }), set: (cell, state, label) => setLitCell(cell as SVGSVGElement, state, { size: 12, label }) },
   ResizeObserver: typeof ResizeObserver === 'function' ? ResizeObserver : null,
   describe: (ids) => notes.describeObjects(ids),
@@ -1293,6 +1309,11 @@ function handleMessage(message: ServerMessage): void {
       break;
     case 'notes':
       notes.apply(message);
+      break;
+    case 'experiment':
+    case 'experiments':
+      for (const x of message.type === 'experiment' ? [message.experiment] : message.experiments) experiments.set(`${x.session}:${x.id}`, x);
+      chat.experimentsChanged();
       break;
     case 'research':
     case 'research-list':

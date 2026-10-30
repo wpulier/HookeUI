@@ -2112,7 +2112,7 @@ class ResearchManager:
         # Held before the first await: two starts in one turn must not both pass the check.
         self.spending.hold(session, EFFORTS[effort].cap_usd)
         try:
-            if bound_inputs or (origin or {}).get('study'):
+            if bound_inputs or (origin or {}).get('study') or (origin or {}).get('experiment'):
                 # An explicit retained-work handoff never silently substitutes the camera now.
                 (directory / 'inputs').mkdir(parents=True, exist_ok=True)
                 snapshot = {'learner': learner_of(self.hub.settings)}

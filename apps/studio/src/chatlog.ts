@@ -15,6 +15,7 @@ import type { StepFact } from './strip-sources';
 import { arrive, cardGroups, ResearchCard, type ResearchCardSource } from './chat-cards';
 import { ChatFollow, type ObserverClass, type ScrollBox } from './chat-scroll';
 import { HandoffRow, handoffView, handoffsInFlight, type FlightEntry } from './handoffs';
+import { ExperimentCard, experimentGroups, type ExperimentView, type ExperimentWire } from './experiment-card';
 import type { LitCellState } from './lit-cell';
 
 /** How long the answer's slot waits for its answer after the server says the request stopped thinking (its answer is
@@ -41,6 +42,9 @@ export interface ChatHooks {
   steps?(steps: StepFact[]): void;
   /** The researchers a request of this conversation started, as cards under it (chat-cards.ts); none, no cards. */
   researchCards?: ResearchCardSource;
+  /** The experiments a request of this conversation planned, as cards under it (experiment-card.ts), and what their
+   * buttons do; none, no cards. */
+  experimentCards?: { list(): Iterable<ExperimentWire>; act(action: ExperimentView['actions'][number], x: ExperimentWire): Promise<void> | void };
   /** The voice's hand-offs to Hooke's brain still working in this conversation, after every change, for the strip over
    * the composer (handoffs.ts FlightStrip); each entry jumps to its row. */
   flight?(entries: FlightEntry[]): void;
@@ -72,6 +76,10 @@ export class ChatLog {
   private readonly cardItems = new Map<string, HTMLLIElement>();
   private readonly cards = new Map<string, ResearchCard>();
   private cardClock: ReturnType<typeof setInterval> | null = null;
+  /** Experiment cards: one element per request's group, one card per experiment (experiment-card.ts). */
+  private readonly experimentItems = new Map<string, HTMLLIElement>();
+  private readonly experimentCards = new Map<string, ExperimentCard>();
+  private readonly experimentAnchors = new Map<string, number>();
   /** The voice's hand-offs, one row each by the line's key (handoffs.ts); their clocks tick while one works. */
   private readonly handoffRows = new Map<number, HandoffRow>();
   private handoffClock: ReturnType<typeof setInterval> | null = null;
@@ -132,6 +140,13 @@ export class ChatLog {
   /** A Project's saved reading position, put back (following only if that is the end). */
   restoreReading(scrollTop: number): void {
     this.scroller.restoreReading(scrollTop);
+  }
+
+  /** The server's experiments changed (an `experiment` or `experiments` message): their cards follow. */
+  experimentsChanged(): void {
+    const added = this.placeExperiments(true);
+    if (added) this.hooks.unread();
+    this.scroller.changed({ news: added });
   }
 
   /** The server's researchers changed (a `research` or `research-list` message): their cards follow. */
@@ -306,8 +321,9 @@ export class ChatLog {
   /** The researcher cards, each group right after its request's answer (or the slot while it is written). Returns
    * whether a card arrived. `settle`: a card that arrives now lights with its one settle (not one redrawn by a replay). */
   private placeCards(settle: boolean): boolean {
+    const experiments = this.placeExperiments(settle);
     const source = this.hooks.researchCards;
-    if (!source) return false;
+    if (!source) return experiments;
     const sessions = [...source.list()];
     const byRid = new Map(sessions.map((s) => [s.rid, s]));
     const groups = cardGroups(this.model.lines, sessions, { day: this.model.activeDay, thread: this.model.active },
@@ -350,6 +366,49 @@ export class ChatLog {
       this.scroller.watch(item);
     }
     this.tickCards(counting);
+    return added || experiments;
+  }
+
+  /** The experiment cards, each group right after its request's answer (or the slot while it is written). */
+  private placeExperiments(settle: boolean): boolean {
+    const source = this.hooks.experimentCards;
+    if (!source) return false;
+    const all = [...source.list()];
+    const byId = new Map(all.map((x) => [x.id + ':' + x.session, x]));
+    const groups = experimentGroups(this.model.lines, all, { day: this.model.activeDay, thread: this.model.active },
+      (line) => { const item = this.items.get(line.key); return !!item && !item.hidden; }, this.experimentAnchors);
+    const keep = new Set(groups.map((group) => group.key)), listed = new Set(groups.flatMap((group) => group.ids));
+    for (const [key, item] of this.experimentItems) if (!keep.has(key)) { this.scroller.unwatch(item); item.remove(); this.experimentItems.delete(key); }
+    for (const id of [...this.experimentCards.keys()]) if (!listed.has(id)) this.experimentCards.delete(id);
+    let added = false;
+    for (const group of groups) {
+      let item = this.experimentItems.get(group.key);
+      if (!item) {
+        item = document.createElement('li');
+        item.className = 'chat-cards chat-xcards';
+        item.dataset.role = 'cards';
+        this.experimentItems.set(group.key, item);
+      }
+      const wanted = group.ids.map((id) => {
+        const x = all.find((e) => e.id === id && (!this.model.activeDay || e.session === this.model.activeDay))
+          ?? byId.get(id + ':' + (this.model.activeDay ?? ''))!;
+        let card = this.experimentCards.get(id);
+        const fresh = !card;
+        if (!card) { card = new ExperimentCard(id, (action, wire) => source.act(action, wire)); this.experimentCards.set(id, card); added = true; }
+        card.update(x, fresh && settle);
+        return card.root;
+      });
+      const have = Array.from(item.children);
+      if (have.length <= wanted.length && have.every((card, i) => wanted[i] === card)) item.append(...wanted.slice(have.length));
+      else item.replaceChildren(...wanted);
+      const anchor = group.after === null ? this.thinkingItem : this.items.get(group.after) ?? null;
+      const kids = Array.from(this.root.children);
+      if (anchor && kids.includes(anchor)) {
+        const next = kids[kids.indexOf(anchor) + 1] ?? null;
+        if (next !== item) this.root.insertBefore(item, next);
+      } else if (!item.parentElement) this.root.append(item);
+      this.scroller.watch(item);
+    }
     return added;
   }
 
