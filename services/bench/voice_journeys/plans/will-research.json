@@ -34,7 +34,8 @@
    "wait": 6,
    "expect": {
     "tools": [
-     "do_in_hooke"
+     "do_in_hooke",
+     "show_web"
     ],
     "toolRequired": false,
     "judge": "says in a few words that it is looking for one; never says a video was found or shown before it was"

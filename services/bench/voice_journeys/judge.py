@@ -167,6 +167,12 @@ Reply with JSON only:
 {{"answered": true, "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
 
 
+def receipt(text: str, limit: int = 240) -> str:
+    """A receipt's words for the judge: one line, without window or source ids, bounded."""
+    text = re.sub(r"\b(?:w-[0-9a-f-]{8,}|[0-9a-f]{8}-[0-9a-f-]{27,})\b", "", " ".join(str(text).split()))
+    return text[:limit] + ("…" if len(text) > limit else "")
+
+
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     """Each scored step's words, lines and actions, relative to its release (what PROMPT is given)."""
     bench = load_bench(bench)
@@ -188,6 +194,10 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
                                    ", not confirmed" if c.screen_change else "")
                                 + (f" ({c.error[:120]})" if c.error else "")
                                 + (f"; behind it: {', '.join(str(t.get('name')) for t in c.inner)}" if c.inner else "")
+                                # What the app's own receipt says it did, so a claim ("a new Tab called Cell results")
+                                # is checked against it (will-display, 29 Oct: the receipt said so; the judge saw
+                                # only "ok, confirmed" and called the claim unsupported).
+                                + (f'; its receipt: "{receipt(c.summary)}"' if c.summary else "")
                                 for c in calls]})
     return out
 
@@ -205,9 +215,12 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
     for step in facts(bench, conv, inter):
         expect = expects.get(step["id"], {})
         # The two turns before, so "that one" and "the second researcher" can be judged as references.
-        earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}\n'
-                          for say, said in history[-2:])
-        history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"]))
+        # ...and what the app did then, so "is it done?" is judged against the earlier work's own record.
+        earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}'
+                          + (f'; the app did: {" ".join(did)[:400]}' if did else "") + "\n"
+                          for say, said, did in history[-2:])
+        history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"],
+                        [a.lstrip("- ") for a in step["actions"]]))
         if only is not None and step["id"] not in only:
             continue
         interrupted = ("" if step["interruptedS"] is None else

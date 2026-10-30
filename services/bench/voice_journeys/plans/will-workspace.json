@@ -131,13 +131,14 @@
    "say": "Can you close everything on this tab?",
    "expect": {
     "tools": [
+     "clear",
+     "close_magnifier",
      "present",
-     "tabs",
-     "clear"
+     "tabs"
     ],
     "visible": "nothing open on the Tab but the specimen",
     "outcome": true,
-    "judge": "closes every window on the Tab and says plainly what is left; never asks the user to ask again"
+    "judge": "closes every window on the Tab and says plainly what is left (on Main the live view always stays, floating small); never asks the user to ask again"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   }

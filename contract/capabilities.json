@@ -4645,7 +4645,7 @@
       "kind": "model",
       "title": "Looking closely",
       "purpose": "Names a thing exactly for the voice when a few seconds is fine",
-      "hint": "the voice says it is taking a closer look"
+      "hint": "the voice says what it found once; the screen shows it thinking meanwhile"
     },
     {
       "id": "watch",

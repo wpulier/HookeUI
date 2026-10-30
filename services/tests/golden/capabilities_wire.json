@@ -12527,7 +12527,7 @@
    "default": "gemini-4-argon",
    "defaultReason": null,
    "fallbackFor": [],
-   "hint": "the voice says it is taking a closer look",
+   "hint": "the voice says what it found once; the screen shows it thinking meanwhile",
    "id": "look_hard",
    "kind": "model",
    "options": [

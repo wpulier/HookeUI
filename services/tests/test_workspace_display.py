@@ -353,6 +353,23 @@ def test_only_closes_everything_else_and_puts_the_specimen_away_done_on_the_repo
     asyncio.run(go())
 
 
+def test_only_with_nothing_kept_closes_everything_on_the_tab(tmp_path, monkeypatch):
+    """will-workspace, 29 Oct: "Can you close everything on this tab?" was refused ("name what stays"), so the brain
+    closed each window by hand. With nothing named to keep, only closes every window there; Main's specimen floats."""
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        for p, title in (('p1', 'Leaf cells'), ('p2', 'Stomata video')):
+            studio.windows[p] = {'tab': 'main', 'title': title, 'z': 12, 'state': 'rendered', 'generation': 1,
+                                 'rect': [40, 80, 420, 380], 'representation': 'table',
+                                 'resource': {'day': studio.project, 'id': f'd{p[1]}', 'version': 0, 'picture': 0}}
+        await studio.send_report()
+        run = await asked(app, studio, 'tabs', {'action': 'only', 'tab': 'Main'})
+        assert run.ok is True, run.summary
+        assert studio.sent('workspace-tabs')[-1]['action']['keep'] == []
+        assert list(studio.windows) == [] and studio.specimens['main']['state'] == 'float', 'Main keeps its specimen'
+    asyncio.run(go())
+
+
 def test_only_that_the_report_never_shows_is_not_done(tmp_path, monkeypatch):
     monkeypatch.setattr(workspace_tabs, 'PLACED_WAIT_S', 0.3)
 

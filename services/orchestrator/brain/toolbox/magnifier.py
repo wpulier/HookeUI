@@ -536,17 +536,21 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         # photograph showing a single stoma." beneath a tissue cross-section). The caller's text is kept as its note.
         shows = inline(getattr(found, "shows", ""), 600)
         looked_by = getattr(found, "looked_by", "")
+        differs = inline(getattr(found, "differs", ""), 200)
         note = inline(args.get("description"), 600)
         attach(values={"media": REFERENCE, "subject": subject, "searched": found.searched, "n": found.n,
                        **({"onScreen": on_screen} if on_screen else {}),
                        **({'referencesAtRequest': prior_references[:12]} if prior_references else {}),
                        **({"description": shows, "describedBy": looked_by or "a look at its pixels"} if shows else {}),
                        **({"note": note} if note else {}),
+                       **({"differs": differs} if differs else {}),
                        "seconds": found.seconds, "web": {"site": site, "page": found.page, "title": title,
                                                          "licence": inline(found.licence, 60), "author": inline(found.author, 80),
                                                          "credit": credit}})
         seen = (f"what it shows, from a look at its pixels{' by ' + model_said(looked_by) if looked_by else ''}: {shows}"
                 if shows else "what it shows was not checked: nothing looked at its pixels")
+        if differs:  # none found was all that was asked: this is the nearest, and what it misses is said with it
+            seen = f"the nearest found, not exactly what was asked ({differs}); {seen}"
         if args.get("show") is False:
             attach(picture_bytes=found.jpeg)
             return (f"retained a reference photo: a real photo from {site}, not this slide ({title}; {credit}); "

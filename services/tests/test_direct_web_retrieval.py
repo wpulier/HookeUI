@@ -129,6 +129,29 @@ def test_downloaded_chart_is_not_displayed_as_a_photograph(monkeypatch):
         asyncio.run(reference.retrieve('sperm photograph'))
 
 
+def test_the_nearest_photo_of_the_subject_is_offered_with_what_it_misses_when_none_matches(monkeypatch):
+    """will-workspace, 29 Oct: nine photos of several stomata were turned down for "a single stoma" and the user was
+    left with nothing. None matching, the first that is of the subject is the answer, with what it misses said; one
+    that is not of the subject (a chart) never is."""
+    async def lookup(*args, **kwargs):
+        return [{'title': 'Banner', 'page': 'https://example.org/a', 'image': 'https://example.org/chart.jpg'},
+                {'title': 'Stomata', 'page': 'https://example.org/b', 'image': 'https://example.org/three.jpg'}]
+    async def fetch(url):
+        return safe_fetch.FetchedImage(url.encode(), 20, 20, url, url)
+    async def check(query, jpeg):
+        if jpeg.endswith(b'chart.jpg'):
+            return retrieval.PhotoLook(False, 'a bar chart of counts', 'not a photograph', False)
+        return retrieval.PhotoLook(False, 'a light micrograph of three stomata on a leaf epidermis',
+                                   'shows three stomata, not one', True)
+    monkeypatch.setattr(retrieval, 'lookup', lookup)
+    monkeypatch.setattr(retrieval, 'look_at_photo', check)
+    monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
+    monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
+    found = asyncio.run(reference.retrieve('a single stoma'))
+    assert found.page == 'https://example.org/b' and found.differs == 'shows three stomata, not one'
+    assert found.shows.startswith('a light micrograph of three stomata')
+
+
 def test_source_page_photo_is_used_when_search_has_no_direct_image(monkeypatch):
     page = 'https://university.example/microscopy/stoma'
     photo = 'https://university.example/photos/stoma.jpg'
@@ -246,7 +269,7 @@ def test_blocked_sources_trigger_one_grounded_recovery_preserving_request(monkey
     assert 'HTTP 403' in searches[1] and 'https://blocked.example/stoma' in searches[1]
 
 
-def test_recovery_is_bounded_to_two_searches_six_unique_pages(monkeypatch):
+def test_recovery_is_bounded_to_its_searches_and_six_unique_pages(monkeypatch):
     searches, pages = [], []
     async def lookup(query, **kwargs):
         searches.append(query)
@@ -259,7 +282,7 @@ def test_recovery_is_bounded_to_two_searches_six_unique_pages(monkeypatch):
     monkeypatch.setattr(safe_fetch, 'check_url', lambda url: None)
     with pytest.raises(reference.NotFound):
         asyncio.run(reference.retrieve('stoma'))
-    assert len(searches) == 2
+    assert len(searches) == reference.WEB_SEARCHES
     assert len(pages) == len(set(pages)) == 6
 
 
@@ -362,7 +385,7 @@ def test_observed_url_field_is_normalized_only_with_search_evidence(monkeypatch,
     assert calls[0]['response_format']['schema']['properties']['matches']['items']['required'] == ['title', 'page']
 
 
-def test_unverified_search_is_recovered_once_with_its_reason_not_fetched(monkeypatch):
+def test_unverified_search_is_recovered_with_its_reason_not_fetched(monkeypatch):
     queries = []
     async def lookup(query, **kwargs):
         queries.append(query)
@@ -373,7 +396,7 @@ def test_unverified_search_is_recovered_once_with_its_reason_not_fetched(monkeyp
     monkeypatch.setattr(safe_fetch, 'fetch_image', fetch)
     with pytest.raises(reference.NotFound, match='did not return evidence of a web search'):
         asyncio.run(reference.retrieve('stoma', request_context='different website, outside Commons'))
-    assert len(queries) == 2
+    assert len(queries) == reference.WEB_SEARCHES
     assert 'did not return evidence of a web search' in queries[1]
     assert all('different website, outside Commons' in q for q in queries)
 

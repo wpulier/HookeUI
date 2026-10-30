@@ -356,6 +356,7 @@ class Call:
     number: int | None = None  # the researcher's number ("Researcher 2"), when the call says it
     call_id: str | None = None
     inner: list = None  # think: the frontier mind's own tool calls ({name, ok, confirmed})
+    summary: str = ""  # what its receipt says it did (a brain step's summary), for the judge to check claims against
 
 
 def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[Call]:
@@ -460,6 +461,7 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
                 if call is None:
                     call = calls[key] = Call(str(step.get("tool")), began + i * 1e-3, step.get("ok"), None, False)
                 call.ok = step.get("ok") if step.get("ok") is not None else call.ok
+                call.summary = str(step.get("summary") or call.summary)
                 if step.get("ok") is True and call.confirmed_at is None and not _unseen(step):
                     call.confirmed_at = at
                 call.end = at
@@ -471,6 +473,7 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
         if call is None:
             call = calls[key] = Call(str(r.get("tool")), at, r.get("ok"), None, False)
         call.ok = r.get("ok") if r.get("ok") is not None else call.ok
+        call.summary = str(r.get("summary") or call.summary)
         if r.get("ok") is True and call.confirmed_at is None:
             call.confirmed_at = at
         if call.name == "start_researcher" and r.get("ok") is True and call.rid_at is None:
