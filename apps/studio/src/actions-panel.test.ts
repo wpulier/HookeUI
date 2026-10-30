@@ -310,6 +310,44 @@ describe('Stop', () => {
     }
   });
 
+  test('a run that didn’t run can be run again, and its failure stays with the Tab it was run on', async () => {
+    // Demo try-out, 30 Oct: Cellpose-SAM refused a 12-megapixel photo; the row then offered only Choose another model,
+    // and on the next Tab (a small recording it could outline) it still said it didn’t run, with no Run at all.
+    const { ActionsPanel } = await import('./actions-panel');
+    const { syntheticDOM, settleMicrotasks } = await import('./workspace-windows.test-support');
+    const { vi } = await import('vitest');
+    const dom = syntheticDOM();
+    vi.stubGlobal('document', dom.document);
+    try {
+      const cells = role({ id: 'cells', current: 'cellpose-sam', options: [
+        { id: 'cellpose-sam', label: 'Cellpose-SAM', note: '', available: true, runs: 'mac' },
+        { id: 'basic-bright-objects', label: 'Bright objects', note: '', available: true, runs: 'mac' }] });
+      const root = dom.document.createElement('section') as unknown as HTMLElement;
+      (dom.document.body as unknown as { dataset: Record<string, string> }).dataset.activeWorkspaceView = 'tab-photo';
+      const panel = new ActionsPanel(root, {
+        run: async () => ({ ok: false, error: 'the picture is too large to outline here' }),
+        stop: async () => ({ ok: true }),
+        selected: () => null, session: () => 's1', openModels: () => {}, openActivity: () => {}, openTable: () => {},
+        openCamera: () => {}, cameraPage: () => '/camera/',
+      });
+      panel.setTools(tools);
+      panel.setCapabilities(wire([cap({ id: 'cells', title: 'Outline every cell', how: { tool: 'outline_cells' }, roles: ['cells'] })], [cells]));
+      type Node = { querySelector(s: string): Node | null; textContent: string };
+      const row = () => (root as unknown as Node).querySelector('[data-action="cells"]')!;
+      const phase = () => (row().querySelector('.run') as unknown as { dataset: Record<string, string> }).dataset.phase;
+      await panel.start(panel.rowsShown()[0]);
+      await settleMicrotasks();
+      expect(phase()).toBe('failed');
+      expect(row().querySelector('.action-again')).not.toBeNull(); // Run again, beside Choose another model
+      (dom.document.body as unknown as { dataset: Record<string, string> }).dataset.activeWorkspaceView = 'tab-leaf';
+      panel.render();
+      expect(phase()).toBe('ready'); // another Tab: its own Run, not this photo's failure
+      expect(row().querySelector('.action-go')).not.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   test('a run still ending after Stop is said as stopping, never stopped', () => {
     expect(resultWords({ ok: true, stopped: true })).toBe('Stopped');
     expect(resultWords({ ok: true, stopping: true })).toBe("Stop requested: it hasn't ended yet");
