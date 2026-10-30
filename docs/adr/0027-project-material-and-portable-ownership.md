@@ -329,3 +329,12 @@ Restoration does not register a location, import grants, select the Project, exe
 work or reinterpret recorded running states. Location selection separately checks
 the original writer and same-origin collision. The ordinary host still does not
 enable portable creation until complete collection and UI journeys qualify.
+
+### Snapshot record integrity
+
+Folder sealing and verification also validate every accepted scientific revision
+and its owned array/file components through the existing scientific-store readers.
+Fresh filesystem checksums cannot bless an already damaged accepted record. This
+is bounded, cancellable integrity checking, not a claim that external dependencies,
+legacy media, or every scientific relationship have been collected. Unknown
+research document kinds remain readable; no saved content is executed.

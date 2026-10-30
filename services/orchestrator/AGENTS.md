@@ -1176,3 +1176,8 @@ Matrix inspection retains strict raw-count admission by default. Its explicit
 `require_raw_counts=false` mode describes finite numeric matrices, recording row
 totals and unverified value semantics instead of implying cell library depths.
 Count preparation, prediction and export keep their existing strict checks.
+
+Project snapshot sealing and verification read every accepted scientific revision
+and verify its owned file/array bytes using the existing import/publication readers.
+Corruption cannot acquire legitimacy from a fresh outer checksum. Verification is
+bounded and cancellable; it neither repairs evidence nor certifies dependency closure.
