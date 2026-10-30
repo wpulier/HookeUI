@@ -205,7 +205,8 @@ body[data-workspace-study='true'] .data-reader .page .rd-doc > figure.rd-doc-fig
 body[data-workspace-study='true'] .data-reader .page .rd-doc > .rd-doc-table { overflow-x: auto; margin: 1.2cqw 0 1.6cqw; }
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table table { border-collapse: collapse; width: 100%; font: 400 1.9cqw/1.35 var(--mm-sans); color: var(--s-body); }
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table th { text-align: left; font-weight: 600; color: var(--s-title); }
-body[data-workspace-study='true'] .data-reader .page .rd-doc-table :is(th, td) { padding: .5cqw 1cqw .5cqw 0; border-bottom: 1px solid var(--s-line); white-space: nowrap; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table :is(th, td) { padding: .5cqw 1cqw .5cqw 0; border-bottom: 1px solid var(--s-line); vertical-align: bottom; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-table td { white-space: nowrap; }
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table td.mm-num { font-variant-numeric: tabular-nums; }
 /* Its versions in How it was made: each a press that shows it on the page. */
 body[data-workspace-study='true'] .rd-ver-pick { margin: 0 0 0 -6px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }

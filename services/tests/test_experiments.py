@@ -109,7 +109,7 @@ def test_a_plan_is_drafted_from_facts_and_nothing_runs_before_a_yes(rig):
     assert x.status == "proposed" and x.n == 1 and x.id == "x1"
     assert [m["id"] for m in x.plan["models"]] == MODELS
     assert x.plan["input"] == {"kind": "footage", "frames": 3, "everyS": 1.5,
-                               "says": "3 frames of this footage, one every 1.5 s (over about 3 s)"}
+                               "says": "3 frames of this footage, 1.5 s apart (about 3 s)"}
     kinds = [s["kind"] for s in x.plan["steps"]]
     assert kinds == ["frames", "model", "model", "measure", "compare", "audit", "results"]
     assert x.plan["cost"]["says"] == "Nothing spent: the models run on this Mac; the audit at most $0.25"
@@ -272,12 +272,14 @@ def test_the_results_document_holds_the_table_the_outlines_side_by_side_and_the_
                                         "2 were found by both")
     assert {c["kind"] for c in frames[0]["cites"]} == {"population"}
     table = sections["The comparison"]["table"]
-    assert table["columns"][:6] == ["Frame", "Model", "What ran", "Cells", "Measured", "Mask area (px²)"]
+    # The page's table says what matters here (what ran only when a model fell back; cost and reuse stay in Data's).
+    assert table["columns"] == ["Frame", "Model", "Cells", "Measured", "Mask area (px²)", "Found by Cellpose-SAM too",
+                                "Found by micro-sam (light microscopy) too", "Time (s)"]
     # A row per frame and model, then one per model over all frames; the measurement step's rows match each count.
     assert [r[:2] for r in table["rows"]] == [[1, "Cellpose-SAM"], [1, "micro-sam (light microscopy)"],
                                              [2, "Cellpose-SAM"], [2, "micro-sam (light microscopy)"],
                                              ["all", "Cellpose-SAM"], ["all", "micro-sam (light microscopy)"]]
-    assert [r[3] for r in table["rows"][:4]] == [r[4] for r in table["rows"][:4]] == [5, 2, 5, 2]
+    assert [r[2] for r in table["rows"][:4]] == [r[3] for r in table["rows"][:4]] == [5, 2, 5, 2]
     assert sections["The comparison"]["figure"] == {"picture": 0, "caption": "The outlines side by side on frame 1: each "
                                                                              "model's cells on the frame's own pixels"}
     audit = sections["The audit"]["paragraphs"][0]

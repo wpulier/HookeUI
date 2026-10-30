@@ -36,6 +36,26 @@ const values={media:'document',title:'Leaf epidermis: findings so far',leftOut:{
   {text:'The naming model named one outlined object a stoma and was sure of it (0.93). Hooke measured this stoma as 31 µm long and 22 µm wide.',cites:[cite('named-o3','stoma · 14:05'),cite('d5','Measurement · 14:06')]},
   {text:'The scale behind these lengths is estimated, not measured. It comes from the 40x objective, which the user stated, and a default field number of 18 mm.',cites:[cite('d5','Measurement · 14:06'),cite('scale-now','Scale · 40x (estimated)')]}]},
  {heading:'Reference photo',paragraphs:[{text:'For comparison, a reference photo of a stoma was taken from commons.wikimedia.org: “Tomato leaf stomate” by Louisa Howard, licence Public domain. It is a comparison image only and does not identify the species of this sample.',cites:[cite('d6','Reference photo · 14:08')]}]}]}};
+// ?doc=experiment: an experiment's results (orchestrator/experiments.py _document): its byline, the outlines side by side
+// as a figure and the comparison table, then the researcher's audit in its own words.
+import cells from '../../catalog/models/basic-bright-objects/example-human-cells.png';
+const experiment=params.get('doc')==='experiment';
+if(experiment){
+ const pop=(id,t)=>({id,kind:'population',day:'p',title:t});
+ Object.assign(values,{title:'Experiment 1: Cellpose-SAM vs micro-sam (light microscopy)',byline:'Made by the app from Experiment 1’s run records, with the researcher’s audit',
+  document:{title:'Experiment 1: Cellpose-SAM vs micro-sam (light microscopy)',sections:[
+  {heading:'What was compared',paragraphs:[{text:'Cellpose-SAM and micro-sam (light microscopy) each segmented every cell on 2 frames of this footage, 4 s apart (about 4 s), through this app’s own runner, exactly those models, and each model’s cells were measured.',cites:[]}]},
+  {heading:'Frame by frame',paragraphs:[
+   {text:'Frame 1: Cellpose-SAM found 61 cells; micro-sam (light microscopy) found 54 cells; 49 were found by both; 3,120 px² were in Cellpose-SAM’s cells only and 1,840 px² in micro-sam (light microscopy)’s only.',cites:[pop('e3','Cell outlines · Cellpose-SAM · 14:02'),pop('e4','Cell outlines · micro-sam (light microscopy) · 14:02')]},
+   {text:'Frame 2: Cellpose-SAM found 58 cells; micro-sam (light microscopy) found 55 cells; 50 were found by both.',cites:[pop('e5','Cell outlines · Cellpose-SAM · 14:03'),pop('e6','Cell outlines · micro-sam (light microscopy) · 14:03')]}]},
+  {heading:'The comparison',paragraphs:[{text:'Experiment 1 on 2 frames (each frame in order): Cellpose-SAM: 61, 58 cells; micro-sam (light microscopy): 54, 55 cells; found by both: 49, 50. Agreement between models is not accuracy.',cites:[cite('d8','The comparison table')]}],
+   figure:{picture:0,caption:'The outlines side by side on frame 1: each model’s cells on the frame’s own pixels'},
+   table:{columns:['Frame','Model','Cells','Measured','Mask area (px²)','Found by Cellpose-SAM too','Found by micro-sam (light microscopy) too','Time (s)'],
+    rows:[[1,'Cellpose-SAM',61,61,52310,null,49,4.2],[1,'micro-sam (light microscopy)',54,54,49870,49,null,9.8],
+     [2,'Cellpose-SAM',58,58,50120,null,50,3.9],[2,'micro-sam (light microscopy)',55,55,50410,50,null,9.1],
+     ['all','Cellpose-SAM',59.5,null,null,null,null,null],['all','micro-sam (light microscopy)',54.5,null,null,null,null,null]]}},
+  {heading:'The audit',paragraphs:[{text:'Researcher 1’s audit, in its own words (not reviewed by you): The table’s counts match each model’s saved cells on both frames. The matched cells are box overlaps, not a judgement of which outlines are right.',cites:[cite('r1','Researcher 1’s audit')]}]}]}});
+}
 window.fetch=async(url)=>({ok:true,json:async()=>String(url).startsWith('/api/resources/d7')?{entry:{},detail:{text:'',values}}:{}});
 const opened=[];
 const deps={researchers:()=>[{rid:'r1',name:'Researcher 1',day:'p'}],working:()=>false,method:()=>'',input:()=>null,places:()=>[],tab:()=>'reader-1',
@@ -44,7 +64,7 @@ const deps={researchers:()=>[{rid:'r1',name:'Researcher 1',day:'p'}],working:()=
 const mode=params.get('mode')==='side'?'side':'tab';
 const reader=new DataReader(deps,mode);
 (mode==='tab'?document.getElementById('stage'):document.body).append(reader.root);
-reader.show({id:'d7',kind:'result',media:'document',title:'Document · 14:09',summary:'',state:'done',actions:['open','read'],day:'p',at:Date.now()/1000-120,
+reader.show({id:'d7',kind:'result',media:'document',title:experiment?'Experiment results · 14:09':'Document · 14:09',...(experiment?{pictures:[cells]}:{}),summary:'',state:'done',actions:['open','read'],day:'p',at:Date.now()/1000-120,
  untrusted:true,role:'writeup',maker:{kind:'assistant',name:'The Assistant'},madeBy:{tool:'write_document'}});
 </script>
 </body></html>

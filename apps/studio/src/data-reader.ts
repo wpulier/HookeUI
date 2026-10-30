@@ -898,7 +898,7 @@ export class DataReader {
         words.append(el('h3', '', section.heading));
         const src = section.figure ? entry.pictures?.[section.figure.picture] : undefined;
         if (section.figure && typeof src === 'string' && src) {
-          const fig = el('figure', 'rd-fig rd-doc-fig'), img = el('img');
+          const fig = el('figure', 'rd-doc-fig'), img = el('img');
           img.src = src; img.alt = section.figure.caption; img.loading = 'lazy'; fig.append(img);
           if (section.figure.caption) fig.append(el('figcaption', '', section.figure.caption));
           words.append(fig);

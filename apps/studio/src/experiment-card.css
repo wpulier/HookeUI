@@ -13,6 +13,8 @@
 .chat-xcard-status { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); overflow-wrap: anywhere; }
 .chat-xcard[data-state='proposed'] .chat-xcard-status { color: var(--mm-text-2); }
 .chat-xcard-steps { margin: 4px 0 0; padding: 0 0 0 18px; color: var(--mm-text-2); font: 400 12px/17px var(--mm-sans); }
+/* The log's own lines (style.css `.log li`) are not the plan's steps: these keep the card's type. */
+.log .chat-xcard-steps > li { max-width: none; font: inherit; }
 .chat-xcard-steps li + li { margin-top: 2px; }
 .chat-xcard-steps[hidden], .chat-xcard-cost[hidden], .chat-xcard-bar[hidden] { display: none; }
 .chat-xcard-cost { margin: 4px 0 0; color: var(--mm-text-3); font: 400 12px/16px var(--mm-sans); }

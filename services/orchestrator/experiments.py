@@ -187,25 +187,20 @@ def plan_of(hub, *, models, on: str, frames, every, audit: bool, question: str |
     audit_cap = BUDGETS[effort].cap_usd if audit else 0.0
     local = [i for i in impls if i.worker != "cloud"]
     cloud = [i for i in impls if i.worker == "cloud"]
-    held = (f"{frames} frames of this footage, one every {every:g} s (over about {span:.0f} s)" if on == "footage"
+    held = (f"{frames} frames of this footage, {every:g} s apart (about {span:.0f} s)" if on == "footage"
             else "the view now (one frame)")
-    steps = [{"kind": "frames", "says": f"Hold {held} and keep them in this Project"}]
+    steps = [{"kind": "frames", "says": f"Hold {held}"}]
     for impl in impls:
-        where = "on this Mac, nothing spent" if impl.worker != "cloud" else "in the cloud, its cost not reported"
-        steps.append({"kind": "model", "model": impl.id,
-                      "says": f"{impl.label} segments every cell on each frame ({where})"})
+        where = "this Mac" if impl.worker != "cloud" else "cloud, cost not reported"
+        steps.append({"kind": "model", "model": impl.id, "says": f"{impl.label} finds every cell on each frame ({where})"})
     if measure:
-        steps.append({"kind": "measure", "says": "Measure each model's cells on each frame"})
-    steps.append({"kind": "compare", "says": "Compare them frame by frame: the cells both found, each one's count, "
-                                             "and where their outlines differ"})
+        steps.append({"kind": "measure", "says": "Measure each model's cells"})
+    steps.append({"kind": "compare", "says": "Compare them frame by frame: cells both found, counts, where outlines differ"})
     if audit:
         steps.append({"kind": "audit", "effort": effort,
-                      "says": f"A researcher checks the run's records and writes what holds and what doesn't "
-                              f"({effort}, at most ${audit_cap:.2f})"})
-    steps.append({"kind": "results", "says": "The results in a Tab of its own: the comparison table, the outlines side "
-                                             "by side and the audit" if audit else
-                                             "The results in a Tab of its own: the comparison table and the outlines "
-                                             "side by side"})
+                      "says": f"A researcher audits the run's records: what holds and what doesn't ({effort})"})
+    steps.append({"kind": "results", "says": "Results in a Tab of their own: the table, the outlines side by side"
+                                             + (" and the audit" if audit else "")})
     says = (("Nothing spent: the models run on this Mac" if not cloud else
              f"{said_list([i.label for i in cloud])}' cost is not reported") +
             (f"; the audit at most ${audit_cap:.2f}" if audit else ""))
@@ -457,10 +452,13 @@ class Experiments:
             x.status = "done"
             x.outcome = {**(x.outcome or {}), "words": words}
         except asyncio.CancelledError:
+            if self.closing:  # the app is quitting: said so when it comes back (its records are kept), never "stopped"
+                x.status, x.why = "failed", "the app stopped while it ran; its frames and the runs so far are kept"
+                x.ended, x.progress = self.clock(), ""
+                self._save(x)
+                raise
             x.status = "stopped"
             x.why = x.why or "it was stopped"
-            if self.closing:
-                raise
         except Exception as exc:  # noqa: BLE001 - every failure is said with its reason, never a raw error
             if x.why == "you stopped it" or x.status == "stopped":
                 x.status = "stopped"
@@ -469,10 +467,11 @@ class Experiments:
                 x.why = str(exc)[:400] or "something went wrong while it ran"
                 log.warning("experiment %s failed: %s", x.key, exc, exc_info=True)
         finally:
-            x.ended = self.clock()
-            x.progress = ""
-            self._changed(x)
-            self._tell(x)
+            if not self.closing:
+                x.ended = self.clock()
+                x.progress = ""
+                self._changed(x)
+                self._tell(x)
 
     async def _view(self) -> tuple[bytes, dict]:
         """The view now as the frame to keep: the best view of the last second (Captures.best), its JPEG as the camera
@@ -833,6 +832,24 @@ class Experiments:
                else (0.0, 0.0, float(w), float(h)))
         return comparing.picture(image, arms, box, 420)
 
+    @staticmethod
+    def _page_table(table: dict) -> dict:
+        """The comparison table as the page shows it: the columns that say something here (what ran only when a model
+        fell back, a failure only when one failed; time kept, cost and reuse left to the table in Data)."""
+        names = [c["name"] + (f" ({c['unit']})" if c.get("unit") else "") for c in table["columns"]]
+        rows = table["rows"]
+
+        def says(i: int) -> bool:
+            name = table["columns"][i]["name"]
+            if name == "What ran":
+                return any(r[i] not in (None, r[1]) for r in rows)
+            if name in ("Failed", "Reused"):
+                return any(r[i] for r in rows)
+            return name != "Cost"
+
+        keep = [i for i in range(len(names)) if says(i)]
+        return {"columns": [names[i] for i in keep], "rows": [[r[i] for i in keep] for r in rows]}
+
     def _document(self, x: Experiment, comparison: dict, audit: dict | None, table: dict | None) -> dict:
         """The results, made by the app from the run's records (the audit's words are the researcher's)."""
         from .untrusted import inline
@@ -867,14 +884,14 @@ class Experiments:
                 only_a, only_b = d.get("onlyA"), d.get(f"only{other.upper()}")
                 ia, ib = "abcdef".index(d["arms"][0]), "abcdef".index(other)
                 if ia < len(x.plan["models"]) and ib < len(x.plan["models"]) and only_a is not None:
-                    words.append(f"{only_a:,.0f} {d.get('unit', 'px')} were in {x.plan['models'][ia]['label']}'s cells "
-                                 f"only and {only_b:,.0f} in {x.plan['models'][ib]['label']}'s only")
+                    unit = "px²" if d.get("unit") in (None, "pixel") else d["unit"]
+                    words.append(f"{only_a:,.0f} {unit} were in {x.plan['models'][ia]['label']}'s cells only and "
+                                 f"{only_b:,.0f} {unit} in {x.plan['models'][ib]['label']}'s only")
             paragraphs.append({"text": f"Frame {f['frame']}: " + "; ".join(words) + ".", "cites": cites})
         sections.append({"heading": "Frame by frame", "paragraphs": paragraphs})
         sections.append({"heading": "The comparison", "paragraphs": [{
             "text": self._overall_words(x, comparison) + ".", "cites": cites_table}],
-            **({"table": {"columns": [c["name"] + (f" ({c['unit']})" if c.get("unit") else "") for c in table["columns"]],
-                          "rows": table["rows"]}} if table else {}),
+            **({"table": self._page_table(table)} if table else {}),
             "figure": {"picture": 0, "caption": "The outlines side by side on frame 1: each model's cells on the "
                                                 "frame's own pixels"}})
         if audit is not None:
