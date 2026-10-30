@@ -142,3 +142,24 @@ def test_evaluation_is_explicit_diagnostic_and_panel_mismatch_refuses(tmp_path):
     assert meta['competitionScore'] is False and meta['rows'][0]['mse'] == 0
     with pytest.raises(engine.Refused, match='not installed'):
         engine.evaluate({}, {'profile': 'unknown'}, tmp_path, lambda: None)
+
+
+@pytest.mark.parametrize('values,whole', [([.25, 1.5], False), ([-1., 2.], False), ([1., 2.], True)])
+def test_numeric_inspection_is_explicit_and_does_not_relax_count_operations(tmp_path, values, whole):
+    source = adata(tmp_path / 'values.h5ad', [values], ['a'], ['x'], ['g1', 'g2'])
+    params = parameters('matrix-inspect', {'require_raw_counts': False})
+    _, result = engine.inspect({'matrix': source}, params, output(tmp_path, 'describe'), lambda: None)
+    assert result['shape'] == [1, 2] and result['rawCounts'] is whole
+    assert result['valueSemantics'] == 'unverified' and 'libraryDepth' not in result
+    assert result['rowTotals']['mean'] == sum(values)
+    if not whole:
+        with pytest.raises(engine.Refused, match='whole counts'):
+            engine.inspect({'matrix': source}, parameters('matrix-inspect', {}), output(tmp_path, 'strict'), lambda: None)
+        with pytest.raises(engine.Refused, match='whole counts'):
+            engine.export({'matrix': source}, {}, output(tmp_path, 'export'), lambda: None)
+
+
+def test_numeric_inspection_still_refuses_nonfinite_values(tmp_path):
+    source = adata(tmp_path / 'values.h5ad', [[np.nan, 1.]], ['a'], ['x'], ['g1', 'g2'])
+    with pytest.raises(engine.Refused, match='finite'):
+        engine.inspect({'matrix': source}, {'require_raw_counts': False}, output(tmp_path, 'inspect'), lambda: None)

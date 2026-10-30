@@ -104,26 +104,33 @@ def _columns(data, params):
     return [_strings(data.obs[name].to_numpy(dtype=str), name) for name in names]
 
 
-def _rows(data, check):
+def _rows(data, check, *, counts=True):
     for start in range(0, data.n_obs, BLOCK_ROWS):
         check()
         block = data.X[start:start + BLOCK_ROWS]
-        _finite(block, counts=True)
+        _finite(block, counts=counts)
         yield start, sparse.csr_matrix(block, dtype=np.float64)
 
 
 def inspect(inputs, params, output, check):
     with _adata(inputs['matrix']) as data:
-        totals = []; nnz = 0
-        for _, block in _rows(data, check):
+        totals = []; nnz = 0; whole_nonnegative = True
+        require_counts = params.get('require_raw_counts', True)
+        if type(require_counts) is not bool:
+            raise Refused('Choose whether inspection requires whole nonnegative counts')
+        for _, block in _rows(data, check, counts=require_counts):
+            whole_nonnegative = whole_nonnegative and bool(np.all(block.data >= 0) and np.all(block.data == np.floor(block.data)))
             nnz += block.nnz
             totals.extend(np.asarray(block.sum(axis=1)).ravel().tolist())
         result = {'format': 'annotated-matrix-summary-v1', 'shape': list(data.shape),
                   'dtype': str(data.X.dtype), 'sparse': getattr(data.X, 'format', None) in ('csr', 'csc'),
                   'genes': data.n_vars, 'observations': data.n_obs, 'storedEntries': nnz,
-                  'rawCounts': True, 'observationColumns': list(data.obs.columns),
-                  'libraryDepth': {'min': min(totals), 'max': max(totals), 'mean': float(np.mean(totals))},
+                  'rawCounts': whole_nonnegative, 'observationColumns': list(data.obs.columns),
+                  ('libraryDepth' if require_counts else 'rowTotals'): {'min': min(totals), 'max': max(totals), 'mean': float(np.mean(totals))},
                   'geneAxisSha256': hashlib.sha256('\n'.join(data.var_names).encode()).hexdigest()}
+        if not require_counts:
+            result['valueSemantics'] = 'unverified'
+            result['interpretation'] = 'Finite numeric values inspected without raw-count admission. Whole-valued entries alone do not establish experimental counts or preprocessing history.'
     return _json(output / 'summary.json', result), result
 
 
