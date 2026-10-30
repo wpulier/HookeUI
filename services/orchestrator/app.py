@@ -224,8 +224,28 @@ class App:
     _capabilities_sent: dict | None = field(default=None, repr=False)  # the last full capabilities built for studios
 
     @classmethod
-    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True) -> "App":
-        paths = paths or Paths.from_env()  # where everything is saved, decided once (paths.py)
+    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True,
+              *, project_locations=None) -> "App":
+        """Build one host; an explicit location resolver enables isolated portability qualification.
+
+        This internal dependency is not accepted from HTTP, saved files or an
+        environment toggle. Ordinary startup retains its existing storage policy.
+        The built host owns the resolver until its producers have stopped.
+        """
+        paths = paths or Paths.from_env()
+        if project_locations is not None:
+            from .project_roots import ProjectLocationError
+            if project_locations.legacy.resolve() != paths.sessions.resolve():
+                raise ProjectLocationError('Project locations must belong to this host’s session store')
+        try:
+            return cls._build(bridge_url, paths, use_gpu, project_locations=project_locations)
+        except BaseException:
+            if project_locations is not None:
+                project_locations.close()
+            raise
+
+    @classmethod
+    def _build(cls, bridge_url, paths, use_gpu, *, project_locations):
         from .scientific_import_transaction import recover
         from .scientific_projects import ProjectStore
         recover(ProjectStore(paths.results / "projects"), paths.sessions)
@@ -233,7 +253,7 @@ class App:
         hub.execution = execution.ExecutionLog.from_env(publish=hub.broadcast_execution)
         # The session and its conversations (day/store.py, ADR 0017): the one the app was last in, rebuilt from its
         # journal, so a restart comes back to the same session and conversation.
-        day = SessionStore.resume(root=paths.sessions, clock=session_clock())
+        day = SessionStore.resume(root=paths.sessions, clock=session_clock(), locations=project_locations)
         # Every session's journal read once now, before the event loop runs: after this the list only reads where a
         # journal grew (day/catalogue.py), so a reading on the loop (a new id, the session wire) stays small.
         day.catalogue.list()
@@ -502,6 +522,9 @@ class App:
         from .scientific_projects import ProjectStore
         from .paths import envs as environment_root
         projects = ProjectStore(paths.results / 'projects', runtime_root=environment_root())
+        if project_locations is not None:
+            from .project_stores import ProjectStores
+            projects = ProjectStores(projects, project_locations)
         hub.screen = Screen(hub.broadcast)  # what the studio reports it shows; the verbs' changes (screen.py)
         hub.resources = Index(hub, results=results, projects=projects, research=research, snapshots=paths.snapshots, bookmarks=bookmarks,
                               registrations=registrations, identity=hub.identity, memory=memory, seen=seen, taught=taught,
@@ -1634,6 +1657,10 @@ class App:
 
     async def stop(self) -> None:
         self._stopping = True
+        if self.day.locations is not None:
+            workflows = getattr(self.hub, 'workflow_service', None)
+            if workflows is not None:
+                await workflows.close()
         if getattr(self, "scientific_uploads", None) is not None:
             await asyncio.to_thread(self.scientific_uploads.close)
         from . import readiness
@@ -1698,6 +1725,10 @@ class App:
         from .looplag import LINES
 
         await asyncio.to_thread(LINES.flush)  # every log line handed in is in its file before stop returns
+        if self.day.locations is not None:
+            if self._tasks:
+                await asyncio.gather(*self._tasks, return_exceptions=True)
+            await asyncio.to_thread(self.day.locations.close)
 
     # --- the session ----------------------------------------------------------------------
     def _session_event(self, event: dict) -> None:
