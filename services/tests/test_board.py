@@ -92,9 +92,13 @@ def test_ids_targets_labels_and_aliases_as_before():
 
 
 def test_nothing_on_screen_says_so():
+    """Nothing outlined is Hooke's to meet (Will, 30 Oct: "Outline the target structure first"): the refusal carries
+    the step that meets it, a find of what the user means in their own words, which the registry takes first."""
     hub, board, _ = setup()
-    with pytest.raises(ToolFailed, match="ask me to find it first"):
+    with pytest.raises(ToolFailed, match="nothing is outlined for 'that' to mean") as refused:
         board.resolve("that", ctx())
+    tool, args = refused.value.needs
+    assert tool == "find" and "what the user means by 'that'" in args["what"] and args["all"] is False
 
 
 def test_a_target_this_answer_did_not_outline_says_what_to_do():

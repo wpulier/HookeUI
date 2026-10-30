@@ -113,6 +113,9 @@ class WhenAsked:
     magnified: str | None = None  # what the magnifier was open on
 
 
+FIND_MEANT = ("find", {})  # a refusal's need: the thing meant found first (filled in by Board.resolve)
+
+
 @dataclass(frozen=True)
 class BoardState:
     version: int
@@ -259,7 +262,14 @@ class Board:
         if pointed in scene.objects:
             return scene.objects[pointed]
         asked = getattr(ctx, "when_asked", None)
-        picked = self._guess(state, said, asked, ctx.aliases)
+        try:
+            picked = self._guess(state, said, asked, ctx.aliases)
+        except ToolFailed as exc:
+            if exc.needs == FIND_MEANT:  # find the thing meant, in the user's own words: the look model judges it
+                words = " ".join(str(getattr(ctx, "question", "") or "").split())[:400]
+                meant = f"what the user means by {said!r}" if said else "what the user means"
+                exc.needs = ("find", {"what": f"{meant}, in their words: {words}" if words else meant, "all": False})
+            raise
         from .brain.intent import log_override
 
         now = picked
@@ -307,10 +317,11 @@ class Board:
             # Outlined only since the request: not what it was about.
             raise ToolFailed(f"nothing was outlined when you asked{' for ' + repr(said) + ' to mean' if said else ''}",
                              next="click it, or ask me to find it")
+        # Nothing outlined is Hooke's to meet: it finds the thing meant first (`resolve` fills in what the user said),
+        # then the call runs again (registry `needs`).
         if said:
-            raise ToolFailed(f"nothing is outlined for {said!r} to mean; ask me to find it first",
-                             next=None)  # no next: the message says what to do
-        raise ToolFailed("nothing is outlined yet; ask me to find it first", next=None)  # no next: the message says what to do
+            raise ToolFailed(f"nothing is outlined for {said!r} to mean", next=None, needs=FIND_MEANT)  # no next: Hooke finds it first
+        raise ToolFailed("nothing is outlined yet", next=None, needs=FIND_MEANT)  # no next: Hooke finds it first
 
     def _clicked(self, state: BoardState, recent_only: bool, until: float) -> Item | None:
         """The newest outline the user's click made by `until` (when the request was made, or now)."""

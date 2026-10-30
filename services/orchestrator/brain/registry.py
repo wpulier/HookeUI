@@ -25,6 +25,9 @@ from .. import execution
 from .admission import AdmissionDenied
 
 
+NEEDS_DEPTH = 2  # steps Hooke takes for a refusal's needs before the call is tried again (ToolFailed.needs)
+
+
 class ToolFailed(RuntimeError):
     """A tool could not do what was asked; the message is shown to the user, with `next`, the plain
     next step the user can take, when there is one (Amendment 4, item 2: never a dead end).
@@ -33,10 +36,16 @@ class ToolFailed(RuntimeError):
     with nothing outlined), for the model to correct and call again; once a later call of the same tool in the same
     turn replaced it, it is no failure of the request and never said to the user (voice/handoffs.py `corrected`)."""
 
-    def __init__(self, message: str = "", next: str | None = None, *, argument: bool = False) -> None:
+    def __init__(self, message: str = "", next: str | None = None, *, argument: bool = False,
+                 needs: tuple[str, dict] | None = None) -> None:
         super().__init__(message)
         self.next = next
         self.argument = argument
+        # A step inside Hooke that meets what this refusal lacks (tool, args): nothing outlined -> find it; the magnifier
+        # not open -> zoom. The registry takes it, then runs this call once more (`Registry._meeting_needs`), so the
+        # user is asked only for what is outside Hooke (a model to download, credits, an approval). Will, 30 Oct:
+        # "Outline the target structure first" for "a magnified view of the original specimen".
+        self.needs = needs
 
     def said(self) -> str:
         """What the user is told: what went wrong, then what to do."""
@@ -747,7 +756,7 @@ class Registry:
                         raise run._argument_error
                     if ctx.scientific_input is not None and not tool.retained_input:
                         raise ToolFailed('This action does not support the attached saved input.', next='use a declared capability, or remove the attachment to work on the Stage')
-                    run.summary = await tool.handler(ctx, run.args)
+                    run.summary = await self._meeting_needs(tool, ctx, run.args)
                     run.ok = True
                 except ToolFailed as exc:
                     run._argument_error = None  # retain the receipt, not adapter traceback/source frames
@@ -827,6 +836,21 @@ class Registry:
             except Exception:  # what is told of a run never breaks it
                 pass
         return run
+
+    async def _meeting_needs(self, tool, ctx, args: dict, depth: int = 0) -> str:
+        """A tool's handler, with what it needs met first when it says so (ToolFailed.needs): the needed step runs in
+        this same run (its request, its ownership, its outputs this request's own), then this call once more; at most
+        NEEDS_DEPTH steps deep. A needed step that fails is what is said."""
+        try:
+            return await tool.handler(ctx, args)
+        except ToolFailed as exc:
+            needs = getattr(exc, "needs", None)
+            if not needs or depth >= NEEDS_DEPTH or needs[0] not in self.tools or needs[0] == tool.name:
+                raise
+            name, needed_args = needs
+            first = await self._meeting_needs(self.tools[name], ctx, dict(needed_args or {}), depth + 1)
+            then = await self._meeting_needs(tool, ctx, args, NEEDS_DEPTH)  # once more, as it is now: no second round
+            return f"{then} (first, {first})"
 
     def kind(self, name: str) -> str:
         tool = self.tools.get(name)

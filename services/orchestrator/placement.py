@@ -556,11 +556,10 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
             source_tab, item = elsewhere[0]
             keep = await _live_here(services, ctx, window_id(item), title)
             if keep is None:
-                # Neither saved nor live: Hooke saves what it shows first, then places that (Will, 30 Oct: "it saves,
-                # then moves"; never a refusal the user has to work around).
+                # Neither saved nor live: Hooke saves what it shows first (snapshot), then places that (Will, 30 Oct:
+                # "it saves, then moves"; never a refusal the user has to work around).
                 raise ToolFailed(f"{inline(what, 60)} is open in another Tab and keeps no saved work or live view to "
-                                 "open here", next="call snapshot on it to save what it shows in Data, then place that "
-                                                   "snapshot here; do it yourself, never ask the user to save it")
+                                 "open here", next=None, needs=("snapshot", {}))  # no next: Hooke snapshots it first
             how = (f'; the live view opened there again, and closed in Tab '
                    f'"{inline(str(source_tab.get("title") or ""), 80)}", where it was')
             also = [str(t.get("title") or "") for t, _ in elsewhere[1:]]

@@ -616,7 +616,10 @@ async def act(services, args: dict, by: str | None = None, ctx=None) -> str:
     elif kind in ("magnifier", "viewer", "slidemap", "card", "made-today", "sidebar", "sessions", "document"):
         shown_now = shown(pid) or {}
         if verb in ("move", "resize", "front") and not shown_now.get("open"):
-            raise ToolFailed(f"{name} is not open", next="open it first")
+            # The magnifier not open is Hooke's to meet: it opens it on the thing meant (zoom), then this runs again
+            # (registry `needs`; Will, 30 Oct: "the magnifier isn't open… outline the target structure first").
+            raise ToolFailed(f"{name} is not open", next="open it first",
+                             needs=("zoom", {}) if kind == "magnifier" else None)
         if kind in ("sidebar", "sessions") and verb in ("close", "hide"):
             values = {"open": False} if verb == "close" else {"visible": False}
 
