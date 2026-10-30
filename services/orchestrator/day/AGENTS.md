@@ -401,3 +401,9 @@ an unknown origin and points only host preferences at the chosen Project. Collid
 legacy/portable handles and pre-existing agent permission rows refuse. No historical
 actor receives access. Known-location replacement still uses explicit relocation;
 immutable exports must first become an explicitly restored working copy.
+
+Startup checks the remembered Project through the catalogue's availability state.
+A moved/offline folder cannot prevent opening an otherwise available Project and
+its owner recovery dialog. The unavailable locator remains listed; no replacement
+journal is created for it. Explicit location recovery and ordinary opening restore
+that Project. A profile with no available Project still needs startup recovery.

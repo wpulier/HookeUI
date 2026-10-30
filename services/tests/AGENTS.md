@@ -835,3 +835,8 @@ metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and
 recomputed outer seals. This is storage evidence, not provider or complete-collection
 acceptance.
+
+Moved-folder resume regression reaches SessionStore.resume with its remembered
+location absent, checks an available fallback and offline listing, then explicitly
+relocates/reopens without shadow storage or replay. The red trace and actual
+isolated browser startup are recorded separately from synthetic checks.
