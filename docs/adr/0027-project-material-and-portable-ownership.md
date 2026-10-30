@@ -521,3 +521,8 @@ verify retained history, refuse either active writer, and publish only the locat
 The Project origin, accepted bytes and local grants stay unchanged. An unknown
 origin cannot use this mode or adopt historical permissions. Default opening still
 refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
+
+
+### Accepted numeric history in snapshots
+
+All journal-accepted table, analysis and graph revisions participate in folder verification, including superseded values. Reuse the existing numeric reader with the captured Project artifact root and original accepted identity/hash. Copying or recomputing an outer manifest cannot bless damaged earlier results. No evaluator is installed or run, and original records are never repaired automatically. This is another producer-owned integrity check; source dependency closure and legacy migration remain separately qualified.

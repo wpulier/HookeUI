@@ -1230,3 +1230,5 @@ to the captured Project; starting captures the requested owner before background
 work. Navigation does not retarget admitted copying. Status/Stop read/control only
 that Project's export operations. Completed copies remain explicitly unverified for
 external dependencies; failure/cancellation preserve incomplete destinations.
+
+Folder snapshot verification reads every journal-accepted dataset-table, analysis and graph revision through table_reading.read_accepted using only the captured Project artifact roots. Missing, changed, foreign or unsupported numeric history refuses a new seal; verification does not run evaluators or rewrite history. Complete external-source collection remains separate.
