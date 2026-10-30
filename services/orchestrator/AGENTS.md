@@ -1163,4 +1163,4 @@ Project. It checks retained ownership even for an existing lease, reports missin
 registered folders without fallback, and leaves collection completeness unassessed.
 This read does not enable live portable creation or acquire write authority.
 
-Retained media previews use exact Project/document/revision/content hashes and verified file chunks. A small byte-signature allowlist supplies image/video transport types; SVG/HTML and unknown encodings remain downloads. Single HTTP byte ranges support playback seeking; invalid or multiple ranges refuse. This route does not select a Library source or infer scientific meaning.
+Retained media previews use exact Project/document/revision/content hashes and verified file chunks. A small byte-signature allowlist supplies image/video transport types; SVG/HTML and unknown encodings remain downloads. Single HTTP byte ranges support playback seeking; invalid or multiple ranges refuse. Manifest/ownership checks precede regional reads; only the header and requested chunks are freshly verified, never the entire recording on each seek. This route does not select a Library source or infer scientific meaning.

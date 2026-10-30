@@ -296,6 +296,7 @@ def register(app,built,studio_origin,header):
     @app.get('/api/scientific-files/{project}/media')
     async def preview_media(request:Request,project:str,session:str,revision:int,sha256:str):
         from .scientific_media import media_type, byte_range, RangeRefused
+        from .project_roots import ProjectLocationError
         room=None;watcher=None;stopping=threading.Event();deadline=time.monotonic()+60
         def check():
             if stopping.is_set() or time.monotonic()>deadline:
@@ -307,20 +308,20 @@ def register(app,built,studio_origin,header):
             saved=await _owned(store.read,project,session,revision=revision)
             state=saved.document['state'].get('sourceFile')
             if (saved.document['kind']!='source-file' or type(state) is not dict
-                    or state.get('sha256')!=sha256):
+                    or state.get('sha256')!=sha256 or type(state.get('reference')) is not dict):
                 raise Refused('This is not the selected retained original.',409,next='reopen the exact material revision')
             watcher=asyncio.create_task(watch_disconnect(request,stopping))
-            source=await _owned(store.file_source,project,session,revision,state['reference'],check=check,on_cancel=stopping.set)
-            kind=media_type(await _owned(source.read,0,min(64,source.size)))
-            if kind is None:
-                raise Refused('This format has no browser media preview.',415,next='download the original or choose a scientific reader')
+            source=await _owned(store.file_source,project,session,revision,state['reference'],check=check,verify_content=False,on_cancel=stopping.set)
             try:start,end,partial=byte_range(request.headers.get('range'),source.size)
             except RangeRefused:
                 return JSONResponse({'ok':False,'error':'This media byte range is unavailable.','next':'reopen the retained media'},
                     status_code=416,headers={**HEADERS,'Content-Range':f'bytes */{source.size}'})
+            kind=media_type(await _owned(source.read,0,min(64,source.size)))
+            if kind is None:
+                raise Refused('This format has no browser media preview.',415,next='download the original or choose a scientific reader')
             response=SourceResponse(source,room,media_type=kind,start=start,end=end,partial=partial);room=None
             return response
-        except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
+        except (Refused,MemoryRefused,InvalidProject,ProjectLocationError,OSError) as error:return _error(error)
         finally:
             if watcher is not None:
                 watcher.cancel()

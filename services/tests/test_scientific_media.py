@@ -68,3 +68,41 @@ def test_format_recognition_does_not_render_active_or_unrecognized_content():
     assert media_type(b'\0\0\0\x18ftypavif') is None
     assert byte_range(None,0)==(0,0,False)
     with pytest.raises(RangeRefused):byte_range('bytes=0-',0)
+
+
+def test_small_seek_verifies_only_header_and_selected_chunks(web,monkeypatch):
+    from orchestrator import scientific_files
+    client,built=web;body=image_bytes()+b'x'*(scientific_files.CHUNK_BYTES*2)
+    saved=upload(client,built,body).json()['project']
+    reads=[];original=scientific_files._read
+    def traced(folder,name,size):
+        if name.endswith('.bin'):reads.append(name)
+        return original(folder,name,size)
+    monkeypatch.setattr(scientific_files,'_read',traced)
+    response=preview(client,saved,headers={'Range':'bytes=0-31'})
+    assert response.status_code==206 and response.content==body[:32]
+    # Header and requested bytes verify their chunk, never the remaining recording.
+    assert len(reads)==2 and len(set(reads))==1
+    reads.clear()
+    assert preview(client,saved,headers={'Range':'bytes=999999999-'}).status_code==416
+    assert reads==[]
+
+
+@pytest.mark.parametrize('failure',['missing-reference','missing-project'])
+def test_unavailable_media_returns_recoverable_failure_and_releases_room(web,monkeypatch,failure):
+    from copy import deepcopy
+    from types import SimpleNamespace
+    from orchestrator.capture import captures
+    from orchestrator.project_roots import ProjectLocationError
+    client,built=web;saved=upload(client,built,image_bytes()).json()['project']
+    store=built.hub.resources.projects;original=store.read
+    memory=captures(built.hub).memory;before=memory.reserved.copy()
+    def broken(*args,**kwargs):
+        if failure=='missing-project':raise ProjectLocationError('Project folder moved; reopen its location')
+        record=original(*args,**kwargs);document=deepcopy(record.document)
+        document['state']['sourceFile'].pop('reference')
+        return SimpleNamespace(document=document)
+    monkeypatch.setattr(store,'read',broken)
+    response=preview(client,saved)
+    assert response.status_code == (503 if failure=='missing-project' else 409) and response.json()['next']
+    assert memory.reserved==before
