@@ -753,3 +753,32 @@ def test_the_tool_searches_the_web_alone_by_default(monkeypatch):
     monkeypatch.setattr(reference, "find_blocking", lambda subject, n=1, **kwargs: calls.append(kwargs) or found())
     assert run(tools(hub, Magnifier(hub)), "reference_photo", {"subject": "stoma"}).ok
     assert calls[0]["sources"] == "web"
+
+
+def test_two_photos_searched_side_by_side_in_one_request_are_two_different_photos():
+    """Live, 30 Oct: "put two photos of stomata you find online in it" showed the same photo twice: the two searches ran
+    side by side (Tool.alongside) and each took the top result. The second is searched again past the first's photo."""
+    from orchestrator.brain.registry import ToolContext
+    from orchestrator.brain.toolbox import Services, build
+
+    hub, calls = FakeHub([0]), []
+    other = reference.Found(JPEG + b"-other", 640, 360, "Another stoma", "https://example.org/stoma2.jpg",
+                            "CC BY 4.0", "B. Botanist", "B. Botanist, CC BY 4.0", "stoma microscope", 2, 1.1)
+
+    def lookup(subject, n, **search):
+        calls.append((n, [p.get("digest") for p in search.get("previous_sources") or []]))
+        return other if n > 1 and search.get("previous_sources") else found()
+
+    from orchestrator.resources import Results
+
+    registry = build(Services(hub=hub, agent=None, magnifier=Magnifier(hub), find_reference=lookup))
+    registry.retaining.append(lambda r, ctx: Results(None).from_run(r, ctx, hub))
+
+    async def go():
+        ctx = ToolContext("chat", 1, 0)
+        runs = [registry.start("reference_photo", {"subject": "stoma"}, ctx) for _ in range(2)]
+        await asyncio.gather(*(r.task for r in runs if r.task is not None))
+        return runs
+    first, second = asyncio.run(go())
+    assert first.ok and second.ok, (first.summary, second.summary)
+    assert len(calls) == 3 and calls[2][0] == 2 and calls[2][1], "the second searched again past the first's photo"

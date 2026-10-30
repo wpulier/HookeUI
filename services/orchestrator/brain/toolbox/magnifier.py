@@ -4,6 +4,8 @@ from __future__ import annotations
 import time
 
 import asyncio
+from collections import OrderedDict
+import hashlib
 
 from ...day.sid import session_of
 from ...magnifier import comparison_picture, crop_jpeg, object_box_in, padded_rect, parse_level, region_sharpness, sharpest_frame, side_by_side
@@ -551,6 +553,19 @@ def add_magnifier_tools(registry: Registry, services) -> None:
             attach(values={"referenceLookup": {"status": "failed"}})
             raise ToolFailed(f"no reference photo of {subject} returned by this lookup: {exc}",
                              next="try a broader search if useful") from None
+        # Photos searched for side by side in one request (Tool.alongside) are different photos: one a step beside it
+        # took first is searched again past it (live, 30 Oct: "two photos of stomata" showed the same photo twice).
+        taken = _taken_in(ctx)
+        if hashlib.sha256(found.jpeg).hexdigest() in taken:
+            past = {**lookup_args, "previous_sources": (lookup_args.get("previous_sources") or [])
+                    + [{"digest": d} for d in taken]}
+            try:
+                found = await asyncio.to_thread(services.find_reference or reference.find_blocking, subject,
+                                                max(2, n), **past, sources=sources)
+            except reference.NotFound as exc:
+                raise ToolFailed(f"only one photo of {subject} was found; no different second one: {exc}",
+                                 next=None) from None  # no next: the message says what was found
+        taken.add(hashlib.sha256(found.jpeg).hexdigest())
         # The web's words (title, author, licence) cross only as a capped line (untrusted.inline).
         host = urlparse(found.page).hostname
         site = reference.SITE if host == 'commons.wikimedia.org' else host or 'the web'
@@ -958,3 +973,16 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                               "of": {"type": "string", "description": "a population id (e3) or \"@n\", to count its members"}},
                              ["label"]), count,
                       kind="query", inline_ms=4000, family="measuring"))
+
+
+_TAKEN: "OrderedDict[object, set[str]]" = OrderedDict()  # per request, the photos its reference steps have taken
+
+
+def _taken_in(ctx) -> set[str]:
+    """The digests of the reference photos this request's steps have kept so far (`reference_photo`)."""
+    key = getattr(getattr(ctx, "admission", None), "request_id", None) or getattr(ctx, "request_id", None) or id(ctx)
+    taken = _TAKEN.setdefault(key, set())
+    _TAKEN.move_to_end(key)
+    while len(_TAKEN) > 64:
+        _TAKEN.popitem(last=False)
+    return taken
