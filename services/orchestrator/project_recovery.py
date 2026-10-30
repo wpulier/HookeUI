@@ -39,6 +39,14 @@ def _journal(path):
     return hashlib.sha256(raw).hexdigest()
 
 
+def _sync(folder):
+    fd = os.open(folder, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def inspect(home, session):
     home = Path(home).expanduser().resolve(strict=True)
     registry = ProjectRegistry(home)
@@ -78,13 +86,13 @@ def preserve_shadow(home, session, expected_digest):
             destination.mkdir(mode=0o700)  # never overwrite an earlier recovery
             _atomic(destination / 'recovery.json', {**review, 'state': 'prepared',
                 'effect': 'Preserve empty legacy shadow; accepted portable research and grants unchanged'})
+            # Make the complete recovery directory chain durable before moving
+            # the sole original; failure here leaves the original untouched.
+            _sync(recovery)
+            _sync(home)
             Path(review['shadowLocation']).rename(destination / 'original')
             for folder in (home / 'sessions', destination):
-                fd = os.open(folder, os.O_RDONLY)
-                try:
-                    os.fsync(fd)
-                finally:
-                    os.close(fd)
+                _sync(folder)
             if _journal(destination / 'original/journal.jsonl') != expected_digest:
                 raise ProjectLocationError('The preserved journal changed; recovery remains uncertain and all bytes are kept')
             receipt = {**review, 'state': 'preserved', 'recoveryLocation': str(destination)}

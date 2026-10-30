@@ -58,3 +58,20 @@ def test_recovery_refuses_active_portable_writer(tmp_path):
     with writer(root), pytest.raises(ProjectLocationError, match='read-only'):
         preserve_shadow(home, sid, review['shadowSha256'])
     assert shadow.journal.path.exists()
+
+
+@pytest.mark.parametrize('parent', ['host', 'project-recovery'])
+def test_failed_recovery_parent_sync_never_moves_original(tmp_path, monkeypatch, parent):
+    import orchestrator.project_recovery as recovery
+    home, sid, root, events, shadow = setup(tmp_path)
+    original = shadow.journal.path.read_bytes()
+    _, review = inspect(home, sid)
+    sync = recovery._sync
+    def failing(folder):
+        if folder.name == parent:
+            raise OSError('injected parent sync failure')
+        return sync(folder)
+    monkeypatch.setattr(recovery, '_sync', failing)
+    with pytest.raises(OSError, match='parent sync'):
+        preserve_shadow(home, sid, review['shadowSha256'])
+    assert shadow.journal.path.read_bytes() == original
