@@ -58,7 +58,7 @@ def of_output(output: dict) -> str:
     if kind == "html":
         return WRITTEN if output.get("contentKind") == "report" else LESSON
     if kind == "video":
-        return GENERATED  # every video is made by a model from the photo (research_worker: Veo)
+        return GENERATED  # every video is made by a model from the photo (research_worker/video.py)
     if kind == "image":
         if isinstance(output.get("derived"), dict):
             return DERIVED  # a chart or animation the app drew from a kept table (research_worker/measurement_charts.py)

@@ -21,7 +21,7 @@ def test_a_card_that_isnt_ready_shows_its_one_next_step(nothing_downloaded):
 def test_ready_to_run_is_not_on_until_a_current_check_passed():
     """Obtained, runnable and proved stay apart (Codex's review of 14054603)."""
     found = rows({k: True for k in ("GEMINI_API_KEY", "OPENAI_API_KEY", "FAL_KEY", "ANTHROPIC_API_KEY", "HF_TOKEN")})
-    ready = [r for r in found.values() if r["status"] == "ready"]
+    ready = [r for r in found.values() if r["status"] == "ready" and not r.get("execution")]  # nothing blocks its runs
     assert ready
     for r in ready:
         state = r["face"]["state"]
@@ -32,6 +32,17 @@ def test_ready_to_run_is_not_on_until_a_current_check_passed():
             assert r["face"]["action"] is None and r["face"]["also"][0]["kind"] == "check"
         if state == "obtained":
             assert catalog.get(r["id"]).kind == "data", "only data is obtained with nothing to run"
+
+
+def test_a_cloud_model_its_provider_retired_says_so_and_is_never_offered_to_run():
+    """Will's try-out of 29 Oct: Google had retired Veo 3.1 Fast. The catalog's notice (catalog/models/maintenance.toml,
+    revocations.py) is what its card says, with its successor; the successor is the one researchers use."""
+    found = rows({"GEMINI_API_KEY": True})
+    veo, omni = found["veo-3.1-fast"], found["gemini-omni-flash"]
+    assert veo["group"] == "unavailable" and veo["execution"]["action"] == "unsupported"
+    assert veo["face"] == {"state": "unavailable", "action": None, "says": "Veo 3.1 Fast can't be used: Google retired "
+                           "it on 22 October 2026; Gemini Omni 1.1 Flash replaces it"}
+    assert veo["tries"] == [] and omni["face"]["state"] in ("on", "unchecked") and not omni.get("execution")
 
 
 def test_abilities_list_what_it_does_and_its_try_is_one_truthful_demonstration_per_role():
@@ -264,8 +275,11 @@ def test_a_cloud_call_is_use_of_its_entry_and_the_apps_own_cut_off_is_not(record
     with pytest.raises(Refused):
         asyncio.run(call(Refused("invalid x-api-key")))
     last = observed.last_use("claude-opus-5-5")
-    assert last["state"] == "no" and last["says"].startswith("key, permission or billing refused") and "invalid x-api-key" in last["says"]
+    # Why, in a person's words with what to do (api_usage.refusal), and the provider's own words beside it.
+    assert last["state"] == "no" and last["says"].startswith("Your Anthropic key was refused; check your Anthropic key "
+                                                             "in Models › Keys") and "invalid x-api-key" in last["says"]
     assert observed.call_entry("veo-3.1-fast-generate-preview") == "veo-3.1-fast" and observed.call_entry("google_search") == ""
+    assert observed.call_entry("gemini-omni-1.1-flash") == "gemini-omni-flash"
 
 
 def test_the_studios_are_told_once_when_models_turn_never_on_every_call(nothing_downloaded, monkeypatch):

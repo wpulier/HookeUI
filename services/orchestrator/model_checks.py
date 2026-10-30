@@ -59,7 +59,7 @@ STOMA_BOX = (825.0, 350.0, 885.0, 430.0)
 DISC = (695.0, 360.0, 395.0)
 PRIORITY = "research"  # the GPU workers' lowest class: served only when nothing of the app's own waits
 CLOUD_PROBES = ("vision", "text", "image", "video", "voice", "webrtc", "fal")
-VIDEO_USD = 0.40  # Veo 3.1 Fast's shortest clip (4 s at budget.PRICES' $0.10 a second): not run unless asked
+VIDEO_USD = 0.40  # Gemini Omni 1.1 Flash's shortest clip asked (4 s at budget.PRICES' $0.10 a second): not run unless asked
 # How long one probe may take, its model's load included: micro-sam loaded cold in 120 s under load on 2026-10-11 and
 # SAM 3.1 on this Mac loads 3.5 GB; a cloud call answers in seconds; a video in minutes.
 TIMEOUT_S = {"local": 600.0, "cloud": 120.0, "video": 420.0, "voice": 60.0}
@@ -115,7 +115,7 @@ METHOD_PROBES = {
 }
 # What runs each model fixed in the code (contract/capabilities.json roles "fixed:..."; their fallbacks).
 FIXED_PROBES = {
-    "fixed:video": ("video", "veo"), "fixed:lesson-check": ("text", "gemini"), "fixed:lesson-writer": ("text", "anthropic"),
+    "fixed:video": ("video", "gemini-omni"), "fixed:lesson-check": ("text", "gemini"), "fixed:lesson-writer": ("text", "anthropic"),
     "fixed:lesson-writer:fallback": ("text", "openai"), "fixed:editor": ("text", "openai"),
     "fixed:find-all": ("fal", "sam3.1-all"), "fixed:group-names": ("zeroshot", "medsiglip"),
     "fixed:link": ("link", "trackastra"), "fixed:retrieval": ("text", "gemini"),
@@ -784,25 +784,15 @@ class Checker:
         return {"detail": f"{made} picture made", "costUsd": round((20 * price.get("text_in", 5) + 1120 * price.get("image_out", 30)) / 1e6, 4)}
 
     async def _video(self, model: str) -> dict:
-        from research_worker.researcher import VIDEO_MODEL
-
+        """The video model as researchers ask it (research_worker/video.py: Gemini Omni 1.1 Flash), its shortest clip."""
         from google import genai
-        from google.genai import types
 
-        client = genai.Client()
-        operation = await client.aio.models.generate_videos(model=VIDEO_MODEL, prompt="A green leaf cell, still.",
-                                                            config=types.GenerateVideosConfig(duration_seconds=4))
-        for _ in range(60):
-            if operation.done:
-                break
-            await asyncio.sleep(5)
-            operation = await client.aio.operations.get(operation)
-        if not operation.done:
-            raise RuntimeError("no video after 5 minutes")
-        videos = getattr(operation.response, "generated_videos", None) or []
-        if not videos:
+        from research_worker import video
+
+        data = await video.make(genai.Client(), "A green leaf cell, still.", None, video.SECONDS[0])
+        if not data:
             raise RuntimeError("it answered with no video")
-        return {"detail": "a 4 s video made", "costUsd": VIDEO_USD}
+        return {"detail": f"a {video.SECONDS[0]} s video made", "costUsd": VIDEO_USD}
 
     async def _transcribe(self, provider: str) -> dict:
         """The one-brain voice's transcription model writes down a spoken request (macOS `say`, as the voice check)."""

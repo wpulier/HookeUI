@@ -26,8 +26,6 @@ CARRIED = "spent-carried.json"  # what a day spent before it was started afresh 
 RUNS = "runs.jsonl"  # runs that day of researchers filed in another day's folder: {"rid", "day" (its folder), "at"}
 
 
-# A provider's refusal for want of credit (research_worker.engines.CREDIT_CODES), said in a retained job's raw words.
-_CREDIT_WORDS = ("insufficient_quota", "insufficient_credits", "billing_not_active", "credit_balance_exhausted")
 
 
 def never_billed(job: dict) -> bool:
@@ -39,7 +37,9 @@ def never_billed(job: dict) -> bool:
     if job.get('providerStatus') == 429:
         return True
     words = f"{job.get('errorDetail') or ''} {job.get('error') or ''}"
-    return words.lstrip().startswith('Error code: 429') or any(code in words for code in _CREDIT_WORDS) \
+    from research_worker.api_usage import CREDIT_CODES  # the one mapping's codes, read in a retained job's raw words
+
+    return words.lstrip().startswith('Error code: 429') or any(code in words for code in CREDIT_CODES) \
         or ' has no credits left' in words
 
 

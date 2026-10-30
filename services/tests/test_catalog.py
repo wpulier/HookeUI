@@ -289,7 +289,16 @@ def test_every_catalog_model_is_used_by_something():
                 or m.runner == "python-env"  # its own adapter: a choice once proven, or a job
                 or (m.contract and m.runner in kinds.backends())  # a capability through the one door (ADR 0024)
                 or environment_owner(m)
+                or retired(m)  # its provider retired it: kept for what it made, its card says why (maintenance.toml)
                 or any(f"data:{m.id}" in o.needs_to_run for o in manifests().values())), f"{m.id}: nothing uses it"
+
+
+def retired(m) -> bool:
+    """A cloud model whose version its catalog revoked with severity block (revocations.py), naming what replaces it."""
+    from orchestrator.maintenance import revocations
+
+    notice = revocations.revoked(m, m.version)
+    return m.runner == "cloud" and notice is not None and notice["severity"] == "block" and bool(notice.get("replacedBy"))
 
 
 def test_a_download_that_names_no_files_is_a_mistake(tmp_path):

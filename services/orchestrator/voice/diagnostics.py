@@ -52,8 +52,9 @@ class VoiceDiagnostics:
         data = data if isinstance(data, dict) else {}
         code = data.get('code')
         message = data.get('message')
-        if code in ('insufficient_quota', 'insufficient_credits', 'billing_not_active') or (
-                isinstance(message, str) and message.startswith('You have no credits remaining.')):
+        from research_worker.api_usage import CREDIT_CODES  # the one mapping of why a model could not be used
+
+        if code in CREDIT_CODES or (isinstance(message, str) and message.startswith('You have no credits remaining.')):
             stage = 'provider-credit'
         elif code in ('invalid_api_key', 'permission_denied', 'model_not_found'):
             stage = 'provider-access'

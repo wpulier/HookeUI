@@ -4443,10 +4443,10 @@
       "id": "fixed:video",
       "kind": "model",
       "title": "Video",
-      "label": "Veo 3.1 Fast",
+      "label": "Gemini Omni 1.1 Flash",
       "purpose": "Makes researchers' videos",
-      "source": "research_worker.researcher:VIDEO_MODEL",
-      "model": "veo-3.1-fast",
+      "source": "research_worker.video:MODEL",
+      "model": "gemini-omni-flash",
       "uses": [
         "gemini-api"
       ]

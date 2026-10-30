@@ -60,7 +60,8 @@ HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
 # The one tool the voice acts with when Hooke's brain does the work (PARTNER_ACTS "brain").
 DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Project, in the user's own words: outline, "
                "segment or find a thing, magnify it or move the magnifier, Tabs, windows and what is in them, reference "
-               "photos and pictures, tables, graphs, counts and measurements, models and settings, researchers (start "
+               "photos and pictures, tables, graphs, counts and measurements, models and settings, what a result "
+               "means and what made it, from its record (\"I don't understand that\"), researchers (start "
                "one, tell one something, how they are doing, cancel one), Projects. Hooke's brain sees the view, knows "
                "what the user clicked and what \"that\" is, does it with its own tools, checks it on screen and returns "
                "its answer and what it did; say the outcome from that answer, once, a failure with its reason. Call it "

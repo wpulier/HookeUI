@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 
@@ -121,6 +122,23 @@ def add_resource_tools(registry: Registry, services) -> None:
             raise ToolFailed("resource order must be oldest or newest", next="choose one of the declared order values")
         if kind and kind not in KINDS:
             raise ToolFailed(f"there is no kind {kind!r} in the index", next="ask what data there is, or name one of: " + ", ".join(KINDS))
+        if eid.lower() in THAT:
+            # The last result the user saw or heard (board.last_result), with each part's own record (that_facts).
+            from ...board import last_result
+            from ...screen import screen_of
+
+            day = index.session()
+            store = services.day
+            thread = store.threads.get(store.thread_for(ctx.asked)) if store is not None else None
+            asked = getattr(ctx, "when_asked", None)
+            found = last_result(thread.turns if thread is not None else [],
+                                asked.at if asked is not None else time.time(), screen_of(hub))
+            if found is None:
+                raise ToolFailed("nothing has been shown or said in this conversation for \"that\" to mean yet",
+                                 next="ask which result they mean, or show it first")
+            text = await asyncio.to_thread(that_facts, hub, index, found, day, getattr(store, "sid", "") or "")
+            require_current(ctx, services.day)
+            return text
         if eid:
             day = index.session()  # the session open now, pinned before any filesystem await; generation is checked after it
             text = await asyncio.to_thread(index.read, eid, day, offset=args.get("offset", 0), revision=args.get("revision"))
@@ -215,6 +233,8 @@ def add_resource_tools(registry: Registry, services) -> None:
                       "With id and inspect=true, attach that saved picture to the next answer "
                       "for visual questions; captions alone are not pixels. At most two pictures per request. Nothing given, the summary (\"what data do we have?\"); "
                       "kind or query, those; id, one in full: an entry, a saved member (c17) or an outline (o3). "
+                      "id=\"that\": the last result the user saw or heard, with what made it, from what, when and "
+                      "its numbers, to explain it (\"I don't understand that\"). "
                       "Large readings return nextOffset and revision; continue with both until nextOffset is null. It makes nothing.",
                       schema({"inspect": {"type": "boolean", "description": "read actual retained pixels for a visual question; requires id"},
                               "picture": {"type": "integer", "minimum": 0, "description": "zero-based picture number, default 0"},
@@ -222,7 +242,7 @@ def add_resource_tools(registry: Registry, services) -> None:
                               "query": {"type": "string", "description": "words in titles and summaries; omit to list the kind"},
                               "order": {"type": "string", "enum": ["oldest", "newest"], "description": "first or latest saved entries"},
                               "thread": {"type": "string", "description": "optional exact conversation ID, such as t1"},
-                              "id": {"type": "string", "description": "one entry (e3, d4...), saved member (c17), or outline (o3)"},
+                              "id": {"type": "string", "description": "one entry (e3, d4...), saved member (c17), outline (o3), or \"that\""},
                               "section": {"type": "string", "enum": list(SECTIONS),
                                           "description": "one part of the Project's view in full (the brief shows only "
                                                          "its first lines): data, researchers, studies, agents (connected "
@@ -232,6 +252,8 @@ def add_resource_tools(registry: Registry, services) -> None:
                       resources, kind="query", inline_ms=1500, family="memory", retained_input=True))
 
 
+THAT = ("that", "last")  # resources(id=...) for the last result (board.last_result)
+THAT_PARTS = 6  # results, outlines and a researcher read for one "that"
 SECTIONS = ("data", "researchers", "studies", "agents", "tabs", "stage", "models")
 DATA_PAGES = 6  # pages of data items one section read gathers (project_state.PAGE_MAX each)
 
@@ -297,6 +319,83 @@ def section_text(state: dict, section: str) -> str:
         lines.append("Couldn't read: " + "; ".join(state["unreadable"]))
     out = "\n".join(lines)
     return out + ("\n" + ps._wrapped(words) if words else "")
+
+
+def that_facts(hub, index, found, day: str, sid: str) -> str:
+    """The last result as facts the model explains from (the live partner spec's 4.8, horizontal 4: what a thing is and
+    what made it come from its record): when and how it was asked, what was said of it, the request's steps with the
+    models that ran them (Activity's line for that request), and for each result its record (resource_how: what made
+    it, with what settings, from what, when, at whose request), the newest one's own reading with its numbers, each
+    outline's account (known.py), the researcher's. Ids and titles are the app's; anything a researcher wrote stays in
+    its untrusted wrapper (the readings)."""
+    import json
+
+    from ... import activity
+    from ...resource_how import how
+
+    level = getattr(getattr(hub, "settings", None), "level", None) or "simple"
+    facts: dict = {"asOf": "when the user asked", "at": time.strftime("%H:%M:%S", time.localtime(found.at)),
+                   "level": level}
+    if found.channel:
+        facts["askedBy"] = "voice" if found.channel == "voice" else "typing"
+    if found.said:
+        facts["said"] = list(found.said)
+    line = (activity.sink(hub).recent.get(f"request:{sid}:{found.turn}")
+            if activity.sink(hub) is not None and found.turn is not None else None)
+    if line:
+        facts["request"] = {"words": line.get("text", ""), "steps": [
+            {"tool": step.get("tool"), "ok": step.get("ok"), "summary": str(step.get("summary") or "")[:240],
+             **({"models": [{k: m[k] for k in ("role", "name") if m.get(k)} for m in step["models"]]}
+                if step.get("models") else {})} for step in (line.get("steps") or [])[:8]]}
+        answered = ((line.get("details") or {}).get("answer") or {}).get("model")
+        if answered:
+            facts["request"]["answeredBy"] = answered
+    if found.window:
+        facts["window"] = dict(found.window)
+    ids = [*found.resources, *([found.window["resource"]] if found.window and found.window.get("resource") else [])]
+    if found.researcher:
+        ids.append(found.researcher)
+    entries, _ = index.collect(day)
+    by_id = {e.id: e for e in entries}
+    made, readings = [], []
+    for eid in list(dict.fromkeys(ids))[:THAT_PARTS]:
+        entry = index.get(eid, day)
+        if entry is None:
+            made.append({"id": eid, "kept": False})
+            continue
+        try:
+            record = how(index, entry, day)
+        except Exception:  # noqa: BLE001 - a record that can't be read is said as not read, never guessed
+            record = {}
+        row = {"id": entry.id, "kind": entry.kind, "title": entry.title, "state": entry.state,
+               **({} if record else {"how": "not read"})}
+        if record.get("at") is not None:
+            row["made"] = time.strftime("%H:%M:%S", time.localtime(record["at"]))
+        for key in ("maker", "asked", "method", "settings"):
+            if record.get(key):
+                row[key] = record[key]
+        for key in ("from", "usedIn"):
+            if record.get(key):  # the app's own titles: a researcher's (untrusted) shown title stays out
+                row[key] = [{"id": r["id"], "kind": r["kind"], "title": getattr(by_id.get(r["id"]), "title", "")}
+                            for r in record[key]][:8]
+        made.append(row)
+    if made:
+        facts["results"] = made
+    outlines = list(found.outlines)[:THAT_PARTS]
+    out = ["The last result, from its records: " + json.dumps(facts, ensure_ascii=False, default=str)]
+    for oid in outlines:  # each outline's own account: who found, drew, checked and named it (known.py)
+        try:
+            said = index.read(oid, day)
+        except ToolFailed as exc:
+            said = f"could not be read: {exc.said()}"
+        readings.append(f"Outline {oid}: {said or 'no longer on the board'}")
+    newest = next((r["id"] for r in reversed(made) if r.get("kept") is not False), None)
+    if newest is not None:
+        try:  # its own reading, numbers and all: paged, each page in its own wrapper where it is a researcher's
+            readings.append(f"{newest} in full: {index.read(newest, day)}")
+        except ToolFailed as exc:
+            readings.append(f"{newest} could not be read: {exc.said()}")
+    return "\n".join(out + readings)
 
 
 def add_annotation_tool(registry: Registry, services) -> None:

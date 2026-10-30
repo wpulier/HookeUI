@@ -34,6 +34,7 @@ import os
 import time
 import urllib.parse
 
+from . import api_usage
 from .budget import (CALL_TIMEOUT_S, MIN_OUTPUT_TOKENS, OVERHEAD_TOKENS, PER_PICTURE_TOKENS, STALL_ROUNDS, OverBudget,
                      PRICES, bounded_call, tokens_cost)
 from .researcher import Researcher, RunFailed
@@ -166,23 +167,19 @@ def _passing(exc: BaseException) -> str | None:
     return None
 
 
-# A provider's refusal for want of credit (the codes voice/diagnostics.py knows): never retried, since it fails the same
-# way until someone adds credits, and never billed (refused before any work).
-CREDIT_CODES = frozenset({"insufficient_quota", "insufficient_credits", "billing_not_active", "credit_balance_exhausted"})
+# A provider's refusal for want of credit (api_usage.reason_of, the one mapping of why a model could not be used): never
+# retried, since it fails the same way until someone adds credits, and never billed (refused before any work).
+CREDIT_CODES = api_usage.CREDIT_CODES
 
 
 def _credit_refusal(exc: BaseException) -> str | None:
-    """Who refused the call for want of credit ("OpenAI"), or None: matched by the error's own code or type, never by
-    its words."""
-    body = getattr(exc, "body", None)
-    codes = {getattr(exc, "code", None), getattr(exc, "type", None)}
-    if isinstance(body, dict):
-        inner = body.get("error") if isinstance(body.get("error"), dict) else body
-        codes |= {inner.get("code"), inner.get("type")}
-    if not any(isinstance(code, str) and code in CREDIT_CODES for code in codes):
+    """Who refused the call for want of credit ("OpenAI"), or None (api_usage.reason_of: its own code, or the fixed
+    refusal text a provider sends without one)."""
+    if api_usage.reason_of(exc) != "no-credit":
         return None
     module = type(exc).__module__
-    return "OpenAI" if module.startswith("openai") else "Google" if module.startswith("google") else "The model's provider"
+    return "OpenAI" if module.startswith("openai") else "Google" if module.startswith("google") else (
+        "Anthropic" if module.startswith("anthropic") else "The model's provider")
 
 
 async def _model_call(r: Researcher, model: str, call, sent, limit: Limit | None = None):

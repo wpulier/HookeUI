@@ -1919,14 +1919,14 @@
   }
  },
  {
-  "description": "Which model made an outline and how it was named (\"which model did you use?\", \"how do you know?\"), and what the session made today, from one index (cells, measurements, researchers' work, snapshots, names, labels, scale, datasets). id=o1: how that outline and its name were made, each model that found, drew, checked, named and followed it (answer from this, never from memory). With id and inspect=true, attach that saved picture to the next answer for visual questions; captions alone are not pixels. At most two pictures per request. Nothing given, the summary (\"what data do we have?\"); kind or query, those; id, one in full: an entry, a saved member (c17) or an outline (o3). Large readings return nextOffset and revision; continue with both until nextOffset is null. It makes nothing.",
+  "description": "Which model made an outline and how it was named (\"which model did you use?\", \"how do you know?\"), and what the session made today, from one index (cells, measurements, researchers' work, snapshots, names, labels, scale, datasets). id=o1: how that outline and its name were made, each model that found, drew, checked, named and followed it (answer from this, never from memory). With id and inspect=true, attach that saved picture to the next answer for visual questions; captions alone are not pixels. At most two pictures per request. Nothing given, the summary (\"what data do we have?\"); kind or query, those; id, one in full: an entry, a saved member (c17) or an outline (o3). id=\"that\": the last result the user saw or heard, with what made it, from what, when and its numbers, to explain it (\"I don't understand that\"). Large readings return nextOffset and revision; continue with both until nextOffset is null. It makes nothing.",
   "inline_ms": 1500,
   "kind": "query",
   "name": "resources",
   "params": {
    "properties": {
     "id": {
-     "description": "one entry (e3, d4...), saved member (c17), or outline (o3)",
+     "description": "one entry (e3, d4...), saved member (c17), outline (o3), or \"that\"",
      "type": "string"
     },
     "inspect": {

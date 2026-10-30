@@ -29,7 +29,8 @@ from .intent import log_override
 from .registry import CameraSelection, Registry, Steps, ToolContext, ToolFailed, ToolRun, action_number, actions_wire, dependent, parse_actions
 from .state import Conversation
 from .admission import AdmissionDenied, MAX_CALLS
-from .dispatch import PLANNER_OUTPUT_TOKENS, Refused as CallRefused, answer_phase, capture_answer_attempts, dispatch_answer
+from .dispatch import (POLICY_KINDS, PLANNER_OUTPUT_TOKENS, Refused as CallRefused, answer_phase, capture_answer_attempts,
+                       dispatch_answer)
 
 MAX_TARGETS = 15
 # Tools that take the user to another conversation or session: the request and its answer are filed where they end up.
@@ -1802,9 +1803,10 @@ class Brain:
                 return await asyncio.wait_for(decide(moment or self.moment(when_asked), question, self.agent.vision(model), self.registry.prompt_section(),
                                                      model, followup=followup, point_only=point_only), timeout=PLANNER_TIMEOUT_S)
         except CallRefused as exc:
-            if not exc.retry and not followup and not point_only:
+            if exc.kind in POLICY_KINDS and not followup and not point_only:
                 # The example's local-only policy or the monthly cap: the full look would be refused the same way, so
-                # the request says this one's words. A follow-up round keeps the answer it already has.
+                # the request says this one's words. A follow-up round keeps the answer it already has. A refusal of this
+                # model (retired, out of credit, its key) falls back: the full look may be another model's.
                 raise
             _QUICK_REFUSED.set(exc)
             return self._quick_fell_back(exc, model, followup)

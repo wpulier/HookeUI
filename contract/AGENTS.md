@@ -66,7 +66,7 @@ can't run. Every setting is in exactly one; a model role whose options run no mo
   the live view keeps loaded to make room: a model that does not fit in the memory free is "not checked: inside the
   live app it needs 12.2 GB of memory and 11.4 GB is free ..." (`loads.sparing`); `make capability-check`
   (with the app stopped, BESIDE_LIVE=1 otherwise; DOWNLOAD=1 lets weights download) and `make
-  capability-check-cloud` (keys; its cost said; VIDEO=1 adds Veo, about $0.40) run them from `bench/capability_check.py`
+  capability-check-cloud` (keys; its cost said; VIDEO=1 adds the video model, Gemini Omni 1.1 Flash, about $0.40) run them from `bench/capability_check.py`
   and keep the result where the live app reads it. The local check must pass before a model-related PR merges; a
   change to `services/uv.lock` or `pyproject.toml` is model-related (every built-in model runs in that Python), and
   the check's last line says which Python it ran in and how it differs from that lock (`shared_python.drift`).
