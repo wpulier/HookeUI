@@ -129,9 +129,11 @@ def scale_line(words: str) -> str:
 
 
 def identify_reading(data: dict) -> dict:
-    """What naming a click shows, from the model's reply (shared with bench/naming): when it is
-    sure, its specific name; when it says it is not ("unsure", the model's own call), the broad
-    group, with the specific name and the alternatives offered as "maybe"."""
+    """What naming a click shows, from the model's reply (shared with bench/naming): its specific name, its best guess;
+    when it says it is not sure ("unsure", the model's own call), that name marked unsure, with the alternatives offered
+    as "maybe" and the broad group kept beside it. Will's try-out, 30 Oct: a stoma on a soft frame (Argon "stoma", 0.65,
+    unsure) was shown as "plant structure", and "it used to always know this was a stoma"; the best guess is the name,
+    and the doubt is said with it."""
     name = " ".join(str(data.get("label") or "").split())[:60]
     group = " ".join(str(data.get("group") or "").split())[:60]
     conf = data.get("confidence")
@@ -143,10 +145,13 @@ def identify_reading(data: dict) -> dict:
             alternatives.append(alt_name)
     unsure = bool(data.get("unsure"))
     observations = [" ".join(str(o).split())[:120] for o in data.get("observations") or [] if str(o).strip()][:3]
+    if unsure and group and not name:
+        return {"label": group, "status": "unsure", "maybe": alternatives[:3], "confidence": confidence,
+                "observations": observations, "specific": name, "group": group}
     if unsure and group:
-        maybe = [n for n in [name, *alternatives] if n and label_key(n) != label_key(group)]
-        return {"label": group, "status": "unsure", "maybe": maybe[:3], "confidence": confidence,
-                "observations": observations, "specific": name}
+        maybe = [n for n in alternatives if label_key(n) not in (label_key(group), label_key(name))]
+        return {"label": name, "status": "unsure", "maybe": maybe[:3], "confidence": confidence,
+                "observations": observations, "specific": name, "group": group}
     return {"label": name or group, "status": "unsure" if unsure else "likely",
             "maybe": [a for a in alternatives if label_key(a) != label_key(name)][:2] if unsure else [],
             "alternatives": alternatives[:2], "confidence": confidence, "observations": observations, "specific": name}
