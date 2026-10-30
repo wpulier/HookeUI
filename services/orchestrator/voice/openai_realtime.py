@@ -1743,11 +1743,13 @@ class RealtimeSession(VoiceSession):
             if handed and not led_in:
                 # Nothing said of it yet: one line on what Hooke is doing now, once it is long work (`_handoff_due`).
                 facts = self._handoff_due(ids, now - quiet_since) if pending and not progress else None
-                due, words = facts is not None, HANDOFF_PROGRESS_WORDS
+                due, head, words = facts is not None, "Being done in Hooke now, for what the user just asked: ", \
+                    HANDOFF_PROGRESS_WORDS
             else:
                 # Its lead-in said it is under way: a line only if it runs long.
                 wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
-                due, facts, words = now - quiet_since >= wait, None, PROGRESS_WORDS
+                due, facts = now - quiet_since >= wait, None
+                head, words = "Still running in Hooke for what the user asked: ", PROGRESS_WORDS
             if (pending and len(progress) < PROGRESS_LINES and due
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
@@ -1756,8 +1758,7 @@ class RealtimeSession(VoiceSession):
                 progress.append(self.respond(
                     "progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
                     tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
-                    instructions=self.config.system_prompt + "\n\nStill running in Hooke for what the user asked: "
-                    + facts + ". " + words))
+                    instructions=self.config.system_prompt + "\n\n" + head + facts + ". " + words))
         if progress:
             self._unsay_progress(n)  # its result is here: a line not yet heard is let go, and the result said instead
         for cid in ids:
