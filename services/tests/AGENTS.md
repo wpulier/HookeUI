@@ -804,3 +804,8 @@ selection using an isolated profile and transport stand-in. It verifies folder-b
 creation, no implicit activation, refusal to forget a registered profile, and invalid
 parent refusal without overwriting files. It does not replace the actual browser and
 supported-connector qualification or establish complete collection.
+
+`test_project_native_integrity.py` verifies synthetic microscope saves through real
+journals, evidence readers and folder-copy admission. Historical manifest/file
+damage refuses even with a recomputed outer seal. This is retained-byte integrity,
+not biological accuracy, complete collection or an actual browser proof.
