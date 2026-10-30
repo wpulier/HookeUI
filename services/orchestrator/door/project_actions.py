@@ -15,6 +15,7 @@ SCHEMAS = {
     'project.list': {},
     'project.read': {},
     'project.storage': {},
+    'project.dependencies': {},
     # project.state (project_state.py): the Project's one view, every reader's; additive beside project.read, whose
     # output is unchanged. A page of its data at a time; `cursor` is the next page of the same revisions.
     'project.state': {'cursor': {'type': 'string', 'minLength': 1, 'maxLength': 128},
@@ -124,6 +125,29 @@ async def run(built, record, progress):
             check(value, 'project-storage')
             return value
         result = {'storage': await asyncio.to_thread(storage)}
+    elif name == 'project.dependencies':
+        from ..project_dependency_access import inspect
+        from .schema import check as validate
+        def check():
+            access(built).require(project, actor)
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Dependency inspection stopped before completion')
+        def review():
+            value = inspect(built.hub.resources.projects, project, check=check)
+            validate(value, 'project-dependencies')
+            return value
+        task = asyncio.create_task(asyncio.to_thread(review))
+        try:
+            value = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            record['state'] = 'cancelRequested'
+            try:
+                await task
+            except (ValueError, OSError, Refused):
+                pass
+            raise
+        check()
+        result = {'dependencies': value}
     elif name == 'project.state':
         from .. import project_state
         try:

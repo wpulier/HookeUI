@@ -1188,3 +1188,9 @@ Project snapshot sealing and verification read every accepted scientific revisio
 and verify its owned file/array bytes using the existing import/publication readers.
 Corruption cannot acquire legitimacy from a fresh outer checksum. Verification is
 bounded and cancellable; it neither repairs evidence nor certifies dependency closure.
+
+`project_dependency_access.inspect` is the shared read-only, captured-Project
+inspection over declared scientific record dependencies. It retains an exact head
+basis and checks for changes before returning. It runs off the event loop and
+supports cancellation/authorization checks. It never opens another Project on the
+strength of a saved reference or claims journal/media collection is complete.
