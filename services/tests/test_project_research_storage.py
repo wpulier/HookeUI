@@ -1,6 +1,7 @@
 """Real journals/files with synthetic researcher records; no provider execution."""
 import hashlib
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -16,11 +17,16 @@ from tests.test_research import FakeHub
 DATE = '2026-10-29'
 
 
+def clock():
+    # Match the declared capture date regardless of the runner's current day/timezone.
+    return time.mktime((2026, 10, 29, 12, 0, 0, 0, 0, -1))
+
+
 def setup(tmp_path):
     legacy = tmp_path / 'host/sessions'
-    SessionStore(legacy, session=DATE)
+    SessionStore(legacy, clock=clock, session=DATE)
     locations = ProjectLocations(legacy, ProjectRegistry(tmp_path / 'host'), tmp_path / 'Projects')
-    day = SessionStore(legacy, session=DATE, locations=locations)
+    day = SessionStore(legacy, clock=clock, session=DATE, locations=locations)
     sid = day.new('Retained research')
     manager = ResearchManager(FakeHub(), root=tmp_path / 'host/research', today=lambda: DATE, store=day)
     return locations, day, sid, manager
@@ -56,7 +62,7 @@ def test_research_history_and_files_follow_project_after_move(tmp_path):
         fresh = ProjectLocations(locations.legacy, locations.registry, locations.parent)
         try:
             fresh.registry.register(ProjectRoot.open(moved), replace_inactive=True)
-            reopened_day = SessionStore(locations.legacy, session=sid, locations=fresh)
+            reopened_day = SessionStore(locations.legacy, clock=clock, session=sid, locations=fresh)
             reopened = ResearchManager(FakeHub(), root=manager.root, today=lambda: DATE, store=reopened_day)
             found = reopened.get(item.rid)
             assert found.sitting == sid and found.result['summary'] == 'A corrected interpretation'
@@ -77,7 +83,7 @@ def test_second_host_can_read_but_not_publish_or_dispatch(tmp_path):
         item = session(sid); manager._save(item)
         other_locations = ProjectLocations(locations.legacy, locations.registry, locations.parent)
         try:
-            other_day = SessionStore(locations.legacy, session=DATE, locations=other_locations)
+            other_day = SessionStore(locations.legacy, clock=clock, session=DATE, locations=other_locations)
             other = ResearchStorage(manager.root, other_day)
             assert list(other.records(DATE,sid))
             with pytest.raises(ProjectLocationError): other.save(item, {'session':sid})
@@ -148,7 +154,7 @@ def test_restoring_interrupted_work_never_replays_or_writes_from_readonly_host(t
         path=manager.directory(item)/'session.json'; before=path.read_bytes()
         reader_locations=ProjectLocations(locations.legacy,locations.registry,locations.parent)
         try:
-            reader_day=SessionStore(locations.legacy,session=DATE,locations=reader_locations)
+            reader_day=SessionStore(locations.legacy,clock=clock,session=DATE,locations=reader_locations)
             reader=ResearchManager(FakeHub(),root=manager.root,today=lambda:DATE,store=reader_day)
             reader._load_session(sid)
             restored=reader.get(item.rid)
