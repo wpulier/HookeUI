@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   chipSubWords, chipView, countWords, dayLabel, daysAgo, factsLine, groupByDay, lastUsedWords, monthDay, READ_FAILED, rowView,
-  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords, savedWhereWords } from './sessions';
+  sessionName, SessionsModel, sinceWords, statsLine, suggestWords, SWITCH_WAIT_MS, projectRowWords, inputCountWords, savedWhereWords } from './sessions';
 import type { ClientCommand } from './protocol';
 import { at, list, NOW, row, state } from './sessions.test-support';
 
@@ -279,4 +279,17 @@ test('incomplete input counts stay qualified when a live session update arrives'
   expect(m.rows()[0].counts.sourcesIncomplete).toBe(true);
   expect(countWords(m.rows()[0].counts).join(' ')).toContain('some unavailable');
   expect(countWords({...counts, sources: 0}).join(' ')).toContain('Inputs unavailable');
+});
+
+
+test('Project-menu input counts distinguish empty, complete and unavailable inventories', () => {
+  expect(inputCountWords({sources: 0})).toBe('0 inputs');
+  expect(inputCountWords({sources: 1})).toBe('1 input');
+  expect(inputCountWords({sources: 0, sourcesIncomplete: true})).toBe('Inputs unavailable');
+  expect(inputCountWords({sources: 2, sourcesIncomplete: true})).toBe('2 inputs · some unavailable');
+  const m = new SessionsModel(() => true, () => NOW * 1000);
+  const counts = {sources: 0, sourcesIncomplete: true, made: 0, researchers: 0, conversations: 1};
+  m.applyList(list('a', [row('a', {counts})]));
+  m.applyList(list('a', [row('a', {counts: {sources: 1, made: 0, researchers: 0, conversations: 1}})]));
+  expect(inputCountWords(m.rows()[0].counts)).toBe('1 input');
 });

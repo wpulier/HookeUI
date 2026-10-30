@@ -70,11 +70,16 @@ export function projectRowWords(counts: SessionCounts | undefined, open: boolean
   return [...countWords(counts), ...(open ? ['Open project'] : [])].join(' · ');
 }
 
+export function inputCountWords(counts?: Pick<SessionCounts, 'sources' | 'sourcesIncomplete'>): string {
+  const count = counts?.sources ?? 0;
+  if (counts?.sourcesIncomplete) return count > 0 ? `${plural(count, 'input')} · some unavailable` : 'Inputs unavailable';
+  return plural(count, 'input');
+}
+
 export function countWords(counts: SessionCounts | undefined): string[] {
   const c = counts ?? { made: 0, researchers: 0, conversations: 0 };
   const words: string[] = [];
-  if (c.sourcesIncomplete) words.push((c.sources ?? 0) > 0 ? `${plural(c.sources!, 'input')} · some unavailable` : 'Inputs unavailable');
-  else if ((c.sources ?? 0) > 0) words.push(plural(c.sources!, 'input'));
+  if (c.sourcesIncomplete || (c.sources ?? 0) > 0) words.push(inputCountWords(c));
   if (c.made > 0) words.push(plural(c.made, 'result'));
   if (c.researchers > 0) words.push(plural(c.researchers, 'researcher'));
   words.push(plural(Math.max(0, c.conversations), 'conversation'));
