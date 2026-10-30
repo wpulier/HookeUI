@@ -285,3 +285,24 @@ def test_failed_retained_history_cannot_leave_previous_scientific_source(app_med
             await source_images.for_analysis(app.hub)
         assert app.day.source_references == {}
     asyncio.run(run())
+
+
+def test_retained_original_reaches_population_and_saved_evidence(app_media):
+    from orchestrator import population
+    from tests.test_original_picture_analysis import PixelWorker
+    from tests.waiting import until_async
+    app, sid, ref, _ = app_media
+    worker = PixelWorker()
+    app.hub.gpu_heavy = worker
+    async def run():
+        await commands.source(app, Client(), {'open': 'a1', 'retained': asdict(ref)})
+        result = await population.segment(app.hub, choice='cellpose-sam')
+        await until_async(lambda: result.status in ('saved', 'failed'))
+        assert result.status == 'saved'
+        assert result.view['sourceImage']['retained'] == asdict(ref)
+        assert worker.inputs[0].shape == (17, 13, 3)
+        assert population.drawn_on_stage(app.hub, result)
+        restored = population.capture_of(app.hub, result)
+        assert restored.source_image['retained'] == asdict(ref)
+        return result
+    asyncio.run(run())
