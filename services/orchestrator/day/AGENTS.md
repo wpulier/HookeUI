@@ -385,3 +385,9 @@ bytes and a recovery receipt. It refuses active portable writers, changed bytes,
 additional events/files and ambiguous owners. It does not merge origins, alter
 portable evidence or grants, and is never invoked automatically. An interrupted
 recovery preserves its prepared receipt and bytes for explicit inspection.
+
+The Projects list counts scientific inputs through the same material projection as
+Inputs, including selected generated artifacts and historical Study pins. Explicit
+non-input membership is honored. An exact retained source alias is not counted
+again as a Library input; same names or equal bytes do not establish that identity.
+The catalogue projection runs off the event loop and creates no records.

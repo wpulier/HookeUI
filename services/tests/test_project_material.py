@@ -1,4 +1,5 @@
 from orchestrator.project_material import describe
+from tests.test_scientific_project_api import web  # noqa: F401
 from orchestrator.resources import Index
 from orchestrator.project_state import _item
 from orchestrator.door.schema import check
@@ -210,3 +211,45 @@ def test_nonproject_and_malformed_reports_cannot_poison_inventory(tmp_path):
         attach_usage([entry, malformed], store)
         assert 'inspection' not in entry.material
         assert entry.material['kind'] == 'file'
+
+
+def test_project_menu_counts_selected_material_and_historical_dependencies(web):
+    from tests.test_scientific_project_api import create
+    from tests.test_scientific_file_api import upload
+    from orchestrator.project_material_edit import organize
+    client, app = web
+    sid = app.day.sid
+    store = app.hub.resources.projects
+    source = upload(client, app).json()['project']
+    ref = {key: source[key] for key in ('session', 'id', 'revision', 'digest')}
+    organize(store, sid, ref, role='Verification receipt', selected=False,
+             expected_revision=0, actor='user', request='receipt-not-input')
+    first = store.create(sid, document('matrix-result', title='Fitted model'))
+    old = {'id': first.id, 'revision': first.revision, 'digest': first.digest}
+    store.create(sid, document('research-effort', {'researchEffort': {'inputs': [old]}}))
+    store.save(first.id, sid, document('matrix-result', title='Later model'), expected_revision=1)
+    create(client, app)  # unrelated scene is not an input
+    rows = client.get('/api/sessions').json()['sessions']
+    assert next(row for row in rows if row['id'] == sid)['counts']['sources'] == 2
+    entries, problems = app.hub.resources.collect(sid, kinds=('project',))
+    from orchestrator.project_material import input_references
+    assert not problems
+    selected = input_references(entries)
+    assert (sid, first.id, 1, first.digest) in selected and len(selected) == 2
+
+
+def test_project_menu_deduplicates_only_exact_retained_source_aliases(tmp_path):
+    from types import SimpleNamespace
+    from orchestrator.project_material import additional_inputs, attach_usage
+    store, saved, _ = inspected_source(tmp_path)
+    entry = Index.project_entry(saved)
+    attach_usage([entry], store)
+    ref = {'session': saved.session, 'document': saved.id,
+           'revision': saved.revision, 'digest': saved.digest}
+    record = SimpleNamespace(sources={'a1': 1}, removed_sources=set(), source_references={'a1': ref})
+    assert additional_inputs([entry], record) == 0  # the journal already counts it once
+    record.source_references['a1'] = {**ref, 'revision': 2}
+    assert additional_inputs([entry], record) == 1  # a different version is a separate input
+    record.source_references['a1'] = ref
+    record.removed_sources.add('a1')
+    assert additional_inputs([entry], record) == 1  # retained Project input survives Stage removal

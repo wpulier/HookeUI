@@ -1911,24 +1911,30 @@ class App:
                 out[session.sitting] = out.get(session.sitting, 0) + 1
         return out
 
-    def scientific_inputs(self) -> dict[str, int]:
-        """Each session's scientific inputs (imported files and folders, scientific_projects.ProjectStore). Reads the
-        store: off the event loop (`sessions_message`)."""
-        projects = getattr(getattr(self.hub, "resources", None), "projects", None)
-        try:
-            return projects.inputs_by_session() if projects is not None else {}
-        except OSError:
+    def material_input_adjustments(self, infos) -> dict[str, int]:
+        """Off-loop inventory counts, adjusted for source aliases already in the journal."""
+        from .project_material import additional_inputs
+        index = getattr(self.hub, "resources", None)
+        if index is None:
             return {}
+        result = {}
+        with index.one_pass():
+            for info in infos:
+                entries, unreadable = index.collect(info.id, kinds=("project",))
+                # Do not advertise a partial scan as a complete count.
+                if not unreadable:
+                    result[info.id] = additional_inputs(entries, info)
+        return result
 
     def sessions_wire(self, infos=None, working: dict | None = None, inputs: dict | None = None) -> dict:
         """Every session, the most recently used first (protocol.ts SessionsList): each the catalogue's own row
         (day/catalogue.py: what Made in this session lists, its researchers, its conversations) with the researchers
-        working in it now. Its inputs are the library's opened sources and its scientific inputs (F-L8-6: a project
-        holding only imported scientific files said "0 inputs"). Reads the journals and the scientific store: off the
+        working in it now. Its inputs use the shared material selections, including Study assignments and pinned
+        dependencies, plus journal sources not already represented by an exact retained input. Reads off the
         event loop (`sessions_message`)."""
         infos = self.day.catalogue.list() if infos is None else infos
         working = self.working_by_session() if working is None else working
-        inputs = self.scientific_inputs() if inputs is None else inputs
+        inputs = self.material_input_adjustments(infos) if inputs is None else inputs
         rows = []
         for info in infos:
             row = {**info.wire(), "working": int(working.get(info.id, 0))}
@@ -1944,7 +1950,10 @@ class App:
     async def sessions_message(self) -> dict:
         """The sessions list, its journals and scientific inputs read in a thread."""
         working = self.working_by_session()
-        infos, inputs = await asyncio.to_thread(lambda: (self.day.catalogue.list(), self.scientific_inputs()))
+        def read():
+            infos = self.day.catalogue.list()
+            return infos, self.material_input_adjustments(infos)
+        infos, inputs = await asyncio.to_thread(read)
         return self.sessions_wire(infos, working, inputs)
 
     def hold_until_landed(self, held: bool, expires: bool = True) -> None:

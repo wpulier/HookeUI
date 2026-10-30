@@ -209,3 +209,28 @@ def attach_usage(entries, store=None) -> list[str]:
         except (ValueError, OSError, KeyError):
             problems.append(f'Material organization {membership.id} is unavailable')
     return problems
+
+
+def input_references(entries):
+    """Exact inventory selections, including historical Study uses (the Inputs view)."""
+    selected = set()
+    for entry in entries:
+        material = entry.material or {}
+        if material.get('input'):
+            selected.add((entry.day, entry.id, entry.version, entry.source.get('sha256')))
+        for use in material.get('uses', []):
+            selected.add((entry.day, entry.id, use['revision'], use['digest']))
+    return selected
+
+
+def additional_inputs(entries, record):
+    """Add inventory inputs to journal source counts without counting retained aliases twice."""
+    from .day.catalogue import opened_sources
+    selected = input_references(entries)
+    refs = getattr(record, 'source_references', {})
+    duplicated = 0
+    for identity in opened_sources(record):
+        ref = refs.get(identity, {})
+        if (ref.get('session'), ref.get('document'), ref.get('revision'), ref.get('digest')) in selected:
+            duplicated += 1
+    return len(selected) - duplicated
