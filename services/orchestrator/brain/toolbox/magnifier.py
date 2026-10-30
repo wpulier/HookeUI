@@ -587,7 +587,10 @@ def add_magnifier_tools(registry: Registry, services) -> None:
 
             kept = ""
             run_now = CURRENT_RUN.get()
-            entry = hub.resources.results.from_run(run_now, ctx, hub, produced=True) if run_now is not None else None
+            results = getattr(getattr(hub, "resources", None), "results", None)
+            # Kept now where this app keeps results (a storage failure fails the step, as the registry's own keeping
+            # would); with no store, kept as before once the step ends.
+            entry = results.from_run(run_now, ctx, hub, produced=True) if run_now is not None and results is not None else None
             if entry is not None:
                 record_output(ctx, {"kind": "resource", "resource": {"day": session_of(entry, entry["day"]),
                                                                      "id": entry["id"], "version": None}})
