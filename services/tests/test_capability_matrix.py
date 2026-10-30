@@ -29,7 +29,9 @@ from orchestrator.model_checks import STOMA_BOX
 
 ACTORS = ("chat", "voice", "researcher")
 # A researcher's own operations (research_worker.budget.RUN_OPERATIONS), by the capability that is each.
-RUNS = {"research-run": "segment", "research-enhance": "enhance", "research-motion": "motion"}
+RUNS = {"research-run": "segment", "research-enhance": "enhance", "research-motion": "motion", "research-classify": "classify"}
+# What a researcher's `run` of one of them names besides its operation (classify: its models and classes, W5).
+RUN_ARGS = {"research-classify": {"models": ["gemini-3.8-flash", "gpt-6.1-sol"], "classes": ["guard cell", "pavement cell"]}}
 # Roles a request names a model for with `use` (names.roles), by the operation or setting `use` takes.
 USE_AS = {"outline": "outline", "cells": "cells", "embed": "looks"}
 # Methods whose choice runs a model of its own: set as the Behaviour menu sets them, from now on.
@@ -121,6 +123,10 @@ PLANS: dict[str, Plan] = {
     "compare": Plan("compare these two", [("compare", {"a": "o1", "b": "o2"})], ("outline", "outline2")),
     "compare-models": Plan("compare these two models on that", [("compare_models", {
         "operation": "{use_as}", "object": O1, "implementations": ["{name}", "{other}"]})], ("outline",), names_model=True),
+    # Several models name the same cells (W5): the vision models are the scripted provider's, MedSigLIP the heavy worker's.
+    "compare-classifiers": Plan("compare Gemini, GPT and MedSigLIP at classifying these cells", [("compare_models", {
+        "operation": "classify", "implementations": ["gemini-3.8-flash", "gpt-6.1-sol", "medsiglip-448"],
+        "classes": ["guard cell", "pavement cell"]})], ("cells",)),
     "contrast": Plan("how are these two different?", [("contrast", {"a": "o1", "b": "o2"})], ("outline", "outline2")),
     "focus-check": Plan("is it in focus?", [("focus_check", {"object": O1})], ("outline",)),
     "show-picture": Plan("show me the labelled picture", [("show_in_magnifier", {"researcher": "r1"})], ("lesson",)),
@@ -284,6 +290,10 @@ PLANS: dict[str, Plan] = {
     "research-motion": Plan("have a researcher measure how fast these swim", [("start_researcher", {
         "brief": "measure how fast these swim", "effort": "quick",
         "asked_with": "have a researcher measure how fast these swim"})], not_on_path={"researcher:research": RUN_ENGINE}),
+    "research-classify": Plan("have a researcher run five classifying models on these cells and compare them", [(
+        "start_researcher", {"brief": "run five classifying models on these cells and compare them", "effort": "standard",
+                             "asked_with": "have a researcher run five classifying models on these cells and compare them"})],
+        ("cells",), not_on_path={"researcher:research": RUN_ENGINE}),
     # A chart or an animation of a kept table: a research researcher's own tools (measurement_charts.py), never a video.
     "research-chart": Plan("have a researcher chart the nucleus areas", [("start_researcher", {
         "brief": "chart the nucleus areas", "effort": "quick", "asked_with": "have a researcher chart the nucleus areas"})]),
@@ -532,7 +542,8 @@ async def _run_row(rig, world, row: Row, plan, setups) -> str:
     elif row.actor == "voice":
         runs, _found = await rig.voice(steps, plan.words)
     else:
-        reply = await rig.researcher(RUNS[row.capability], implementation=entry.name if row.role == "cells" else None)
+        reply = await rig.researcher(RUNS[row.capability], implementation=entry.name if row.role == "cells" else None,
+                                     **RUN_ARGS.get(row.capability, {}))
         return rig.judge_run(reply, row, since, world, why_unavailable(row) if not declared(plan, row) else "")
     return rig.judge(runs, row, plan, since, world, why_unavailable(row), declared(plan, row))
 

@@ -108,7 +108,8 @@ _CLIENTS: dict[tuple, Any] = {}
 
 
 def vision_for(option_id: str):
-    """A vision client for `option_id` (made once per key: a key saved since makes a new one). A test replaces it."""
+    """A vision client for `option_id` where the hub has none of its own (the app gives it the agent's, `hub.vision_for`:
+    a stand-in hub, a bench), made once per key: a key saved since makes a new one. A test replaces it."""
     from .agent import key_needed
     from .options import VISION
     from .vision import make_vision
@@ -233,7 +234,7 @@ def register() -> None:
         pictures = await asyncio.to_thread(sheets, [(n, crops[mid]) for n, mid in numbered])
         by_number = dict(numbered)
         specimen = (getattr(getattr(run.hub, "scene", None), "context", None) or {}).get("specimen")
-        client = vision_for(impl.option)
+        client = (getattr(run.hub, "vision_for", None) or vision_for)(impl.option)
         labels: dict[str, dict] = {}
         usage = {"input": 0, "output": 0}
         cost, priced, calls = 0.0, True, 0
