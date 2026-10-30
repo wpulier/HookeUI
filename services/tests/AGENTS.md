@@ -821,3 +821,10 @@ real connected-agent export or browser quality; record those separately.
 accepted-history integrity, handle/permission collisions, writer refusal, snapshot
 immutability and no imported grants. Server-main argument/environment tests use a
 transport stand-in: they do not qualify the native chooser or full read-only UI.
+# Retained researcher integrity
+
+`test_project_research_integrity.py` uses synthetic researcher output through real
+metadata publication and folder-copy verification. It checks archived bytes,
+finding digests, owner mismatch, incomplete publication, bounded cancellation and
+recomputed outer seals. This is storage evidence, not provider or complete-collection
+acceptance.
