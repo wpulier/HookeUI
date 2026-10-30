@@ -378,3 +378,20 @@ Project journal is available. Both legacy and portable stores use the same bound
 reader, origin checks and exact choices. This adds no authority to inspect a global
 Library or other Project, and no caller can supply a filesystem path. Older or
 unavailable hosts may omit sourceReview; omission never means dependencies complete.
+
+### Retained Stage inputs
+
+With portable routing explicitly enabled, Stage selection requires an exact retained
+media revision. A historical Library ID is only an alias within that Project's
+recorded source binding; it cannot resolve against the current host's Library.
+The bridge receives a verified disposable decoder copy with a supported suffix.
+An uncertain bridge request retains its possible input until a later acknowledged
+replacement. Stopping the host retains these decoder owners until process teardown.
+Original-image analysis reads accepted Project chunks independently of that cache.
+
+Source journals retain the reference, and same-ID/different-revision populations
+cannot overlay each other. Calibration and Library metadata/trash actions cannot
+mutate accepted source facts or an unrelated local asset. A separate reviewed
+revision-editing path remains required. This staged integration does not yet qualify
+complete source collection, automatic imported-source selection, or the ordinary
+portable browser journey; normal portable activation remains off.

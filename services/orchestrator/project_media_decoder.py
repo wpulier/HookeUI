@@ -29,7 +29,7 @@ class DecoderSource:
 
 
 @contextmanager
-def retained_path(media, reference, *, host_cache, max_bytes, stopping=lambda: False):
+def retained_path(media, reference, *, host_cache, max_bytes, stopping=lambda: False, suffix=".media"):
     """Materialize one explicitly selected revision without following its original.
 
     Call off-loop, hold this context until the decoder is closed, and keep its
@@ -37,6 +37,9 @@ def retained_path(media, reference, *, host_cache, max_bytes, stopping=lambda: F
     The caller supplies its disk allowance; every chunk retains normal hash checks.
     """
     _background()
+    from .library import STILL, VIDEO
+    if suffix not in (*STILL, *VIDEO, '.media'):
+        raise ProjectLocationError('Choose a supported media decoder suffix')
     if type(max_bytes) is not int or max_bytes < 0:
         raise ProjectLocationError('Choose a nonnegative retained-media byte allowance')
     metadata, source = media.read(reference)
@@ -65,7 +68,7 @@ def retained_path(media, reference, *, host_cache, max_bytes, stopping=lambda: F
         with tempfile.TemporaryDirectory(prefix='hooke-media-', dir=cache) as temporary:
             # Decoders inspect the bytes. Neither the historical filename nor its
             # extension determines the scientific meaning of this source.
-            path = Path(temporary) / 'source.media'
+            path = Path(temporary) / ('source' + suffix)
             digest = hashlib.sha256()
             with path.open('x+b') as output:
                 for offset in range(0, source.size, CHUNK_BYTES):

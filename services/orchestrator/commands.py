@@ -2867,40 +2867,70 @@ async def source(app, client, msg) -> dict:
         raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
     target = str(msg.get("open") or "")
     library = getattr(app.hub, "library", None)
-    asset = None
+    asset = prepared = None
+    stage_media = getattr(app, '_project_stage_media', None)
     if target != "live":
         if not is_asset_id(target):
-            raise tools.ToolError("open is an asset's id or \"live\"", next=None)  # no next: the studio's own command format
-        if library is None:
-            raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
-        asset = await asyncio.to_thread(library.get, target)
-        if asset is None:
-            raise tools.ToolError(f"there is no asset {target}", next="pick one from this session's Assets or from All assets")
-    # One at a time, in the order asked, so the bridge ends on the last one (switching sessions quickly sends one landing
-    # each: run together, a slow seek of the first finished last). One asked in a session left while it waited, or while
-    # the bridge switched, is not this session's (its own landing follows).
-    async with _source_lock(app):
-        if app.day.sid != sid:
-            raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
-        if msg.get("switch") is not False:
-            await note_position(app)
+            raise tools.ToolError('open is an asset id or "live"', next=None)
+        locations = getattr(app.day, 'locations', None)
+        portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
+        selected = msg.get('retained') or getattr(app.day, 'source_references', {}).get(target)
+        if portable is not None:
+            if selected is None:
+                raise tools.ToolError('Choose the retained revision of this Project source',
+                                      next='collect the source into this Project before opening it')
+            if msg.get('switch') is False:
+                raise tools.ToolError('Retained media must be opened through the camera bridge', next=None)
+            from .project_stage_media import manager
+            stage_media = manager(app)
+            try:
+                prepared = await stage_media.prepare(selected, sid, target)
+            except (OSError, ValueError) as error:
+                raise tools.ToolError(str(error), next='check the retained source in Project data') from error
+            asset = prepared.asset
+        elif selected is not None:
+            raise tools.ToolError('This host has not opened the retained Project location', next=None)
+        else:
+            if library is None:
+                raise tools.ToolError('The Library is not available here', next=None)
+            asset = await asyncio.to_thread(library.get, target)
             if asset is None:
-                await _bridge(app, "POST", "/feed?source=camera")
+                raise tools.ToolError(f'There is no asset {target}', next='choose a source from Inputs or Library')
+    try:
+        async with _source_lock(app):
+            if app.day.sid != sid:
+                raise tools.ToolError('That Project is no longer open', next=None)
+            if msg.get("switch") is not False:
+                await note_position(app)
+                if stage_media is not None:
+                    # A lost bridge reply is uncertain: keep its possible decoder
+                    # input until another feed replacement is acknowledged.
+                    stage_media.offered(prepared)
+                if asset is None:
+                    await _bridge(app, "POST", "/feed?source=camera")
+                else:
+                    from urllib.parse import urlencode
+                    at = msg.get("at")
+                    params = {"source": "asset", "path": str(asset.path), "title": asset.title_now(),
+                              **({"paused": "1"} if msg.get("paused") or asset.kind == "still" else {}),
+                              **({"at": f"{float(at):.3f}"} if isinstance(at, (int, float)) and at >= 0 else {})}
+                    await _bridge(app, "POST", "/feed?" + urlencode(params))
+                if stage_media is not None:
+                    await stage_media.replaced(prepared)
+            if app.day.sid != sid:
+                raise tools.ToolError('That Project is no longer open', next=None)
+            previous = app.day.on_stage
+            if prepared is not None:
+                app.day.open_source(target, retained=asset.exact_reference())
             else:
-                from urllib.parse import urlencode
+                app.day.open_source(target)
+            await app.stage_changed(asset)
+            app.hold_until_landed(False)
+        return {"ok": True, "onStage": target, "previous": previous, **({"title": asset.title_now()} if asset else {})}
+    finally:
+        if prepared is not None and prepared not in stage_media.held:
+            await asyncio.to_thread(prepared.close)
 
-                at = msg.get("at")
-                params = {"source": "asset", "path": str(asset.path), "title": asset.title_now(),
-                          **({"paused": "1"} if msg.get("paused") or asset.kind == "still" else {}),
-                          **({"at": f"{float(at):.3f}"} if isinstance(at, (int, float)) and at >= 0 else {})}
-                await _bridge(app, "POST", "/feed?" + urlencode(params))
-        if app.day.sid != sid:
-            raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
-        previous = app.day.on_stage
-        app.day.open_source(target)
-        await app.stage_changed(asset)
-        app.hold_until_landed(False)  # its source is on stage: it is looked at again (a session's opening held it)
-    return {"ok": True, "onStage": target, "previous": previous, **({"title": asset.title_now()} if asset else {})}
 
 
 @command("source-remove")
@@ -2909,8 +2939,11 @@ async def source_remove(app, client, msg) -> dict:
     history; its specimens leave the session's list unless another source shows them). Undo is `source-restore`. When
     it was on stage, the studio puts `next` there (the newest other source, else the live camera)."""
     aid = str(msg.get("asset") or "")
-    library = getattr(app.hub, "library", None)
-    asset = await asyncio.to_thread(library.get, aid) if library is not None else None
+    from .project_stage_media import source_asset
+    try:
+        asset = await source_asset(app, aid)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     if not app.day.remove_source(aid):
         raise tools.ToolError("that is not one of this session's sources" if aid != "live" else "the live camera is always a source",
                               next=None)  # no next: the studio offers × only on the session's own assets
@@ -2928,11 +2961,14 @@ async def source_remove(app, client, msg) -> dict:
 async def source_restore(app, client, msg) -> dict:
     """Undo of a source's removal: it is the session's again, with its specimens."""
     aid = str(msg.get("asset") or "")
+    from .project_stage_media import source_asset
+    try:
+        asset = await source_asset(app, aid)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     if not app.day.restore_source(aid):
         raise tools.ToolError("that source was not removed from this session", next=None)  # no next: Undo is offered only right after a removal
     app.broadcast_sources(await app.session_sources(app.day.sid))
-    library = getattr(app.hub, "library", None)
-    asset = await asyncio.to_thread(library.get, aid) if library is not None else None
     return {"ok": True, "restored": aid, **({"title": asset.title_now()} if asset else {})}
 
 
@@ -2940,6 +2976,11 @@ async def source_restore(app, client, msg) -> dict:
 async def asset_meta(app, client, msg) -> dict:
     """The user's own fields of an asset (its specimen, magnification, title, notes): kept on it in the library, so they
     follow it into every session. On stage, its scale and its specimen change at once."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
@@ -2962,6 +3003,11 @@ async def asset_trash(app, client, msg) -> dict:
     """All assets' Move to trash (the user's, after a confirm naming the sessions that use it): out of the library and
     every session's list; the work made from it stays; a file the library holds goes to a trash folder, never deleted.
     When it was on stage here, it leaves the stage (`wasOnStage`: the studio goes live). Undo is `asset-restore`."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)
@@ -2980,6 +3026,11 @@ async def asset_trash(app, client, msg) -> dict:
 @command("asset-restore")
 async def asset_restore(app, client, msg) -> dict:
     """Undo of Move to trash: back in the library and in every session that had it."""
+    from .project_stage_media import require_library_project
+    try:
+        await require_library_project(app)
+    except (ValueError, OSError) as error:
+        raise tools.ToolError(str(error), next="inspect the retained source in Project data") from error
     library = getattr(app.hub, "library", None)
     if library is None:
         raise tools.ToolError("the library is not available here", next=None)  # no next: this app keeps no library (a test stack)

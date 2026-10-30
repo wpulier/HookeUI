@@ -771,3 +771,10 @@ Source inspection through `project.dependencies` reads the captured Project's
 journal and historical retained media bindings. Synthetic-consent door checks
 cover shared schema, unchanged visible Project, cancellation and bounded owner
 reads. This is inclusion preflight, not a complete collection certificate.
+
+`test_project_stage_media.py` exercises actual App/journal/retained-file paths with
+synthetic pixels and a stand-in bridge transport. It checks exact source reopening
+after relocation and original deletion, frozen scientific reads after decoder-cache
+cleanup, overlay revision identity, legacy Library mutation refusals, uncertain
+bridge replacement and repeated cancellation. It is not live camera, actual bridge
+playback, browser or complete collection qualification.

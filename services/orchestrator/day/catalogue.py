@@ -123,6 +123,7 @@ class Info:
     specimens: list[str] = field(default_factory=list)  # what was seen, first seen first (not on a removed source)
     seen: list[tuple[str, str | None]] = field(default_factory=list)  # every (specimen, source it was seen on)
     sources: dict[str, float] = field(default_factory=dict)  # assets opened in it -> when last opened (ADR 0022)
+    source_references: dict[str, dict] = field(default_factory=dict)
     removed_sources: set[str] = field(default_factory=set)  # those the user took out of it
     on_stage: str | None = None  # what was on stage when it was last used ("live", an asset id)
     positions: dict[str, float] = field(default_factory=dict)  # where each recording was when it left the stage
@@ -299,6 +300,8 @@ class Catalogue:
                 info.sources[aid] = at
                 info.removed_sources.discard(aid)
                 info.on_stage = aid
+                if isinstance(e.get('retained'), dict):
+                    info.source_references[aid] = dict(e['retained'])
             elif e.get("op") == "removed" and aid != "live":
                 info.removed_sources.add(aid)
             elif e.get("op") == "restored":
