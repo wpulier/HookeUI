@@ -10,7 +10,8 @@ from tests.waiting import HANG_S
 
 
 @pytest.mark.parametrize('material', ['protocol', 'mixed'])
-def test_studio_create_connector_contribute_shutdown_move_and_restart(tmp_path, material):
+@pytest.mark.parametrize('restoring', [False, True], ids=['move', 'restore-snapshot'])
+def test_studio_create_connector_contribute_shutdown_move_and_restart(tmp_path, material, restoring):
     def probe(mode):
         result = subprocess.run([sys.executable, '-m', 'tests.project_server_host_probe', mode, str(tmp_path), material],
             cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=HANG_S)
@@ -21,12 +22,15 @@ def test_studio_create_connector_contribute_shutdown_move_and_restart(tmp_path, 
     root = ProjectRoot.open(receipt['root'])
     with writer(root):
         pass
-    from orchestrator.project_folder_copy import copy_snapshot, verify_snapshot
+    from orchestrator.project_folder_copy import copy_snapshot, restore_snapshot, verify_snapshot
     snapshot = copy_snapshot(root, tmp_path / 'Snapshot')
     snapshot_receipt = verify_snapshot(snapshot.path)
     assert snapshot_receipt['externalDependencies'] == 'not-verified'
     moved = tmp_path / 'Moved Studio Project'
-    root.path.rename(moved)
+    if restoring:
+        restore_snapshot(snapshot.path, moved)
+    else:
+        root.path.rename(moved)
     ProjectRegistry(tmp_path / 'host').register(ProjectRoot.open(moved), replace_inactive=True)
     probe('reopen')
     assert verify_snapshot(snapshot.path) == snapshot_receipt

@@ -2,7 +2,7 @@
 
 `test_project_server_routing.py` runs the ordinary FastAPI server and lifespan in
 separate processes, with synthetic consent and text. Studio creates the Project;
-the connector contributes copied evidence and a Study. Shutdown, folder move and
+the connector contributes copied evidence and a Study. Shutdown, folder move or explicit snapshot restoration, and
 restart retain the exact documents and shared inventory after original deletion.
 No public portable-mode switch, real browser/client, model, microscopy decoder or
 complete dependency collection is qualified by this test.
