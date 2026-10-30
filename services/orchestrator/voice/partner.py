@@ -431,12 +431,16 @@ class Partner:
         if shown.get("studioVisible") is False:
             return []
         windows = {i.get("id") for i in wire.get("items") or () if i.get("open") and i.get("visible")}
+        from ..placement import strip
+
+        tab_titles = {str(t.get("title")) for t in strip(wire).get("tabs") or () if isinstance(t, dict)}
         specimen = (shown.get("specimen") or {}).get("state") != "hidden"
         out = []
         for target in targets:
             name = target.get("target") if isinstance(target, dict) else target
             kind, _, ref = str(name or "").partition(":")
             if (kind == "window" and ref in windows) or (kind == "document" and name in windows) or kind == "researcher" or (
+                    kind == "tab" and ref in tab_titles) or (
                     kind in ("outline", "population", "member", "frame") and specimen):
                 out.append(target)
         return out

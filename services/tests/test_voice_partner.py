@@ -1833,25 +1833,28 @@ def test_only_what_the_screen_shows_is_pointed_at(monkeypatch):
     made is pointed at only when the studio's latest report shows it, a window open and visible, an outline or a layer
     of them while the Tab in front shows the specimen, a researcher's card."""
     def report(specimen="fill", visible=True):
-        tabs = [{"id": "main", "front": True, "specimen": {"state": specimen}}]
+        tabs = [{"id": "main", "title": "Main", "front": True, "specimen": {"state": specimen}},
+                {"id": "t2", "title": "Experiment 1: results", "front": False}]
         return {"items": [
             {"id": "workspace-tabs", "open": True, "visible": True,
              "view": {"legacy": {"workspace": {"project": "p", "tab": "main", "tabTitle": "Main", "tabs": tabs}}}},
-            {"id": "w-1", "open": True, "visible": visible}, {"id": "w-2", "open": False, "visible": False}],
+            {"id": "w-1", "open": True, "visible": visible}, {"id": "w-2", "open": False, "visible": False},
+            {"id": "document:p9", "open": True, "visible": True}],
             "sources": [], "viewport": {}}
 
     async def go():
         t = await partner_session(monkeypatch, acts="brain")
         wanted = ["window:w-1", "window:w-2", "outline:o1", "population:e1", "researcher:r1",
-                  {"target": "frame", "region": [0.1, 0.1, 0.2, 0.2]}]
+                  {"target": "frame", "region": [0.1, 0.1, 0.2, 0.2]},
+                  "document:p9", "document:p8", "tab:Experiment 1: results", "tab:Gone"]
         assert t.partner.pointable(wanted) == wanted, "no studio bound: nothing to check against"
         t.partner.client = object()
         shown = [report()]
         monkeypatch.setattr("orchestrator.voice.route.passive_workspace_pin",
                             lambda screen, client: SimpleNamespace(observation=SimpleNamespace(wire=lambda: shown[0])))
-        assert t.partner.pointable(wanted) == [w for w in wanted if w != "window:w-2"]
+        assert t.partner.pointable(wanted) == [w for w in wanted if w not in ("window:w-2", "document:p8", "tab:Gone")]
         shown[0] = report(specimen="hidden", visible=False)
-        assert t.partner.pointable(wanted) == ["researcher:r1"]
+        assert t.partner.pointable(wanted) == ["researcher:r1", "document:p9", "tab:Experiment 1: results"]
     asyncio.run(go())
 
 

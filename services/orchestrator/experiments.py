@@ -1240,7 +1240,10 @@ class Experiments:
         with contextlib.suppress(Exception):
             from .voice.events import bus_of
 
-            bus_of(app.brain).publish("job-result" if x.status == "done" else "job-failed", text, ref=f"experiment:{x.key}")
+            tab = (x.outcome or {}).get("tab")
+            # Said pointing at the Tab its results opened in, when they did (Knowing: an event line points at its thing).
+            bus_of(app.brain).publish("job-result" if x.status == "done" else "job-failed", text, ref=f"experiment:{x.key}",
+                                      **({"mark": f"tab:{tab}"} if tab else {}))
         with contextlib.suppress(Exception):
             app.conversation.add("note", "system", text, asked=x.asked_in)
 
