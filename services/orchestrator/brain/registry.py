@@ -633,6 +633,9 @@ class Registry:
         self.finished: list[Callable[["ToolRun", ToolContext], Awaitable[None] | None]] = []
         # A running step's progress changed (ToolRun.report_progress): told to whoever follows its request.
         self.progressed: list[Callable[["ToolRun", ToolContext], None]] = []
+        # A step's run began (its task made): told to whoever follows its request, in the request's own context (a voice
+        # hand-off's job knows what Hooke is running for it now: voice/jobs.py `run_started`).
+        self.started: list[Callable[["ToolRun", ToolContext], None]] = []
         # The models that worked on a run, named when it ends (activity.models_of, set by toolbox.build).
         self.models: Callable[["ToolRun"], list[dict]] | None = None
 
@@ -818,6 +821,11 @@ class Registry:
                     retries.settled(retry_candidate)
 
         run.task = asyncio.create_task(go())
+        for listener in list(self.started):
+            try:
+                listener(run, ctx)
+            except Exception:  # what is told of a run never breaks it
+                pass
         return run
 
     def kind(self, name: str) -> str:

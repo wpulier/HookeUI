@@ -98,6 +98,7 @@ async def realtime(tools=(), talk="hold", sidebands=None):
 def no_tail(monkeypatch):
     monkeypatch.setattr(openai_realtime, "RELEASE_TAIL_S", 0.0)
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)  # no wait lines unless a test is about them
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 60.0)  # nor a hand-off's
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 60.0)  # nor think's
 
 
@@ -1848,4 +1849,89 @@ def test_only_what_the_screen_shows_is_pointed_at(monkeypatch):
         assert t.partner.pointable(wanted) == [w for w in wanted if w != "window:w-2"]
         shown[0] = report(specimen="hidden", visible=False)
         assert t.partner.pointable(wanted) == ["researcher:r1"]
+    asyncio.run(go())
+
+
+# --- long work says what it is doing; quick work says nothing before its outcome (will-alive "slow", 30 Oct) ----------
+def hooke_runs(t, tool: str, args: dict, gate: asyncio.Event | None, *, think_s: float = 0.0):
+    """Hooke's brain on a hand-off as a real turn runs it: it decides (`think_s`), then runs one step through the real
+    ActionRunner (so the step is the hand-off's own, under its stop holder) and answers once that step has ended. The
+    step waits on `gate` (a web search) or ends at once (a quick step)."""
+    from orchestrator.brain.actions import ActionRunner
+    from orchestrator.brain.registry import ToolContext
+
+    async def handler(ctx, args):
+        if gate is not None:
+            await gate.wait()
+        return f"{tool} done"
+    t.brain.registry.add(Tool(tool, f"{tool.replace('_', ' ').capitalize()}: finds a video or web page and shows it.",
+                              schema({"query": {"type": "string"}}), handler, kind="effect", inline_ms=50))
+
+    async def turn(text, channel, **kw):
+        await asyncio.sleep(think_s)
+        runner = ActionRunner(t.brain.registry, t.hub, lambda: None, lambda run, ctx: asyncio.sleep(0))
+        runs = await runner.run([(tool, dict(args))], ToolContext("voice", 0, None, question=text))
+        await asyncio.wait([r.task for r in runs])
+        return {"answer": "I found \"What are stomata?\" and opened it.", "actions": [r.wire() for r in runs]}
+    t.brain.turn = turn
+
+
+async def hand_off_round(t, request: str, label: str, *, lead_in: str = ""):
+    """Turn 1: the voice calls do_in_hooke, with `lead_in` words before it or none."""
+    await press(t, 1)
+    await release(t, 1)
+    t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1", "transcript": request})
+    if lead_in:
+        t.sb.emit({"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "delta": lead_in})
+    t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "h1",
+               "name": "do_in_hooke", "arguments": json.dumps({"request": request, "label": label})})
+    await done(t.sb, "resp_1")
+
+
+def test_a_hand_off_still_running_after_a_few_seconds_says_once_what_hooke_is_doing_now(monkeypatch):
+    """will-alive "slow" ("Find a YouTube video about stomata."), runs 2-3 judged 2 of 3: "there was no brief
+    acknowledgment that the search was under way". The voice called do_in_hooke without words, the web search ran ~15 s,
+    and nothing was said until its outcome: a hand-off waited PROGRESS_AFTER_LEADIN_S (20 s) for a line even with no
+    lead-in. Now a hand-off still running a few seconds in, with one of its steps running a while, gets one short line,
+    worded from what Hooke's brain is doing right now (its step and its arguments), never a made-up promise; then its
+    outcome, once."""
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "HANDOFF_STEP_S", 0.1)
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        gate = asyncio.Event()
+        hooke_runs(t, "show_web", {"query": "stomata video youtube"}, gate)
+        await hand_off_round(t, "Find a YouTube video about stomata.", "Find stomata video")
+        line = await until_async(lambda: next((e for e in creates_of(t)
+                                               if e["response"]["metadata"]["cause"] == "progress"), None), seconds=10)
+        words = line["response"]["instructions"]
+        assert "show_web" in words and "stomata video youtube" in words, "from the step Hooke is running now"
+        assert "Find a YouTube video about stomata." in words and "never what it may find" in words
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await done(t.sb, "resp_2", usage={"output_token_details": {"audio_tokens": 10}})
+        t.sb.emit({"type": "output_audio_buffer.stopped", "response_id": "resp_2"})
+        await asyncio.sleep(0.6)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn", "progress"], "one line, never two"
+        gate.set()
+        t.hub.screen.report(["w-1: the video, in front"])
+        await answer_snapshots(t, lambda: t.sb.responses == 3)
+        assert creates_of(t)[2]["response"]["metadata"]["cause"] in ("look", "tool"), "then its outcome, once"
+    asyncio.run(go())
+
+
+def test_quick_work_handed_over_says_nothing_before_its_outcome(monkeypatch):
+    """Lead-ins before quick work were judged "preliminary narration" (will-leaf, will-display "outline-all"); most
+    hand-offs end in 5-7 s with every step under 2.5 s (a find, a zoom, a Tab). Hooke deciding and answering is not a
+    long step: no line before its outcome."""
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 0.1)
+    monkeypatch.setattr(openai_realtime, "HANDOFF_STEP_S", 5.0)
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        hooke_runs(t, "zoom", {"what": "o1"}, None, think_s=0.6)
+        await hand_off_round(t, "Can you enlarge it?", "Enlarge stoma")
+        t.hub.screen.report(["w-1: magnifier, in front"])
+        await answer_snapshots(t, lambda: t.sb.responses == 2)
+        assert [e["response"]["metadata"]["cause"] for e in creates_of(t)] == ["turn", "look"]
     asyncio.run(go())

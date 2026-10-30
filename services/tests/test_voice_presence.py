@@ -21,6 +21,7 @@ from tests.waiting import until_async
 def quick(monkeypatch):
     monkeypatch.setattr(openai_realtime, "RELEASE_TAIL_S", 0.0)
     monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 60.0)
     monkeypatch.setattr(openai_realtime, "THINK_PROGRESS_AFTER_S", 60.0)
     monkeypatch.setattr(presence, "SETTLE_S", 0.05)
     monkeypatch.setattr(presence, "TICK_S", 0.02)

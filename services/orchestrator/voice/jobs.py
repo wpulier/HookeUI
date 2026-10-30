@@ -135,6 +135,14 @@ class HandoffJob:
     told: bool = False  # its stop was said already (stop_work saw it end): not said again when it lands
     thinking: bool = False  # the chat's `thinking` message is on for it (partner_tools `_thinking`)
     settled: Callable | None = None  # (state, receipts, reason): its row takes the end its late steps gave it
+    # The steps Hooke's brain has started for it, each (run, when it started, monotonic), as they start
+    # (`Jobs.run_started`): what it is doing right now, for its one spoken progress line (partner_tools `handoff_doing`).
+    now: list = field(default_factory=list)
+
+    def running_now(self) -> list:
+        """Its steps still running now, oldest first: (run, since)."""
+        return [(run, since) for run, since in self.now
+                if getattr(run, "ok", None) is None and not (getattr(run, "task", None) and run.task.done())]
 
     @property
     def id(self) -> str:
@@ -271,13 +279,29 @@ class Jobs(dict):
         return job
 
     def watch(self, registry) -> None:
-        """Hand-off jobs end when the steps their brain turn left running end (`Registry.finished`): one listener per
-        app's registry."""
+        """Hand-off jobs end when the steps their brain turn left running end (`Registry.finished`), and know which of
+        their steps are running now as each starts (`Registry.started`): one listener each per app's registry."""
         finished = getattr(registry, "finished", None)
         if self._watching is registry or not isinstance(finished, list):
             return
         finished.append(self.run_finished)
+        started = getattr(registry, "started", None)
+        if isinstance(started, list):
+            started.append(self.run_started)
         self._watching = registry
+
+    def run_started(self, run, ctx=None) -> None:
+        """A step began: when it is a hand-off's (its request runs under that hand-off's own stop holder, which every task
+        it starts inherits: partner_tools `_handed`), that hand-off keeps it as what Hooke is doing for it now."""
+        from .. import user_stop
+
+        holder = user_stop.current()
+        if holder is None:
+            return
+        job = next((j for j in self.values() if isinstance(j, HandoffJob) and j.stop is holder and j.state in WORKING),
+                   None)
+        if job is not None:
+            job.now = [*job.running_now(), (run, time.monotonic())]
 
     def run_finished(self, run, ctx=None) -> None:
         """A step ended: a hand-off job waiting on it takes its receipt, and ends once the last of them has (done only

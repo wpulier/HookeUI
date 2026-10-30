@@ -256,6 +256,8 @@ class PartnerTools:
             self.thinking.watch(brain.registry)
         # A hand-off's late steps by its delegation id ("handoff:<id>"): their receipts, kept for its one outcome.
         self._late_of: dict[str, dict[str, Any]] = {}
+        # The voice's do_in_hooke calls by call id -> their hand-off, for what each is doing now (`handoff_doing`).
+        self._handed_calls: dict[str, Any] = {}
 
     def handed_late(self, ctx, run) -> bool:
         """A step of a hand-off's request that finished after the brain answered (announcer.late_tool): kept for the
@@ -297,6 +299,34 @@ class PartnerTools:
             settled["answer"] = ""
             settled["answered_while_working"] = str(result.get("answer") or "")[:600]
         return settled
+
+    def handoff_doing(self, call_id: str) -> dict | None:
+        """What the hand-off a do_in_hooke call started is doing right now, from Hooke's brain's own live progress, for
+        its one spoken line (openai_realtime `_answer_round`; will-alive "slow", 30 Oct: a 15 s web search said nothing
+        until its outcome): {"facts": the request and each step it is running (its tool and what that does, its
+        arguments, how long so far, its own progress words), "stepS": how long its longest step has run}. None once it
+        has ended, or for a call that is no hand-off."""
+        from ..untrusted import inline
+        from .jobs import WORKING, HandoffJob
+
+        flight = self._handed_calls.get(call_id)
+        job = self.thinking.get(flight.id) if flight is not None else None
+        if not isinstance(job, HandoffJob) or job.state not in WORKING:
+            return None
+        now, rows, longest = time.monotonic(), [], 0.0
+        tools = getattr(self.brain.registry, "tools", {}) or {}
+        for run, since in job.running_now():
+            longest = max(longest, now - since)
+            does = str(getattr(tools.get(run.tool), "description", "") or "").split(". ")[0]
+            args = json.dumps({k: v for k, v in (run.args or {}).items() if not str(k).startswith("_")},
+                              ensure_ascii=False, default=str)
+            row = f"{run.tool}" + (f" ({inline(does, 160)})" if does else "") + f" with {inline(args, 240)}"
+            row += f", {now - since:.0f} s so far" + (f"; its own words: {inline(run.progress, 200)}" if run.progress else "")
+            rows.append(row)
+        doing = ("running " + "; ".join(rows)) if rows else "working out how to do it (no step running yet)"
+        facts = (f'the request "{inline(flight.label, 80)}" (the user asked: "{inline(flight.request, 300)}"), '
+                 f"{time.time() - flight.started:.0f} s so far: {doing}")
+        return {"facts": facts, "stepS": longest}
 
     def _pointable(self, targets: list) -> list:
         """Of these mark targets, those the screen shows now (Partner.pointable)."""
@@ -1059,6 +1089,10 @@ class PartnerTools:
         with contextlib.suppress(Exception):
             asked = self.brain.conversation.here()
         flight = self.handoffs.start(text, str(args.get("label") or ""), asked, then=str(args.get("then") or ""))
+        if args.get("_call_id"):  # what it is doing now is read by its call (handoff_doing)
+            self._handed_calls[str(args["_call_id"])] = flight
+            for old in list(self._handed_calls)[:-16]:
+                self._handed_calls.pop(old, None)
         task = self._handed(flight, lambda job: self._do_in_hooke(args, flight=flight, asked_in=asked, job=job))
         try:
             return await self._bounded("do_in_hooke", task, args.get("_call_id"),
