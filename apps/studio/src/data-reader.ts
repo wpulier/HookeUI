@@ -23,7 +23,7 @@ import { moreButton, popMenu, type MenuItem } from './drawer-menu';
 import { tabMark, type TabMark } from './tab-marks';
 import { artifactPresentation, drawRetainedMasks, readRetainedText, undrawnWords } from './workspace-study-content';
 import { formatValue, header, readMeasurementTable, type MeasurementTable, type TableColumn } from './measurements';
-import { clean, defaultResearchOutput, researchChartNode, researchFindingPage, researchHero, researchTableNode } from './research';
+import { clean, defaultResearchOutput, isResearcherPage, researchChartNode, researchFindingPage, researchHero, researchTableNode } from './research';
 import { daysAgo, monthDay } from './sessions';
 import { clock } from './working-strip';
 import type { AssetMeta, ResearchOutput, ResearchSession } from './protocol';
@@ -809,7 +809,7 @@ export class DataReader {
     const nodes = hero.nodes.length ? hero.nodes : finding ? [researchFindingPage(finding, presentation)] : [];
     const working = this.deps.working(s.rid);
     this.loaded.title = clean(finding?.title || output?.caption || r?.title || '') || undefined;
-    this.loaded.kind = output?.kind === 'presentation' ? 'Presentation' : output?.kind === 'html' ? 'Lesson' : output?.kind === 'video' ? 'Video' : output?.kind === 'image' ? 'Picture' : finding ? 'Report' : undefined;
+    this.loaded.kind = output?.kind === 'presentation' ? 'Presentation' : output && isResearcherPage(output) ? ((output.content as { kind?: string }).kind === 'visual' ? 'Visual' : 'Presentation') : output?.kind === 'html' ? 'Lesson' : output?.kind === 'video' ? 'Video' : output?.kind === 'image' ? 'Picture' : finding ? 'Report' : undefined;
     this.loaded.live = working;
     this.drawHead();
     if (!nodes.length) { body.replaceChildren(el('p', 'rd-empty', working ? 'Nothing written yet. It is still working; its page shows here as it writes.' : 'Nothing written. Its conversation is on its Tab.')); return; }

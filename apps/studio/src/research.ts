@@ -827,9 +827,19 @@ export class ResearchView {
 
 /** The output a researcher's work opens on: the deliverable it was asked for (a lesson, a video, a picture), else the
  * presentation of its current findings; undefined when its findings are the page. Its Tab and the Data reader agree. */
+/** An HTML page a researcher wrote with make_page: a slide presentation or a small interactive visual. */
+export function isResearcherPage(output: ResearchOutput): boolean {
+  const kind = output.content && 'kind' in output.content ? (output.content as { kind?: unknown }).kind : undefined;
+  return output.kind === 'html' && (kind === 'presentation' || kind === 'visual');
+}
+
 export function defaultResearchOutput(s: ResearchSession, r: ResearchSession['result'] | null): ResearchOutput | undefined {
   const deliverableFormat: Record<string,string> = {lesson:'html', video:'video', image:'image', annotated_image:'image'};
   const requestedFormat = deliverableFormat[s.deliverable ?? ''];
+  // A page the researcher wrote itself (make_page: slides or an interactive visual) is what its work is opened on,
+  // rendered in its sandboxed frame, never its findings as text (Will, 2026-10-30).
+  const page = requestedFormat ? undefined : s.outputs.findLast(o => o.current !== false && isResearcherPage(o));
+  if (page) return page;
   return s.outputs.findLast(o => o.current !== false && (requestedFormat
     ? o.kind === requestedFormat : o.kind === 'presentation' && !!r?.findingRevision?.digest
       && o.findingRevision?.digest === r.findingRevision.digest));
