@@ -63,6 +63,7 @@ function readerFact(view:WorkspaceView):TabItemFact[]{
 /** What a window root on the Stage says it is (data attributes the window owners set): a web window
  * (web-window.ts `webWindow`), a native window (workspace-windows.ts `sourceKind`, `sourceMedia`), else nothing. */
 function rootFact(root:HTMLElement):Omit<TabItemFact,'placement'>|null{
+ if(typeof root?.getAttribute!=='function'||!root.dataset||!root.classList)return null; // not an element a window owner set
  const title=(root.getAttribute('aria-label')||root.querySelector('header h3, .workspace-window-title')?.textContent||'').trim().slice(0,120);
  if(root.dataset.webWindow){
   try{
