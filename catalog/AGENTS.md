@@ -248,8 +248,11 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
     have, and what others could we add?" was asked of the Outlining job alone and the rest guessed): the model names the
     kinds of work the request means (the catalog's operations, each with its title and what it gives, in the tool's
     parameters); each row's `does` is read from its manifest (`catalog_view.operations_of`), New for you's too. The answer
-    (`catalog_view.work_words`) is every entry that does them, installed or not, by where it stands (working here, here
-    but not run yet, not set up with every step, can't run here), then what is new, how one not in the catalog is added
+    (`catalog_view.work_words`) is every entry that does them, installed or not, models apart from tools (the manifest's
+    kind: a tool is an algorithm or a Fiji function; will-workspace 30 Oct had Analyze Particles answered as a model), each
+    by where it stands (working here, installed but not run yet, can be added with where it runs and every step: a
+    download's size, or that its manifest gives none, never readiness's "1 MB" floor; a key by its service; its setup;
+    can't run here), then what is new, how one not in the catalog is added
     (the reviewed templates' links, a Cellpose file, Have an AI build it) and the other kinds; a job named is answered
     the same way, and `capabilities` by operation says the entries not set up. It is compact, most needed first: the
     round that answers from a query reads about 1,900 characters of its text (`brain/claims.py` `answer_facts`).

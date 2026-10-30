@@ -353,17 +353,18 @@ def test_what_could_we_add_lists_every_catalog_entry_for_the_work_with_where_it_
     said = asyncio.run(reg.tools["models"].handler(ctx(words), {"does": ["outline", "cells"]}))
     assert said.startswith("Hooke's catalog for outline, cells: 5 entries, installed or not, and 1 new; nothing else in "
                            "it does this. On this Mac unless it says cloud."), said
-    # Plainly split, in this order: working here, here but not run yet, not set up (every step), can't run here.
+    # Plainly split, in this order: working here, installed but not run yet, can be added (where, every step), can't run.
     order = [said.index(title + ":") for _, title in catalog_view.STANDING if title + ":" in said]
     assert order == sorted(order) and len(order) == 4, said
+    assert said.index("Models:\n") < order[0], "every entry here is a model"
     assert _section(said, "Working here (ran or passed its check on this Mac):") == [
         "EdgeTAM (outline, cells; chosen for Outlining)"]
-    assert _section(said, "Here, not run yet (nothing to get or install):") == ["SAM 2.1 tiny (outline)"]
-    assert _section(said, "Not set up here (every step each needs):") == [
-        "InstanSeg (brightfield nuclei) (cells): Download 16 MB; Install InstanSeg (brightfield nuclei) (its own Python and "
-        "35 packages)",
-        "SAM 3.1 (this Mac) (outline): Add your Hugging Face key to download it; Its licence: not confirmed yet "
-        "(https://huggingface.co/facebook/sam3.1); Download 3.5 GB; Install SAM 3.1's code (not installed here (sam3))"]
+    assert _section(said, "Installed here, not run yet (nothing to get or install):") == ["SAM 2.1 tiny (outline)"]
+    assert _section(said, "Can be added (where it runs; every step it needs):") == [
+        "InstanSeg (brightfield nuclei) (cells): on this Mac; Download 16 MB; Install InstanSeg (brightfield nuclei) (its "
+        "own Python and 35 packages)",
+        "SAM 3.1 (this Mac) (outline): on this Mac; Add your Hugging Face key to download it; Its licence: not confirmed "
+        "yet (https://huggingface.co/facebook/sam3.1); Download 3.5 GB; Install SAM 3.1's code (not installed here (sam3))"]
     assert _section(said, "Can't run on this Mac:") == [
         "Cellpose-SAM (cells): Not in this edition: its weights were trained on non-commercial data"]
     assert "HF_TOKEN" not in said, "a key's how stays on its card"
@@ -393,12 +394,13 @@ def test_a_job_named_lists_every_entry_for_its_work_and_says_the_other_kinds():
     reg = registry(fixture_services())
     said = asyncio.run(reg.tools["models"].handler(ctx("what could we add for outlining?"), {"about": "outlining"}))
     assert said.startswith("Hooke's catalog for outline: 3 entries, installed or not; nothing else in it does this."), said
-    assert "EdgeTAM (chosen for Outlining)" in said and "- SAM 2.1 tiny\n" in said and "SAM 3.1 (this Mac): Add your" in said
+    assert "EdgeTAM (chosen for Outlining)" in said and "- SAM 2.1 tiny\n" in said
+    assert "SAM 3.1 (this Mac): on this Mac; Add your" in said
     assert "InstanSeg" not in said and "Nucleus finder" not in said
     assert "Other kinds of work in the catalog (does): cells (3); looks (1)." in said
     assert "no reviewed code here runs one from a link for this work" in said, "the templates make cells, not outlines"
     cells = asyncio.run(reg.tools["models"].handler(ctx("what could we add for cells?"), {"about": "cells"}))
-    assert "- InstanSeg (brightfield nuclei): Download 16 MB" in cells and "Nucleus finder (fixture)" in cells
+    assert "- InstanSeg (brightfield nuclei): on this Mac; Download 16 MB" in cells and "Nucleus finder (fixture)" in cells
     assert "SAM 2.1 tiny" not in cells
     # The kinds as one string (a json-actions answer isn't held to the schema; the live run passed "cells,outline", and
     # taken as one unknown kind it was answered "Cellpose-SAM is not in the catalog").
@@ -426,11 +428,15 @@ def test_the_real_catalog_gives_every_entry_that_outlines_or_segments_installed_
     said = asyncio.run(reg.tools["models"].handler(ctx(), {"does": ["outline", "cells", "find-like"]}))
     listed = [line[2:] for line in said.split("\n") if line.startswith("- ")]
     for r in rows:
-        mine = [line for line in listed if line.startswith(catalog_view._short_name(r) + " (")]
+        mine = [line for line in listed if line.startswith((catalog_view._short_name(r) + " (", r["name"] + " ("))]
         assert len(mine) == (r["id"] in expected), (r["id"], said)
-    assert "- InstanSeg (brightfield nuclei) (cells): Download 16 MB; Install InstanSeg (brightfield nuclei) (its own Python" \
-        in said
-    assert "- SAM 3.1 (this Mac) (outline): Add your Hugging Face key to download it;" in said and "Download 3.5 GB" in said
+    assert ("- InstanSeg (brightfield nuclei) (cells): on this Mac; Download 16 MB; Install InstanSeg (brightfield nuclei) "
+            "(its own Python") in said
+    assert "- SAM 3.1 (this Mac) (outline): on this Mac; Add your Hugging Face key to download it;" in said
+    assert "Download 3.5 GB" in said
+    # Models apart from tools, by each manifest's kind: Fiji's Analyze Particles is a tool, never among the models.
+    models, tools = said.split("Tools, not models", 1)
+    assert "Analyze Particles (Fiji)" in tools and "Analyze Particles" not in models
     assert said.index("Other kinds of work") < ANSWER_WINDOW, len(said)
     tool = reg.tools["models"]
     assert {"outline", "cells", "find-like"} <= set(tool.params["properties"]["does"]["items"]["enum"])
@@ -454,3 +460,73 @@ def test_new_for_you_says_what_each_new_entry_does():
     assert catalog_news.does({"id": "x", "operation": "cells", "outputs": [{"type": "labels.instance.2d"}]}) == ["cells"]
     assert catalog_news.does({"members": [{"id": "a", "operation": "cells"}, {"id": "b"}]}) == ["cells", "b"]
     assert catalog_news.does({"id": "notes"}) == []
+
+
+# --- will-workspace "models", measure-c4acc90 (all runs 2/3) -----------------------------------------------------------
+# "What segmentation models do we have, and what others could we add?": the judge read "blurred runnable versus available
+# models", "incorrectly groups Fiji Analyze Particles with models rather than identifying it as a tool" and "omits
+# download sizes, key or setup requirements" for additions. The tool's facts listed models and tools in one list by where
+# each stood (the tool marked only by a tag), never where an addition would run, and a download whose manifest gives no
+# size could only be said as readiness words it ("Download 1 MB"). The rows below are the run's facts.
+def _workspace_rows():
+    key = {"kind": "key", "ok": True, "says": "Your fal key: from your keys file", "service": "fal"}
+    working = {"state": "on", "by": "use", "says": "Working here · last ran 03:13", "action": None}
+    here = {"state": "unchecked", "says": "Ready to run; not checked on this Mac yet", "action": {"kind": "check"}}
+    rows = [
+        _row("fiji-analyze-particles", "Analyze Particles (Fiji)", ["cells"], "ready", kind="tool-function",
+             group="ready", face=working),
+        _row("edgetam", "EdgeTAM", ["outline", "cells"], "ready", group="ready", face=working,
+             used=[("outline", "Outlining", True)]),
+        _row("instanseg-brightfield", "InstanSeg (brightfield nuclei)", ["cells"], "ready", group="ready", face=working),
+        _row("basic-bright-objects", "Bright objects", ["cells"], "ready", kind="tool-function", face=here),
+        _row("micro-sam-lm", "micro-sam (light microscopy)", ["outline", "cells"], "ready", face=here),
+        _row("sam3.1-cloud", "SAM 3.1 (cloud)", ["outline"], "ready", kind="cloud-model", face=here),
+        _row("cellpose-sam-tuned", "Cellpose-SAM fine-tuned on your corrections", ["cells"], "needs-setup",
+             steps=[{"kind": "weights", "says": "Make its weights here", "model": "cellpose-sam-tuned",
+                     "how": "make finetune-cells makes them from your corrected cells"}]),
+        _row("sam3.1-local", "SAM 3.1 (this Mac)", ["outline"], "needs-setup",
+             steps=[{"kind": "download", "says": "Download 3.5 GB", "model": "sam3.1-local", "bytes": 3502755717},
+                    {"kind": "install", "says": "Install SAM 3.1's code", "how": "not installed here (sam3)"}]),
+        # A manifest that gives no file sizes: readiness says "Download 1 MB" (its size words' floor), a size never known.
+        _row("nuclei-net", "Nuclei net", ["cells"], "needs-setup",
+             steps=[{"kind": "download", "says": "Download 1 MB", "model": "nuclei-net"}]),
+        _row("cells-cloud", "Cells in the cloud", ["cells"], "needs-setup", kind="cloud-model",
+             steps=[{"kind": "key", "says": "Add your Replicate key", "how": "put REPLICATE_API_TOKEN=... in a file",
+                     "service": "replicate"}]),
+    ]
+    for r in rows:
+        if r["kind"] == "cloud-model":
+            r["runs"], r["where"] = "cloud", "in the cloud"
+    rows[5]["facts"] = [key]
+    return rows
+
+
+def test_what_segmentation_models_we_have_keeps_models_and_tools_apart_with_each_additions_needs():
+    wire = {"models": _workspace_rows(), "roles": [{"id": "outline", "title": "Outlining"}, {"id": "cells", "title": "Cells"}],
+            "setup": {"keys": {}, "news": {"new": []}}}
+    svc = SimpleNamespace(hub=SimpleNamespace(), agent=None, capabilities=lambda: wire, downloads=Downloads(), open_page=None)
+    said = asyncio.run(registry(svc).tools["models"].handler(
+        ctx("What segmentation models do we have, and what others could we add?"), {"does": ["outline", "cells"]}))
+    facts = said.split("<catalog-facts", 1)[1].split("</catalog-facts>", 1)[0]
+    models, tools = facts.split("Tools, not models", 1)
+    # Models apart from tools: Analyze Particles and Bright objects are tools, never among the models.
+    assert "Analyze Particles" not in models and "Bright objects" not in models
+    assert "- Analyze Particles (Fiji) (cells)" in tools and "- Bright objects (cells)" in tools
+    assert "EdgeTAM" not in tools
+    # Each model's state in plain words, in three groups: working here, installed but not run here, can be added.
+    assert _section(models, "Working here (ran or passed its check on this Mac):") == [
+        "EdgeTAM (outline, cells; chosen for Outlining)", "InstanSeg (brightfield nuclei) (cells)"]
+    assert _section(models, "Installed here, not run yet (nothing to get or install):") == [
+        "micro-sam (light microscopy) (outline, cells)", "SAM 3.1 (cloud) (outline; with your fal key)"]
+    assert _section(models, "Can be added (where it runs; every step it needs):") == [
+        "Cellpose-SAM fine-tuned on your corrections (cells): on this Mac; Make its weights here (make finetune-cells "
+        "makes them from your corrected cells)",
+        "SAM 3.1 (this Mac) (outline): on this Mac; Download 3.5 GB; Install SAM 3.1's code (not installed here (sam3))",
+        "Nuclei net (cells): on this Mac; Download (its size is not in its manifest)",
+        "Cells in the cloud (cells): in the cloud; Add your Replicate key"]
+    assert "1 MB" not in said, "a size the manifest does not give is never said"
+    assert _section(tools, "Working here (ran or passed its check on this Mac):") == ["Analyze Particles (Fiji) (cells)"]
+    assert "REPLICATE_API_TOKEN" not in said, "a key's how stays on its card"
+    # The answer keeps the groups: said once, first, with the facts, all inside what the answering round reads.
+    assert said.split("\n", 1)[0].endswith("Answer with models and tools apart, as grouped.")
+    assert said.index("</catalog-facts>") < ANSWER_WINDOW
