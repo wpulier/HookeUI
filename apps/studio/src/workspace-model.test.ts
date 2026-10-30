@@ -120,7 +120,7 @@ test('the Tab strip\'s report says each Tab\'s kind and what it holds, the same 
  const roots=[root({workspaceView:'main',placementId:'v1',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'https://www.youtube.com/watch?v=abc'})})];
  const views=[{id:'main',title:'Main',specimen:{visible:true,rect:null},items:[item('table','e3','b')],notes:[]},
   view([item('masks','e3','a')],{id:'t1'}),{...view([]),id:'r',kind:'reader' as const,items:[{resource:{day:'p',id:'d2',version:null},title:'Report'} as unknown as WorkspaceView['items'][number]]}];
- const current=Object.assign(Object.create(WorkspaceViews.prototype),{layout:{active:'main',views},roots:()=>roots});
+ const current=Object.assign(Object.create(WorkspaceViews.prototype),{layout:{active:'main',views},roots:()=>roots,loaded:new Set()});
  expect(Reflect.get(WorkspaceViews.prototype,'holdsReport').call(current)).toEqual({
   main:{kind:'work',holds:{table:1,video:1}},t1:{kind:'work',holds:{outlines:1}},r:{kind:'reader',holds:{document:1}}});
 });
@@ -133,4 +133,12 @@ test('a window closed by its × is no longer held by its Tab, though its arrange
  expect(holds(tabItems(v,[table,video]))).toEqual({video:1});
  // A Tab whose windows are not mounted (not opened yet) still lists what it holds.
  expect(holds(tabItems(v,[]))).toEqual({table:1});
+});
+
+test('on a Tab whose windows are on the page, an item whose window is gone was closed and is not held',()=>{
+ // will-workspace, 29 Oct: a reference photo's native window closed on Main stayed in "tabs list" as a document.
+ const video=root({workspaceView:'main',placementId:'v1',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'https://www.youtube.com/watch?v=abc'})});
+ const v={id:'main',title:'Main',specimen:{visible:true,rect:null},items:[item('table','e3','gone')],notes:[]} as WorkspaceView;
+ expect(holds(tabItems(v,[video],true))).toEqual({video:1});
+ expect(holds(tabItems(v,[video],false))).toEqual({table:1,video:1}); // not on the page yet: still listed
 });

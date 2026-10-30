@@ -91,7 +91,9 @@ function unsaved(here:readonly HTMLElement[],out:TabItemFact[]):TabItemFact[]{
  * does not save. `roots` are the window roots of this Project's Stage (every Tab's; each says its Tab). A root that is
  * closed (dismissed) is not held. A reader Tab holds its one item and the windows opened over it (will-research,
  * 29 Oct: a video opened on a document's Tab was in no Tab's holds). */
-export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[]):TabItemFact[]{
+/** `mounted`: the Tab's windows have been put on the page this session (WorkspaceViews.loaded), so an item with no
+ *  window there was closed (a native window is removed when closed), not waiting to load. */
+export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[],mounted=false):TabItemFact[]{
  const here=roots.filter(root=>root.dataset.workspaceView===view.id&&root.dataset.dismissed!=='true');
  if(view.kind==='reader')return unsaved(here,readerFact(view));
  const byPlacement=new Map(here.filter(root=>root.dataset.placementId).map(root=>[root.dataset.placementId!,root]));
@@ -103,6 +105,7 @@ export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[]):TabIte
  const out:TabItemFact[]=[];
  for(const item of view.items){
   if(item.placementId&&closed.has(item.placementId))continue;
+  if(mounted&&item.placementId&&!byPlacement.has(item.placementId))continue; // closed: its window is gone
   const root=item.placementId?byPlacement.get(item.placementId):undefined;
   const native=root?.classList.contains('workspace-window')?{kind:root.dataset.sourceKind,media:root.dataset.sourceMedia}:null;
   out.push({placement:item.placementId??'',kind:itemKind(item,native),title:String(item.title||'Untitled window').slice(0,120),
