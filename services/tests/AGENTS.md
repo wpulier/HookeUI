@@ -809,3 +809,10 @@ supported-connector qualification or establish complete collection.
 journals, evidence readers and folder-copy admission. Historical manifest/file
 damage refuses even with a recomputed outer seal. This is retained-byte integrity,
 not biological accuracy, complete collection or an actual browser proof.
+
+`test_project_export.py` exercises shared preparation and tracked folder exports through
+real isolated stores/door transport with synthetic consent. It checks contributor
+authority, explicit partial scope, retries, navigation, cancellation ownership,
+linked destinations and disk refusal. `project-export.test.ts` checks the matching
+UI lifecycle with synthetic transport. Neither establishes complete collection,
+real connected-agent export or browser quality; record those separately.

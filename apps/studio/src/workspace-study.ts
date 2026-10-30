@@ -1248,6 +1248,13 @@ const appMenu = new WorkspaceAppMenu({
     const row = snapshot.projects.find(item => item.id === owner.session);
     openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
       current: () => inputOwnerCurrent(owner) && !switching,
+      exportActions: {
+        prepare: async () => { const r = await bridge.request('project-export-prepare', {session: owner.session}); if (!r.export) throw new Error('Export preparation is unavailable.'); return r.export; },
+        start: async requestKey => { const r = await bridge.request('project-export', {session: owner.session, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Export admission was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-export-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Export status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+        reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
+      },
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});

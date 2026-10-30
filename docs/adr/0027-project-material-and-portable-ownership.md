@@ -446,3 +446,23 @@ original population, Project and revision. A new outer snapshot hash cannot bles
 corrupted accepted evidence. Legacy absolute locations require explicit collection;
 no filename guessing or fallback to another host's evidence folder is allowed.
 This extends integrity checking, not complete journal dependency coverage.
+
+
+### Explicit folder snapshot export
+
+Owner controls and contributing connections may request a snapshot of an already
+routed Project through the existing operation service. A read-only preparation
+reports the byte estimate and unresolved collection scope first. Export writes only
+a new host-selected destination under the configured Projects parent’s Exports
+folder; callers cannot provide a filesystem destination. No Project membership,
+credentials, grants, registry entries or running work are copied into authority.
+
+The snapshot retains its manifest and hashes and is immutable under the existing
+Project writer rules. This first export is explicitly a **folder snapshot with
+unverified external dependencies**, never a complete collected Project. Callers
+acknowledge that scope. Legacy Projects refuse until migration/collection exists.
+Retries recover a completed same-operation destination, never overwrite it; an
+incomplete destination remains for recovery and requires a new export request.
+UI and connector expose the same receipt and completeness meaning. Hosted services
+without local folders report explicit unavailability. Full collection stays a
+separate gate and is not inferred from a successful export.

@@ -1617,6 +1617,11 @@ export type ClientCommand =
   | { type: 'sessions-reveal' } // Show in Finder: the folder every Project is saved in
   | { type: 'project-storage'; session: string }
   | { type: 'project-reveal'; session: string }
+  | { type: 'project-export-prepare'; session: string }
+  | { type: 'project-export'; session: string; requestKey: string; acknowledgeIncomplete: true }
+  | { type: 'project-export-status'; session: string; operation: string }
+  | { type: 'project-export-stop'; session: string; operation: string }
+  | { type: 'project-export-reveal'; session: string; operation: string }
   | { type: 'dataset-trash'; id: string } // after the user confirmed: moved to datasets/.trash/
   | { type: 'rig'; field: string; value: string | number | null } // a fact about the microscope
   // researchers
@@ -1686,6 +1691,11 @@ interface Replies {
   'model-reveal': { path: string };
   'project-storage': { storage: import('./project-folder').ProjectStorage };
   'project-reveal': { path: string; error?: string };
+  'project-export-prepare': {export: import('./project-export').ExportPlan};
+  'project-export': {operation: import('./project-export').ExportOperation};
+  'project-export-status': {operation: import('./project-export').ExportOperation};
+  'project-export-stop': {operation: import('./project-export').ExportOperation};
+  'project-export-reveal': {path: string; error?: string};
   'onboarding-models': { offer: import('./starter-models').StarterAnswer };
   'model-add': { model: string; kind: string; says: string };
   'volume-add': { says: string }; // what was added, in words (registrations.py words)

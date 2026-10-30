@@ -254,3 +254,11 @@ inputRevision when present, preserving the legacy asset identity otherwise.
 Execution rechecks Project ownership and that revision after publishing progress,
 before tool admission. Reusing a Library alias for another revision cannot silently
 retarget queued work. The scientific execution retains its original input evidence.
+
+`project.export.prepare` reads an authorized routed Project's size and collection
+limitations; `project.export` requires contribute permission and explicit
+`acknowledgeIncomplete: true`. Both use the owner's shared export service and
+original tracked operation. Destinations are generated under the configured
+Projects parent's Exports folder, never chosen by caller path. Saved snapshot
+receipts report unverified external dependencies and import no authority or jobs.
+Legacy/unavailable storage refuses; no complete-Project claim is made.

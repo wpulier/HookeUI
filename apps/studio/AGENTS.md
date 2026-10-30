@@ -2001,3 +2001,10 @@ revision and digest. That single row keeps material organization and authorship,
 source preview and Open in Tab. Separate imports or revisions remain separate even
 when their names or bytes match. Late inventory refresh recomputes the join; source
 rows remain available while retained inventory is unavailable.
+
+Project folder also offers an explicitly partial folder snapshot: preparation shows
+size and unverified dependency scope, then an explicit Export this partial copy
+starts the shared tracked operation. Lost admission replies reuse one request key;
+closing/navigation stops polling without cancelling admitted work. Reopening recovers
+the locally remembered operation ID (a locator, never authority). Progress, Stop and
+Reveal read actual operation receipts. No UI labels this as complete collection.
