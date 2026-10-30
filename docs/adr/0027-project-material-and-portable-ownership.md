@@ -481,3 +481,12 @@ Opening imports no credentials, grants or runtimes, never invokes retained work,
 and does not certify complete dependency collection. This operator launch seam
 qualifies restoration through the ordinary host; the native folder picker, read-only
 workspace mode and independent-copy UI remain separate product gates.
+
+
+## Historical attribution after relocation
+
+Resource makers use the label captured in an accepted agent import before any
+current host label. Reopening a Project without its old connections must preserve
+that recorded display name and stable actor ID. Reading a historical label never
+registers a connection, updates the host label cache, or grants access. Records
+without a retained label keep the existing host-label/unknown fallback.

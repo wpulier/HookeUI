@@ -334,7 +334,7 @@ def maker_of(kind: str, eid: str, made_by: dict | None, researchers: Researchers
         return dict(YOU)
     from .door import actor as door_actor
     if door_actor.is_agent(actor):  # an outside agent's work, by its label as it names itself (ADR 0026)
-        return door_actor.maker(actor)
+        return door_actor.maker(actor, recorded_label=made.get("label"))
     if actor == "assistant":
         return dict(ASSISTANT)
     made_for = made.get("for")
@@ -2495,7 +2495,8 @@ class Index:
         imported = document['state'].get('sourceImport', {})
         producer = imported.get('producer', {}) if isinstance(imported, dict) else {}
         # The intake publisher owns sourceImport; generic document edits cannot forge it.
-        made = ({"actor": producer['actor'], "operation": producer['operation']}
+        made = ({"actor": producer['actor'], "operation": producer['operation'],
+                 **({'label': producer['label']} if isinstance(producer.get('label'), str) else {})}
                 if isinstance(producer, dict) and producer.get('kind') == 'agent-import'
                 and isinstance(producer.get('actor'), str) and isinstance(producer.get('operation'), str)
                 else {})
