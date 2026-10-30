@@ -30,7 +30,9 @@ def add_tab_tools(registry, services):
         'Mutations require the user’s request. Always name tab by its exact ID from list; move also needs from and '
         'placement. No implicit active Tab or other Studio fallback. Completion is acknowledged by the originating Studio '
         'after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is '
-        'show_measurements with tab: one action, confirmed on screen.',
+        'show_measurements with tab: one action, confirmed on screen. Anything else put in a Tab (a photo, a '
+        'researcher\'s picture, a window open in another Tab), as its main item or beside, is present do=place with '
+        'tab: one action, wherever it is now.',
         schema({'action': {'type': 'string', 'enum': ['list', 'create', 'rename', 'switch', 'add', 'move', 'close',
                                                       'specimen', 'arrange', 'only']},
                 'kind': {'type': 'string', 'enum': ['table', 'outlines', 'tracks', 'image', 'reference', 'document',

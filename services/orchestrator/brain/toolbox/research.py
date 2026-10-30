@@ -254,8 +254,7 @@ def add_research_tools(registry: Registry, services) -> None:
             # The model's choice, said to the model to correct (will-research, 29 Oct: "a small labeled graphic of a
             # stoma" was refused here and the user was told to click the thing first).
             raise ToolFailed("annotated_image draws labels on a photo of the user's own outlined thing, and nothing is "
-                             "outlined", next="for a made picture of it, labelled or not, choose deliverable image; to "
-                                              "label the user's own thing, outline it first (find)", argument=True)
+                             "outlined", next="choose image for a made picture, labelled or not; outline their own thing to label it", argument=True)
         day = services.day
         # It belongs to the conversation the request was made in (even if the user has switched
         # since); its results are written there.

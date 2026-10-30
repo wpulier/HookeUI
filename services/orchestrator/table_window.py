@@ -462,8 +462,9 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
         guard()
     also = list(dict.fromkeys(str(other.get("title") or "") for other, _ in copies))
     names = ", ".join('"' + inline(t, 60) + '"' for t in also[:3])
-    still = (f" It is also still open in Tab {names} (instead moves it "
-             "here from there, rather than opening it here too)." if also else "")
+    hint = ("it was already open here, so nothing moved; closing it there keeps it only here" if instead and here
+            else "instead moves it here from there, rather than opening it here too")
+    still = f" It is also still open in Tab {names} ({hint})." if also else ""
     if placement == "beside":
         return await show(services, ctx, studio, target=target, revision=revision, title=title, rows=rows, what=what,
                           tab=tab, guard=guard, beside=True, moved=moved) + still

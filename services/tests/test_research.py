@@ -614,7 +614,7 @@ def test_a_made_illustration_needs_no_outline_only_labelling_their_own_thing_doe
 
     refused, made, description = asyncio.run(go())
     assert refused.ok is False and refused.wire()["argument"] is True, "the model's own call, to correct"
-    assert "image" in refused.next and "click" not in refused.summary, refused.summary
+    assert "choose image" in refused.next and "click" not in refused.summary, refused.summary
     assert made.ok is True and "Researcher 1" in made.summary, "an illustration needs nothing outlined"
     assert "argument" not in made.wire()
     assert "labelled or not" in description and "the user's own outlined thing" in description
