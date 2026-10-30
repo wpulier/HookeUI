@@ -1202,8 +1202,13 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--bridge-url", default="http://127.0.0.1:8765")
     parser.add_argument("--no-gpu", action="store_true")
+    parser.add_argument('--project-folders', default=os.environ.get('HOOKE_PROJECTS_DIR'),
+                        help='Explicit staged Project-folder parent; existing Projects stay in place')
     args = parser.parse_args()
-    server = create_app(args.bridge_url, use_gpu=not args.no_gpu)
+    from .project_launch import configured_locations
+    paths = Paths.from_env()
+    locations = configured_locations(paths, args.project_folders)
+    server = create_app(args.bridge_url, use_gpu=not args.no_gpu, paths=paths, project_locations=locations)
     # Where researchers read the session's index (their session tool; resources.py, Amendment 2.7): its researchers'
     # view, which reads as it did before ticket 66 (RESEARCHER_VIEW in create_app).
     server.state.app.research.resources_url = f"http://127.0.0.1:{args.port}/for-researchers"

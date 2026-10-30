@@ -782,3 +782,9 @@ playback, browser or complete collection qualification.
 `test_project_source_intake.py` uses real App/Library/storage over synthetic pixels. It verifies copy-before-selection, retry after original deletion, captured Project/actor during switching and cancellation without a source binding. Studio source-intake tests cover deferred navigation and reopened-Project races; they are not actual browser or camera evidence.
 
 `test_workspace_layout_schema7.py` checks exact retained-media references through real journal save/reopen, foreign and malformed refusal, and explicit refusal to downgrade a newer layout. Source-intake/browser-model regressions include late response ordering, lost-reply keys, later-source preservation and distinct Tabs for distinct retained revisions. These remain synthetic UI/storage tests until the isolated mixed-media browser journey passes.
+
+`test_project_launch.py` checks the normal server entry point's explicit operator
+selection using an isolated profile and transport stand-in. It verifies folder-backed
+creation, no implicit activation, refusal to forget a registered profile, and invalid
+parent refusal without overwriting files. It does not replace the actual browser and
+supported-connector qualification or establish complete collection.

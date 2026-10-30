@@ -1,5 +1,13 @@
 # The orchestrator
 
+The normal server supports operator-only staged Project routing through
+`--project-folders /absolute/parent` or `HOOKE_PROJECTS_DIR`. `project_launch`
+constructs the existing resolver before App creation, refuses malformed locations
+and refuses to forget an existing registry if the setting is removed. This is an
+explicit qualification mode, not default activation or legacy migration. Launch it
+through scripts/studio.sh in an isolated profile; requests and saved records cannot
+choose this configuration. Full collection and owner folder controls remain separate.
+
 Dataset-table and analysis/graph snapshots use the captured Project's artifact
 folder when `day.locations` is enabled. Legacy paths remain unchanged. Shared
 `ArtifactFolder` routing pins the origin/location and folder inode, acquires the
