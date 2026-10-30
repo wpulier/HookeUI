@@ -1230,3 +1230,6 @@ to the captured Project; starting captures the requested owner before background
 work. Navigation does not retarget admitted copying. Status/Stop read/control only
 that Project's export operations. Completed copies remain explicitly unverified for
 external dependencies; failure/cancellation preserve incomplete destinations.
+
+
+Project folder copies attempt descriptor-based macOS copy-on-write before streaming. Unsupported filesystems use the original byte-copy path; permission, disk and I/O errors retain an incomplete destination. Every member still has an independent inode, normalized permissions, fsync and independent source/destination hash checks. Conservative full-byte space admission remains unchanged because future copy-on-write edits may allocate blocks. This optimizes folder copying, not dependency closure.
