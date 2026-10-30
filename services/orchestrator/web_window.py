@@ -70,7 +70,7 @@ async def show(services, ctx, studio: ReaderStudio, *, shown: dict, title: str, 
                          next="open it as a window, beside the live view, or in a Tab of its own")
     made = False
     if placement == "new-tab":
-        tab_id, tab_title, made = await _tab(services, ctx, tab or (title[:40] or shown["site"]))
+        tab_id, tab_title, made = await _tab(services, ctx, tab or (title[:40] or shown["site"]), new=True)
     elif tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:

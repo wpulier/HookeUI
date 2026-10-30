@@ -135,32 +135,44 @@ def facts(target: str, revision: int, rows: int, *, displayed: str, front: str) 
             f"in front: {front}; accepted: not asked.")
 
 
-async def _tab(services, ctx, asked: str) -> tuple[str, str, bool]:
-    """The Tab named (its exact id, else its title, case and spaces aside), made when none has that title, and put in
-    front: through the tabs broker, the person's own Tab gestures (workspace_tabs.py). Its id, title and whether made."""
+async def _tab(services, ctx, asked: str, *, new: bool = False) -> tuple[str, str, bool]:
+    """The Tab named, put in front through the tabs broker, the person's own Tab gestures (workspace_tabs.py): its
+    exact id; else the Tab this request made when asked for that title (a create, then a place in it); else the Tab with
+    that title, case and spaces aside, and of several so called the one in front, else the newest; else made. `new`: a
+    new Tab was asked for, so one is made unless this request made it already, named so it is told apart from a Tab
+    already called that ("Reference 2"). Its id, its title and whether this request made it. Never the user's to choose
+    between Tabs Hooke can tell apart (will-workspace, 30 Oct: "several Tabs are called 'Reference'; ask which one")."""
+    from .workspace_tabs import folded
+
     listed = await services.workspace_tabs(ctx, {"action": "list"})
     tabs = [t for t in listed.get("tabs") or [] if (t.get("kind") or "work") == "work"]
-    key = " ".join(asked.split()).casefold()
-    found = ([t for t in tabs if t.get("id") == asked]
-             or [t for t in tabs if " ".join(str(t.get("title") or "").split()).casefold() == key])
-    if len(found) > 1:
-        raise ToolFailed(f"several Tabs are called {inline(asked, 80)!r} in this Project",
-                         next="ask which one, by the Tabs listed (tabs list)")
-    made = not found
-    if made:
+    broker = getattr(services.hub, "workspace_tabs", None)
+    mine = set(broker.made_for(ctx, asked)) if hasattr(broker, "made_for") else set()
+    by_id = [t for t in tabs if t.get("id") == asked]
+    made_here = [t for t in tabs if t.get("id") in mine]
+    named = [t for t in tabs if folded(t.get("title")) == folded(asked)]
+    if by_id:
+        tab, made = by_id[0], False
+    elif made_here:
+        tab, made = made_here[-1], True
+    elif named and not new:
+        tab, made = next((t for t in named if t.get("selected")), named[-1]), False
+    else:
         reply = await services.workspace_tabs(ctx, {"action": "create", "title": asked})
         before = {t.get("id") for t in tabs}
-        new = [t for t in reply.get("tabs") or [] if t.get("id") not in before and t.get("title") == asked[:80]]
-        if len(new) != 1:
-            raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made", next="list the Tabs, then ask again")
-        tab = new[0]
-    else:
-        tab = found[0]
-    if not tab.get("selected"):
+        fresh = [t for t in reply.get("tabs") or [] if t.get("id") not in before and (t.get("kind") or "work") == "work"]
+        if len(fresh) != 1:
+            raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made; the studio lists "
+                             f"{len(reply.get('tabs') or [])} Tabs", next=None)  # no next: what the studio lists is said
+        tab, made = fresh[0], True
+    for attempt in range(2):  # a Tab that did not come forward is switched to once more, by Hooke
+        if tab.get("selected"):
+            break
         reply = await services.workspace_tabs(ctx, {"action": "switch", "tab": tab["id"]})
-        if not any(t.get("id") == tab["id"] and t.get("selected") for t in reply.get("tabs") or []):
-            raise ToolFailed(f"the Tab {inline(str(tab.get('title')), 80)!r} did not come to the front",
-                             next="list the Tabs, then ask again")
+        tab = next((t for t in reply.get("tabs") or [] if t.get("id") == tab["id"]), tab)
+    if not tab.get("selected"):
+        raise ToolFailed(f"the Tab {inline(str(tab.get('title')), 80)!r} did not come to the front when switched to "
+                         "twice", next=None)  # no next: Hooke switched twice; what the studio shows is said
     return tab["id"], str(tab.get("title") or asked), made
 
 
@@ -398,13 +410,9 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
                           tab=tab, guard=guard)
 
     if placement == "new-tab":
-        title_asked = tab
-        if not title_asked:  # a new Tab of its own: "Cell results", or "Cell results 2" when that one exists
-            listed = await _tabs(services, ctx, {"action": "list"})
-            taken = {" ".join(str(t.get("title") or "").split()).casefold() for t in listed.get("tabs") or ()}
-            title_asked = next(name for name in (NEW_TAB_TITLE, *(f"{NEW_TAB_TITLE} {n}" for n in range(2, 30)))
-                               if name.casefold() not in taken)
-        tab_id, tab_title, made = await _tab(services, ctx, title_asked)
+        # A new Tab of its own, called as asked or "Cell results", and "Cell results 2" when one is called that already
+        # (workspace_tabs.fresh_title): a new Tab is asked for, so one is made.
+        tab_id, tab_title, made = await _tab(services, ctx, tab or NEW_TAB_TITLE, new=True)
         guard()
         outlines = bool(re.fullmatch(r"e\d+", target))
         if outlines:  # its outlines on their capture first (the masks window), then its table beside them

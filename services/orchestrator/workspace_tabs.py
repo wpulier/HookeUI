@@ -28,6 +28,26 @@ def specimen_of(wire, tab: str) -> dict | None:
     return next((t.get("specimen") for t in workspace.get("tabs") or () if tab in (t.get("id"), t.get("title"))), None)
 
 
+def folded(title) -> str:
+    """A Tab title as people tell Tabs apart: case and spaces aside."""
+    return " ".join(str(title or "").split()).casefold()
+
+
+def fresh_title(tabs, title: str) -> str:
+    """`title`, else `title 2`, `title 3`...: the first no Tab of the Project has (any kind, open or not), as the studio
+    names a second "Cell results" Tab "Cell results 2". A new Tab is always told apart from the ones there."""
+    taken = {folded(t.get("title")) for t in tabs or () if isinstance(t, dict)}
+    base = " ".join(str(title or "").split())[:80] or "Tab"
+    if folded(base) not in taken:
+        return base
+    return next(name for name in (f"{base[:75]} {n}" for n in range(2, 1000)) if folded(name) not in taken)
+
+
+def request_key(ctx) -> str | None:
+    """The request a tool call belongs to (registry.bind_occurrence's own key)."""
+    return getattr(getattr(ctx, "admission", None), "request_id", None) or getattr(ctx, "request_id", None)
+
+
 def _workspace_pin(observation, session):
     """Pin the original observed Tab strip, not a guessed server/UI generation."""
     item = next((row for row in observation.wire()["items"] if row["id"] == "workspace-tabs"), None)
@@ -37,10 +57,30 @@ def _workspace_pin(observation, session):
     return {"client": observation.client.wire(), **{key: item[key] for key in _PIN_FIELDS}}
 
 
+MADE_KEPT = 32  # requests whose new Tabs are remembered (one request's later steps name the Tab it made)
+
+
 class WorkspaceTabs:
     def __init__(self, app):
         self.app = app
         self.pending = {}
+        # The Tabs each request made, by the title it asked for: "open a new tab called Reference and put that photo in
+        # it" is a create, then a place in the Tab named "Reference", and that is the new one even when another Tab was
+        # already called that (will-workspace, 30 Oct: refused "several Tabs are called 'Reference'", then the user was
+        # asked which one).
+        self.made: dict[str, list[dict]] = {}
+
+    def made_for(self, ctx, asked: str) -> list[str]:
+        """The ids of the Tabs this request made when asked for a Tab called `asked`, newest last."""
+        return [m["id"] for m in self.made.get(request_key(ctx) or "", ()) if folded(m["asked"]) == folded(asked)]
+
+    def _remember(self, ctx, made: dict) -> None:
+        key = request_key(ctx)
+        if not key:
+            return
+        self.made.setdefault(key, []).append(made)
+        while len(self.made) > MADE_KEPT:
+            self.made.pop(next(iter(self.made)))
 
     async def run(self, ctx, args, *, verify=True):
         from .brain.toolbox.present import _original_screen
@@ -110,6 +150,15 @@ class WorkspaceTabs:
                                                               and args['specimen'] not in tuple(SPECIMEN)):
             raise ToolFailed('say fill, float or hide for the specimen, with the specimen action',
                              next='call tabs with action specimen, the Tab and specimen fill, float or hide')
+        asked_title, before_ids = None, set()
+        if action == 'create':
+            # A new Tab is asked for: it is made, named so it can be told apart from a Tab already called that
+            # ("Reference 2"), and the reply says its name. Never the user's to resolve (spec 4.8, horizontal 3).
+            listed = await self.run(ctx, {'action': 'list'})
+            current()
+            asked_title = " ".join(str(args['title']).split())[:80]
+            before_ids = {t.get('id') for t in listed.get('tabs') or ()}
+            args = {**args, 'title': fresh_title(listed.get('tabs'), asked_title)}
         payload = dict(args)
         if action == 'reader':
             # Open in new Tab, as a person's (WorkspaceViews.openReaderTab): one saved item in a Tab of its own, the
@@ -168,6 +217,15 @@ class WorkspaceTabs:
             current()
             if not reply.get('ok'):
                 raise ToolFailed(str(reply.get('error') or 'the Tab action was not confirmed'), next='check the workspace before retrying')
+            if action == 'create':
+                new = [t for t in reply.get('tabs') or () if t.get('id') not in before_ids]
+                if len(new) == 1:
+                    made = {'id': new[0]['id'], 'title': str(new[0].get('title') or args['title']), 'asked': asked_title}
+                    self._remember(ctx, made)
+                    if folded(made['title']) != folded(asked_title):
+                        made = {**made, 'named': f'a Tab called "{asked_title}" was already in this Project, so the new '
+                                                 f'Tab is called "{made["title"]}"'}
+                    reply = {**reply, 'made': made}
             if action == 'list':
                 # What is in front, as the studio's latest report shows it (workspace_observation.front): the Tab and its
                 # title, the window highest on it, and whether the studio itself is in view. Observed, never inferred.

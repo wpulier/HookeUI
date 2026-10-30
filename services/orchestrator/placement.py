@@ -294,13 +294,6 @@ def located(tabs, what: str) -> list[tuple[dict, dict]]:
     return out
 
 
-def _fresh_title(tabs, title: str) -> str:
-    """A title no open Tab has: `title`, else `title 2`, `title 3`..."""
-    taken = {" ".join(str(t.get("title") or "").split()).casefold() for t in tabs or ()}
-    base = " ".join(str(title or "").split())[:60] or "Tab"
-    return next(name for name in (base, *(f"{base} {n}" for n in range(2, 30))) if name.casefold() not in taken)
-
-
 async def _saved(services, what: str):
     """The Data item `what` names (a researcher's Tab id `research:rN` names its researcher's work), or a refusal that
     says it is neither open nor saved."""
@@ -448,8 +441,8 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
     # The app's own words for what a researcher or the web made (its `title`), never theirs (`shown`, untrusted).
     title = str((found[0][1].get("title") if found else (
         entry.title if getattr(entry, "untrusted", False) else (getattr(entry, "shown", "") or entry.title))) or what)
-    if placement == "new-tab":
-        tab_id, tab_title, made = await _tab(services, ctx, tab or _fresh_title(tabs, title))
+    if placement == "new-tab":  # a new Tab is asked for: made, and told apart from one already called that
+        tab_id, tab_title, made = await _tab(services, ctx, tab or title, new=True)
     elif tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
