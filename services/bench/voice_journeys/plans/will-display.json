@@ -53,6 +53,20 @@
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
   {
+   "id": "hide-outlines",
+   "kind": "act",
+   "say": "Hide the outlines for now.",
+   "expect": {
+    "tools": [
+     "present"
+    ],
+    "visible": "the cells' outlines no longer drawn on the live view",
+    "outcome": true,
+    "judge": "hides the outlines from the live view (they stay saved) and says so in a few words"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
    "id": "outlines-overlay",
    "kind": "act",
    "say": "Show the outlines as an overlay on the live view.",
