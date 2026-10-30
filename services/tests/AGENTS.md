@@ -696,3 +696,8 @@ Study, stops the host, relocates the folder and reopens the same exact research.
 checks startup failure and a real delayed evidence save at shutdown: a second
 process cannot acquire the writer until the stopped host process actually exits. No real client confirmation, ordinary UI
 session switch, provider, media decoder or complete collection is implied.
+
+`test_project_storage_status` exercises real isolated journals/locations and
+synthetic-consent door requests. It covers missing/mismatched owners, no writer
+acquisition, shared contract validation, discovery/default-deny and unrelated
+Project refusal. These are not live hosted storage or complete collection proofs.

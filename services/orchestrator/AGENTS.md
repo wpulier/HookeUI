@@ -1150,3 +1150,8 @@ releases its leases. App shutdown fences further admission but retains its write
 leases until process termination: cancelled tasks may still have writing threads. Ordinary server startup still supplies no resolver. This is not a
 request-selected storage path or a live migration/default-policy change. Portable
 UI session switching, media aliasing and provider execution remain unqualified.
+
+`project_storage_status` projects location/owner facts for an already authorized
+Project. It checks retained ownership even for an existing lease, reports missing
+registered folders without fallback, and leaves collection completeness unassessed.
+This read does not enable live portable creation or acquire write authority.

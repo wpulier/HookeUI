@@ -212,3 +212,12 @@ server derives the organizing actor from the connection, checks contribute autho
 at admission and publication, and publishes a separate membership record, preserving source bytes, producing context and every
 historical revision. Historical Study pins can be organized without advancing the source head. The shared Studio endpoint invokes the same metadata service;
 request identity and revision conflict checks prevent duplicate or stale acceptance.
+
+`project.storage` is a read-authorized metadata action using the shared
+`project-storage` contract. It returns the durable origin, legacy versus routed
+folder storage, known local location and observed owner availability. It takes no
+writer lease and never moves, collects or creates missing research. A missing or
+mismatched registered folder stays unavailable; legacy stores are not presented as
+portable folders. Collection remains explicitly not assessed. Hosted callers that
+cannot inspect local storage use the same unavailable meaning, never a fabricated
+local path or completeness claim.

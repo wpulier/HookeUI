@@ -1,0 +1,75 @@
+{
+  "$id": "hooke:agent/project-storage",
+  "title": "Authorized Project identity, location and collection status",
+  "type": "object",
+  "required": [
+    "session",
+    "origin",
+    "layout",
+    "location",
+    "availability",
+    "reason",
+    "collection"
+  ],
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "layout": {
+      "enum": [
+        "legacy",
+        "project-folder",
+        "unavailable"
+      ]
+    },
+    "location": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "availability": {
+      "enum": [
+        "available",
+        "unavailable"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "state",
+        "reason"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "not-assessed"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
