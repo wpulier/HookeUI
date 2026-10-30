@@ -6,6 +6,7 @@ import pytest
 
 from sim.harness import Viewer
 from test_sim_viewer import Connection
+from tests.waiting import HANG_S
 
 
 @pytest.mark.parametrize('fails', [False, True])
@@ -65,7 +66,7 @@ async def receive(monkeypatch, viewer, messages):
         for message in messages:
             await connection.incoming.put(message)
         await connection.incoming.put({"type": "result", "for": "barrier", "ok": True})
-        assert (await viewer.result_for("barrier", mark, timeout=1))["ok"]
+        assert (await viewer.result_for("barrier", mark, timeout=HANG_S))["ok"]
     finally:
         receiver.cancel()
         await asyncio.gather(receiver, return_exceptions=True)
