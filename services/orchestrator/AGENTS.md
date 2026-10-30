@@ -1194,3 +1194,8 @@ inspection over declared scientific record dependencies. It retains an exact hea
 basis and checks for changes before returning. It runs off the event loop and
 supports cancellation/authorization checks. It never opens another Project on the
 strength of a saved reference or claims journal/media collection is complete.
+
+Project folder estimates include bounded historical source-event preflight. Removed
+Library sources remain dependencies; live camera and prose do not become file links.
+Exact retained choices are scoped by origin, with missing inclusion explicit. This
+reads no host Library and does not certify all media/journal dependencies collected.

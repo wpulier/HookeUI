@@ -1,3 +1,8 @@
+`test_project_source_preflight.py` uses synthetic journals and copied media over the
+real Project stores. It checks removed-source history, exact retained choices,
+origin mismatch, interrupted/changed journals and bounded refusal. This is source
+inclusion preflight, not full collection or playback/browser acceptance.
+
 # Checks
 
 `test_project_record_dependencies.py` uses synthetic inputs with real accepted

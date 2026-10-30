@@ -100,11 +100,13 @@ def _stream(path, expected=None, output=None, check=lambda: None):
 def estimate(root: ProjectRoot, *, check=lambda: None):
     """A bounded size estimate; admission repeats it under the writer lease."""
     verify_owner(root)
+    from .project_source_preflight import review_sources
     members = _members(root.path, check)
     size = sum(member.size for member in members)
     return {'files': len(members), 'bytes': size, 'requiredFreeBytes': size + MAX_MANIFEST + HEADROOM,
             'scope': 'project-folder', 'externalDependencies': 'not-verified',
-            'dependencyReview': review_dependencies(root, check=check)}
+            'dependencyReview': review_dependencies(root, check=check),
+            'sourceReview': review_sources(root, check=check)}
 
 
 def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
