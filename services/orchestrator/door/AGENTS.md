@@ -8,6 +8,10 @@ identities refuse before recovery writes. An unavailable writer leaves the origi
 receipt unchanged and exposes `storageReadOnly`: its recorded running state is not
 observed execution here, and cancellation is refused. WorkflowService still owns
 workflow execution. Failed admission sync retries reuse the same reserved ID.
+Cancelled callers drain their filesystem writers before releasing serialization.
+Unavailable Project histories leave healthy records readable, but unknown request
+keys refuse admission until the missing history is restored: keys are connection-wide.
+Loading bounds all candidate files (including malformed records) and aggregate bytes.
 
 Part of the working context the root `AGENTS.md` maps. The decision is ADR 0026
 (`docs/adr/0026-outside-agents-connect-through-one-door.md`). Read it before changing anything here.

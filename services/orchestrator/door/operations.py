@@ -23,6 +23,10 @@ from typing import Awaitable, Callable
 
 from .connections import Refused
 
+MAX_RECORDS = 100_000
+MAX_HISTORY_BYTES = 256 << 20
+MAX_RECORD_BYTES = 64 << 20
+
 TERMINAL = ("succeeded", "failed", "cancelled", "interrupted")
 _KEY = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _ID = re.compile(r"^op_[0-9a-f]{16,32}$")
@@ -64,6 +68,7 @@ class Operations:
         self._legacy = set()
         self._folders = {}
         self._pending_admissions = {}
+        self._history_complete = True
         self.clock = clock
         self._records: dict[str, dict] = {}
         self._keys: dict[tuple[str, str], str] = {}  # (who, request key) -> operation: keys are each connection's own
@@ -83,18 +88,33 @@ class Operations:
         sources = [(self.folder, None)]
         if self.locations is not None:
             for session in self.locations.handles():
-                root = self.locations.project(session)
-                sources.append((root.folder('history') / 'operations', root))
+                try:
+                    root = self.locations.project(session)
+                    sources.append((root.folder('history') / 'operations', root))
+                except (OSError, ValueError) as error:
+                    self._history_complete = False
+                    self.unreadable.append(f'Project {session}: {str(error)[:240]}')
         loaded = []
+        candidates = total_bytes = 0
         identities, keys = set(), set()
         for folder, owner in sources:
             if folder.is_symlink() or folder.exists() and not folder.is_dir():
                 raise ValueError('Operation storage was replaced by a link; preserve the original Project')
             if owner is not None and folder.is_dir():
                 self._folders[folder] = (folder.stat().st_dev, folder.stat().st_ino)
-            for path in sorted(folder.glob('op_*.json')):
-                if len(loaded) >= 100_000:
+            for path in folder.glob('op_*.json'):
+                candidates += 1
+                if candidates > MAX_RECORDS:
                     raise ValueError('Operation history exceeds its loading allowance')
+                try:
+                    size = path.lstat().st_size
+                except OSError:
+                    self._history_complete = False
+                    self.unreadable.append(str(path))
+                    continue
+                total_bytes += size
+                if total_bytes > MAX_HISTORY_BYTES:
+                    raise ValueError('Operation history exceeds its byte allowance')
                 record = self._read_saved(path, owner)
                 if record is None:
                     continue
@@ -135,7 +155,7 @@ class Operations:
         from ..scientific_projects import ProjectStore
         from .schema import check
         try:
-            record = json.loads(ProjectStore._read(path, 64 << 20))
+            record = json.loads(ProjectStore._read(path, MAX_RECORD_BYTES))
             if type(record) is not dict:
                 raise ValueError('not an operation')
             check(wire(record), 'operation')
@@ -148,6 +168,7 @@ class Operations:
                 raise ValueError('operation belongs to another Project origin')
             return record
         except (OSError, ValueError, KeyError, TypeError):
+            self._history_complete = False
             self.unreadable.append(str(path) if owner is not None else path.name)
             return None
 
@@ -190,7 +211,25 @@ class Operations:
         """Writes the record as it is when its turn comes: writes of one record never overlap, and the last one wins."""
         lock = self._saving.setdefault(record["id"], asyncio.Lock())
         async with lock:
-            await asyncio.to_thread(self._persist, dict(record))
+            task = asyncio.create_task(asyncio.to_thread(self._persist, dict(record)))
+            cancelled = False
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    # Cancelling the caller does not stop its filesystem writer.
+                    # Drain it while still owning serialization, even after another cancel.
+                    cancelled = True
+                except Exception:
+                    if not cancelled:
+                        raise
+            if cancelled:
+                # Retrieve any worker failure; the admission remains uncertain and
+                # keeps its ID for a retry, but the caller's cancellation wins.
+                if not task.cancelled():
+                    task.exception()
+                raise asyncio.CancelledError
+            task.result()
 
     def lookup(self, request_key, *, by, tool, project, input_revision, generation, params):
         """Look up a precise admission in this actor's namespace, without dispatch."""
@@ -220,6 +259,10 @@ class Operations:
                                   "That request key was already used for a different request.",
                                   next="use a new request key for a new request")
                 return wire(record), False
+            if not self._history_complete:
+                raise Refused(503, 'operation-history-unavailable',
+                              'Some saved operation history is unavailable; a new request cannot be safely admitted.',
+                              next='restore the unavailable Project or operation records, then restart Hooke')
             record = {"id": "op_" + secrets.token_hex(12), "requestKey": request_key, "requestSha256": digest,
                       "state": "admitted", "tool": tool, "project": project, "inputRevision": input_revision,
                       "generation": generation, "params": params, "by": by, "byLabel": label, "at": self.clock(),

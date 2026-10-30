@@ -11,6 +11,7 @@ from orchestrator.project_locations import ProjectLocations
 from orchestrator.project_repository import create
 from orchestrator.project_roots import ProjectRegistry, ProjectRoot
 from tests.test_agent_operations import AGENT, settle
+from tests.waiting import HANG_S, until_async
 
 
 def setup(tmp_path):
@@ -65,10 +66,10 @@ def test_second_host_reads_saved_state_without_reconciling_or_cancelling_writer(
     async def go():
         started, finish = asyncio.Event(), asyncio.Event()
         async def work(record, progress):
-            started.set(); await finish.wait(); return {'measurement': 1}
+            started.set(); await asyncio.wait_for(finish.wait(), HANG_S); return {'measurement': 1}
         ops = Operations(home, locations=locations)
         record, _ = await admit(ops, root.session, work)
-        await started.wait()
+        await asyncio.wait_for(started.wait(), HANG_S)
         file = root.path / 'history/operations' / (record['id'] + '.json')
         before = file.read_bytes()
         second_locations = ProjectLocations(locations.legacy, locations.registry, locations.parent)
@@ -188,3 +189,73 @@ def test_workflow_receipt_on_second_host_is_observation_not_execution(tmp_path):
         finally: other.close()
     try: asyncio.run(go())
     finally: locations.close()
+
+
+def test_missing_project_keeps_healthy_history_readable_but_refuses_unknown_keys(tmp_path):
+    home, locations, root = setup(tmp_path)
+    async def go():
+        ops = Operations(home, locations=locations)
+        async def work(record, progress): return {'kept': True}
+        record, _ = await admit(ops, root.session, work)
+        await settle(ops)
+        missing = create(locations.parent, 'Offline', session='2026-10-30.2', host_preferences=Prefs(home))
+        locations.registry.register(missing)
+        missing.path.rename(tmp_path / 'Detached')
+        fresh = Operations(home, locations=locations)
+        assert fresh.get(record['id'])['state'] == 'succeeded'
+        assert any('2026-10-30.2' in item for item in fresh.unreadable)
+        with pytest.raises(Refused, match='history is unavailable'):
+            await admit(fresh, root.session, work, key='another-request-0001')
+    try: asyncio.run(go())
+    finally: locations.close()
+
+
+def test_cancelled_admission_drains_writer_before_same_key_retry(tmp_path, monkeypatch):
+    import threading
+    home, locations, root = setup(tmp_path)
+    async def go():
+        ops = Operations(home, locations=locations)
+        entered, release = threading.Event(), threading.Event()
+        original = ops._persist
+        calls = []
+        def delayed(record):
+            if not entered.is_set():
+                entered.set()
+                assert release.wait(HANG_S)
+            original(record)
+        monkeypatch.setattr(ops, '_persist', delayed)
+        async def work(record, progress): calls.append(record['id']); return {'kept': True}
+        first = asyncio.create_task(admit(ops, root.session, work))
+        retry = None
+        try:
+            await until_async(entered.is_set)
+            first.cancel()
+            retry = asyncio.create_task(admit(ops, root.session, work))
+            # Repeated cancellation must not release the writer's lock either.
+            first.cancel()
+            assert not first.done() and not retry.done()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(first, HANG_S)
+            record, made = await asyncio.wait_for(retry, HANG_S)
+            await settle(ops)
+            files = list((root.path / 'history/operations').glob('op_*.json'))
+            assert made and calls == [record['id']] and len(files) == 1
+            assert json.loads(files[0].read_text())['state'] == 'succeeded'
+        finally:
+            release.set()
+            await asyncio.gather(first, *([retry] if retry is not None else []), return_exceptions=True)
+    try: asyncio.run(go())
+    finally: locations.close()
+
+
+@pytest.mark.parametrize('budget', ['MAX_RECORDS', 'MAX_HISTORY_BYTES'])
+def test_invalid_candidates_count_toward_history_loading_budget(tmp_path, monkeypatch, budget):
+    from orchestrator.door import operations
+    folder = tmp_path / 'agents/operations'
+    folder.mkdir(parents=True)
+    for number in range(3):
+        (folder / f'op_{number:016x}.json').write_text('invalid')
+    monkeypatch.setattr(operations, budget, 2)
+    with pytest.raises(ValueError, match='allowance'):
+        Operations(tmp_path)
