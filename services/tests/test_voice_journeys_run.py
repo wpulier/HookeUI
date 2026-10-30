@@ -534,4 +534,4 @@ def test_the_judge_reads_each_steps_receipt_without_ids():
 
     said = receipt('opened in window w-5deb0a46-bdb5-4341-8349-ccd9d24221dd: a new Tab "Cell results"  in front')
     assert "w-5deb" not in said and 'a new Tab "Cell results" in front' in said
-    assert receipt("x" * 500).endswith("…") and len(receipt("x" * 500)) == 241
+    assert receipt("x" * 500).endswith("…") and len(receipt("x" * 500)) == 421

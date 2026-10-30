@@ -167,7 +167,7 @@ Reply with JSON only:
 {{"answered": true, "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
 
 
-def receipt(text: str, limit: int = 240) -> str:
+def receipt(text: str, limit: int = 420) -> str:
     """A receipt's words for the judge: one line, without window or source ids, bounded."""
     text = re.sub(r"\b(?:w-[0-9a-f-]{8,}|[0-9a-f]{8}-[0-9a-f-]{27,})\b", "", " ".join(str(text).split()))
     return text[:limit] + ("…" if len(text) > limit else "")

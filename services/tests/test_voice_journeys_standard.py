@@ -1230,7 +1230,10 @@ def test_a_called_tools_outcome_said_when_it_landed_belongs_to_its_step():
              {"kind": "partner-proactive", "event": "notice", "ref": None, "eventId": "ev-2"},
              {"kind": "partner-response", "cause": "proactive", "firstAudioT": 200.0, "events": ["ev-2"],
               "transcript": "A researcher finished."}]
+    inter += [{"kind": "partner-proactive", "event": "researcher-done", "ref": "r27", "eventId": "ev-3"},
+              {"kind": "partner-response", "cause": "proactive", "firstAudioT": 300.0, "events": ["ev-3"],
+               "transcript": "Researcher 2 finished: the five models disagree on a third of the cells."}]
     owned = outcome_spans(inter)
-    assert list(owned) == ["call_A"] and owned["call_A"][0][0] < 100.0
+    assert sorted(owned) == ["call_A", "r27"] and owned["call_A"][0][0] < 100.0, "a researcher's outcome by its id"
     spans = unprompted_spans(inter)
     assert len(spans) == 1 and spans[0][0] < 200.0 < spans[0][1], "a notice stays unprompted; the outcome does not"

@@ -546,7 +546,9 @@ def outcome_spans(inter: list[dict]) -> dict[str, list[tuple[float, float]]]:
                 or not isinstance(r.get("firstAudioT"), (int, float)) or not r.get("events"):
             continue
         said = [events.get(i) for i in r["events"]]
-        if not said or any(e is None or e.get("event") != "tool-done" or not e.get("ref") for e in said):
+        # A called tool's outcome (tool-done, ref its call id) or a started researcher's (researcher-done, ref its id).
+        if not said or any(e is None or e.get("event") not in ("tool-done", "researcher-done") or not e.get("ref")
+                           for e in said):
             continue
         end = response_end(r, ends)
         if end is None:  # its end unrecorded: at most until the user's next words
@@ -647,8 +649,11 @@ def step_view(bench: dict, conv: list[dict], inter: list[dict], window: tuple[fl
     mine = {c.call_id for c in calls if c.call_id in (tasks or {})}
     own = [x for cid, t in (tasks or {}).items() if cid in mine for x in (t.get("spans") or [t["span"]]) if x]
     others = [x for cid, t in (tasks or {}).items() if cid not in mine for x in (t.get("spans") or [t["span"]]) if x]
-    # A called tool's outcome said when it landed is this step's when it called it, and no other step's.
+    # A called tool's outcome said when it landed is this step's when it called it, and no other step's; so is the
+    # outcome of a researcher it started (will-research, 29 Oct: "Researcher 2 finished, and the five-model comparison
+    # showed substantial disagreement…" was dropped as unprompted, and the step judged as never answered).
     called = {c.call_id for c in partner_calls(inter, n, start, end) if c.call_id}
+    called |= {c.rid for c in calls if c.name == "start_researcher" and c.rid}
     for cid, spans in (bench.get("_outcomes") or {}).items():
         (own if cid in called else others).extend(spans)
     return n, calls, source, step_lines(conv, inter, start, end, unprompted, own, others)

@@ -90,7 +90,7 @@
      "models_in_use"
     ],
     "toolRequired": false,
-    "judge": "names the segmentation models Hooke has and ones it could add from its catalogue (installed or not, and what each needs), without inventing any"
+    "judge": "says which segmentation models are ready now and names models it could add from its catalogue, each with what it needs (a download and its size, a key, a setup); the full list may be left to the chat; invents none"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
