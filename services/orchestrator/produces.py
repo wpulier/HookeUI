@@ -248,6 +248,7 @@ COMMANDS = {
     "project-export-reveal": "none: reveals the verified exported folder identity in Finder",
     "project-export-stop": "none: requests cancellation of the original Project export operation",
     "project-storage": "none: reads the current Project location and collection readiness",
+    "project-open-folder": "none: registers an owner-selected working Project folder without granting agent access or moving the stage",
     "project-reveal": "none: reveals the verified current Project folder in Finder",
     "rig": "calibration",
     "scale": "calibration",

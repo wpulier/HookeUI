@@ -45,15 +45,23 @@ def configured_locations(paths, folder, *, reopen=None, opening=None):
 
 
 def _open_owner_folder(paths, locations, opening):
-    """Owner/operator entrance only; a path or historical author never grants access."""
+    from .day.prefs import Prefs
+    root = register_owner_folder(paths, locations, opening)
+    Prefs(paths.sessions).point(root.session, strict=True)
+
+
+def register_owner_folder(paths, locations, opening):
+    """Register an owner-selected working folder without navigation or agent access."""
     from .day.ownership import namespace, retained_owner
     from .door.projects import ProjectAccess
-    from .day.prefs import Prefs
     from .project_repository import verify_owner
+    if locations is None:
+        raise ProjectLocationError("Project folders are not enabled for this host")
     if not isinstance(opening, str) or not opening.strip() or not Path(opening).expanduser().is_absolute():
         raise ProjectLocationError('Choose the absolute location of the Project folder')
     root = ProjectRoot.open(Path(opening))
-    with namespace(paths.sessions):
+    with locations._lock, namespace(paths.sessions):
+        locations._check()
         verify_owner(root)
         entries = locations.registry.locations()
         prior = entries.get(root.origin)
@@ -61,8 +69,7 @@ def _open_owner_folder(paths, locations, opening):
             # No implicit relocation, re-registration, or access reset for a known origin.
             if Path(prior['path']) != root.path or locations.registry.locate(root.origin) != root:
                 raise ProjectLocationError('This Project is known at another location. Choose explicit inactive-location recovery or open read-only.')
-            Prefs(paths.sessions).point(root.session, strict=True)
-            return
+            return root
         if root.session in locations.handles():
             raise ProjectLocationError('Another Project uses this host handle. Neither Project was changed; open in a separate profile.')
         if ((paths.sessions / root.session / 'journal.jsonl').exists()
@@ -72,4 +79,4 @@ def _open_owner_folder(paths, locations, opening):
         if root.session in ProjectAccess(paths.home).rows():
             raise ProjectLocationError('Local agent permissions already use this host handle. Import cannot inherit them; use a separate profile.')
         locations.registry.register(root, verify_history=True)
-        Prefs(paths.sessions).point(root.session, strict=True)
+        return root

@@ -1,3 +1,5 @@
+test_project_open_command uses synthetic retained Projects with real stores to qualify owner-only registration without navigation or grants, stale requests and disabled-host refusal. project-open.test.ts checks synthetic dialog retries, close/navigation races and delegation to normal unsaved-work navigation. These tests do not establish native chooser or full collection acceptance.
+
 `test_project_source_preflight.py` uses synthetic journals and copied media over the
 real Project stores. It checks removed-source history, exact retained choices,
 origin mismatch, interrupted/changed journals and bounded refusal. This is source
