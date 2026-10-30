@@ -18,6 +18,13 @@ Migration is explicit: inventory, space estimate, settle work, copy, verify, reo
 
 ## Delivery and proof
 
+Folder-copy verification checks retained researcher metadata as well as scientific
+documents: archived metadata must match its content-addressed name, every record
+must retain its Project/researcher/date identity, and saved finding revisions must
+match their original payload digests. Incomplete publication refuses sealing.
+This neither qualifies provider execution nor establishes closure of external
+research dependencies; original files and failed copies remain available for recovery.
+
 1. Shared inventory and Inputs/Data/Activity repair over current storage.
 2. Root resolver, manifest, registry, writer lease and new-Project storage.
 3. Complete collection/opening, relocation, independent copies and transactional conversion.

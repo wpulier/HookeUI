@@ -823,3 +823,11 @@ immutability and no imported grants. Server-main argument/environment tests use 
 transport stand-in: they do not qualify the native chooser or full read-only UI.
 
 `test_project_historical_attribution` copies, restores and renames a synthetic Project through real immutable intake, then reads its shared resource maker with an empty host label cache. It checks preserved exact revisions/actor/label, host-cache isolation and legacy fallback. This is storage/index proof; actual portable browser authorship is recorded separately.
+
+# Retained researcher integrity
+
+`test_project_research_integrity.py` uses synthetic researcher output through real
+metadata publication and folder-copy verification. It checks archived bytes,
+finding digests, owner mismatch, incomplete publication, bounded cancellation and
+recomputed outer seals. This is storage evidence, not provider or complete-collection
+acceptance.
