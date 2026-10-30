@@ -2275,3 +2275,41 @@ def test_a_direct_answer_is_not_acknowledged_first(monkeypatch):
         said = await until_async(lambda: next((e for e in creates_of(t)[1:]), None), seconds=5)
         assert said["response"]["metadata"]["cause"] == "say" and len(creates_of(t)) == 2
     asyncio.run(go())
+
+
+def test_an_acknowledgement_not_yet_heard_is_let_go_once_the_work_has_landed(monkeypatch):
+    """Will's try-out, 30 Oct: "I'm switching back to the main specimen view. It may take a moment…" was said when the
+    Main Tab was already in front. Once a hand-off's steps are done, its acknowledgement not yet heard is let go, and
+    its outcome is said instead."""
+    from orchestrator.brain.actions import ActionRunner
+    from orchestrator.brain.registry import ToolContext
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain", speaks="acknowledges")
+        answered = asyncio.Event()
+
+        async def handler(ctx, args):
+            return "switched to Main"
+        t.brain.registry.add(Tool("tabs", "Tabs: switch Tabs.", schema({"action": {"type": "string"}}), handler,
+                                  kind="effect", inline_ms=50))
+
+        async def turn(text, channel, **kw):
+            runner = ActionRunner(t.brain.registry, t.hub, lambda: None, lambda run, ctx: asyncio.sleep(0))
+            runs = await runner.run([("tabs", {"action": "switch"})], ToolContext("voice", 0, None, question=text))
+            await asyncio.wait([r.task for r in runs])
+            await answered.wait()  # the brain writing its answer, its step done
+            return {"answer": "You're back on the Main tab.", "actions": [r.wire() for r in runs]}
+        t.brain.turn = turn
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "h1",
+                   "name": "do_in_hooke", "arguments": json.dumps({"request": "take me back to the main specimen",
+                                                                   "label": "Back to Main"})})
+        await done(t.sb, "resp_1")
+        await until_async(lambda: any(e["response"]["metadata"]["cause"] == "ack" for e in creates_of(t)), seconds=5)
+        cancel = await until_async(lambda: next((e for e in t.sb.sent if e["type"] == "response.cancel"
+                                                 and e.get("response_id") == "resp_2"), None), seconds=5)
+        assert cancel, "its acknowledgement, not yet heard, is let go"
+        await done(t.sb, "resp_2", status="cancelled")
+        answered.set()
+    asyncio.run(go())

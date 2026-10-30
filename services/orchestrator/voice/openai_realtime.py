@@ -1858,6 +1858,7 @@ class RealtimeSession(VoiceSession):
         looked = False
         still_running = True  # every output so far says its tool is still running
         let_go = False  # its progress line, not yet heard, was let go once its work landed
+        ack_let_go = False  # its acknowledgement, not yet heard, was let go once its work landed
         shown = True  # every mark of a pointing round was drawn
         sent: set[str] = set()
         while pending:
@@ -1890,6 +1891,12 @@ class RealtimeSession(VoiceSession):
                 # Its work landed while its line was on its way: a line not yet heard is let go (the outcome follows).
                 let_go = True
                 self._unsay_progress(n)
+            if handed and not ack_let_go and self._acked.get(n) and not self._handoff_working(ids):
+                # Its work landed before its acknowledgement was heard: "I'm switching back…" said once the switch
+                # is done is let go, and its outcome said instead (Will's try-out, 30 Oct: "It may take a moment"
+                # while the Main Tab was already in front).
+                ack_let_go = True
+                self._unsay_progress(n, "ack")
             if (pending and len(progress) < PROGRESS_LINES and due
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
@@ -1980,16 +1987,21 @@ class RealtimeSession(VoiceSession):
         return (isinstance(result, dict) and result.get("ok") is not False and bool(result.get("shown"))
                 and not result.get("not_shown"))
 
-    def _unsay_progress(self, n: int) -> None:
-        """The round's result is here while its progress line may still be on its way. A line not yet heard starting is
-        let go: one still queued drops itself (its `still` is now false), one asked for or being made is cancelled
-        before its first audio. The result is said instead. A line already playing is heard to its end, never cut."""
+    def _unsay_progress(self, n: int, cause_of: str = "progress") -> None:
+        """The round's result is here while its progress line (or its acknowledgement, `cause_of` "ack") may still be on
+        its way. A line not yet heard starting is let go: one still queued drops itself (its `still` is now false), one
+        asked for or being made is cancelled before its first audio. The result is said instead. A line already playing
+        is heard to its end, never cut."""
         rid = self._response
         cause = self._causes.get(rid or "") if rid else None
-        if rid and cause and cause.get("cause") == "progress" and cause.get("n") == n:
+        if rid and cause and cause.get("cause") == cause_of and cause.get("n") == n:
             self._spawn(self._cancel_unheard(rid))
-        elif self._requested is not None and self._requested.get("cause") == "progress":
+        elif self._requested is not None and self._requested.get("cause") == cause_of:
             self._unsay = n  # cancelled as it is created (response.created)
+        else:
+            for ask in list(self._asks):  # still queued at the gate: dropped before it is asked for
+                if ask.cause == cause_of and ask.n == n:
+                    self._asks.remove(ask)
 
     async def _cancel_unheard(self, rid: str) -> None:
         if rid in self._first_audio or self._response != rid:
