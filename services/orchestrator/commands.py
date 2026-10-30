@@ -3156,6 +3156,38 @@ async def sessions_reveal(app, client, msg) -> dict:
     return {"ok": True, "path": str(folder)}
 
 
+@command('project-storage')
+async def project_storage(app, client, msg) -> dict:
+    """The owner's current-Project inspector shares the connector's location facts."""
+    from .project_storage_status import describe
+
+    day = app.day
+    generation = day.generation
+    if msg.get('session') != day.sid:
+        raise tools.ToolError('The Project changed. Reopen its folder details.')
+    value = await asyncio.to_thread(describe, day, day.sid)
+    if app.day is not day or not day.current(generation) or msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed. Reopen its folder details.')
+    return {'storage': value}
+
+
+@command('project-reveal')
+async def project_reveal(app, client, msg) -> dict:
+    """Reveal only the captured Project's verified folder, never a supplied path."""
+    import subprocess
+    import sys
+
+    status = (await project_storage(app, client, msg))['storage']
+    if status['availability'] != 'available':
+        raise tools.ToolError(status['reason'] or 'This Project folder is unavailable.')
+    # Legacy records remain in the host store; revealing them is not collection.
+    folder = status['location'] or str(app.day.root / msg['session'])
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': folder, 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', folder], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': folder}
+
+
 # --- researchers --------------------------------------------------------------------------------
 @command('research-open-capture')
 async def research_open_capture(app, client, msg) -> dict:

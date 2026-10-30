@@ -2771,7 +2771,9 @@
    "how": {
     "also": [
      "view",
-     "sessions-reveal"
+     "sessions-reveal",
+     "project-storage",
+     "project-reveal"
     ],
     "command": "session",
     "control": "session"

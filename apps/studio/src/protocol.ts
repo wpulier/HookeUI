@@ -1615,6 +1615,8 @@ export type ClientCommand =
   | { type: 'dataset-rename'; id: string; name: string }
   | { type: 'dataset-reveal'; id: string }
   | { type: 'sessions-reveal' } // Show in Finder: the folder every Project is saved in
+  | { type: 'project-storage'; session: string }
+  | { type: 'project-reveal'; session: string }
   | { type: 'dataset-trash'; id: string } // after the user confirmed: moved to datasets/.trash/
   | { type: 'rig'; field: string; value: string | number | null } // a fact about the microscope
   // researchers
@@ -1682,6 +1684,8 @@ interface Replies {
   'model-install': { install: InstallRow };
   'model-prepare': { install: InstallRow };
   'model-reveal': { path: string };
+  'project-storage': { storage: import('./project-folder').ProjectStorage };
+  'project-reveal': { path: string; error?: string };
   'onboarding-models': { offer: import('./starter-models').StarterAnswer };
   'model-add': { model: string; kind: string; says: string };
   'volume-add': { says: string }; // what was added, in words (registrations.py words)

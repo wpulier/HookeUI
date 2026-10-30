@@ -2481,7 +2481,9 @@
         "control": "session",
         "also": [
           "view",
-          "sessions-reveal"
+          "sessions-reveal",
+          "project-storage",
+          "project-reveal"
         ]
       },
       "pair": "new-session",
