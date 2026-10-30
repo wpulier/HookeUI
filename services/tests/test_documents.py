@@ -412,6 +412,7 @@ def test_the_writing_model_saying_nothing_is_said(tmp_path, monkeypatch):
 
         monkeypatch.setattr(app.brain.services.agent, 'vision', lambda model: Vision())
         run = await asked(app, studio, 'write_document', {'about': 'findings'})
-        assert run.ok is False and 'the writing model did not answer' in run.summary
-        assert 'credit balance is too low' in run.summary
+        # Said as why the model could not be used and what to do (dispatch.not_answered), never a bare failure.
+        assert run.ok is False and run.summary.startswith('the writing model')
+        assert 'out of credit' in run.summary and 'choose another model' in run.summary
     asyncio.run(go())
