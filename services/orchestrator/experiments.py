@@ -137,6 +137,10 @@ def _token(value) -> str:
     return token(value)
 
 
+def cells(n) -> str:
+    return f"{n} cell" if n == 1 else f"{n} cells"
+
+
 def said_list(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1] if items else ""
 
@@ -746,7 +750,7 @@ class Experiments:
             for a in f["record"]["arms"]:
                 if a.get("population"):
                     read.append({"id": a["population"],
-                                 "what": f"{a['label']}'s cells on frame {f['frame']} ({a.get('count')} cells)"})
+                                 "what": f"{a['label']}'s cells on frame {f['frame']} ({cells(a.get('count'))})"})
         return {"format": "hooke-experiment-record-v1", "name": x.name, "title": x.title, "thread": x.thread,
                 "plan": {k: x.plan[k] for k in ("operation", "policy", "models", "input", "measure")},
                 "frames": [{"frame": f["frame"], "scene": f["scene"],
@@ -822,7 +826,7 @@ class Experiments:
                 continue
             population = items.get(a.get("population"))
             polygons = [p for m in population.live() for p in m.polygons] if population is not None else []
-            arms.append({"polygons": polygons, "caption": f"{a['label']} · {a.get('count')} cells"})
+            arms.append({"polygons": polygons, "caption": f"{a['label']} · {cells(a.get('count'))}"})
         if len(arms) < 2:
             return None
         facts = scene.document["state"].get(experiment_steps.FRAME_KIND) or {}
@@ -875,7 +879,7 @@ class Experiments:
                     continue
                 check = ("" if a.get("measured") in (None, a.get("count"))
                          else f", but its measurement has {a['measured']} rows")
-                words.append(f"{a['label']} found {a.get('count')} cells" + check)
+                words.append(f"{a['label']} found {cells(a.get('count'))}" + check)
             for p in f["record"]["summary"].get("pairs") or []:
                 words.append(f"{p['matched']} were found by both {labels.get(p['a'], p['a'])} and "
                              f"{labels.get(p['b'], p['b'])}")
