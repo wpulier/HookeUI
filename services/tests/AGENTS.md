@@ -1,5 +1,10 @@
 # Checks
 
+`test_project_record_dependencies.py` uses synthetic inputs with real accepted
+Studies, workflows and revision stores. It checks historical links, digest/missing
+failures, external-owner non-access, prose exclusion and bounded cancellation.
+This qualifies a declared-record preflight, not complete collection or browser use.
+
 `test_project_snapshot_integrity.py` uses synthetic accepted records and actual
 copy admission to reject damaged historical revisions, missing/changed file chunks,
 and a recomputed outer seal over corrupt evidence. These are integrity checks,

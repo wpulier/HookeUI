@@ -338,3 +338,15 @@ Fresh filesystem checksums cannot bless an already damaged accepted record. This
 is bounded, cancellable integrity checking, not a claim that external dependencies,
 legacy media, or every scientific relationship have been collected. Unknown
 research document kinds remain readable; no saved content is executed.
+
+### Declared dependency review
+
+Before collection can claim completeness, review the exact artifact relationships
+declared by scientific records, Studies, claims and workflows across every retained
+revision. A reference to another Project is an inclusion decision, not authority to
+read or copy it. Same-Project references must resolve their original revision and
+digest; unpinned execution locators stay explicitly distinct from exact evidence.
+The review reports missing/conflicting evidence and external dependencies without
+repairing, replaying or guessing links from prose or filenames. This review covers
+declared scientific-record relationships only; journals, shared captures and
+unknown extension semantics still require their collection qualification.
