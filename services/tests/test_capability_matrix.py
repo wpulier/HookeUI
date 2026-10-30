@@ -256,6 +256,9 @@ PLANS: dict[str, Plan] = {
     "set-default-model": Plan("always use this one from now on", [("set_default", {"operation": "{use_as}", "implementation": "{name}",
                                                                                      "by": "user"})], names_model=True, reach="set"),
     "retrieve-page": Plan("pull up a page about stomata", [("retrieve_page", {"query": "stomata"})]),
+    # Found and checked (the video search asked, its result judged), kept in Data; this rig has no studio to show it in.
+    "web-video": Plan("find a YouTube video about stomata and open it", [("show_web", {"video": "stomata"})],
+        expect="refused: this studio has no Project workspace to show it in"),
     # Researchers' work: asked for by chat and voice (start_researcher), and a researcher's own operations by its `run`.
     "research": Plan("look into why stomata close", [("start_researcher", {"brief": "why stomata close", "effort": "quick",
                                                                            "asked_with": "look into why stomata close"})]),
@@ -390,9 +393,23 @@ def world(tmp_path, monkeypatch):
 
     looked: list[str] = []
 
-    async def lookup(query, *, images=False, observe=None):
+    async def lookup(query, *, images=False, videos=False, observe=None):
         looked.append(query)
+        if videos:  # a video search (show_web): one video page, its site's own title checked below
+            return [{"page": "https://www.youtube.com/watch?v=dQw4w9WgXcQ", "title": "Stomata",
+                     "description": "how stomata open and close"}]
         return [{"page": "https://en.wikipedia.org/wiki/Stoma", "title": "Stoma", "image": "https://upload.wikimedia.org/x.jpg"}]
+
+    async def judge_videos(request, candidates):
+        return retrieval.VideoJudgment(0, "its title is about stomata")
+
+    async def oembed(page, site):  # the video site's own title, never the network here
+        return {"title": "How stomata open and close", "channel": "Plant Bio"}
+
+    from orchestrator import video_search
+
+    monkeypatch.setattr(retrieval, "judge_videos", judge_videos)
+    monkeypatch.setattr(video_search, "oembed", oembed)
 
     async def fetch_text(url, *a, **k):
         return "Stomata are pores in the epidermis of leaves."

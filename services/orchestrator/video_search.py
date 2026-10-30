@@ -64,12 +64,13 @@ async def oembed(page: str, site: str) -> dict | None:
     return {"title": " ".join(title.split())[:300], "channel": " ".join(str(data.get("author_name") or "").split())[:120]}
 
 
-async def find(subject: str, *, lookup=None, judge=None, check=oembed, observe=None) -> FoundVideo:
+async def find(subject: str, *, lookup=None, judge=None, check=None, observe=None) -> FoundVideo:
     """The one video found for `subject` that the check says is what was asked, else NotFound with why."""
     from research_worker import retrieval
 
     lookup = lookup or retrieval.lookup
     judge = judge or retrieval.judge_videos
+    check = check or oembed
     matches = await lookup(subject, videos=True, observe=observe)
     candidates, seen = [], set()
     for match in matches[:3]:
