@@ -693,5 +693,6 @@ Project-folder copy bounds each stream to its captured byte count plus a one-byt
 `test_project_app_routing.py` uses a real App and connector HTTP services with synthetic
 confirmed connections. It creates a separate folder, imports copied bytes, creates a
 Study, stops the host, relocates the folder and reopens the same exact research. It
-checks writer release and startup failure. No real client confirmation, ordinary UI
+checks startup failure and a real delayed evidence save at shutdown: a second
+process cannot acquire the writer until the stopped host process actually exits. No real client confirmation, ordinary UI
 session switch, provider, media decoder or complete collection is implied.

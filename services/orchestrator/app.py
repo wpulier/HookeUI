@@ -1656,11 +1656,16 @@ class App:
                     await warm()
 
     async def stop(self) -> None:
+        try:
+            await self._stop()
+        finally:
+            if getattr(self.day, 'locations', None) is not None:
+                # Completion/cancellation is not proof all writer threads ended.
+                # Fence later admission and hold leases until process teardown.
+                self.day.locations.retire()
+
+    async def _stop(self) -> None:
         self._stopping = True
-        if self.day.locations is not None:
-            workflows = getattr(self.hub, 'workflow_service', None)
-            if workflows is not None:
-                await workflows.close()
         if getattr(self, "scientific_uploads", None) is not None:
             await asyncio.to_thread(self.scientific_uploads.close)
         from . import readiness
@@ -1725,10 +1730,6 @@ class App:
         from .looplag import LINES
 
         await asyncio.to_thread(LINES.flush)  # every log line handed in is in its file before stop returns
-        if self.day.locations is not None:
-            if self._tasks:
-                await asyncio.gather(*self._tasks, return_exceptions=True)
-            await asyncio.to_thread(self.day.locations.close)
 
     # --- the session ----------------------------------------------------------------------
     def _session_event(self, event: dict) -> None:

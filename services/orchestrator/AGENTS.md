@@ -1146,7 +1146,7 @@ Portable snapshots accept only after all output and directory syncing finishes. 
 App.build accepts an internal, explicitly supplied ProjectLocations dependency for
 isolated host qualification. It checks the legacy host identity and shares that
 resolver between the real SessionStore and scientific ProjectStores. Failed build
-releases its leases; successful stop closes workflow drivers and host tasks before
-releasing them. Ordinary server startup still supplies no resolver. This is not a
+releases its leases. App shutdown fences further admission but retains its writer
+leases until process termination: cancelled tasks may still have writing threads. Ordinary server startup still supplies no resolver. This is not a
 request-selected storage path or a live migration/default-policy change. Portable
 UI session switching, media aliasing and provider execution remain unqualified.

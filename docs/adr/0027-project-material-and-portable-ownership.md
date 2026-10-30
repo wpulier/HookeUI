@@ -243,8 +243,9 @@ closure, inclusion UI and mixed-domain reopen acceptance remain required.
 App.build can explicitly receive the host location resolver. The real application
 then shares it between its journal and scientific record services; no request or
 saved document can select that dependency. Build failure releases admitted leases.
-Host shutdown first closes scientific workflow drivers, then existing producers and
-tasks, and finally Project writer leases. Ordinary server startup remains legacy.
+App shutdown fences later storage admission and retains its leases until actual
+process termination. Cancelling asyncio tasks does not terminate their writing
+threads. A second host stays read-only until the original process exits. Ordinary server startup remains legacy.
 
 The isolated application/connector test creates a Project folder, copies an input,
 creates a Study, stops, relocates, resumes the selected Project and reads the same
