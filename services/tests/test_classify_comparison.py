@@ -302,3 +302,44 @@ def test_compare_models_keeps_one_comparison_table_in_data_that_show_measurement
     table = table_of(world, entry["id"])  # what show_measurements opens, with the placement it is given
     assert table["count"] == 3 and [r["model"] for r in table["rows"]] == ["Gemini 3.8 Flash", "GPT-6.1 Sol", "MedSigLIP 448"]
     assert table["rows"][2]["cost"] == 0.0 and table["rows"][0]["agrees_with_the_others"] is not None
+
+
+def test_the_manager_passes_a_researchers_classify_request_to_its_hands(stand_ins, tmp_path):
+    import json
+
+    from orchestrator.day import DayStore
+    from orchestrator.research import ResearchManager
+    from orchestrator.research.hands import Hands
+    from orchestrator.resources import Index, Results
+    from tests.test_research import FakeHub
+    from tests.test_research_hands import session
+
+    world, population, _ = stand_ins
+    day = DayStore(root=tmp_path / "sessions", day=getattr(population, "session", "") or population.day)
+    world.resources = Index(world, day=day, results=Results(tmp_path / "results", day=day))
+    manager = ResearchManager(FakeHub(), root=tmp_path)
+    manager.hands = Hands(world)
+    s = session()
+    s.root, s.sitting = tmp_path, day.sid
+    manager.sessions["r2"] = s
+    reply = asyncio.run(manager._request({"op": "run", "rid": "r2", "operation": "classify", "why": "compare them",
+                                          "input": population.id, "models": ["gemini-3.8-flash", "gpt-6.1-sol"],
+                                          "classes": CLASSES}))
+    assert reply["ok"] and reply["id"].startswith("d"), reply
+    saved = json.loads((tmp_path / "2026-10-07" / "r2" / "session.json").read_text())
+    assert saved["ran"][0]["operation"] == "classify" and saved["ran"][0]["models"] == ["gemini-3.8-flash", "gpt-6.1-sol"]
+
+
+def test_the_side_by_side_picture_tiles_six_models_three_to_a_row_whatever_their_captions():
+    import cv2
+    import numpy as np
+
+    from orchestrator import comparing
+
+    view = np.full((400, 600, 3), 128, np.uint8)
+    arms = [{"polygons": [[[100, 100], [200, 100], [200, 200], [100, 200]]],
+             "caption": "EdgeTAM · 5,184 px²" if i % 2 else "EdgeTAM → SAM 3.1 (cloud), its fallback · 5,184 px²"}
+            for i in range(6)]
+    picture = cv2.imdecode(np.frombuffer(comparing.picture(view, arms, (100, 100, 200, 200)), np.uint8), cv2.IMREAD_COLOR)
+    assert 2 * 300 < picture.shape[0] < 3 * 300  # two rows of three, a two-line caption never breaks the row
+    assert len(set(comparing.COLOURS_BGR)) == 6
