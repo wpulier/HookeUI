@@ -1,0 +1,65 @@
+{
+  "$id": "hooke:agent/project-working-copy",
+  "type": "object",
+  "required": [
+    "session",
+    "origin",
+    "collection",
+    "operation",
+    "location",
+    "sourceManifestSha256",
+    "files",
+    "bytes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{32}$"
+    },
+    "collection": {
+      "type": "object",
+      "required": [
+        "state",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "state": {
+          "enum": [
+            "unverified"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "operation": {
+      "type": "string",
+      "pattern": "^op_[a-f0-9]{16,32}$"
+    },
+    "location": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sourceManifestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "bytes": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "title": "Restored working copy; no registration, authority import or automatic execution"
+}

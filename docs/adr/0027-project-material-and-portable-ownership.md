@@ -534,3 +534,7 @@ All journal-accepted table, analysis and graph revisions participate in folder v
 ### Execution locators during collection review
 
 A run/attempt locator in old evidence remains a locator, never a retroactively pinned reference. Dependency review may report the exact revision observed now beside that original link, retaining its unresolved `unpinned-execution-locator` status. This observation supports explicit collection planning; it does not rewrite historical evidence or establish that the citing experiment used today's run head. Captured Project boundaries and the stable accepted-head basis still govern the read.
+
+### Working copy of an owned export
+
+The owner may explicitly restore a completed Project export to a new host-selected folder after reviewing its retained size and incomplete collection scope. The same operation service owns progress, retries and cancellation. Restoration preserves the original identity, accepted history and snapshot receipt, without registering a location, navigating, importing grants or replaying executions. Opening the working copy remains a separate owner choice subject to duplicate-origin and writer checks. Neither an export receipt nor its path authorizes agents to restore/import Projects.

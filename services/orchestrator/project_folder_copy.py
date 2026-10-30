@@ -183,7 +183,7 @@ def _copy_admitted(root, destination, *, check):
         return _copy_visible(root, destination, check=check)
 
 
-def restore_snapshot(location: Path, destination: Path, *, check=lambda: None):
+def restore_snapshot(location: Path, destination: Path, *, check=lambda: None, expected_manifest_sha256=None):
     """Make an explicitly requested working copy; do not register, grant or run it.
 
     This preserves the original Project identity. Choosing this location over an
@@ -195,6 +195,8 @@ def restore_snapshot(location: Path, destination: Path, *, check=lambda: None):
     with reading(document_root(root)), reading(session_root(root)):
         snapshot_stamp = _stamp((root.path / SNAPSHOT).lstat())
         snapshot = ProjectStore._read(root.path / SNAPSHOT, MAX_MANIFEST)
+        if expected_manifest_sha256 is not None and hashlib.sha256(snapshot).hexdigest() != expected_manifest_sha256:
+            raise ProjectLocationError('The snapshot differs from the reviewed export; no working copy was started')
         verify_snapshot(location, check=check)
 
         def unchanged():

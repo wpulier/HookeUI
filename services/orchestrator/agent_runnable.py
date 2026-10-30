@@ -160,7 +160,14 @@ DOOR_RESOURCES = {
 
 # Owner storage actions accept local paths and cannot be admitted by connected
 # agents. Importing historical authorship never establishes present-day authority.
-OWNER_STORAGE_ACTIONS = {'project-open-folder': 'owner selects a local Project folder; no inherited agent authority'}
+OWNER_STORAGE_ACTIONS = {
+    'project-open-folder': 'owner selects a local Project folder; no inherited agent authority',
+    'project-copy-prepare': 'owner reviews a completed export before restoring a working copy',
+    'project-copy-restore': 'owner restores an exported identity without registration or inherited access',
+    'project-copy-status': 'owner observes the restoration operation in its Project',
+    'project-copy-stop': 'owner requests stopping a restoration, preserving incomplete files',
+    'project-copy-reveal': 'owner reveals only its verified restoration destination',
+}
 
 
 def door_resource(name: str) -> bool:

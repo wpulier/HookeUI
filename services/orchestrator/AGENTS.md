@@ -1239,3 +1239,5 @@ Folder snapshot verification reads every journal-accepted dataset-table, analysi
 Accepted numeric reads reuse the retained-output descriptor reader: bounded regular-file reads, no descendant symlinks, change detection and cancellation between chunks. They never block opening a FIFO or reinterpret stored settings.
 
 Dependency review reports an optional observedRevision for successfully resolved execution locators, with exact captured Project/id/revision/digest. The original unpinned-execution-locator issue remains; current resolution is not historical evidence. External, missing, malformed and digest-mismatched links never gain that observation. No accepted document is rewritten.
+
+Owner project-copy commands restore only a completed export receipt from the current Project. They use the existing operation service, source-manifest pin and host-selected fresh destination; never register a copy, navigate, inherit grants or replay work. An incomplete copy is kept for inspection. Opening and location replacement remain separate explicit owner controls.

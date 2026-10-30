@@ -853,3 +853,5 @@ isolated browser startup are recorded separately from synthetic checks.
 Data reader inspection-link regressions use synthetic retained sources: same-revision reports remain distinct, author/time labels require exact Project/revision/hash metadata, and opening keeps the original source and pinned report route. Actual populated browser evidence is separate.
 
 Execution-locator dependency tests preserve original workflow records while reporting their observed current revision. Later progress changes a new review, not an earlier receipt; missing or external locators cannot borrow another observed revision. These fixture tests do not certify complete collection.
+
+Working-copy restoration tests use actual isolated Project stores and immutable snapshots with synthetic material. They verify preserved identity/history, pinned export manifests, no access/registry import, stale ownership, cancellation/disk failures and same-key admission. These do not establish native chooser or complete dependency collection.

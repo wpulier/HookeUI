@@ -2489,7 +2489,12 @@
           "project-export",
           "project-export-status",
           "project-export-stop",
-          "project-export-reveal"
+          "project-export-reveal",
+          "project-copy-prepare",
+          "project-copy-restore",
+          "project-copy-status",
+          "project-copy-stop",
+          "project-copy-reveal"
         ]
       },
       "pair": "new-session",

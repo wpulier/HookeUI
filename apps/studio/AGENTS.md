@@ -2025,3 +2025,5 @@ historical selections. `sourcesIncomplete` means the shown count is partial; kee
 that qualification when merging live session counters into the catalogue row.
 
 Matrix inspection links are distinct compact rows. Author and save time come only from an exact same-Project/id/revision/hash match in the existing inventory; missing or mismatched metadata stays absent. Opening still fetches the pinned report into its own Tab, without extra preview requests or execution.
+
+Project folder export completion offers a separate working-copy restoration after space/scope review. Its tracked operation survives closing the panel and keeps its request identity after a lost reply. Completion exposes the location without navigating or replaying work; opening remains the normal owner Project action.

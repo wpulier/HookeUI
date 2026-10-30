@@ -11,6 +11,7 @@ export interface ProjectStorage {
 interface Options {
   title: string; session: string; current: () => boolean;
   exportActions?: ExportActions;
+  restorationActions?: (operation: string) => ExportActions;
   read: () => Promise<{storage: ProjectStorage}>;
   reveal: () => Promise<{ok: boolean; path: string; error?: string}>;
 }
@@ -55,13 +56,13 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
       if (storage.location) body.append(node('p', storage.location, 'project-folder-path'));
       if (storage.reason) body.append(node('p', storage.reason));
       if (available) body.append(node('p', portable
-        ? 'This folder keeps the Project’s accepted records. Keep it at this location until collection and reopening are available. A complete portable copy has not yet been verified.'
+        ? 'This folder keeps the Project’s accepted records. After closing its Hooke host, use Open Project to reopen this folder or update its moved location. A complete portable copy has not yet been verified.'
         : 'Your work remains available here. A portable Project copy has not been collected.'));
       const details = node('details'), summary = node('summary', 'Identity and collection');
       details.append(summary, node('p', `Project identity: ${storage.origin ?? 'Unavailable'}`, 'project-folder-path'), node('p', storage.collection.reason));
       body.append(details);
       if (available && portable && storage.origin && opts.exportActions) {
-        exportView = projectExport(opts.exportActions, current, storage.origin);
+        exportView = projectExport(opts.exportActions, current, storage.origin, 'export', opts.restorationActions);
         body.append(exportView.element);
       }
       reveal.disabled = !available;
