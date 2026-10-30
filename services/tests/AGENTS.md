@@ -816,3 +816,8 @@ authority, explicit partial scope, retries, navigation, cancellation ownership,
 linked destinations and disk refusal. `project-export.test.ts` checks the matching
 UI lifecycle with synthetic transport. Neither establishes complete collection,
 real connected-agent export or browser quality; record those separately.
+
+`test_project_owner_open` checks explicit owner startup on retained synthetic folders,
+accepted-history integrity, handle/permission collisions, writer refusal, snapshot
+immutability and no imported grants. Server-main argument/environment tests use a
+transport stand-in: they do not qualify the native chooser or full read-only UI.

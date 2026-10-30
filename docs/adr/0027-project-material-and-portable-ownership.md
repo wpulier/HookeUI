@@ -466,3 +466,18 @@ incomplete destination remains for recovery and requires a new export request.
 UI and connector expose the same receipt and completeness meaning. Hosted services
 without local folders report explicit unavailability. Full collection stays a
 separate gate and is not inferred from a successful export.
+
+
+### Owner-selected working-folder opening
+
+A staged host may explicitly open an existing working Project folder at launch.
+This registers a new origin only after validating its journal and accepted evidence
+under the writer lease. A conflicting host handle, legacy owner or existing local
+agent-permission record refuses; historical author labels never become authority.
+A known origin at a different location still requires the separate inactive-location
+choice. An immutable snapshot first needs explicit working-copy restoration.
+
+Opening imports no credentials, grants or runtimes, never invokes retained work,
+and does not certify complete dependency collection. This operator launch seam
+qualifies restoration through the ordinary host; the native folder picker, read-only
+workspace mode and independent-copy UI remain separate product gates.

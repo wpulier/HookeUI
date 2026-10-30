@@ -394,3 +394,10 @@ The catalogue projection runs off the event loop and creates no records.
 Count preparation groups one accepted-head scan per backing store, then applies the
 shared membership projection. Unreadable records leave a qualified partial input
 count; live Stage-only updates cannot erase that qualification.
+
+Staged owner startup can select an existing working folder with `--open-project`
+(or `HOOKE_OPEN_PROJECT`). It verifies retained ownership/history before registering
+an unknown origin and points only host preferences at the chosen Project. Colliding
+legacy/portable handles and pre-existing agent permission rows refuse. No historical
+actor receives access. Known-location replacement still uses explicit relocation;
+immutable exports must first become an explicitly restored working copy.
