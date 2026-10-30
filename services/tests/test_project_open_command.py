@@ -45,3 +45,53 @@ def test_stale_owner_request_and_disabled_host_preserve_current_project(tmp_path
             asyncio.run(COMMANDS['project-open-folder'](app, None, {'session': session, 'path': str(moved)}))
     assert not (paths.home / 'project-locations.json').exists()
     assert (moved / 'history/sessions' / root.session / 'journal.jsonl').read_bytes() == original
+
+
+def test_slow_open_verification_leaves_current_project_loop_responsive(tmp_path, monkeypatch):
+    import threading
+    from orchestrator import project_snapshot_integrity
+    from tests.waiting import HANG_S, until_async
+    root, moved, _, _ = source(tmp_path)
+    paths = Paths.under(tmp_path / 'receiving-host')
+    locations = configured_locations(paths, str(tmp_path / 'Projects'))
+    day = SessionStore(paths.sessions, session='2001-01-01', locations=locations)
+    entered, release = threading.Event(), threading.Event()
+    original = project_snapshot_integrity.verify_records
+    def held(*args, **kwargs):
+        entered.set()
+        assert release.wait(HANG_S)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(project_snapshot_integrity, 'verify_records', held)
+    async def scenario():
+        pending = asyncio.create_task(COMMANDS['project-open-folder'](
+            SimpleNamespace(day=day, paths=paths), None, {'session': day.sid, 'path': str(moved)}))
+        await until_async(entered.is_set)
+        # A separate watchdog prevents a bad shared lock from hanging this test.
+        watchdog = threading.Timer(HANG_S / 2, release.set); watchdog.start()
+        try:
+            day._record({'type': 'note', 'text': 'Current Project stays responsive'})
+            await asyncio.sleep(0)
+            assert not release.is_set(), 'Current Project activity waited for unrelated folder verification'
+        finally:
+            release.set(); watchdog.cancel()
+        assert (await pending)['ok']
+    try:
+        asyncio.run(scenario())
+    finally:
+        release.set(); locations.close()
+
+
+def test_host_retired_during_verification_never_publishes_locator(tmp_path, monkeypatch):
+    from orchestrator import project_snapshot_integrity
+    root, moved, _, _ = source(tmp_path)
+    paths = Paths.under(tmp_path / 'receiving-host')
+    locations = configured_locations(paths, str(tmp_path / 'Projects'))
+    original = project_snapshot_integrity.verify_records
+    def retiring(*args, **kwargs):
+        result = original(*args, **kwargs)
+        locations.retire()
+        return result
+    monkeypatch.setattr(project_snapshot_integrity, 'verify_records', retiring)
+    with pytest.raises(ValueError, match='closed'):
+        register_owner_folder(paths, locations, str(moved))
+    assert not locations.registry.path.exists()

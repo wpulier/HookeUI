@@ -60,7 +60,7 @@ def register_owner_folder(paths, locations, opening):
     if not isinstance(opening, str) or not opening.strip() or not Path(opening).expanduser().is_absolute():
         raise ProjectLocationError('Choose the absolute location of the Project folder')
     root = ProjectRoot.open(Path(opening))
-    with locations._lock, namespace(paths.sessions):
+    with namespace(paths.sessions):
         locations._check()
         verify_owner(root)
         entries = locations.registry.locations()
@@ -78,5 +78,5 @@ def register_owner_folder(paths, locations, opening):
             raise ProjectLocationError('A legacy Project already uses this host handle. Neither Project was changed.')
         if root.session in ProjectAccess(paths.home).rows():
             raise ProjectLocationError('Local agent permissions already use this host handle. Import cannot inherit them; use a separate profile.')
-        locations.registry.register(root, verify_history=True)
+        locations.registry.register(root, verify_history=True, publication_guard=locations.registration_publication)
         return root
