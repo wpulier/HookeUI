@@ -148,6 +148,31 @@ def test_live_source_binding_does_not_require_a_saved_resource_or_fixed_pixels()
     assert result["observed"][0]["drawRef"]["seq"] == 350
 
 
+def test_a_held_live_frame_is_the_windows_own_drawing_of_its_source():
+    """will-tabs, 30 Oct (the isolated instance): a live close-up whose object left the frame holds its last verified
+    frame (Screen reports its drawRef as {"held": sample}, "verifiable held pixels for window controls"). Every control
+    on it (front, zoom, a move to another Tab) was refused "The live sample has no matching drawn-frame identity": the
+    held frame is that same source's own drawing, of that run and stream. A held frame of another run, or a command
+    acknowledged on another stream, is still refused."""
+    live = {"key": "live-o1", "kind": "live", "media": "capture",
+            "identity": {"run": "run-8", "object": "o1", "anchorCapture": "1261", "day": "2026-10-30"},
+            "provenance": {"basis": "tracked-object", "object": "o1"}, "availability": "temporary"}
+    held = {"run": "run-8", "boot": "bridge-1", "seq": 350, "frame": 1261, "epoch": 0}
+
+    def observed(item_held, ack_held):
+        shown = report(item(bound_source=live))
+        shown["items"][0]["drawRef"] = {"held": item_held}
+        shown["commandResults"][0]["drawRef"] = {"held": ack_held}
+        return shown
+
+    result = compare(picture_expectations(bound_source=live), observed(held, held))
+    assert result["status"] == "confirmed", result["unmatched"]
+    other_run = compare(picture_expectations(bound_source=live), observed({**held, "run": "run-7"}, held))
+    assert other_run["status"] != "confirmed" and "SOURCE_MISMATCH" in codes(other_run)
+    other_stream = compare(picture_expectations(bound_source=live), observed(held, {**held, "boot": "bridge-2"}))
+    assert other_stream["status"] != "confirmed" and "SOURCE_MISMATCH" in codes(other_stream)
+
+
 @pytest.mark.parametrize("field,wrong", [
     ("workspaceId", "workspace-other"), ("clientId", "tab-other"),
     ("clientEpoch", "page-old"), ("connectionEpoch", "socket-old"),

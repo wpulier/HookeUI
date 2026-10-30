@@ -2165,6 +2165,7 @@ async def _native_present_core(services, ctx, args):
         from ...untrusted import inline
 
         changed = []
+        drawn = {row.get("id"): row.get("drawRef") for row in (screen.completion_report(ctx.client) or {}).get("items", ())}
         for iid in effect.targets:
             state = core.get(pctx.workspace_id, iid)
             source = state.source.to_wire()
@@ -2172,6 +2173,9 @@ async def _native_present_core(services, ctx, args):
             address = source['identity'].get('resource') or {}
             shown = source['identity'].get('object') or source['identity'].get('objectId') or address.get('id')
             line = f"{source['kind']} {source['media']}" + (f" {shown}" if shown else "")
+            if source['kind'] == 'live' and isinstance(drawn.get(iid), dict) and set(drawn[iid]) == {'held'}:
+                # Never "live" for a frame that is not (ADR 0006): its object left the view, and it shows its last frame.
+                line += " (held: its last frame, since what it shows left the view)"
             if web.get('title'):
                 line += f" \"{inline(web['title'], 200)}\"" + (f" from {inline(web['site'], 200)}" if web.get('site') else "")
             if web.get('page'):

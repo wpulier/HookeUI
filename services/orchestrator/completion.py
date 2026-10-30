@@ -642,6 +642,11 @@ def _live_issue(e: Record, pid: str, i: Record, ack: Record, lease: Record, repo
     return None
 
 
+def _held_frame(ref):
+    """A live drawing's sample: the current one, or the held one a stopped window shows ({"held": sample})."""
+    return ref["held"] if isinstance(ref, Mapping) and set(ref) == {"held"} else ref
+
+
 def _target_predicate(e: Record, pid: str, i: Record | None, ack: Record, lease: Record,
                       report: Record) -> _Mismatch | None:
     name, values = e["predicate"], e["expected"]
@@ -664,11 +669,13 @@ def _target_predicate(e: Record, pid: str, i: Record | None, ack: Record, lease:
         if not _source_equal(wanted, actual):
             return _Mismatch("SOURCE_MISMATCH", "draw", "The actual producing source differs from the request.", actual)
         if wanted["kind"] == "live":
-            frame = i.get("drawRef")
+            # A held window shows its source's last verified frame ({"held": sample}, Screen._completion): that is
+            # its own drawing of this source, of this run and stream, though not the current one (will-tabs, 30 Oct:
+            # every control on a close-up whose object left the frame was refused here).
+            frame, ack_frame = (_held_frame(i.get("drawRef")), _held_frame(ack.get("drawRef")))
             if (not isinstance(frame, Mapping) or frame.get("run") != wanted["identity"].get("run")
                     or not frame.get("boot") or type(frame.get("seq")) is not int):
                 return _Mismatch("SOURCE_MISMATCH", "draw", "The live sample has no matching drawn-frame identity.", frame)
-            ack_frame = ack.get("drawRef")
             if (not isinstance(ack_frame, Mapping) or ack_frame.get("run") != frame["run"]
                     or ack_frame.get("boot") != frame["boot"] or type(ack_frame.get("seq")) is not int
                     or ack_frame["seq"] > frame["seq"]):
