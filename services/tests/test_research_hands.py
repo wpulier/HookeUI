@@ -432,6 +432,16 @@ def test_one_researcher_operation_at_a_time_and_the_slot_is_freed_after_a_failur
         return await first, second
 
     first, second = asyncio.run(both())
+    # Researchers started together take turns: the second waits for the slot and runs (live 2026-10-30, three at once).
+    assert first["ok"] and second["ok"]
+
+    async def no_time_to_wait():
+        first = asyncio.ensure_future(hands.run(session(), "segment"))
+        await asyncio.sleep(0.05)
+        second = await hands.run(other, "segment", wait=1.0)  # it would wait less than its turn could take
+        return await first, second
+
+    first, second = asyncio.run(no_time_to_wait())
     assert first["ok"] and second["error"].startswith("another researcher's operation is running")
 
     async def broken(hub, **kwargs):

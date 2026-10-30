@@ -58,7 +58,8 @@ log = logging.getLogger(__name__)
 POOLS = {"big": 3, "instant": 4}
 DESCRIPTION_SLOTS = 2
 SNAPSHOT_EVERY_S = 10.0
-TERMINAL_RECEIPT_GRACE_S = 10.0  # cancel acknowledgement is not proof the worker stopped
+TERMINAL_RECEIPT_GRACE_S = 10.0
+SPAWN_TIMEOUT_S = 60.0  # a researcher's dispatch acknowledgement (worker.call "spawn")  # cancel acknowledgement is not proof the worker stopped
 
 
 def strip_citations(value):
@@ -82,7 +83,7 @@ def engine_key_refusal(setting: str | None) -> ResearchRefused | None:
     alone, Gemini as the Assistant, GPT-6.1 Sol for researchers)."""
     from ..options import RESEARCH_ENGINE
 
-    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "gpt-6.1-sol"
+    name = os.environ.get("MICROMIND_RESEARCH_ENGINE") or setting or "claude-opus-5-5"
     option = RESEARCH_ENGINE.get(name)
     if option is None or not option.needs or os.environ.get(option.needs):
         return None  # a scripted engine, one this app does not list, or its key is there
@@ -2135,7 +2136,7 @@ class ResearchManager:
         session = Session(
             rid=f"r{int(time.time()) % 100000:05d}{next(self._ids)}", n=0 if purpose == "description" else self._next_number(sitting),
             brief=brief, deliverable=deliverable, effort=effort,
-            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "gpt-6.1-sol"), purpose=purpose,
+            engine="fake" if fake is not None else getattr(self.hub.settings, "research", "claude-opus-5-5"), purpose=purpose,
             label=label or (obj.label if obj else ""), object_id=obj.id if obj else None, origin=origin or {},
             deliver="tab" if purpose == "research" and (origin or {}).get("workspace") else None,
             day=self.today(), fake=fake, sitting=sitting, specimen=str(self.hub.scene.context.get("specimen") or "")[:80],
@@ -2313,7 +2314,10 @@ class ResearchManager:
                    else {"brief": session.package or session.brief, "deliverable": session.deliverable, "revise": None})
             attempt.record.update(status="dispatched", dispatchedAt=time.time())
             self._save(session)
-            reply = await worker.call("spawn", rid=session.rid, run_id=attempt.id, n=session.n, brief=job["brief"], deliverable=job["deliverable"],
+            # A busy Mac can take more than the channel's usual 10 s to answer the first spawn while the research
+            # process is still importing (live 2026-10-30, load 55: "research-start-failed TimeoutError", the researcher
+            # "could not start"); the spawn's answer is only its acknowledgement, so it is given a minute.
+            reply = await worker.call("spawn", timeout=SPAWN_TIMEOUT_S, rid=session.rid, run_id=attempt.id, n=session.n, brief=job["brief"], deliverable=job["deliverable"],
                               effort=session.run_effort, engine=session.engine, label=session.label, purpose=session.purpose,
                               dir=str(self.directory(session, write=True)), snapshot=snapshot,
                               dependencies=copy.deepcopy(session.dependencies),

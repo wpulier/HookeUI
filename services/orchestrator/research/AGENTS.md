@@ -186,6 +186,18 @@ other files.
   model with no picture answers each quiz step and the steps it gets right are logged (default
   "check"); "rewrite" sends them back once, with the photo, to need it (the bench found it does
   not beat the lesson as written: `bench/lesson_check_bench.py`).
+- **Their model** (Will, 2026-10-30): researchers think with Claude Opus 5.5 by default (RESEARCH_ENGINE
+  `claude-opus-5-5`, `research_worker/engines.ClaudeEngine`: the Messages API over httpx with Anthropic's web search
+  `web_search_20260209`, ANTHROPIC_API_KEY, the effort's reasoning as `output_config.effort`). GPT-6.1 Sol stays an option
+  (Settings, or the user's "use OpenAI / GPT"). This model refuses a forced tool choice, so a write-up round offers only
+  `finish` and says "Call finish now".
+- **Pages it writes itself** (`make_page`, from quick up, budget `PAGE_TOOLS`): one self-contained HTML document, a
+  short slide presentation (`kind` "presentation", `contentKind` "report") or a small interactive or animated visual
+  (`kind` "visual", `contentKind` "visual"), built from the numbers it read (`data_from` names the entries). Kept as an
+  `html` output and served like a lesson under the research files' no-network sandbox CSP, so the studio's viewer and
+  reader show it rendered (a sandboxed iframe), never as text. The prompt tells it to make one when the user asks for a
+  presentation, slides, a visual or "a little animation explaining the data" (the 30 Oct live miss: a quick researcher
+  read the table, stalled and wrote "the animation itself has not been created").
 - **Charts and animations of saved data** (`research_worker/measurement_charts.py`; Part 2.5): from quick up a researcher
   has `make_chart` and `animate_measurements` (budget `CHART_TOOLS`), offered only when it can read the session's index
   and never for a follow-up answer, a new version or a description. It names a table the session kept (an entry's id,

@@ -10878,13 +10878,55 @@
     "set_default"
    ],
    "current": "gpt-6.1-sol",
-   "default": "gpt-6.1-sol",
+   "default": "claude-opus-5-5",
    "defaultReason": null,
    "fallbackFor": [],
    "hint": "what researchers think and search the web with",
    "id": "research",
    "kind": "model",
    "options": [
+    {
+     "available": false,
+     "id": "claude-opus-5-5",
+     "label": "Claude Opus 5.5 + web search",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "writes whole reports, slides and small interactive visuals from the session's data; web search; $4/$20 per MTok",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Opus 5.5 + web search (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
     {
      "available": true,
      "id": "gpt-6.1-sol",
