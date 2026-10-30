@@ -42,6 +42,7 @@ import base64
 import contextlib
 import json
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -150,8 +151,6 @@ AUDIBLE_AFTER_DONE_S = 20.0
 
 def spoken(text: str) -> str:
     """Written words as they are said: markdown's marks (emphasis, code, headings, list bullets) taken out, one line."""
-    import re
-
     text = re.sub(r"(\*\*|__|`)", "", str(text or ""))
     text = re.sub(r"^\s{0,3}(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)", "", text, flags=re.M)
     return " ".join(text.split())

@@ -191,7 +191,7 @@ PARTNER_ACTS = {
 PARTNER_SPEAKS = {
     o.id: o
     for o in [
-        Option("after-deciding", "Decides, then speaks",
+        Option("after-deciding", "Decides before it speaks",
                "nothing said before work is handed over; a direct answer is said word for word once decided, one "
                "more response before its first words"),
         Option("as-it-decides", "Speaks as it decides",

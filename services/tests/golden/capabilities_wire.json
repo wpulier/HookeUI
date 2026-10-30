@@ -12567,7 +12567,7 @@
     {
      "available": true,
      "id": "after-deciding",
-     "label": "Decides, then speaks",
+     "label": "Decides before it speaks",
      "licence": "",
      "models": [],
      "note": "nothing said before work is handed over; a direct answer is said word for word once decided, one more response before its first words",
@@ -12579,7 +12579,7 @@
       "word": "Ready"
      },
      "runs": "",
-     "said": "Decides, then speaks",
+     "said": "Decides before it speaks",
      "sources": [],
      "tier": "open",
      "why": ""
