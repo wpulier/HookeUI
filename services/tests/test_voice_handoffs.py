@@ -508,3 +508,29 @@ def test_a_slow_close_look_shows_working_says_only_that_it_looks_and_logs_where_
         looked = [r for r in t.logged if r.get("kind") == "partner-look"]
         assert looked and {"cameraMs", "modelMs", "totalMs"} <= set(looked[-1])
     asyncio.run(go())
+
+
+def test_a_step_that_starts_a_researcher_marks_its_hand_off_started_at_once_so_one_researcher_is_counted_once():
+    """Will's try-out, 30 Oct: "make a little mini animation" showed "2 working" (its hand-off row and Researcher 1) for
+    the 7 s the brain took to write its answer after the researcher had started. The step's own receipt ends the row's
+    work at once ("Started"); the brain's answer still fills in its words."""
+    from orchestrator.voice.handoffs import Handoffs
+    from orchestrator.voice.jobs import HandoffJob, Jobs
+
+    shown = Shown()
+    board = Handoffs(shown)
+    flight = board.start("make a little mini animation", "Mini animation researcher")
+    jobs = Jobs()
+    job = HandoffJob(flight, started=flight.started)
+    job.handed = lambda receipt: board.handed_over(flight, receipt)
+    jobs[job.id] = job
+    receipt = {**started_researcher("R1"), "actionId": "a9"}
+    run = SimpleNamespace(occurrence=SimpleNamespace(action_id="a9"), wire=lambda: receipt, ok=True, task=None)
+    job.now = [(run, 0.0)]
+    jobs.run_finished(run)
+    assert rows(shown)[-1]["state"] == "started" and flight.id in board.open, "said at once; the answer still to come"
+    board.answered(flight, {"answer": "Researcher 1 is making it.", "actions": [receipt]}, {"ok": True})
+    assert rows(shown)[-1]["state"] == "started" and rows(shown)[-1]["answer"] == "Researcher 1 is making it."
+    other = board.start("outline the cell", "Outline")
+    board.handed_over(other, {"tool": "find", "ok": True, "outputs": [{"kind": "outline", "id": "o1"}]})
+    assert rows(shown, other.id)[-1]["state"] == "working", "only a started researcher hands the work over"

@@ -177,6 +177,16 @@ class Handoffs:
         handoff.long = True
         self._file(handoff)
 
+    def handed_over(self, handoff: Handoff, receipt: dict) -> None:
+        """A step of its request started a researcher: the row says Started at once, and the researcher's card carries the
+        work from here, so one researcher is never counted twice while the brain writes its answer (Will's try-out,
+        30 Oct: "2 working" for one). The brain's answer, when it comes, still fills in its words and ends it."""
+        if handoff.id not in self.open or handoff.state != "working" or not started_researcher({"actions": [receipt]}):
+            return
+        handoff.steps = [*handoff.steps, {k: receipt[k] for k in STEP_KEYS if k in receipt}][:STEPS]
+        handoff.state = "started"
+        self._file(handoff)
+
     def answered(self, handoff: Handoff, result: dict, out: dict) -> None:
         """The brain's turn returned (`result`, as Brain.turn gives it; `out`, what the voice is told): done, did not
         work, or settling while a late step still runs."""

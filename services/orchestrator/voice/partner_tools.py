@@ -90,9 +90,10 @@ SCREEN_CHANGING = frozenset({"present", "tabs", "show_measurements", "highlight"
 
 
 def pointing_at(actions) -> list[str]:
-    """What a brain turn's steps made or opened, as mark targets, from their own outputs (steps that worked only): an
-    outline, a layer of cell outlines, a window it opened, a researcher it started. Its outcome is said pointing at them
-    (will-leaf, 30 Oct: "I outlined the center stoma" said with outline o1 on screen and nothing pointed at)."""
+    """What a brain turn's steps opened, as mark targets, from their own outputs (steps that worked only): a window, a
+    web page or video, a researcher it started: where the eye must go to find it. Its outcome is said pointing at them.
+    Never what it drew on the specimen (an outline, a layer of cell outlines): the drawing is the highlight, and a box
+    around it was a highlight nobody asked for (Will's try-out, 30 Oct: "the blue highlight shows when not asked")."""
     out: list[str] = []
     for action in actions or ():
         if not isinstance(action, dict) or action.get("ok") is not True:
@@ -101,9 +102,7 @@ def pointing_at(actions) -> list[str]:
             if not isinstance(output, dict):
                 continue
             kind, ref = output.get("kind"), output.get("resource")
-            target = (f"outline:{output['id']}" if kind == "outline" and output.get("id") else
-                      f"population:{output['id']}" if kind == "population" and output.get("id") else
-                      f"window:{output['instanceId']}" if kind == "presentation" and output.get("instanceId") else
+            target = (f"window:{output['instanceId']}" if kind == "presentation" and output.get("instanceId") else
                       f"researcher:{ref['researcherId']}" if kind == "resource" and isinstance(ref, dict)
                       and ref.get("kind") == "research-run" and ref.get("researcherId") else
                       # a web page or video it opened (web_window.py): the window it is in
@@ -948,15 +947,9 @@ class PartnerTools:
 
     @staticmethod
     def points_of(run) -> list[str]:
-        """What a run put on screen, as mark targets: a layer of cell outlines, an outline."""
-        out = []
-        for output in run.outputs or []:
-            wire = output.wire()
-            if wire.get("kind") == "population" and wire.get("id"):
-                out.append(f"population:{wire['id']}")
-            elif wire.get("kind") == "outline" and wire.get("id"):
-                out.append(f"outline:{wire['id']}")
-        return out[:4]
+        """What a run opened, as mark targets, by `pointing_at`'s rule: where the eye must go, never what it drew on the
+        specimen."""
+        return pointing_at([{"ok": True, "outputs": [output.wire() for output in run.outputs or []]}])
 
     @staticmethod
     def _researcher_of(run) -> str | None:
@@ -1182,6 +1175,7 @@ class PartnerTools:
 
         job = HandoffJob(flight, project=self._project(), started=flight.started)
         job.settled = lambda state, receipts, reason: self.handoffs.settled(flight, state, receipts, reason)
+        job.handed = lambda receipt: self.handoffs.handed_over(flight, receipt)
         self.thinking.add(job)
         with user_stop.stoppable() as stop:  # the task made inside inherits the holder (contextvars are copied)
             job.stop = stop

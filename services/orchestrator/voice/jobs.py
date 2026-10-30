@@ -135,6 +135,7 @@ class HandoffJob:
     told: bool = False  # its stop was said already (stop_work saw it end): not said again when it lands
     thinking: bool = False  # the chat's `thinking` message is on for it (partner_tools `_thinking`)
     settled: Callable | None = None  # (state, receipts, reason): its row takes the end its late steps gave it
+    handed: Callable | None = None  # (receipt): a step of it started a researcher, which carries the work from here
     # The steps Hooke's brain has started for it, each (run, when it started, monotonic), as they start
     # (`Jobs.run_started`): what it is doing right now, for its one spoken progress line (partner_tools `handoff_doing`).
     now: list = field(default_factory=list)
@@ -317,6 +318,15 @@ class Jobs(dict):
         self._ended[action] = receipt
         while len(self._ended) > ENDED_KEPT:
             self._ended.popitem(last=False)
+        from .handoffs import started_researcher
+
+        if started_researcher({"actions": [receipt]}):
+            # A step of a hand-off started a researcher: its row says so now, and the researcher's card carries the work
+            # (Will's try-out, 30 Oct: "2 working" for one researcher while the brain wrote its answer, 7 s).
+            for job in running:
+                if job.handed is not None and any(r is run for r, _ in job.now):
+                    with contextlib.suppress(Exception):
+                        job.handed(receipt)
         for job in running:
             if action not in job.pending:
                 continue

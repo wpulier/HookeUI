@@ -1254,9 +1254,9 @@ def test_a_tap_or_a_cancel_takes_back_what_went_in_during_the_hold(monkeypatch):
     asyncio.run(go())
 
 
-def test_what_a_tool_put_on_screen_is_pointed_at_as_its_answer_is_heard(monkeypatch):
-    """The bench: the model marked the population as outline:e1 (not found) in a silent response of its own, 3.5 s of
-    silence. Now the app points at population:e1 itself as the answer starts, and tells the model it did."""
+def test_what_a_tool_drew_on_the_specimen_is_not_boxed_as_its_answer_is_heard(monkeypatch):
+    """Will's try-out, 30 Oct: a blue box around 342 cells he had just watched being outlined ("the blue highlight shows
+    when not asked"). The drawing is the highlight: nothing more is pointed at, and the model is not told it was."""
     async def go():
         from orchestrator.brain.registry import record_output
 
@@ -1276,11 +1276,10 @@ def test_what_a_tool_put_on_screen_is_pointed_at_as_its_answer_is_heard(monkeypa
         await t.partner.command({"type": "snapshot", "id": request["id"], "jpeg": base64.b64encode(b"AFTER").decode()})
         await until_async(lambda: t.sb.responses == 2)
         output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
-        assert output["pointed_at"] == ["population:e1"]
-        assert not [m for m in t.studio if m["type"] == "marks"], "not before the answer is heard"
+        assert "pointed_at" not in output
         t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
-        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
-        assert marks["marks"] == [{"target": "population:e1", "style": "box"}]
+        await asyncio.sleep(0.2)
+        assert not [m for m in t.studio if m["type"] == "marks"]
     asyncio.run(go())
 
 
@@ -1775,15 +1774,18 @@ def test_a_close_look_that_names_nothing_in_the_picture_points_at_nothing(monkey
 
 def test_a_hand_off_points_at_what_it_made_as_its_outcome_is_heard(monkeypatch):
     """will-leaf "segment": the outcome "I outlined the center stoma" was said with nothing pointed at, though the
-    brain's step named the outline it made (find: outline o1). What a hand-off made or opened is pointed at as its
-    outcome is heard: an outline, a layer of them, a window, a researcher's card."""
+    brain's step named the outline it made (find: outline o1). What a hand-off opened is pointed at as its outcome is
+    heard: a window, a researcher's card; never what it drew on the specimen (Will, 30 Oct: "the blue highlight shows
+    when not asked"), which is its own highlight."""
     async def go():
         t = await partner_session(monkeypatch, acts="brain")
 
         async def turn(text, channel, **kw):
-            return {"answer": "I outlined the stoma in the middle.",
+            return {"answer": "I outlined the stoma in the middle and opened a close-up of it.",
                     "actions": [{"tool": "find", "ok": True, "summary": "outlined the oval",
-                                 "outputs": [{"kind": "outline", "id": "o1"}]}]}
+                                 "outputs": [{"kind": "outline", "id": "o1"}]},
+                                {"tool": "zoom", "ok": True, "summary": "shown on screen",
+                                 "outputs": [{"kind": "presentation", "instanceId": "w-1"}]}]}
         t.brain.turn = turn
         await press(t, 1)
         await release(t, 1)
@@ -1793,10 +1795,10 @@ def test_a_hand_off_points_at_what_it_made_as_its_outcome_is_heard(monkeypatch):
         await done(t.sb, "resp_1")
         await answer_snapshots(t, lambda: t.sb.responses == 2)
         output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
-        assert output["pointed_at"] == ["outline:o1"]
+        assert output["pointed_at"] == ["window:w-1"]
         t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
         marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
-        assert [m["target"] for m in marks["marks"]] == ["outline:o1"]
+        assert [m["target"] for m in marks["marks"]] == ["window:w-1"]
     asyncio.run(go())
 
 
@@ -1812,9 +1814,9 @@ def test_an_outcome_said_later_points_at_what_it_is_about(monkeypatch):
 
         async def turn(text, channel, **kw):
             await gate.wait()
-            return {"answer": "I have outlined 159 cells across the live view.",
-                    "actions": [{"tool": "outline_cells", "ok": True, "summary": "159 instances segmented",
-                                 "outputs": [{"kind": "population", "id": "e1"}]}]}
+            return {"answer": "I have opened the table of the 159 cells in a new Tab.",
+                    "actions": [{"tool": "show_measurements", "ok": True, "summary": "opened the table",
+                                 "outputs": [{"kind": "presentation", "instanceId": "w-9"}]}]}
         t.brain.turn = turn
         first = await t.partner.tools.do_in_hooke({"request": "outline every cell", "label": "Outline all cells"})
         assert first["still_working"] is True
@@ -1822,9 +1824,9 @@ def test_an_outcome_said_later_points_at_what_it_is_about(monkeypatch):
         gate.set()
         await answer_snapshots(t, lambda: t.sb.responses == 1)
         said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
-        assert said["event"] == "tool-done" and said["markTarget"] == "population:e1"
+        assert said["event"] == "tool-done" and said["markTarget"] == "window:w-9"
         marks = next(m for m in t.studio if m["type"] == "marks")
-        assert [m["target"] for m in marks["marks"]] == ["population:e1"]
+        assert [m["target"] for m in marks["marks"]] == ["window:w-9"]
     asyncio.run(go())
 
 
