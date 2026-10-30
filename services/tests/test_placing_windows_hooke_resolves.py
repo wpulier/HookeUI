@@ -380,3 +380,18 @@ def test_a_table_never_side_by_side_is_said_plainly_with_nothing_to_ask_again(tm
 async def asked_in(app, studio, tool, args):
     from tests.test_table_window import asked
     return await asked(app, studio, tool, args)
+
+
+def test_a_new_tab_asked_for_with_no_name_is_named_as_the_studio_names_one(tmp_path, monkeypatch):
+    """Will's try-out, 30 Oct: "Can you open a new tab and just open it really quick?" was refused for its title ("give
+    the Tab a title"), made on a second call, and its row said it did not work. A new Tab with no name said is named as
+    the studio's own New Tab names one; Hooke never refuses it for that."""
+    from tests.test_workspace_display import built as display_built
+
+    async def go():
+        app, studio = await display_built(tmp_path, monkeypatch)
+        (made,) = await in_one_request(app, studio, [('tabs', {'action': 'create'})])
+        assert made.ok is True, made.summary
+        assert json.loads(made.summary)['made']['title'].startswith('Tab ')
+        assert len(studio.tabs) == 2
+    asyncio.run(go())

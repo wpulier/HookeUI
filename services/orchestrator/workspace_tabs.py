@@ -106,13 +106,13 @@ class WorkspaceTabs:
 
         current()
         if not isinstance(args, dict) or args.get('action') not in ACTIONS:
-            raise ToolFailed('choose one named Tab action', next='list the Tabs first')
+            raise ToolFailed('choose one named Tab action', next='list the Tabs first', argument=True)
         if set(args) - {'action', 'tab', 'title', 'from', 'placement', 'resource', 'specimen', 'kind', 'keep',
                         'presentation'}:
-            raise ToolFailed('the Tab action has unsupported arguments', next='use its declared fields')
+            raise ToolFailed('the Tab action has unsupported arguments', next='use its declared fields', argument=True)
         for key in ('tab', 'title', 'from', 'placement', 'kind'):
             if key in args and (not isinstance(args[key], str) or not 1 <= len(args[key]) <= 256):
-                raise ToolFailed('Tab names and identities must be nonempty bounded text', next='list the Tabs first')
+                raise ToolFailed('Tab names and identities must be nonempty bounded text', next='list the Tabs first', argument=True)
         action = args['action']
         if action == 'only' and isinstance(args.get('keep'), str):
             args = {**args, 'keep': [args['keep']]}  # one id as a string (the brain sent it so, 29 Oct): that one stays
@@ -123,7 +123,7 @@ class WorkspaceTabs:
         if action == 'only' and (not isinstance(args.get('keep'), list) or not 0 <= len(args['keep']) <= 8
                                  or not all(isinstance(k, str) and 1 <= len(k) <= 256 for k in args['keep'])):
             raise ToolFailed('keep is up to 8 window or placement ids from the screen or tabs list, or none to close '
-                             'everything on the Tab', next='list the Tabs to see what each holds')
+                             'everything on the Tab', next='list the Tabs to see what each holds', argument=True)
         if action == 'only':
             # A window id as the screen shows it (document:<placement>) is its placement on the Tab.
             args = {**args, 'keep': [k.removeprefix('document:') for k in args['keep']]}
@@ -139,11 +139,15 @@ class WorkspaceTabs:
                 if len(named) == 1:
                     args = {**args, 'tab': named[0]['id']}
         if action not in ('list', 'create', 'reader') and 'tab' not in args:
-            raise ToolFailed('name the exact target Tab', next='list the Tabs first')
-        if action in ('create', 'rename') and not str(args.get('title') or '').strip():
-            raise ToolFailed('give the Tab a title', next='choose a short descriptive title')
+            raise ToolFailed('name the exact target Tab', next='list the Tabs first', argument=True)
+        if action == 'create' and not str(args.get('title') or '').strip():
+            # "Open a new tab", no name said: named as the studio's own New Tab names one ("Tab 3"), never refused
+            # (Will's try-out, 30 Oct: refused for its title, made on a second call, and its row said it did not work).
+            args = {**args, 'title': f"Tab {len(screen_tabs(screen, ctx)) + 1}"}
+        if action == 'rename' and not str(args.get('title') or '').strip():
+            raise ToolFailed('give the Tab a title', next='choose a short descriptive title', argument=True)
         if action == 'move' and not {'from', 'placement'} <= set(args):
-            raise ToolFailed('name the source Tab and exact placement to move', next='list its retained items first')
+            raise ToolFailed('name the source Tab and exact placement to move', next='list its retained items first', argument=True)
         if action == 'only' and 'specimen' in args:
             # only puts the specimen away itself (hidden; Main's floats small): the hint is what it does already
             # (will-workspace, 29 Oct: only with specimen hide was refused, and nothing was closed).
@@ -151,7 +155,7 @@ class WorkspaceTabs:
         if (action == 'specimen') != ('specimen' in args) or (action == 'specimen'
                                                               and args['specimen'] not in tuple(SPECIMEN)):
             raise ToolFailed('say fill, float or hide for the specimen, with the specimen action',
-                             next='call tabs with action specimen, the Tab and specimen fill, float or hide')
+                             next='call tabs with action specimen, the Tab and specimen fill, float or hide', argument=True)
         asked_title, before_ids = None, set()
         if action == 'create':
             # A new Tab is asked for: it is made, named so it can be told apart from a Tab already called that
@@ -433,3 +437,14 @@ def aliases(reply: dict, keep: list[str]) -> list[str]:
             if own & names:
                 names |= {str(n) for n in own}
     return sorted(names)
+
+
+def screen_tabs(screen, ctx) -> list:
+    """The open Tabs of the studio's latest report (its Tab strip), or none known."""
+    from .placement import strip
+
+    try:
+        observed = screen.observation(ctx.client)
+        return list(strip(observed.wire() if observed is not None else None).get('tabs') or ())
+    except Exception:  # no report to read: counted as none
+        return []
