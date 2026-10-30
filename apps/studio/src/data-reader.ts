@@ -866,8 +866,9 @@ export class DataReader {
         const targetRef = {...ref, id: target.id, version: target.version};
         const saved = await readMaterialRevision(targetRef, target.digest, signal);
         if (signal.aborted) return;
-        const {openStudyScientific} = await import('./scientific-document');
-        if (!signal.aborted) await openStudyScientific({resource: {...targetRef, picture: null}, title: String(saved.title ?? target.title), zoom: 1, pan: [0, 0]});
+        this.deps.openInNewTab({id: targetRef.id, day: targetRef.day, version: targetRef.version,
+          kind: 'project', title: String(saved.title ?? target.title), summary: '', state: 'saved', actions: [],
+          ...(target.digest ? {source: {sha256: target.digest}} : {})});
       };
       this.loaded.title = typeof document.title === 'string' ? document.title : entry.title;
       this.loaded.kind = entry.material ? kindWord(entry) : document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);

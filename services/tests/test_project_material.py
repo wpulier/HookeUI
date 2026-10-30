@@ -197,3 +197,16 @@ def test_inspection_of_historical_study_input_does_not_describe_new_head(tmp_pat
     assert entry.material['uses'][0]['material']['kind'] == 'matrix'
     assert entry.material['uses'][0]['material']['inspection']['reports'][0]['id'] == report.id
     check(entry.material, 'project-material')
+
+
+def test_nonproject_and_malformed_reports_cannot_poison_inventory(tmp_path):
+    from dataclasses import replace
+    from orchestrator.project_material import attach_usage
+    store, source, ref = inspected_source(tmp_path)
+    report = Index.project_entry(inspection_report(store, source, ref))
+    for malformed in (replace(report, kind='result', source={}), replace(report, id='r1'),
+                      replace(report, source={}), replace(report, version=None)):
+        entry = Index.project_entry(source)
+        attach_usage([entry, malformed], store)
+        assert 'inspection' not in entry.material
+        assert entry.material['kind'] == 'file'

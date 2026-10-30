@@ -72,6 +72,13 @@ def _inspections(entries):
     import re
     found = {}
     for entry in entries:
+        if (entry.kind != 'project' or not isinstance(entry.id, str)
+                or not re.fullmatch(r'p[a-f0-9]{32}', entry.id)
+                or type(entry.version) is not int or entry.version < 1
+                or not isinstance(entry.source, dict)
+                or not isinstance(entry.source.get('sha256'), str)
+                or not re.fullmatch(r'[a-f0-9]{64}', entry.source['sha256'])):
+            continue
         document = entry.values if isinstance(entry.values, dict) else {}
         state = document.get('state', {})
         operation = state.get('matrixOperation', {}) if isinstance(state, dict) else {}
