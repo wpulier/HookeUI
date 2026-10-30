@@ -548,3 +548,20 @@ def test_present_place_puts_outlines_on_the_live_view_or_in_their_own_tab(tmp_pa
         run = await asked(app, studio, 'present', {'do': 'place', 'what': 'document:p1', 'placement': 'overlay'})
         assert run.ok is False and 'not outlines or tracks; only those are drawn' in run.summary
     asyncio.run(go())
+
+
+def test_only_says_in_plain_words_what_stayed_and_where_the_live_view_is():
+    """will-display, 30 Oct: "Only have the video open in this tab": the tool's reply was the Tabs as data, and the
+    answer said the live view was closed while it stayed on Main, small and floating. The reply says it in words."""
+    from orchestrator.workspace_tabs import only_words
+
+    video = {'id': 'w-2', 'open': True, 'visible': True, 'title': 'What are stomata?', 'kind': 'presentation',
+             'view': {'legacy': {'title': 'What are stomata?'}}}
+    strip = {'id': 'workspace-tabs', 'view': {'legacy': {'workspace': {'project': 'p', 'tab': 'main', 'tabs': [
+        {'id': 'main', 'title': 'Main', 'front': True, 'specimen': {'state': 'float'}}]}}}}
+    said = only_words({'items': [strip, video]}, 'main', {'id': 'main', 'title': 'Main'}, home=True)
+    assert 'is open on Tab "Main"' in said and 'the live view stays on it, small and floating' in said
+    strip['view']['legacy']['workspace']['tabs'][0].update(id='t2', title='Reference', specimen={'state': 'hidden'})
+    strip['view']['legacy']['workspace']['tab'] = 't2'
+    said = only_words({'items': [strip]}, 't2', {'id': 't2', 'title': 'Reference'}, home=False)
+    assert said == 'nothing is open on Tab "Reference"; the live view is hidden from it'

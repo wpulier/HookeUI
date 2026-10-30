@@ -332,7 +332,10 @@ class WorkspaceTabs:
                     shown = windows_on(wire, tab)
                     ok, why = beside_shown(wire, tab, [n for w in shown for n in (w.get('id'),)]) if shown else (True, '')
                 if ok:
-                    return {'tab': tab, 'windows': [w.get('id') for w in windows_on(wire, tab)][:12]}
+                    placed = {'tab': tab, 'windows': [w.get('id') for w in windows_on(wire, tab)][:12]}
+                    if args['action'] == 'only':
+                        placed['says'] = only_words(wire, tab, named, home=home)
+                    return placed
             else:
                 why = 'another Tab is in front'
             if loop.time() >= deadline:
@@ -391,3 +394,20 @@ class WorkspaceTabs:
             return False
         future.set_result(result)
         return True
+
+
+def only_words(wire, tab: str, named: dict | None, *, home: bool) -> str:
+    """What "only that open" left on the Tab, in plain words, from the screen's report (the spec 4.8, horizontal 4: a
+    claim from a check; will-display, 30 Oct: the tool's reply was the Tabs as data, and the answer said the live view
+    was closed while it stayed on Main, small). Main always keeps the live view, floating; another Tab hides it."""
+    from .placement import tab_of, windows_on
+    from .untrusted import inline
+
+    titles = [inline(str(w.get('title') or ''), 80) for w in windows_on(wire, tab) if w.get('title')][:6]
+    where = f'Tab "{inline(str((named or {}).get("title") or tab), 60)}"'
+    state = (((tab_of(wire, tab) or {}).get('specimen')) or {}).get('state')
+    kept = (f"only {', '.join(chr(34) + t + chr(34) for t in titles)} is open on {where}" if titles
+            else f'nothing is open on {where}')
+    if home or state == 'float':
+        return kept + '; the live view stays on it, small and floating (Main always keeps the live view)'
+    return kept + ('; the live view is hidden from it' if state == 'hidden' else '')
