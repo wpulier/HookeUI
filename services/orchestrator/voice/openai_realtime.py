@@ -142,13 +142,31 @@ OPENER_RULE = ("Talk has just connected and the user has not spoken yet. Speak f
 # by one audio response (`_say_decided`). "as-it-decides" answers in speech at once, as before.
 SPEAKS_AFTER_DECIDING = "after-deciding"
 HANDED_TOOLS = frozenset({"do_in_hooke", "look_hard"})  # work that takes Hooke a while: acknowledged at once
+
+
+def handed_words(response: dict) -> list[str]:
+    """What a decided turn handed over, in the voice's own words for it: each do_in_hooke's label or request, each close
+    look's question (its function calls' arguments)."""
+    out = []
+    for item in response.get("output") or []:
+        if item.get("type") != "function_call" or item.get("name") not in HANDED_TOOLS:
+            continue
+        try:
+            args = json.loads(item.get("arguments") or "{}")
+        except ValueError:
+            continue
+        words = args.get("label") or args.get("request") or args.get("question")
+        if isinstance(words, str) and words.strip():
+            out.append(" ".join(words.split())[:160])
+    return out[:3]
 SPEAKS_ACKNOWLEDGES = "acknowledges"  # decides silently, then says at once that it is on work it handed over
 # The few words said at once when a turn hands work over (PARTNER_SPEAKS "acknowledges"): true from the moment the work
 # has started, never a result or a promise (Will's try-out, 30 Oct: "I like when the voice responds super fast"; deciding
 # silently left 8-13 s before any words while Hooke worked, and it felt blocking).
-ACK_HANDED = ("Say only a few words, two to six, that you are on what the user just asked, in their own words for it "
-              "(its verb and its thing): nothing about a result, what it may find, when it will be done or what comes "
-              "next, and nothing else.")
+ACK_HANDED = ("You are the user's microscope partner, and you do this work yourself. In five words or fewer, say as "
+              "\"I\" that you're doing what they just asked, now, as a colleague would on hearing it (a quick yes and "
+              "the verb with its thing). Never \"still\", never a result, a promise, when it will be done or what "
+              "comes next; nothing else.")
 DECIDE_RULE = ("What you write in this reply is said aloud word for word, unless you call a tool other than mark: then "
                "nothing of it is said, and the tool's outcome is said after it. Write only what you would say, in "
                "plain spoken sentences.")
@@ -345,6 +363,8 @@ class RealtimeSession(VoiceSession):
         # "as-it-decides" (the partner binds it to the app's setting).
         self.speaks: Callable[[], str] = lambda: SPEAKS_ACKNOWLEDGES
         self._acked: dict[int, bool] = {}  # turns whose handed-over work was acknowledged at once (ACK_HANDED)
+        self._heard: dict[int, str] = {}  # each recent turn's words as transcribed
+        self._handed_words: dict[str, list[str]] = {}  # a response's hand-offs, in the voice's words for them
         # What the hand-off a do_in_hooke call started is doing now ({"facts", "stepS"}, or None: partner_tools).
         self.handoff_doing: Callable[[str], dict | None] = lambda call_id: None
         self.handed_late: Callable[..., bool] = lambda ctx, run: False  # a hand-off keeps its late steps (partner_tools)
@@ -1538,6 +1558,9 @@ class RealtimeSession(VoiceSession):
         elif kind == "conversation.item.input_audio_transcription.completed":
             text = (ev.get("transcript") or "").strip()
             if text:
+                self._heard[self.n] = text[:400]  # the user's words of this turn, for its acknowledgement (ACK_HANDED)
+                for old_n in [k for k in self._heard if k < self.n - 8]:
+                    self._heard.pop(old_n, None)
                 self._emit(VoiceEvent("input_transcript", text=text, data={"itemId": ev.get("item_id"), "n": self.n}))
         elif kind == "input_audio_buffer.speech_started":  # open mic only
             self._last_user_at = now
@@ -1725,8 +1748,16 @@ class RealtimeSession(VoiceSession):
         elif response.get("status") == "completed" and names & HANDED_TOOLS and self._speaks_now() == SPEAKS_ACKNOWLEDGES:
             # Work handed over: a few words at once that it is on it (true now), then its outcome once it lands.
             self._acked[cause["n"]] = True
-            self.respond("ack", n=cause["n"], tool_choice="none", max_output_tokens=ACK_TOKENS,
-                         instructions=self.config.system_prompt + "\n\n" + ACK_HANDED)
+            # Its only context is what the user asked and what is being done for it, never the conversation, so it
+            # cannot narrate the work as another's in progress (Will's try-out, 30 Oct: "It's still adjusting the live
+            # overlay size…", "It's in progress, and the enlargement will appear in its own Tab once it finishes").
+            asked = self._heard.get(cause["n"], "")
+            doing = "; ".join(dict.fromkeys(handed_words(response) + self._handed_words.pop(rid, []))) 
+            self.respond("ack", n=cause["n"], tool_choice="none", max_output_tokens=ACK_TOKENS, conversation="none",
+                         input=[text_item("system", (f"The user just asked: \"{asked}\"\n" if asked else "")
+                                          + (f"Being done for it now: {doing}" if doing else ""))],
+                         instructions=ACK_HANDED)
+        self._handed_words.pop(rid, None)
         for item in response.get("output") or []:
             if item.get("type") == "message" and item.get("id"):
                 await self.delete(item["id"])
@@ -1767,6 +1798,10 @@ class RealtimeSession(VoiceSession):
         self._round.setdefault(rid, []).append(call_id)
         self._call_epoch[call_id] = self._epoch
         self._call_names[call_id] = name
+        if name in HANDED_TOOLS:  # its words, for the acknowledgement said at once (ACK_HANDED)
+            words = args.get("label") or args.get("request") or args.get("question")
+            if isinstance(words, str) and words.strip():
+                self._handed_words.setdefault(rid, []).append(" ".join(words.split())[:160])
         event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args)
         self._emit(event)
         self._calls[call_id] = asyncio.ensure_future(self._run_tool(event))
@@ -1814,6 +1849,7 @@ class RealtimeSession(VoiceSession):
         reply's words, which go on only if one was not shown (the Realtime API leaves the next response.create to the
         client)."""
         ids = self._round.pop(rid, [])
+        self._handed_words.pop(rid, None)
         epoch = next((self._call_epoch[cid] for cid in ids if cid in self._call_epoch), self._epoch)
         tasks = {cid: self._calls[cid] for cid in ids if cid in self._calls}
         progress: list[Ask] = []

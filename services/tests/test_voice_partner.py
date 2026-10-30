@@ -2252,7 +2252,10 @@ def test_work_handed_over_is_acknowledged_at_once_and_its_outcome_said_after(mon
         ack = await until_async(lambda: next((e for e in creates_of(t)[1:]), None), seconds=5)
         response = ack["response"]
         assert response["metadata"]["cause"] == "ack", "said at once, while Hooke works"
-        assert "nothing about a result" in response["instructions"] and "output_modalities" not in response
+        assert 'Never "still"' in response["instructions"] and "output_modalities" not in response
+        # Only what was asked and what is being done for it, never the conversation (Will's try-out, 30 Oct: "It's still
+        # adjusting the live overlay size…" narrated the work as another's in progress).
+        assert response["conversation"] == "none" and "Segment right one" in json.dumps(response["input"])
         assert "msg_1" in deleted(t), "the decided words are never said"
         await done(t.sb, "resp_2")
         gate.set()
