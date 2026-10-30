@@ -12,7 +12,7 @@ import {isRetainedMaterial} from './material-identity';
 
 export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' | 'files' | 'model' | 'study' | 'history';
 export interface MatrixPreview {
-  selection:'first-observations-and-variables'; observations:string[]; variables:string[]; values:number[][];
+  integerEncoding?:'unsafe-as-decimal-string';selection:'first-observations-and-variables'; observations:string[]; variables:string[]; values:(number|string)[][];
   observationAnnotations:{name:string;values:(string|number|boolean|null)[]}[];
   variableAnnotations:{name:string;values:(string|number|boolean|null)[]}[];
 }

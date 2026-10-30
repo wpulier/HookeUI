@@ -317,3 +317,19 @@ def test_inspection_preview_projection_is_bounded_and_preserves_older_facts():
         facts=inspection_facts({'dtype':'float32','preview':bad})
         assert facts=={'dtype':'float32'}
     assert inspection_facts({'dtype':'float32','shape':[2,3]})=={'dtype':'float32','shape':[2,3]}
+
+
+def test_workflow_output_author_comes_from_same_project_run_and_retained_study_label(tmp_path):
+    from orchestrator.project_material import attach_usage
+    store = ProjectStore(tmp_path); session = '2026-10-30'; actor = 'agent:ac_' + 'a' * 24
+    run = store.create(session, document('scientific-workflow-run', {'workflowRun': {'actor': actor}}))
+    result = store.create(session, document('matrix-result', {'workflowOutput': {'run': run.id}}))
+    study = store.create(session, document('research-effort', {'researchEffort': {'inputs': [], 'experiments': {'one': {
+        'execution': {'kind': 'workflow', 'id': run.id, 'session': session}, 'by': actor, 'byLabel': 'Research lead'}}}}))
+    rows = [Index.project_entry(value) for value in (run, result, study)]
+    attach_usage(rows, store)
+    assert rows[1].made_by == {'actor': actor, 'label': 'Research lead', 'workflow': run.id}
+    # A foreign Project or an unrelated run cannot supply attribution.
+    rows[0].day = '2026-10-31'; rows[1].made_by = {}
+    attach_usage(rows, store)
+    assert rows[1].made_by == {}

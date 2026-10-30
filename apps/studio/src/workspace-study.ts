@@ -2101,18 +2101,19 @@ function materialAction(entry:ReaderEntry,action:'inspect'|'experiment'|'ask'):v
  const reference={id:entry.id,session:entry.day??snapshot.session,revision:Number(entry.version),digest:entry.source?.sha256??''},session=reference.session;
  if(!Number.isInteger(reference.revision)||!reference.digest){actionError(new Error('Refresh this material to read its exact revision.'));return;}
  if(session!==snapshot.session)return;
+ const owner=workspaceViews.tabOwner(),owns=()=>inputOwnerCurrent(owner)&&!switching;
  const selected={reference,title:entry.title};
  const proceed=(study?:Effort)=>{
-  if(snapshot.session!==session)return;
+  if(!owns())return;
   if(action==='ask'){if(study)void openStudy(study.id,selected);return;}
   openMaterialCapability({material:{input:reference,title:entry.title},study:study?{id:study.id,title:studyName(study)}:undefined,
-   capability:action==='inspect'?'matrix-inspect':undefined},()=>snapshot.session,run=>bridge.navigate(`#workflows?run=${encodeURIComponent(run.id)}`));
+   capability:action==='inspect'?'matrix-inspect':undefined},()=>owns()?session:'',run=>{if(owns())bridge.navigate(`#workflows?run=${encodeURIComponent(run.id)}`);});
  };
  const dialog=el('dialog','workspace-recovery-dialog material-study-chooser');dialog.setAttribute('aria-label','Choose a Study');
  dialog.append(el('h2','','Choose a Study'),el('p','',`${entry.title} · revision ${reference.revision}`),el('p','','Keep this question or experiment with a research effort. Opening setup starts nothing.'));
  const list=el('div','material-study-options');
  for(const study of knownStudies){list.append(button(studyName(study),()=>{dialog.close();proceed(study);}));}
- list.append(button('New Study…',()=>{dialog.close();newStudy(selected,proceed);}));
+ list.append(button('New Study…',()=>{dialog.close();if(owns())newStudy(selected,proceed);}));
  if(action==='inspect')list.append(button('Inspect without a Study',()=>{dialog.close();proceed();}));
  dialog.append(list,button('Cancel',()=>dialog.close()));dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
 }

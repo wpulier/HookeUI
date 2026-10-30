@@ -24,12 +24,12 @@ export function CapabilityForm({capability,inputs,selected,parameters,busy,selec
 export function ManualCapabilities({session,currentSession,started,setup}:{session:string;currentSession:()=>string;started:(run:WorkflowRun)=>void;setup?:MaterialSetup}){
  const [catalog,setCatalog]=useState<ScientificCapability[]>([]),[inputs,setInputs]=useState<Input[]>([]),[chosen,setChosen]=useState(setup?.capability||'');
  const [selected,setSelected]=useState<Record<string,string>>({}),[parameters,setParameters]=useState<Record<string,unknown>>({}),[busy,setBusy]=useState(false),[status,setStatus]=useState('');
- const retry=useRef({body:'',request:''});
+ const retry=useRef({body:'',request:''}),initialChoice=useRef('');
  const load=async()=>{const [c,i]=await Promise.all([read<{capabilities:ScientificCapability[]}>('/api/workflows/capabilities'),read<{inputs:Input[]}>(`/api/workflows/inputs?${new URLSearchParams({session})}`)]);if(currentSession()!==session)return;setCatalog(c.capabilities);setInputs(pinnedInputs(i.inputs,setup));};
  useEffect(()=>{let alive=true;void Promise.all([read<{capabilities:ScientificCapability[]}>('/api/workflows/capabilities'),read<{inputs:Input[]}>(`/api/workflows/inputs?${new URLSearchParams({session})}`)]).then(([c,i])=>{if(alive){setCatalog(c.capabilities);setInputs(pinnedInputs(i.inputs,setup));}}).catch(e=>{if(alive)setStatus(String(e));});return()=>{alive=false;};},[session]);
  const capability=catalog.find(c=>c.id===chosen);
  const choose=(id:string)=>{setChosen(id);setSelected(setup?{[(catalog.find(c=>c.id===id)?.inputs||[])[0]?.id||'source']:setup.material.input.id}:{});setParameters(Object.fromEntries((catalog.find(c=>c.id===id)?.parameters||[]).filter(p=>p.default!==undefined&&p.default!==null).map(p=>[p.id,p.default])));setStatus('');};
- useEffect(()=>{const route=()=>{const id=setup?.capability||new URLSearchParams(location.hash.split('?')[1]||'').get('capability');if(id&&catalog.some(c=>c.id===id))choose(id);};route();window.addEventListener('hashchange',route);return()=>window.removeEventListener('hashchange',route);},[catalog]);
+ useEffect(()=>{const route=()=>{const id=setup?.capability||new URLSearchParams(location.hash.split('?')[1]||'').get('capability');if(id&&catalog.some(c=>c.id===id)&&initialChoice.current!==id){initialChoice.current=id;choose(id);}};route();window.addEventListener('hashchange',route);return()=>window.removeEventListener('hashchange',route);},[catalog]);
  const run=async()=>{if(!capability)return;if(currentSession()!==session){setStatus('Return to the original Project before running this capability.');return;}setBusy(true);setStatus('');try{
   const refs=Object.fromEntries(capability.inputs.map(p=>{const row=inputs.find(i=>i.input.id===selected[p.id]);if(!row)throw new Error('Refresh and select every input.');return [p.id,row.input];}));
   const body={action:'capability',session,capability:capability.capability,generation:capability.generation,inputs:refs,parameters,...(setup?.study?{study:setup.study.id}:{})};
@@ -45,6 +45,7 @@ export function openMaterialCapability(setup:MaterialSetup,currentSession:()=>st
  dialog.setAttribute('aria-label','Experiment setup');
  const close=document.createElement('button');close.textContent='Close';close.type='button';close.addEventListener('click',()=>dialog.close());
  const content=document.createElement('div');dialog.append(close,content);document.body.append(dialog);
- const root=createRoot(content);root.render(<ManualCapabilities session={setup.material.input.session} currentSession={currentSession} setup={setup} started={run=>{dialog.close();started(run);}}/>);
- dialog.addEventListener('close',()=>{root.unmount();dialog.remove();},{once:true});dialog.showModal();
+ let alive=true;const current=()=>alive?currentSession():'';
+ const root=createRoot(content);root.render(<ManualCapabilities session={setup.material.input.session} currentSession={current} setup={setup} started={run=>{if(!alive||current()!==setup.material.input.session)return;dialog.close();started(run);}}/>);
+ dialog.addEventListener('close',()=>{alive=false;root.unmount();dialog.remove();},{once:true});dialog.showModal();
 }

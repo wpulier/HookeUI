@@ -77,7 +77,7 @@ test('the declared choice is shown first and a refusal names its reasons and nex
   expect(root.textContent).toContain('keeps calibration exact');expect(fetcher).toHaveBeenCalledTimes(1);
   fetcher.mockResolvedValueOnce(response({ok:true,source:{id:source.id,session:source.day,revision:source.version},readers:[other],
     choice:{state:'refused',says:'1 installed reader declares this source, but none can open it exactly now.',next:'follow the step each reader names, then check again'}}));
-  fire(button('Check readers again'),'click');await settle();
+  fire(button('Refresh reader readiness'),'click');await settle();
   expect(root.textContent).toContain('none can open it exactly now. Next: follow the step each reader names');
   expect(button('Review with Other reader').disabled).toBe(true);expect(open).not.toHaveBeenCalled();
 });
@@ -90,4 +90,13 @@ test('an incompatible reader is said apart from one that needs setup, and offers
   expect(root.textContent).toContain('Can’t open this source: This reader opens names matching *.tif');
   expect(root.textContent).toContain('Needs setup: Prepare this integration');
   expect(root.querySelectorAll('a').map(a=>a.hidden)).toEqual([true,false]);
+});
+
+
+test('an empty discovery has no repeated reader-check loop or invented setup',async()=>{
+ fetcher.mockResolvedValueOnce(response({ok:true,source:{id:source.id,session:source.day,revision:source.version},readers:[]}));
+ fire(button('Find readers'),'click');await settle();
+ expect(root.textContent).toContain('Preview isn’t available yet');
+ expect(button('Refresh reader readiness').hidden).toBe(true);
+ expect(root.querySelectorAll('a')).toHaveLength(0);
 });

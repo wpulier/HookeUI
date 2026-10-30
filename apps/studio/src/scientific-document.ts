@@ -1431,7 +1431,7 @@ export function openScientificSessions(): void {
           } catch (error) { if (!closed) { status.textContent = words(error); stop.disabled = false; } }
         })(); });
         stop.title='Stops this private window. Any unsaved edits in it will be discarded; saved Project results remain.';
-        if(savedArrays && !['saved','copied'].includes(savedArrays.state))section.append(node('p','Stopping this window discards its unsaved changes. Saved results remain.'));
+        section.append(node('p',savedArrays && !['saved','copied'].includes(savedArrays.state)?'Stopping this window discards its unsaved changes. Saved results remain.':'Stop closes this private window. Any unsaved edits will be discarded; saved results remain.'));
         section.append(stop); list.append(section);
       }
       const project = options.currentProject?.();

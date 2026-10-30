@@ -230,7 +230,16 @@
                       "type": "array",
                       "maxItems": 10,
                       "items": {
-                        "type": "number"
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string",
+                            "maxLength": 32,
+                            "pattern": "^-?[0-9]+$"
+                          }
+                        ]
                       }
                     }
                   },
@@ -295,6 +304,9 @@
                         }
                       }
                     }
+                  },
+                  "integerEncoding": {
+                    "const": "unsafe-as-decimal-string"
                   }
                 }
               },

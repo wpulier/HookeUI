@@ -125,7 +125,9 @@ def _preview(data, check):
             return None
         if isinstance(value, (bool, np.bool_)):
             return bool(value)
-        if isinstance(value, (int, float, np.integer, np.floating)):
+        if isinstance(value, (int, np.integer)):
+            return str(value) if abs(int(value)) > 9007199254740991 else int(value)
+        if isinstance(value, (float, np.floating)):
             return float(value) if np.isfinite(value) else None
         return str(value)[:256]
     def annotations(frame, count):
@@ -134,7 +136,8 @@ def _preview(data, check):
     return {'selection': 'first-observations-and-variables',
             'observations': [str(v)[:256] for v in data.obs_names[:rows]],
             'variables': [str(v)[:256] for v in data.var_names[:columns]],
-            'values': values.tolist(),
+            'values': [[scalar(v) for v in row] for row in values],
+            'integerEncoding': 'unsafe-as-decimal-string',
             'observationAnnotations': annotations(data.obs, rows),
             'variableAnnotations': annotations(data.var, columns)}
 

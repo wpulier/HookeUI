@@ -219,3 +219,18 @@ def test_inspection_retains_only_first_ten_by_ten_preview(tmp_path, representati
     assert preview['observationAnnotations'][1]['values'] == [None] * 10
     assert summary['shape'] == [20, 12]
     assert json.loads(path.read_text())['preview'] == preview
+
+
+@pytest.mark.parametrize('representation', ['dense', 'sparse'])
+def test_inspection_preview_keeps_large_integer_values_exact(tmp_path, representation):
+    anndata = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    values = np.asarray([[9007199254740993, 7]], dtype=np.uint64)
+    data = anndata.AnnData(values if representation == 'dense' else sparse.csr_matrix(values),
+        obs=pd.DataFrame({'identifier': np.asarray([9007199254740993], dtype=np.uint64)}, index=['one']),
+        var=pd.DataFrame(index=['a', 'b']))
+    source = tmp_path / 'large.h5ad'; data.write_h5ad(source)
+    _, summary = engine.inspect({'matrix': source}, {}, output(tmp_path, 'inspect'), lambda: None)
+    preview = summary['preview']
+    assert preview['values'] == [['9007199254740993', 7]]
+    assert preview['observationAnnotations'][0]['values'] == ['9007199254740993']
+    assert preview['integerEncoding'] == 'unsafe-as-decimal-string'

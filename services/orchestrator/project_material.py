@@ -91,7 +91,7 @@ def inspection_facts(summary):
             and 0 < len(columns) <= 10 and all(isinstance(v, str) and len(v) <= 256 for v in rows + columns)
             and isinstance(values, list) and len(values) == len(rows)
             and all(isinstance(row, list) and len(row) == len(columns)
-                    and all(type(v) in (int, float) and math.isfinite(v) for v in row) for row in values)):
+                    and all(type(v) in (int, float) and math.isfinite(v) or isinstance(v,str) and len(v)<=32 and v.lstrip('-').isdigit() for v in row) for row in values)):
         return result
     clean = {key: preview[key] for key in ('selection', 'observations', 'variables', 'values')}
     for key, count in (('observationAnnotations', len(rows)), ('variableAnnotations', len(columns))):
@@ -108,6 +108,7 @@ def inspection_facts(summary):
                 return result
             kept.append({'name': annotation['name'], 'values': annotation['values']})
         clean[key] = kept
+    if preview.get('integerEncoding')=='unsafe-as-decimal-string':clean['integerEncoding']='unsafe-as-decimal-string'
     result['preview'] = clean
     return result
 
@@ -174,10 +175,46 @@ def _inspected(material, document, reference, inspections):
     return material
 
 
+def _workflow_authors(entries):
+    """Project protected output lineage to its recorded run author; never infer from titles."""
+    rows = {(e.day, e.id): e for e in entries if e.kind == 'project' and isinstance(e.values, dict)}
+    labels = {}
+    for entry in rows.values():
+        effort = entry.values.get('state', {}).get('researchEffort', {})
+        experiments = effort.get('experiments', {}) if isinstance(effort, dict) else {}
+        if not isinstance(experiments, dict):
+            continue
+        for experiment in experiments.values():
+            if not isinstance(experiment, dict):
+                continue
+            execution = experiment.get('execution', {})
+            if (isinstance(execution, dict) and execution.get('kind') == 'workflow'
+                    and execution.get('session') == entry.day and isinstance(experiment.get('byLabel'), str)):
+                labels[(entry.day, execution.get('id'), experiment.get('by'))] = experiment['byLabel']
+    from .workflows import valid_actor
+    for entry in rows.values():
+        marker = entry.values.get('state', {}).get('workflowOutput', {})
+        run_id = marker.get('run') if isinstance(marker, dict) else None
+        if not isinstance(run_id, str):
+            continue
+        run = rows.get((entry.day, run_id))
+        if not run or run.values.get('kind') != 'scientific-workflow-run':
+            continue
+        state = run.values.get('state', {}).get('workflowRun', {})
+        actor = state.get('actor') if isinstance(state, dict) else None
+        if not valid_actor(actor):
+            continue
+        entry.made_by = {'actor': 'you' if actor == 'studio' else actor, 'workflow': run_id}
+        label = labels.get((entry.day, run_id, actor))
+        if label:
+            entry.made_by['label'] = label
+
+
 def attach_usage(entries, store=None) -> list[str]:
     """Join exact Study inputs. Bad memberships never hide unrelated material."""
     import re
     materials, problems = {}, []
+    _workflow_authors(entries)
     inspections = _inspections(entries)
     for entry in entries:
         if entry.kind == 'project' and isinstance(entry.values, dict):
