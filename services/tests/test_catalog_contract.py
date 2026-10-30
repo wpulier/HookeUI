@@ -388,3 +388,14 @@ def test_what_this_mac_itself_is_read_and_said_as_unavailable_here(monkeypatch):
     monkeypatch.setattr(catalog, "get", lambda key, *a, **k: big if key == "fiji" else None)
     r = readiness.model("fiji", {})
     assert r.status == "unavailable" and r.word == "Not on this Mac"
+
+
+def test_no_catalog_lockfile_carries_a_home_folder():
+    """A lockfile's header records how uv made it; an absolute --python there named the maker's home folder
+    (/Users/<name>/...), which the release's source check refuses to ship (Beta 0.7.0, 30 Oct). Paths in a lockfile are
+    relative to the repository."""
+    catalog = Path(__file__).resolve().parents[2] / "catalog"
+    home = re.compile(r"(?:^|[\s=\"'])(?:/Users|/home)/[^/\s]+/")
+    found = [f"{lock.relative_to(catalog.parent)}:{n}" for lock in sorted(catalog.rglob("env.lock"))
+             for n, line in enumerate(lock.read_text(errors="replace").splitlines(), 1) if home.search(line)]
+    assert found == []
