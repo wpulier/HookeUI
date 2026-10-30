@@ -70,7 +70,7 @@ async def show(services, ctx, studio: ReaderStudio, *, shown: dict, title: str, 
                          next="open it as a window, beside the live view, or in a Tab of its own")
     made = False
     if placement == "new-tab":
-        tab_id, tab_title, made = await _tab(services, ctx, tab or (title[:40] or shown["site"]))
+        tab_id, tab_title, made = await _tab(services, ctx, tab or (title[:40] or shown["site"]), new=True)
     elif tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
@@ -87,7 +87,8 @@ async def show(services, ctx, studio: ReaderStudio, *, shown: dict, title: str, 
             await act(services, {"do": "close", "what": before}, ctx=ctx)
 
     def refused(why: str):
-        raise ToolFailed(f"{what} is not shown in {where}: {why}; {kept}", next="ask again to open it there")
+        raise ToolFailed(f"{what} is not shown in {where}: {why}; {kept}",
+                         next=None)  # no next: what the screen shows, where it is kept and its link are said
 
     message = {"type": "web-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
                "workspacePin": studio.pin,

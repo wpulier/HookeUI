@@ -137,6 +137,30 @@ describe('retained workspace presentation', () => {
     expect(sent[0].base.lifetimeGeneration).toBe(lifetime);
     expect(fact(windows,A).view).toMatchObject({zoom:2,pan:[.25,.75]});
   });
+  test('places a window by its id through its own fenced resize, then move, one at a time', async () => {
+    // Arrange's tile for a native window with no retained resource (the live magnifier): the person's own resize and
+    // move, each waiting for the accepted descriptor that fences the next (workspace-views.ts place).
+    const { windows, sent } = await make();
+    apply(windows, [state()]); await decoded(windows, A);
+    const placer = windows as unknown as { placeWindow(id: string, rect: number[]): boolean };
+    const tile = [12, 12, 600, 400];
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent.map(command => command.action)).toEqual(['resize']);
+    expect(sent[0].values).toEqual({ size: [600, 400] });
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent).toHaveLength(1); // polling never sends a second command while one is unanswered
+    const accepted = state(); accepted.revision++; accepted.geometryIntent.size = [600, 400]; accepted.propertyVersions.geometry++;
+    apply(windows, [accepted], 'resize-accepted');
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent.map(command => command.action)).toEqual(['resize', 'move']);
+    const host = (dom.host as unknown as HTMLElement).getBoundingClientRect();
+    expect(sent[1].values).toEqual({ position: [12 + host.left, 12 + host.top] });
+    accepted.revision++; accepted.geometryIntent.position = [12 + host.left, 12 + host.top]; accepted.propertyVersions.geometry++;
+    apply(windows, [accepted], 'move-accepted');
+    expect(placer.placeWindow(A, tile)).toBe(true);
+    expect(sent).toHaveLength(2);
+    expect(placer.placeWindow('w-gone', tile)).toBe(true); // a window no longer open has nothing to place
+  });
   test('does not reopen a dismissed view or apply transforms before evidence loads', async () => {
     const { windows } = await make();
     apply(windows, [state()]);

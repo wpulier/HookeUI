@@ -3576,6 +3576,22 @@ document.addEventListener('visibilitychange', () => {
   reporter.askNow();
   reportWorkspace(performance.now());
 });
+// Arrange's tile for a native window with no retained resource (the live magnifier, workspace-views.ts place): its
+// resize, then its move, each sent once the last was answered; a later Arrange of the same window replaces this one.
+const placingWindows = new Map<string, number>();
+window.addEventListener('workspace-place-window', (event) => {
+  const { id, rect } = (event as CustomEvent<{ id: string; rect: number[] }>).detail;
+  const turn = (placingWindows.get(id) ?? 0) + 1, until = performance.now() + 12_000;
+  placingWindows.set(id, turn);
+  const step = (): void => {
+    if (placingWindows.get(id) !== turn) return;
+    let done = true;
+    try { done = workspaceSession?.placeWindow(id, rect) ?? true; } catch (error) { diagnostic(error); }
+    if (!done && performance.now() < until) window.setTimeout(step, 50);
+    else if (placingWindows.get(id) === turn) placingWindows.delete(id);
+  };
+  step();
+});
 
 function applyPresent(message: PresentMessage): void {
   if (!workspaceSession) throw new Error('Workspace connection is unavailable');

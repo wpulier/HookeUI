@@ -174,6 +174,73 @@ def beside_shown(wire: dict | None, tab: str, thing: list[str]) -> tuple[bool, s
     return True, ""
 
 
+# --- making room beside a window ---------------------------------------------------------------------------------------
+# A new window opened beside another is fitted before its first paint (present._opening_basis): 240 to 360 px wide at
+# its picture's aspect, top-aligned with the window it goes beside, within the visible area. When there is no such room
+# on either side, Hooke makes it, as a person would: it moves that window over, and narrows it only when moving is not
+# enough (will-workspace, 30 Oct: "make room or select the original window" was handed to the user).
+BESIDE_GAP = 12
+BESIDE_WIDTH = (240, 360)  # the new window's narrowest and widest initial fit (present._opening_basis)
+NARROWEST = 240  # a window is never narrowed below this to make room
+
+
+def _fits_beside(x: float, y: float, width: float, area, size, gap: float) -> bool:
+    """Whether a new window of picture `size` fits on the right of a window at x, y, `width` wide (_opening_basis)."""
+    room = area[0] + area[2] - (x + width) - gap
+    available = area[1] + area[3] - y
+    wide = min(BESIDE_WIDTH[1], room, max(0.0, available - 44) * size[0] / size[1])
+    return wide >= BESIDE_WIDTH[0] and max(180 + 44, wide * size[1] / size[0] + 44) <= available and y >= area[1]
+
+
+def room_beside(anchor, area, size, gap: float = BESIDE_GAP) -> tuple[float, float, float] | None:
+    """Where window `anchor` (x, y, width, height) goes, and how wide, so a new window of picture `size` fits on its
+    right inside `area`: its own place first, then moved left (and up, when too low), and only then narrowed. None when
+    the area cannot hold both side by side (a true impossibility, said as such)."""
+    if not (isinstance(anchor, (list, tuple)) and isinstance(area, (list, tuple)) and len(anchor) == len(area) == 4
+            and isinstance(size, (list, tuple)) and len(size) == 2 and size[0] > 0 and size[1] > 0):
+        return None
+    x0, y0, width0 = anchor[0], anchor[1], anchor[2]
+    widths = [width0] + [w for w in (area[2] - gap - BESIDE_WIDTH[1], area[2] - gap - BESIDE_WIDTH[0])
+                         if NARROWEST <= w < width0]
+    for width in widths:
+        wanted = min(BESIDE_WIDTH[1], area[2] - width - gap)
+        x = max(area[0], min(x0, area[0] + area[2] - width - gap - wanted))
+        for y in dict.fromkeys((max(area[1], y0), area[1])):
+            if _fits_beside(x, y, width, area, size, gap):
+                return x, y, width
+    return None
+
+
+async def make_room_beside(services, ctx, anchor_id: str, size) -> str | None:
+    """Moves (and, only when moving is not enough, narrows) window `anchor_id` so a new window of picture `size` fits
+    beside it, each change the window's own move or resize, confirmed on screen (present). Returns what it did, in
+    words; None when the visible area cannot hold both (nothing is changed then)."""
+    from .brain.toolbox.present import _native_settled
+    from .screen import screen_of
+
+    report = screen_of(services.hub).completion_report(ctx.client)
+    row = next((r for r in (report or {}).get("items") or () if r.get("id") == anchor_id), None)
+    area = ((report or {}).get("viewport") or {}).get("presentationArea")
+    rect = (row or {}).get("rect")
+    placed = room_beside(rect, area, size)
+    if placed is None:
+        return None
+    x, y, width = placed
+    narrowed, moved = width != rect[2], (x, y) != (rect[0], rect[1])
+    if narrowed:
+        await _native_settled(services, ctx, {"do": "resize", "instance": {"instanceId": anchor_id},
+                                              "size": {"width": width, "height": rect[3]}})
+    if moved:
+        await _native_settled(services, ctx, {"do": "move", "instance": {"instanceId": anchor_id},
+                                              "position": {"x": x, "y": y}})
+    title = inline(str((row or {}).get("title") or "the window it goes beside"), 80)
+    if narrowed and moved:
+        return f"narrowed {title} and moved it over so the new window fits beside it"
+    if narrowed or moved:
+        return f"{'narrowed' if narrowed else 'moved'} {title}{'' if narrowed else ' over'} so the new window fits beside it"
+    return ""
+
+
 def holding(wire: dict | None, kind: str) -> list[dict]:
     """The open Tabs holding a `kind` (the Tab strip's counts by kind)."""
     from .workspace_observation import tabs_holding
@@ -294,13 +361,6 @@ def located(tabs, what: str) -> list[tuple[dict, dict]]:
     return out
 
 
-def _fresh_title(tabs, title: str) -> str:
-    """A title no open Tab has: `title`, else `title 2`, `title 3`..."""
-    taken = {" ".join(str(t.get("title") or "").split()).casefold() for t in tabs or ()}
-    base = " ".join(str(title or "").split())[:60] or "Tab"
-    return next(name for name in (base, *(f"{base} {n}" for n in range(2, 30))) if name.casefold() not in taken)
-
-
 async def _saved(services, what: str):
     """The Data item `what` names (a researcher's Tab id `research:rN` names its researcher's work), or a refusal that
     says it is neither open nor saved."""
@@ -355,7 +415,8 @@ async def open_picture(services, ctx, source: dict, title: str) -> str:
     opened = [o.wire() for o in (run.outputs[before:] if run is not None else ())]
     window = next((o.get("instanceId") for o in reversed(opened) if o.get("kind") == "presentation"), None)
     if not window:
-        raise ToolFailed("its window did not open", next="ask again to open it there")
+        raise ToolFailed("its window did not open: the studio confirmed no new window for it",
+                         next=None)  # no next: the open was sent and its confirmation awaited; nothing to repeat
     return str(window)
 
 
@@ -448,14 +509,19 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
     # The app's own words for what a researcher or the web made (its `title`), never theirs (`shown`, untrusted).
     title = str((found[0][1].get("title") if found else (
         entry.title if getattr(entry, "untrusted", False) else (getattr(entry, "shown", "") or entry.title))) or what)
-    if placement == "new-tab":
-        tab_id, tab_title, made = await _tab(services, ctx, tab or _fresh_title(tabs, title))
+    if placement == "new-tab":  # a new Tab is asked for: made, and told apart from one already called that
+        tab_id, tab_title, made = await _tab(services, ctx, tab or title, new=True)
     elif tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
         front = next((t for t in tabs if t.get("selected")), None)
+        if front is None:  # a researcher's Tab in front, or a list taken mid-switch: Hooke asks once more
+            listed = await broker(ctx, {"action": "list"})
+            front = next((t for t in listed.get("tabs") or () if isinstance(t, dict) and t.get("selected")
+                          and (t.get("kind") or "work") == "work"), None)
         if front is None:
-            raise ToolFailed("the studio has not said which Tab is in front", next="list the Tabs, then ask again")
+            raise ToolFailed("no Tab of this Project's own work is in front to put it in (a researcher's Tab or "
+                             "another page is)", next="name the Tab to put it in")
         tab_id, tab_title, made = str(front["id"]), str(front.get("title") or ""), False
     where = f'Tab "{inline(tab_title, 80)}"' + (" (a new Tab)" if made else "")
     here = [item for t, item in found if t.get("id") == tab_id]

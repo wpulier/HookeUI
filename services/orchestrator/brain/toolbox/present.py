@@ -1220,6 +1220,8 @@ def _window_action(ctx, args):
 
 def _window_expectations(message, presentation_area=None, before_report=None, arrangement=None):
     """Use the existing closed completion vocabulary; no model or extra judge."""
+    from ...completion import tab_window
+
     expected = []
     targets, op = message["targets"], message["op"]
     def add(predicate, ids, values, phase="drawn", tolerance=None):
@@ -1275,10 +1277,23 @@ def _window_expectations(message, presentation_area=None, before_report=None, ar
         add("pan", targets, {"center": message["instances"][0]["view"]["pan"]})
     if op == "front":
         scope = (before_report or {}).get("foreground")
-        if scope and scope.get("scope") == "workspace-windows":
-            own_roots = {row.get("rootId") for row in before_report.get("items", []) if row["id"] in targets}
+        own_roots = {row.get("rootId") for row in (before_report or {}).get("items", []) if row["id"] in targets}
+        if (scope and scope.get("scope") == "workspace-windows"
+                and own_roots & {root.get("rootId") for root in scope.get("roots") or ()}):
             add("front", targets, {"scope": scope["scope"], "hostId": scope["hostId"],
                 "above": [row["rootId"] for row in scope["roots"] if row["rootId"] not in own_roots]})
+        elif scope and scope.get("scope") == "workspace-windows":
+            # The window lives inside one of the host's roots, not as a root of its own: in the Project workspace
+            # every native window is mounted in the study artifacts beside the document windows (main.ts
+            # onPresentation), so the stage's foreground never lists it and could never prove it in front (will-leaf,
+            # 30 Oct: front on the open reference photo timed out, and the user was told to ask again). Its Tab's own
+            # order proves it: in front is above every window shown on that Tab (workspace_observation.front, the
+            # window highest on the Tab), by the z the studio measured for each.
+            add("front", targets, {"scope": "tab-windows", "above": [
+                row["id"] for row in before_report.get("items", [])
+                if row["id"] not in targets and tab_window(row) and row.get("open") is True
+                and row.get("visible") is True and row.get("connected") is True
+                and type(row.get("z")) in (int, float)]})
         else:
             above = [row['id'] for row in (before_report or {}).get('items', [])
                      if row['id'] not in targets and row.get('open') and row.get('visible') and row.get('connected')]
@@ -1536,6 +1551,67 @@ async def close_window(services, ctx, item_id: str, by: str | None = None) -> st
     return await act(services, {"what": str(item_id), "do": "close"}, by=by, ctx=ctx)
 
 
+# A change that ends the same however often it is sent (an absolute position, size, centre or order), and the failures
+# that are only the screen not showing it in time: Hooke sends it once more itself, never the user (spec 4.8,
+# horizontal 3; will-leaf, 30 Oct: "ask again in a moment" was spoken after front timed out).
+SAME_TWICE = ("front", "move", "resize", "pan", "hide", "restore", "opacity")
+NOT_SHOWN_YET = ("CONFIRM_TIMEOUT", "TOPOLOGY_MISMATCH", "VERIFICATION_UNAVAILABLE", "DISPLAY_UNVERIFIED")
+
+
+async def _its_tab_in_front(services, ctx, reference) -> None:
+    """Front on a window laid out on a Tab not in front (a Project reopened with it on another Tab): its Tab is
+    brought forward first, the person's own Tab click, so the window can come to the front where they look. A window
+    the report does not place on a Tab, or one already on the Tab in front, is left to front as it is."""
+    from ...placement import strip
+    from ...screen import screen_of
+
+    broker = getattr(services, "workspace_tabs", None)
+    if broker is None:
+        return
+    try:
+        iid = _window_ref(ctx, reference)
+    except ToolFailed:
+        return  # the action itself says what was wrong with its window reference
+    screen = screen_of(services.hub)
+    observed = screen.observation(ctx.client) if getattr(ctx, "client", None) is not None else None
+    wire = observed.wire() if observed is not None else None
+    row = next((i for i in (wire or {}).get("items") or () if i.get("id") == iid), None)
+    tab = (((row or {}).get("view") or {}).get("arrangement") or {}).get("tab")
+    front = strip(wire).get("tab")
+    if not tab or not front or tab == front:
+        return
+    await broker(ctx, {"action": "switch", "tab": str(tab)})
+    if callable(getattr(screen, "refresh", None)):
+        await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
+
+
+async def _native_settled(services, ctx, args):
+    """A native window change, sent once more by Hooke when the screen did not show it the first time (SAME_TWICE,
+    NOT_SHOWN_YET); a second miss is said as what the screen shows, with nothing for the user to repeat."""
+    from ...screen import screen_of
+    from ..registry import CURRENT_RUN
+
+    if args.get("do") in ("front", "restore"):
+        await _its_tab_in_front(services, ctx, args.get("instance", args.get("what")))
+    try:
+        return await _native_present(services, ctx, args)
+    except ToolFailed as first:
+        run = CURRENT_RUN.get()
+        failure = (((run.outcome or {}).get("failure") or {}) if run is not None else {})
+        if args.get("do") not in SAME_TWICE or failure.get("code") not in NOT_SHOWN_YET:
+            raise
+        screen = screen_of(services.hub)
+        if callable(getattr(screen, "refresh", None)):
+            await screen.refresh(ctx.client, timeout=CAUGHT_UP_S, newer=True)
+        try:
+            return await _native_present(services, ctx, args)
+        except ToolFailed as second:
+            if args.get("do") not in SAME_TWICE:
+                raise
+            raise ToolFailed(f"{second}; it was sent twice and the screen still does not show it",
+                             next=None) from first  # no next: Hooke already tried again; nothing is the user's to repeat
+
+
 async def _native_present(services, ctx, args):
     import copy
     from dataclasses import replace
@@ -1686,7 +1762,8 @@ async def _native_present(services, ctx, args):
             # was refused "that window changed" while the first waited in the background).
             running = [prior for prior in candidates if prior.ok is None and prior.occurrence is not None
                        and prior.occurrence.request_id == occurrence.request_id]
-            owners = {prior.occurrence.action_id for prior in earlier + running}
+            # This action's own first attempt changed it too, when Hooke sends it once more (_native_settled).
+            owners = {prior.occurrence.action_id for prior in earlier + running} | {occurrence.action_id}
             for iid, state in before.items():
                 row = pinned.get(iid)
                 # Same-request successful outputs, including earlier rounds,
@@ -2223,7 +2300,7 @@ def add_present_tools(registry: Registry, services) -> None:
                     or not callable(getattr(services, "workspace_context", None))):
                 raise ToolFailed("native workspace presentations are unavailable",
                                  next="ask for an installed display capability")
-            return await _native_present(services, ctx, args)
+            return await _native_settled(services, ctx, args)
         return await act(services, args, ctx=ctx)
 
     registry.add(Tool("present", description, params, present, inline_ms=1500, family="display", verbs=VERBS))

@@ -126,7 +126,20 @@ other files.
     results"; the report shows both on that Tab, in front, side by side).
   - `beside`: side by side in this Tab with what is there, the live view included: the Tab's own Arrange (`tabs
     arrange`; the report shows no window, the floating specimen included, over a quarter of another). A new Tab has no
-    live view, so "beside the live view" names Main.
+    live view, so "beside the live view" names Main. The Arrange is sent once the report shows the new window there, and
+    again (3 at most, 1 s apart) while it still shows them overlapping (`table_window.show`, `_wait_for`, the tabs
+    broker's `_placed`); it tiles native windows with no retained resource too (the live magnifier, through its own
+    resize and move: `WorkspaceWindows.placeWindow`). will-workspace, 30 Oct: one Arrange sent before the table landed,
+    and a magnifier Arrange never moved, left "its windows still overlap; ask again".
+  - **No room beside a window is Hooke's to make** (`placement.make_room_beside`): a photo asked for beside a window
+    with no room on either side moves that window over (narrowed only when moving is not enough), each change its own
+    move or resize confirmed on screen, then opens beside it, and the answer says what it moved. Several windows and none
+    pointed at: the one in front. Only a visible area too small for both is said, plainly (will-workspace, 30 Oct:
+    "make room or select the original window" was handed to the user).
+  - **A new Tab is always made, and told apart** (`workspace_tabs.fresh_title`): `tabs create` or `new-tab` with a
+    title a Tab already has makes "Reference 2" and says so; the broker remembers the Tabs each request made, so that
+    request's next step in "Reference" is the new one; of several Tabs with one title, the one in front, else the
+    newest. Never "which one?" (will-workspace, 30 Oct).
   - `overlay`: drawn on the live specimen, outlines and layers only (`present` show), a layer named any way the screen
     names it (`e3`, `layer:e3`, `population:e3`, `m1`, `tracks:m1`; `placement.layer_of`); anything else is refused
     with what to do instead.
@@ -217,6 +230,15 @@ other files.
 - **An internal check is Hooke's to resolve, never the user's** (live 2026-10-29, 17:17-17:26: two closes, a highlight,
   a table, a researcher's graphic and the researcher's own result all said "out of date ... ask again" while the studio
   kept reporting). Each failure path is a state Hooke re-checks and recovers from itself:
+  - **A window change the screen did not show in time** (`present._native_settled`; will-leaf, 30 Oct: front on the
+    open reference photo timed out and the voice said "ask again in a moment"): a change that ends the same however often
+    it is sent (front, move, resize, pan, hide, restore, opacity) is sent once more by Hooke, after a fresh report; a
+    second miss is said as what the screen shows, with no next for the user. Front on a window laid out on a Tab not in
+    front brings that Tab forward first (`_its_tab_in_front`).
+  - **Front inside the Project workspace** (`present._window_expectations`, `completion` scope `tab-windows`): every
+    native window there lives inside `#study-artifacts` (main.ts `onPresentation`), so the stage's foreground lists only
+    `side` and `study-artifacts` and never proved a window in front. Such a front is proved by the window's order on its
+    Tab: above every window shown there, by the z the studio measured, a window opened since counted too.
   - **A report naming a window whose grant has ended** (its pin released when it closed, or never granted to this
     connection; `App._workspace_source` sets `ended`) is taken without that window (`Screen._without_sources`: complete
     false, its items, targets, edges and pointer left out), never refused whole: refusing it froze what Hooke knew of

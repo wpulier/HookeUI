@@ -1133,6 +1133,10 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  private place(root:HTMLElement,rect:Rect){
   if(root.matches('.workspace-window')&&root.dataset.studyRetained){const saved=JSON.parse(root.dataset.studyRetained) as StudyRetainedView,actual=this.opts.captureItems().find(v=>v.placementId===root.dataset.placementId);this.opts.placeItem({...saved,...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),coordinates:'stage',position:rect.slice(0,2),size:rect.slice(2)});}
+  // A native window with no retained resource (the live magnifier) has no shell of the study artifacts' own: it is
+  // placed through its own fenced resize and move, as a person's drag would (main.ts, WorkspaceWindows.placeWindow).
+  // Left out, Arrange tiled everything else and its tile still lay under it (will-workspace, 30 Oct).
+  else if(root.matches('.workspace-window')&&root.dataset.presentationId)window.dispatchEvent(new CustomEvent('workspace-place-window',{detail:{id:root.dataset.presentationId,rect:[...rect]}}));
   else studyArtifacts().place(root,rect);
  }
  private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
