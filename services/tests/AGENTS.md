@@ -843,4 +843,15 @@ isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
 
+
+`test_file_clone` exercises the native macOS clone on an isolated filesystem: replacing the source path cannot retarget its captured descriptor, and later writes/deletion remain independent. Unsupported-platform tests and injected native errors distinguish fallback from failed publication. Folder-copy tests preserve normal stream fallback, hashes and incomplete recovery; they do not certify complete collection.
+
+`test_project_numeric_integrity.py` uses synthetic measurements through actual table/derivative publication and Project snapshots. It checks superseded and current revisions, missing/changed values, relocated copies, resource/cancellation refusal and rejection of recomputed outer seals. This is retained-value integrity, not statistical accuracy or complete collection.
+
+`test_table_accepted_io.py` covers bounded refusal of FIFOs and root/descendant symlinks, replacement at open, mutation during reading and cancellation, preserving the accepted journal. These are isolated synthetic filesystem regressions.
+
+Data reader inspection-link regressions use synthetic retained sources: same-revision reports remain distinct, author/time labels require exact Project/revision/hash metadata, and opening keeps the original source and pinned report route. Actual populated browser evidence is separate.
+
+Execution-locator dependency tests preserve original workflow records while reporting their observed current revision. Later progress changes a new review, not an earlier receipt; missing or external locators cannot borrow another observed revision. These fixture tests do not certify complete collection.
+
 Working-copy restoration tests use actual isolated Project stores and immutable snapshots with synthetic material. They verify preserved identity/history, pinned export manifests, no access/registry import, stale ownership, cancellation/disk failures and same-key admission. These do not establish native chooser or complete dependency collection.

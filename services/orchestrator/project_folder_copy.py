@@ -112,6 +112,40 @@ def estimate(root: ProjectRoot, *, check=lambda: None):
             'sourceReview': review_sources(root, check=check)}
 
 
+def _copy_member(source, target, member, *, check):
+    from .file_clone import clone
+    fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or _stamp(info) != member.stamp:
+            raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
+        check()
+        cloned = clone(fd, target)
+    finally:
+        os.close(fd)
+    # Reconstruct immutable-object modes from owned layout, not arbitrary source modes.
+    immutable = re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/(?:files|arrays)/[0-9a-f]{64}\.(?:bin|json)', member.name)
+    mode = 0o400 if immutable else 0o600
+    if cloned:
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        with os.fdopen(os.open(target, flags), 'rb') as output:
+            copied = os.fstat(output.fileno())
+            if not stat.S_ISREG(copied.st_mode) or (copied.st_dev, copied.st_ino) == (info.st_dev, info.st_ino):
+                raise ProjectLocationError('A Project copy must have independent regular files')
+            size, digest = _stream(source, member.stamp, check=check)
+            os.fchmod(output.fileno(), mode)
+            os.fsync(output.fileno())
+    else:
+        with target.open('xb') as output:
+            size, digest = _stream(source, member.stamp, output, check)
+            output.flush()
+            os.fchmod(output.fileno(), mode)
+            os.fsync(output.fileno())
+    if _stream(target, check=check) != (size, digest):
+        raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
+    return size, digest
+
+
 def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
     """Copy to a new directory, retaining an explicit incomplete marker on failure.
 
@@ -201,17 +235,7 @@ def _copy_visible(root, destination, *, check, restored_from=None):
         check()
         target = destination / member.name
         target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open('xb') as output:
-            size, digest = _stream(root.path / member.name, member.stamp, output, check)
-            # Immutable scientific objects must remain eligible for retained-source
-            # intake after restore. Older snapshots lost this mode, so reconstruct
-            # it from the store-owned object layout, not arbitrary source modes.
-            immutable = re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/(?:files|arrays)/[0-9a-f]{64}\.(?:bin|json)', member.name)
-            output.flush()
-            os.fchmod(output.fileno(), 0o400 if immutable else 0o600)
-            os.fsync(output.fileno())
-        if _stream(target, check=check) != (size, digest):
-            raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
+        size, digest = _copy_member(root.path / member.name, target, member, check=check)
         entries.append({'path': member.name, 'bytes': size, 'sha256': digest})
     current_directories = []
     if _members(root.path, check, current_directories) != members or current_directories != directories:

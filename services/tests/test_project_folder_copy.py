@@ -61,6 +61,34 @@ def test_active_writer_refuses_copy_without_creating_destination(tmp_path):
     assert not (tmp_path / 'Refused').exists()
 
 
+def test_unsupported_clone_keeps_verified_stream_copy(tmp_path, monkeypatch):
+    monkeypatch.setattr('orchestrator.file_clone.clone', lambda *args: False)
+    root, _, first, _ = setup(tmp_path)
+    copied = copy_snapshot(root, tmp_path / 'Stream copy')
+    assert verify_snapshot(copied.path)['files'] > 0
+    assert ProjectRepository(copied).read(first.id, 1) == first
+    source, target = root.path / 'inputs/material.bin', copied.path / 'inputs/material.bin'
+    assert source.stat().st_ino != target.stat().st_ino
+    source.write_bytes(b'original changed later')
+    assert target.read_bytes() == b'original imported bytes'
+
+
+def test_clone_storage_failure_leaves_incomplete_copy(tmp_path, monkeypatch):
+    import errno
+    def fail(*args):
+        raise OSError(errno.ENOSPC, 'injected clone allocation failure')
+    monkeypatch.setattr('orchestrator.file_clone.clone', fail)
+    root, repo, *_ = setup(tmp_path)
+    original = repo.events()
+    destination = tmp_path / 'Failed clone'
+    with pytest.raises(OSError, match='allocation failure'):
+        copy_snapshot(root, destination)
+    assert (destination / COPY_INTENT).exists()
+    assert repo.events() == original
+    with pytest.raises(ProjectLocationError, match='incomplete'):
+        ProjectRoot.open(destination)
+
+
 def test_fresh_project_empty_storage_and_read_only_media(tmp_path):
     prefs = Prefs(tmp_path / 'host')
     root = create(tmp_path / 'Projects', 'Empty', session='2026-10-29', host_preferences=prefs)
