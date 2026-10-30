@@ -46,3 +46,23 @@ test('researcher Tabs join the Assistant\'s Tab report; while one is in front no
  const result=await current.agentCommand('p',{action:'list'});
  expect(result.tabs.map((t:{id:string;selected:boolean;open:boolean})=>`${t.id}:${t.selected}:${t.open}`)).toEqual(['main:false:true','research:r1:true:true','research:r2:false:false']);
 });
+
+test('the Assistant opens one saved item in a Tab of its own the way Open in new Tab does (a document: documents.py)',async()=>{
+ const {current}=fixture();
+ current.openReaderTab=vi.fn(async(item:{resource:{id:string}})=>{current.layout.views.push({id:'reader-1',title:'Findings',kind:'reader',specimen:{visible:false,rect:null},items:[item],notes:[]});current.openIds.push('reader-1');current.layout.active='reader-1';return true;});
+ const result=await current.agentCommand('p',{action:'reader',item:{resource:{day:'p',id:'d7',version:null},title:'Interesting findings so far'}});
+ expect(result.ok).toBe(true);
+ expect(current.openReaderTab).toHaveBeenCalledWith({resource:{day:'p',id:'d7',version:null},title:'Interesting findings so far'},{session:'p',generation:1});
+ expect(result.tabs.find((t:{id:string})=>t.id==='reader-1')).toMatchObject({kind:'reader',selected:true});
+ // Another Project's item, or none, is refused, and nothing opens.
+ current.openReaderTab.mockClear();
+ for(const item of [{resource:{day:'other',id:'d7',version:null},title:'x'},undefined]){
+  const refused=await current.agentCommand('p',{action:'reader',item});
+  expect(refused.ok).toBe(false);
+ }
+ expect(current.openReaderTab).not.toHaveBeenCalled();
+ // A Tab that does not open is said, never taken as shown.
+ current.openReaderTab=vi.fn(async()=>false);
+ const failed=await current.agentCommand('p',{action:'reader',item:{resource:{day:'p',id:'d8',version:null},title:'Other'}});
+ expect(failed).toEqual({ok:false,error:'Its Tab did not open. Open it from Data.'});
+});

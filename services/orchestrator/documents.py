@@ -190,8 +190,8 @@ Write only what the records say. Rules:
 - Say who found what: what Hooke measured, outlined or counted (and with which model, when the record says), what a
   researcher reported (by its name: "Researcher 2 reported..."), where a reference photo came from (its site, and its
   licence when the record has it). A name the record marks as not sure stays not sure.
-- In the text, refer to records by what they are ("the 142 cells outlined", "Researcher 1's notes"), never by their
-  ids: ids go only in cites.
+- In the text, refer to records and things by what they are ("the 142 cells outlined", "the stoma measured",
+  "Researcher 1's notes"), never by Hooke's ids (e3, d5, o3, c12...): ids go only in cites.
 - Choose what is interesting for what was asked and order it so it reads well: 1 to {SECTIONS_MAX} sections, each with a
   heading and one to four short paragraphs. Plain text, no Markdown.
 - {named}

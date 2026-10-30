@@ -192,10 +192,12 @@ body[data-workspace-study='true'] .rd-src-w > .rd-src-line { color: var(--mm-tex
 body[data-workspace-study='true'] .rd-src-line .rd-src-site { color: var(--mm-text-3); }
 body[data-workspace-study='true'] .rd-src-cited { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 body[data-workspace-study='true'] .rd-src-cited:hover, body[data-workspace-study='true'] .rd-src-line .rd-src-site:hover { color: var(--mm-text-2); text-decoration: underline; }
-/* A document the Assistant wrote (documents.py): under each paragraph, the records it cites, each opening here. */
-body[data-workspace-study='true'] .rd-doc > .rd-doc-from { margin: -4px 0 12px; font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); }
-body[data-workspace-study='true'] .rd-doc-cite { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--mm-line-strong); }
-body[data-workspace-study='true'] .rd-doc-cite:hover { color: var(--mm-text-2); }
+/* A document the Assistant wrote (documents.py): under each paragraph, the records it cites, in the page's byline type,
+   each opening here. */
+body[data-workspace-study='true'] .data-reader .page .rd-doc > p.rd-doc-from { margin: -0.6cqw 0 1.6cqw; font: 400 2cqw/1.33 var(--mm-sans); color: var(--s-muted); }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-cite { margin: 0; padding: 0; border: 0; background: transparent; color: var(--s-link); font: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--s-line); text-underline-offset: 2px; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-cite:hover { text-decoration-color: currentColor; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc > p.rd-note { margin: 2.6cqw 0 0; font: 400 2cqw/1.33 var(--mm-sans); color: var(--s-muted); }
 /* Its versions in How it was made: each a press that shows it on the page. */
 body[data-workspace-study='true'] .rd-ver-pick { margin: 0 0 0 -6px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
 body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hover); color: var(--mm-text); }

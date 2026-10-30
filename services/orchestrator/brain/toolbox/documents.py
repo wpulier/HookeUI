@@ -14,7 +14,7 @@ from .resources import require_current
 
 def add_document_tools(registry: Registry, services) -> None:
     hub = services.hub
-    if services.day is None or getattr(hub, "resources", None) is None:
+    if services.day is None:  # a Project's records, and where it is kept
         return
 
     async def write_document(ctx: ToolContext, args: dict) -> str:
@@ -58,8 +58,7 @@ def add_document_tools(registry: Registry, services) -> None:
         if run is not None and run.tool == "write_document":  # its own run's result, kept once (resources.from_run)
             attach(values=values)
             kept = results.from_run(run, ctx, hub, produced=True)
-            if run is not None:
-                run.report_progress(None)
+            run.report_progress(None)
         else:  # run some other way (a test's direct call): kept as its run would keep it
             kept = results.add("write_document", {"about": asked}, documents.written_words(doc, found),
                                values=values, request=getattr(ctx, "question", "") or "",
@@ -87,18 +86,16 @@ def add_document_tools(registry: Registry, services) -> None:
 
     registry.add(Tool(
         "write_document", "Write a document from what this Project already has, as the user asks (\"write out the "
-        "interesting findings so far\", \"write up what we measured\"): its measurements, outlines and counts, the names "
-        "given, reference photos with their sources, the scale and the researchers' findings, each paragraph citing the "
-        "records it comes from; never anything they do not say. It is saved in Data (Write-ups). open: true when the "
-        "user asks to see it (\"open it in a new tab\"); placement new-tab (a Tab of its own, the default) or beside "
-        "(the reader on the right of the Tab in front). Done once the screen shows it. Only when the user asks for a "
-        "document; a deep report that reads the web is a researcher's (start_researcher).",
+        "interesting findings so far\"): its measurements, outlines, counts, names, reference photos with their sources, "
+        "the scale and the researchers' findings, each paragraph citing its records; nothing they do not say. Saved in "
+        "Data (Write-ups). open: true when the user asks to see it; placement new-tab (a Tab of its own, the default) or "
+        "beside (the reader on the right). Done once the screen shows it. Only when asked for a document; a deep report "
+        "that reads the web is start_researcher's.",
         schema({"about": {"type": "string", "maxLength": 600,
                           "description": "what to write, in the user's words (\"the interesting findings so far\")"},
                 "title": {"type": "string", "maxLength": 120, "description": "a title the user gave"},
                 "open": {"type": "boolean", "description": "open it once saved (the user asked to see or open it)"},
-                "placement": {"type": "string", "enum": list(("new-tab", "beside")),
-                              "description": "with open: new-tab (a Tab of its own, the default) or beside (the reader "
-                                             "on the right of the Tab in front)"},
+                "placement": {"type": "string", "enum": ["new-tab", "beside"],
+                              "description": "with open: where it goes (default new-tab)"},
                 "tab": {"type": "string", "maxLength": 80, "description": "with open: a name for its Tab"}}),
         write_document, kind="effect", inline_ms=1500, family="results"))

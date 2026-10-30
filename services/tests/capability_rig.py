@@ -113,6 +113,12 @@ class Rig:
         one stoma where it is, an answer, a fit."""
         if "<answer-facts" in prompt or "Original request and completed receipts" in prompt:
             return {"answer": "Done what the receipts say.", "actions": [], "observation_scope": "none", "input_refs": []}
+        if prompt.startswith("You write a short document for a scientist"):  # write_document: one record cited
+            import re
+
+            cited = re.findall(r"^\[([^\]]+)\]", prompt, re.M)[:1]
+            return {"title": "Findings", "sections": [{"heading": "What was found", "paragraphs": [
+                {"text": "What the newest record says.", "cites": cited}]}]}
         plan = PLAN.get()
         if plan is not None and FAST_QUESTION.search(prompt) and "First, what are" in prompt:
             return {"intent": "request", "needs_look": False, "answer": "On it.", "actions": plan,

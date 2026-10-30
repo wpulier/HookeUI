@@ -123,6 +123,13 @@ other files.
   window, replace, close, only; the words in each tool's description), and its receipt says where the screen shows it
   ('Tab "Cell results" in front holds the cells' outlines on their capture, with its table beside them'), never an
   internal word. A video or web page from the web is `show_web` (a checked search, a sandboxed window).
+- **A document of the findings** (`write_document`, `brain/toolbox/documents.py`, `orchestrator/documents.py`; W5):
+  "write out the interesting findings so far, save that doc, and open it in a new tab" is one tool. Code gives the
+  brain's own model the Project's records (ids, what made them, their numbers; researchers' and the web's words in the
+  untrusted block), the model writes the prose with each paragraph's citations, and code keeps only paragraphs citing a
+  record of this Project before saving it under Write-ups. Opened when asked, in a Tab of its own by default, done once
+  the studio shows it (docs/architecture/on-screen.md "Documents"). Only on an explicit request (a large deliverable,
+  below); a deep report that reads the web stays a researcher's.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

@@ -2133,6 +2133,28 @@
       ]
     },
     {
+      "id": "write-document",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Write up the findings",
+      "what": "Writes a document from the Project's records, each paragraph cited",
+      "how": {
+        "tool": "write_document",
+        "say": "write out the interesting findings so far and open it in a new tab"
+      },
+      "evidence": [
+        "services/tests/test_documents.py"
+      ],
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "resources",
+        "day",
+        "workspace-tabs"
+      ]
+    },
+    {
       "id": "inspect-camera",
       "family": "memory",
       "actor": "agent",

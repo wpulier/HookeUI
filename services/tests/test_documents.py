@@ -181,7 +181,7 @@ def test_the_facts_are_the_records_with_what_is_not_the_apps_own_kept_apart():
     head, wrapped = text.split('<records source="records" untrusted="true">')
     assert 'virus' not in head and 'virus' in wrapped, 'untrusted words only inside the block'
     assert '[d4] Count · 14:02' in head and 'interesting findings so far' in head
-    assert 'cites' in head and 'never by their' in head
+    assert 'cites' in head and "never by Hooke's ids" in head
 
 
 def test_code_checks_every_paragraph_cites_a_record_and_names_records_plainly():

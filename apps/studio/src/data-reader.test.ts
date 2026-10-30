@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { DataReader, byLine, countWords, howRows, kindWord, makerOf, readerShape, readerTitle, readerWidth, researcherOf, sameItem, sourcesItem, switchLabel, thingView, windowRows, workOf,
+import { DataReader, byLine, countWords, howRows, kindWord, makerOf, readerDocument, readerShape, readerTitle, readerWidth, researcherOf, sameItem, sourcesItem, switchLabel, thingView, windowRows, workOf,
   type ReaderDeps, type ReaderEntry, type ReaderPage } from './data-reader';
 import { syntheticDOM, TestElement } from './workspace-windows.test-support';
 
@@ -28,6 +28,17 @@ describe('what the reader shows for each kind', () => {
     expect(readerShape(entry({ kind: 'asset', asset: { kind: 'recording' } as ReaderEntry['asset'] }))).toBe('recording');
     expect(readerShape(entry({ kind: 'asset', asset: { kind: 'still' } as ReaderEntry['asset'] }))).toBe('picture');
     expect(readerShape(entry({ kind: 'bookmark' }))).toBe('other');
+    // A document the Assistant wrote from the Project's records (documents.py): its own renderer, a Document.
+    expect(readerShape(entry({ kind: 'result', media: 'document' }))).toBe('document');
+    expect([kindWord(entry({ kind: 'result', media: 'document' })), thingView(entry({ kind: 'result', media: 'document' }))]).toEqual(['Document', 'Document']);
+  });
+  it('reads a document’s sections leniently, each paragraph with the records it cites', () => {
+    expect(readerDocument({ values: { leftOut: { paragraphs: 2 }, document: { title: 'Findings', sections: [
+      { heading: 'Cells', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }, { title: 'no id' }] }, { text: '' }] },
+      { heading: 'Empty', paragraphs: [] }, 'not a section'] } } })).toEqual({ title: 'Findings', leftOut: 2, sections: [
+      { heading: 'Cells', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }] }] }] });
+    expect(readerDocument({ values: { title: 'no document' } })).toBeNull();
+    expect(readerDocument(undefined)).toBeNull();
   });
   it('names the kind and the first view as the mock does: Outlines, Table, Page for a write-up, Source for a source', () => {
     expect([kindWord(entry({})), thingView(entry({}))]).toEqual(['Outlines', 'Outlines']);
@@ -186,6 +197,26 @@ describe('the reader on screen', () => {
     root.querySelector('.rd-edit')!.dispatchEvent(new Event('click'));
     expect(editNote).toHaveBeenCalledWith(note);
     expect(root.querySelector('.rd-by')!.textContent).toMatch(/^Note · You/);
+  });
+  it('draws a document on its page, each paragraph’s records by name, each opening here', async () => {
+    mount();
+    const values = { leftOut: { paragraphs: 1 }, document: { title: 'Interesting findings so far', sections: [
+      { heading: 'What was measured', paragraphs: [{ text: 'There are 142 cells.', cites: [{ id: 'd4', day: 'p', title: 'Count · 14:02' }, { id: 'r1', title: 'Researcher 1’s notes' }] }] }] } };
+    const fetch = vi.fn(async (_url: string) => ({ ok: true, json: async () => ({ entry: {}, detail: { text: 'its text', values } }) }));
+    vi.stubGlobal('fetch', fetch);
+    const open = vi.fn(), reader = new DataReader(deps({ open }), 'tab'), root = reader.root as unknown as TestElement;
+    reader.show(entry({ id: 'd7', kind: 'result', media: 'document', title: 'Document · 14:05', day: 'p', version: undefined, untrusted: true }));
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    expect(root.dataset.displayState).toBe('rendered');
+    expect(String(fetch.mock.calls[0][0])).toMatch(/^\/api\/resources\/d7\?day=p/);
+    const page = root.querySelector('.rd-doc')!;
+    expect(page.querySelector('h2')!.textContent).toBe('Interesting findings so far');
+    expect(page.querySelectorAll('h3').map((h) => h.textContent)).toEqual(['What was measured']);
+    expect(page.querySelectorAll('.rd-doc-cite').map((c) => c.textContent)).toEqual(['Count', 'Researcher 1’s notes']);
+    expect(page.querySelector('.rd-doc-from')!.textContent).toBe('From Count and Researcher 1’s notes');
+    page.querySelectorAll('.rd-doc-cite')[1].dispatchEvent(new Event('click'));
+    expect(open).toHaveBeenCalledWith({ id: 'r1', day: 'p' });
+    expect(texts(page, 'rd-note')).toEqual(['Left out: 1 paragraph that cited no record of this Project.']);
   });
   it('in a reader Tab keeps only its views, Talk and ⋯ (its title is on the Stage bar; no × and no Open in new Tab)', () => {
     mount();

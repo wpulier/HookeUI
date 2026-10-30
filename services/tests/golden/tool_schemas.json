@@ -2352,6 +2352,45 @@
   }
  },
  {
+  "description": "Write a document from what this Project already has, as the user asks (\"write out the interesting findings so far\"): its measurements, outlines, counts, names, reference photos with their sources, the scale and the researchers' findings, each paragraph citing its records; nothing they do not say. Saved in Data (Write-ups). open: true when the user asks to see it; placement new-tab (a Tab of its own, the default) or beside (the reader on the right). Done once the screen shows it. Only when asked for a document; a deep report that reads the web is start_researcher's.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "write_document",
+  "params": {
+   "properties": {
+    "about": {
+     "description": "what to write, in the user's words (\"the interesting findings so far\")",
+     "maxLength": 600,
+     "type": "string"
+    },
+    "open": {
+     "description": "open it once saved (the user asked to see or open it)",
+     "type": "boolean"
+    },
+    "placement": {
+     "description": "with open: where it goes (default new-tab)",
+     "enum": [
+      "new-tab",
+      "beside"
+     ],
+     "type": "string"
+    },
+    "tab": {
+     "description": "with open: a name for its Tab",
+     "maxLength": 80,
+     "type": "string"
+    },
+    "title": {
+     "description": "a title the user gave",
+     "maxLength": 120,
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
   "description": "Pool explicitly selected saved measurement sources into a retained editable table. Source revisions must come from resources; never substitute current data. Changes saved work only on the user\u2019s request. Sources retain their own units; incompatible units refuse.",
   "inline_ms": 1500,
   "kind": "effect",

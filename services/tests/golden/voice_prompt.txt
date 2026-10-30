@@ -128,6 +128,7 @@ Results: show, read, step through and close a researcher's work
 - record how the user did on a lesson or quiz step once you have judged their answer: right, wrong, or skipped (they moved on without answering)
 - close the researcher's work on screen (it can be reopened)
 - "Show me what it found": shows a researcher's finding on screen from the session's records it rests on, to open with present as beats; stop=true ends it ("stop", "put it back"), putting back only what it changed
+- write a document from what this Project already has, as the user asks ("write out the interesting findings so far"): its measurements, outlines, counts, names, reference photos with their sources, the scale and the researchers' findings, each paragraph citing its records; nothing they do not say
 
 ## Delegate to the backend when the user
 - wants something done on the view or the screen: highlight, magnify or zoom, compare, count,

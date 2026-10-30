@@ -170,6 +170,9 @@ PLANS: dict[str, Plan] = {
     "snapshot": Plan("save this view", [("snapshot", {})]),
     "seen-before": Plan("have we seen this before?", [("seen_before", {})], ("outline", "seen")),
     "what-data": Plan("what data do we have?", [("resources", {})]),
+    # Written by the brain's own model from the Project's records (a count made first), kept under Write-ups.
+    "write-document": Plan("write out the interesting findings so far", [
+        ("write_document", {"about": "the interesting findings so far"})], before=[("count", {"label": "stoma"})]),
     "inspect-camera": Plan("compare this view with the saved picture", [("inspect_camera", {})]),
     "how-known": Plan("how do you know it's a stoma?", [("resources", {"id": O1})], ("outline",)),
     "user-annotation": Plan("keep this as my tentative observation", [("annotate_resource", {"text": "two guard cells"})],
