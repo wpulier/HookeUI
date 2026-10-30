@@ -11,6 +11,7 @@ import pytest
 from orchestrator.datatables import DataTableRefused
 from orchestrator.table_reading import read_accepted
 from tests.test_project_table_routing import project
+from tests.waiting import HANG_S
 
 
 def saved(project):
@@ -42,7 +43,7 @@ sys.exit(1)
 '''
     result = subprocess.run([sys.executable, '-c', code, str(root), json.dumps(record), session],
         env={**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[1])},
-        capture_output=True, timeout=5)
+        capture_output=True, timeout=HANG_S)
     assert result.returncode == 0, result.stderr.decode()
     assert app.day.journal.path.read_bytes() == journal
 
