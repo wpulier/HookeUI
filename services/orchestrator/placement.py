@@ -366,9 +366,12 @@ def window_id(item: dict) -> str:
 
 def located(tabs, what: str) -> list[tuple[dict, dict]]:
     """Every (work Tab, item) of a `tabs list` that holds `what`: by its placement, its window or the Data item it
-    shows. A researcher's or reader Tab keeps its own work and is never where a window is put."""
+    shows; else, when exactly one item is of that kind or has that title ("the magnifier"), that one (will-tabs, 30 Oct:
+    "move that enlargement into a new tab" named the magnifier by its kind, and was looked for in Data). A researcher's
+    or reader Tab keeps its own work and is never where a window is put."""
     names = {what, what.removeprefix("document:")}
-    out = []
+    out, by_kind = [], []
+    said = " ".join(str(what).split()).casefold()
     for tab in tabs or ():
         if (tab.get("kind") or "work") != "work":
             continue
@@ -377,7 +380,10 @@ def located(tabs, what: str) -> list[tuple[dict, dict]]:
                    (item.get("resource") or {}).get("id")} - {None, "", "document:None"}
             if names & ids:
                 out.append((tab, item))
-    return out
+            elif said and said in {str(item.get("kind") or "").casefold(),
+                                   " ".join(str(item.get("title") or "").split()).casefold()}:
+                by_kind.append((tab, item))
+    return out or (by_kind if len(by_kind) == 1 else [])
 
 
 async def _saved(services, what: str):

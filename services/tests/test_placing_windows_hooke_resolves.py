@@ -492,3 +492,18 @@ def test_them_with_nothing_named_is_what_this_request_made():
     steps.outputs[5] = [out({"kind": "resource", "resource": {"day": "p", "id": "d5", "version": None}})]
     ctx = SimpleNamespace(step=4, steps=steps)
     assert request_made(ctx) == ["d1", "d2", "w-9"], "earlier steps only; a shown one by its window"
+
+
+def test_a_window_named_by_its_kind_is_the_one_of_that_kind():
+    """will-tabs, 30 Oct: "move that new enlargement into a new tab" named the window "magnifier", its kind, and was
+    looked for in Data. The one item of that kind (or title) on the Tabs is the one meant; two of a kind are not
+    guessed between."""
+    from orchestrator.placement import located
+
+    tabs = [{"id": "main", "kind": "work", "items": [
+        {"placement": "f9", "kind": "magnifier", "title": "the stoma · live magnification", "window": "w-2"},
+        {"placement": "a1", "kind": "table", "title": "Cell outlines", "resource": {"id": "e1"}}]}]
+    assert [i["window"] for _, i in located(tabs, "magnifier")] == ["w-2"]
+    assert [i["placement"] for _, i in located(tabs, "Cell outlines")] == ["a1"]
+    tabs[0]["items"].append({"placement": "f8", "kind": "magnifier", "window": "w-3"})
+    assert located(tabs, "magnifier") == []
