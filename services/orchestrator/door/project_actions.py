@@ -136,16 +136,10 @@ async def run(built, record, progress):
             value = inspect(built.hub.resources.projects, project, check=check)
             validate(value, 'project-dependencies')
             return value
-        task = asyncio.create_task(asyncio.to_thread(review))
-        try:
-            value = await asyncio.shield(task)
-        except asyncio.CancelledError:
+        def cancel():
             record['state'] = 'cancelRequested'
-            try:
-                await task
-            except (ValueError, OSError, Refused):
-                pass
-            raise
+        from ..scientific_project_api import _owned
+        value = await _owned(review, on_cancel=cancel)
         check()
         result = {'dependencies': value}
     elif name == 'project.state':

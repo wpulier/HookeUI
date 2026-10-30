@@ -12,7 +12,7 @@ from tests.test_project_folder_copy import setup
 from tests.test_project_record_dependencies import study
 from tests.test_agent_projects import project_door, run, STUDIO
 from tests.test_agent_door import connect, bearer, window_key  # noqa: F401
-from tests.waiting import until
+from tests.waiting import until, HANG_S
 
 
 def test_available_review_keeps_exact_heads_and_never_changes_history(tmp_path):
@@ -89,7 +89,7 @@ def test_reader_revoked_during_review_does_not_receive_results(project_door, mon
     original = project_dependency_access.inspect
     def held(*args, **kwargs):
         entered.set()
-        assert resume.wait(5), 'test release did not arrive'
+        assert resume.wait(HANG_S), 'test release did not arrive'
         return original(*args, **kwargs)
     monkeypatch.setattr(project_dependency_access, 'inspect', held)
     request = {'tool': 'project.dependencies', 'args': {}, 'project': session, 'requestKey': 'reader-inspection'}
@@ -97,7 +97,7 @@ def test_reader_revoked_during_review_does_not_receive_results(project_door, mon
     assert response.status_code == 202
     op = response.json()['operation']['id']
     try:
-        assert entered.wait(5)
+        assert entered.wait(HANG_S)
         assert client.post('/api/agent-project-access', headers=STUDIO, json={**grant, 'role': None}).status_code == 200
     finally:
         resume.set()
@@ -120,7 +120,7 @@ def test_cancellation_waits_for_read_worker_to_stop(project_door, monkeypatch):
     def held(*args, **kwargs):
         try:
             entered.set()
-            assert resume.wait(5)
+            assert resume.wait(HANG_S)
             return original(*args, **kwargs)
         finally:
             exited.set()
@@ -130,9 +130,13 @@ def test_cancellation_waits_for_read_worker_to_stop(project_door, monkeypatch):
     assert response.status_code == 202
     op = response.json()['operation']['id']
     try:
-        assert entered.wait(5)
+        assert entered.wait(HANG_S)
         stop = client.post('/api/agent/v1/operations/' + op + '/cancel', headers=headers)
         assert stop.status_code == 200 and not exited.is_set()
+        again = client.post('/api/agent/v1/operations/' + op + '/cancel', headers=headers)
+        assert again.status_code == 200
+        current = client.get('/api/agent/v1/operations/' + op, headers=headers).json()['operation']
+        assert current['state'] == 'cancelRequested' and not exited.is_set()
     finally:
         resume.set()
     def ended():
