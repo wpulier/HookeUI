@@ -1418,7 +1418,7 @@
       "family": "magnifier",
       "actor": "agent",
       "title": "Compare named models",
-      "what": "Runs the models you name on one view, side by side",
+      "what": "Runs two to six models you name on one input",
       "how": {
         "tool": "compare_models",
         "say": "compare EdgeTAM and SAM 2.1 on that"
@@ -1430,7 +1430,32 @@
       "parts": [
         "runner",
         "comparison",
+        "model-comparison",
         "magnifier"
+      ]
+    },
+    {
+      "id": "compare-classifiers",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Compare classifying models",
+      "what": "Several models name the same cells; agreement, counts, time, cost",
+      "how": {
+        "tool": "compare_models",
+        "args": {
+          "operation": "classify"
+        },
+        "say": "compare Gemini, GPT and MedSigLIP at classifying these cells"
+      },
+      "evidence": [
+        "services/tests/test_classify_comparison.py"
+      ],
+      "parts": [
+        "runner",
+        "classify",
+        "model-comparison",
+        "evidence",
+        "resources"
       ]
     },
     {
@@ -2777,6 +2802,31 @@
         "slide-tracker",
         "runner",
         "motion-tracks"
+      ]
+    },
+    {
+      "id": "research-classify",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Compare classifiers for itself",
+      "what": "Runs several classifying models on cells and compares their records",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher run five classifying models on these cells and compare them"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_classify_comparison.py"
+      ],
+      "parts": [
+        "research-worker",
+        "research-hands",
+        "runner",
+        "classify",
+        "model-comparison",
+        "resources"
       ]
     },
     {
@@ -5505,6 +5555,20 @@
       "kind": "app",
       "purpose": "Draws what named models made side by side and measures how they agree",
       "source": "services/orchestrator/comparing.py"
+    },
+    {
+      "id": "model-comparison",
+      "title": "N-model comparison",
+      "kind": "app",
+      "purpose": "Compares two to six models' runs on the same input from their records: one table",
+      "source": "services/orchestrator/model_comparison.py"
+    },
+    {
+      "id": "classify",
+      "title": "Classifying",
+      "kind": "app",
+      "purpose": "Each vision model or MedSigLIP names a population's cells from the same classes",
+      "source": "services/orchestrator/classify.py"
     },
     {
       "id": "resources",

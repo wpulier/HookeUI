@@ -329,6 +329,36 @@ def test_same_grid_branches_compare_through_existing_method_service(web):
     assert saved.document['kind']=='scientific-method-comparison'
 
 
+def test_a_comparison_step_takes_up_to_six_branches_each_an_arm(web):
+    """Part 2.5, W5: N models compared; the workflow's comparison step takes two to six fixed branches (arms A to F)
+    through the same method service, and only a comparison step takes more than three inputs."""
+    from orchestrator.workflow_execution import starter
+    from orchestrator.workflow_service import service as shared
+    from orchestrator.workflows import graph as checked
+    client,built=web;runner=shared(built.hub,built.day);w=runner.workflows;s=native_input(w,built.day.sid)
+    g=starter();first=g['nodes'][0];branches=[]
+    for n,area in enumerate((1,5,25,60,120)):
+        b=copy.deepcopy(first);b.update(id=f'branch{n}',name=f'Regions at least {area} px');b['settings']['parameters']['min_area']=area
+        branches.append(b)
+    g['nodes']=[*branches,{'id':'compare','name':'Compare five','kind':'compare','needs':[b['id'] for b in branches],'settings':{}}]
+    d=w.create('Compare five',g,'c'*32);r=w.start(d.id,1,s.session,[identity(s)],'d'*32,actor='studio')
+    for _ in range(6):
+        claim=w.claim(r.id,s.session);assert claim
+        w.finish(claim,runner.steps.execute(claim))
+    state=w.status(r.id,s.session)
+    assert state['status']=='completed'
+    output=next(a['output'] for a in state['attempts'] if a['node']=='compare')
+    saved=w.store.read(output['id'],s.session)
+    assert [arm['id'] for arm in saved.document['state']['methodEvidence']['arms']]==list('abcde')
+    assert [row['id'] for row in saved.document['state']['methodSummary']['arms']]==list('abcde')
+    seven=copy.deepcopy(g);extra=[copy.deepcopy(first) for _ in range(2)]
+    for n,b in enumerate(extra):b['id']=f'more{n}'
+    seven['nodes']=[*branches,*extra,{**g['nodes'][-1],'needs':[*[b['id'] for b in branches],'more0','more1']}]
+    with pytest.raises(InvalidProject):checked(seven)
+    four=copy.deepcopy(g);four['nodes'][-1]={**four['nodes'][-1],'kind':'review','needs':[b['id'] for b in branches[:4]]}
+    with pytest.raises(InvalidProject):checked(four)
+
+
 def test_run_continues_after_origin_project_switch_and_duplicate_dispatch(web):
     import asyncio
     from orchestrator.workflow_execution import starter

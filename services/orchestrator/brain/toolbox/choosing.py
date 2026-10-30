@@ -440,7 +440,7 @@ def add_choosing_tools(registry: Registry, services) -> None:
 
         compare_ids = [i for i in names.choosable_ids()
                        if any(names.resolve(o, i) for o in model_comparison.OPERATIONS)]
-        registry.add(Tool("compare_models", f"Run the models the user names (two to {model_comparison.MAX_MODELS}) on "
+        registry.add(Tool("compare_models", "Run the models the user names (two to six) on "
                           "the same input, side by side, measured from each run's record (\"compare EdgeTAM and SAM 3.1 "
                           "on that\", \"compare five classifiers on these cells\"); not the blind test. classify: each "
                           "model names every cell of a population (of; the cells shown if none) from `classes` (else the "

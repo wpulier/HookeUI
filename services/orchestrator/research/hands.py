@@ -392,8 +392,9 @@ class Hands:
                 "ran": {"models": [i.id for i in chosen.impls], "of": population.id, "executions": executions},
                 "values": {"comparison": compact},
                 "words": (f"classified {record['on']['members']} of {population.title}'s cells ({population.id}) with "
-                          f"{len(chosen.impls)} models and kept the comparison ({entry['id']}): {words}"
-                          + (f" Not compared: {left}." if left else ""))}
+                          f"{len(chosen.impls)} models and kept the comparison ({entry['id']}): "
+                          f"{model_comparison.headline(record)}" + (f"; not compared: {left}" if left else "")
+                          + ". Its numbers are in the entry")}
 
     async def _measure(self, session, selection, attempt):
         """The same accepted-label measurement as Studio/Ask, scoped to this research run."""

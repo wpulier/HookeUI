@@ -227,7 +227,7 @@
   "kind": "effect",
   "name": "use",
   "params": {
-   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click | think: claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | look_hard: gemini-4-argon = Gemini 4 Argon; claude-opus-5-5 = Claude Opus 5.5. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot and think and look_hard: from now on only (set_default).",
+   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | classify: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); gemini-4-argon = Gemini 4 Argon; medsiglip-448 = MedSigLIP 448 | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click | think: claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | look_hard: gemini-4-argon = Gemini 4 Argon; claude-opus-5-5 = Claude Opus 5.5. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot and think and look_hard: from now on only (set_default).",
    "properties": {
     "by": {
      "description": "who chose it: the user named it, or you did",
@@ -266,6 +266,7 @@
       "claude-opus-5-5",
       "claude-opus-5-5-fast",
       "gemini-4-argon",
+      "medsiglip-448",
       "off",
       "check",
       "fix",
@@ -283,6 +284,7 @@
       "cells",
       "find-like",
       "looks",
+      "classify",
       "vision",
       "fast",
       "outline_check",
@@ -306,12 +308,20 @@
   }
  },
  {
-  "description": "Run the models the user names on one view, side by side, measured (\"compare EdgeTAM and SAM 3.1 on that\"); not the blind test. Then keep=<one of them> puts that one's result on the board (\"keep the SAM 2.1 one\").",
+  "description": "Run the models the user names (two to six) on the same input, side by side, measured from each run's record (\"compare EdgeTAM and SAM 3.1 on that\", \"compare five classifiers on these cells\"); not the blind test. classify: each model names every cell of a population (of; the cells shown if none) from `classes` (else the specimen's list, else in its own words), and the comparison says how often they agree, each one's counts per class, time and cost. The comparison is kept as a table in Data; `placement` shows it (classify: beside by default). Then keep=<one of them> puts that one's outline or cells on the board (\"keep the SAM 2.1 one\").",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "compare_models",
   "params": {
    "properties": {
+    "classes": {
+     "description": "classify: the classes to name each cell from, as the user said them",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 24,
+     "type": "array"
+    },
     "comparison": {
      "description": "Exact comparison id when keeping a result from the Studio",
      "type": "string"
@@ -335,10 +345,22 @@
        "cellpose-sam-tuned",
        "fiji-analyze-particles",
        "basic-bright-objects",
-       "edgetam-automask"
+       "edgetam-automask",
+       "gemini-3.8-flash",
+       "gemini-3.8-flash-hires",
+       "gemini-3.5-flash-lite",
+       "gemini-3.5-flash",
+       "gpt-5.6-luna-priority",
+       "gpt-6-luna",
+       "gpt-6.1-sol",
+       "claude-opus-5-5",
+       "claude-opus-5-5-fast",
+       "gemini-4-argon",
+       "medsiglip-448"
       ],
       "type": "string"
      },
+     "maxItems": 8,
      "type": "array"
     },
     "input": {
@@ -355,11 +377,27 @@
     "object": {
      "type": "string"
     },
+    "of": {
+     "description": "cells or classify: the population (e3); empty: the cells shown",
+     "type": "string"
+    },
     "operation": {
-     "description": "outline (default)",
+     "description": "outline (default), cells or classify",
      "enum": [
       "outline",
-      "cells"
+      "cells",
+      "classify"
+     ],
+     "type": "string"
+    },
+    "placement": {
+     "description": "where the comparison's table goes: beside (side by side in this Tab, the live view included), new-tab (a Tab of its own), only, replace or window; empty: kept in Data (classify: beside)",
+     "enum": [
+      "beside",
+      "new-tab",
+      "only",
+      "replace",
+      "window"
      ],
      "type": "string"
     },
@@ -893,7 +931,7 @@
   }
  },
  {
-  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. One request starts one researcher; when the user asks for more than one, list each start in the same answer. When the user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, starting or running, from their previous words), pass them to that one with researcher_note instead of starting another; start a new one when they ask for another researcher or separate work. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, drawn from the table's own values), annotated_image (labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels or measure what moves for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
+  "description": "Start a researcher for sustained investigation, comparison across sequences, independent confirmation, or producing a requested report, illustration, video or lesson while conversation continues. For retrieving a photo or existing work use reference_photo or show_result directly; a failed lookup does not itself call for a report. Use your own tools for ordinary live questions and actions. One request starts one researcher; when the user asks for more than one, list each start in the same answer. When the user's words add to or change what they just asked a researcher for (Researchers lists it just started: queued, starting or running, from their previous words), pass them to that one with researcher_note instead of starting another; start a new one when they ask for another researcher or separate work. effort: instant (about 15 s and 3 model rounds before it is told to write up); quick (about 75 s and 8 model rounds before it is told to write up); standard (about 360 s and 16 model rounds before it is told to write up); deep (about 1080 s and 32 model rounds before it is told to write up). No clock cuts its work off (it is told to write up, and asks the user before going past an hour), but choose the effort that fits the work: the app's operations take about 5-7 s for one motion measurement, about 10 s to segment a view and a model round 10-30 s, plus the write-up of everything it read. Quick fits a lookup or one or two measurements; several measurements with a comparison or average need standard. Deep requires an explicit request for thorough/deep research. For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, drawn from the table's own values), annotated_image (labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the user explicitly asks for one). Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can explain in writing without a full lesson. If the requested format cannot fit, explain that before starting. From quick effort up it can have the app run saved scientific workflows, segment every cell, make a clearer picture, measure saved labels, measure what moves or classify cells with several models and compare them for its own reading (an instant one cannot); whatever else the app does, run it yourself with your own tool, the first time.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "start_researcher",

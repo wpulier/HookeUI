@@ -214,7 +214,9 @@ def test_a_researcher_classifies_with_five_models_and_keeps_the_comparison_made_
                                          models=[*MODELS, "medsiglip-448"], classes=CLASSES))
     assert reply["ok"] and reply["id"].startswith("d"), (reply, logged[-1].get("error"))
     assert reply["words"].startswith(f"classified 6 of {population.title}'s cells ({population.id}) with 5 models "
-                                     f"and kept the comparison ({reply['id']}): ")
+                                     f"and kept the comparison ({reply['id']}): 5 of 5 models ran; of 6 cells, 2 were "
+                                     "named alike by every model that ran; pairs agreed on ")
+    assert reply["words"].endswith("Its numbers are in the entry")
     entry = world.resources.results.get(reply["id"])
     assert entry["for"] == "Researcher 2" and entry["title"].startswith("Model comparison, for Researcher 2 · ")
     kept = world.resources.results.values(reply["id"])
@@ -239,7 +241,7 @@ def test_the_research_process_lists_the_apps_classifiers():
 
     space = names.index()["classify"]
     assert CLASSIFIERS == {e.id: e.name for e in space.entries.values() if e.choosable}
-    assert MAX_CLASSIFIERS == model_comparison.MAX_MODELS
+    assert MAX_CLASSIFIERS == model_comparison.MAX_MODELS == 6  # "two to six", as compare_models' description says it
 
 
 def test_the_researchers_run_tool_sends_classify_with_its_models_and_classes():

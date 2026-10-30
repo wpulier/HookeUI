@@ -385,6 +385,20 @@ async def compare_classes(hub, population, impls: list, *, classes=None, origin:
                      "capture": population.capture_id, "members": len(members), "of": len(population.live())})
 
 
+def headline(record: dict) -> str:
+    """The record in one line (a researcher's card): how many ran, how far they agree, the totals; the numbers are in
+    the record itself."""
+    t, summary = record["totals"], record["summary"]
+    ran = f"{t['ran']} of {t['models']} models ran" + (f" ({t['failed']} failed)" if t["failed"] else "")
+    if record["operation"] == "classify":
+        shares = [p["agreement"] for p in summary.get("pairs") or () if p.get("agreement") is not None]
+        spread = (f"; pairs agreed on {min(shares) * 100:.0f}% to {max(shares) * 100:.0f}% of the cells both named"
+                  if shares else "")
+        ran += (f"; of {len(summary.get('members') or ())} cells, {summary['allAgree']} were named alike by every model "
+                f"that ran{spread}")
+    return ran + f"; {t['seconds']:.1f} s of runs, ${t['costUsd']:.4f}" + ("" if t["costComplete"] else " (some not reported)")
+
+
 def digest(record: dict) -> str:
     """A stable identity of what was compared and what each run was (for tests and receipts)."""
     body = {"operation": record["operation"], "on": record["on"],

@@ -35,7 +35,7 @@ UNSURE, NONE_OF_THESE = "unsure", "none of these"
 OPEN = "open"  # no classes given and no subject list: the vision models name each in their own words
 MAX_CLASSES = 24
 MEDSIGLIP_TEMPLATE = "a microscopy image of a {}"  # a list the user gave, in a neutral sentence (zeroshot.EVERYTHING's)
-LOCAL_MODEL = "medsiglip-448"
+ON_THIS_MAC = "medsiglip-448"  # MedSigLIP 448, the one classifier on this Mac (its catalog entry: medsiglip)
 
 
 # --- what can classify -------------------------------------------------------------------------------------------
@@ -48,7 +48,7 @@ def implementations() -> tuple:
     vlms = tuple(_model(o.id, ("members",), "cloud", o.id, model=o.model, label=o.label,
                         note="names each member's crop on a numbered sheet; may say unsure or none of these")
                  for o in VISION.values() if o.model)
-    local = _model(LOCAL_MODEL, ("members",), "analysis", LOCAL_MODEL, model="medsiglip",
+    local = _model(ON_THIS_MAC, ("members",), "analysis", ON_THIS_MAC, model="medsiglip",
                    note="its first-ranked class for each member's crop, with its share; needs a list of classes")
     return (*vlms, local)
 
@@ -267,7 +267,7 @@ def register() -> None:
                               else "the provider reported no usage, or the model has no list price here"),
                 "producer": {"implementation": impl.id, "model": impl.version}}
 
-    @adapter("classify", LOCAL_MODEL)
+    @adapter("classify", ON_THIS_MAC)
     async def _medsiglip(run, capture, prompt, impl, params) -> dict:
         from .enrichment import member_crops
         from .operations import started, worker_client
@@ -295,7 +295,7 @@ def register() -> None:
                 if best is not None:
                     labels[mid] = {"label": best[0], "share": round(float(best[1]), 3)}
         return {"labels": labels, "unanswered": [m.id for m in members if m.id not in labels], "classes": classes,
-                "vocabulary": params.get("vocabulary") or "given", "model": LOCAL_MODEL, "implementation": impl.id,
+                "vocabulary": params.get("vocabulary") or "given", "model": ON_THIS_MAC, "implementation": impl.id,
                 "calls": math.ceil(len(ids) / 32), "costUsd": 0.0, "costBasis": "runs on this Mac",
                 "calibration": params.get("calibration") or "not measured for this list", "template": template,
                 "producer": {"implementation": impl.id, "model": impl.version}}

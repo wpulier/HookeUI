@@ -168,14 +168,14 @@ def test_each_tool_takes_the_choosable_ids():
     every = [i.id for op in OPERATIONS.values() for i in op.implementations if names.choosable(op, i)]
     settings = [o for group, per_request in names.SETTINGS.items() if per_request for o in GROUPS[group]]
     assert props("use")["implementation"]["enum"] == list(dict.fromkeys(every + settings)) == names.choosable_ids()
-    assert props("use")["operation"]["enum"] == ["outline", "cells", "find-like", "looks", "vision", "fast",
+    assert props("use")["operation"]["enum"] == ["outline", "cells", "find-like", "looks", "classify", "vision", "fast",
                                                  "outline_check", "research", "image", "presentation"]
     settable = [i.id for op in names.choice_operations() if op.selected_by for i in op.implementations
                 if names.choosable(op, i)] + [o for group in names.SETTINGS for o in GROUPS[group]]
     assert props("set_default")["implementation"]["enum"] == list(dict.fromkeys(settable)) == names.choosable_ids(settable=True)
     assert props("set_default")["operation"]["enum"][-4:] == ["sight", "zeroshot", "think", "look_hard"]  # from now on only
-    assert props("compare_models")["implementations"]["items"]["enum"] == [
-        i for i in names.choosable_ids() if OPERATIONS["outline"].impl(i) or OPERATIONS["cells"].impl(i)]
+    assert props("compare_models")["implementations"]["items"]["enum"] == [  # outline, cell finders and classifiers (W5)
+        i for i in names.choosable_ids() if any(OPERATIONS[o].impl(i) for o in ("outline", "cells", "classify"))]
     description = registry.tools["use"].params["description"]
     assert all(f"{i} = " in description for i in names.choosable_ids(settable=True))
     from orchestrator.brain.menu import render
