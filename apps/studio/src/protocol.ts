@@ -1616,7 +1616,7 @@ export type ClientCommand =
   | { type: 'dataset-rename'; id: string; name: string }
   | { type: 'dataset-reveal'; id: string }
   | { type: 'sessions-reveal' } // Show in Finder: the folder every Project is saved in
-  | { type: 'project-open-folder'; session: string; path: string }
+  | { type: 'project-open-folder'; session: string; path: string; useLocation?: boolean }
   | { type: 'project-storage'; session: string }
   | { type: 'project-reveal'; session: string }
   | { type: 'project-export-prepare'; session: string }

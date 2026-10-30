@@ -1246,8 +1246,8 @@ const appMenu = new WorkspaceAppMenu({
     const owner = workspaceViews.tabOwner();
     if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
     showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
-      open: async path => {
-        const reply = await bridge.request('project-open-folder', {session: owner.session, path});
+      open: async (path, useLocation) => {
+        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
         if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
         return reply.project;
       },

@@ -93,6 +93,15 @@ class ProjectLocations:
             self._check()
             yield
 
+    @contextmanager
+    def relocation_publication(self, root):
+        """A missing old path cannot erase this host's still-admitted writer."""
+        with self._lock:
+            self._check()
+            if root.origin in self._leases:
+                raise ProjectLocationError('This Hooke host still owns the original Project writer. Close the host before changing its location.')
+            yield
+
     def check_writer(self, root):
         """Confirm a captured host lease without allocating or changing authority."""
         with self._lock:
