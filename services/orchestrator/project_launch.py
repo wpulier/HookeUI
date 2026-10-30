@@ -61,7 +61,7 @@ def _open_owner_folder(paths, locations, opening):
             # No implicit relocation, re-registration, or access reset for a known origin.
             if Path(prior['path']) != root.path or locations.registry.locate(root.origin) != root:
                 raise ProjectLocationError('This Project is known at another location. Choose explicit inactive-location recovery or open read-only.')
-            Prefs(paths.sessions).point(root.session)
+            Prefs(paths.sessions).point(root.session, strict=True)
             return
         if root.session in locations.handles():
             raise ProjectLocationError('Another Project uses this host handle. Neither Project was changed; open in a separate profile.')
@@ -72,4 +72,4 @@ def _open_owner_folder(paths, locations, opening):
         if root.session in ProjectAccess(paths.home).rows():
             raise ProjectLocationError('Local agent permissions already use this host handle. Import cannot inherit them; use a separate profile.')
         locations.registry.register(root, verify_history=True)
-        Prefs(paths.sessions).point(root.session)
+        Prefs(paths.sessions).point(root.session, strict=True)

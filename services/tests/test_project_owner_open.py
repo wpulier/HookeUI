@@ -138,3 +138,25 @@ def test_ordinary_server_selects_owner_opened_project_without_grants(tmp_path, m
             asyncio.run(built.stop())
     monkeypatch.setattr(server.uvicorn, 'run', serve)
     server.main()
+
+
+@pytest.mark.parametrize('known', [False, True])
+def test_owner_open_refuses_failed_selection_persistence(tmp_path, monkeypatch, known):
+    from orchestrator.day.prefs import Prefs, _File
+    root, moved, before, _ = source(tmp_path)
+    host = Paths.under(tmp_path / 'new-host')
+    parent = tmp_path / 'new-projects'
+    if known:
+        configured_locations(host, str(parent), opening=str(moved)).close()
+    other = SessionStore(host.sessions, session='2001-01-01')
+    Prefs(host.sessions).point(other.sid)
+    original = Prefs(host.sessions).path.read_bytes()
+    def failed(self, event, **kwargs):
+        raise OSError('injected full preferences volume')
+    monkeypatch.setattr(_File, 'append', failed)
+    with pytest.raises(OSError, match='preferences volume'):
+        configured_locations(host, str(parent), opening=str(moved))
+    assert Prefs(host.sessions).path.read_bytes() == original
+    assert Prefs(host.sessions).current == other.sid
+    assert ProjectAccess(host.home).rows() == {}
+    assert (moved / 'history/sessions' / root.session / 'journal.jsonl').read_bytes() == before
