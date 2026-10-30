@@ -1,5 +1,6 @@
 """Real accepted snapshot I/O with synthetic measurements and hostile filesystem changes."""
 import asyncio
+import hashlib
 import json
 import os
 import subprocess
@@ -92,3 +93,29 @@ def test_cancellation_reaches_bounded_reader(project):
     with pytest.raises(RuntimeError, match='cancelled during read'):
         read_accepted(root, record, session, 'dataset-table', check=check)
     assert checks == 3 and app.day.journal.path.read_bytes() == journal
+
+
+@pytest.mark.parametrize('field,value', [('snapshot', None), ('snapshot', []),
+    ('snapshot', {'path': 'missing'}), ('source', None), ('spec', None)])
+def test_malformed_accepted_metadata_has_recoverable_refusal(project, field, value):
+    app, session, record, root, _ = saved(project)
+    journal = app.day.journal.path.read_bytes()
+    kind = 'dataset-table'
+    if field in ('source', 'spec'):
+        kind = 'analysis'
+        record = {**record, 'id': 'an1', 'snapshot': {**record['snapshot'], 'path': f'{session}/an1/v1.json'},
+                  'source': {'session': session}, 'spec': {}}
+    with pytest.raises(DataTableRefused):
+        read_accepted(root, {**record, field: value}, session, kind)
+    assert app.day.journal.path.read_bytes() == journal
+
+
+@pytest.mark.parametrize('body', [b'null', b'[]', b'1'])
+def test_nonobject_snapshot_has_recoverable_refusal(project, body):
+    app, session, record, root, path = saved(project)
+    journal = app.day.journal.path.read_bytes()
+    path.write_bytes(body)
+    record = {**record, 'snapshot': {**record['snapshot'], 'sha256': hashlib.sha256(body).hexdigest()}}
+    with pytest.raises(DataTableRefused, match='object'):
+        read_accepted(root, record, session, 'dataset-table')
+    assert app.day.journal.path.read_bytes() == journal

@@ -82,3 +82,18 @@ def test_limits_and_cancellation_preserve_original(project, monkeypatch):
     with pytest.raises(RuntimeError, match='cancelled'):
         verify_numeric_records(root, check=cancelled)
     assert app.day.journal.path.read_bytes() == original
+
+
+@pytest.mark.parametrize('kind,field', [('datatable', 'snapshot'), ('table-derivative', 'source')])
+def test_malformed_history_returns_recoverable_refusal_without_repair(project, kind, field):
+    app, locations, _, _ = project
+    session, _ = measured(project)
+    root = locations.project(session)
+    path = app.day.journal.path
+    events = [json.loads(line) for line in path.read_bytes().splitlines()]
+    next(event for event in events if event['type'] == kind)[field] = None
+    path.write_text(''.join(json.dumps(event) + '\n' for event in events))
+    original = path.read_bytes()
+    with pytest.raises(ProjectLocationError, match='numeric history'):
+        verify_numeric_records(root)
+    assert path.read_bytes() == original
