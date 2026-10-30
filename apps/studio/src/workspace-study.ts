@@ -1,4 +1,5 @@
 import { organizeMaterial } from './material-organization';
+import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
@@ -1241,6 +1242,18 @@ function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesInco
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
+  openProjectFolder: () => {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
+      open: async path => {
+        const reply = await bridge.request('project-open-folder', {session: owner.session, path});
+        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
+        return reply.project;
+      },
+      navigate: session => changeSession(session),
+    });
+  },
   projectFolder: () => {
     const owner = workspaceViews.tabOwner();
     if (!owner.session || !inputOwnerCurrent(owner) || switching) return;

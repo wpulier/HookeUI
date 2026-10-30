@@ -31,18 +31,25 @@ final class FolderBridge: NSObject, WKScriptMessageHandlerWithReply {
         if operation == "cancel" {
             panel?.cancel(nil); capture?.cancel(); reply(true, nil); return
         }
-        if operation == "choose" {
+        if operation == "choose" || operation == "choose-project" {
             guard !choosing, leases.count < 4 else { reply(nil, "Finish the current folder selection, then try again."); return }
             choosing = true
             let panel = NSOpenPanel()
             self.panel = panel
             panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
             panel.prompt = "Choose folder"
-            panel.message = "Include all files in this folder, including hidden metadata. Links are not followed."
+            panel.message = operation == "choose-project"
+                ? "Choose the Hooke Project folder containing project.json. Opening verifies its retained evidence."
+                : "Include all files in this folder, including hidden metadata. Links are not followed."
             panel.begin { [weak self] result in
                 guard let self else { reply(nil, "Workspace closed."); return }
                 self.panel = nil
                 guard !self.closing, result == .OK, let selected = panel.url else { self.choosing = false; reply(NSNull(), nil); return }
+                if operation == "choose-project" {
+                    self.choosing = false
+                    reply(selected.path, nil)
+                    return
+                }
                 let control = FolderCaptureControl(); self.capture = control
                 self.queue.async {
                     let captured = Result { try FolderSnapshot.capture(selected, control: control) }

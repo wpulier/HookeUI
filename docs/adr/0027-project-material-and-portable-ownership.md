@@ -488,3 +488,27 @@ Opening imports no credentials, grants or runtimes, never invokes retained work,
 and does not certify complete dependency collection. This operator launch seam
 qualifies restoration through the ordinary host; the native folder picker, read-only
 workspace mode and independent-copy UI remain separate product gates.
+
+
+### Owner Open Project control
+
+The existing Project menu can register an explicitly entered local working-folder
+path through the same owner registration service as startup. Registration verifies
+accepted history and conflicts before adding a locator; it never moves the Stage,
+imports grants, or launches work. The UI then uses ordinary Project navigation,
+including its unsaved-work checks. Closing the dialog or changing Projects while
+verification runs cannot cause late navigation. A registered folder remains in All
+Projects if navigation is declined. This owner command is deliberately unavailable
+to connected agents; they still need locally established Project access.
+
+The native shell supplies its origin-checked directory chooser; browser path entry
+uses the same owner admission. Neither entrance is snapshot restoration, read-only opening, independent-copy creation or legacy migration.
+Portable-mode activation remains an operator choice.
+
+## Historical attribution after relocation
+
+Resource makers use the label captured in an accepted agent import before any
+current host label. Reopening a Project without its old connections must preserve
+that recorded display name and stable actor ID. Reading a historical label never
+registers a connection, updates the host label cache, or grants access. Records
+without a retained label keep the existing host-label/unknown fallback.

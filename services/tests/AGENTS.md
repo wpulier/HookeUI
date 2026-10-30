@@ -1,3 +1,5 @@
+test_project_open_command uses synthetic retained Projects with real stores to qualify owner-only registration without navigation or grants, stale requests and disabled-host refusal. project-open.test.ts checks synthetic dialog retries, close/navigation races and delegation to normal unsaved-work navigation. These tests do not establish native chooser or full collection acceptance.
+
 `test_project_source_preflight.py` uses synthetic journals and copied media over the
 real Project stores. It checks removed-source history, exact retained choices,
 origin mismatch, interrupted/changed journals and bounded refusal. This is source
@@ -821,6 +823,9 @@ real connected-agent export or browser quality; record those separately.
 accepted-history integrity, handle/permission collisions, writer refusal, snapshot
 immutability and no imported grants. Server-main argument/environment tests use a
 transport stand-in: they do not qualify the native chooser or full read-only UI.
+
+`test_project_historical_attribution` copies, restores and renames a synthetic Project through real immutable intake, then reads its shared resource maker with an empty host label cache. It checks preserved exact revisions/actor/label, host-cache isolation and legacy fallback. This is storage/index proof; actual portable browser authorship is recorded separately.
+
 # Retained researcher integrity
 
 `test_project_research_integrity.py` uses synthetic researcher output through real
