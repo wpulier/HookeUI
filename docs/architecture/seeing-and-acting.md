@@ -780,6 +780,14 @@ Measured over real WebRTC calls (a headless Chrome peer) and the part-2.5 journe
   own: the outcome is said once when it lands. Every progress line of 29 Oct had been cut off mid-sentence by
   `max_output_tokens` 100 (it counts reasoning); the cap is 400 now, there only to stop a runaway (smoke 9dc7398:
   "It's still working on outlining…", "…nothing is finished yet. You should see", judged robotic).
+- **A hand-off said nothing of yet** (do_in_hooke with no lead-in; will-alive "slow", 30 Oct: a 15 s web search was
+  silent until its outcome, judged "no brief acknowledgment that the search was under way"): one line once the voice has
+  been quiet `HANDOFF_PROGRESS_AFTER_S` (4.5 s) and one of the hand-off's steps has run `HANDOFF_STEP_S` (2.5 s), or
+  quiet `HANDOFF_THINKING_S` (9 s) with none, worded as the voice's own "I" from what Hooke's brain is doing right now:
+  each step it runs, its arguments and progress words (`partner_tools.handoff_doing`, from the hand-off's job, which
+  `Registry.started` tells each step of its request as it starts), never a promise. Quick work says nothing before its
+  outcome: most hand-offs end in 5-7 s with every step (find, zoom, a Tab, a window) under 2.5 s. After a lead-in the
+  wait stays `PROGRESS_AFTER_LEADIN_S` (20 s). Its outcome is said once, as before.
 - **It talks first** (Will's feel check, 29 Oct): as the studio goes live before any turn (its first `voice-phase`
   listening), the camera picture and Hooke's window go in with a kept note, and one idle `opener` event goes on the
   bus; its response has `mark` as its only tool and `OPENER_RULE` as its instruction: what is on the stage, as

@@ -374,7 +374,8 @@ class PartnerTools:
         specs.append(ToolSpec("look_hard", "Look closely at the camera picture (and Hooke's window if needed) with the "
                               "app's most exact naming model when a detail or a name matters and you are unsure. It "
                               "takes a few seconds: call it without speaking first (the screen shows you thinking), "
-                              "then say what it found, plainly, once. Returns its answer.",
+                              "then say what it found, plainly, once. Returns its answer; Hooke points at what it names "
+                              "as you say it (pointed_at).",
                               {"type": "object", "properties": {
                                   "question": {"type": "string"},
                                   "window": {"type": "boolean", "description": "also send Hooke's window picture"}},
