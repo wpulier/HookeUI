@@ -95,8 +95,9 @@ def chosen_words(chosen: int, of: int, why: str = "") -> str:
     be classified."""
     if chosen >= of:
         return f"all {of} cells" if of != 1 else "the 1 cell"
-    every = of / chosen if chosen else 0
-    how = f"every {every:.0f}{'nd' if round(every) == 2 else 'rd' if round(every) == 3 else 'th'}" if every else ""
+    k = round(of / chosen) if chosen else 0
+    how = (f"every {k}{'nd' if k % 10 == 2 and k % 100 != 12 else 'rd' if k % 10 == 3 and k % 100 != 13 else 'th'}"
+           if k >= 2 else "spread through them")
     return (f"{chosen} of the {of} cells, evenly across them ({how}{', ' + why if why else ''}); "
             "the rest can be classified on request")
 

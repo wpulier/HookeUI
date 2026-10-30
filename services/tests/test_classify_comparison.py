@@ -381,7 +381,8 @@ def test_every_outline_is_classified_and_a_sample_says_how_it_was_chosen():
     assert len(sample) == classify.MAX_MEMBERS and sample[0].id == "c1" and sample[1].id == "c3"  # every 2nd
     said = classify.chosen_words(len(sample), 2 * classify.MAX_MEMBERS)
     assert said.startswith(f"{classify.MAX_MEMBERS} of the {2 * classify.MAX_MEMBERS} cells, evenly across them")
-    assert "the rest can be classified" in said
+    assert "the rest can be classified" in said and "(every 2nd" in said
+    assert "(spread through them" in classify.chosen_words(160, 161)  # never "every 1th"
 
 
 def test_the_expected_cost_is_known_before_the_models_run(stand_ins):
