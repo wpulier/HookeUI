@@ -174,6 +174,73 @@ def beside_shown(wire: dict | None, tab: str, thing: list[str]) -> tuple[bool, s
     return True, ""
 
 
+# --- making room beside a window ---------------------------------------------------------------------------------------
+# A new window opened beside another is fitted before its first paint (present._opening_basis): 240 to 360 px wide at
+# its picture's aspect, top-aligned with the window it goes beside, within the visible area. When there is no such room
+# on either side, Hooke makes it, as a person would: it moves that window over, and narrows it only when moving is not
+# enough (will-workspace, 30 Oct: "make room or select the original window" was handed to the user).
+BESIDE_GAP = 12
+BESIDE_WIDTH = (240, 360)  # the new window's narrowest and widest initial fit (present._opening_basis)
+NARROWEST = 240  # a window is never narrowed below this to make room
+
+
+def _fits_beside(x: float, y: float, width: float, area, size, gap: float) -> bool:
+    """Whether a new window of picture `size` fits on the right of a window at x, y, `width` wide (_opening_basis)."""
+    room = area[0] + area[2] - (x + width) - gap
+    available = area[1] + area[3] - y
+    wide = min(BESIDE_WIDTH[1], room, max(0.0, available - 44) * size[0] / size[1])
+    return wide >= BESIDE_WIDTH[0] and max(180 + 44, wide * size[1] / size[0] + 44) <= available and y >= area[1]
+
+
+def room_beside(anchor, area, size, gap: float = BESIDE_GAP) -> tuple[float, float, float] | None:
+    """Where window `anchor` (x, y, width, height) goes, and how wide, so a new window of picture `size` fits on its
+    right inside `area`: its own place first, then moved left (and up, when too low), and only then narrowed. None when
+    the area cannot hold both side by side (a true impossibility, said as such)."""
+    if not (isinstance(anchor, (list, tuple)) and isinstance(area, (list, tuple)) and len(anchor) == len(area) == 4
+            and isinstance(size, (list, tuple)) and len(size) == 2 and size[0] > 0 and size[1] > 0):
+        return None
+    x0, y0, width0 = anchor[0], anchor[1], anchor[2]
+    widths = [width0] + [w for w in (area[2] - gap - BESIDE_WIDTH[1], area[2] - gap - BESIDE_WIDTH[0])
+                         if NARROWEST <= w < width0]
+    for width in widths:
+        wanted = min(BESIDE_WIDTH[1], area[2] - width - gap)
+        x = max(area[0], min(x0, area[0] + area[2] - width - gap - wanted))
+        for y in dict.fromkeys((max(area[1], y0), area[1])):
+            if _fits_beside(x, y, width, area, size, gap):
+                return x, y, width
+    return None
+
+
+async def make_room_beside(services, ctx, anchor_id: str, size) -> str | None:
+    """Moves (and, only when moving is not enough, narrows) window `anchor_id` so a new window of picture `size` fits
+    beside it, each change the window's own move or resize, confirmed on screen (present). Returns what it did, in
+    words; None when the visible area cannot hold both (nothing is changed then)."""
+    from .brain.toolbox.present import _native_settled
+    from .screen import screen_of
+
+    report = screen_of(services.hub).completion_report(ctx.client)
+    row = next((r for r in (report or {}).get("items") or () if r.get("id") == anchor_id), None)
+    area = ((report or {}).get("viewport") or {}).get("presentationArea")
+    rect = (row or {}).get("rect")
+    placed = room_beside(rect, area, size)
+    if placed is None:
+        return None
+    x, y, width = placed
+    narrowed, moved = width != rect[2], (x, y) != (rect[0], rect[1])
+    if narrowed:
+        await _native_settled(services, ctx, {"do": "resize", "instance": {"instanceId": anchor_id},
+                                              "size": {"width": width, "height": rect[3]}})
+    if moved:
+        await _native_settled(services, ctx, {"do": "move", "instance": {"instanceId": anchor_id},
+                                              "position": {"x": x, "y": y}})
+    title = inline(str((row or {}).get("title") or "the window it goes beside"), 80)
+    if narrowed and moved:
+        return f"narrowed {title} and moved it over so the new window fits beside it"
+    if narrowed or moved:
+        return f"{'narrowed' if narrowed else 'moved'} {title}{'' if narrowed else ' over'} so the new window fits beside it"
+    return ""
+
+
 def holding(wire: dict | None, kind: str) -> list[dict]:
     """The open Tabs holding a `kind` (the Tab strip's counts by kind)."""
     from .workspace_observation import tabs_holding

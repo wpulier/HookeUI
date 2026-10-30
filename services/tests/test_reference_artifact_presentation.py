@@ -497,7 +497,30 @@ def test_native_reference_beside_opens_in_initial_composition(retained_reference
     asyncio.run(go())
 
 
-@pytest.mark.parametrize('change', ['move', 'close', 'ambiguous', 'no-room', 'foreign-pin'])
+def test_a_photo_beside_one_of_several_windows_none_pointed_at_goes_beside_the_one_in_front(retained_reference):
+    """Two windows open and none pointed at: Hooke picks the one in front and says so, never "name the exact window"
+    (the live partner spec 4.8, horizontal 3)."""
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+
+    async def go():
+        original, _ = saved_picture(app)
+        await open_window(app, original)
+        second, _ = saved_picture(app, value=140)
+        front, _, _ = await open_window(app, second)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'bring up a reference photo beside it', asked=app.day.here(),
+                          request_snapshot=pin)
+        runs, _ = await plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx)
+        succeeded(runs[0])
+        child = [w for w in app.services.presentations.list(WORKSPACE) if w.geometry_intent.relation_json]
+        assert len(child) == 1 and json.loads(child[0].geometry_intent.relation_json)['reference'] == front
+        assert 'the window in front' in runs[0].summary
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize('change', ['move', 'close', 'no-room', 'foreign-pin'])
 def test_native_beside_failure_retains_photo_without_rearranging_existing_windows(retained_reference, change):
     from orchestrator.brain.registry import ToolContext
     from orchestrator.workspace_observation import ClientRef
@@ -531,7 +554,8 @@ def test_native_beside_failure_retains_photo_without_rearranging_existing_window
                           asked=app.day.here(), request_snapshot=pin)
         runs, _ = await plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx)
         run = runs[0]
-        assert run.ok is False and 'retained' in run.summary
+        assert run.ok is False and 'kept in Data' in run.summary
+        assert 'make room' not in run.summary and 'ask again' not in run.summary
         assert [controlled_state(w) for w in app.services.presentations.list(WORKSPACE)] == before
         assert run.resource
         entry = app.hub.resources.get(run.resource['id'], run.resource['day'])

@@ -11,6 +11,20 @@ from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 from .common import OBJECT, describe, in_view, log_measurement, resolve_object, visible_object
 
 
+def picture_size(jpeg: bytes) -> tuple[int, int]:
+    """A picture's width and height, read from its header (4:3 when it cannot be read: the room made is then only
+    approximate, and the fit before its first paint is still the window's own)."""
+    import io
+
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(jpeg)) as picture:
+            return picture.size
+    except Exception:  # an unreadable header leaves only the room's estimate rough (rule 4)
+        return 4, 3
+
+
 def _member_meant(hub, ref, magnifier_open: bool = False, open_obj=None, asked=None, pointed=None):
     """(population, member) when `ref` names a cell of a population: its id ("c12"), or "that cell" /
     nothing while a member is selected on the shown layer. Else None (an outline is meant). With the
@@ -461,7 +475,7 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         prior_references = []
         native_beside = (args.get("beside") is True and args.get("show") is not False
                          and getattr(services, 'presentations', None) is not None and ctx.client is not None)
-        beside_anchor = None
+        beside_anchor, beside_why = None, ''
         if native_beside and ctx.request_snapshot is not None:
             # Boolean compatibility means the source this browser showed when
             # asked, not whichever window happens to be newest after web I/O.
@@ -478,6 +492,11 @@ def add_magnifier_tools(registry: Registry, services) -> None:
             choices = matching if matching else candidates
             if len(choices) == 1:
                 beside_anchor = choices[0]['id']
+            elif choices:
+                # Several windows and none pointed at: the one in front, by the z the studio measured, and the
+                # receipt says so; never the user's to name (spec 4.8, horizontal 3).
+                front = max(choices, key=lambda row: row.get('z') if isinstance(row.get('z'), (int, float)) else -1)
+                beside_anchor, beside_why = front['id'], f"beside {inline(str(front.get('title') or front['id']), 80)}, the window in front"
         if not services.find_reference and ctx.question:
             lookup_args["request_context"] = ctx.question
         on_screen = on_screen_words(services, ctx)
@@ -567,17 +586,40 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                 'day': session_of(entry, entry['day']), 'id': entry['id'], 'version': None, 'picture': 0}, 'title': title}
             if native_beside:
                 if beside_anchor is None:
-                    raise ToolFailed(f"the reference photo is retained as {entry['id']}, but its original beside window is ambiguous or unavailable",
-                                     next="name the exact window to place the retained photo beside")
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}, but no window of this "
+                                     "workspace was open in view to put it beside when it was asked for",
+                                     next=f"present open {entry['id']} shows it on its own")
                 opening['relation'] = {'kind': 'beside', 'reference': beside_anchor}
+            room = ''
             try:
                 shown = await _native_present(services, ctx, opening)
             except ToolFailed as exc:
                 if not native_beside:
                     raise
-                raise ToolFailed(f"the reference photo is retained as {entry['id']}, but could not be placed beside the original window: {exc}",
-                                 next="make room or select the original window, then open the retained photo beside it") from exc
-            shown += f'; {seen}; asked for: {subject}'
+                # No room beside it is Hooke's to make, as a person would: it moves that window over (and narrows it
+                # only when moving is not enough), then places the photo beside it (will-workspace, 30 Oct: "make room
+                # or select the original window" was handed to the user). Only a visible area too small for both is
+                # said, plainly.
+                failure = ((run.outcome or {}).get('failure') or {}) if run is not None else {}
+                made = None
+                if failure.get('code') == 'CONSTRAINT_CONFLICT':
+                    from ...placement import make_room_beside
+                    made = await make_room_beside(services, ctx, beside_anchor, picture_size(found.jpeg))
+                if made is None:
+                    why = ('the visible area is too small to hold both side by side'
+                           if failure.get('code') == 'CONSTRAINT_CONFLICT' else str(exc))
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}, but not shown beside the "
+                                     f"window it was asked next to: {why}",
+                                     next=None) from exc  # no next: what was kept and why it is not beside is said
+                try:
+                    shown = await _native_present(services, ctx, opening)
+                except ToolFailed as again:
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}; {made}, but it is still "
+                                     f"not shown beside it: {again}", next=None) from again  # no next: said in full
+                room = f'; {made}' if made else ''
+            if beside_why:
+                room = f'; {beside_why}{room}'
+            shown += f'{room}; {seen}; asked for: {subject}'
             if prior_references:
                 import json
                 shown += '; references already open when requested: ' + json.dumps(prior_references[:12], separators=(',', ':'))
@@ -604,7 +646,8 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                       "never as what the photo shows. Default/"
                       "show=true opens its independent window, retaining the magnification and other work. In a native workspace, with default "
                       "show=true, beside=true fits the new photo beside the original requesting browser's pointed window "
-                      "(or its sole visible window) before its first paint, leaving that anchor fixed; ambiguity or no room is reported. "
+                      "(or its sole visible window, else the one in front) before its first paint; with no room beside it, "
+                      "Hooke first moves that window over (narrowing it only when moving is not enough) and says so. "
                       "For an explicit anchor, use show=false then present(do=open,source={step:N,output:0}, "
                       "relation={kind:beside,reference:{instanceId:the exact observed window ID}}) for initial fitting. "
                       "Arranging an already-open window preserves its current size and may not fit. "
@@ -617,7 +660,7 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                               "n": {"type": "integer", "description": "which match, 1-based (default 1)"},
                               "show": {"type": "boolean", "description": "default true; false retains the photo for a separate native window and preserves the current view"},
                               "description": {"type": "string", "maxLength": 600, "description": "optional note on the topic, kept as a note; the photo's description comes from a look at its pixels"},
-                              "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed or sole visible window, before first paint; anchor unchanged. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
+                              "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed, sole visible or front window, before first paint; that window is moved over first when there is no room beside it. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
                       reference_photo, inline_ms=1500, family="magnifier"))
 
     async def hold(ctx: ToolContext, args: dict) -> str:

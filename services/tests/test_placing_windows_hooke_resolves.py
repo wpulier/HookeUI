@@ -187,3 +187,74 @@ def test_two_tabs_with_one_name_are_never_the_users_to_choose_between(tmp_path, 
         assert run.ok is True, run.summary
         assert studio.active == 'tab-ref-1', 'the one in front'
     asyncio.run(go())
+
+
+# --- a photo beside a window with no room beside it (will-workspace "reference-beside", run 3) -------------------------
+
+from tests.test_reference_artifact_presentation import (retained_reference,  # noqa: E402,F401 - its fixtures
+                                                         scripted_photo_pixel_check)
+
+
+def _overlap(a, b):
+    width = max(0, min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0]))
+    height = max(0, min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1]))
+    return width * height
+
+
+def test_a_photo_beside_a_window_with_no_room_beside_it_gets_room_made_and_is_placed(retained_reference):
+    """will-workspace run 3: "Pull up an image from online of a single stoma and put it next to the magnification."
+    reference_photo with beside=true refused: "There is not enough space beside this report for its captured view.;
+    make room or select the original window", and the voice told the user to make space. The magnification sat wide in
+    the middle, with too little room on either side. Hooke moves it over (its size kept when that is enough), then
+    places the photo beside it, and says what it moved."""
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+
+    async def go():
+        studio.presentation_area = [0, 0, 1200, 800]
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        for verb, values in (('resize', {'size': {'width': 700, 'height': 420}}),
+                             ('move', {'position': {'x': 250, 'y': 300}})):
+            changed, _ = await plan(app, [('present', {'do': verb, 'instance': {'instanceId': anchor}, **values})])
+            succeeded(changed[0])
+        assert studio.items[anchor]['rect'] == [250, 300, 700, 420], 'SETUP: under 240 px free on either side'
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('voice', 2, None, 'Pull up an image from online of a single stoma and put it next to the '
+                          'magnification.', asked=app.day.here(), request_snapshot=pin)
+        runs, _ = await plan(app, [('reference_photo', {'subject': 'single stoma', 'beside': True})], ctx=ctx)
+        run = runs[0]
+        succeeded(run)
+        child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
+        assert json.loads(child.geometry_intent.relation_json)['reference'] == anchor, 'placed beside it'
+        a, c = studio.items[anchor]['rect'], studio.items[child.id]['rect']
+        assert _overlap(a, c) == 0
+        assert a[2] == 700, 'its size kept: moving it was enough'
+        assert c[0] + c[2] <= 1200 and c[1] + c[3] <= 800, 'the photo inside the visible area'
+        assert run.outcome['status'] == 'confirmed'
+        said = run.summary.lower()
+        assert 'moved' in said and 'make room' not in said and 'ask again' not in said, run.summary
+    asyncio.run(go())
+
+
+def test_a_photo_beside_a_window_in_an_area_too_small_for_both_is_said_plainly(retained_reference):
+    """A true impossibility (the visible area cannot hold both windows side by side): nothing is moved, the photo is
+    kept, and it is said in plain words, with nothing handed to the user to make room or ask again."""
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+
+    async def go():
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        studio.presentation_area = [0, 0, 390, 500]
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('voice', 2, None, 'put a photo of a stoma next to it', asked=app.day.here(),
+                          request_snapshot=pin)
+        runs, _ = await plan(app, [('reference_photo', {'subject': 'single stoma', 'beside': True})], ctx=ctx)
+        run = runs[0]
+        assert run.ok is False and 'kept' in run.summary
+        said = run.summary.lower()
+        assert 'make room' not in said and 'ask again' not in said and 'select the original' not in said, run.summary
+    asyncio.run(go())
