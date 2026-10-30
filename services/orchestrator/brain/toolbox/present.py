@@ -1028,7 +1028,15 @@ async def reader_close(services, ctx, item: dict) -> str:
 
 
 async def reshow_outlines(services, ctx=None) -> str:
-    """Restore outlines on their requesting browser; unknown receipt is not hidden."""
+    """Restore outlines on their requesting browser; unknown receipt is not hidden. Drawn on the live view, they are
+    brought into sight first: Main to the front when the Tab in front hides the specimen (placement.live_in_sight)."""
+    from ...placement import live_in_sight
+
+    in_sight = await live_in_sight(services.hub, ctx) if ctx is not None else ""
+    return in_sight + await _outlines_shown(services, ctx)
+
+
+async def _outlines_shown(services, ctx=None) -> str:
     from ...screen import laid_out, screen_of
 
     screen = screen_of(services.hub)

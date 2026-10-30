@@ -421,6 +421,14 @@ other files.
   whose request, with the app's own titles), each outline's account (`known.py`), and the newest result's own reading
   with its numbers (paged, a researcher's words in their wrapper), with the user's level; the model explains from those.
   The voice hands it over (`do_in_hooke` names it). With nothing said yet it asks which result is meant.
+  - **One way in** (will-research 30 Oct, measure-c4acc90: no run read the record; each answered from its notes, the
+    placing step's status or stomata in general): the last-result line asks the brain, only while there is a last
+    result, whether the words are about it (`"about_last"`, the model's judgment, as `corrects` is); when they are,
+    code reads its record (`fast.reading_last_result`: `resources` id "that" after the request's own steps, on the
+    quick pass's and the look's plans) and the answer is written from it in the query round. `placement.put` keeps the
+    saved work it placed on its run (`ToolRun.resource`), so a researcher's picture placed in a Tab is the result its
+    request names (it kept none). For a researcher's work `that_facts` adds the researcher (what it was asked, its
+    engine, the photo it was given and when, when it finished) and its own summary, where its labels are.
 - **Why a model could not be used** is one mapping (`research_worker/api_usage.refusal`: retired, out of credit, no
   key, a refused key, rate limited, the provider's error, no connection, cut off, the cap), read from the error's own
   status and codes, said with what to do and the provider's words kept as detail. The brain's answer gets it through

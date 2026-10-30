@@ -90,6 +90,13 @@ other files.
   - **A new Tab** ("+", ⌘T, `tabs create`, a window sent to a new Tab) opens with its specimen floating small in the
     Stage's lower-left corner (`floatingSpecimen`, also where Float puts it). Main, an input's Tab and a run's result
     Tab (it draws there) keep it filling; a comparison hides it.
+  - **A result drawn on it is brought into sight** (`placement.live_in_sight`; will-research 30 Oct: "Outline every
+    cell" with the findings document's Tab in front was answered "the layer is on the live view" while the reader hid
+    it): the cells' layer (`outline_cells`) and every outline a find, a highlight, a count or the look draws (through
+    `present.reshow_outlines`) bring Main to the front when the Tab in front hides the specimen, done once the report
+    shows Main in front, and the receipt says so ('on Tab "Main", brought to the front (Tab "Findings" in front hid the
+    live view)'). A Tab step in the request's own plan (switch, create, specimen: the user said where) is left as it is,
+    and the receipt says the Tab in front hides the live view. The magnifier is a panel of its own, not the specimen.
   - `project.state` does not carry it yet: its schema (`contract/agent/project-state.schema.json`) is another change's
     (the addition both need is under "The workspace model").
 - **The workspace model: what each Tab holds, by kind** (live partner spec 4.8, horizontal 2;
