@@ -1,5 +1,14 @@
 # Outside agents: the one door
 
+With opt-in Project routing, new Project-scoped operations keep their authoritative
+receipt in `history/operations`, under the captured origin and host writer lease.
+Legacy receipts remain in host storage until explicit collection. Loading retained
+receipts never imports credentials/grants or launches work. Duplicate IDs/request
+identities refuse before recovery writes. An unavailable writer leaves the original
+receipt unchanged and exposes `storageReadOnly`: its recorded running state is not
+observed execution here, and cancellation is refused. WorkflowService still owns
+workflow execution. Failed admission sync retries reuse the same reserved ID.
+
 Part of the working context the root `AGENTS.md` maps. The decision is ADR 0026
 (`docs/adr/0026-outside-agents-connect-through-one-door.md`). Read it before changing anything here.
 To try it by hand, from the published Beta or a `dev` checkout, follow `docs/testing/agent-connection.md`.

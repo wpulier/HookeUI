@@ -305,7 +305,8 @@ def operations_of(hub, project: str) -> list[dict]:
     if store is None or not is_sid(project):
         return []
     rows = store.operations(100, visible=lambda r: r.get("project") == project and r.get("tool") not in DOOR_READS)
-    return [{"id": str(r["id"]), "tool": str(r["tool"]), "state": str(r["state"]),
+    return [{"id": str(r["id"]), "tool": str(r["tool"]),
+             "state": f"recorded {r['state']} (read-only; execution unobserved)" if r.get('storageReadOnly') else str(r['state']),
              "by": str(r.get("byLabel") or "an agent"), "at": float(r.get("at") or 0)} for r in rows["operations"]]
 
 

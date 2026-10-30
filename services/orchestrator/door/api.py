@@ -115,7 +115,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
     built.agent_connections = connections
     from .project_grants import GrantConfirmations
     grant_confirmations = GrantConfirmations(built, connections)
-    operations = Operations(built.paths.home)
+    operations = Operations(built.paths.home, locations=getattr(getattr(built, 'day', None), 'locations', None))
     built.agent_operations = operations
     if getattr(built, 'hub', None) is not None:
         built.hub.agent_operations = operations
@@ -377,6 +377,8 @@ def register(app, built, studio_origin, header: str) -> Connections:
             raise Refused(404, 'unknown-operation', 'There is no such operation.', next='list your operations')
 
     async def observed(record):
+        if record.get('storageReadOnly'):
+            return record  # retained observation; this host cannot reconcile the execution
         if record.get('execution'):
             from ..research.studies import service
             return await service(built).operation(record)
