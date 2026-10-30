@@ -539,6 +539,11 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         n = args.get("n") if isinstance(args.get("n"), int) and not isinstance(args.get("n"), bool) else 1
         settings = getattr(getattr(services, "hub", None), "settings", None)
         sources = getattr(settings, "reference_search", "web") if settings is not None else "web"  # option REFERENCE_SEARCH
+        from ..registry import CURRENT_RUN
+
+        searching = CURRENT_RUN.get()
+        if searching is not None:  # what it is doing now, in its own words, for a progress line
+            searching.report_progress(f"searching the web for a real photo of {inline(subject, 80)} and checking it")
         try:
             found = await asyncio.to_thread(services.find_reference or reference.find_blocking, subject, n, **lookup_args,
                                             sources=sources)
