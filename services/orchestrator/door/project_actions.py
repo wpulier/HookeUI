@@ -133,7 +133,7 @@ async def run(built, record, progress):
             if record.get('state') == 'cancelRequested':
                 raise ValueError('Dependency inspection stopped before completion')
         def review():
-            value = inspect(built.hub.resources.projects, project, check=check)
+            value = inspect(built.hub.resources.projects, project, check=check, day=built.day)
             validate(value, 'project-dependencies')
             return value
         def cancel():

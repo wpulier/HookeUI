@@ -15,7 +15,7 @@ def unavailable(session):
         'reason': 'This host cannot inspect retained local Project dependencies.'}
 
 
-def inspect(stores, session, *, check=lambda: None):
+def inspect(stores, session, *, check=lambda: None, day=None):
     """Inspect an authorized Project without writing or acquiring a writer lease."""
     check()
     store = stores.for_session(session)
@@ -33,5 +33,18 @@ def inspect(stores, session, *, check=lambda: None):
     if heads() != basis:
         raise ProjectLocationError('Project records changed during inspection; request a fresh dependency review')
     check()
+    source_review = {}
+    if day is not None:
+        from .day.ownership import retained_owner
+        from .project_source_preflight import review_source_records, MAX_JOURNAL_BYTES, MAX_LINE_BYTES
+        root = day.root_for(session)
+        owner = retained_owner(root, session, allowance=(MAX_JOURNAL_BYTES, MAX_LINE_BYTES), check=check)
+        if owner is None:
+            raise ProjectLocationError('Project source inspection needs its retained origin')
+        source_review['sourceReview'] = review_source_records(store, session, owner['origin']['origin'],
+            root / session / 'journal.jsonl', check=check)
+        if day.root_for(session) != root or heads() != basis:
+            raise ProjectLocationError('Project changed during source inspection; request a fresh review')
+    check()
     return {'session': session, 'availability': 'available', 'basis': basis,
-            'documents': len(basis), 'revisions': revisions, **review.result()}
+            'documents': len(basis), 'revisions': revisions, **review.result(), **source_review}

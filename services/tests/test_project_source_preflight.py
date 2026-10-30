@@ -97,3 +97,22 @@ def test_journal_resource_limit_and_empty_source_review(tmp_path, monkeypatch):
             review_sources(root)
     finally:
         locations.close()
+
+
+def test_owner_scan_honors_inspection_limits_and_cancellation(tmp_path):
+    from orchestrator.day.ownership import retained_owner
+    locations, day, sid, stores, asset = setup(tmp_path)
+    try:
+        root = session_root(locations.project(sid))
+        owner = retained_owner(root, sid)
+        assert retained_owner(root, sid, allowance=(1 << 20, 65536)) == owner
+        for allowance in ((1, 65536), (1 << 20, 1)):
+            with pytest.raises(ValueError, match='allowance'):
+                retained_owner(root, sid, allowance=allowance)
+        def stop():
+            raise RuntimeError('stopped')
+        with pytest.raises(RuntimeError, match='stopped'):
+            retained_owner(root, sid, allowance=(1 << 20, 65536), check=stop)
+        assert retained_owner(root, sid) == owner
+    finally:
+        locations.close()

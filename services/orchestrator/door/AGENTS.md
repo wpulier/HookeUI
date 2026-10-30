@@ -230,3 +230,8 @@ their owners. Changing heads/membership, revocation or cancellation stops the
 review rather than returning a mixed basis. Its tracked receipt is not a complete
 collection certificate, a migration, a grant or an executable workflow. Hosts
 without local storage use explicit unavailability; the CLI has no special path.
+
+The local project.dependencies receipt includes sourceReview from the captured
+Project journal and accepted media bindings. The read grant and cancellation guard
+cover both scans. It accepts no caller path and never consults another host's Library.
+Omission on an unavailable host is not a complete-collection claim.

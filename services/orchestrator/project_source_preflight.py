@@ -25,8 +25,7 @@ def _stamp(info):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _journal(root, check):
-    path = session_root(root) / root.session / 'journal.jsonl'
+def _journal(path, check):
     ids, count, digest = set(), 0, hashlib.sha256()
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as stream:
@@ -70,12 +69,23 @@ def review_sources(root, *, check=lambda: None):
     A retained binding is not evidence of complete Library history or verified media
     bytes. Snapshot integrity and explicit whole-Record collection remain separate.
     """
-    check()
-    identities, basis, journal_stamp = _journal(root, check)
+    path = session_root(root) / root.session / 'journal.jsonl'
+    result = review_source_records(ProjectStore(document_root(root)), root.session, root.origin, path, check=check)
     verify_owner(root)
-    store = ProjectStore(document_root(root))
+    return result
+
+
+def review_source_records(store, session, origin, path, *, check=lambda: None):
+    """Shared preflight for a captured legacy or portable Project store/journal."""
+    from .day.ownership import retained_owner
+    check()
+    identities, basis, journal_stamp = _journal(path, check)
+    owner = retained_owner(path.parent.parent, session,
+        allowance=(MAX_JOURNAL_BYTES, MAX_LINE_BYTES), check=check)
+    if owner is None or owner['origin']['origin'] != origin:
+        raise ProjectLocationError('Project journal no longer matches its captured origin')
     def read_heads():
-        return store.head_references(root.session, max_documents=MAX_DOCUMENTS,
+        return store.head_references(session, max_documents=MAX_DOCUMENTS,
                                      max_revisions=MAX_HISTORY, check=check)
     heads = read_heads()
     choices = {identity: [] for identity in sorted(identities)}
@@ -83,7 +93,7 @@ def review_sources(root, *, check=lambda: None):
     for head in heads:
         for revision in range(1, head['revision'] + 1):
             check()
-            saved = store.read(head['id'], root.session, revision=revision)
+            saved = store.read(head['id'], session, revision=revision)
             metadata = saved.document['state'].get('librarySource')
             if type(metadata) is not dict or type(metadata.get('asset')) is not dict:
                 continue
@@ -93,12 +103,12 @@ def review_sources(root, *, check=lambda: None):
             bindings += 1
             if bindings > MAX_BINDINGS:
                 raise ProjectLocationError('Project source review exceeds its retained binding allowance')
-            valid = (metadata.get('format') == 1 and metadata.get('projectOrigin') == root.origin
+            valid = (metadata.get('format') == 1 and metadata.get('projectOrigin') == origin
                      and metadata.get('scope') == 'selected-media' and saved.document['kind'] == 'source-file')
             if valid:
                 source = saved.document['state'].get('sourceFile')
                 try:
-                    store.file_source(saved.id, root.session, saved.revision,
+                    store.file_source(saved.id, session, saved.revision,
                         source.get('reference') if type(source) is dict else None,
                         verify_content=False)
                 except (ValueError, OSError):
@@ -110,10 +120,8 @@ def review_sources(root, *, check=lambda: None):
     check()
     if heads != read_heads():
         raise ProjectLocationError('Project records changed during source review; retry after its work settles')
-    path = session_root(root) / root.session / 'journal.jsonl'
     if _stamp(path.lstat()) != _stamp(journal_stamp):
         raise ProjectLocationError('Project journal changed during source review; retry after its work settles')
-    verify_owner(root)
     return {'scope': 'journal-library-source-events', 'journal': basis,
         'sources': [{'asset': identity, 'status': 'retained-choices' if any(
             item['status'] == 'retained-binding' for item in items) else 'inclusion-required',

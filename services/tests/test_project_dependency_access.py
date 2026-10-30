@@ -67,6 +67,8 @@ def test_dependency_action_discovery_scope_and_idempotent_receipt(project_door, 
     result = run(client, owner, 'project.dependencies', {}, 'dependency-review', session)
     schema.check(result['outcome']['dependencies'], 'project-dependencies')
     assert result['outcome']['dependencies']['basis'] == []
+    assert result['outcome']['dependencies']['sourceReview']['sources'] == []
+    assert result['outcome']['dependencies']['sourceReview']['completeProject'] is False
     assert run(client, owner, 'project.dependencies', {}, 'dependency-review', session)['id'] == result['id']
     request = {'tool': 'project.dependencies', 'args': {}, 'project': session, 'requestKey': 'unrelated-dependency'}
     assert client.post('/api/agent/v1/operations', headers=outsider, json=request).status_code == 403
@@ -179,3 +181,20 @@ def test_head_discovery_excludes_other_owners_without_reading_their_documents(tm
     path = store.root / theirs.id / 'revisions' / (theirs.digest + '.json')
     path.chmod(0o600); path.write_bytes(b'damaged unrelated body')
     assert store.head_references(ours.session, max_documents=1, max_revisions=1) == [identity(ours)]
+
+
+def test_source_review_is_scoped_to_the_admitted_project_without_changing_the_ui(project_door):
+    client, built = project_door
+    owner = bearer(connect(client)['token'])
+    session = run(client, owner, 'project.create', {'name': 'Source history'}, 'source-review-create')['outcome']['project']['session']
+    visible = built.day.sid
+    captured = built.day.elsewhere(session)
+    captured.open_source('a12')
+    captured.remove_source('a12')
+    result = run(client, owner, 'project.dependencies', {}, 'source-review-history', session)
+    review = result['outcome']['dependencies']['sourceReview']
+    schema.check(review, 'project-source-review')
+    assert review['sources'] == [{'asset': 'a12', 'status': 'inclusion-required', 'choices': []}]
+    assert built.day.sid == visible
+    with pytest.raises(ValueError):
+        schema.check({**review, 'completeProject': True}, 'project-source-review')

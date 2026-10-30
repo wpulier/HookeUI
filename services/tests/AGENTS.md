@@ -766,3 +766,8 @@ basis preservation, concurrent revision refusal and door discovery/default-deny,
 request retry and grant revocation. Inputs and consent are synthetic, with actual
 accepted stores and door operation transport; this does not qualify a live agent,
 complete collection or public portable-folder UX.
+
+Source inspection through `project.dependencies` reads the captured Project's
+journal and historical retained media bindings. Synthetic-consent door checks
+cover shared schema, unchanged visible Project, cancellation and bounded owner
+reads. This is inclusion preflight, not a complete collection certificate.
