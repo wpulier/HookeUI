@@ -505,4 +505,27 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         names = ", ".join(f'"{inline(t, 60)}"' for t in also[:3])
         said += (f"; it is also still open in Tab {names} (instead moves it from there, rather than opening it here "
                  "too)")
+    _placed_on_run(entry, found, title)
     return said
+
+
+def _placed_on_run(entry, found, title: str) -> None:
+    """The saved work placed, on the step's run (`ToolRun.resource`), as a reopen keeps it (present `_open_in_reader`):
+    the request's answer then names it (its turn's `resourceIds`), so "explain that" reads that thing's own record
+    (board.last_result). will-research, 30 Oct (measure-c4acc90, runs 1 and 3): Researcher 1's picture placed in the
+    Graphic Tab left the hand-off's answer with no resourceIds, and "I don't understand that, explain that" was answered
+    with the placing step's status instead of the picture."""
+    from .brain.registry import CURRENT_RUN
+
+    run = CURRENT_RUN.get()
+    if run is None or run.resource:
+        return
+    if entry is not None:
+        rid, day = str(entry.id), str(getattr(entry, "day", "") or "")
+    else:
+        held = next(((item.get("resource") or {}) for _tab, item in found
+                     if isinstance(item.get("resource"), dict) and isinstance(item["resource"].get("id"), str)), None)
+        if not held:
+            return
+        rid, day = held["id"], str(held.get("day") or "")
+    run.resource = {"id": rid, "day": day, "title": title, "operation": "placed"}

@@ -738,6 +738,12 @@ class Brain:
                 if early is not None:
                     early.drop()  # the request is gone (cancelled): its look goes with it
                 raise
+            if quick is not None and quick.about_last:
+                # About the last result (the model's judgment): the turn carries that thing's record, read as a query,
+                # and the answer is written from it (fast.reading_last_result).
+                from .fast import reading_last_result
+
+                quick.actions = reading_last_result(quick.actions)
             if early is not None and quick is not None and (not quick.needs_look or quick.actions):
                 # The notes answer it, or its steps change the board the look planned on (a look that knows them
                 # replaces it, below): dropped and refunded before the steps or any query round are sent, so the
@@ -838,6 +844,10 @@ class Brain:
             except BaseException:
                 tools.resolve_first_guess(self.hub, guess, [])
                 raise
+            if data.get("about_last") is True:  # the look's judgment, as the fast pass's: the record is read too
+                from .fast import reading_last_result
+
+                data["actions"] = actions_wire(reading_last_result(parse_actions(data.get("actions"))))
             goal_actions = data.get("actions")
         think_ms = used["latency_ms"]
         calls = budget.used

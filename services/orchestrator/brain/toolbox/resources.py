@@ -357,7 +357,7 @@ def that_facts(hub, index, found, day: str, sid: str) -> str:
         ids.append(found.researcher)
     entries, _ = index.collect(day)
     by_id = {e.id: e for e in entries}
-    made, readings = [], []
+    made, readings, behind = [], [], {}
     for eid in list(dict.fromkeys(ids))[:THAT_PARTS]:
         entry = index.get(eid, day)
         if entry is None:
@@ -378,11 +378,16 @@ def that_facts(hub, index, found, day: str, sid: str) -> str:
             if record.get(key):  # the app's own titles: a researcher's (untrusted) shown title stays out
                 row[key] = [{"id": r["id"], "kind": r["kind"], "title": getattr(by_id.get(r["id"]), "title", "")}
                             for r in record[key]][:8]
+        session = _researcher_of(index, entry, day)
+        if session is not None:  # a researcher's work: what it was asked, with what, from what, when (its records)
+            row["researcher"] = researcher_facts(index, session)
+            behind[entry.id] = session
         made.append(row)
     if made:
         facts["results"] = made
     outlines = list(found.outlines)[:THAT_PARTS]
-    out = ["The last result, from its records: " + json.dumps(facts, ensure_ascii=False, default=str)]
+    out = ["The last result, from its records: " + json.dumps(facts, ensure_ascii=False, default=str),
+           EXPLAIN_FROM_RECORDS]
     for oid in outlines:  # each outline's own account: who found, drew, checked and named it (known.py)
         try:
             said = index.read(oid, day)
@@ -395,7 +400,68 @@ def that_facts(hub, index, found, day: str, sid: str) -> str:
             readings.append(f"{newest} in full: {index.read(newest, day)}")
         except ToolFailed as exc:
             readings.append(f"{newest} could not be read: {exc.said()}")
+        session = behind.get(newest)
+        if session is not None and session.rid != newest:
+            # Part of a researcher's work (its picture, lesson, table): the researcher's own summary, where its labels
+            # and what it found are (its words, so in their wrapper).
+            from ...untrusted import block
+
+            try:
+                summary = session.readable("summary", limit=THAT_SUMMARY_CHARS)
+            except Exception:  # noqa: BLE001 - its summary unread is said, never guessed
+                summary = ""
+            if summary:
+                readings.append(f"{session.rid}'s own summary: " + block(summary, source="researcher's summary"))
     return "\n".join(out + readings)
+
+
+THAT_SUMMARY_CHARS = 1200
+# Said with the facts (only for "explain that"; context earns its place): what the answer is for. will-research, 30 Oct
+# (measure-c4acc90): "I don't understand that, explain that" after a researcher's graphic was placed was answered with
+# the placing step's status, or with stomata in general and nothing of who made it, from what, when or its labels.
+EXPLAIN_FROM_RECORDS = ("Explain the thing itself from these records, in the user's level of words: what it is and what "
+                        "it shows (its labels, its numbers), who made it and with which model, from what, and when; "
+                        "never the status of the request that made or placed it, and nothing its records do not say.")
+
+
+def _researcher_of(index, entry, day: str):
+    """The researcher whose work `entry` is (a researcher's report, or a part of its work: `<rid>:<part>`), or None."""
+    if entry.kind == "research":
+        return next((s for s in index._researchers(day) if getattr(s, "rid", None) == entry.id), None)
+    if ":" in entry.id:
+        session, _part = index.work_session(entry.id, day)
+        return session
+    return None
+
+
+def researcher_facts(index, session) -> dict:
+    """A researcher as its records say it: its name, what it was asked, its engine, the picture it was given (the
+    eyepiece view or the outline's crop it started from, only when that file was kept), and when it started and
+    finished."""
+    from pathlib import Path
+
+    from ...options import RESEARCH_ENGINE
+    from ...untrusted import inline
+
+    engine = RESEARCH_ENGINE.get(str(getattr(session, "engine", "") or ""))
+    out = {"name": str(getattr(session, "name", "") or session.rid),
+           "asked": inline(getattr(session, "brief", "") or "", 240),
+           "engine": engine.label if engine is not None else str(getattr(session, "engine", "") or "")}
+    root = getattr(session, "root", None) or getattr(getattr(index, "research", None), "root", None)
+    folder = Path(root) / str(session.day) / session.rid / "inputs" if root is not None else None
+    started = getattr(session, "started", None) or getattr(session, "created", None)
+    when = f" when it started ({time.strftime('%H:%M:%S', time.localtime(started))})" if started else " when it started"
+    if folder is not None and (folder / "crop.jpg").is_file():
+        out["given"] = f"a close-up of the outlined thing from the live view{when}"
+    elif folder is not None and (folder / "frame.jpg").is_file():
+        out["given"] = f"a photo of the live view{when}"
+    else:
+        out["given"] = "no photo kept: it worked from the words it was given"
+    if getattr(session, "specimen", ""):
+        out["specimenThen"] = inline(session.specimen, 120)
+    if getattr(session, "finished", None):
+        out["finished"] = time.strftime("%H:%M:%S", time.localtime(session.finished))
+    return out
 
 
 def add_annotation_tool(registry: Registry, services) -> None:
