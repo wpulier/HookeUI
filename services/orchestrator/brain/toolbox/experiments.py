@@ -50,14 +50,17 @@ def add_experiment_tools(registry: Registry, services) -> None:
                          measure=args.get("measure", True) is not False, asked=ctx.question or "",
                          request_id=request_of(ctx), turn_id=ctx.turn_id or None, asked_in=ctx.asked)
             attach(values={"experiment": x.wire()})
-            return X.plan_words(x) + ". Ask the user once whether to run it; nothing has run"
+            return (X.plan_words(x) + ". Say the plan as its first two sentences say it (the models by name, the "
+                    "frames, the comparison, the audit, the time and the cost) and ask once whether to run it; nothing "
+                    "has run")
         x = xs.get(args.get("experiment"), session)
         if do == "change":
             x = xs.change(x, models=args.get("models"), on=args.get("on"), frames=args.get("frames"),
                           every=args.get("every"), audit=args.get("audit"), question=args.get("question"),
                           effort=args.get("effort"), measure=args.get("measure"))
             attach(values={"experiment": x.wire()})
-            return "Changed: " + X.plan_words(x) + ". Ask the user once whether to run it as it is now; nothing has run"
+            return ("Changed: " + X.plan_words(x) + ". Say the plan as it is now, as its first two sentences say it, "
+                    "and ask once whether to run it; nothing has run")
         if do == "stop":
             said = await xs.stop(x)
             attach(values={"experiment": x.wire()})
@@ -130,7 +133,9 @@ def add_experiment_tools(registry: Registry, services) -> None:
         return xs.status_words(x) + rest
 
     registry.add(Tool(
-        "experiment_status", "How an experiment is going, or how it ended (\"how is the experiment going?\"), from its "
-        "records: its state, its frames, each model's runs so far, its audit, its results. The latest by default.",
+        "experiment_status", "How an experiment is going, or how it ended (\"how is the experiment going?\"), from one "
+        "reading of its records: how many model runs are done of how many, which model runs on which frame now, the "
+        "results so far, the audit's state and the time left (an estimate). Say those, in that order. The latest by "
+        "default.",
         schema({"experiment": {"type": "string", "description": "its id (x1) or number; default the latest"}}, []),
         experiment_status, kind="query", inline_ms=300, family="researchers"))
