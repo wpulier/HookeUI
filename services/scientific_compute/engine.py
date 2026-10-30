@@ -122,11 +122,21 @@ def inspect(inputs, params, output, check):
             whole_nonnegative = whole_nonnegative and bool(np.all(block.data >= 0) and np.all(block.data == np.floor(block.data)))
             nnz += block.nnz
             totals.extend(np.asarray(block.sum(axis=1)).ravel().tolist())
+        totals = np.asarray(totals, dtype=np.float64)
+        _finite(totals)
+        depth = {'min': float(totals.min()), 'max': float(totals.max()),
+                 'mean': float(np.mean(totals)), 'median': float(np.median(totals))}
+        _finite(list(depth.values()))
+        if require_counts:
+            zeros = int(np.count_nonzero(totals == 0))
+            depth.update(zeroObservations=zeros,
+                         meanReciprocal=None if zeros else float(np.mean(1.0 / totals)),
+                         reciprocalMeaning='Mean of 1 / row total over all observations; undefined if any row total is zero.')
         result = {'format': 'annotated-matrix-summary-v1', 'shape': list(data.shape),
                   'dtype': str(data.X.dtype), 'sparse': getattr(data.X, 'format', None) in ('csr', 'csc'),
                   'genes': data.n_vars, 'observations': data.n_obs, 'storedEntries': nnz,
                   'observationColumns': list(data.obs.columns),
-                  ('libraryDepth' if require_counts else 'rowTotals'): {'min': min(totals), 'max': max(totals), 'mean': float(np.mean(totals))},
+                  ('libraryDepth' if require_counts else 'rowTotals'): depth,
                   'geneAxisSha256': hashlib.sha256('\n'.join(data.var_names).encode()).hexdigest()}
         if require_counts:
             result['rawCounts'] = True

@@ -840,3 +840,5 @@ Moved-folder resume regression reaches SessionStore.resume with its remembered
 location absent, checks an available fallback and offline listing, then explicitly
 relocates/reopens without shadow storage or replay. The red trace and actual
 isolated browser startup are recorded separately from synthetic checks.
+
+`matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
