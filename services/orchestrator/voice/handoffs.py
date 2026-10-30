@@ -59,6 +59,17 @@ def unconfirmed(action: dict) -> bool:
     return outcome.get("status") in UNSEEN_STATUS or code in UNSEEN_CODES
 
 
+def corrected(actions) -> list[dict]:
+    """The steps of a brain turn that still stand: a refusal of the brain's own call (`argument`: its arguments did not
+    fit, ToolFailed.argument) that a later call of the same tool replaced is the brain correcting itself, left out
+    (will-research, 29 Oct: an annotated picture refused for want of an outline, then the illustration started; the
+    row said "did not work" and the voice told the user nothing was outlined). Any other failure stays."""
+    rows = [a for a in actions or () if isinstance(a, dict)]
+    return [a for i, a in enumerate(rows)
+            if not (a.get("ok") is False and a.get("argument") is True
+                    and any(b.get("tool") == a.get("tool") and b.get("ok") is not False for b in rows[i + 1:]))]
+
+
 def started_researcher(result: dict) -> str | None:
     """The researcher a brain turn started, from its steps' outputs (a research-run reference)."""
     for action in result.get("actions") or []:
@@ -176,7 +187,7 @@ class Handoffs:
         if isinstance(result.get("turnId"), int):
             handoff.turn_id = result["turnId"]
         ok = out.get("ok")
-        actions = [a for a in (result.get("actions") or []) if isinstance(a, dict)]
+        actions = corrected(result.get("actions"))
         unseen = [a for a in actions if unconfirmed(a)]
         failed_for_real = [a for a in actions if a.get("ok") is False and not unconfirmed(a)]
         if (unseen or out.get("result") == "uncertain") and not failed_for_real and not out.get("error"):
@@ -189,7 +200,7 @@ class Handoffs:
             handoff.state, handoff.settling = "working", True
         else:
             handoff.state = "failed"
-            failed = [str(s.get("summary") or "").strip() for s in steps if s.get("ok") is False]
+            failed = [str(s.get("summary") or "").strip() for s in actions if s.get("ok") is False]
             failed = [f for f in failed if f]
             error = str(out.get("error") or result.get("error") or "").strip()
             handoff.reason = title(handoff.answer or "; ".join(failed) or error or "Hooke did not say what it did",

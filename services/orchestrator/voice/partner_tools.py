@@ -26,7 +26,7 @@ from typing import Any
 from .base import ToolSpec
 from . import knowing
 from .followups import Followup, facts as followup_facts, followups_of
-from .handoffs import Handoffs, started_researcher, title
+from .handoffs import Handoffs, corrected, started_researcher, title
 from .hands import Hands, Intent, intent_of
 from .records import Records
 from ..screen import fresh_report
@@ -1204,14 +1204,15 @@ class PartnerTools:
                 self._late_of.pop(delegation, None)
             if request is not None:
                 request.seal()  # as a typed Send's: what it started finishes, then its holds are let go
-        actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")}
-                   for a in (result.get("actions") or [])][:8]
+        # A call the brain corrected in the same turn (handoffs.corrected) is neither a failure nor told to the voice.
+        standing = corrected(result.get("actions"))
+        actions = [{"tool": a.get("tool"), "ok": a.get("ok"), "summary": a.get("summary")} for a in standing][:8]
         answer = str(result.get("answer") or "")[:1800]
         failed = [f"{a['tool']}: {a['summary']}" for a in actions if a["ok"] is False]
         working = [a["tool"] for a in actions if a["ok"] is None]
         # Sent but not confirmed on screen (no report came since, present's STUDIO_UNREPORTED): neither done nor
         # failed, said as that; never "done" and never "ask again".
-        uncertain = [a.get("tool") for a in (result.get("actions") or [])[:8]
+        uncertain = [a.get("tool") for a in standing[:8]
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
                                "answer": answer, "actions": actions}
