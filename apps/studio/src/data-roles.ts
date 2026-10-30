@@ -136,7 +136,7 @@ export function titleParts(title: string): { head: string; rest: string[]; time:
  * words; an input by its title's first part ("Human cells", its credit going to the quiet line). */
 export function rowTitle(row: DataRow): string {
   const entry = row.entry;
-  if (!entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
+  if (row.asset || !entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
   // Your note by its own title ("Your note · Field A looks denser" is "Field A looks denser"; its line says Note).
   if (entry.kind === 'annotation') return entry.title.replace(/^Your note · /, '') || entry.title;
   if (entry.untrusted || row.role === 'writeup' || row.role === 'source') return entry.title;

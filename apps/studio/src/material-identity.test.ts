@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {dataRows,type DataEntry} from './data-roles';
+import {dataRows,rowTitle,type DataEntry} from './data-roles';
 import type {AssetMeta} from './protocol';
 import {isRetainedMaterial,sourceReaderEntry} from './material-identity';
 import {projectInputs} from './project-inputs';
@@ -14,6 +14,7 @@ it('joins one exact retained record to its source alias without losing authorshi
   const rows=dataRows([entry],[source]);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({entry,asset:source,maker:entry.maker});
+  expect(rowTitle(rows[0])).toBe('Human cells');
   expect(projectInputs([entry],'human cells',[source])).toEqual([entry]);
 });
 
