@@ -813,3 +813,26 @@ def test_a_request_never_joins_a_job_that_is_being_stopped():
     h, dying, again = run(go())
     assert dying.task.cancelled() and again.execution is not dying.execution and again.output["polygons"]
     assert len(h.gpu.calls) == 2 and h.gpu.finished == 1
+
+
+def test_work_waits_for_its_model_while_it_loads_rather_than_refusing(monkeypatch):
+    """Live, 30 Oct: the first "outline the stoma" after a restart was answered "the local outline model is still
+    loading … or we can wait a moment". The work waits for the load (bounded), then runs."""
+    import orchestrator.operations as operations
+
+    warming = Gpu({"edgetam": []})
+    warming.ready = False
+    h = hub(warming)
+
+    async def go():
+        async def loaded():
+            await asyncio.sleep(0.6)
+            warming.ready = True
+        asyncio.ensure_future(loaded())
+        return await Runner(h).run("outline", view(), CLICK, origin="click")
+    result = run(go())
+    assert result.output["score"] == 0.9 and result.execution.attempts[-1].ok, "it ran once its model was ready"
+    monkeypatch.setattr(operations, "LOADING_WAIT_S", 0.3)
+    warming.ready = False
+    with pytest.raises(operations.Unavailable, match="still loading"):
+        run(Runner(h).run("outline", view(2), CLICK, origin="click"))

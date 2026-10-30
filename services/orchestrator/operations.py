@@ -717,8 +717,12 @@ def availability(hub, impl: Impl) -> str:
         if problem:
             return problem
         if impl.worker == "interactive" and not getattr(client, "ready", False):
-            return "the outline model is still loading"
+            return STILL_LOADING
     return ""
+
+
+STILL_LOADING = "the outline model is still loading"
+LOADING_WAIT_S = 45.0  # a model loading waits this long for it (EdgeTAM loads in 4-5 s; under load, longer)
 
 
 GPU_WORKERS = ("interactive", "analysis", "follow", "molmo")
@@ -844,15 +848,25 @@ class Runner:
             # marked used (a choice nothing used is said when the request ends).
             origin = chosen.get("origin") or origin
             chosen["used"] = True
-        try:
-            op, impl, policy, selection = self.choose(operation, prompt, choice, policy, origin, ticket if chosen else None)
-        except Unavailable as exc:
-            exc.execution = self._record(Execution(operation, choice or "default", policy or ("raw" if choice else "route"),
-                                                   origin, getattr(capture, "id", None), "explicit" if choice else "settings",
-                                                   attempts=[Attempt(choice or "default", False, error=str(exc), why="unavailable",
-                                                                     not_run="unavailable")],
-                                                   trial=trial, subject=self._subject()), ticket, reused=False)
-            raise
+        loading_until = time.monotonic() + LOADING_WAIT_S
+        while True:
+            try:
+                op, impl, policy, selection = self.choose(operation, prompt, choice, policy, origin,
+                                                          ticket if chosen else None)
+                break
+            except Unavailable as exc:
+                if STILL_LOADING in str(exc) and time.monotonic() < loading_until:
+                    # Its model is loading (a start, a restart after a crash): the work waits for it, as a person
+                    # would, rather than ask the user to wait and ask again (live, 30 Oct: "the local outline model is
+                    # still loading ... or we can wait a moment").
+                    await asyncio.sleep(0.5)
+                    continue
+                exc.execution = self._record(Execution(operation, choice or "default", policy or ("raw" if choice else "route"),
+                                                       origin, getattr(capture, "id", None), "explicit" if choice else "settings",
+                                                       attempts=[Attempt(choice or "default", False, error=str(exc), why="unavailable",
+                                                                         not_run="unavailable")],
+                                                       trial=trial, subject=self._subject()), ticket, reused=False)
+                raise
         params = dict(params or {})
         if impl.weights:
             # Fine-tuned weights: the version this job runs is fixed when it is keyed, so a version written meanwhile
