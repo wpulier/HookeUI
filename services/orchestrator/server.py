@@ -1204,10 +1204,12 @@ def main() -> None:
     parser.add_argument("--no-gpu", action="store_true")
     parser.add_argument('--project-folders', default=os.environ.get('HOOKE_PROJECTS_DIR'),
                         help='Explicit staged Project-folder parent; existing Projects stay in place')
+    parser.add_argument('--reopen-project', default=os.environ.get('HOOKE_REOPEN_PROJECT'),
+                        help='Explicitly recover the new location of a registered inactive Project; does not import or grant access')
     args = parser.parse_args()
     from .project_launch import configured_locations
     paths = Paths.from_env()
-    locations = configured_locations(paths, args.project_folders)
+    locations = configured_locations(paths, args.project_folders, reopen=args.reopen_project)
     server = create_app(args.bridge_url, use_gpu=not args.no_gpu, paths=paths, project_locations=locations)
     # Where researchers read the session's index (their session tool; resources.py, Amendment 2.7): its researchers'
     # view, which reads as it did before ticket 66 (RESEARCHER_VIEW in create_app).

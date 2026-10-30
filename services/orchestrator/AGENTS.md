@@ -14,6 +14,11 @@ and refuses to forget an existing registry if the setting is removed. This is an
 explicit qualification mode, not default activation or legacy migration. Launch it
 through scripts/studio.sh in an isolated profile; requests and saved records cannot
 choose this configuration. Full collection and owner folder controls remain separate.
+`--reopen-project` / `HOOKE_REOPEN_PROJECT` is an explicit startup recovery for a
+registered origin after moving its inactive folder. It verifies both ownership and
+the compatible handle under the writer/registry guards. Unknown origins and active
+originals/copies refuse. This repairs only a host locator, not grants or evidence;
+ordinary new-folder imports and independent copies remain separate.
 
 Dataset-table and analysis/graph snapshots use the captured Project's artifact
 folder when `day.locations` is enabled. Legacy paths remain unchanged. Shared

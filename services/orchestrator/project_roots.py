@@ -207,7 +207,7 @@ class ProjectRegistry:
             raise ProjectLocationError('The folder at this location belongs to another Project')
         return root
 
-    def register(self, root: ProjectRoot, *, replace_inactive=False):
+    def register(self, root: ProjectRoot, *, replace_inactive=False, require_known=False):
         self.home.mkdir(parents=True, exist_ok=True)
         fd = os.open(self.home / '.project-locations.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
@@ -216,8 +216,16 @@ class ProjectRegistry:
             if ProjectRoot.open(root.path) != root:
                 raise ProjectLocationError('Project identity changed before registration')
             previous = entries.get(root.origin)
+            if require_known and previous is None:
+                raise ProjectLocationError('This Project is not registered here. Importing a new Project requires separate owner-established access.')
             if previous and previous['session'] != root.session:
                 raise ProjectLocationError('A Project origin cannot change its retained session identity')
+            def publish():
+                if require_known:
+                    from .project_repository import verify_owner
+                    verify_owner(root)
+                entries[root.origin] = {'path': str(root.path), 'session': root.session}
+                _atomic(self.path, {'format': 2, 'locations': entries})
             if previous and Path(previous['path']) != root.path:
                 if not replace_inactive:
                     raise ProjectLocationError('This Project is already known elsewhere. Choose read-only, replace its inactive location, or create an independent Project.')
@@ -230,11 +238,9 @@ class ProjectRegistry:
                         raise ProjectLocationError('The previous location now contains another Project')
                     with writer(old):
                         with writer(root):
-                            entries[root.origin] = {'path': str(root.path), 'session': root.session}
-                            _atomic(self.path, {'format': 2, 'locations': entries})
+                            publish()
                     return
             with writer(root):
-                entries[root.origin] = {'path': str(root.path), 'session': root.session}
-                _atomic(self.path, {'format': 2, 'locations': entries})
+                publish()
         finally:
             os.close(fd)
