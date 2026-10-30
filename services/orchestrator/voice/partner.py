@@ -122,8 +122,7 @@ class Partner:
                 found.listeners.append(self._user_actions.line)
                 self._activity = found
         session.started_tools = STARTED_TOOLS  # think and the slow tools: an acknowledgement now, the result later
-        session.on_point = lambda targets: self._spawn(self.marks([{"target": t, "style": "box"} for t in targets],
-                                                                 timeout=1.0))
+        session.on_point = self._point_at
         session.on(self.on_event)
         self.lines.voice = session
         self._tools_named = tuple(self.tools.names())
@@ -377,6 +376,63 @@ class Partner:
                   "sentT": sent, "shownT": time.time() if shown is not None else None,
                   "resolved": (shown or {}).get("resolved")})
         return shown
+
+    @staticmethod
+    def marks_of(targets) -> tuple[list[dict], dict | None]:
+        """Mark targets (an id, "outline:o1", or a frame mark {target: "frame", region, label?, frame: {id, crop}}) as
+        the studio's marks, with the camera frame a frame mark is on."""
+        marks, frame = [], None
+        for target in list(targets or ())[:4]:
+            if isinstance(target, dict) and isinstance(target.get("target"), str):
+                mark = {k: target[k] for k in ("target", "region", "polygon", "label") if k in target}
+                mark["style"] = target.get("style") or "box"
+                if frame is None and isinstance(target.get("frame"), dict):
+                    frame = target["frame"]
+            elif isinstance(target, str) and target:
+                mark = {"target": target, "style": "box"}
+            else:
+                continue
+            marks.append(mark)
+        return marks, frame
+
+    def _point_at(self, targets) -> None:
+        """What a tool's result names, pointed at as the answer about it starts to be heard (RealtimeSession._point_now)."""
+        marks, frame = self.marks_of(targets)
+        if marks:
+            self._spawn(self.marks(marks, frame=frame, timeout=1.0))
+
+    def pointing(self, targets) -> dict:
+        """`happened`'s pointing for a line about these targets: its marks, drawn as it is said, and their frame."""
+        marks, frame = self.marks_of(targets)
+        return {"marks": marks, **({"frame": frame} if frame else {})} if marks else {}
+
+    def pointable(self, targets: list) -> list:
+        """Of these mark targets, those the studio's latest report shows, so a mark is never sent that cannot be drawn: a
+        window open and visible; an outline, a layer of them or a place in the camera picture while the Tab in front
+        shows the specimen; a researcher's card. All of them when there is no report to read (no studio bound)."""
+        screen = getattr(self.hub, "screen", None)
+        if self.client is None or screen is None:
+            return list(targets)
+        try:
+            from ..workspace_observation import front
+            from .route import passive_workspace_pin
+
+            wire = passive_workspace_pin(screen, self.client).observation.wire()
+            shown = front(wire)
+        except Exception:
+            return list(targets)
+        if shown.get("studioVisible") is False:
+            return []
+        windows = {i.get("id") for i in wire.get("items") or () if i.get("open") and i.get("visible")}
+        specimen = (shown.get("specimen") or {}).get("state") != "hidden"
+        out = []
+        for target in targets:
+            name = target.get("target") if isinstance(target, dict) else target
+            kind, _, ref = str(name or "").partition(":")
+            if (kind == "window" and ref in windows) or kind == "researcher" or (
+                    kind in ("outline", "population", "member", "frame") and specimen):
+                out.append(target)
+        return out
 
     async def open_line(self) -> None:
         """It talks first (Will's feel check, 29 Oct): as this Talk session first connects, what the microscope and

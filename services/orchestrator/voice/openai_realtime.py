@@ -263,7 +263,7 @@ class RealtimeSession(VoiceSession):
         # tag_notice(text) -> {"event", "ref", "mark", "before"} or None.
         self.tag_notice: Callable[[str], dict | None] = lambda text: None
         # Points at what a tool just put on screen, as the answer about it starts to be heard (partner: marks).
-        self.on_point: Callable[[list[str]], None] = lambda targets: None
+        self.on_point: Callable[[list], None] = lambda targets: None
         # --- conversation state ---
         self.n = 0  # the user's turn number (talk presses, or speech in open mic)
         self._held: int | None = None
@@ -304,7 +304,7 @@ class RealtimeSession(VoiceSession):
         self._images: list[str] = []  # image items of the last turn: deleted at the next
         self._early_n: int | None = None  # the turn whose perception went in while its key was held
         self._turn_items: dict[int, list[str]] = {}  # turn -> its perception's item ids (a cancelled turn's are deleted)
-        self._point: list[str] = []  # targets to point at when the next answer is heard
+        self._point: list = []  # targets (ids, or frame marks) to point at when the next answer is heard
         self._cancelled: set[int] = set()
         self._turn_notes: dict[int, list[str]] = {}
         self._brief: tuple[str, str] | None = None  # (item id, revision)
@@ -1817,7 +1817,9 @@ class RealtimeSession(VoiceSession):
         look = result.pop("_look", None)
         points = result.pop("_point", None)
         if isinstance(points, list) and points:
-            self._point = [str(t) for t in points][:4]
+            # Ids, or a frame mark ({target: "frame", region, frame}): what the answer about this names, pointed at as
+            # it starts to be heard.
+            self._point = [t if isinstance(t, dict) else str(t) for t in points][:4]
         # The receipt first (its result and its words): what the voice says comes from them; the rest is detail for
         # when the user asks how (smoke-ux-2 still said "the outlines are now on the layer" from the tool's summary).
         first = {k: result[k] for k in ("result", "said") if k in result}

@@ -104,7 +104,8 @@ class Followups:
             outcomes.append({"asked": followup.words, "status": "done" if out.get("ok") else
                              ("still working" if out.get("ok") is None else "did not work"),
                              **({"answer": out["answer"]} if out.get("answer") else {}),
-                             **({"failed": out["failed"]} if out.get("failed") else {})})
+                             **({"failed": out["failed"]} if out.get("failed") else {}),
+                             **({"_point": out["_point"]} if out.get("_point") else {})})
         self.waiting[rid] = [f for f in self.waiting.get(rid, []) if f.state in ("waiting",)]
         if not self.waiting[rid]:
             self.waiting.pop(rid, None)
@@ -126,6 +127,7 @@ def followups_of(hub, research=None) -> Followups:
 
 
 def facts(outcomes: list[dict]) -> str:
-    """The steps' outcomes, as the facts said with the researcher's result."""
+    """The steps' outcomes, as the facts said with the researcher's result (what each points at is the app's, not said)."""
+    told = [{k: v for k, v in o.items() if not str(k).startswith("_")} if isinstance(o, dict) else o for o in outcomes]
     return ("\nThe step the user asked for after it, done by Hooke now that it finished (say its outcome with the "
-            "result, once):\n" + json.dumps(outcomes, ensure_ascii=False))
+            "result, once):\n" + json.dumps(told, ensure_ascii=False))

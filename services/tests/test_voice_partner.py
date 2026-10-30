@@ -1690,3 +1690,162 @@ def test_a_hand_off_says_one_outcome_when_the_work_it_started_has_landed(monkeyp
         await announcer.late_tool(ctx, ran)
         assert offered, "a late step no hand-off waits for is said"
     asyncio.run(go())
+
+
+# --- pointing at what it names (will-leaf "middle", 30 Oct: named the central oval, pointed at nothing) ---------------
+class CloseLook:
+    """The close-look model (option LOOK_HARD) as the partner asks it: its answer, and where in the camera picture the
+    thing it names is (`box_2d`, [ymin, xmin, ymax, xmax] on 0-1000), as the app's vision models give boxes."""
+
+    def __init__(self, data):
+        self.data, self.asked = data, []
+
+    async def ask(self, images, prompt, max_output_tokens=1500):
+        self.asked.append((images, prompt))
+        return SimpleNamespace(error="", data=self.data, raw_text=json.dumps(self.data), model="gemini-4-argon")
+
+
+async def answer_snapshots(t, until_done):
+    """The studio's window pictures, each asked for answered, until `until_done()`."""
+    answered = set()
+    while not until_done():
+        for m in [m for m in t.studio if m["type"] == "snapshot-request" and m["id"] not in answered]:
+            answered.add(m["id"])
+            await t.partner.command({"type": "snapshot", "id": m["id"], "jpeg": base64.b64encode(b"WINDOW").decode()})
+        await asyncio.sleep(0.01)
+
+
+async def look_round(t, question: str):
+    """Turn 1: no words, then look_hard on the camera (and the window), as will-leaf's middle step went."""
+    await press(t, 1)
+    await release(t, 1)
+    t.sb.emit({"type": "conversation.item.input_audio_transcription.completed", "item_id": "a1",
+               "transcript": "What's the thing in the middle?"})
+    t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "lh1",
+               "name": "look_hard", "arguments": json.dumps({"question": question, "window": True})})
+    await done(t.sb, "resp_1")
+    await answer_snapshots(t, lambda: t.sb.responses == 2)
+
+
+def test_a_close_look_points_at_what_it_names_as_its_answer_is_heard(monkeypatch):
+    """will-leaf "middle", all 3 runs judged 2 of 3: "correctly identified the central oval as most likely a stoma … but
+    did not point to it". look_hard {"question": "Identify the feature in the center…", "window": true} came back with
+    words only, and "It's most likely a stoma with guard cells…" was said with no mark. Pointing is structural: the look
+    says where the thing it names is in the camera picture it looked at, and the mark goes out on that very frame as the
+    answer about it starts to be heard, the way the opener's mark goes with its words; the voice is told not to mark it."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        look = CloseLook({"answer": "Most likely a stoma: two guard cells around a pore.",
+                          "box_2d": [470, 430, 660, 570], "name": "Stoma"})
+        t.brain.agent.vision = lambda option: look
+        await look_round(t, "Identify the feature in the center of the live camera frame.")
+        assert "box_2d" in look.asked[0][1], "the look is asked where the thing it names is"
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["ok"] is True and output["answer"].startswith("Most likely a stoma")
+        assert output["pointed_at"] and "do not call mark" in output["pointing"]
+        assert not [m for m in t.studio if m["type"] == "marks"], "not before the answer is heard"
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        [mark] = marks["marks"]
+        assert mark["target"] == "frame" and mark["region"] == pytest.approx([0.43, 0.47, 0.14, 0.19])
+        assert mark["label"] == "Stoma"
+        assert marks["frame"] == {"id": 41, "crop": [0, 0, 100, 100]}, "on the frame the look saw"
+    asyncio.run(go())
+
+
+def test_a_close_look_that_names_nothing_in_the_picture_points_at_nothing(monkeypatch):
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        t.brain.agent.vision = lambda option: CloseLook({"answer": "About 150 cells.", "box_2d": None})
+        await look_round(t, "How many cells are there?")
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert "pointed_at" not in output
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        await asyncio.sleep(0.2)
+        assert not [m for m in t.studio if m["type"] == "marks"]
+        # A box that is no box (out of the picture, no size) is never drawn either.
+        t.brain.agent.vision = lambda option: CloseLook({"answer": "A stoma.", "box_2d": [600, 500, 400, 500]})
+        assert "_point" not in await t.partner.tools._look_hard({"question": "what is it?"})
+    asyncio.run(go())
+
+
+def test_a_hand_off_points_at_what_it_made_as_its_outcome_is_heard(monkeypatch):
+    """will-leaf "segment": the outcome "I outlined the center stoma" was said with nothing pointed at, though the
+    brain's step named the outline it made (find: outline o1). What a hand-off made or opened is pointed at as its
+    outcome is heard: an outline, a layer of them, a window, a researcher's card."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+
+        async def turn(text, channel, **kw):
+            return {"answer": "I outlined the stoma in the middle.",
+                    "actions": [{"tool": "find", "ok": True, "summary": "outlined the oval",
+                                 "outputs": [{"kind": "outline", "id": "o1"}]}]}
+        t.brain.turn = turn
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "h1",
+                   "name": "do_in_hooke", "arguments": json.dumps({"request": "use a segmentation model on the center "
+                                                                   "thing", "label": "Segment center feature"})})
+        await done(t.sb, "resp_1")
+        await answer_snapshots(t, lambda: t.sb.responses == 2)
+        output = json.loads(next(i for i in t.sb.items() if i["type"] == "function_call_output")["output"])
+        assert output["pointed_at"] == ["outline:o1"]
+        t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
+        marks = await until_async(lambda: next((m for m in t.studio if m["type"] == "marks"), None))
+        assert [m["target"] for m in marks["marks"]] == ["outline:o1"]
+    asyncio.run(go())
+
+
+def test_an_outcome_said_later_points_at_what_it_is_about(monkeypatch):
+    """Every scoreboard of 30 Oct: "Knowing … pointed 0 of N". "Outline every cell." ran past the voice's wait; its
+    outcome, "I've outlined 159 cells across the live view.", was said as a line of its own with no mark (its
+    partner-proactive record had no markTarget). The line about a thing points at it, as a researcher's does at its card."""
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 0.1)
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        gate = asyncio.Event()
+
+        async def turn(text, channel, **kw):
+            await gate.wait()
+            return {"answer": "I have outlined 159 cells across the live view.",
+                    "actions": [{"tool": "outline_cells", "ok": True, "summary": "159 instances segmented",
+                                 "outputs": [{"kind": "population", "id": "e1"}]}]}
+        t.brain.turn = turn
+        first = await t.partner.tools.do_in_hooke({"request": "outline every cell", "label": "Outline all cells"})
+        assert first["still_working"] is True
+        t.session._last_user_at = 0.0
+        gate.set()
+        await answer_snapshots(t, lambda: t.sb.responses == 1)
+        said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
+        assert said["event"] == "tool-done" and said["markTarget"] == "population:e1"
+        marks = next(m for m in t.studio if m["type"] == "marks")
+        assert [m["target"] for m in marks["marks"]] == ["population:e1"]
+    asyncio.run(go())
+
+
+def test_only_what_the_screen_shows_is_pointed_at(monkeypatch):
+    """A mark the studio cannot draw is an unresolved mark (the scoreboard's "Id marks correct" line): what a hand-off
+    made is pointed at only when the studio's latest report shows it, a window open and visible, an outline or a layer
+    of them while the Tab in front shows the specimen, a researcher's card."""
+    def report(specimen="fill", visible=True):
+        tabs = [{"id": "main", "front": True, "specimen": {"state": specimen}}]
+        return {"items": [
+            {"id": "workspace-tabs", "open": True, "visible": True,
+             "view": {"legacy": {"workspace": {"project": "p", "tab": "main", "tabTitle": "Main", "tabs": tabs}}}},
+            {"id": "w-1", "open": True, "visible": visible}, {"id": "w-2", "open": False, "visible": False}],
+            "sources": [], "viewport": {}}
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        wanted = ["window:w-1", "window:w-2", "outline:o1", "population:e1", "researcher:r1",
+                  {"target": "frame", "region": [0.1, 0.1, 0.2, 0.2]}]
+        assert t.partner.pointable(wanted) == wanted, "no studio bound: nothing to check against"
+        t.partner.client = object()
+        shown = [report()]
+        monkeypatch.setattr("orchestrator.voice.route.passive_workspace_pin",
+                            lambda screen, client: SimpleNamespace(observation=SimpleNamespace(wire=lambda: shown[0])))
+        assert t.partner.pointable(wanted) == [w for w in wanted if w != "window:w-2"]
+        shown[0] = report(specimen="hidden", visible=False)
+        assert t.partner.pointable(wanted) == ["researcher:r1"]
+    asyncio.run(go())
