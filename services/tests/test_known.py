@@ -69,9 +69,10 @@ def test_a_name_the_model_was_unsure_of_says_so_and_never_lists_its_own_pick_as_
                                 "alternatives": [{"name": "lymphocyte"}], "answer": "Hard to tell.", "confidence": 0.4,
                                 "unsure": True})
     text = Index(hub).read("o1")
-    assert 'Named "white blood cell" by' in text and 'Its own first guess was "monocyte"' in text
+    # Its best guess is the name, said with the doubt (Will, 30 Oct: "it used to always know this was a stoma").
+    assert 'Named "monocyte" by' in text and "Its own first guess" not in text
     assert "What else it weighed: lymphocyte." in text  # not its own first pick again
-    assert "It said it was not sure: maybe monocyte or lymphocyte (confidence 0.40)." in text
+    assert "It said it was not sure: maybe lymphocyte (confidence 0.40)." in text
 
 
 def test_renames_through_the_real_paths_keep_who_changed_what_and_the_models_account_stays_its_own(tmp_path):
