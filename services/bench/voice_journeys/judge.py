@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .standard import load_bench, released, step_view, thinks, unprompted_spans, windows
+from .standard import load_bench, outcome_spans, released, step_view, thinks, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
 # Each judge: its key, and a judged step's worst cost (one image, about 3,000 tokens in; its output cap, thinking
@@ -176,9 +176,13 @@ def receipt(text: str, limit: int = 420) -> str:
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     """Each scored step's words, lines and actions, relative to its release (what PROMPT is given)."""
     bench = load_bench(bench)
+    # Each called tool's and started researcher's outcome, said when it landed, is its step's wherever it falls, as the
+    # scorer reads it (will-research, 30 Oct: the made video's "The animation is ready…", said after the step's window,
+    # was unseen by the judge, and the step judged as never announced).
+    bench["_outcomes"] = outcome_spans(inter)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     out, unprompted, tasks = [], unprompted_spans(inter), thinks(inter)
-    for i, (step, (start, end)) in enumerate(zip(steps, windows(steps))):
+    for i, (step, (start, end)) in enumerate(zip(steps, windows(steps, bench.get("ended")))):
         if step.get("kind") in ("idle", "restart"):
             continue
         release = released(step)

@@ -267,10 +267,15 @@ def released(step: dict) -> float:
     return step["up"] if isinstance(step.get("up"), (int, float)) else step["end"]
 
 
-def windows(steps: list[dict]) -> list[tuple[float, float]]:
+def windows(steps: list[dict], ended: float | None = None) -> list[tuple[float, float]]:
+    """Each step's window: from its words to the next step's. The last runs TAIL_S after its words, but never past its
+    run's end (`ended`): the next run's opening words are that run's (will-workspace, 30 Oct: the next run's opener,
+    "That central bright oval looks like a stoma…", was read as close-all's second outcome)."""
     out = []
     for i, step in enumerate(steps):
         until = opened(steps[i + 1]) if i + 1 < len(steps) else released(step) + TAIL_S
+        if i + 1 == len(steps) and isinstance(ended, (int, float)):
+            until = max(released(step), min(until, ended))
         out.append((opened(step), until))
     return out
 
@@ -572,13 +577,23 @@ def unprompted_spans(inter: list[dict]) -> list[tuple[float, float]]:
     called tool's outcome said when it landed is its step's (outcome_spans), not unprompted."""
     ends, out = audio_ends(inter), []
     owned = {span for spans in outcome_spans(inter).values() for span in spans}
+    # The next words said (any response) or asked (the user's release) end an unprompted line whose end is unrecorded:
+    # they are their own (will-experiment, 30 Oct: an event line's guessed 10 s swallowed the answer to "How is the
+    # experiment going?" said 2.5 s later, and the step was judged as never answered).
+    after = sorted([r["firstAudioT"] if isinstance(r.get("firstAudioT"), (int, float)) else r["responseCreatedT"]
+                    for r in inter if r.get("kind") == "partner-response"
+                    and isinstance(r.get("firstAudioT") or r.get("responseCreatedT"), (int, float))]
+                   + [r["releasedT"] for r in inter if r.get("kind") == "partner-turn"
+                      and isinstance(r.get("releasedT"), (int, float))])
     for r in inter:
         if r.get("kind") == "partner-response" and r.get("cause") in ("proactive", "reconnect") \
                 and isinstance(r.get("firstAudioT"), (int, float)):
             if r.get("cause") == "proactive" and any(span[0] == r["firstAudioT"] - NEAR_S for span in owned):
                 continue
             end = response_end(r, ends)
-            span = (r["firstAudioT"] - NEAR_S, end if end is not None else r["firstAudioT"] + 10)
+            if end is None:
+                end = min([t for t in after if t > r["firstAudioT"]] + [r["firstAudioT"] + 10])
+            span = (r["firstAudioT"] - NEAR_S, end)
             if span not in owned:
                 out.append(span)
     return out
@@ -630,7 +645,15 @@ def step_lines(conv: list[dict], inter: list[dict], start: float, end: float, un
     belongs to the step that handed it over: its spoken span (`own`) is this step's wherever it falls, and another
     step's (`others`) is not."""
     lines = voice_lines(conv, start, end) or lines_from_responses(inter, start, end)
-    lines = [l for l in lines if not any(a <= l["first"] <= b for a, b in [*unprompted, *others])]
+    # Each span is one response: the first line that starts in it is that response's, and a later line starting
+    # inside it is another response's (will-experiment, 30 Oct: an event line's span, its end unrecorded, swallowed the
+    # answer said 2.5 s after it, and the step was judged as never answered).
+    dropped = set()
+    for a, b in [*unprompted, *others]:
+        inside = [l for l in lines if a <= l["first"] <= b and l["id"] not in dropped]
+        if inside:
+            dropped.add(min(inside, key=lambda l: l["first"])["id"])
+    lines = [l for l in lines if l["id"] not in dropped]
     seen = {l["id"] for l in lines}
     for a, b in own:
         for l in voice_lines(conv, a - NEAR_S, b) or lines_from_responses(inter, a - NEAR_S, b):
@@ -1274,7 +1297,7 @@ def score_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, verd
     bench = load_bench(bench)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     expects = {s["id"]: s.get("expect") or {} for s in plan.get("steps") or []}
-    wins = windows(steps)
+    wins = windows(steps, bench.get("ended"))
     end = wins[-1][1] if wins else 0
     # What was heard: in the page; else the one brain's own audio records; else (GPT-Live heard acoustically) each
     # spoken line's first words, as an instant.

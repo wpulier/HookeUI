@@ -1237,3 +1237,32 @@ def test_a_called_tools_outcome_said_when_it_landed_belongs_to_its_step():
     assert sorted(owned) == ["call_A", "r27"] and owned["call_A"][0][0] < 100.0, "a researcher's outcome by its id"
     spans = unprompted_spans(inter)
     assert len(spans) == 1 and spans[0][0] < 200.0 < spans[0][1], "a notice stays unprompted; the outcome does not"
+
+
+def test_the_last_steps_window_ends_with_its_run():
+    """will-workspace, 30 Oct: close-all was the last step, and its 40 s tail took in the next run's opener ("That
+    central bright oval looks like a stoma…"), counted as a second outcome and judged an unasked offer."""
+    from bench.voice_journeys.standard import windows
+
+    steps = [{"down": 10.0, "start": 10.0, "up": 12.0}, {"down": 20.0, "start": 20.0, "up": 22.0}]
+    assert windows(steps)[-1][1] > 60.0, "no end known: the tail"
+    assert windows(steps, 40.0)[-1] == (20.0, 40.0), "the run's end closes the last step"
+    assert windows(steps, 5.0)[-1][1] >= 22.0, "never before its own words"
+
+
+def test_an_event_line_drops_only_its_own_line():
+    """will-experiment, 30 Oct: an event line's span (its audio's end unrecorded: 10 s) swallowed the answer to "How is
+    the experiment going?" said 2.5 s later, and the step was judged as never answered."""
+    from bench.voice_journeys.standard import step_lines, unprompted_spans
+
+    inter = [{"kind": "partner-response", "cause": "proactive", "firstAudioT": 103.9, "events": ["ev-1"],
+              "responseId": "r-event", "transcript": "Experiment 3 did not finish."},
+             {"kind": "partner-response", "cause": "turn", "firstAudioT": None, "t": 108.1,
+              "responseId": "r-turn", "transcript": "It's done running, but it didn't finish."}]
+    conv = [{"type": "chat", "role": "assistant", "voice": True, "lineId": "a", "at": 103.7,
+             "text": "Experiment 3 did not finish."},
+            {"type": "chat", "role": "assistant", "voice": True, "lineId": "b", "at": 106.4,
+             "text": "It's done running, but it didn't finish."}]
+    spans = unprompted_spans(inter)
+    lines = step_lines(conv, inter, 100.0, 130.0, spans)
+    assert [l["text"] for l in lines] == ["It's done running, but it didn't finish."]

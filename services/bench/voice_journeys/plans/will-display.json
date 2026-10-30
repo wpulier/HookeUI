@@ -67,6 +67,20 @@
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
   {
+   "id": "to-results",
+   "kind": "act",
+   "say": "Switch to the cell results tab.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "visible": "the Cell results Tab in front",
+    "outcome": true,
+    "judge": "brings the Cell results Tab to the front and says so in a few words"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
    "id": "which-tab",
    "kind": "act",
    "say": "Which tab has the measurements? Open it.",
@@ -75,9 +89,9 @@
      "tabs"
     ],
     "toolRequired": false,
-    "visible": "the Tab holding the measurements table in front",
+    "visible": "Main, the Tab holding the measurements table, in front",
     "outcome": true,
-    "judge": "names the Tab that holds the table from what the Tabs hold (Main, after the move), brings it to the front (or says it already is), and never guesses from a Tab's title"
+    "judge": "names Main as the Tab that holds the table (it was moved there; Cell results, in front, now holds only the outlines) from what the Tabs hold, never from a Tab's title, and brings Main to the front"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
