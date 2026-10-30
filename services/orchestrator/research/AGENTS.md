@@ -102,6 +102,9 @@ other files.
     "research" class is in the runner's key, so it never joins or holds back the user's measurement of the same
     frames. Its capture and decodes are in the "research" allowance. It is never measured on a held clip (a
     frame every 0.5 s, and spots are followed from frame to frame only at the live view's rate) nor on one view.
+    The "research" allowance is working memory for one run at a time: once a run's cells are saved, their table stays
+    loaded in an allowance of its own ("kept", capture.py; evidence.BACKGROUND), never in "research" (will-experiment,
+    29 Oct: an experiment's ten saved tables filled it and the next experiment stopped at frame 4).
   - **On what:** the live view now, or a sample the session still keeps (`input`): a population's view, or a held
     clip's frames (`frame`). A sample no longer kept is said so ("that view is not kept any more"), never captured
     again in its place; anything else is refused with what it is.
