@@ -449,7 +449,7 @@ def test_session_input_counts_hold_visibility_through_cached_and_uncached_scan(t
     assert admitted == [False]
 
 
-def test_session_input_counts_propagate_retryable_read_unavailability(tmp_path, monkeypatch):
+def test_session_input_counts_qualify_retryable_read_unavailability(tmp_path, monkeypatch):
     from orchestrator.scientific_import_transaction import ImportPending
 
     _, app, client = profile(tmp_path / 'profile')
@@ -461,10 +461,18 @@ def test_session_input_counts_propagate_retryable_read_unavailability(tmp_path, 
     def unavailable(*args, **kwargs):
         raise ImportPending('Bundle publication needs recovery')
 
-    monkeypatch.setattr(store, 'read', unavailable)
-    response = client.get('/api/sessions')
-    assert response.status_code == 503, response.text
-    assert response.json()['ok'] is False
+    with monkeypatch.context() as pending:
+        pending.setattr(store, 'read', unavailable)
+        response = client.get('/api/sessions')
+        assert response.status_code == 200, response.text
+        row = next(row for row in response.json()['sessions'] if row['id'] == app.day.sid)
+        assert row['counts']['sourcesIncomplete'] is True
+        assert row['counts']['sources'] == 0  # unavailable, not a certified empty inventory
+    recovered = client.get('/api/sessions')
+    assert recovered.status_code == 200, recovered.text
+    counts = next(row for row in recovered.json()['sessions'] if row['id'] == app.day.sid)['counts']
+    assert counts['sources'] == 1
+    assert 'sourcesIncomplete' not in counts
 
 
 @pytest.mark.parametrize('operation', ['append', 'new', 'load', 'uncommitted'])

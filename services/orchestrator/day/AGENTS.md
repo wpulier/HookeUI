@@ -386,6 +386,15 @@ additional events/files and ambiguous owners. It does not merge origins, alter
 portable evidence or grants, and is never invoked automatically. An interrupted
 recovery preserves its prepared receipt and bytes for explicit inspection.
 
+The Projects list counts scientific inputs through the same material projection as
+Inputs, including selected generated artifacts and historical Study pins. Explicit
+non-input membership is honored. An exact retained source alias is not counted
+again as a Library input; same names or equal bytes do not establish that identity.
+The catalogue projection runs off the event loop and creates no records.
+Count preparation groups one accepted-head scan per backing store, then applies the
+shared membership projection. Unreadable records leave a qualified partial input
+count; live Stage-only updates cannot erase that qualification.
+
 Staged owner startup can select an existing working folder with `--open-project`
 (or `HOOKE_OPEN_PROJECT`). It verifies retained ownership/history before registering
 an unknown origin and points only host preferences at the chosen Project. Colliding

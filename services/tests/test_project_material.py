@@ -1,4 +1,5 @@
 from orchestrator.project_material import describe
+from tests.test_scientific_project_api import web  # noqa: F401
 from orchestrator.resources import Index
 from orchestrator.project_state import _item
 from orchestrator.door.schema import check
@@ -210,3 +211,94 @@ def test_nonproject_and_malformed_reports_cannot_poison_inventory(tmp_path):
         attach_usage([entry, malformed], store)
         assert 'inspection' not in entry.material
         assert entry.material['kind'] == 'file'
+
+
+def test_project_menu_counts_selected_material_and_historical_dependencies(web):
+    from tests.test_scientific_project_api import create
+    from tests.test_scientific_file_api import upload
+    from orchestrator.project_material_edit import organize
+    client, app = web
+    sid = app.day.sid
+    store = app.hub.resources.projects
+    source = upload(client, app).json()['project']
+    ref = {key: source[key] for key in ('session', 'id', 'revision', 'digest')}
+    organize(store, sid, ref, role='Verification receipt', selected=False,
+             expected_revision=0, actor='user', request='receipt-not-input')
+    first = store.create(sid, document('matrix-result', title='Fitted model'))
+    old = {'id': first.id, 'revision': first.revision, 'digest': first.digest}
+    store.create(sid, document('research-effort', {'researchEffort': {'inputs': [old]}}))
+    store.save(first.id, sid, document('matrix-result', title='Later model'), expected_revision=1)
+    create(client, app)  # unrelated scene is not an input
+    rows = client.get('/api/sessions').json()['sessions']
+    assert next(row for row in rows if row['id'] == sid)['counts']['sources'] == 2
+    entries, problems = app.hub.resources.collect(sid, kinds=('project',))
+    from orchestrator.project_material import input_references
+    assert not problems
+    selected = input_references(entries)
+    assert (sid, first.id, 1, first.digest) in selected and len(selected) == 2
+
+
+def test_project_menu_deduplicates_only_exact_retained_source_aliases(tmp_path):
+    from types import SimpleNamespace
+    from orchestrator.project_material import additional_inputs, attach_usage
+    store, saved, _ = inspected_source(tmp_path)
+    entry = Index.project_entry(saved)
+    attach_usage([entry], store)
+    ref = {'session': saved.session, 'document': saved.id,
+           'revision': saved.revision, 'digest': saved.digest}
+    record = SimpleNamespace(sources={'a1': 1}, removed_sources=set(), source_references={'a1': ref})
+    assert additional_inputs([entry], record) == 0  # the journal already counts it once
+    record.source_references['a1'] = {**ref, 'revision': 2}
+    assert additional_inputs([entry], record) == 1  # a different version is a separate input
+    record.source_references['a1'] = ref
+    record.removed_sources.add('a1')
+    assert additional_inputs([entry], record) == 1  # retained Project input survives Stage removal
+
+
+def test_project_menu_keeps_healthy_inputs_and_marks_unreadable_membership(web):
+    from tests.test_scientific_file_api import upload
+    client, app = web
+    sid = app.day.sid
+    upload(client, app)
+    app.hub.resources.projects.create(sid, document('project-material-membership'))
+    counts = next(row for row in client.get('/api/sessions').json()['sessions'] if row['id'] == sid)['counts']
+    assert counts['sources'] == 1 and counts['sourcesIncomplete']
+
+
+def test_grouped_material_scan_reads_each_shared_head_only_once(tmp_path, monkeypatch):
+    from pathlib import Path
+    store = ProjectStore(tmp_path)
+    sessions = ['2026-10-01', '2026-10-02', '2026-10-03']
+    saved = [store.create(sid, document('matrix-result')) for sid in sessions]
+    reads = []
+    original = store.read
+    def counted(identity, session, **kwargs):
+        reads.append((identity, session))
+        return original(identity, session, **kwargs)
+    monkeypatch.setattr(store, 'read', counted)
+    scans = []
+    original_iterdir = Path.iterdir
+    def iterated(path):
+        if path == store.root:
+            scans.append(path)
+        return original_iterdir(path)
+    monkeypatch.setattr(Path, 'iterdir', iterated)
+    grouped = store.scan_sessions(sessions)
+    assert len(scans) == 1 and len(reads) == len(saved)
+    assert all(len(grouped[sid][0]) == 1 and not grouped[sid][1] for sid in sessions)
+    # Unattributable damage cannot silently report a complete count for any owner.
+    (store.root / saved[0].id / 'head.json').write_text('broken')
+    grouped = store.scan_sessions(sessions)
+    assert all(grouped[sid][1] for sid in sessions)
+
+
+def test_pending_legacy_publication_keeps_project_list_with_qualified_count(web):
+    from tests.test_scientific_file_api import upload
+    client, app = web
+    upload(client, app)
+    store = app.hub.resources.projects
+    (store.root / '.bundle-import.json').write_text('{}')
+    response = client.get('/api/sessions')
+    assert response.status_code == 200
+    row = next(row for row in response.json()['sessions'] if row['id'] == app.day.sid)
+    assert row['counts']['sourcesIncomplete']
