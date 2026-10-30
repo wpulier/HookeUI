@@ -149,6 +149,19 @@ def test_reopen_mismatched_journal_does_not_publish_locator(tmp_path):
     assert registry.read_bytes() == before
 
 
+def test_reopen_ambiguous_registry_refuses_before_changing_location(tmp_path):
+    import json
+    paths, parent, root, moved, _ = relocated(tmp_path)
+    registry = paths.home / 'project-locations.json'
+    value = json.loads(registry.read_text())
+    value['locations']['f' * 32] = dict(value['locations'][root.origin])
+    registry.write_text(json.dumps(value))
+    before = registry.read_bytes()
+    with pytest.raises(ProjectLocationError, match='same host handle'):
+        configured_locations(paths, str(parent), reopen=str(moved))
+    assert registry.read_bytes() == before
+
+
 @pytest.mark.parametrize('entrance', ['argument', 'environment'])
 def test_server_startup_can_reopen_previously_selected_moved_project(tmp_path, monkeypatch, entrance):
     from orchestrator import server

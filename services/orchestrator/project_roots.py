@@ -218,6 +218,8 @@ class ProjectRegistry:
             previous = entries.get(root.origin)
             if require_known and previous is None:
                 raise ProjectLocationError('This Project is not registered here. Importing a new Project requires separate owner-established access.')
+            if require_known and len({item['session'] for item in entries.values()}) != len(entries):
+                raise ProjectLocationError('Two registered Project origins use the same host handle; the locator was not changed')
             if previous and previous['session'] != root.session:
                 raise ProjectLocationError('A Project origin cannot change its retained session identity')
             def publish():
