@@ -62,4 +62,6 @@ def verify_records(root, *, check=lambda: None):
         raise ProjectLocationError(f'Project accepted records failed verification: {error}') from error
     from .project_native_integrity import verify_native_records
     verify_native_records(root, check=check)
+    from .project_research_integrity import verify_research_records
+    verify_research_records(root, check=check)
     return counts

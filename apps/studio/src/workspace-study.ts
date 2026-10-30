@@ -16,7 +16,7 @@ import { mountAppUpdates } from './app-updates';
 import { agentConnections } from './agent-connections';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, projectRowWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, inputCountWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -1236,10 +1236,9 @@ function renderSessionBrowser():void {
   appMenu.refresh();
 }
 /** A Project's row in Recent projects: when it was last used and its inputs, so rows that share a name differ. */
-function projectNote(row:{lastActive:number;counts?:{sources?:number}}):string{
+function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesIncomplete?:boolean}}):string{
   const now=Date.now()/1000,when=daysAgo(row.lastActive,now)===0?new Date(row.lastActive*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):monthDay(row.lastActive,now);
-  const inputs=row.counts?.sources??0;
-  return `${when} · ${inputs} input${inputs===1?'':'s'}`;
+  return `${when} · ${inputCountWords(row.counts)}`;
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),

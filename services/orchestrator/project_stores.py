@@ -123,6 +123,17 @@ class ProjectStores:
     def list(self, session):
         return self.scan(session)[0]
 
+    def scan_sessions(self, sessions):
+        requested = set(sessions)
+        routed = requested.intersection(self.locations.handles())
+        result = self.legacy.scan_sessions(requested - routed)
+        for session in routed:
+            try:
+                result.update(self.for_session(session).scan_sessions([session]))
+            except (OSError, ValueError) as error:
+                result[session] = ([], [{'id': session, 'reason': str(error)}])
+        return result
+
     def inputs_by_session(self):
         result = self.legacy.inputs_by_session()
         for session in self.locations.handles():

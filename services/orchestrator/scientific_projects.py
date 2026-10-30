@@ -467,6 +467,43 @@ class ProjectStore:
             check()
         return sorted(result, key=lambda item: item['id'])
 
+    def scan_sessions(self, sessions):
+        """Owner catalogue projection: one head scan, grouped by requested Project.
+
+        This grants no access and is not an agent endpoint. Unattributable damaged
+        heads mark every requested group incomplete rather than disappearing.
+        """
+        sessions = tuple(dict.fromkeys(sessions))
+        for session in sessions:
+            _identity(session, 'session')
+        try:
+            return self._scan_sessions(sessions)
+        except (OSError, ValueError) as error:
+            return {session: ([], [{'id': session, 'reason': str(error)}]) for session in sessions}
+
+    def _scan_sessions(self, sessions):
+        from .scientific_import_transaction import reading
+        result = {session: ([], []) for session in sessions}
+        with reading(self.root):
+            if not self.root.is_dir():
+                return result
+            for path in self.root.iterdir():
+                if PROJECT_ID.fullmatch(path.name) is None:
+                    continue
+                session = None
+                try:
+                    head = json.loads(self._read(path / 'head.json', MAX_HEAD))
+                    session = head.get('session') if type(head) is dict else None
+                    if not isinstance(session, str):
+                        raise InvalidProject('Project head has no readable owner')
+                    if session in result:
+                        result[session][0].append(self.read(path.name, session))
+                except (OSError, ValueError, RecursionError) as error:
+                    problem = {'id': path.name, 'reason': str(error) if isinstance(error, InvalidProject) else 'Project is unreadable'}
+                    for owner in ([session] if session in result else result):
+                        result[owner][1].append(problem)
+        return result
+
     def scan(self, session: str) -> tuple[list[ProjectRevision], list[dict]]:
         """Healthy projects and explicit unreadable records; another session is simply outside the query."""
         from .scientific_import_transaction import reading

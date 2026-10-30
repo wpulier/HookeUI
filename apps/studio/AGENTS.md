@@ -2017,3 +2017,7 @@ starts the shared tracked operation. Lost admission replies reuse one request ke
 closing/navigation stops polling without cancelling admitted work. Reopening recovers
 the locally remembered operation ID (a locator, never authority). Progress, Stop and
 Reveal read actual operation receipts. No UI labels this as complete collection.
+
+Project menu input counts use the server's shared material membership, including
+historical selections. `sourcesIncomplete` means the shown count is partial; keep
+that qualification when merging live session counters into the catalogue row.

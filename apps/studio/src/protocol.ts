@@ -168,6 +168,7 @@ export interface TopProgram {
  * (sources: the recordings and pictures it opened; made: Made in this session's products, its analyses; researchers;
  * conversations). */
 export interface SessionCounts {
+  sourcesIncomplete?: boolean; // known inputs only; part of the inventory could not be read
   sources?: number; // opened in it and not removed (ADR 0022), never the live camera; an older server sends none
   made: number;
   researchers: number;
