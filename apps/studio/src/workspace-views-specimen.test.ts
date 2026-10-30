@@ -112,16 +112,41 @@ function agent(work={visible:true,rect:null as number[]|null},active='w'){
  return {current,view,stage};
 }
 
-test('a new Tab opens as a canvas for data, with no specimen, made by "+" or by the Assistant alike (Will, 29 Oct)',async()=>{
+test('an empty new Tab shows a minimized live feed of the main input, made by "+" or by the Assistant alike (Will, 30 Oct)',async()=>{
  const t=agent();Object.assign(t.current,{activate:vi.fn(async()=>true),opts:{notice:vi.fn(),captureInput:()=>null}});
  const result=await t.current.agentCommand('p',{action:'create',title:'Reference'});
  expect(result.ok).toBe(true);
  const made=t.current.layout.views[2];
- expect(made.specimen).toEqual({visible:false,rect:null});
- expect(result.tabs.find((tab:{id:string})=>tab.id===made.id).specimen).toBe('hidden');
- // A run's result Tab draws on the specimen: it is made with its specimen filling, as before.
- const id=await Reflect.get(WorkspaceViews.prototype,'addView').call(t.current,'Results',false,{visible:true,rect:null});
- expect(t.current.layout.views.find((v:{id:string})=>v.id===id).specimen).toEqual({visible:true,rect:null});
+ // Picture-in-picture: small, in the Stage's corner, out of the way.
+ expect(made.specimen).toEqual({visible:true,rect:floatingSpecimen(1200,800)});
+ const listed=result.tabs.find((tab:{id:string})=>tab.id===made.id);
+ expect(listed.specimen).toBe('float');expect(listed.feed).toBe('minimized');
+ expect(t.current.specimenReport()[made.id]).toMatchObject({state:'float',minimized:true});
+ // A Tab made for or from something has no feed; a run's result Tab draws on the specimen, so it fills.
+ const id=await Reflect.get(WorkspaceViews.prototype,'addView').call(t.current,'Cells',false,{visible:false,rect:null});
+ expect(t.current.layout.views.find((v:{id:string})=>v.id===id).specimen).toEqual({visible:false,rect:null});
+ const run=await Reflect.get(WorkspaceViews.prototype,'addView').call(t.current,'Results',false,{visible:true,rect:null});
+ expect(t.current.layout.views.find((v:{id:string})=>v.id===run).specimen).toEqual({visible:true,rect:null});
+});
+
+test('the minimized feed goes away once something is placed in its Tab, unless the specimen was asked for there',async()=>{
+ const t=agent();Object.assign(t.current,{activate:vi.fn(async()=>true),opts:{notice:vi.fn(),captureInput:()=>null}});
+ await t.current.agentCommand('p',{action:'create',title:'Reference'});
+ const made=t.current.layout.views[2];
+ const item={resource:{day:'p',id:'e1',version:1},title:'Cells',presentation:'table'};
+ let result=await t.current.agentCommand('p',{action:'add',tab:made.id,item});
+ expect(result.ok).toBe(true);expect(made.specimen).toEqual({visible:false,rect:null});
+ expect(result.tabs.find((tab:{id:string})=>tab.id===made.id).feed).toBe('none');
+ // Asked for there (tabs specimen float), it stays as asked when more is placed.
+ await t.current.agentCommand('p',{action:'create',title:'Second'});
+ const second=t.current.layout.views[3];
+ result=await t.current.agentCommand('p',{action:'specimen',tab:second.id,specimen:'float'});
+ expect(result.tabs.find((tab:{id:string})=>tab.id===second.id).feed).toBe('floating');
+ await t.current.agentCommand('p',{action:'add',tab:second.id,item});
+ expect(second.specimen.visible).toBe(true);
+ // Main always keeps it.
+ Reflect.get(WorkspaceViews.prototype,'feedAway').call(t.current,t.view('main'));
+ expect(t.view('main').specimen.visible).toBe(true);
 });
 
 test('the Assistant floats, fills and hides a Tab\'s specimen through the code its Float and Hide buttons run',async()=>{

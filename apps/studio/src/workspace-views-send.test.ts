@@ -50,14 +50,14 @@ test('Also show keeps the window here, and Undo takes away only the copy',async(
 
 test('+ New Tab makes a Tab named after the window without leaving this one',async()=>{
  const t=tabs();await t.send({title:'Cells'},false);
- expect(t.current.addView).toHaveBeenCalledWith('Cells',false);
+ expect(t.current.addView).toHaveBeenCalledWith('Cells',false,{visible:false,rect:null}); // made for it: no live feed
  expect(t.current.layout.views.find((v:{id:string})=>v.id==='c').items).toEqual([item('p1')]);
  expect(t.flashes.at(-1)![0]).toBe('Moved to Cells');
 });
 
 test('a new Tab takes a short name from a long result title',async()=>{
  const t=tabs();await t.send({title:'Bright regions · Bright objects · Basic local method · 22:16 · Masks'},false);
- expect(t.current.addView).toHaveBeenCalledWith('Bright regions',false);
+ expect(t.current.addView).toHaveBeenCalledWith('Bright regions',false,{visible:false,rect:null}); // made for it: no live feed
 });
 
 test('a Project switch while sending says nothing about the old Project',async()=>{

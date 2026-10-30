@@ -140,7 +140,8 @@ private revision=0;private generation=0;private revealSequence=0;
  private completionRestores=new Set<string>();
  /** The Tabs whose specimen is an empty new Tab's minimized live feed (Will, 30 Oct: picture-in-picture, small in its
   * corner), not one asked for there: it goes away once something is placed in the Tab (feedAway). Kept for the session. */
- private pip=new Set<string>();
+ private pip?:Set<string>;
+ private pips(){return this.pip??=new Set<string>();} // made on first use: test doubles built from the prototype have it too
  private openingInput=false;
  private loaded=new Set<string>();private changing=false;private navigating=false;private dirty=false;
  private saving:Promise<void>|null=null;private timer=0;private lastSaved='';private conflict=false;
@@ -630,12 +631,12 @@ private revision=0;private generation=0;private revealSequence=0;
   const s=v?.specimen;this.specimen.hidden=!s?.visible;document.body.dataset.workspaceSpecimenVisible=String(!!s?.visible);this.specimen.classList.toggle('workspace-specimen-full',!s?.rect);if(s?.rect)this.specimen.dataset.savedRect=JSON.stringify(s.rect);else delete this.specimen.dataset.savedRect;if(s?.visible&&s.rect){this.specimenShell.resizeTo(s.rect[2],s.rect[3]);this.specimenShell.moveTo(s.rect[0],s.rect[1]);}}
  /** Shows the Tab's specimen on the Stage, as its backdrop when it was hidden (the Assistant's specimen chip, Tabs…). */
  showInput(){this.showSpecimen();}
- private showSpecimen(){if(!this.active())return;this.pip.delete(this.active()!.id);const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
+ private showSpecimen(){if(!this.active())return;this.pips().delete(this.active()!.id);const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
  /** The one way a Tab's specimen changes, for its Float or Fill and Hide and for the Assistant (tabs specimen): filling
   * the Stage behind the Tab's windows, floating as a small window (where it last floated, else the corner), or hidden.
   * Main always keeps it: it floats, never hides. */
  private setSpecimen(v:WorkspaceView,want:'fill'|'float'|'hide'){
-  this.pip.delete(v.id); // asked for there: it stays as asked when something is placed in the Tab
+  this.pips().delete(v.id); // asked for there: it stays as asked when something is placed in the Tab
   if(want==='hide'){if(this.isHome(v.id))throw new Error('Main always keeps the specimen: it can float, never hide.');v.specimen.visible=false;}
   else{v.specimen.visible=true;v.specimen.rect=want==='fill'?null:v.specimen.rect??this.floatingRect();}
   if(v.id===this.layout.active){if(want==='float')this.specimen.dataset.front='true';this.applySpecimen();}
@@ -645,14 +646,14 @@ private revision=0;private generation=0;private revealSequence=0;
   * specimen filling the Tab or floating as a window there, or none (what it holds fills it). */
  private feedWords(v:WorkspaceView):'minimized'|'filling'|'floating'|'none'{
   const state=specimenState(v.specimen);
-  return state==='hidden'?'none':state==='fill'?'filling':this.pip.has(v.id)?'minimized':'floating';
+  return state==='hidden'?'none':state==='fill'?'filling':this.pips().has(v.id)?'minimized':'floating';
  }
  private floatingRect():Rect{return floatingSpecimen(this.stage?.clientWidth??0,this.stage?.clientHeight??0);}
  /** Something was placed in Tab `v`: when its specimen is an empty new Tab's minimized feed, the feed goes away, so what
   * the Tab is now for fills it (Will, 30 Oct: "a new tab that isn't empty, made for or from something, doesn't need
   * that there"). A specimen asked for there (tabs specimen, Float or Fill, Show specimen) stays; Main always keeps it. */
  private feedAway(v:WorkspaceView|undefined){
-  if(!v||!this.pip.delete(v.id)||this.isHome(v.id))return;
+  if(!v||!this.pips().delete(v.id)||this.isHome(v.id))return;
   v.specimen.visible=false;v.specimen.rect=null;if(v.id===this.layout.active)this.applySpecimen();this.changed();
  }
  /** Each Tab's specimen for the screen report's Tab strip (main.ts; workspace_observation): the Tab in front's as the
@@ -664,12 +665,12 @@ private revision=0;private generation=0;private revealSequence=0;
    if(v.id===this.layout.active){
     const box=this.specimen.getBoundingClientRect(),state:SpecimenState=this.specimen.hidden?'hidden':this.specimen.classList.contains('workspace-specimen-full')?'fill':'float';
     out[v.id]=state==='float'&&box.width>0&&box.height>0?{state,rect:[box.left,box.top,box.width,box.height].map(Math.round) as Rect}:{state};
-    if(state==='float'&&this.pip.has(v.id))out[v.id].minimized=true; // an empty Tab's minimized live feed
+    if(state==='float'&&this.pips().has(v.id))out[v.id].minimized=true; // an empty Tab's minimized live feed
     continue;
    }
    const state=specimenState(v.specimen),r=v.specimen.rect;
    out[v.id]=state==='float'&&r?{state,rect:[stage.left+r[0],stage.top+r[1],r[2],r[3]].map(Math.round) as Rect}:{state};
-   if(state==='float'&&this.pip.has(v.id))out[v.id].minimized=true;
+   if(state==='float'&&this.pips().has(v.id))out[v.id].minimized=true;
   }
   return out;
  }
@@ -685,7 +686,7 @@ private revision=0;private generation=0;private revealSequence=0;
    const close=root.querySelector<HTMLButtonElement>(':scope > header .workspace-window-close, :scope > header button[aria-label^="Close"]');
    close?.click();
   }
-  const home=this.isHome(v.id);this.pip.delete(v.id);
+  const home=this.isHome(v.id);this.pips().delete(v.id);
   v.specimen.visible=home;v.specimen.rect=home?this.floatingRect():null;if(v.id===this.layout.active)this.applySpecimen();
   const width=this.stage.clientWidth,height=this.stage.clientHeight-60;
   if(stay.length===1&&width>0&&height>0){
@@ -706,7 +707,7 @@ private revision=0;private generation=0;private revealSequence=0;
   * or from something passes its specimen: hidden, so what it holds fills it; a run's result Tab filling, as it draws
   * there. */
  private async addView(title?:string,activate=true,specimen?:WorkspaceView['specimen']){if(this.changing||this.navigating||this.openingInput)return;const session=this.session,generation=this.generation;if(this.layout.views.length>=24){this.opts.notice('24 Tabs are saved. Remove one you no longer use to make room; its Data stays.');this.manage();return;}
-  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:specimen??{visible:true,rect:this.floatingRect()},items:[],notes:[]};if(!specimen)this.pip.add(v.id);this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
+  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:specimen??{visible:true,rect:this.floatingRect()},items:[],notes:[]};if(!specimen)this.pips().add(v.id);this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
  }
  private render(){
   this.renderCompletions();
