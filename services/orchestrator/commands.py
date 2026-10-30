@@ -3164,10 +3164,10 @@ async def project_storage(app, client, msg) -> dict:
     day = app.day
     generation = day.generation
     if msg.get('session') != day.sid:
-        raise tools.ToolError('The Project changed. Reopen its folder details.')
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
     value = await asyncio.to_thread(describe, day, day.sid)
     if app.day is not day or not day.current(generation) or msg.get('session') != app.day.sid:
-        raise tools.ToolError('The Project changed. Reopen its folder details.')
+        raise tools.ToolError('The Project changed.', next='reopen its folder details')
     return {'ok': True, 'storage': value}
 
 
@@ -3179,7 +3179,8 @@ async def project_reveal(app, client, msg) -> dict:
 
     status = (await project_storage(app, client, msg))['storage']
     if status['availability'] != 'available':
-        raise tools.ToolError(status['reason'] or 'This Project folder is unavailable.')
+        raise tools.ToolError(status['reason'] or 'This Project folder is unavailable.',
+                              next='restore the Project folder at its registered location, then retry')
     # Legacy records remain in the host store; revealing them is not collection.
     folder = status['location'] or str(app.day.root / msg['session'])
     if sys.platform != 'darwin':
