@@ -1,5 +1,10 @@
 Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.
 
+The folder export review shows the server's inspected historical revision counts,
+unresolved declared relationships and historical media inclusion needs. Details are
+paged and literal. Zero reported issues is not complete dependency collection;
+shared recordings and unassessed external dependencies remain explicitly unverified.
+
 The Project menu's **Project folder** inspector uses the same `project-storage`
 projection as the connector. It captures the Project opening, discards late reads
 after navigation and reveals only the host-resolved saved location. Existing host

@@ -22,3 +22,10 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-export h3 { margin: 0; font-size: 15px; }
 .project-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .project-export .project-folder-path { margin-top: 10px; font-size: 12px; color: var(--mm-text-2); }
+.project-collection-review { margin-top: 14px; display: grid; gap: 8px; }
+.project-collection-limit { color: var(--mm-text-2); }
+.project-collection-review ul { margin: 12px 0; padding: 0; list-style: none; }
+.project-collection-review li { padding: 10px 0; border-bottom: 1px solid var(--mm-line); overflow-wrap: anywhere; }
+.project-collection-review li p { font-size: 12px; }
+.project-collection-pages { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.project-collection-pages[hidden] { display: none; }

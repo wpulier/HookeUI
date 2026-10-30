@@ -1,5 +1,6 @@
 /** Explicit partial-folder export over the same tracked operation used by agents. */
-export interface ExportPlan {files: number; bytes: number; requiredFreeBytes: number; collection: {state: 'unverified'; reason: string}}
+import {collectionReview, type CollectionReview} from './project-collection-review';
+export interface ExportPlan extends CollectionReview {files: number; bytes: number; requiredFreeBytes: number; collection: {state: 'unverified'; reason: string}}
 export interface ExportReceipt {location: string; files: number; bytes: number; manifestSha256: string; collection: {state: 'unverified'; reason: string}}
 export interface ExportOperation {id: string; state: string; progress?: {says?: string} | null; outcome?: {export?: ExportReceipt; says?: string; next?: string} | null}
 export interface ExportActions {
@@ -116,6 +117,7 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
       const plan = await actions.prepare();
       if (!active()) return;
       content.replaceChildren(node('p', `${plan.files.toLocaleString()} files · ${bytes(plan.bytes)} · needs ${bytes(plan.requiredFreeBytes)} free`), node('p', plan.collection.reason));
+      content.append(collectionReview(plan));
       status.textContent = 'This is a folder snapshot, not a fully collected Project.';
       button('Export this partial copy', start, true);
     } catch (error) { if (active()) { showError(error); button('Retry preparation', prepare); } }
