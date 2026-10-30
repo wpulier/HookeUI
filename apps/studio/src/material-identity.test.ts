@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import {dataRows,type DataEntry} from './data-roles';
 import type {AssetMeta} from './protocol';
-import {isRetainedMaterial} from './material-identity';
+import {isRetainedMaterial,sourceReaderEntry} from './material-identity';
 import {projectInputs} from './project-inputs';
 
 const ref={origin:'a'.repeat(32),session:'2026-10-30',document:'p'+'b'.repeat(32),revision:1,digest:'c'.repeat(64)};
@@ -34,4 +34,13 @@ it('never borrows a legacy alias entry from a different retained source',()=>{
   expect(rows[0].entry).toBeNull();
   expect(rows[0].maker).not.toEqual(entry.maker);
   expect(rows[1].entry).toBe(legacy);
+});
+
+it('opens exact Project evidence when a source arrives before inventory',()=>{
+  const reader=sourceReaderEntry(source,ref.session);
+  expect(reader).toMatchObject({id:ref.document,day:ref.session,version:ref.revision,
+    kind:'project',source:{sha256:ref.digest}});
+  expect(reader.asset).toBeUndefined(); // No /api/library/<alias>/file reader branch.
+  expect(sourceReaderEntry({...source,retained:undefined},ref.session)).toMatchObject({
+    id:'a1',kind:'asset',asset:{id:'a1'}});
 });
