@@ -72,6 +72,8 @@ def _shape(data: bytes) -> tuple[int, int, int, str]:
 
 def _read(store, spec: dict, projects=None) -> Capture:
     try:
+        if spec.get('unavailable'):
+            raise ValueError(spec['unavailable'])
         retained = None
         if 'retained' in spec:
             from .project_stage_media import reference
@@ -90,7 +92,9 @@ def _read(store, spec: dict, projects=None) -> Capture:
             raise ValueError("the original picture exceeds the 16 MiB import limit")
         with store.memory.reserve("analysis", size * 2, "reading original image"):
             if retained is not None:
-                data = retained.read(0, size)
+                from .scientific_files import CHUNK_BYTES
+                data = b''.join(retained.read(offset, min(CHUNK_BYTES, size - offset))
+                                for offset in range(0, size, CHUNK_BYTES))
                 if hashlib.sha256(data).hexdigest() != retained.sha256:
                     raise ValueError('the retained original failed its content hash check')
             else:

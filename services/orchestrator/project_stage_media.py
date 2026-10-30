@@ -157,6 +157,19 @@ def manager(app):
     return found
 
 
+def invalidate_stage(app):
+    """A feed change is not an accepted source until its history is saved."""
+    import json
+    from . import ticket
+    from .population import layer_of
+    app.hub.stage_meta = None
+    app.hub.stage_image_json = json.dumps({'unavailable':
+        'The source change has not been retained; choose the source again before analyzing'})
+    ticket.generations(app.hub).bump('cell', why='the retained source is changing', by=ticket.current())
+    layer_of(app.hub).hide()
+    app.hold_until_landed(True)
+
+
 async def source_asset(app, identity):
     """Read source metadata in its Project namespace, never through an ID collision."""
     sid = app.day.sid

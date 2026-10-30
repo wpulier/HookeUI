@@ -215,3 +215,65 @@ def test_application_reopens_saved_source_after_project_folder_move(app_media, t
     finally:
         reopened.day.locations.close()
         asyncio.run(reopened.stop())
+
+
+def test_multi_chunk_original_is_analyzed_from_all_retained_bytes(app_media, tmp_path):
+    import hashlib
+    import numpy as np
+    app, sid, _, _ = app_media
+    original = tmp_path / 'large.png'
+    pixels = np.random.default_rng(412).integers(0, 256, (700, 700, 3), dtype=np.uint8)
+    Image.fromarray(pixels).save(original)
+    assert original.stat().st_size > 1 << 20
+    digest = hashlib.sha256(original.read_bytes()).hexdigest()
+    asset = Asset('a2', 'added:large', 'still', original, 'added', 'Large image')
+    ref = ProjectMedia(app.hub.resources.projects).retain(sid, asset,
+        request='large-source-0001', max_bytes=2 << 20, producer={'actor': 'user'})
+    original.unlink()
+    app.hub.stage_image_json = json.dumps({'asset': 'a2', 'session': sid, 'retained': asdict(ref),
+                                          'optics': {'umPerPx': 999}})
+    result = asyncio.run(source_images.for_analysis(app.hub))
+    assert result.source_image['sha256'] == digest
+    assert result.source_image['width'] == result.source_image['height'] == 700
+    assert 'umPerPx' not in result.source_image  # immutable source facts win
+
+
+def test_slow_preparation_cannot_replace_newer_live_selection(app_media, monkeypatch):
+    from orchestrator.project_stage_media import manager
+    app, sid, ref, observed = app_media
+    media = manager(app)
+    original = media.prepare
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def delayed(*args):
+            entered.set()
+            await release.wait()
+            return await original(*args)
+        monkeypatch.setattr(media, 'prepare', delayed)
+        earlier = asyncio.create_task(commands.source(app, Client(), {'open': 'a1', 'retained': asdict(ref)}))
+        await entered.wait()
+        assert (await commands.source(app, Client(), {'open': 'live'}))['ok']
+        release.set()
+        with pytest.raises(Exception, match='superseded'):
+            await earlier
+        assert observed == [] and app.day.on_stage == 'live'
+        assert not list(media.cache.glob('hooke-media-*'))
+    asyncio.run(run())
+
+
+def test_failed_retained_history_cannot_leave_previous_scientific_source(app_media, monkeypatch):
+    app, sid, ref, observed = app_media
+    def fail(*args, **kwargs):
+        raise OSError('fixture disk full')
+    monkeypatch.setattr(app.day, 'open_source', fail)
+    async def run():
+        app.hub.stage_meta = {'id': 'a999', 'title': 'Previous specimen'}
+        app.hub.stage_image_json = json.dumps({'asset': 'a999', 'path': '/previous.png', 'session': sid})
+        with pytest.raises(OSError, match='disk full'):
+            await commands.source(app, Client(), {'open': 'a1', 'retained': asdict(ref)})
+        assert observed[0].exists()  # bridge owns new pixels, even though publication failed
+        assert app.hub.stage_meta is None
+        with pytest.raises(Exception, match='has not been retained'):
+            await source_images.for_analysis(app.hub)
+        assert app.day.source_references == {}
+    asyncio.run(run())

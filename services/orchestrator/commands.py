@@ -2866,6 +2866,7 @@ async def source(app, client, msg) -> dict:
     if isinstance(asked, str) and asked and asked != sid:
         raise tools.ToolError("that session is no longer open", next=None)  # no next: the studio lands the one open now
     target = str(msg.get("open") or "")
+    selection = app._source_selection = getattr(app, '_source_selection', 0) + 1
     library = getattr(app.hub, "library", None)
     asset = prepared = None
     stage_media = getattr(app, '_project_stage_media', None)
@@ -2898,10 +2899,13 @@ async def source(app, client, msg) -> dict:
                 raise tools.ToolError(f'There is no asset {target}', next='choose a source from Inputs or Library')
     try:
         async with _source_lock(app):
-            if app.day.sid != sid:
-                raise tools.ToolError('That Project is no longer open', next=None)
+            if app.day.sid != sid or app._source_selection != selection:
+                raise tools.ToolError('That source selection was superseded', next=None)
             if msg.get("switch") is not False:
                 await note_position(app)
+                if prepared is not None or (getattr(app.hub, 'stage_meta', None) or {}).get('retained'):
+                    from .project_stage_media import invalidate_stage
+                    invalidate_stage(app)
                 if stage_media is not None:
                     # A lost bridge reply is uncertain: keep its possible decoder
                     # input until another feed replacement is acknowledged.
@@ -2917,8 +2921,8 @@ async def source(app, client, msg) -> dict:
                     await _bridge(app, "POST", "/feed?" + urlencode(params))
                 if stage_media is not None:
                     await stage_media.replaced(prepared)
-            if app.day.sid != sid:
-                raise tools.ToolError('That Project is no longer open', next=None)
+            if app.day.sid != sid or app._source_selection != selection:
+                raise tools.ToolError('That source selection was superseded', next=None)
             previous = app.day.on_stage
             if prepared is not None:
                 app.day.open_source(target, retained=asset.exact_reference())
