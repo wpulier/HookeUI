@@ -116,6 +116,17 @@ describe('drawn', () => {
     return { log, root, flights, rows: () => root.querySelectorAll('.chat-handoff') };
   }
 
+  test('a hand-off that started a researcher gives its place to the researcher\'s card: one request, one thing', () => {
+    const { log, rows } = chat();
+    log.apply(handoff('h7', { label: 'Compare models' }));
+    const row = rows()[0];
+    expect(row.hidden).toBeFalsy();
+    log.apply(handoff('h7', { label: 'Compare models', state: 'started', answer: 'Researcher 1 is comparing them.' }));
+    expect(row.hidden).toBe(true);
+    log.apply(handoff('h8', { state: 'started', then: { words: 'open its report in a new Tab', state: 'waiting' } }));
+    expect(rows()[1].hidden).toBeFalsy(); // its later step's note stays in view
+  });
+
   test('a row works, ticks, then settles into its outcome in place; a tap opens its steps', () => {
     const { log, rows } = chat();
     log.apply(said('assistant', 'I’ll ask Hooke to search online and open a reference image.'));

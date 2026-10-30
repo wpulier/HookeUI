@@ -225,6 +225,10 @@ export class HandoffRow {
       + `${view.noteLead ? `. ${view.noteLead} ${view.note}` : ''}. ${this.opened ? 'Hide' : 'Show'} its steps`;
     if (this.head.getAttribute('aria-label') !== name) this.head.setAttribute('aria-label', name);
     this.root.dataset.state = view.state;
+    // A hand-off that started a researcher gives its place to the researcher's card, which carries the work from here:
+    // one request, one thing in the chat (Will's try-out, 30 Oct: "often i ask for one but feels like it was for two").
+    // A step it is to take afterwards (`then`) keeps the row, for that step's note.
+    this.root.hidden = view.state === 'started' && !line.then;
     if (line.long) this.root.dataset.long = ''; else delete this.root.dataset.long;
     this.view = view;
     this.line = line;
