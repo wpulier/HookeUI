@@ -24,7 +24,9 @@ def test_inspector_matches_connector_projection_and_reveals_only_retained_locati
         monkeypatch.setattr(sys, 'platform', 'darwin')
         monkeypatch.setattr(subprocess, 'Popen', lambda args, **kw: calls.append(args))
         before = day.journal.path.read_bytes()
-        status = asyncio.run(COMMANDS['project-storage'](app, None, {'session': sid}))['storage']
+        reply = asyncio.run(COMMANDS['project-storage'](app, None, {'session': sid}))
+        assert reply['ok'] is True  # required by the real Studio request transport
+        status = reply['storage']
         schema.check(status, 'project-storage')
         assert status == describe(day, sid)
         result = asyncio.run(COMMANDS['project-reveal'](app, None, {'session': sid, 'path': '/untrusted'}))

@@ -3168,7 +3168,7 @@ async def project_storage(app, client, msg) -> dict:
     value = await asyncio.to_thread(describe, day, day.sid)
     if app.day is not day or not day.current(generation) or msg.get('session') != app.day.sid:
         raise tools.ToolError('The Project changed. Reopen its folder details.')
-    return {'storage': value}
+    return {'ok': True, 'storage': value}
 
 
 @command('project-reveal')
