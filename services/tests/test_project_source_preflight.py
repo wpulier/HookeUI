@@ -74,8 +74,11 @@ def test_changed_journal_and_cancelled_review_refuse(tmp_path):
             review_sources(root, check=cancel)
         path = session_root(root) / sid / 'journal.jsonl'
         original = path.stat().st_size
+        callbacks = 0
         def change():
-            if path.stat().st_size == original:
+            nonlocal callbacks
+            callbacks += 1
+            if callbacks == 2 and path.stat().st_size == original:
                 with path.open('ab') as out: out.write(b'{"type":"note","text":"new"}\n')
         with pytest.raises(ProjectLocationError, match='changed'):
             review_sources(root, check=change)
