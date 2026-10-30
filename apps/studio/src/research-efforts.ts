@@ -44,16 +44,18 @@ export class StudyRefused extends Error {
   constructor(message: string, next: string | null = null) { super(message); this.next = next; }
 }
 async function reply(response: Response): Promise<Record<string, unknown>> {
-  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+  const body = await response.json() as Record<string, unknown>;
   if (!response.ok || body.ok === false) throw new StudyRefused(String(body.says ?? body.error ?? 'The study could not be read.'), typeof body.next === 'string' ? body.next : null);
   return body;
 }
 
 /** This Project's studies, or null when this build has no studies (the route is absent): then nothing about them shows. */
-export async function listStudies(session: string, fetcher: typeof fetch = fetch): Promise<Effort[] | null> {
-  const response = await fetcher(`/api/research-efforts?session=${encodeURIComponent(session)}`, { cache: 'no-store' });
+export async function listStudies(session: string, fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<Effort[] | null> {
+  const response = await fetcher(`/api/research-efforts?session=${encodeURIComponent(session)}`, { cache: 'no-store', signal });
   if (response.status === 404) return null;
-  return (await reply(response)).efforts as Effort[];
+  const body=await reply(response);
+  if(!Array.isArray(body.efforts))throw new Error('Project Studies could not be read. Retry to refresh.');
+  return body.efforts as Effort[];
 }
 export async function readStudy(id: string, session: string, fetcher: typeof fetch = fetch): Promise<Effort> {
   const response = await fetcher(`/api/research-efforts/${encodeURIComponent(id)}?session=${encodeURIComponent(session)}`, { cache: 'no-store' });

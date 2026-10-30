@@ -178,7 +178,7 @@ def register(app, built, connected, body, reply, refusal):
     async def ask_question(study: str, request: Request):
         try:
             b = await body(request)
-            if set(b) != {'session', 'request', 'question', 'basis', 'recipient'}:
+            if set(b) - {'materials'} != {'session', 'request', 'question', 'basis', 'recipient'}:
                 raise ValueError('Use the declared Study question fields')
             session = b.pop('session')
             caller = authorized(request, session, True, resource='study-question')

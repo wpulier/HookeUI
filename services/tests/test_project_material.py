@@ -66,6 +66,7 @@ def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
     attach_usage([model, assignment])
     assert model.material['input'] and model.material['origin'] == 'generated'
     assert model.material['uses'][0]['study'] == study.id
+    assert model.material['uses'][0]['studyTitle'] == study.document['title']
     check(model.material, 'project-material')
     model.version += 1
     attach_usage([model, assignment])
@@ -153,7 +154,8 @@ def test_inspection_attaches_to_exact_source_with_report_provenance(tmp_path):
     assert entry.material['format'] == 'AnnData' and entry.material['shape'] == [18400, 18533]
     assert entry.material['origin'] == 'imported'
     assert entry.material['inspection'] == {'status': 'reported', 'total': 1, 'reports': [
-        {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}]}
+        {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}], 'facts': [
+        {'shape': [18400,18533], 'report': {'id': report.id, 'session': report.session, 'revision': report.revision, 'digest': report.digest}}]}
     assert store.read(source.id, source.session) == before
     check(entry.material, 'project-material')
     assert _item(entry)['material'] == entry.wire()['material']
@@ -302,3 +304,35 @@ def test_pending_legacy_publication_keeps_project_list_with_qualified_count(web)
     assert response.status_code == 200
     row = next(row for row in response.json()['sessions'] if row['id'] == app.day.sid)
     assert row['counts']['sourcesIncomplete']
+
+
+def test_inspection_preview_projection_is_bounded_and_preserves_older_facts():
+    from orchestrator.project_material import inspection_facts
+    import copy
+    preview={'selection':'first-observations-and-variables','observations':['one'],'variables':['gene'],
+             'values':[[2]],'observationAnnotations':[{'name':'batch','values':['A']}],'variableAnnotations':[]}
+    assert inspection_facts({'preview':preview})['preview']==preview
+    for change in ({'values':[[float('nan')]]},{'values':[[2,3]]},{'observations':['x']*11},
+                   {'observationAnnotations':[{'name':'bad','values':['x'*257]}]}):
+        bad=copy.deepcopy(preview);bad.update(change)
+        facts=inspection_facts({'dtype':'float32','preview':bad})
+        assert facts=={'dtype':'float32'}
+    assert inspection_facts({'dtype':'float32','shape':[2,3]})=={'dtype':'float32','shape':[2,3]}
+
+
+def test_workflow_output_author_comes_from_same_project_run_and_retained_study_label(tmp_path):
+    from orchestrator.project_material import attach_usage
+    store = ProjectStore(tmp_path); session = '2026-10-30'; actor = 'agent:ac_' + 'a' * 24
+    run = store.create(session, document('scientific-workflow-run', {'workflowRun': {'actor': 'agent:ac_' + 'b' * 24}}))
+    attempt = store.create(session, document('scientific-workflow-attempt', {'workflowAttempt': {'actor': actor, 'run': run.id}}))
+    from orchestrator.scientific_comparisons import identity
+    result = store.create(session, document('matrix-result', {'workflowOutput': {'run': run.id, 'attempt': identity(attempt)}}))
+    study = store.create(session, document('research-effort', {'researchEffort': {'inputs': [], 'experiments': {'one': {
+        'execution': {'kind': 'workflow', 'id': run.id, 'session': session}, 'by': actor, 'byLabel': 'Research lead'}}}}))
+    rows = [Index.project_entry(value) for value in (run, result, study, attempt)]
+    attach_usage(rows, store)
+    assert rows[1].made_by == {'actor': actor, 'label': 'Research lead', 'workflow': run.id}
+    # A foreign Project or an unrelated run cannot supply attribution.
+    rows[0].day = '2026-10-31'; rows[1].made_by = {}
+    attach_usage(rows, store)
+    assert rows[1].made_by == {}

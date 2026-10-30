@@ -762,7 +762,8 @@ def test_review_retry_repairs_actor_publication_gap_without_overwriting_later_co
     assert w.status(r.id,'s1')['control']=='paused'
 
 
-def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web,tmp_path,monkeypatch):
+@pytest.mark.parametrize('in_study',[False,True])
+def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web,tmp_path,monkeypatch,in_study):
     # Real tiny fitted computation/retention; runtime admission and process transport are stand-ins.
     import io,sys,numpy as np
     from pathlib import Path
@@ -791,9 +792,19 @@ def test_manual_fit_and_workflow_share_catalog_execution_and_retained_output(web
     headers={'Origin':ORIGIN,'X-MicroscopeMind':'workflow'}
     body={'action':'capability','session':built.day.sid,'capability':'response-fit','generation':declared['generation'],
           'inputs':{'effects':identity(source_file)},'parameters':{'regularization':1.,'rank':0},'request':'f'*32}
+    if in_study:
+        from orchestrator.research.studies import service as study_service
+        studies=study_service(built)
+        study=studies.create(built.day.sid,actor='studio',label='You',request='manual-study',title='Small experiment',
+            objective='Inspect retained material',criteria='Keep exact references',budget_usd=0)
+        body['study']=study.id
     response=client.post('/api/workflows/command',json=body,headers=headers)
     assert response.status_code==200,response.text
     run=response.json()['run'];claim=w.claim(run['id'],built.day.sid)
+    if in_study:
+        operation=response.json()['operation']
+        assert operation['by']=='studio' and operation['execution']['id']==run['id']
+        assert next(iter(studies.read(study.id,built.day.sid)['experiments'].values()))['operation']==operation['id']
     manual_definition=w.definition(run['definition']['id'],run['definition']['revision']).document['state']['workflow']
     assert manual_definition['createdBy']=='studio'
     assert manual_definition['lastChange']=={'by':'studio','action':'capability','revision':1}

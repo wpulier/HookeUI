@@ -81,11 +81,11 @@ export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
   return out.sort((a,b)=>(b.at??0)-(a.at??0));
 }
 /** Uses existing evidence routes; bounded fan-out and no replacement execution ledger. */
-export async function readProjectActivity(studies:readonly Effort[],fetcher:typeof fetch=fetch):Promise<Record<string,ActivitySnapshot>>{
+export async function readProjectActivity(studies:readonly Effort[],fetcher:typeof fetch=fetch,signal?:AbortSignal):Promise<Record<string,ActivitySnapshot>>{
   const result:Record<string,ActivitySnapshot>={};let index=0;
-  const next=async()=>{while(index<studies.length){const s=studies[index++];
+  const next=async()=>{while(index<studies.length&&!signal?.aborted){const s=studies[index++];
     if(!Object.keys(s.experiments??{}).length&&!Object.keys(s.tasks??{}).length){result[s.id]={operations:[]};continue;}
-    try{const r=await fetcher(`/api/research-efforts/${encodeURIComponent(s.id)}/workflows?session=${encodeURIComponent(s.session)}`,{cache:'no-store'});
+    try{const r=await fetcher(`/api/research-efforts/${encodeURIComponent(s.id)}/workflows?session=${encodeURIComponent(s.session)}`,{cache:'no-store',signal});
       if(!r.ok)throw new Error('Original execution receipts could not be refreshed.');
       const body=await r.json();if(body.ok!==true||!Array.isArray(body.operations)||body.study?.id!==s.id||body.study?.session!==s.session)throw new Error('Execution receipts did not match this Study.');
       result[s.id]={operations:body.operations,study:body.study};

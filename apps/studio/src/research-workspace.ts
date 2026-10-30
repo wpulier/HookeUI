@@ -507,6 +507,7 @@ export class ResearchWorkspace {
   private readerDeps(): ReaderDeps {
     const given = () => provider?.deps;
     const deps: ReaderDeps = {
+      retainedEntry: (ref) => given()?.retainedEntry?.(ref) ?? null,
       researchers: () => given()?.researchers?.() ?? (this.state?.rid ? [{ rid: this.state.rid, name: this.state.researcher ?? '' }] : []),
       working: (rid) => given()?.working?.(rid) ?? (rid === this.state?.rid && !!this.state?.working),
       method: (entry) => given()?.method?.(entry) ?? '',

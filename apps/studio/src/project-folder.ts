@@ -1,4 +1,5 @@
 import {projectExport, type ExportActions} from './project-export';
+import {recordInclusion, type RecordActions} from './project-record-inclusion';
 import './project-folder.css';
 
 /** Same projection as contract/agent/project-storage; this inspector never moves evidence. */
@@ -11,6 +12,8 @@ export interface ProjectStorage {
 interface Options {
   title: string; session: string; current: () => boolean;
   exportActions?: ExportActions;
+  restorationActions?: (operation: string) => ExportActions;
+  recordActions?: RecordActions;
   read: () => Promise<{storage: ProjectStorage}>;
   reveal: () => Promise<{ok: boolean; path: string; error?: string}>;
 }
@@ -31,6 +34,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
   actions.append(reveal); dialog.append(header, node('p', opts.title, 'project-folder-name'), body, status, actions);
   let closed = false;
   let exportView: ReturnType<typeof projectExport> | undefined;
+  let recordView: ReturnType<typeof recordInclusion> | undefined;
   const current = () => !closed && opts.current();
   const changed = () => { reveal.disabled = true; status.textContent = 'The Project changed. Close this panel and reopen its folder details.'; };
   reveal.addEventListener('click', async () => {
@@ -45,6 +49,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
   });
   const load = async () => {
     exportView?.dispose(); exportView = undefined;
+    recordView?.dispose(); recordView = undefined;
     status.textContent = 'Reading saved location…'; body.replaceChildren(); reveal.disabled = true;
     try {
       const {storage} = await opts.read();
@@ -55,14 +60,18 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
       if (storage.location) body.append(node('p', storage.location, 'project-folder-path'));
       if (storage.reason) body.append(node('p', storage.reason));
       if (available) body.append(node('p', portable
-        ? 'This folder keeps the Project’s accepted records. Keep it at this location until collection and reopening are available. A complete portable copy has not yet been verified.'
+        ? 'This folder keeps the Project’s accepted records. After closing its Hooke host, use Open Project to reopen this folder or update its moved location. A complete portable copy has not yet been verified.'
         : 'Your work remains available here. A portable Project copy has not been collected.'));
       const details = node('details'), summary = node('summary', 'Identity and collection');
       details.append(summary, node('p', `Project identity: ${storage.origin ?? 'Unavailable'}`, 'project-folder-path'), node('p', storage.collection.reason));
       body.append(details);
       if (available && portable && storage.origin && opts.exportActions) {
-        exportView = projectExport(opts.exportActions, current, storage.origin);
+        exportView = projectExport(opts.exportActions, current, storage.origin, 'export', opts.restorationActions);
         body.append(exportView.element);
+      }
+      if (available && portable && storage.origin && opts.recordActions) {
+        recordView = recordInclusion(opts.recordActions, opts.session, storage.origin, current);
+        body.append(recordView.element);
       }
       reveal.disabled = !available;
       status.textContent = available ? '' : 'Your research has not been replaced or recreated.';
@@ -77,6 +86,6 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
     const retry = node('button', 'Retry', 'study-quiet'); retry.type = 'button';
     retry.addEventListener('click', () => { if (current()) void load(); else changed(); }); body.append(retry);
   };
-  dialog.addEventListener('close', () => { closed = true; exportView?.dispose(); dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
+  dialog.addEventListener('close', () => { closed = true; exportView?.dispose(); recordView?.dispose(); dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
   document.body.append(dialog); dialog.showModal(); void load(); return dialog;
 }

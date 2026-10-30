@@ -1,10 +1,12 @@
+import {ProjectRead} from './project-read';
+import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
 import {sameMediaReference} from './project-media-reference';
-import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry, indexedRevision } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
@@ -32,6 +34,8 @@ import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
 import { RunPills } from './strip-sources';
 import { StudyRefused, controlStudy, createStudy, listStudies, readStudy, studyName, studyNeeds, studySpending, taskCounts, type Effort, type StudyProvider, type StudyInput, studyInputDescription, studyState, studyInputs, studyReadiness, startStudy, collectStudyTask, recoverStudyTask, studyEvidence, reviewStudyTask, retainStudyFinding } from './research-efforts';
+import { openMaterialCapability } from './workflow-capabilities';
+import type { Reference } from './study-conversation';
 import { studyConversation } from './study-conversation';
 import { renderStudy, studyAllowanceTitle, studyAllowanceWords } from './study-view';
 import { ADOPT_WAIT_MS, adoptedResearcher, beginStart, draftLine, notStartedWords, settleStart, type DraftStart } from './researcher-draft';
@@ -457,7 +461,7 @@ let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
   openResearcher: id => openResearcher(id),
-  retry: () => { void refreshResults(); },
+  retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
 });
@@ -465,16 +469,20 @@ let studiesAvailable=false;
 let studiesNote='';
 let studiesLoadedSession='';
 let studyReadGeneration = 0;
-async function refreshStudies():Promise<void>{
+const studyReads = new ProjectRead(()=>renderBoard());
+function refreshStudies():Promise<void>{
+  return studyReads.run(snapshot.session, (signal, ownsRead) => loadStudies(signal, ownsRead));
+}
+async function loadStudies(signal:AbortSignal, ownsRead:()=>boolean):Promise<void>{
   const session = snapshot.session, generation = ++studyReadGeneration;
-  const current = () => snapshot.session === session && generation === studyReadGeneration;
+  const current = () => snapshot.session === session && generation === studyReadGeneration && ownsRead();
   if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
   let studies:Effort[]|null;
-  try{studies=await listStudies(session);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
+  try{studies=await listStudies(session, fetch, signal);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
   studiesLoadedSession=session;studiesNote='';knownStudies=studies??[];studiesAvailable=studies!==null;
   renderBoard();
-  const activity=await readProjectActivity(knownStudies);
+  const activity=await readProjectActivity(knownStudies, fetch, signal);
   if(!current())return;
   projectActivity=activity;
   knownStudies=knownStudies.map(study=>activity[study.id]?.study?{...study,...activity[study.id].study}:study);
@@ -522,7 +530,7 @@ researcherBrowser.append(board.root);
 function renderBoard():void{
   const material=resourceSession===snapshot.session?projectInputs(entries):[];
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
-    {count:material.length,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
+    {count:material.length,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -976,8 +984,8 @@ let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
 window.addEventListener('workflow-open-study',event=>{const value=(event as CustomEvent<{id:string;session:string}>).detail;if(value.session===snapshot.session&&/^p[0-9a-f]{32}$/.test(value.id)){bridge.navigate('#');void openStudy(value.id);}});
-async function openStudy(id:string):Promise<void>{
-  if(!canLeaveStudy(()=>void openStudy(id)))return;
+async function openStudy(id:string,material?:{reference:Reference;title:string}):Promise<void>{
+  if(!canLeaveStudy(()=>void openStudy(id,material)))return;
   const owner=workspaceViews.tabOwner(),session=owner.session,opening=++studyOpening;
   const current=()=>opening===studyOpening&&inputOwnerCurrent(owner)&&!switching;
   let study:Effort,providers:StudyProvider[]=[],availableInputs:StudyInput[]=[];
@@ -999,6 +1007,7 @@ async function openStudy(id:string):Promise<void>{
     if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
+    material,
     current:()=>current()&&currentStudyPage===page&&!researchStage.hidden,
     open:async(ref,title)=>{
       if(ref.session!==session)throw new Error('Return to the originating Study.');
@@ -1053,7 +1062,7 @@ async function openStudy(id:string):Promise<void>{
   },4000);
 }
 /** New Study saves a draft. Provider execution requires the separate Start action. */
-function newStudy():void{
+function newStudy(initial?:{reference:Reference;title:string},created?:(study:Effort)=>void):void{
   const owner=workspaceViews.tabOwner(),session=owner.session;if(!session)return;
   const dialog=el('dialog','workspace-recovery-dialog study-new-study'),form=el('form');form.method='dialog';
   const current=()=>inputOwnerCurrent(owner)&&!switching&&dialog.isConnected;
@@ -1083,9 +1092,10 @@ function newStudy():void{
   footer.append(el('p','study-note study-new-study-starts','Creating a study starts nothing. You start each experiment.'),cancel,save);form.append(body,footer);
   const load=()=>{void studyInputs(session).then(inputs=>{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
+    if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!!initial&&input.id===initial.reference.id&&input.revision===initial.reference.revision&&input.digest===initial.reference.digest&&!check.disabled;
       const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
@@ -1098,7 +1108,7 @@ function newStudy():void{
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();
@@ -1211,7 +1221,7 @@ function renderTabs(): void {
       else if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const index=event.key==='Home'?0:event.key==='End'?tabs!.order.length-1:(tabs!.order.indexOf(id)+(event.key==='ArrowLeft'?-1:1)+tabs!.order.length)%tabs!.order.length;tabStrip.querySelector<HTMLElement>(`[data-session="${tabs!.order[index]}"] [role="tab"]`)?.focus();}});
     const close=button('×',()=>void closeSessionTab(id),'study-tab-close');close.setAttribute('aria-label',`Close project ${title}`);
     holder.addEventListener('dragstart',event=>event.dataTransfer?.setData('text/plain',id));holder.addEventListener('dragover',event=>event.preventDefault());holder.addEventListener('drop',event=>{event.preventDefault();const from=event.dataTransfer?.getData('text/plain');if(from&&tabs){tabs=moveTab(tabs,from,tabs.order.indexOf(id));persistTabs();}});
-    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton,close);tabStrip.append(holder);
+    holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton);if(tabs.active===id){const folder=button('',()=>openCurrentProjectFolder(),'study-tab-rename');folder.append(tabMark('folder'));folder.setAttribute('aria-label',`Project folder for ${title}`);folder.title='Project folder';holder.append(folder);}holder.append(close);tabStrip.append(holder);
   }
   requestAnimationFrame(()=>tabStrip.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({block:'nearest',inline:'nearest'}));
   document.body.dataset.studyNeutral=String(tabs.active===null);
@@ -1244,6 +1254,45 @@ function projectNote(row:{lastActive:number;counts?:{sources?:number;sourcesInco
   const now=Date.now()/1000,when=daysAgo(row.lastActive,now)===0?new Date(row.lastActive*1000).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):monthDay(row.lastActive,now);
   return `${when} · ${inputCountWords(row.counts)}`;
 }
+function openCurrentProjectFolder():void {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    const row = snapshot.projects.find(item => item.id === owner.session);
+    openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
+      current: () => inputOwnerCurrent(owner) && !switching,
+      exportActions: {
+        prepare: async () => { const r = await bridge.request('project-export-prepare', {session: owner.session}); if (!r.export) throw new Error('Export preparation is unavailable.'); return r.export; },
+        start: async requestKey => { const r = await bridge.request('project-export', {session: owner.session, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Export admission was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-export-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Export status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+        reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
+      },
+      restorationActions: source => ({
+        prepare: async () => { const r = await bridge.request('project-copy-prepare', {session: owner.session, operation: source}); if (!r.copy) throw new Error('Restoration preparation is unavailable.'); return r.copy; },
+        start: async requestKey => { const r = await bridge.request('project-copy-restore', {session: owner.session, operation: source, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Restoration admission was not acknowledged. Retry this request.'); return workingCopyOperation(r.operation); },
+        read: async operation => { const r = await bridge.request('project-copy-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Restoration status is unavailable.'); return workingCopyOperation(r.operation); },
+        stop: async operation => { const r = await bridge.request('project-copy-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return workingCopyOperation(r.operation); },
+        reveal: async operation => { const r = await bridge.request('project-copy-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The working copy could not be revealed.'); },
+      }),
+      recordActions: {
+        list: async () => {
+          const response = await fetch('/api/datasets', {cache: 'no-store'});
+          if (!response.ok) throw new Error('Recorded datasets could not be read.');
+          const value = await response.json();
+          if (!Array.isArray(value.datasets)) throw new Error('Recorded dataset listing is unavailable.');
+          return value.datasets;
+        },
+        review: async dataset => { const r = await bridge.request('project-record-review', {session: owner.session, dataset}); if (!r.review) throw new Error('Recording review is unavailable.'); return r.review; },
+        start: async (dataset, reviewDigest, requestKey) => { const r = await bridge.request('project-record-include', {session: owner.session, dataset, reviewDigest, requestKey, includeWholeDataset: true}); if (!r.operation) throw new Error('Inclusion was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-record-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Inclusion status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-record-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+      },
+      read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
+        if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
+      reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
+        if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
+    });
+}
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
   openProjectFolder: () => {
@@ -1258,25 +1307,7 @@ const appMenu = new WorkspaceAppMenu({
       navigate: session => changeSession(session),
     });
   },
-  projectFolder: () => {
-    const owner = workspaceViews.tabOwner();
-    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
-    const row = snapshot.projects.find(item => item.id === owner.session);
-    openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
-      current: () => inputOwnerCurrent(owner) && !switching,
-      exportActions: {
-        prepare: async () => { const r = await bridge.request('project-export-prepare', {session: owner.session}); if (!r.export) throw new Error('Export preparation is unavailable.'); return r.export; },
-        start: async requestKey => { const r = await bridge.request('project-export', {session: owner.session, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Export admission was not acknowledged. Retry this request.'); return r.operation; },
-        read: async operation => { const r = await bridge.request('project-export-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Export status is unavailable.'); return r.operation; },
-        stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
-        reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
-      },
-      read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
-        if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
-      reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
-        if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
-    });
-  },
+  projectFolder: openCurrentProjectFolder,
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });
@@ -1537,10 +1568,10 @@ function renderInputs(): void {
     materialList.replaceChildren();
     const empty = drawerBody.querySelector<HTMLElement>('.project-input-empty');
     if (empty) empty.hidden = resultsFailed() || resourceSession !== snapshot.session || !!inputQuery || !!snapshot.sources.length || !!projectInputs(entries).length;
-    if (resultsFailed() || resourceSession !== snapshot.session) {
-      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : 'Loading Project material…');
+    if (resultsFailed() || resourceSession !== snapshot.session || resourceReads.slow) {
+      const notice = el('p', resultsFailed() ? 'study-error' : 'study-muted', resultsFailed() ? (resourceSession === snapshot.session ? 'Could not refresh material. Showing the last saved list.' : 'Project material could not be loaded.') : resourceReads.slow?'Loading is taking longer than usual.': 'Loading Project material…');
       notice.setAttribute('role', 'status'); materialList.append(notice);
-      if (resultsFailed()) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) void refreshResults(); }, 'mm-control'));
+      if (resultsFailed() || resourceReads.slow) materialList.append(button('Retry', () => { if (inputOwnerCurrent(owner)) retryProjectReads(); }, 'mm-control'));
     }
     const needle = inputQuery.trim().toLocaleLowerCase();
     let matchingMedia = 0;
@@ -1657,9 +1688,14 @@ async function refreshBackgroundRun(): Promise<void> {
     if (run === owner && reconcileBackgroundRun(owner, data.entries, job.session)) { renderContext(); renderTabs(); }
   } catch { /* Retained state is authoritative; a failed poll never marks a job complete. */ }
 }
-async function refreshResults(): Promise<void> {
-  // Project research is visible on return, independent of which drawer is open.
+const resourceReads = new ProjectRead(()=>{renderBoard();if(drawerOpen&&section==='inputs')refreshInputRows?.();});
+function retryProjectReads():void { resourceReads.cancel();studyReads.cancel();void refreshResults(); }
+function refreshResults():Promise<void>{
   void refreshStudies();
+  return resourceReads.run(snapshot.session,(signal,ownsRead)=>loadResults(signal,ownsRead));
+}
+async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<void> {
+  // Project research is visible on return, independent of which drawer is open.
   void refreshBackgroundRun();
   const session = snapshot.session; if (!session) return;
   const generation = ++refreshGeneration;
@@ -1668,10 +1704,10 @@ async function refreshResults(): Promise<void> {
     // The 10 s poll and the server's events send back the revision Data last read (ticket 66, S7): an unchanged index
     // answers in a few bytes, and nothing is redrawn.
     const since = resourceSession === session && resourceRevision ? `&since=${encodeURIComponent(resourceRevision)}` : '';
-    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store' });
+    const response = await fetch(`/api/resources?day=${encodeURIComponent(session)}${since}`, { cache: 'no-store', signal });
     if (!response.ok) throw new Error('Retained results could not be read.');
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
-    if (generation !== refreshGeneration || snapshot.session !== session) return;
+    if (!ownsRead() || generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
     if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
@@ -1689,10 +1725,13 @@ async function refreshResults(): Promise<void> {
     renderRailBadges(); renderBoard();
     readerEntriesChanged();
   } catch (error) {
-    if (generation === refreshGeneration && snapshot.session === session) {
+    if (ownsRead() && generation === refreshGeneration && snapshot.session === session) {
       resultsFailedSession = session;
       renderBoard();
-      if (dataOpen) dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults()));
+      if (dataOpen) {
+        if(resourceSession===session)renderResults();
+        else dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => retryProjectReads()));
+      }
       if (drawerOpen && section === 'inputs') refreshInputRows?.();
     }
   }
@@ -1811,6 +1850,7 @@ function renderResults(opened = false): void {
   dataList.render({rows:shown,choices:makerChoices(all),maker:makerFilter,query:dataSearch.value,loading:resourceSession!==snapshot.session,
     source:sourceFilter===null?null:snapshot.sources.find(item=>item.id===sourceFilter)?.title??'one input',
     here:row=>rowHere(row,here),seen:dataSeen(),now:Date.now()/1000,model:entry=>entry.madeBy?bridge.makerName(entry.madeBy):''});
+  if(resultsFailed()){const notice=el('div','study-error');notice.setAttribute('role','status');notice.append(el('p','','Could not refresh. Showing saved Project data.'),button('Retry results',()=>retryProjectReads()));dataList.list.prepend(notice);}
   dataView.showResults();
   if(readingPosition)dataBody.scrollTop=readingPosition;
   watchSeen();
@@ -2059,8 +2099,33 @@ function renderReaderLabel(): void {
   slot.replaceChildren(title, kind);
 }
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
+/** Opening setup never starts work; all choices retain the originating revision. */
+function materialAction(entry:ReaderEntry,action:'inspect'|'experiment'|'ask'):void{
+ const material=entry.material;if(!material){actionError(new Error('Refresh this material before continuing.'));return;}
+ const reference={id:entry.id,session:entry.day??snapshot.session,revision:Number(entry.version),digest:entry.source?.sha256??''},session=reference.session;
+ if(!Number.isInteger(reference.revision)||!reference.digest){actionError(new Error('Refresh this material to read its exact revision.'));return;}
+ if(session!==snapshot.session)return;
+ const owner=workspaceViews.tabOwner(),owns=()=>inputOwnerCurrent(owner)&&!switching;
+ const selected={reference,title:entry.title};
+ const proceed=(study?:Effort)=>{
+  if(!owns())return;
+  if(action==='ask'){if(study)void openStudy(study.id,selected);return;}
+  openMaterialCapability({material:{input:reference,title:entry.title},study:study?{id:study.id,title:studyName(study)}:undefined,
+   capability:action==='inspect'?'matrix-inspect':undefined},()=>owns()?session:'',run=>{if(owns())bridge.navigate(`#workflows?run=${encodeURIComponent(run.id)}`);});
+ };
+ const dialog=el('dialog','workspace-recovery-dialog material-study-chooser');dialog.setAttribute('aria-label','Choose a Study');
+ dialog.append(el('h2','','Choose a Study'),el('p','',`${entry.title} · revision ${reference.revision}`),el('p','','Keep this question or experiment with a research effort. Opening setup starts nothing.'));
+ const list=el('div','material-study-options');
+ for(const study of knownStudies){list.append(button(studyName(study),()=>{dialog.close();proceed(study);}));}
+ list.append(button('New Study…',()=>{dialog.close();if(owns())newStudy(selected,proceed);}));
+ if(action==='inspect')list.append(button('Inspect without a Study',()=>{dialog.close();proceed();}));
+ dialog.append(list,button('Cancel',()=>dialog.close()));dialog.addEventListener('close',()=>dialog.remove(),{once:true});document.body.append(dialog);dialog.showModal();
+}
 function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
   return {
+    materialAction, openStudy:id=>{void openStudy(id);},
+    retainedEntry: (ref) => resourceSession === snapshot.session && ref.day === snapshot.session
+      ? indexedRevision(entries, ref, snapshot.session) as ReaderEntry | null : null,
     researchers: () => bridge.researchers().map((row) => ({ rid: row.rid, name: row.name, day: row.day, status: row.status })),
     working: (rid) => { const row = bridge.researchers().find((item) => item.rid === rid); return !!row && isWorking(row); },
     method: (entry) => entry.madeBy ? bridge.makerName(entry.madeBy) : '',
@@ -2361,6 +2426,7 @@ bridge.subscribe(next => {
   const previous = snapshot;
   snapshot = next;
   if (next.session !== previous.session) {
+    resourceReads.cancel();studyReads.cancel();
     // Retire the inventory owner with its contents before any view renders. An A→B→A switch
     // can otherwise mistake A's emptied cache for a completed read while B is still pending.
     entries = []; resourceSession = ''; resourceRevision = ''; resultsFailedSession = '';

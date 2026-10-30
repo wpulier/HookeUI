@@ -4,10 +4,10 @@ requires = { catalog = 2 }
 id = "matrix-inspect"
 name = "Inspect annotated counts"
 runs = "cpu"
-version = "2"
+version = "4"
 licence = ["matrix-inspect"]
 kind = "tool-function"
-what = "Inspect raw counts and annotated matrix dimensions"
+what = "Inspect matrix dimensions, annotations, count statistics and a bounded preview"
 runner = "builtin-cpu"
 source = { made_here = "General explicit count and response operations; no pretrained weights" }
 credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }

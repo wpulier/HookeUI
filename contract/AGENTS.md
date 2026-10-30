@@ -138,3 +138,5 @@ to it is additive within `project-state/1`, as `stage` was. The door checks ever
 output is unchanged. `tests/test_project_state.py` checks the schema, the permissions (no cross-Project leak, a
 contributor's own view and cache, an unrelated Project invisible), the unavailable studio state and the revision-keyed
 cache.
+
+Project material inspection facts are bounded projections of exact matching retained reports. Study questions optionally retain up to eight exact material attachments; omitted attachments preserve older question semantics. All references remain Project-scoped and digest-checked.

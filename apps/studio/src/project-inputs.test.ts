@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
+import { projectInputs, materialFacts, projectEntry, retainedProjectEntry, indexedRevision } from './project-inputs';
 import { dataRows, type DataEntry } from './data-roles';
 
 const entry = (id: string, input: boolean, extra = {}): DataEntry => ({
@@ -8,6 +8,17 @@ const entry = (id: string, input: boolean, extra = {}): DataEntry => ({
 });
 
 describe('shared Project material', () => {
+  it('never borrows head attribution for a historical inspection selected as an input', () => {
+    const head = {...entry('report', false, {uses: [{study: 's', title: 'Older inspection',
+      revision: 1, digest: 'a'.repeat(64), available: true}]}), at: 200,
+      maker: {kind: 'agent' as const, name: 'Later author'}};
+    const ref = {id: 'report', day: '2026-10-29', version: 1};
+    expect(projectEntry([head], ref, ref.day)?.version).toBe(1);
+    expect(indexedRevision([head], ref, ref.day)).toBeNull();
+    const old = {...head, version: 1, at: 100, maker: {kind: 'agent' as const, name: 'Original author'}};
+    expect(indexedRevision([head, old], ref, ref.day)).toBe(old);
+    expect(indexedRevision([head, old], ref, 'another-project')).toBeNull();
+  });
   it('shows explicit inputs and assignments without promoting generated outputs', () => {
     const imported = entry('controls', true), result = entry('model', false, {origin: 'generated'});
     const assignment = entry('Question', true, {kind: 'assignment', origin: 'authored'});

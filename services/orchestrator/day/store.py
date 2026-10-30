@@ -85,7 +85,16 @@ class SessionStore:
         selected = catalogue.get(sid) if sid and sids.is_sid(sid) else None
         if selected is None or selected.unavailable is not None:
             last = catalogue.last_used()
-            sid = last.id if last is not None else today(clock)
+            if last is not None:
+                sid = last.id
+            elif locations is not None and locations.handles():
+                # The ordinary empty-startup fallback cannot reuse today's
+                # offline handle or recreate evidence at its missing location.
+                recovery = locations.create('Project recovery', date=today(clock),
+                    preferences=prefs, actor='system', clock=clock)
+                sid = recovery.session
+            else:
+                sid = today(clock)
         store = cls(root, clock, session=sid, prefs=prefs, catalogue=catalogue, locations=locations)
         prefs.point(store.sid)
         return store

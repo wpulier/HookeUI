@@ -188,7 +188,7 @@ describe('the reader on screen', () => {
     reader.show(entry({ kind: 'result', table: true, id: 'd9', title: 'Areas · 10:00' }));
     expect(root.querySelectorAll('.rd-picture')).toEqual([]);
   });
-  it('opens the exact inspection in another retained Tab and preserves its source', async () => {
+  it.each(['Project', 'revision', 'digest'])('opens exact inspection reports and excludes metadata from a different %s', async (mismatch) => {
     mount();
     const id = 'p' + '1'.repeat(32), report = 'p' + '2'.repeat(32), day = '2026-10-25.4';
     const digest = 'a'.repeat(64), reportDigest = 'b'.repeat(64);
@@ -203,13 +203,26 @@ describe('the reader on screen', () => {
       return {ok: false, json: async () => ({error: 'No fixture reader'})};
     });
     vi.stubGlobal('fetch', fetcher);
-    const openInNewTab = vi.fn(), reader = new DataReader(deps({openInNewTab}), 'tab');
+    const second = 'p' + '5'.repeat(32);
+    const retainedEntry = vi.fn((ref: {id: string}) => ref.id === report ? entry({id: report, day, version: 3,
+      kind: 'project', at: today, source: {sha256: reportDigest}, maker: {kind: 'agent', name: 'Codex (research)'}})
+      : entry({id: second, day: mismatch === 'Project' ? 'another-project' : day,
+        version: mismatch === 'revision' ? 4 : 3, source: {sha256: mismatch === 'digest' ? 'f'.repeat(64) : reportDigest},
+        maker: {kind: 'agent', name: 'Unrelated author'}}));
+    const openInNewTab = vi.fn(), reader = new DataReader(deps({openInNewTab, retainedEntry}), 'tab');
     const root = reader.root as unknown as TestElement;
     reader.show(entry({id, day, kind: 'project', title: 'Original dataset', version: 1, source: {sha256: digest},
       material: {kind: 'matrix', origin: 'imported', input: true, section: 'files', category: 'import',
-        record: false, dependencies: [], shape: [2, 3], inspection: {status: 'reported', total: 1,
-          reports: [{id: report, session: day, revision: 3, digest: reportDigest}]}}}));
+        record: false, dependencies: [], shape: [2, 3], inspection: {status: 'reported', total: 2,
+          reports: [{id: report, session: day, revision: 3, digest: reportDigest},
+            {id: second, session: day, revision: 3, digest: reportDigest}]}}}));
     await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
+    const captions = root.querySelectorAll('.rd-inspection-caption').map(node => node.textContent);
+    expect(captions[0]).toContain('Codex (research)');
+    expect(captions[1]).toBe('Revision 3');
+    expect(root.querySelectorAll('.rd-inspection-words').map(node => node.children[0].textContent))
+      .toEqual(['Inspection 1', 'Inspection 2']);
+    expect(fetcher).toHaveBeenCalledTimes(1); // labels use existing metadata, never extra content reads
     root.querySelector('.rd-material-inspection')!.querySelector('button')!.dispatchEvent(new Event('click'));
     await vi.waitFor(() => expect(openInNewTab).toHaveBeenCalledWith(expect.objectContaining({
       id: report, day, version: 3, kind: 'project', source: {sha256: reportDigest}})));
@@ -241,7 +254,7 @@ describe('the reader on screen', () => {
     if (timing === 'before response') reader.refresh(known);
     release();
     await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
-    const content = root.querySelector('.rd-body')!, original = content.children[0];
+    const content = root.querySelector('.rd-body')!, original = content.querySelector('.scientific-source-inspector');
     changed.mockClear();
     if (timing === 'after response') { reader.refresh(known); expect(changed).toHaveBeenCalledTimes(1); }
     if (timing === 'show again') reader.show(known);
@@ -255,7 +268,7 @@ describe('the reader on screen', () => {
     expect(changed).not.toHaveBeenCalled();
     expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
     expect(details.open).toBe(true);
-    expect(content.children[0]).toBe(original);
+    expect(content.querySelector('.scientific-source-inspector')).toBe(original);
     expect(fetcher).toHaveBeenCalledTimes(1);
     reader.refresh({...known, version: 2, material: {...known.material, shape: [9, 9]}});
     expect(reader.current()?.version).toBe(1);

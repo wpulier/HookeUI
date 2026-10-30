@@ -334,7 +334,8 @@ export function showScientificSource(root: HTMLElement, state: unknown, referenc
   if (movie && !validMovieFile(source, {id:reference.id,session:reference.day}, resources)) throw new Error('The rendered movie has an incomplete retained file reference. Keep the saved document and check its storage.');
   const inspector = node('section'); inspector.className = 'scientific-source-inspector';
   const header = node('header'), identity = node('div');
-  identity.append(node('h3', source.name), node('p', `Revision ${reference.version} · ${Number(source.size).toLocaleString()} bytes · ${movie ? 'Rendered movie' : computed ? 'Computed result' : 'Retained original'}`));
+  const size=Number(source.size),sizeText=size>=1048576?`${(size/1048576).toLocaleString(undefined,{maximumFractionDigits:1})} MB`:size>=1024?`${(size/1024).toLocaleString(undefined,{maximumFractionDigits:1})} KB`:`${size} bytes`;
+  identity.append(node('h3', source.name), node('p', `Revision ${reference.version} · ${sizeText} · ${movie ? 'Rendered movie' : computed ? 'Computed result' : 'Retained original'}`));
   const download = node('a', movie ? 'Download rendered movie' : computed ? 'Download result file' : 'Download original file');
   download.href = `/api/scientific-files/${encodeURIComponent(reference.id)}?${new URLSearchParams({ session: reference.day, revision: String(reference.version) })}`;
   download.download = source.name; download.className = 'scientific-source-download';
@@ -349,7 +350,7 @@ export function showScientificSource(root: HTMLElement, state: unknown, referenc
     sourceReaders(readers, reference, openReader); inspector.append(readers);
   }
   const detail = node('details'); detail.className = 'scientific-source-identity';
-  detail.append(node('summary', 'Content identity'), node('code', source.sha256));
+  detail.append(node('summary', 'Technical details'), node('p', `${Number(source.size).toLocaleString()} bytes`), node('code', source.sha256));
   inspector.append(detail); root.append(inspector);
 }
 

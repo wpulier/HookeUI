@@ -521,3 +521,28 @@ verify retained history, refuse either active writer, and publish only the locat
 The Project origin, accepted bytes and local grants stay unchanged. An unknown
 origin cannot use this mode or adopt historical permissions. Default opening still
 refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
+
+
+### Copy-on-write folder members
+
+Folder snapshots and working-copy restoration may use the platform's descriptor-based clone for each admitted regular file. This creates independent files, never hard links to mutable originals. Only unsupported filesystem/platform cases fall back to streaming; storage and access failures remain failures. Source stamps, accepted-record verification, independent byte hashes and durable publication remain unchanged. Full-byte disk estimates stay conservative: copy-on-write reduces initial allocation but later edits can require additional space. This does not certify external dependency completeness or change the snapshot format.
+
+### Accepted numeric history in snapshots
+
+All journal-accepted table, analysis and graph revisions participate in folder verification, including superseded values. Reuse the existing numeric reader with the captured Project artifact root and original accepted identity/hash. Copying or recomputing an outer manifest cannot bless damaged earlier results. No evaluator is installed or run, and original records are never repaired automatically. This is another producer-owned integrity check; source dependency closure and legacy migration remain separately qualified.
+
+### Execution locators during collection review
+
+A run/attempt locator in old evidence remains a locator, never a retroactively pinned reference. Dependency review may report the exact revision observed now beside that original link, retaining its unresolved `unpinned-execution-locator` status. This observation supports explicit collection planning; it does not rewrite historical evidence or establish that the citing experiment used today's run head. Captured Project boundaries and the stable accepted-head basis still govern the read.
+
+### Working copy of an owned export
+
+The owner may explicitly restore a completed Project export to a new host-selected folder after reviewing its retained size and incomplete collection scope. The same operation service owns progress, retries and cancellation. Restoration preserves the original identity, accepted history and snapshot receipt, without registering a location, navigating, importing grants or replaying executions. Opening the working copy remains a separate owner choice subject to duplicate-origin and writer checks. Neither an export receipt nor its path authorizes agents to restore/import Projects.
+
+### Owner-reviewed whole Record inclusion
+
+The existing Datasets surface may offer copying a stopped Record dataset into the current portable Project. Review identifies the whole dataset, its shared/cross-Project scope, capture warnings, hashed membership and disk requirement. The owner's explicit confirmation authorizes that whole inclusion; a review digest is not authority. The action uses the existing `collect_record` immutable intake, returns an exact Project artifact reference, keeps the original intact and does not claim external dependency closure. Agents cannot invoke this owner-only path or browse host datasets through it. Any future agent path needs explicit dataset-scoped authority. Admitted work retains its destination Project despite navigation and exposes its durable operation and cancellation status.
+
+### Startup when all remembered locations are unavailable
+
+The existing empty-startup fallback must never reuse a registered offline Project's host handle. If no retained Project can be resumed, an explicitly portable host creates a separate empty recovery workspace through normal Project allocation. Existing locators and unavailable entries remain visible, with their origin, permissions and evidence untouched. This opens no missing Project, performs no migration, and starts no scientific work. A subsequent restart reuses the recovery workspace rather than creating another. Owner Open Project remains the path to reconnect the missing research.
