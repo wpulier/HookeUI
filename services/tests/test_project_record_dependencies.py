@@ -147,3 +147,22 @@ def test_captured_native_reference_uses_its_revision_digest(tmp_path, digest):
     else:
         assert issues[0]['status'] == ('digest-mismatch' if digest == '0' * 64 else 'unsupported-reference')
     assert store.read(owner.id, root.session) == owner
+
+
+@pytest.mark.parametrize('field', ['study-input', 'claim', 'matrix'])
+def test_exact_producer_reference_cannot_drop_its_digest(tmp_path, field):
+    root, _, first, _ = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    ref = {k: v for k, v in identity(first).items() if k != 'digest'}
+    state = {'study-input': {'researchEffort': {'inputs': [ref]}},
+             'claim': {'researchEffort': {'claims': [{'evidence': [{'artifact': ref}]}]}},
+             'matrix': {'matrixOperation': {'inputs': {'source': ref}}}}[field]
+    saved = store.create(root.session, {'kind': 'note', 'title': 'Incomplete provenance',
+        'resources': [ref], 'runtimes': [], 'state': state})
+    review = RecordDependencyReview(store, root.session)
+    review.inspect(saved)
+    result = review.result()
+    # Legacy document resources legitimately name a revision without a digest;
+    # exact producer evidence must not silently downgrade to that older format.
+    assert result['referencesChecked'] == 2 and result['resolvedRevisions'] == 1
+    assert [item['status'] for item in result['issues']] == ['unsupported-reference']

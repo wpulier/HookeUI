@@ -74,6 +74,8 @@ def declared(saved):
             yield path.lstrip('.'), ref, False
     for pattern in PATHS:
         for path, ref in _values(state, pattern.split('.')):
+            if type(ref) is dict:
+                ref = {'digest': ref.get('digest'), **ref}
             # Captured native inputs predate artifact-reference's digest name.
             # Normalize this producer's exact shape, not arbitrary saved objects.
             if pattern == 'populationSource.nativeSource.nativeSource' and type(ref) is dict:
@@ -81,6 +83,8 @@ def declared(saved):
             yield path, ref, False
     if saved.document['kind'] == 'scientific-python-history':
         for path, ref in _values(state, ['input']):
+            if type(ref) is dict:
+                ref = {'digest': ref.get('digest'), **ref}
             yield path, ref, False
     for pattern in LOCATORS:
         for path, value in _values(state, pattern.split('.')):
