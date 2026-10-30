@@ -1,6 +1,6 @@
 {
  "id": "will-tabs",
- "about": "Will's try-out of 30 Oct (10:00), as a journey on the real June 14 leaf recording: what he is looking at, segment and zoom, a bigger live close-up, that close-up moved into a new Tab, two reference photos asked for in that Tab and, while they are found, a new Tab opened; both photos land in the Tab they were asked for, then back to Main. In his session: a progress line answered before the close look did and contradicted it; acknowledgements were said as another's work in progress (\"It's still adjusting…\") or after the work had landed (\"It may take a moment\" with Main already in front); the close-up could not be moved (\"not saved\"); the new Tab was refused for its title and its row said it did not work; the second photo landed in the new Tab. Any internal language spoken fails a step.",
+ "about": "Will's try-out of 30 Oct (10:00), as a journey on the real June 14 leaf recording: what he is looking at, segment and zoom, a bigger live close-up, that close-up moved into a new Tab, two reference photos asked for in that Tab and, while they are found, a new Tab opened; both photos land in the Tab they were asked for, then back to Main. In his session: a progress line answered before the close look did and contradicted it; acknowledgements were said as another's work in progress (\"It's still adjusting…\") or after the work had landed (\"It may take a moment\" with Main already in front); the close-up could not be moved (\"not saved\"); the new Tab was refused for its title and its row said it did not work; the second photo landed in the new Tab. Any internal language spoken fails a step. Then (10:19) two requests at once: two online photos into a new Tab, and, while they are found, a magnified view of the specimen moved to another Tab; in his session both Tabs stayed empty and he was told to \"outline the target structure first\".",
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
@@ -120,6 +120,54 @@
     "outcome": true,
     "visible": "both reference photos in the close-up's Tab, none in the new Tab",
     "judge": "once both photos have landed, says once where they are (the close-up's Tab, where they were asked for) and what each shows, with its source"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "photos-new-tab",
+   "kind": "act",
+   "say": "Can you open a new tab and put in the new tab two images you find online that seem like the same thing?",
+   "wait": 8,
+   "expect": {
+    "tools": [
+     "tabs",
+     "reference_photo",
+     "present"
+    ],
+    "toolRequired": false,
+    "judge": "acknowledges at once as doing it; makes a new Tab and, once found, puts two real reference photos of what is in view there, each with its source; never leaves the Tab empty or asks the user to name or place them"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "magnified-tab",
+   "kind": "act",
+   "during": true,
+   "say": "While you do that, can you open a separate additional tab and move a magnified view of the original specimen there?",
+   "expect": {
+    "tools": [
+     "tabs",
+     "zoom",
+     "present",
+     "find"
+    ],
+    "visible": "a separate Tab holding a live magnified view of the specimen",
+    "outcome": true,
+    "judge": "opens another Tab with a live magnified view of the specimen, doing whatever that takes itself (outlining the thing meant, opening the magnifier); never asks the user to outline or open anything first"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "both-land",
+   "kind": "idle",
+   "waitFor": {
+    "handoffs": "idle"
+   },
+   "wait": 150,
+   "expect": {
+    "outcome": true,
+    "visible": "the two reference photos in their own new Tab, and the magnified view in the other",
+    "judge": "once the photos land, says once that both are in the new Tab asked for, what each shows and its source; nothing landed in the wrong Tab"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
