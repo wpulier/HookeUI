@@ -193,7 +193,13 @@ def _copy_visible(root, destination, *, check, restored_from=None):
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open('xb') as output:
             size, digest = _stream(root.path / member.name, member.stamp, output, check)
-            output.flush(); os.fsync(output.fileno())
+            # Immutable scientific objects must remain eligible for retained-source
+            # intake after restore. Older snapshots lost this mode, so reconstruct
+            # it from the store-owned object layout, not arbitrary source modes.
+            immutable = re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/(?:files|arrays)/[0-9a-f]{64}\.(?:bin|json)', member.name)
+            output.flush()
+            os.fchmod(output.fileno(), 0o400 if immutable else 0o600)
+            os.fsync(output.fileno())
         if _stream(target, check=check) != (size, digest):
             raise ProjectLocationError('A copied file failed its hash check; the original remains intact')
         entries.append({'path': member.name, 'bytes': size, 'sha256': digest})

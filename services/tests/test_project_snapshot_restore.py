@@ -94,3 +94,37 @@ def test_running_records_are_retained_and_copy_can_be_snapshotted_again(tmp_path
     newest = restore_snapshot(again.path, tmp_path / 'Newest working copy')
     assert ProjectRepository(newest).read(run.id) == run
     assert len(list((newest.path / 'history/restorations').glob('*/snapshot.json'))) == 2
+
+
+def test_restored_file_can_feed_another_operation_and_retry(tmp_path):
+    from orchestrator.scientific_file_intake import FileIntake
+    from orchestrator.scientific_projects import ProjectStore
+    from orchestrator.project_repository import document_root
+    root, *_ = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    intake = FileIntake(store, root.session, 'actual-retained-source-001', name='data.bin', size=7, max_bytes=7)
+    try:
+        intake.write(b'payload')
+        saved = intake.publish()
+    finally:
+        intake.close()
+    snap = copy_snapshot(root, tmp_path / 'Snapshot')
+    chunk = next((document_root(snap) / saved.id / 'files').glob('*.bin'))
+    assert chunk.stat().st_mode & 0o222 == 0
+    # Previously created snapshots retained exact bytes but lost immutable modes.
+    chunk.chmod(0o600)
+    restored = restore_snapshot(snap.path, tmp_path / 'Working')
+    restored_store = ProjectStore(document_root(restored))
+    source = restored_store.file_source(saved.id, saved.session, saved.revision, saved.document['resources'][0])
+    results = []
+    for _ in range(2):
+        next_intake = FileIntake(restored_store, root.session, 'continue-retained-source-001', name=source.name,
+                               size=source.size, max_bytes=source.size, retained_source=source)
+        try:
+            results.append(next_intake.publish())
+        finally:
+            next_intake.close()
+    assert results[0] == results[1]
+    next_source = restored_store.file_source(results[0].id, root.session, 1, results[0].document['resources'][0])
+    assert next_source.read(0, 7) == b'payload'
+    assert chunk.stat().st_mode & 0o200  # source snapshot was not repaired in place
