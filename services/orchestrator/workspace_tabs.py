@@ -13,7 +13,7 @@ from .workspace_observation import SPECIMEN_ASKED as SPECIMEN, front
 
 
 _PIN_FIELDS = ("id", "rootId", "kind", "lifetimeGeneration", "sourceGeneration")
-ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only')
+ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only', 'reader')
 SPECIMEN_WAIT_S = 4.0  # the studio's report showing the specimen as asked, after its save was acknowledged
 PLACED_WAIT_S = 4.0  # the studio's report showing a Tab arranged (beside) or holding only what was kept (only)
 ADD_PRESENTATIONS = {'population': 'masks', 'dataset-table': 'datatable', 'analysis': 'analysis', 'graph': 'graph',
@@ -90,7 +90,7 @@ class WorkspaceTabs:
                          == " ".join(args['tab'].split()).casefold()]
                 if len(named) == 1:
                     args = {**args, 'tab': named[0]['id']}
-        if action not in ('list', 'create') and 'tab' not in args:
+        if action not in ('list', 'create', 'reader') and 'tab' not in args:
             raise ToolFailed('name the exact target Tab', next='list the Tabs first')
         if action in ('create', 'rename') and not str(args.get('title') or '').strip():
             raise ToolFailed('give the Tab a title', next='choose a short descriptive title')
@@ -101,6 +101,20 @@ class WorkspaceTabs:
             raise ToolFailed('say fill, float or hide for the specimen, with the specimen action',
                              next='call tabs with action specimen, the Tab and specimen fill, float or hide')
         payload = dict(args)
+        if action == 'reader':
+            # Open in new Tab, as a person's (WorkspaceViews.openReaderTab): one saved item in a Tab of its own, the
+            # Data reader full width; an item that has one already goes to it (documents.py opens a document so).
+            ref = args.get('resource')
+            if (not isinstance(ref, dict) or set(ref) - {'id', 'version'} or not isinstance(ref.get('id'), str)
+                    or not (ref.get('version') is None or type(ref['version']) is int)):
+                raise ToolFailed('choose an exact saved item', next='read the saved resource first')
+            entry = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session)
+            current()
+            if entry is None or entry.version != ref.get('version'):
+                raise ToolFailed('the selected item is unavailable or has changed', next='read its current saved revision')
+            title = " ".join(str(args.get('title') or getattr(entry, 'shown', '') or entry.title).split())[:80] or entry.id
+            payload = {'action': 'reader', 'item': {'resource': {'day': owner.session, 'id': entry.id,
+                                                                 'version': entry.version}, 'title': title}}
         if action == 'add':
             ref = args.get('resource')
             if not isinstance(ref, dict) or set(ref) != {'id', 'version'} or not isinstance(ref['id'], str) or type(ref['version']) is not int or ref['version'] < 0:

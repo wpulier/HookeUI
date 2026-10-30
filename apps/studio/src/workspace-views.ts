@@ -1166,8 +1166,17 @@ private revision=0;private generation=0;private revealSequence=0;
    if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
    await this.settle(check);if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace is still busy with another action.');
    const target=this.layout.views.find(v=>v.id===args.tab);
-   if(args.action!=='create'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
-   if(args.action==='create'){
+   if(args.action!=='create'&&args.action!=='reader'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
+   if(args.action==='reader'){
+    // Open in new Tab, as a person's: one saved item in a Tab of its own, the Data reader full width (an item that has
+    // one goes to it). The Assistant's document opens so (orchestrator/documents.py); done once the report shows it.
+    const item=args.item as ReaderTabItem|undefined,resource=item?.resource;
+    if(!resource||resource.day!==session||typeof resource.id!=='string'||!resource.id)throw new Error('Choose a saved item in this Project.');
+    if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+    const title=String(item?.title??'').trim().slice(0,80)||resource.id;
+    if(!await this.openReaderTab({resource:{day:resource.day,id:resource.id,version:typeof resource.version==='number'?resource.version:null},title},owner))throw new Error('Its Tab did not open. Open it from Data.');
+    check();
+   }else if(args.action==='create'){
     const id=await this.addView(String(args.title).trim().slice(0,80));check();if(!id)throw new Error('No Tab was created. Check the workspace.');
    }else if(args.action==='rename'){
     target!.title=String(args.title).trim().slice(0,80);this.changed();this.render();

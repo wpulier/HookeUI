@@ -176,8 +176,9 @@ def _item(entry, *, owner: bool = True, researchers: dict | None = None) -> dict
     if entry.kind == "research" and not owner:
         session = (researchers or {}).get(entry.id)
         summary = _public_line(session) if session is not None else f"{entry.title}: {entry.state}"
+    document = entry.kind == "result" and getattr(entry, "media", None) == "document"  # a write-up, not a measurement
     item = {"ref": {"kind": entry.kind, "id": entry.id, "revision": entry.version},
-            "category": CATEGORY.get(entry.kind, "other"),
+            "category": "other" if document else CATEGORY.get(entry.kind, "other"),
             "title": inline(entry.title, 200), "summary": inline(summary, 300), "at": float(entry.at or 0),
             "state": str(entry.state),
             "source": {"store": "researcher" if entry.kind == "research" or ":" in entry.id else "session-index",

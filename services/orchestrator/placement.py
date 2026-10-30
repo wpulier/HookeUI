@@ -51,9 +51,10 @@ ENTRY_KINDS = {"population": "outlines", "tracks": "tracks", "dataset-table": "t
 
 
 def kind_of_entry(kind: str, *, web: dict | None = None, media: str | None = None) -> str:
-    """What an index entry is on screen, by its kind (and a result's media: a reference photo, a web page or video)."""
+    """What an index entry is on screen, by its kind (and a result's media: a reference photo, a web page or video, a
+    document written from the Project's records)."""
     if kind == "result":
-        if media in ("web-page", "video"):
+        if media in ("web-page", "video", "document"):
             return media
         return "reference" if web or media == "reference" else "image"
     return ENTRY_KINDS.get(kind, "document")
@@ -163,6 +164,36 @@ def holding(wire: dict | None, kind: str) -> list[dict]:
     return tabs_holding(wire or {}, kind)
 
 
+async def _document(services, ctx, what: str, placement: str, tab: str | None) -> str | None:
+    """A document saved in Data (documents.py) placed as asked: in a Tab of its own (new-tab, only) or in the reader
+    beside, done once the report shows it. None when `what` is not a document."""
+    import asyncio
+
+    from . import documents
+    from .brain.registry import ToolFailed
+    from .brain.toolbox.resources import require_current
+    from .data_reader import reader_studio
+    from .resources import resources_of
+    from .screen import screen_of
+
+    index = resources_of(services.hub)
+    entry = await asyncio.to_thread(index.get, what, index.session())
+    if not documents.is_document(entry):
+        return None
+    day = services.day
+    studio = reader_studio(screen_of(services.hub), ctx, day.sid) if day is not None else None
+    if studio is None:
+        raise ToolFailed(f"{what} is saved in Data under Write-ups; this studio has no Project workspace to show it in",
+                         next=None)  # no next: where it is saved is said
+
+    def guard():
+        require_current(ctx, day)
+
+    title = inline(tab or entry.shown or entry.title, 60)
+    where = await documents.show(services, ctx, studio, entry, placement=placement, title=title, guard=guard)
+    return f"the document {what} (saved in Data under Write-ups) is {where}"
+
+
 # --- present's placement: one word for anything shown ------------------------------------------------------------------
 async def place(services, ctx, registry, args: dict) -> str:
     """`present` with a placement (the one vocabulary): what it names put where it was asked, through the same tools
@@ -207,6 +238,10 @@ async def place(services, ctx, registry, args: dict) -> str:
         return await tool.handler(ctx, {"of": what, "placement": placement, **({"tab": tab} if tab else {})})
     if not what:
         raise ToolFailed("name what to place: its id from the screen or Data", next="look at what is on screen")
+    if re.fullmatch(r"d\d+", what) and placement in ("new-tab", "only", "beside", "window"):
+        said = await _document(services, ctx, what, placement, tab)
+        if said is not None:
+            return said
     if placement == "overlay":
         raise ToolFailed("only outlines and layers are drawn on the specimen; this is a window",
                          next="put it beside the live view instead (placement beside)")

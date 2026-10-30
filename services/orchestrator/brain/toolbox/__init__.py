@@ -48,6 +48,7 @@ from .scientific import add_scientific_tools
 from .datatable_tools import add_datatable_tools
 from .tabs import add_tab_tools
 from .web import add_web_tools
+from .documents import add_document_tools
 from .workflows import add_workflow_tools
 
 
@@ -147,6 +148,7 @@ def build(services: Services) -> Registry:
     add_table_tools(registry, services)
     add_tab_tools(registry, services)
     add_web_tools(registry, services)
+    add_document_tools(registry, services)
     add_scientific_tools(registry, services)
     add_workflow_tools(registry, services)
     add_datatable_tools(registry, services)
