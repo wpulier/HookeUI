@@ -1,7 +1,9 @@
 /** Inputs is a view of the shared inventory, never a second membership store. */
 import type { DataEntry, ProjectMaterial } from './data-roles';
+import type {AssetMeta} from './protocol';
+import {retainedSource} from './material-identity';
 
-export function projectInputs(entries: readonly DataEntry[], query = ''): DataEntry[] {
+export function projectInputs(entries: readonly DataEntry[], query = '', sources:readonly AssetMeta[]=[]): DataEntry[] {
   const needle = query.trim().toLocaleLowerCase();
   const selected = new Map<string, DataEntry>();
   for (const entry of entries) {
@@ -15,7 +17,7 @@ export function projectInputs(entries: readonly DataEntry[], query = ''): DataEn
     }
   }
   return [...selected.values()].filter(entry => !needle ||
-    [entry.title, entry.summary, entry.material?.kind, entry.material?.format, entry.material?.organization?.role].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle));
+    [entry.title, retainedSource(entry,sources)?.title, entry.summary, entry.material?.kind, entry.material?.format, entry.material?.organization?.role].filter(Boolean).join(' ').toLocaleLowerCase().includes(needle));
 }
 
 export function materialKind(kind: ProjectMaterial['kind']): string {

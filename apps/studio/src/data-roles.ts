@@ -8,6 +8,7 @@ import type { AssetMeta } from './protocol';
 import type { StudyResource } from './workspace-study-model';
 import { kindWords, matchesSearch } from './workspace-data-card';
 import { daysAgo, monthDay } from './sessions';
+import {isRetainedMaterial} from './material-identity';
 
 export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' | 'files' | 'model' | 'study' | 'history';
 export interface ProjectMaterial {
@@ -92,12 +93,14 @@ export function dataRows(entries: readonly DataEntry[], sources: readonly AssetM
   const listed = entries.filter((entry) => roleOf(entry) !== null && !unwritten(entry));
   const assets = new Map(listed.filter((entry) => entry.kind === 'asset').map((entry) => [entry.id, entry]));
   const inputs: DataRow[] = sources.map((asset) => {
-    const entry = assets.get(asset.id) ?? null;
+    const entry = asset.retained ? listed.find(entry=>isRetainedMaterial(entry,asset)) ?? null : assets.get(asset.id) ?? null;
     return { key: asset.id, role: 'acquired', entry, parts: entry ? [entry] : [], asset, maker: entry?.maker ?? null, at: entry?.at ?? asset.capturedAt ?? 0 };
   });
-  const joined = new Set(sources.map((asset) => asset.id));
+  const joined = new Set(sources.filter(asset=>!asset.retained).map((asset) => asset.id));
+  const retained = new Set(inputs.flatMap(row=>row.entry?[row.entry]:[]));
   const rows: DataRow[] = [], runs = new Map<string, DataRow>();
   for (const entry of listed) {
+    if (retained.has(entry)) continue;
     if (entry.kind === 'asset' && joined.has(entry.id)) continue;
     const role = roleOf(entry)!;
     // Folded within its section only: a run's parts are one thing, and a thing is in one section.
