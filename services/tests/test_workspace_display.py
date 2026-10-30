@@ -612,3 +612,18 @@ def test_only_keeps_a_window_by_any_name_the_tab_list_gives_it():
                                              {'placement': 'c9', 'window': 'w-8', 'kind': 'table'}]}]}
     assert set(aliases(reply, ['b244'])) == {'b244', 'w-7', 'document:b244'}, 'never the Data item another window may show'
     assert aliases(reply, ['zzz']) == ['zzz'], 'a name no item has stays as it is'
+
+
+def test_the_tab_strip_says_an_empty_tabs_feed_is_minimized_and_refuses_it_on_anything_but_a_float():
+    """Will, 30 Oct: an empty new Tab shows a minimized live feed of the main input; the report says so, so a claim
+    about what a Tab shows is checked against it."""
+    import pytest
+
+    from orchestrator import workspace_observation as wo
+
+    assert wo._specimen({'state': 'float', 'rect': [16, 600, 260, 231], 'minimized': True}) == {
+        'state': 'float', 'rect': [16, 600, 260, 231], 'minimized': True}
+    assert wo._specimen({'state': 'hidden'}) == {'state': 'hidden'}
+    for bad in ({'state': 'fill', 'minimized': True}, {'state': 'float', 'minimized': False}):
+        with pytest.raises(Exception):
+            wo._specimen(bad)
