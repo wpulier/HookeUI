@@ -315,3 +315,17 @@ still require qualification before ordinary portable creation is enabled.
 ### Recorded inspection facts in the shared inventory
 
 An exact retained matrix-inspect result may describe its input as an AnnData matrix with recorded dimensions. Join by Project, document revision/digest and file component/hash/size. Keep the report references and origin; never infer from filenames, revise inputs, or apply an old report to a new head. Conflicting dimensions remain explicit. UI and agents receive the same projection.
+
+### Explicit snapshot restoration
+
+A retained folder snapshot can be copied into a new working location by an explicit
+owner action. The source stays immutable; all recorded bytes and revisions retain
+their original identity. Verification precedes disk admission and is repeated before
+publication. The working copy keeps the source snapshot manifest as restoration
+evidence, including its unverified external-dependency status. This is not an
+independent Project, migration, or proof of complete collection.
+
+Restoration does not register a location, import grants, select the Project, execute
+work or reinterpret recorded running states. Location selection separately checks
+the original writer and same-origin collision. The ordinary host still does not
+enable portable creation until complete collection and UI journeys qualify.
