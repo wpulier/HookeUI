@@ -2142,7 +2142,7 @@ class ResearchManager:
         return ({"specimen": self.hub.scene.context.get("specimen"),
                  "turns": self.conversation.text() if self.conversation is not None else "",
                  "frame_id": info.id if info else None,
-                 "learner": learner_of(self.hub.settings), **_door()}, info)
+                 "learner": learner_of(self.hub.settings), **_door(self.hub)}, info)
 
     async def _take_snapshot(self, directory: Path, obj) -> dict:
         from ..capture import CaptureGone, Refused, captures
@@ -2927,10 +2927,11 @@ class ResearchManager:
             self._worker.stop()
 
 
-def _door() -> dict:
+def _door(hub=None) -> dict:
     """What a researcher can run beside the app's own operations, as it starts (the one door, kinds.py; ADR 0024): the
-    capabilities on here that take the view, with their parameters, and every cell finder segment can name. The research
-    process imports nothing of the app, so it is told."""
+    capabilities on here that take the view, with their parameters, every cell finder segment can name, and the
+    classifying models classify can name (those that can run here, when two or more can: W5). The research process
+    imports nothing of the app, so it is told."""
     out = {}
     try:
         from .. import kinds
@@ -2943,7 +2944,13 @@ def _door() -> dict:
         from ..operations import OPERATIONS
 
         out["cellFinders"] = {i.id: i.label for i in OPERATIONS["cells"].implementations}
-        out["classifiers"] = {i.id: i.label for i in OPERATIONS["classify"].implementations}
+        classifiers = {i.id: i.label for i in OPERATIONS["classify"].implementations}
+        if hub is not None:
+            from ..operations import availability
+
+            runnable = {k: v for k, v in classifiers.items() if not availability(hub, OPERATIONS["classify"].impl(k))}
+            classifiers = runnable if len(runnable) >= 2 else classifiers  # else every one, so its refusal says why
+        out["classifiers"] = classifiers
     except Exception:  # noqa: BLE001
         pass
     return out

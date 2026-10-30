@@ -562,4 +562,10 @@ comes from the transport, never model arguments. Accepted Follow work retains it
 turn finishes. `read_analysis` pages an exact accepted result with a content digest, without recomputation; saved
 numbers, units, exclusions and input identities remain available. Saved never implies displayed.
 
+`compare_models` takes two to six models (outline, cells or classify) through `model_comparison.py`, the one
+comparison interface a researcher's `classify` and an experiment use too: `select` (the names, bounded, the unknown and
+unrunnable said), each run through the runner, `agreement` (every pair's share and kappa, the cells all named alike,
+counts per class) and `build`/`values` (the record and its one table, kept in Data and shown with the placement
+words). Its numbers come only from the runs' records (spec 4.8, horizontal 4); tests/test_classify_comparison.py.
+
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.
