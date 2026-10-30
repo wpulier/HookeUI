@@ -567,5 +567,7 @@ comparison interface a researcher's `classify` and an experiment use too: `selec
 unrunnable said), each run through the runner, `agreement` (every pair's share and kappa, the cells all named alike,
 counts per class) and `build`/`values` (the record and its one table, kept in Data and shown with the placement
 words). Its numbers come only from the runs' records (spec 4.8, horizontal 4); tests/test_classify_comparison.py.
+Classify's models are named only to compare them (`names.COMPARED_ONLY`): `use` lists none of them, since no tool
+classifies with one model alone; the vision models keep their ids, and MedSigLIP is told once on compare_models.
 
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.

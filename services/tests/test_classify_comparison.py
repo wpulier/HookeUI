@@ -240,7 +240,7 @@ def test_the_research_process_lists_the_apps_classifiers():
     from research_worker.budget import CLASSIFIERS, MAX_CLASSIFIERS
 
     space = names.index()["classify"]
-    assert CLASSIFIERS == {e.id: e.name for e in space.entries.values() if e.choosable}
+    assert CLASSIFIERS == {e.id: e.name for e in space.entries.values()}  # every one: they are named only to compare
     assert MAX_CLASSIFIERS == model_comparison.MAX_MODELS == 6  # "two to six", as compare_models' description says it
 
 

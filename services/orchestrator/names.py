@@ -194,13 +194,19 @@ def one_way(op) -> bool:
     return len(op.implementations) == 1
 
 
+# Operations whose models are named only to compare them (compare_models, a researcher's classify: model_comparison.py),
+# never given to a request by `use`: no tool runs one of them alone, so `use` does not list them (Part 2.5, W5).
+COMPARED_ONLY = ("classify",)
+
+
 def choosable(op, impl) -> bool:
     """Whether a request can be given `impl` for `op`: the operation has a choice, `impl` runs as the operation (an
     adapter), and it is one of the operation's options, or the operation has no options and it is the operation's own
-    (a declared fallback only, like the spot ring or the vision model's boxes, is never chosen)."""
+    (a declared fallback only, like the spot ring or the vision model's boxes, is never chosen). An operation only
+    compared (COMPARED_ONLY) has none a request is given: its models are named to compare_models."""
     from .operations import ADAPTERS
 
-    if one_way(op) or (op.id, impl.id) not in ADAPTERS:
+    if one_way(op) or op.id in COMPARED_ONLY or (op.id, impl.id) not in ADAPTERS:
         return False
     return impl.option is not None or (op.selected_by is None and impl is op.implementations[0])
 

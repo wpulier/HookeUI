@@ -405,7 +405,8 @@ def add_choosing_tools(registry: Registry, services) -> None:
 
             if placement is not None and placement not in PLACEMENTS:
                 raise ToolFailed(f"{placement!r} is not a place for the comparison's table", next="say one of: " + ", ".join(PLACEMENTS))
-            chosen = model_comparison.select(hub, op.id, args.get("implementations"), pick=pick)
+            chosen = model_comparison.select(hub, op.id, args.get("implementations"),
+                                             pick=None if op.id in names.COMPARED_ONLY else pick)
             unknown, cannot = chosen.unknown, chosen.cannot
             named = len(chosen.impls) + len(cannot) + len(chosen.left_out)
             if named < 2:
@@ -438,8 +439,34 @@ def add_choosing_tools(registry: Registry, services) -> None:
             said = chosen.said()
             return words + (f"; {said}" if said else "")
 
-        compare_ids = [i for i in names.choosable_ids()
-                       if any(names.resolve(o, i) for o in model_comparison.OPERATIONS)]
+        from ...operations import OPERATIONS as _OPERATIONS
+
+        compare_ids = list(dict.fromkeys(  # the outline and cell finders a request can be given, then the classifiers
+            [i for i in names.choosable_ids() if names.resolve("outline", i) or names.resolve("cells", i)]
+            + [i.id for i in _OPERATIONS["classify"].implementations]))
+        # Classifiers no `use` lists (the vision models are listed there, by the same ids and names): told once, here.
+        unlisted = [i for i in _OPERATIONS["classify"].implementations if i.id not in names.choosable_ids()]
+        compare_params = schema({"operation": {"type": "string", "enum": list(model_comparison.OPERATIONS),
+                                               "description": "outline (default), cells or classify"},
+                                 "implementations": {"type": "array", "maxItems": 8,
+                                                     "description": "the models' ids, as listed under use",
+                                                     "items": {"type": "string", "enum": compare_ids}},
+                                 "object": {"type": "string"},
+                                 "of": {"type": "string", "description": "cells or classify: the population (e3); "
+                                                                         "empty: the cells shown"},
+                                 "classes": {"type": "array", "maxItems": 24, "items": {"type": "string"},
+                                             "description": "classify: the classes to name each cell from, as the user "
+                                                            "said them"},
+                                 "placement": PLACEMENT_SCHEMA,
+                                 "input": {"type": "string", "enum": ["view"], "description": "Compare cells on the current input instead of the displayed population"},
+                                 "exact": {"type": "boolean", "description": "Refuse the whole comparison if any selected model cannot run"},
+                                 "comparison": {"type": "string", "description": "Exact comparison id when keeping a result from the Studio"},
+                                 "policy": {"type": "string", "description": "raw (default) or route"},
+                                 "keep": {"type": "string", "description": "the model of the last comparison whose result "
+                                                                           "to keep on the board (its id)"}})
+        if unlisted:
+            compare_params["description"] = ("classify: the vision models by their ids under use, and "
+                                             + "; ".join(f"{i.id} = {names.said_impl(i.id)}" for i in unlisted))
         registry.add(Tool("compare_models", "Run the models the user names (two to six) on "
                           "the same input, side by side, measured from each run's record (\"compare EdgeTAM and SAM 3.1 "
                           "on that\", \"compare five classifiers on these cells\"); not the blind test. classify: each "
@@ -448,24 +475,7 @@ def add_choosing_tools(registry: Registry, services) -> None:
                           "one's counts per class, time and cost. The comparison is kept as a table in Data; `placement` "
                           "shows it (classify: beside by default). Then keep=<one of them> puts that one's outline or "
                           "cells on the board (\"keep the SAM 2.1 one\").",
-                          schema({"operation": {"type": "string", "enum": list(model_comparison.OPERATIONS),
-                                                "description": "outline (default), cells or classify"},
-                                  "implementations": {"type": "array", "maxItems": 8,
-                                                      "description": "the models' ids, as listed under use",
-                                                      "items": {"type": "string", "enum": compare_ids}},
-                                  "object": {"type": "string"},
-                                  "of": {"type": "string", "description": "cells or classify: the population (e3); "
-                                                                          "empty: the cells shown"},
-                                  "classes": {"type": "array", "maxItems": 24, "items": {"type": "string"},
-                                              "description": "classify: the classes to name each cell from, as the user "
-                                                             "said them"},
-                                  "placement": PLACEMENT_SCHEMA,
-                                  "input": {"type": "string", "enum": ["view"], "description": "Compare cells on the current input instead of the displayed population"},
-                                  "exact": {"type": "boolean", "description": "Refuse the whole comparison if any selected model cannot run"},
-                                  "comparison": {"type": "string", "description": "Exact comparison id when keeping a result from the Studio"},
-                                  "policy": {"type": "string", "description": "raw (default) or route"},
-                                  "keep": {"type": "string", "description": "the model of the last comparison whose result "
-                                                                            "to keep on the board (its id)"}}),
+                          compare_params,
                           compare_models, inline_ms=1500, family="magnifier", outline_refs=("object",)))
 
     async def set_default(ctx: ToolContext, args: dict) -> str:

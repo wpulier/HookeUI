@@ -60,8 +60,8 @@ def select(hub, operation: str, named, *, pick=None) -> Selection:
         try:
             if pick is not None:
                 impl = pick(hub, op, name)
-            else:
-                meaning = names.resolve(operation, name)
+            else:  # an operation only compared (names.COMPARED_ONLY) has no choice for a request: its own names
+                meaning = names.resolve(operation, name, choosable_only=operation not in names.COMPARED_ONLY)
                 impl = op.impl(meaning.id) if meaning is not None else None
         except ToolFailed:
             impl = None
