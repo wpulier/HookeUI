@@ -244,6 +244,9 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - You: Produce or stop a presentation: Arranges retained findings independently, or stops its presentation job; models: Presentation model: off; NOT AVAILABLE here: off in the settings (Presentation model)
 - I: Find saved workflows: Reads personal methods and retained workflow runs (say "find my saved workflows"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Run a saved workflow: Runs a frozen method on explicitly selected Project inputs (say "run this workflow on these images"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Plan and run experiments: Plans a model comparison on footage, runs it on your yes (say "compare Cellpose and micro-sam on this footage and have a researcher audit it"); models: Cells: EdgeTAM automatic masks (on this Mac), a setting; Researching: GPT-6.1 Sol + web search (cloud), a setting
+- I: How an experiment goes: Says how an experiment is going, from its records (say "how is the experiment going?")
+- You: Run an experiment's plan: Run it, Stop or Open results on an experiment's card
 Researchers' work (Showing, reading and going through what they made):
 - I: Show their work: Opens a researcher's work beside the view (say "show me the lesson")
 - You: Open their work: A researcher in Researchers, or Show beside the view

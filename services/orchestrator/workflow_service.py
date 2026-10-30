@@ -14,6 +14,7 @@ class WorkflowService:
         self.hub,self.day=hub,day
         self.workflows=Workflows(hub.resources.projects)
         self.steps=ScientificSteps(self.workflows,hub)
+        self.steps.day=day
         self.tasks={}
         self.wakeups=set()
         self.closing=False
@@ -75,7 +76,7 @@ class WorkflowService:
                     for a in research:
                         claim={'run':id_,'session':session,'attempt':{'id':a['id']}}
                         try:
-                            outcome=await asyncio.to_thread(collect,self.workflows,claim,a['research'],status['control']=='stop')
+                            outcome=await asyncio.to_thread(collect,self.workflows,claim,a['research'],status['control']=='stop',self.hub)
                             if outcome:await asyncio.to_thread(self.workflows.finish,claim,outcome)
                         except (ValueError,OSError):
                             # Retained Study evidence remains authoritative; never manufacture settlement.
@@ -86,7 +87,11 @@ class WorkflowService:
                     room=captures(self.hub).memory.reserve('analysis',128<<20,'workflow scientific step')
                     with room:return self.steps.execute(claim)
                 try:
-                    outcome=await asyncio.to_thread(execute)
+                    if self.steps.on_loop(claim):
+                        # The app's own models and researchers (experiment_steps): awaited here, their work in their
+                        # workers at research priority, each holding its own memory; the live view never waits on it.
+                        outcome=await self.steps.execute_on_loop(claim)
+                    else:outcome=await asyncio.to_thread(execute)
                 except asyncio.CancelledError:
                     # Work in a thread may still own its operation. Recovery must reconcile it.
                     raise

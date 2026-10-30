@@ -146,6 +146,8 @@ class Records:
             return self._capability(result, run)
         if tool == "workflow":
             return self._workflow(result, run)
+        if tool == "experiment":
+            return self._experiment(intent, result, run)
         if intent.kind == "setting":
             return self._setting(intent, before)
         if tool == "use":
@@ -297,6 +299,33 @@ class Records:
         if isinstance(values.get("text"), str) and values.get("text") and result.get("ok"):
             return {"result": "verified", "said": "Done: its answer is in what it wrote."}
         return self._saved(result, run)
+
+    def _experiment(self, intent, result: dict, run) -> dict:
+        """An experiment from its own record (experiments.py): a plan is shown and waits for the user's yes (nothing
+        runs); a run is under way until its outcome is told when it lands; a stop is done once its record says so."""
+        x = ((getattr(run, "values", None) or {}) if run is not None else {}).get("experiment") or {}
+        found = None
+        experiments = getattr(self.hub, "experiments", None)
+        if experiments is not None and x.get("id") and x.get("session"):
+            with contextlib.suppress(Exception):
+                found = experiments.get(x["id"], x["session"]).wire()
+        if found is None:
+            return {"result": "uncertain", "error": "Hooke has no record of the experiment",
+                    "said": "Not sure it was done: Hooke has no record of the experiment."}
+        do = str((intent.args or {}).get("do") or "plan")
+        name, status = found["name"], found["status"]
+        if do in ("plan", "change"):
+            if status == "proposed":
+                return {"result": "verified", "said": f"{name}'s plan is shown on its card; nothing runs before a yes."}
+            return {"result": "uncertain", "error": f"{name} is {status}", "said": f"{name} is {status}, not a plan now."}
+        if status in ("sampling", "running", "auditing", "landing"):
+            return {"result": "running", "said": f"{name} is running; its outcome is told when it lands."}
+        if status == "done":
+            return {"result": "verified", "said": f"{name} has finished."}
+        if do == "stop" and status == "stopped":
+            return {"result": "verified", "said": f"{name} is stopped."}
+        return {"result": "failed", "error": f"{name} is {status}: {found.get('why') or ''}"[:300],
+                "said": f"{name} is {status}."}
 
     def _workflow(self, result: dict, run) -> dict:
         values = (getattr(run, "values", None) or {}) if run is not None else {}

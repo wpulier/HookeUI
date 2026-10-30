@@ -2427,6 +2427,122 @@
   }
  },
  {
+  "description": "Plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records (\"compare Cellpose and micro-sam on this footage and have a researcher audit it\"). do=plan first: it shows the plan as a card and runs nothing; say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); do=change when they change it. Long work: it runs in the background and its results land in a Tab of their own when it finishes. One model on one view now is compare_models.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "experiment",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "run: the user's own yes, quoted",
+     "type": "string"
+    },
+    "audit": {
+     "description": "a researcher audits the run (default true when asked)",
+     "type": "boolean"
+    },
+    "by": {
+     "description": "run from the plan card's Run it (the studio)",
+     "enum": [
+      "card"
+     ],
+     "type": "string"
+    },
+    "do": {
+     "enum": [
+      "plan",
+      "change",
+      "run",
+      "stop"
+     ],
+     "type": "string"
+    },
+    "effort": {
+     "description": "the audit's effort (quick)",
+     "enum": [
+      "quick",
+      "standard"
+     ],
+     "type": "string"
+    },
+    "every": {
+     "description": "footage: seconds between frames (default 4)",
+     "maximum": 60.0,
+     "minimum": 1.0,
+     "type": "number"
+    },
+    "experiment": {
+     "description": "change/run/stop: its id (x1) or number; default the latest",
+     "type": "string"
+    },
+    "frames": {
+     "description": "footage: how many frames (default 5)",
+     "maximum": 12,
+     "minimum": 1,
+     "type": "integer"
+    },
+    "measure": {
+     "description": "measure each model's cells (default true)",
+     "type": "boolean"
+    },
+    "models": {
+     "description": "the models the user named, by their ids as listed under use",
+     "items": {
+      "enum": [
+       "cellpose-sam",
+       "cellpose-sam-tuned",
+       "micro-sam-lm",
+       "fiji-analyze-particles",
+       "basic-bright-objects",
+       "edgetam-automask"
+      ],
+      "type": "string"
+     },
+     "maxItems": 6,
+     "minItems": 2,
+     "type": "array"
+    },
+    "on": {
+     "description": "footage (default): frames of the live view over time; view: the view now",
+     "enum": [
+      "footage",
+      "view"
+     ],
+     "type": "string"
+    },
+    "question": {
+     "description": "what the researcher should check, in the user's words",
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "version": {
+     "description": "run: the plan's version the user said yes to",
+     "type": "integer"
+    }
+   },
+   "required": [
+    "do"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "How an experiment is going, or how it ended (\"how is the experiment going?\"), from its records: its state, its frames, each model's runs so far, its audit, its results. The latest by default.",
+  "inline_ms": 300,
+  "kind": "query",
+  "name": "experiment_status",
+  "params": {
+   "properties": {
+    "experiment": {
+     "description": "its id (x1) or number; default the latest",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
   "description": "Pool explicitly selected saved measurement sources into a retained editable table. Source revisions must come from resources; never substitute current data. Changes saved work only on the user\u2019s request. Sources retain their own units; incompatible units refuse.",
   "inline_ms": 1500,
   "kind": "effect",

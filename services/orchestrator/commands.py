@@ -3181,6 +3181,31 @@ async def research_followup(app, client, msg) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+@command("experiment")
+async def experiment_command(app, client, msg) -> dict:
+    """The experiment card's buttons (experiments.py): Run it runs exactly the plan the card shows (its version), the
+    user's own press; Stop stops it. Both go through the brain's `experiment` tool, as the brain's would."""
+    action = msg.get("action")
+    if action not in ("run", "stop", "open"):
+        return {"ok": False, "error": "Choose Run it, Stop or Open results on the experiment's card."}
+    if action == "open":  # its results, in a Tab of their own, on this studio (done once its report shows them)
+        from .experiments import experiments_of
+
+        xs = experiments_of(app.hub, app.day, app)
+        try:
+            x = xs.get(str(msg.get("id") or ""), app.day.sid)
+            said = await xs.open(x, client)
+        except ToolFailed as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": not said.startswith("not opened"), "summary": said,
+                **({"error": said} if said.startswith("not opened") else {})}
+    args = {"do": action, "experiment": str(msg.get("id") or "")}
+    if action == "run":
+        args.update(by="card", **({"version": msg["version"]} if type(msg.get("version")) is int else {}))
+    return await run_tool(app, "experiment", args, question="Run the experiment" if action == "run"
+                          else "Stop the experiment", client=client)
+
+
 @command("research-note")
 async def research_note(app, client, msg) -> dict:
     import uuid

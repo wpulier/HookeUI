@@ -121,6 +121,8 @@ Researchers: background researchers: pictures, videos, lessons, research; follow
 - change something a researcher made, as a new version (the old one is kept): use it when the user wants a change to its lesson, quiz, labels, picture or video ("make question 2 easier", "rename that label", "make the picture simpler")
 - pass a note to a researcher that is still working, to steer it ("focus on the guard cells", "keep it short"); it reads it before its next step
 - set or remove the daily spending cap for researchers when the user asks ("cap research at $10 a day", "remove the research cap"); dollars: an amount, or "none"
+- plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records ("compare Cellpose and micro-sam on this footage and have a researcher audit it")
+- how an experiment is going, or how it ended ("how is the experiment going?"), from its records: its state, its frames, each model's runs so far, its audit, its results
 Results: show, read, step through and close a researcher's work
 - open a researcher's work (lesson, video, picture or written result) in the reader on the user's Tab
 - read a researcher's work, a page at a time (each page says where the next one starts): what it wrote (its full report too), a lesson's steps or quiz questions with their answers, a picture's labels, its sources and earlier follow-ups

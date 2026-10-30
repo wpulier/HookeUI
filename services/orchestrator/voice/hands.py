@@ -60,6 +60,7 @@ RECORDED = {
     "revise_work": ("steer", "Asking for a new version"),
     "run_capability": ("run", "Running it"),
     "workflow": ("run", "Running the workflow"),
+    "experiment": ("run", "Planning the experiment"),  # experiments.py: plan, change, run on a yes, stop
     "set_default": ("setting", "Changing the setting"),
     "set_research_cap": ("setting", "Changing the cap"),
     "use": ("choice", "Choosing the model"),

@@ -4431,6 +4431,64 @@
       "parts": [
         "scientific-workflows"
       ]
+    },
+    {
+      "id": "experiment",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Plan and run experiments",
+      "what": "Plans a model comparison on footage, runs it on your yes",
+      "how": {
+        "tool": "experiment",
+        "say": "compare Cellpose and micro-sam on this footage and have a researcher audit it"
+      },
+      "roles": [
+        "cells",
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_experiments.py"
+      ],
+      "parts": [
+        "scientific-workflows",
+        "runner",
+        "comparison",
+        "model-comparison",
+        "research-worker",
+        "resources",
+        "workspace-tabs"
+      ]
+    },
+    {
+      "id": "experiment-status",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "How an experiment goes",
+      "what": "Says how an experiment is going, from its records",
+      "how": {
+        "tool": "experiment_status",
+        "say": "how is the experiment going?"
+      },
+      "roles": [],
+      "evidence": [
+        "services/tests/test_experiments.py"
+      ],
+      "parts": [
+        "scientific-workflows"
+      ]
+    },
+    {
+      "id": "experiment-card",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Run an experiment's plan",
+      "what": "Run it, Stop or Open results on an experiment's card",
+      "how": {
+        "command": "experiment"
+      },
+      "parts": [
+        "scientific-workflows"
+      ]
     }
   ],
   "roles": [
