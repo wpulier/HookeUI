@@ -843,6 +843,9 @@ isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
 
+
+`test_file_clone` exercises the native macOS clone on an isolated filesystem: replacing the source path cannot retarget its captured descriptor, and later writes/deletion remain independent. Unsupported-platform tests and injected native errors distinguish fallback from failed publication. Folder-copy tests preserve normal stream fallback, hashes and incomplete recovery; they do not certify complete collection.
+
 `test_project_numeric_integrity.py` uses synthetic measurements through actual table/derivative publication and Project snapshots. It checks superseded and current revisions, missing/changed values, relocated copies, resource/cancellation refusal and rejection of recomputed outer seals. This is retained-value integrity, not statistical accuracy or complete collection.
 
 `test_table_accepted_io.py` covers bounded refusal of FIFOs and root/descendant symlinks, replacement at open, mutation during reading and cancellation, preserving the accepted journal. These are isolated synthetic filesystem regressions.
