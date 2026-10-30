@@ -12,5 +12,8 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-folder-status { font-size: 13px; line-height: 1.5; }
 .project-folder-status:empty { display: none; }
 .project-folder footer { margin-top: 24px; display: flex; justify-content: flex-end; }
-.project-folder button { cursor: pointer; }
+.project-folder button { appearance: none; display: inline-flex; justify-content: center; align-items: center; min-height: 36px; padding: 8px 14px; border: 1px solid var(--mm-line-strong); border-radius: var(--mm-r-button); font: inherit; font-size: 14px; line-height: 1.25; color: var(--mm-text); background: var(--mm-raise); cursor: pointer; }
+.project-folder button.study-primary { background: var(--mm-accent-fill); color: white; border-color: transparent; }
+.project-folder button.study-primary:hover { background: var(--mm-accent-fill-hover); }
+.project-folder button:focus-visible, .project-folder summary:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 3px; }
 .project-folder button:disabled { cursor: default; opacity: .5; }
