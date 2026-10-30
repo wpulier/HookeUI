@@ -1954,3 +1954,26 @@ def test_an_experiments_audit_is_said_with_the_experiments_outcome_never_on_its_
                                                  origin={"channel": "voice"}, result=None))
         await until_async(lambda: t.sb.responses == 1)  # a researcher the user started is said as before
     asyncio.run(go())
+
+
+def test_a_request_handed_over_after_a_close_look_carries_what_it_found(monkeypatch):
+    """will-leaf, 30 Oct: the voice's close look said "most likely a stoma"; the next request, "use a segmentation model
+    on the center thing", was named from the running look's quicker guess ("resin canals"), and the outline the user
+    heard about contradicted what they had just been told. Hooke's own looks are Hooke's to weigh: the request carries
+    the close look, its model and where it looked, and the brain judges."""
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        t.brain.agent.vision = lambda option: CloseLook({"answer": "Most likely a stoma: two guard cells around a pore.",
+                                                         "box_2d": [470, 430, 660, 570], "name": "Stoma"})
+        await look_round(t, "Identify the feature in the center of the live camera frame.")
+        asked = []
+
+        async def turn(text, channel, **kw):
+            asked.append(text)
+            return {"answer": "I outlined the stoma in the middle.", "actions": []}
+        t.brain.turn = turn
+        await t.partner.tools.do_in_hooke({"request": "use a segmentation model on the center thing",
+                                           "label": "Segment the center"})
+        assert asked and "The voice's close look" in asked[0] and "Most likely a stoma" in asked[0]
+        assert "at the box x 0.43, y 0.47" in asked[0] and "the running look's notes are a quicker guess" in asked[0]
+    asyncio.run(go())

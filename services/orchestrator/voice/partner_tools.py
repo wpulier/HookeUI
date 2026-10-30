@@ -120,6 +120,16 @@ LOOK_HARD_ASK = ("Answer the question about the picture(s) as JSON {\"answer\": 
 POINTING = "Hooke points at this as you speak about it: do not call mark for it."
 
 
+def _model_said(model) -> str:
+    """A model by the name the app says it by (magnifier.model_said), else plainly the close-look model."""
+    from ..brain.toolbox.magnifier import model_said
+
+    try:
+        return model_said(str(model)) if model else "the close-look model"
+    except Exception:  # a name it cannot say never breaks the hand-off
+        return str(model or "the close-look model")
+
+
 def frame_region(box) -> list[float] | None:
     """A model's box_2d ([ymin, xmin, ymax, xmax], 0-1000 of the picture) as a mark's frame region ([x, y, w, h], 0-1),
     or None when it is no box in the picture."""
@@ -160,6 +170,7 @@ THINK_TOOL_WAIT_S = 70.0  # behind the voice, think waits this long for a long t
 # 2026-10-11: one acknowledgement, its row, one outcome; will-workspace of 29 Oct: "still running", then each late
 # step's outcome, some twice). Past this, the steps still running are said as running.
 HANDOFF_LATE_S = 300.0
+LAST_LOOK_S = 90.0  # the voice's close look goes with the requests handed over for this long after it
 LATE_RECEIPT_S = 2.0  # a late step's receipt follows its work by a moment (Actions._late_when_done)
 WORDS_WAIT_S = 1.5  # a tool waits at most this long for the user's words of its turn (their transcription)
 REPORT_WAIT_S = 2.0  # act, then look: the studio's fresh report, at most
@@ -1071,6 +1082,12 @@ class PartnerTools:
         out: dict[str, Any] = {"ok": True, "answer": str(data.get("answer") or result.raw_text or "")[:1500],
                                "model": result.model}
         region = frame_region(data.get("box_2d")) if seen is not None else None
+        if out["answer"]:
+            # What this close look found, for the next request handed to Hooke (do_in_hooke): the same place's running
+            # look is a weaker guess (will-leaf, 30 Oct: the close look said "most likely a stoma", the running look
+            # "resin canals", and the outline the user asked for next was named a resin canal).
+            self._last_look = {"answer": out["answer"][:400], "model": result.model, "at": time.monotonic(),
+                               "name": " ".join(str(data.get("name") or "").split())[:40], "region": region}
         if region is not None and self._pointable(["frame"]):
             name = " ".join(str(data.get("name") or "").split())[:40]
             # On the very frame it looked at (its id and crop), mapped onto the live view by the studio.
@@ -1313,6 +1330,18 @@ class PartnerTools:
         # Hooke's brain is asked in the user's own words; the voice's reading of them goes with it as context.
         asked = text if said is not None or not words or words.strip().lower() == text.lower() else (
             f"{words.strip()}\n(The voice partner, who sees the same view, took this to mean: {text})")
+        looked = getattr(self, "_last_look", None)
+        if looked and time.monotonic() - looked["at"] <= LAST_LOOK_S:
+            # The voice's own close look just before, with the model that made it and where (the spec 4.8, horizontal
+            # 3: Hooke's own looks that disagree are Hooke's to weigh, never the user's to hear contradicted).
+            where = ""
+            if looked.get("region"):
+                x, y, w, h = looked["region"]
+                where = f" at the box x {x:.2f}, y {y:.2f}, w {w:.2f}, h {h:.2f} of the camera picture"
+            asked += (f"\n(The voice's close look {round(time.monotonic() - looked['at'])} s ago by "
+                      f"{_model_said(looked.get('model'))}{where}, which the user heard: "
+                      f"\"{looked['answer']}\". It looked at that place itself; the running look's notes are a "
+                      "quicker guess.)")
         later = (flight.then or {}).get("words") if flight is not None else ""
         if later:  # the later step is Hooke's to keep (followups.py): the brain does the first part only
             asked += (f"\n(The user also asked for a later step, for after the work this starts has finished: "
