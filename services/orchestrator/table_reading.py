@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .datatables import DataTableRefused, MAX_SNAPSHOT_BYTES
+from .job_outputs import Folder
 
 
 def snapshot_path(record: dict, session: str, kind: str) -> str:
@@ -32,18 +33,18 @@ def snapshot_path(record: dict, session: str, kind: str) -> str:
     return relative
 
 
-def read_accepted(root: Path, record: dict, session: str, kind: str) -> dict:
+def read_accepted(root: Path, record: dict, session: str, kind: str, *, check=lambda: None) -> dict:
     """A journal-selected identity/hash is authority; no live store is rebound to a historical Project."""
     relative = snapshot_path(record, session, kind)
     rid, version = record['id'], record['version']
-    root = Path(root).resolve()
-    path = root / relative
-    if path.resolve() != path:
-        raise DataTableRefused('the saved table path is no longer its original file')
     try:
-        with path.open('rb') as stream:
-            data = stream.read(MAX_SNAPSHOT_BYTES + 1)
-        if len(data) > MAX_SNAPSHOT_BYTES or hashlib.sha256(data).hexdigest() != record['snapshot']['sha256']:
+        # The same descriptor supplies bytes and their hash. Reuse the bounded
+        # retained-output reader so FIFOs cannot hang opening and directory/file
+        # aliases cannot redirect reads between a path check and open.
+        with Folder(Path(root)) as folder:
+            folder.check = check
+            data = folder.read(relative, max_bytes=MAX_SNAPSHOT_BYTES)
+        if hashlib.sha256(data).hexdigest() != record['snapshot']['sha256']:
             raise DataTableRefused('the saved numeric data no longer matches its accepted hash')
         snapshot = json.loads(data)
     except (OSError, ValueError) as exc:

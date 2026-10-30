@@ -34,7 +34,7 @@ def verify_numeric_records(root, *, check=lambda: None):
         # paths and original accepted hashes, even for superseded revisions.
         if folder.is_symlink():
             raise ProjectLocationError('Numeric result storage was replaced by a link')
-        read_accepted(folder, event, root.session, kind)
+        read_accepted(folder, event, root.session, kind, check=check)
         check()
 
     try:
