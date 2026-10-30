@@ -52,6 +52,10 @@ from .work import (LESSON, UnreadableReply, REVISE_LABELS, REVISE_LESSON, SCHEMA
                    inline_photo, json_reply, named_steps, offline_lesson, slug, trim)
 
 IMAGE_MODEL_DEFAULT = "gpt-image-2.5-flare"
+# The picture models' one names (catalog/models/<id>/model.toml `name`; a test keeps them the same), said when one can't be
+# used: the research process does not import the app.
+IMAGE_NAMES = {"gpt-image-2.5-flare": "GPT Image 2.5 Flare", "gpt-image-2.5-sunburst": "GPT Image 2.5 Sunburst",
+               "gemini-3.1-flash-image": "Gemini 3.1 Flash Image"}
 VIDEO_MODEL = video.MODEL  # research_worker/video.py: Veo 3.1 Fast's successor since Google retired it
 VIDEO_NAME = video.NAME  # its one name (catalog/models/gemini-omni-flash), said when it can't be used
 CHART_TABLE_MAX = 2_000_000  # characters of one table a chart reads whole (measurement_charts.py)
@@ -1012,8 +1016,8 @@ class Researcher:
             return self._offline_image(source, count)
         if model.startswith("gemini"):
             return await self._gemini_image(model, prompt, source, count)
-        client = openai.AsyncOpenAI(max_retries=0)  # one admitted attempt, never hidden SDK retries
         try:
+            client = openai.AsyncOpenAI(max_retries=0)  # one admitted attempt, never hidden SDK retries
             if source is not None:
                 buf = io.BytesIO(source)
                 buf.name = "photo.png"
@@ -1023,6 +1027,8 @@ class Researcher:
         except asyncio.CancelledError:
             self.cancelled_call(model, usd=0.04)
             raise
+        except Exception as exc:  # noqa: BLE001 - why is said with what to do, never "a step didn't work"
+            return self._media_unavailable(exc, model, "the picture", ("OPENAI_API_KEY",))
         usage = getattr(result, "usage", None)
         details = getattr(usage, "input_tokens_details", None)
         self.spend(model, image_cost(model, getattr(details, "text_tokens", 0) or 0, getattr(details, "image_tokens", 0) or 0,
@@ -1037,17 +1043,19 @@ class Researcher:
         from google import genai
         from google.genai import types
 
-        # Keep a reference: a temporary client closes mid-call. One admitted attempt, never hidden SDK retries.
-        client = genai.Client(http_options={"retry_options": {"attempts": 1}})
         contents: list = [prompt]
         if source is not None:
             mime = "image/jpeg" if source[:2] == b"\xff\xd8" else "image/png"
             contents.insert(0, types.Part.from_bytes(data=source, mime_type=mime))
         try:
+            # Keep a reference: a temporary client closes mid-call. One admitted attempt, never hidden SDK retries.
+            client = genai.Client(http_options={"retry_options": {"attempts": 1}})
             response = await client.aio.models.generate_content(model=model, contents=contents)
         except asyncio.CancelledError:
             self.cancelled_call(model, usd=0.04)
             raise
+        except Exception as exc:  # noqa: BLE001 - why is said with what to do, never "a step didn't work"
+            return self._media_unavailable(exc, model, "the picture", ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
         usage = response.usage_metadata
         by = lambda details: {d.modality.name if hasattr(d.modality, "name") else str(d.modality): d.token_count or 0
                               for d in (details or [])}
@@ -1290,12 +1298,21 @@ class Researcher:
 
         seconds = int(args.get("seconds") or 6)
         seconds = seconds if seconds in video.SECONDS else 6
+        # Under a spending limit, the length asked when it fits what is left, else the longest that does: the video the
+        # user asked for is made shorter, never refused for a length the app chose (Will, 30 Oct).
+        asked = seconds
+        fits = [s for s in video.SECONDS if s <= asked and (
+            self.budget.unlimited or self.budget.spent + PRICES[video.ENTRY] * s <= self.budget.effort.cap_usd)]
+        seconds = max(fits) if fits else asked  # none fits: over the limit, said as such (budget.check)
         price = PRICES[video.ENTRY] * seconds
         self.budget.check(price)
         source = self.crop_jpeg or self.frame_jpeg
         motion = whole(" ".join(str(args.get("motion") or "").split()), "motion")
         self.step(f"Making a {seconds} s video: {motion[:80]}")
+        # From the photo when there is one; with no camera (or nothing in view) it is made from the words alone.
         prompt = (f"A still camera looks through a light microscope at the specimen in this photo. {motion} "
+                  "Keep the camera and framing still; no text, no labels." if source else
+                  f"A short scientific illustration video, as seen through a light microscope. {motion} "
                   "Keep the camera and framing still; no text, no labels.")
         try:
             client = genai.Client(http_options={"retry_options": {"attempts": 1}})  # one admitted attempt
@@ -1313,9 +1330,11 @@ class Researcher:
         if not await asyncio.get_running_loop().run_in_executor(
                 None, mark_video, self.dir / rel, ILLUSTRATION, GENERATED, VIDEO_MODEL):
             self.step("Could not burn the AI-illustration label into the video; the studio still says it", "warning")
-        caption = f"Generated illustration ({VIDEO_MODEL}), starting from your photo; not footage of your slide"
+        caption = (f"Generated illustration ({VIDEO_MODEL}), starting from your photo; not footage of your slide" if source
+                   else f"Generated illustration ({VIDEO_MODEL}); not footage of your slide")
         self.emit_output("video", rel, caption, text_content(motion, caption), generated=True)
-        return {"ok": True, "output": rel}, None
+        return {"ok": True, "output": rel, **({"seconds": seconds, "note": f"made {seconds} s long to fit the spending limit"}
+                                              if seconds != asked else {})}, None
 
     def _video_unavailable(self, error, detail: str) -> dict:
         """The video model refused or failed: said on its card with why and what to do (api_usage.refusal) and the
@@ -1333,6 +1352,21 @@ class Researcher:
         return {"error": f"the video model ({VIDEO_NAME}) couldn't be used: {refusal_clause(found)} ({status}); no "
                          "video was made. Say that in your result's limitations, "
                          f"with what the user can do: {found['todo']}.{instead}",
+                "reason": found["reason"], "todo": found["todo"]}
+
+    def _media_unavailable(self, error, model: str, what: str, keys: tuple[str, ...]) -> dict:
+        """A picture model refused or failed (out of credit, no key, retired, its own refusal...): said as the video's is,
+        on the card with why and the one thing to do, kept on the run's result (`unavailable`) and told to the model,
+        never a raw provider error or "one of its steps didn't work" (Will, 30 Oct: no ability error in the demo)."""
+        name = IMAGE_NAMES.get(model, model)
+        found = refusal(error, model=name, keys=keys)
+        status = provider_status(error)
+        self.unavailable = [*getattr(self, "unavailable", []),
+                            {"model": name, "for": what, **found, "status": status[:200]}]
+        self.step(f"The picture model ({name}) couldn't be used: {refusal_clause(found)}; {found['todo']}; no picture "
+                  "was made", "warning", detail=f"{model}: {status}; {type(error).__name__}: {error}"[:600])
+        return {"error": f"the picture model ({name}) couldn't be used: {refusal_clause(found)} ({status}); no picture "
+                         f"was made. Say that in your result's limitations, with what the user can do: {found['todo']}.",
                 "reason": found["reason"], "todo": found["todo"]}
 
     async def tool_make_lesson(self, args: dict):
