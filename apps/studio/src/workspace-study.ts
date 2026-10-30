@@ -2057,6 +2057,8 @@ function renderReaderLabel(): void {
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
 function readerDeps(mode: 'side' | 'tab'): import('./data-reader').ReaderDeps {
   return {
+    retainedEntry: (ref) => resourceSession === snapshot.session && ref.day === snapshot.session
+      ? projectEntry(entries, ref, snapshot.session) as ReaderEntry | null : null,
     researchers: () => bridge.researchers().map((row) => ({ rid: row.rid, name: row.name, day: row.day, status: row.status })),
     working: (rid) => { const row = bridge.researchers().find((item) => item.rid === rid); return !!row && isWorking(row); },
     method: (entry) => entry.madeBy ? bridge.makerName(entry.madeBy) : '',

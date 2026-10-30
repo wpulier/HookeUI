@@ -842,3 +842,5 @@ relocates/reopens without shadow storage or replay. The red trace and actual
 isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
+
+Data reader inspection-link regressions use synthetic retained sources: same-revision reports remain distinct, author/time labels require exact Project/revision/hash metadata, and opening keeps the original source and pinned report route. Actual populated browser evidence is separate.

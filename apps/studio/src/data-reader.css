@@ -204,3 +204,12 @@ body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hove
 .rd-retained-media .rd-note { margin: 0; }
 .rd-retained-media button { justify-self: start; }
 .rd-retained-media [hidden] { display: none; }
+
+/* Exact inspection links: one compact row per recorded run, with provenance underneath. */
+.rd-material-inspection .rd-inspection-link { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 12px 14px; margin-top: 8px; border: 1px solid var(--mm-line); border-radius: 12px; background: var(--mm-raise); color: var(--mm-text); text-align: left; cursor: pointer; font: inherit; }
+.rd-inspection-link:hover { border-color: var(--mm-line-strong); }
+.rd-inspection-link:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 2px; }
+.rd-inspection-words { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.rd-inspection-words strong { font-size: 14px; font-weight: 600; }
+.rd-inspection-caption { color: var(--mm-text-2); font-size: 12px; line-height: 1.5; }
+.rd-inspection-arrow { flex: none; color: var(--mm-text-2); }
