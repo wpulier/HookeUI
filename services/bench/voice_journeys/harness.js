@@ -427,6 +427,8 @@
   function satisfied(waitFor, before) {
     if (!waitFor) return false;
     if (waitFor.experiment === 'done') return endedExperiments().some((id) => !before.has(id));
+    // Hooke's own work done: no request's row in the chat still working (a search still finding its photos).
+    if (waitFor.handoffs === 'idle') return !document.querySelector('[data-role="handoff"][data-state="working"]');
     const rows = researchers();
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
     if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }

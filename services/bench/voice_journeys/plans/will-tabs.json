@@ -1,0 +1,141 @@
+{
+ "id": "will-tabs",
+ "about": "Will's try-out of 30 Oct (10:00), as a journey on the real June 14 leaf recording: what he is looking at, segment and zoom, a bigger live close-up, that close-up moved into a new Tab, two reference photos asked for in that Tab and, while they are found, a new Tab opened; both photos land in the Tab they were asked for, then back to Main. In his session: a progress line answered before the close look did and contradicted it; acknowledgements were said as another's work in progress (\"It's still adjusting…\") or after the work had landed (\"It may take a moment\" with Main already in front); the close-up could not be moved (\"not saved\"); the new Tab was refused for its title and its row said it did not work; the second photo landed in the new Tab. Any internal language spoken fails a step.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "looking",
+   "kind": "view",
+   "say": "What am I looking at here?",
+   "expect": {
+    "tools": [
+     "look_hard"
+    ],
+    "toolRequired": false,
+    "marks": [
+     "frame"
+    ],
+    "judge": "says plainly what the view most likely shows (a leaf's epidermis with a stoma in the middle), points at it, and never says one thing first and another later"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "segment",
+   "kind": "act",
+   "say": "Can you segment the one in the middle?",
+   "expect": {
+    "tools": [
+     "find"
+    ],
+    "outcome": true,
+    "judge": "acknowledges at once in a few words as doing it, outlines the stoma in the middle and says so once",
+    "visible": "the stoma in the middle outlined"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "zoom",
+   "kind": "act",
+   "say": "Can you zoom in on it?",
+   "expect": {
+    "tools": [
+     "zoom"
+    ],
+    "outcome": true,
+    "judge": "opens a live close-up of the stoma just outlined and says so once",
+    "visible": "a live close-up of the outlined stoma"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "larger",
+   "kind": "act",
+   "say": "Can you make the live overlay thingy a little larger?",
+   "expect": {
+    "tools": [
+     "present"
+    ],
+    "outcome": true,
+    "judge": "makes the live close-up larger and says so once, as its own doing (\"I've made it bigger\"), never as something else still under way",
+    "visible": "the live close-up larger"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "move-tab",
+   "kind": "act",
+   "say": "Can you move that new enlargement into a new tab?",
+   "expect": {
+    "tools": [
+     "present",
+     "tabs"
+    ],
+    "outcome": true,
+    "judge": "moves the live close-up into a new Tab, says the Tab's name, and never says it cannot because it is not saved",
+    "visible": "the live close-up in a new Tab of its own, and no longer on Main"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "two-photos",
+   "kind": "act",
+   "say": "In this close-up tab, can you pull up an image of what you think that is from online, like two different ones?",
+   "expect": {
+    "tools": [
+     "reference_photo"
+    ],
+    "outcome": true,
+    "judge": "says in a few words that it is finding two reference photos; nothing about them before they land"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4",
+   "wait": 8
+  },
+  {
+   "id": "quick-tab",
+   "kind": "act",
+   "say": "While it does that, can you open a new tab and just open it really quick?",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "outcome": true,
+    "judge": "opens a new Tab at once and says its name; the photos keep being found meanwhile, and nothing says the new Tab did not work",
+    "visible": "a new Tab open and in front"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4",
+   "during": true
+  },
+  {
+   "id": "photos-land",
+   "kind": "idle",
+   "waitFor": {
+    "handoffs": "idle"
+   },
+   "wait": 120,
+   "expect": {
+    "outcome": true,
+    "visible": "both reference photos in the close-up's Tab, none in the new Tab",
+    "judge": "once both photos have landed, says once where they are (the close-up's Tab, where they were asked for) and what each shows, with its source"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "back-main",
+   "kind": "act",
+   "say": "Take me back to that main specimen.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "outcome": true,
+    "judge": "brings Main to the front and says so once; never says it may take a moment once it is already done",
+    "visible": "the Main Tab in front with the specimen"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}
