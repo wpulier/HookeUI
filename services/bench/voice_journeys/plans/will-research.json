@@ -33,7 +33,8 @@
    "say": "I don't understand that, explain that.",
    "expect": {
     "tools": [
-     "do_in_hooke"
+     "do_in_hooke",
+     "resources"
     ],
     "toolRequired": false,
     "judge": "explains the last result, the labelled stoma graphic just placed in the Graphic Tab, from its record: what made it (the researcher, and the picture model when its record names one), from what (the photo of the stoma), when, and what its labels show, in simple everyday words; nothing its record doesn't say is claimed, it never explains something else, and no internal words (ids, tool names) are said"
@@ -67,7 +68,7 @@
      "show_web"
     ],
     "toolRequired": false,
-    "judge": "says in a few words that it is looking for one; never says a video was found or shown before it was"
+    "judge": "says in a few words that it is looking for one; never says a video was found or shown before it was. The user's next words stop the search before it lands, so no video is expected in this step"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },

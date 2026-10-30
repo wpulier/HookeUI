@@ -452,10 +452,17 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
     """Tool cards (chat-action lines) in [start, end): one per action, at its first showing; ok and the time it first
     showed ok (a late ✓ is shown again with the same action id)."""
     calls: dict[str, Call] = {}
+    # A hand-off is its step's from its first row on, with every later state of it (will-alive, 30 Oct: the next words
+    # came while the video search still ran, as the plan asks, and its result, landed after, was lost to the step).
+    first: dict[str, float] = {}
+    for r in conv:
+        if r.get("type") == "handoff" and isinstance(r.get("at"), (int, float)) and r.get("id") is not None:
+            first.setdefault(str(r["id"]), r["at"])
     for r in conv:
         at = r.get("at")
-        if (r.get("type") == "handoff" and isinstance(at, (int, float)) and start <= at < end
-                and isinstance(r.get("steps"), list)):
+        began_at = first.get(str(r.get("id")), at) if r.get("type") == "handoff" else at
+        if (r.get("type") == "handoff" and isinstance(at, (int, float)) and isinstance(began_at, (int, float))
+                and start <= began_at < end and isinstance(r.get("steps"), list)):
             # A voice hand-off's row (PARTNER_ACTS "brain"): the brain's steps, as the chat shows them, each settled
             # when the row was (a step done there was confirmed by the studio before the brain answered); a late
             # step's own card (chat-action, same action id) settles it again below.
