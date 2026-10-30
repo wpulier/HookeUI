@@ -74,7 +74,7 @@ test('same-Project updates preserve disclosures, but a new report or Project sta
   expect(details().every(item=>item.open)).toBe(true);
   changed.claims!.push({request:'replacement',statement:'Next result',byLabel:'Codex',evidence:[],dependsOn:[]});
   home.update('p1',[changed]);
-  expect(details()[0].open).toBe(true);
+  expect(details().find(item=>item.dataset.disclosure==='study:s1:question')?.open).toBe(true);
   expect(details().find(item=>item.dataset.disclosure?.endsWith(':report:replacement'))?.open).not.toBe(true);
   home.update('p2',[study('p2')]);
   expect(details().some(item => item.open)).toBe(false);

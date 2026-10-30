@@ -62,13 +62,14 @@ export class ProjectResearchHome {
       const item=node('div','','project-research-stat');item.append(node('strong',String(count)),node('span',label));stats.append(item);
     }
     if(owned.length||local.length)this.root.append(stats);
+    const supporting:HTMLElement[]=[];
     if(material.count){
-      const materials=node('article','','project-research-summary');
+      const materials=node('article','','project-research-material');
       materials.append(node('h3',`${material.count} Project ${material.count===1?'input':'inputs'}`),
         node('p',material.groups.length?material.groups.join(' · '):'Retained files and selected research inputs','project-research-caption'),
-        action('Browse inputs','material',this.actions.inputs,'mm-primary'));
+        action('Browse inputs','material',this.actions.inputs,owned.length?'quiet':'mm-primary'));
       if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material or start a research effort from Researchers.','project-research-caption'));
-      this.root.append(materials);
+      supporting.push(materials);
     }
     if(team.length){const people=details('Contributors & origins','team','project-research-team');
       for(const c of team){const row=node('div','','project-research-person');
@@ -76,12 +77,12 @@ export class ProjectResearchHome {
         const work=node('span',[c.experiments?`${c.experiments} experiments`:'',c.reports?`${c.reports} reports`:'',c.replies?`${c.replies} replies`:''].filter(Boolean).join(' · ')||'Initiated or joined the discussion');
         row.title=c.id;row.append(who,work);people.append(row);
       }
-      people.append(node('p','Recorded contributions, not live presence. Separate connections count separately.','project-research-caption'));this.root.append(people);
+      people.append(node('p','Recorded contributions, not live presence. Separate connections count separately.','project-research-caption'));supporting.push(people);
     }
     if(local.length){const workers=details(`Hooke researchers · ${local.length}`,'local-researchers','project-research-team');
       for(const r of local){const row=node('div','','project-research-person');const words=node('div');words.append(node('strong',r.name),node('span',`${r.status} · ${r.engine||'Model not recorded'}`),node('span',r.brief));row.append(words);
         if(this.actions.openResearcher)row.append(action('Open researcher',`researcher:${r.rid}`,()=>this.actions.openResearcher!(r.rid)));workers.append(row);}
-      this.root.append(node('p',`${local.filter(isWorking).length} Hooke researchers working in this Project`,'project-research-caption'),workers);
+      supporting.push(node('p',`${local.filter(isWorking).length} Hooke researchers working in this Project`,'project-research-caption'),workers);
     }
     for(const s of owned){
       const open=()=>this.actions.openStudy(s.id),key=`study:${s.id}`;
@@ -96,7 +97,7 @@ export class ProjectResearchHome {
       const origin=s.createdBy?`${s.createdBy.byLabel} · ${actorOrigin(s.createdBy.by)}`:'Initiator not recorded';
       card.append(node('p',`Created ${researchDate(s.createdAt)} · ${origin}`,'project-research-origin'));
       const question=details('Question & success criteria',key+':question','project-research-question');
-      question.append(node('p',s.objective));if(s.criteria)question.append(node('p',s.criteria,'project-research-criteria'));card.append(question);
+      question.append(node('p',s.objective));if(s.criteria)question.append(node('p',s.criteria,'project-research-criteria'));
       const now=node('div','','project-research-now');now.dataset.activity=observed.unavailable?'unknown':observed.counts.running?'running':'idle';
       now.append(node('span','Now','project-research-eyebrow'),node('strong',observed.title));
       const parts=[observed.counts.finished?`${observed.counts.finished} finished`:'',observed.counts.failed?`${observed.counts.failed} failed experiments retained`:'',observed.pending?`${observed.pending} unanswered questions`:''].filter(Boolean);
@@ -108,6 +109,7 @@ export class ProjectResearchHome {
         report.append(node('p',latest.statement,'project-research-report-full'));if(latest.limitations)report.append(node('p',latest.limitations,'project-research-criteria'));
         report.append(node('p','Researcher report · not an accepted finding','project-research-caption'));card.append(report);
       }else card.append(node('p','Reports will appear here as the work develops.','project-research-empty'));
+      card.append(question);
       const timeline=details('Research history',key+':history','project-research-history');
       const events=history(s,receipt);const list=node('ol');
       for(const event of events){const row=node('li');row.append(node('time',researchDate(event.at)),node('strong',event.title),node('span',`${event.actor} · ${event.detail}`));
@@ -117,6 +119,7 @@ export class ProjectResearchHome {
       footer.append(node('span',`${s.inputs.length} inputs · ${s.claims?.length??0} reports`,'project-research-caption'));
       card.append(timeline,footer);this.root.append(card);
     }
+    this.root.append(...supporting);
     const choices=node('div','','project-research-actions');choices.append(action('Project data','data',this.actions.data),action('Add material','inputs',this.actions.inputs));this.root.append(choices);
     for(const d of this.root.querySelectorAll('details'))d.open=disclosures.get(d.dataset.disclosure)??false;
     if(same&&focus)for(const item of this.root.querySelectorAll<HTMLElement>('[data-research-focus]'))if(item.dataset.researchFocus===focus){item.focus();break;}
