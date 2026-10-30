@@ -255,3 +255,8 @@ Study assignments are working material from creation, before findings exist.
 same material metadata as the resource index and its exact Study reference. The
 separate Studies summary remains navigation/status for that same object, not a
 second output. No finding or scientific completion is inferred from an assignment.
+
+Retained Project media has one scientific inventory entry. `_sources` omits the
+legacy Library alias for an exact `source_references` binding, including inactive
+Project reads. Inputs/Data join the source’s retained metadata to that exact record;
+a matching host Library ID cannot contribute another item or replace its identity.

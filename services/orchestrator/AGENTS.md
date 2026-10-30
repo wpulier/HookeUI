@@ -1,5 +1,12 @@
 # The orchestrator
 
+Owner commands `project-storage` and `project-reveal` capture the current Project
+and generation around off-loop location verification. Reveal uses only that verified
+folder (or the particular legacy journal folder), never a caller-supplied path.
+The read response shares `project-storage` contract semantics with the agent door;
+agents continue to use their read-authorized `project.storage` action. Owner Finder
+controls do not widen door authority or certify complete collection.
+
 The normal server supports operator-only staged Project routing through
 `--project-folders /absolute/parent` or `HOOKE_PROJECTS_DIR`. `project_launch`
 constructs the existing resolver before App creation, refuses malformed locations

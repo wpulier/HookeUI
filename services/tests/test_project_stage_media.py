@@ -306,3 +306,19 @@ def test_retained_original_reaches_population_and_saved_evidence(app_media):
         assert restored.source_image['retained'] == asdict(ref)
         return result
     asyncio.run(run())
+
+
+def test_inventory_never_projects_library_alias_over_retained_material(app_media, monkeypatch, tmp_path):
+    app, sid, ref, observed = app_media
+    unrelated = tmp_path / 'unrelated.png'
+    Image.new('RGB', (2, 2)).save(unrelated)
+    foreign = Asset('a1', 'added:foreign', 'still', unrelated, 'added', 'Unrelated host alias')
+    monkeypatch.setattr(app.hub.library, 'assets', lambda: {'a1': foreign})
+    async def run():
+        await commands.source(app, Client(), {'open': 'a1', 'session': sid, 'retained': asdict(ref)})
+        assert app.hub.resources._sources(sid) == []
+        saved = app.hub.resources.projects.read(ref.document, sid, revision=ref.revision)
+        assert saved.digest == ref.digest
+        app.day.new('Another selection')
+        assert app.hub.resources._sources(sid) == []
+    asyncio.run(run())

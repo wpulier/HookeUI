@@ -2683,6 +2683,10 @@ class Index:
             return []
         out = []
         for row in rows(day, library.assets(), record)["sources"]:
+            # Exact retained sources are already scientific Project entries. A
+            # host Library alias is neither a second result nor their identity.
+            if row['id'] in getattr(record, 'source_references', {}):
+                continue
             meta = {k: v for k, v in row.items() if k not in ("thumb", "joined", "opened", "position", "alsoIn")}
             out.append(Entry(row["id"], "asset", row.get("title") or row["id"], day, float(row.get("capturedAt") or 0.0),
                              summary=stage_line(meta).split(": ", 1)[-1], made_by={"from": row.get("from")},

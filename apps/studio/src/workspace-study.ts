@@ -1,4 +1,5 @@
 import { organizeMaterial } from './material-organization';
+import { openProjectFolder } from './project-folder';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
 import {sameMediaReference} from './project-media-reference';
@@ -1241,6 +1242,18 @@ function projectNote(row:{lastActive:number;counts?:{sources?:number}}):string{
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
+  projectFolder: () => {
+    const owner = workspaceViews.tabOwner();
+    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
+    const row = snapshot.projects.find(item => item.id === owner.session);
+    openProjectFolder({title: row ? sessionName(row, Date.now()/1000) : 'Project', session: owner.session,
+      current: () => inputOwnerCurrent(owner) && !switching,
+      read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
+        if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
+      reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
+        if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
+    });
+  },
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });

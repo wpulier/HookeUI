@@ -1,5 +1,11 @@
 Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.
 
+The Project menu's **Project folder** inspector uses the same `project-storage`
+projection as the connector. It captures the Project opening, discards late reads
+after navigation and reveals only the host-resolved saved location. Existing host
+storage and portable folder layouts are distinguished; neither availability nor
+Reveal claims complete collection. It does not migrate, move or export records.
+
 A Project with retained Studies uses its empty stage as a return point to those Studies:
 question, recorded experiment/input/report counts and Open Study. Counts are history,
 not running-status or scientific acceptance. Existing Data and Inputs remain the ways

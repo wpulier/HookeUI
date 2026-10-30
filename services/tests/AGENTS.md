@@ -5,6 +5,12 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_project_folder_commands` qualifies the owner folder inspector against the
+shared connector storage projection: captured-generation reads, missing-location
+refusal and host-resolved Finder targets. `project-folder.test.ts` covers stale
+responses and retry rendering with a synthetic DOM. These do not certify complete
+collection, a real Finder action or portable restoration.
+
 `test_project_record_dependencies.py` uses synthetic inputs with real accepted
 Studies, workflows and revision stores. It checks historical links, digest/missing
 failures, external-owner non-access, prose exclusion and bounded cancellation.
