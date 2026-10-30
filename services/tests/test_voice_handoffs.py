@@ -471,3 +471,40 @@ def test_the_kept_step_whose_outcome_holds_is_said_done_with_the_researchers_res
         said = next(r for r in t.logged if r["kind"] == "partner-proactive" and r.get("responseCreatedT"))
         assert said["markTarget"] == "window:w-4225a2fd", "pointing at the picture it placed"
     asyncio.run(go())
+
+
+def test_a_slow_close_look_shows_working_says_only_that_it_looks_and_logs_where_its_time_went(monkeypatch):
+    """Will's try-out, 30 Oct ("What am I looking at here?"): the close look took 20 s; past its first wait nothing showed
+    Hooke working, and the progress line, told only "the tool you called", answered from the voice's own glance ("plant
+    cells") before the close look said "ciliate protozoa". A close look has its row, working until its answer lands;
+    a progress line is told what is running; and where its time went is logged."""
+    from types import SimpleNamespace
+    from orchestrator.voice import partner_tools
+
+    async def go():
+        t, shown = await handing_off(monkeypatch)
+        gate = asyncio.Event()
+
+        class SlowLook:
+            async def ask(self, images, prompt, max_output_tokens=600):
+                await gate.wait()
+                return SimpleNamespace(error="", data={"answer": "Most likely ciliate protozoa.", "box_2d": None},
+                                       raw_text="", model="gemini-4-argon")
+        t.brain.agent.vision = lambda option: SlowLook()
+        monkeypatch.setattr(partner_tools, "TOOL_WAIT_S", 0.2)
+
+        async def camera(size):
+            return (b"JPEG", 41, (0, 0, 100, 100))
+        t.partner.camera = camera
+        out = await t.partner.tools.look_hard({"question": "What am I looking at here?", "_call_id": "lh9"})
+        assert out.get("still_working") is True
+        row = rows(shown)[-1]
+        assert row["state"] == "working" and row["label"] == "A close look", "seen in flight"
+        assert "a close look at the camera picture" in t.partner.tools.running_facts(), "a progress line knows what runs"
+        gate.set()
+        await until_async(lambda: rows(shown)[-1]["state"] == "done")
+        assert rows(shown)[-1]["answer"].startswith("Most likely ciliate protozoa")
+        assert "a close look" not in t.partner.tools.running_facts()
+        looked = [r for r in t.logged if r.get("kind") == "partner-look"]
+        assert looked and {"cameraMs", "modelMs", "totalMs"} <= set(looked[-1])
+    asyncio.run(go())

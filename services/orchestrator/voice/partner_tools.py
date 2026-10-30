@@ -1025,10 +1025,32 @@ class PartnerTools:
                 "the mark.")
         return {"ok": bool(drawn), "shown": drawn, **({"not_shown": missed} if missed else {}), "note": note}
 
-    async def _bounded(self, name: str, work, call_id: str | None, *, still=None, note: str | None = None) -> dict:
+    async def _bounded(self, name: str, work, call_id: str | None, *, still=None, note: str | None = None,
+                       row=None, doing: str = "") -> dict:
         """A tool of its own with the registry tools' limit: past TOOL_WAIT_S it is answered "still working" (`still`
-        is told so), and what it found is said as one line when it lands (a long tool done)."""
+        is told so), and what it found is said as one line when it lands (a long tool done). `row`: its row in the chat
+        (handoffs.py), working until it lands, so the user sees it in flight like any of Hooke's work; `doing`: what it
+        is doing, for a progress line (running_facts)."""
+        key = call_id or f"{name}-{id(work)}"
+        if doing:
+            self.running[key] = (doing, time.monotonic(), None)
         task = asyncio.ensure_future(work)
+
+        def settle(t: asyncio.Task) -> None:
+            self.running.pop(key, None)
+            if row is None:
+                return
+            with contextlib.suppress(Exception):
+                if t.cancelled():
+                    self.handoffs.lost(row)
+                elif t.exception() is not None:
+                    self.handoffs.broke(row, t.exception())
+                else:
+                    result = t.result() if isinstance(t.result(), dict) else {}
+                    self.handoffs.answered(row, {"answer": str(result.get("answer") or result.get("error") or ""),
+                                                 "actions": []}, {"ok": result.get("ok") is True,
+                                                                  **({"error": result["error"]} if result.get("error") else {})})
+        task.add_done_callback(settle)
         done, _ = await asyncio.wait({task}, timeout=TOOL_WAIT_S)
         if task in done:
             return task.result()
@@ -1056,7 +1078,16 @@ class PartnerTools:
                 "note": note or "still running; its outcome is told to you when it lands. Do not say it is done."}
 
     async def look_hard(self, args: dict) -> dict:
-        return await self._bounded("look_hard", self._look_hard(args), args.get("_call_id"))
+        # A close look is Hooke's work in flight too: its row shows it working (and the presence pill counts it) until
+        # its answer lands (Will's try-out, 30 Oct: a 20 s close look showed nothing working once its first wait ended).
+        question = " ".join(str(args.get("question") or "").split())
+        row = None
+        if question:
+            with contextlib.suppress(Exception):
+                row = self.handoffs.start(question, "A close look")
+        return await self._bounded("look_hard", self._look_hard(args), args.get("_call_id"), row=row,
+                                   doing="a close look at the camera picture to answer the user's question (its answer "
+                                         "is said when it lands)")
 
     async def _look_hard(self, args: dict) -> dict:
         """The frame (and the window, when asked) with the question, to the close-look model (option LOOK_HARD)."""
@@ -1064,16 +1095,22 @@ class PartnerTools:
         if not question:
             return {"ok": False, "error": "no question"}
         images = []
+        # Where its time goes, kept for the log (Will's try-out, 30 Oct: a 20 s close look could not be explained).
+        timing, began = {}, time.monotonic()
         seen = await self.partner.camera(1024)
+        timing["cameraMs"] = round((time.monotonic() - began) * 1000)
         if seen is not None:
             images.append(seen[0])
         if args.get("window"):
+            at = time.monotonic()
             shot = await self.partner.snapshot()
+            timing["windowMs"] = round((time.monotonic() - at) * 1000)
             if shot:
                 images.append(shot["jpeg"])
         if not images:
             return {"ok": False, "error": "no fresh camera frame and no window picture to look at"}
         option = getattr(self.hub.settings, "look_hard", None)
+        at = time.monotonic()
         try:
             vision = self.brain.agent.vision(option)
             # The likeliest thing first, plainly (will-alive, 29 Oct: "might be a stoma, but it could also be a surface
@@ -1082,6 +1119,12 @@ class PartnerTools:
             result = await vision.ask(images, LOOK_HARD_ASK + "\nQuestion: " + question, max_output_tokens=600)
         except Exception as exc:  # a missing key or a provider error is said, plainly
             return {"ok": False, "error": f"the vision model could not look ({type(exc).__name__})"}
+        finally:
+            timing["modelMs"] = round((time.monotonic() - at) * 1000)
+            with contextlib.suppress(Exception):
+                self.partner.log({"kind": "partner-look", "option": option, "images": len(images),
+                                  "window": bool(args.get("window")), **timing,
+                                  "totalMs": round((time.monotonic() - began) * 1000)})
         if result.error:
             return {"ok": False, "error": result.error[:300]}
         data = result.data if isinstance(result.data, dict) else {}

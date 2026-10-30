@@ -99,10 +99,13 @@ PROGRESS_LINES = 1
 # length is set by its instructions; this only stops a runaway.
 PROGRESS_TOKENS = 400
 # Words for any progress line (a tool round's and a job's): what is under way, as a colleague says it mid-task.
+# Never an answer: Will's try-out, 30 Oct, a progress line on a 20 s close look answered from the voice's own glance
+# ("plant cells") and the close look then said "ciliate protozoa".
 PROGRESS_WORDS = ("In one short sentence (under 12 words), say what Hooke is doing now or waiting on, in the user's "
                   "words, the way a colleague would mid-task (\"Still running the three models.\"). Only what it is "
                   "doing, never what it may find, no tool's name and no \"segmentation\"; how long only if it has "
-                  "been a while.")
+                  "been a while. Never answer the user's question or say what is on screen: the answer comes from the "
+                  "work itself when it lands.")
 # A job behind the voice (think, a slow tool): a line on what is under way once the voice has been quiet this long, then
 # another only when what it is doing has changed, at least THINK_PROGRESS_EVERY_S later, THINK_PROGRESS_LINES in all.
 THINK_PROGRESS_AFTER_S = 6.0
