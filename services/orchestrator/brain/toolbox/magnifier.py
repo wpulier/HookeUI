@@ -681,7 +681,7 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                               "show": {"type": "boolean", "description": "default true; false retains the photo for a separate native window and preserves the current view"},
                               "description": {"type": "string", "maxLength": 600, "description": "optional note on the topic, kept as a note; the photo's description comes from a look at its pixels"},
                               "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed, sole visible or front window, before first paint; that window is moved over first when there is no room beside it. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
-                      reference_photo, inline_ms=1500, family="magnifier"))
+                      reference_photo, inline_ms=1500, family="magnifier", alongside=True))
 
     async def hold(ctx: ToolContext, args: dict) -> str:
         from ...screen import magnifier_source, on_screen, screen_of

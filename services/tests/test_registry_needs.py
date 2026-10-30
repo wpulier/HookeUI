@@ -78,3 +78,34 @@ def test_a_refusal_outside_hooke_passes_through_and_a_need_is_met_once():
     assert run.ok is False and run.next == "say yes to download it", "an external need is the user's, with its offer"
     run = run_one(registry, "stubborn", {})
     assert run.ok is False and len(calls) == 2, "the call runs once more after its need is met, never a loop"
+
+
+def test_steps_of_a_tool_that_runs_alongside_its_own_kind_run_at_once_and_others_in_order():
+    """Will, 30 Oct: "two images you find online" were found one after the other, 51 s then 40 s. Two such steps in a
+    row, neither waiting on the other, run at once; ordinary steps still run in order."""
+    async def late(*_):
+        pass
+
+    async def go():
+        in_flight, most, order = [0], [0], []
+
+        async def photo(ctx, args):
+            in_flight[0] += 1
+            most[0] = max(most[0], in_flight[0])
+            await asyncio.sleep(0.05)
+            in_flight[0] -= 1
+            order.append(f"photo {args['n']}")
+            return "kept"
+
+        async def tab(ctx, args):
+            order.append("tab")
+            return "made"
+        registry = api.Registry()
+        registry.add(api.Tool("reference_photo", "photo", {}, photo, inline_ms=1, alongside=True))
+        registry.add(api.Tool("tabs", "tabs", {}, tab, inline_ms=1))
+        runs = await ActionRunner(registry, None, lambda: None, late).run(
+            [("tabs", {}), ("reference_photo", {"n": 1}), ("reference_photo", {"n": 2}), ("tabs", {})], context())
+        await runs[0].sequence
+        assert most[0] == 2, "the two searches were in flight together"
+        assert order[0] == "tab" and order[-1] == "tab" and sorted(order[1:3]) == ["photo 1", "photo 2"]
+    asyncio.run(go())

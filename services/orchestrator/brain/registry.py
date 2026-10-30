@@ -352,6 +352,9 @@ class Tool:
     # "there is no resize tool" was answered "resizing is impossible", though present do="resize" worked).
     verbs: tuple[str, ...] = ()
     retained_input: bool = False  # handler explicitly preserves saved-input ownership or reads independent facts
+    # Steps of this tool one after another in a plan, none waiting on another, run at once (brain/actions.py): a web
+    # search for a photo changes nothing on screen until it is shown (Will, 30 Oct: two photos, 51 s then 40 s).
+    alongside: bool = False
 
     @property
     def produces(self) -> str | None:

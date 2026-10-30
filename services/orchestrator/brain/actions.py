@@ -162,8 +162,17 @@ class ActionRunner:
             bind_occurrence(run, ctx)
         made: dict[str, str | None] = {}
 
+        def alongside(k: int) -> bool:
+            """Whether step k may start with the next one still to come: both the same tool that runs alongside its
+            own kind, and the next one waiting on no step (Tool.alongside)."""
+            if k + 1 >= len(runs) or runs[k + 1].tool != runs[k].tool or dependent(actions[k + 1]):
+                return False
+            tool = self.registry.tools.get(runs[k].tool)
+            return bool(getattr(tool, "alongside", False))
+
         async def in_order() -> None:
-            for n, run, action in zip(numbers, runs, actions):
+            together: list = []  # steps started alongside one another, waited for as one
+            for k, (n, run, action) in enumerate(zip(numbers, runs, actions)):
                 dependencies = getattr(action, "after_steps", None)
                 reason = None
                 if dependent(action):
@@ -200,7 +209,12 @@ class ActionRunner:
                 if holder is not None:
                     holder.started(run.task)  # a stop of the whole request (stop_work) cancels it
                 if run.task is not None:
-                    await asyncio.wait([run.task])
+                    together.append(run.task)
+                if together and not alongside(k):
+                    await asyncio.wait(together)
+                    together = []
+            if together:
+                await asyncio.wait(together)
 
         from .. import user_stop
 
