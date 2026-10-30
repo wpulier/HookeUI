@@ -2253,15 +2253,60 @@ def test_work_handed_over_is_acknowledged_at_once_and_its_outcome_said_after(mon
         response = ack["response"]
         assert response["metadata"]["cause"] == "ack", "said at once, while Hooke works"
         assert 'Never "still"' in response["instructions"] and "output_modalities" not in response
-        # Only what was asked and what is being done for it, never the conversation (Will's try-out, 30 Oct: "It's still
-        # adjusting the live overlay size…" narrated the work as another's in progress).
-        assert response["conversation"] == "none" and "Segment right one" in json.dumps(response["input"])
+        # Only what was asked, never the conversation (Will's try-out, 30 Oct: "It's still adjusting the live overlay
+        # size…" narrated the work as another's in progress), and never the row's label ("Segment center cell" was said
+        # back as "I segment the center cell.").
+        said = json.dumps(response["input"])
+        assert response["conversation"] == "none" and "segment the one on the right" in said
+        assert "Segment right one" not in said and "Sure, I'll get that for you." in response["instructions"]
         assert "msg_1" in deleted(t), "the decided words are never said"
         await done(t.sb, "resp_2")
         gate.set()
         await answer_snapshots(t, lambda: t.sb.responses == 3)
         causes = [e["response"]["metadata"]["cause"] for e in creates_of(t)]
         assert causes[:2] == ["turn", "ack"] and causes[2] in ("look", "tool") and "progress" not in causes
+    asyncio.run(go())
+
+
+def test_an_acknowledged_long_hand_off_says_once_what_it_is_doing_and_that_it_is_free_meanwhile(monkeypatch):
+    """Will's try-out, 30 Oct: "What it should do is say 'Sure, I'll get that for you.' Then it starts, 'pulling that up,
+    any other questions while it does?'". After its acknowledgement, long work gets one line in the voice's own words:
+    what it is doing now and that it can take anything else meanwhile; never a second, and never "heard nothing"."""
+    from orchestrator.brain.actions import ActionRunner
+    from orchestrator.brain.registry import ToolContext
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "HANDOFF_STEP_S", 0.1)
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain", speaks="acknowledges")
+        gate = asyncio.Event()
+
+        async def handler(ctx, args):
+            await gate.wait()
+            return "retained a reference photo"
+        t.brain.registry.add(Tool("reference_photo", "Reference photo: finds a real photo on the web.",
+                                  schema({"subject": {"type": "string"}}), handler, kind="effect", inline_ms=50))
+
+        async def turn(text, channel, **kw):
+            runner = ActionRunner(t.brain.registry, t.hub, lambda: None, lambda run, ctx: asyncio.sleep(0))
+            runs = await runner.run([("reference_photo", {"subject": "tannin cell"})],
+                                    ToolContext("voice", 0, None, question=text))
+            await asyncio.wait([r.task for r in runs])
+            return {"answer": "I found a photo of a tannin cell and opened it in a new Tab.",
+                    "actions": [r.wire() for r in runs]}
+        t.brain.turn = turn
+        await hand_off_round(t, "Pull up an image of that kind of cell in a new tab.", "Reference tannin cell")
+        await until_async(lambda: [c["response"]["metadata"]["cause"] for c in creates_of(t)] == ["turn", "ack"],
+                          seconds=5)
+        await done(t.sb, "resp_2")  # "Sure, I'll get that for you."
+        line = await until_async(lambda: next((c["response"] for c in creates_of(t)
+                                               if c["response"]["metadata"]["cause"] == "progress"), None), seconds=10)
+        assert "Anything else while it does?" in line["instructions"] and "heard nothing" not in line["instructions"]
+        await done(t.sb, "resp_3")
+        gate.set()
+        await answer_snapshots(t, lambda: t.sb.responses == 4)
+        causes = [c["response"]["metadata"]["cause"] for c in creates_of(t)]
+        assert causes.count("progress") == 1 and causes[-1] in ("look", "tool"), causes
     asyncio.run(go())
 
 

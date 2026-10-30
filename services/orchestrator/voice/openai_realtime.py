@@ -79,9 +79,10 @@ PROGRESS_AFTER_S = 5.0
 # After the voice's own lead-in ("Outlining that now.") the wait is already said: a line comes only if it runs long.
 # Its row shows the work meanwhile (Will's rule of 2026-10-11: one acknowledgement, its row, one outcome).
 PROGRESS_AFTER_LEADIN_S = 20.0
-# A hand-off with no lead-in (will-alive "slow", 30 Oct: a 15 s web search said nothing until its outcome, judged "no
-# brief acknowledgment that the search was under way"): one line on what Hooke is doing right now, from its brain's live
-# progress, once the voice has been quiet HANDOFF_PROGRESS_AFTER_S and one of its steps has run HANDOFF_STEP_S (long
+# A hand-off with no lead-in, or only its acknowledgement (will-alive "slow", 30 Oct: a 15 s web search said nothing
+# until its outcome, judged "no brief acknowledgment that the search was under way"): one line on what Hooke is doing
+# right now, from its brain's live progress, once the voice has been quiet HANDOFF_PROGRESS_AFTER_S and one of its
+# steps has run HANDOFF_STEP_S (long
 # work: a web search 11-16 s, every cell outlined 5-20 s), or once quiet HANDOFF_THINKING_S with none. Quick work says
 # nothing before its outcome (the 30 Oct journeys: most hand-offs ended in 5-7 s, every find, zoom, Tab and window step
 # under 2.5 s; lead-ins before quick work were judged "preliminary narration").
@@ -89,11 +90,16 @@ HANDOFF_PROGRESS_AFTER_S = 5.5
 HANDOFF_STEP_S = 3.5
 HANDOFF_THINKING_S = 9.0
 # Words for that line: what is being done right now, as the voice's own ("I"), from the facts alone.
-HANDOFF_PROGRESS_WORDS = ("In one short sentence (under 10 words), say as yourself (\"I\") what you are doing for this "
-                          "request right now, in the user's words, from these facts alone: a step's own words, when it "
-                          "has them, say what it is doing now (a tool's description says only what it can do); only "
-                          "what is being done, never what it may find, that it is done, or what comes next; no tool's "
-                          "name and no \"Hooke\". The user has heard nothing about it yet.")
+HANDOFF_PROGRESS_WORDS = ("Say as yourself (\"I\") what you are doing for this request right now, in the user's words, "
+                          "from these facts alone: a step's own words, when it has them, say what it is doing now (a "
+                          "tool's description says only what it can do); only what is being done, never what it may "
+                          "find, that it is done, or what comes next; no tool's name and no \"Hooke\".")
+HANDOFF_NOTHING_SAID = " One short sentence, under 10 words. The user has heard nothing about it yet."
+# After its acknowledgement, the line says the work goes on and that the voice is free meanwhile (Will's try-out, 30 Oct:
+# "Sure, I'll get that for you." then "pulling that up, any other questions while it does?").
+HANDOFF_AFTER_ACK = (" You already told them you're on it. In two short spoken sentences (under 14 words in all), say "
+                     "what you're doing now and offer to take anything else while it runs, as a colleague would "
+                     "(\"Pulling that up now. Anything else while it does?\").")
 PROGRESS_LINES = 1
 # A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
 # length is set by its instructions; this only stops a runaway.
@@ -145,8 +151,9 @@ HANDED_TOOLS = frozenset({"do_in_hooke", "look_hard"})  # work that takes Hooke 
 
 
 def handed_words(response: dict) -> list[str]:
-    """What a decided turn handed over, in the voice's own words for it: each do_in_hooke's label or request, each close
-    look's question (its function calls' arguments)."""
+    """What a decided turn handed over, in the voice's own words for it: each do_in_hooke's request, each close look's
+    question (its function calls' arguments); a label only without them (a row's title, "Segment center cell", was said
+    back as "I segment the center cell")."""
     out = []
     for item in response.get("output") or []:
         if item.get("type") != "function_call" or item.get("name") not in HANDED_TOOLS:
@@ -155,18 +162,21 @@ def handed_words(response: dict) -> list[str]:
             args = json.loads(item.get("arguments") or "{}")
         except ValueError:
             continue
-        words = args.get("label") or args.get("request") or args.get("question")
+        words = args.get("request") or args.get("question") or args.get("label")
         if isinstance(words, str) and words.strip():
             out.append(" ".join(words.split())[:160])
     return out[:3]
 SPEAKS_ACKNOWLEDGES = "acknowledges"  # decides silently, then says at once that it is on work it handed over
 # The few words said at once when a turn hands work over (PARTNER_SPEAKS "acknowledges"): true from the moment the work
-# has started, never a result or a promise (Will's try-out, 30 Oct: "I like when the voice responds super fast"; deciding
-# silently left 8-13 s before any words while Hooke worked, and it felt blocking).
-ACK_HANDED = ("You are the user's microscope partner, and you do this work yourself. In five words or fewer, say as "
-              "\"I\" that you're doing what they just asked, now, as a colleague would on hearing it (a quick yes and "
-              "the verb with its thing). Never \"still\", never a result, a promise, when it will be done or what "
-              "comes next; nothing else.")
+# has started, never a result (Will's try-out, 30 Oct: "I like when the voice responds super fast"; deciding silently
+# left 8-13 s before any words while Hooke worked, and it felt blocking). A friend's natural yes, said like one: five
+# words or fewer with "the verb with its thing" gave "I segment the center cell.", "I magnify outlined cell now."
+# (Will: "so odd, it removes a lot of the magic"; what it should say: "Sure, I'll get that for you.").
+ACK_HANDED = ("You are the user's microscope partner, and you are starting what they just asked, yourself, right now. "
+              "Answer the way a friendly colleague does on hearing it: one short natural spoken sentence, a quick yes "
+              "and that you'll do it (\"Sure, I'll get that for you.\", \"Sure, I'll outline it.\", \"Okay, pulling "
+              "that up now.\"). Everyday grammar, under eight words. Never \"still\", never a result, when it will be "
+              "done or what comes next; nothing else.")
 DECIDE_RULE = ("What you write in this reply is said aloud word for word, unless you call a tool other than mark: then "
                "nothing of it is said, and the tool's outcome is said after it. Write only what you would say, in "
                "plain spoken sentences.")
@@ -1748,14 +1758,14 @@ class RealtimeSession(VoiceSession):
         elif response.get("status") == "completed" and names & HANDED_TOOLS and self._speaks_now() == SPEAKS_ACKNOWLEDGES:
             # Work handed over: a few words at once that it is on it (true now), then its outcome once it lands.
             self._acked[cause["n"]] = True
-            # Its only context is what the user asked and what is being done for it, never the conversation, so it
-            # cannot narrate the work as another's in progress (Will's try-out, 30 Oct: "It's still adjusting the live
-            # overlay size…", "It's in progress, and the enlargement will appear in its own Tab once it finishes").
+            # Its only context is what the user asked, never the conversation, so it cannot narrate the work as
+            # another's in progress (Will's try-out, 30 Oct: "It's still adjusting the live overlay size…"); without
+            # their words, what the voice handed over for them.
             asked = self._heard.get(cause["n"], "")
-            doing = "; ".join(dict.fromkeys(handed_words(response) + self._handed_words.pop(rid, []))) 
+            doing = "; ".join(dict.fromkeys(handed_words(response) + self._handed_words.pop(rid, [])))
+            said = f"The user just asked: \"{asked}\"" if asked else f"The user just asked for this: {doing}" if doing else ""
             self.respond("ack", n=cause["n"], tool_choice="none", max_output_tokens=ACK_TOKENS, conversation="none",
-                         input=[text_item("system", (f"The user just asked: \"{asked}\"\n" if asked else "")
-                                          + (f"Being done for it now: {doing}" if doing else ""))],
+                         input=[text_item("system", said or "The user just asked you to do something.")],
                          instructions=ACK_HANDED)
         self._handed_words.pop(rid, None)
         for item in response.get("output") or []:
@@ -1799,7 +1809,7 @@ class RealtimeSession(VoiceSession):
         self._call_epoch[call_id] = self._epoch
         self._call_names[call_id] = name
         if name in HANDED_TOOLS:  # its words, for the acknowledgement said at once (ACK_HANDED)
-            words = args.get("label") or args.get("request") or args.get("question")
+            words = args.get("request") or args.get("question") or args.get("label")
             if isinstance(words, str) and words.strip():
                 self._handed_words.setdefault(rid, []).append(" ".join(words.split())[:160])
         event = VoiceEvent("tool_call", call_id=call_id, name=name, args=args)
@@ -1877,17 +1887,20 @@ class RealtimeSession(VoiceSession):
             now = self.clock()
             quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
             handed = bool(ids) and all(self._call_names.get(cid) == "do_in_hooke" for cid in ids)
-            if handed and not led_in:
-                # Nothing said of it yet: one line on what Hooke is doing now, once it is long work (`_handoff_due`).
+            acked = bool(self._acked.get(n))
+            own_line = handed and (not led_in or acked)  # nothing said of it yet, or only that the voice is on it
+            if own_line:
+                # One line on what is being done now, once it is long work (`_handoff_due`); after its acknowledgement,
+                # with the offer to take anything else meanwhile.
                 facts = self._handoff_due(ids, now - quiet_since) if pending and not progress else None
-                due, head, words = facts is not None, "Being done in Hooke now, for what the user just asked: ", \
-                    HANDOFF_PROGRESS_WORDS
+                due, head = facts is not None, "Being done in Hooke now, for what the user just asked: "
+                words = HANDOFF_PROGRESS_WORDS + (HANDOFF_AFTER_ACK if acked else HANDOFF_NOTHING_SAID)
             else:
                 # Its lead-in said it is under way: a line only if it runs long.
                 wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
                 due, facts = now - quiet_since >= wait, None
                 head, words = "Still running in Hooke for what the user asked: ", PROGRESS_WORDS
-            if progress and not let_go and handed and not led_in and not self._handoff_working(ids):
+            if progress and not let_go and own_line and not self._handoff_working(ids):
                 # Its work landed while its line was on its way: a line not yet heard is let go (the outcome follows).
                 let_go = True
                 self._unsay_progress(n)
@@ -1902,7 +1915,7 @@ class RealtimeSession(VoiceSession):
                     and self._held is None and n == self.n and epoch == self._epoch):
                 facts = facts or self.running_facts() or "the tool you called"
                 self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress) + 1})
-                working = (lambda ids=ids: self._handoff_working(ids)) if handed and not led_in else (lambda: True)
+                working = (lambda ids=ids: self._handoff_working(ids)) if own_line else (lambda: True)
                 progress.append(self.respond(
                     "progress", n=n, still=lambda pending=pending, working=working: (
                         any(not t.done() for t in pending) and working()),
