@@ -311,9 +311,15 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                     outcome = await _native_present(services, ctx, {'do': 'zoom',
                         'instance': {'instanceId': made.get('instanceId')}, 'zoom': zoom_value})
             else:
+                from .present import _its_tab_in_front
+
                 value = parse_level(level or 'more')
                 zoom_value = ({'fit': True} if value == 'fit' else {'factor': .5 if value == 'less' else 2}
                               if value in ('less', 'more') else {'level': 32 if value == 'max' else value})
+                # Its Tab comes to the front first, the person's own Tab click: a zoom is seen, and confirmed, only
+                # where it is drawn (will-tabs, 30 Oct: "zoom in" on the close-up left on Main while another Tab was in
+                # front was never confirmed).
+                await _its_tab_in_front(services, ctx, shown.id)
                 outcome = await _native_present(services, ctx, {'do': 'zoom', 'instance': shown.id, 'zoom': zoom_value})
             hub.scene.select(obj.id)
             ctx.pointed = obj.id

@@ -397,42 +397,111 @@ def test_a_new_tab_asked_for_with_no_name_is_named_as_the_studio_names_one(tmp_p
     asyncio.run(go())
 
 
-def test_a_live_window_moved_to_another_tab_opens_there_again_from_its_live_source(monkeypatch):
-    """Will's try-out, 30 Oct: "move that new enlargement into a new tab" was refused ("the live magnification isn't
-    saved and can't be moved across Tabs"). A live window is a view of the live source: moved, it closes where it is and
-    opens again from that same source on the Tab in front; anything it is not (no live source) is left as it was."""
+def test_a_live_close_up_placed_in_another_tab_moves_there_as_itself_with_or_without_instead(monkeypatch):
+    """will-tabs on 951e683 (11:04:44, 11:07:08): "Move that new enlargement into a new Tab" and "Open a separate
+    additional Tab and move a magnified view of the original specimen there". The live magnifier is a native window
+    on Main the Tabs list but its arrangement never saves: the Tab move was refused ("That exact placement is no longer
+    in the named source Tab"), and closing it to open it again went the legacy panel way (TARGET_GONE on the isolated
+    instance, 30 Oct). It moves as itself, by the Tab's own move (the studio moves such a window now: workspace-views.ts
+    relocate), whether the words said "instead" or not, and comes to the front by its own instance; never closed and
+    opened again, never through the panel path."""
     from types import SimpleNamespace
-    from orchestrator import placement
-    from orchestrator.brain import registry
+    from orchestrator import placement, table_window
     from orchestrator.brain.toolbox import present
 
-    live = SimpleNamespace(kind="live", to_wire=lambda: {"kind": "live", "id": "obj-o2"})
-    states = {"w-1": SimpleNamespace(id="w-1", source=live, title="the organism · live magnification", open=True)}
-    core = SimpleNamespace(get=lambda ws, iid: states[iid], list=lambda ws: tuple(states.values()))
-    services = SimpleNamespace(presentations=core,
-                               workspace_context=lambda client, **kw: SimpleNamespace(workspace_id="ws"))
-    done = []
+    magnifier = {"placement": "f905", "kind": "magnifier", "title": "the stoma · live magnification",
+                 "window": "w-2095"}
+    tabs = {"main": {"id": "main", "title": "Main", "kind": "work", "items": [magnifier]},
+            "mag": {"id": "mag", "title": "Magnified View", "kind": "work", "items": []}}
+    sent, fronted, panel = [], [], []
 
-    async def act(services_, args, ctx=None):
-        done.append(("close", args["what"]))
-        states[args["what"]] = SimpleNamespace(**{**vars(states[args["what"]]), "open": False})
-        return "closed"
+    async def broker(ctx, args):
+        sent.append(dict(args))
+        if args["action"] == "move":
+            assert args["placement"] in [i["placement"] for i in tabs[args["from"]]["items"]]
+            tabs[args["tab"]]["items"].append(tabs[args["from"]]["items"].pop())
+        if args["action"] == "only":
+            return {"ok": True, "shown": {"windows": [i["window"] for i in tabs[args["tab"]]["items"]]}}
+        return {"ok": True, "tabs": [{**t, "selected": t["id"] == "mag"} for t in tabs.values()]}
 
-    async def native(services_, ctx, args):
-        done.append(("open", args["source"]["id"], args["title"]))
-        states["w-2"] = SimpleNamespace(id="w-2", source=live, title=args["title"], open=True)
-        return "opened"
+    async def to_tab(services, ctx, asked, new=False):
+        return "mag", "Magnified View", new
+
+    async def settled(services, ctx, args):
+        fronted.append(args)
+        return "in front"
+
+    async def act(services, args, by=None, ctx=None):
+        panel.append(args)
+        raise AssertionError("a native window never goes the panel way")
+
+    monkeypatch.setattr(table_window, "_tab", to_tab)
+    monkeypatch.setattr(present, "_native_settled", settled)
     monkeypatch.setattr(present, "act", act)
-    monkeypatch.setattr(present, "_native_present", native)
-    token = registry.CURRENT_RUN.set(SimpleNamespace(occurrence=SimpleNamespace(request_id="r1", action_id="a1")))
-    try:
-        ctx = SimpleNamespace(client=object())
-        assert asyncio.run(placement._live_here(services, ctx, "w-1", "Close-up")) == "w-2"
-        assert done == [("close", "w-1"), ("open", "obj-o2", "the organism · live magnification")]
-        states["w-3"] = SimpleNamespace(id="w-3", source=SimpleNamespace(kind="saved-image"), title="", open=True)
-        assert asyncio.run(placement._live_here(services, ctx, "w-3", "x")) is None, "not live: left as it was"
-    finally:
-        registry.CURRENT_RUN.reset(token)
+    services = SimpleNamespace(workspace_tabs=broker, presentations=object(), prepared_sources=object(),
+                               workspace_context=lambda *a, **k: None)
+    ctx = SimpleNamespace(client=object())
+    registry = SimpleNamespace(tools={})
+
+    said = asyncio.run(placement.place(services, ctx, registry, {"do": "place", "placement": "window",
+                                                                 "tab": "Magnified View", "what": "magnifier"}))
+    assert [a for a in sent if a["action"] == "move"] == [{"action": "move", "tab": "mag", "from": "main",
+                                                           "placement": "f905"}]
+    assert fronted == [{"do": "front", "instance": {"instanceId": "w-2095"}}] and panel == []
+    assert 'moved there from Tab "Main"' in said and 'Tab "Magnified View"' in said, said
+    assert tabs["main"]["items"] == [] and tabs["mag"]["items"] == [magnifier]
+
+    # Back to Main as the only thing open there, by its window id and "instead" (the first call's words).
+    sent.clear()
+
+    async def to_main(services, ctx, asked, new=False):
+        return "main", "Main", False
+    monkeypatch.setattr(table_window, "_tab", to_main)
+    said = asyncio.run(placement.place(services, ctx, registry, {"do": "place", "placement": "only", "tab": "Main",
+                                                                 "what": {"instanceId": "w-2095"}, "instead": True}))
+    assert [a["action"] for a in sent] == ["list", "move", "only"], sent
+    assert sent[-1]["keep"] == ["w-2095"] and "is now the only window" in said, said
+
+
+def test_a_moved_window_is_placed_once_the_screen_shows_it_on_its_new_tab(monkeypatch):
+    """The isolated instance, 30 Oct: right after the Tab move, the front that followed read the report from before it,
+    found the close-up "on Main" and switched to Main, where it no longer was; it was never seen. The move is done once
+    the screen shows the window on its new Tab (Hooke asks the studio for a report meanwhile), and a move the screen
+    never shows is said as that, with nothing for the user to repeat."""
+    from types import SimpleNamespace
+    from orchestrator import placement, screen as screen_module
+    from orchestrator.brain.registry import ToolFailed
+
+    reads, asks = [], []
+
+    def report(tab):
+        return {"items": [{"id": "w-2095", "view": {"arrangement": {"project": "p", "tab": tab, "placement": "f905"}}}]}
+
+    class Screen:
+        def __init__(self, after):
+            self.after = after
+
+        def observation(self, client):
+            reads.append(1)
+            return SimpleNamespace(wire=lambda: report("mag" if len(reads) > self.after else "main"))
+
+    async def broker(ctx, args):
+        return {"ok": True}
+
+    services = SimpleNamespace(workspace_tabs=broker, hub=SimpleNamespace())
+    ctx = SimpleNamespace(client=SimpleNamespace(offer=asks.append))
+    item, source = {"placement": "f905", "window": "w-2095"}, {"id": "main", "title": "Main"}
+    monkeypatch.setattr(placement, "ASK_EVERY_S", 0.01)
+    monkeypatch.setattr(screen_module, "screen_of", lambda hub: Screen(after=5))
+    assert asyncio.run(placement._move_here(services, ctx, source, item, "mag")) == "w-2095"
+    assert len(reads) > 5 and asks, "waited for the report that shows it there, asking for one"
+
+    reads.clear()
+    monkeypatch.setattr(placement, "MOVE_WAIT_S", 0.2)
+    monkeypatch.setattr(screen_module, "screen_of", lambda hub: Screen(after=10 ** 6))
+    with pytest.raises(ToolFailed) as refused:
+        asyncio.run(placement._move_here(services, ctx, source, item, "mag"))
+    assert "does not show it there yet" in str(refused.value) and refused.value.next is None
 
 
 def test_a_window_a_request_opens_goes_to_the_tab_it_was_asked_in(monkeypatch):

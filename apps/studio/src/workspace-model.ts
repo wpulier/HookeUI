@@ -76,6 +76,10 @@ function rootFact(root:HTMLElement):Omit<TabItemFact,'placement'>|null{
  return null;
 }
 
+/** Whether a window root is one a Tab lists although its arrangement does not save it (a web page or video, a native
+ * window such as the live magnifier): what `tabs list` lists there, `tabs move` moves (WorkspaceViews.relocate). */
+export function listedWindow(root:HTMLElement):boolean{return rootFact(root)!==null;}
+
 /** The windows open on a Tab that its arrangement does not save (a web page or video, a native window not yet
  * captured), each once, after `out`. */
 function unsaved(here:readonly HTMLElement[],out:TabItemFact[]):TabItemFact[]{
