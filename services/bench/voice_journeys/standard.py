@@ -356,6 +356,7 @@ class Call:
     number: int | None = None  # the researcher's number ("Researcher 2"), when the call says it
     call_id: str | None = None
     inner: list = None  # think: the frontier mind's own tool calls ({name, ok, confirmed})
+    summary: str = ""  # what its receipt says it did (a brain step's summary), for the judge to check claims against
 
 
 def partner_calls(inter: list[dict], step_n, start: float, end: float) -> list[Call]:
@@ -460,6 +461,7 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
                 if call is None:
                     call = calls[key] = Call(str(step.get("tool")), began + i * 1e-3, step.get("ok"), None, False)
                 call.ok = step.get("ok") if step.get("ok") is not None else call.ok
+                call.summary = str(step.get("summary") or call.summary)
                 if step.get("ok") is True and call.confirmed_at is None and not _unseen(step):
                     call.confirmed_at = at
                 call.end = at
@@ -471,6 +473,7 @@ def card_calls(conv: list[dict], start: float, end: float) -> list[Call]:
         if call is None:
             call = calls[key] = Call(str(r.get("tool")), at, r.get("ok"), None, False)
         call.ok = r.get("ok") if r.get("ok") is not None else call.ok
+        call.summary = str(r.get("summary") or call.summary)
         if r.get("ok") is True and call.confirmed_at is None:
             call.confirmed_at = at
         if call.name == "start_researcher" and r.get("ok") is True and call.rid_at is None:
@@ -1070,6 +1073,9 @@ def watch(inter: list[dict], segments, busy, steps: list[dict], expects: dict[st
 # Alive and available (W3; the live partner spec 4.8, horizontal 2): the voice's state as the studio showed it.
 ALIVE_GAP_S = 2.0  # a wait longer than this with nothing playing must show a state (the finish line: no silent gap)
 ALIVE_STATES = frozenset({"listening", "heard", "thinking", "working", "speaking"})  # a state that says something goes on
+# A state shown for less than this is a flicker between two, not a gap without one (will-alive, 29 Oct: "idle" for 0 ms
+# as a hand-off's row ended and the voice began its outcome, counted as a 7.6 s wait uncovered).
+ALIVE_FLICKER_S = 0.3
 PRESENCE_GRACE_S = 1.0  # the presence pill shows within this of the Assistant closing
 
 
@@ -1163,8 +1169,18 @@ def alive(bench: dict, inter: list[dict], steps: list[dict], wins, segments, exp
         before = [s for s in shown if s["t"] <= a]
         return ([before[-1]["state"]] if before else [None]) + [s["state"] for s in shown if a < s["t"] < b]
 
+    def lapses(a: float, b: float) -> bool:
+        """Whether a state that says nothing goes on (idle, off, none) was shown for longer than a flicker in (a, b)."""
+        before = [s for s in shown if s["t"] <= a]
+        timeline = ([(a, before[-1]["state"])] if before else [(a, None)]) + \
+            [(s["t"], s["state"]) for s in shown if a < s["t"] < b]
+        for (t, state), (nxt, _) in zip(timeline, timeline[1:] + [(b, None)]):
+            if state not in ALIVE_STATES and nxt - t > ALIVE_FLICKER_S:
+                return True
+        return False
+
     uncovered = [{"atS": round(a - origin, 1), "s": round(b - a, 1), "shown": sorted({str(x) for x in states_in(a, b)})}
-                 for a, b in gaps if not all(x in ALIVE_STATES for x in states_in(a, b))]
+                 for a, b in gaps if lapses(a, b)]
     rows = {e.get("id") for e in bench["events"] if e.get("e") == "handoff-row" and e.get("id")}
     missing = sorted(hid for hid in handoffs if hid not in rows)
     # Closed spans: Talk on (a state shown, not off) with the Assistant closed; the pill shown from the grace on.

@@ -255,6 +255,9 @@ class Screen:
         self._accepted: dict[Any, _AcceptedWorkspace] = {}
         self._capture_work: set[asyncio.Task] = set()  # owned decode jobs, never observer/model jobs
         self._partial: dict[Any, dict | None] = {}  # client -> what its last report left out (Screen.partial)
+        # client -> {item id: when a report first showed it open}: "the newest window opened" is a recorded fact (the
+        # last result "explain that" means: board.last_result), never a guess from the stacking order.
+        self._opened: dict[Any, dict[str, float]] = {}
 
     @property
     def clock(self):
@@ -884,6 +887,7 @@ class Screen:
             ownership = self._structural_events(wire, client, profile, projected)
             self._reports[client] = {"observation": observed, "at": self.clock(),
                 "visible": wire["viewport"]["visible"], "applied": set(wire["applied"][:ITEMS_MAX])}
+            self._saw(client, projected.get("items") or [])
             if client is self._current_client():
                 for pid, prop, was in ownership:
                     self._own(pid, prop, "user", was)
@@ -909,6 +913,7 @@ class Screen:
         applied.update(str(c)[:40] for c in (message.get("applied") or [])[:ITEMS_MAX])
         self._reports[client] = {"items": items, "viewport": message.get("viewport"), "seq": message.get("seq"),
                                  "at": self.clock(), "visible": message.get("visible", True) is not False, "applied": applied}
+        self._saw(client, items)
         if client is self._current_client():
             for change in (message.get("user") or [])[:ITEMS_MAX]:
                 if isinstance(change, dict) and change.get("id") and change.get("prop"):
@@ -917,6 +922,18 @@ class Screen:
                     was = (before_item.get("style") or {}).get(change["prop"], before_item.get(change["prop"]))
                     self._own(str(change["id"])[:60], str(change["prop"])[:40], "user", was)
         self._notify()
+
+    def _saw(self, client, items: list[dict]) -> None:
+        """When each item was first reported open by this studio; one that closed or went is forgotten, so opening it
+        again is a new opening."""
+        before = self._opened.get(client) or {}
+        now = self.clock()
+        self._opened[client] = {str(i["id"]): before.get(str(i["id"]), now) for i in items[:ITEMS_MAX]
+                                if isinstance(i, dict) and i.get("id") and i.get("open", True) is not False}
+
+    def opened_at(self, pid: str) -> float | None:
+        """When the studio whose report counts first reported `pid` open (its wall clock), or None."""
+        return (self._opened.get(self._current_client()) or {}).get(pid)
 
     def _notify(self):
         latest = self.latest
@@ -951,6 +968,7 @@ class Screen:
         """A studio disconnected: its report no longer counts."""
         self._reports.pop(client, None)
         self._partial.pop(client, None)
+        self._opened.pop(client, None)
         profile = self._accepted.pop(client, None)
         if profile is not None:
             for binding in profile.changes.values():

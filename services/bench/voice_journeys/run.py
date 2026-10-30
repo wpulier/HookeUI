@@ -56,9 +56,10 @@ def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -
     return round(per_run * reps + (SETUP_USD if setup and plan.get("setup") else 0), 2)
 
 
-def reserve(budget: str, usd: float, purpose: str) -> str:
-    """The reservation id, or SystemExit(3) when the budget refuses it (nothing is started)."""
-    done = subprocess.run([sys.executable, budget, "reserve", "pr", f"{usd:.2f}", OWNER, purpose],
+def reserve(budget: str, usd: float, purpose: str, pot: str = "pr") -> str:
+    """The reservation id, or SystemExit(3) when the budget refuses it (nothing is started). `pot`: the budget's pot
+    it is drawn from (budget.py's pots: pr, stretch, held)."""
+    done = subprocess.run([sys.executable, budget, "reserve", pot, f"{usd:.2f}", OWNER, purpose],
                           capture_output=True, text=True)
     if done.returncode != 0:
         print(f"refused by the budget: {done.stderr.strip() or done.stdout.strip()}", file=sys.stderr)
@@ -169,7 +170,7 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
         if folder in pending and chosen is not None:
             from .judge import judge_run
 
-            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge))
+            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge), logs=logs)
             old = verdicts or {}
             still = [k for k, v in old.items() if not k.startswith("_") and k not in fresh and isinstance(v, dict)
                      and not v.get("error")]
@@ -230,6 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keys", default=str(stacks.KEYS), help="the keys file the stack (and the judge) read")
     parser.add_argument("--budget", default=os.environ.get("HOOKE_BENCH_BUDGET", ""), help="budget.py, for reserve/settle")
     parser.add_argument("--worst-usd", type=float, help="reserve this instead of the computed worst case")
+    parser.add_argument("--pot", default="pr", help="the budget pot to reserve from (pr, stretch, held)")
     parser.add_argument("--no-judge", action="store_true", help="timings and counts only: false done not measured")
     parser.add_argument("--judge", default="auto", choices=("auto", *JUDGES),
                         help="the judge: auto = gpt-6.1-sol (the default, comparable with old runs), else claude-opus-5-5, "
@@ -257,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.budget:
                 parser.error(f"{len(judging)} run(s) need the judge: pass --budget to reserve it, or --no-judge")
             worst = round(sum(judged_steps(f, args.rejudge) for f in judging) * COST_PER_STEP_USD, 2)
-            reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}")
+            reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}", args.pot)
         try:
             with judge_keys(args.keys):
                 result = write_results(out, plan, about, judge=not args.no_judge, checkout=Path(args.checkout),
@@ -277,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_needed = bool(plan.get("setup")) and not (out / "setup" / "bench.json").exists()
     worst = args.worst_usd if args.worst_usd is not None else \
         worst_case(plan, args.reps, args.voice, judge=not args.no_judge, setup=setup_needed)
-    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}")
+    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}", args.pot)
     checkout = Path(args.checkout).resolve()
     about = {"voice": args.voice, "talk": talk, "settings": {**(plan.get("settings") or {}),
                                                               **json.loads(args.settings or "{}")}, "checkout": str(checkout), "commit": commit(checkout),

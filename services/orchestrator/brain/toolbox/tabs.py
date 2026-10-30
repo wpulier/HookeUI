@@ -19,8 +19,9 @@ def add_tab_tools(registry, services):
         'gives only the Tabs holding a table: "which Tab has the measurements?" is answered from kinds, never titles. '
         'Researcher Tabs list what they show. Placing on a Tab: '
         'arrange puts its windows and the live view side by side (beside); only keeps just `keep` (window or placement '
-        'ids) open there, closing the rest and hiding the specimen (Main’s floats small); both done once the screen shows '
-        'it. Closing hides an arrangement and never deletes Data. '
+        'ids) open there, closing the rest and hiding the specimen (Main’s floats small), and with no keep closes '
+        'everything on the Tab ("close everything on this Tab"); both done once the screen shows it. Closing hides an '
+        'arrangement and never deletes Data. '
         'Each Tab also holds the specimen, the live view: it fills the Tab behind its windows, floats as a small '
         'window (a new Tab opens with it so), or is hidden there; list and the screen say which. It counts in what a '
         'Tab shows: name it when it is there, and float or hide it too for only one thing open in a Tab or everything '
@@ -35,8 +36,8 @@ def add_tab_tools(registry, services):
                 'kind': {'type': 'string', 'enum': ['table', 'outlines', 'tracks', 'image', 'reference', 'document',
                                                     'graph', 'video', 'web-page', 'magnifier', 'note'],
                          'description': 'list: only the Tabs holding this kind'},
-                'keep': {'type': 'array', 'items': {'type': 'string'}, 'minItems': 1, 'maxItems': 8,
-                         'description': 'only: the window or placement ids that stay open'},
+                'keep': {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 8,
+                         'description': 'only: the window or placement ids that stay open; none to close everything'},
                 'presentation': {'type': 'string', 'enum': ['table'],
                                  'description': 'add a population as its measurements table instead of its outlines'},
                 'specimen': {'type': 'string', 'enum': ['fill', 'float', 'hide']},

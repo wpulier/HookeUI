@@ -37,7 +37,7 @@ WHERE = {"cloud": "cloud", "mac": "this Mac", "both": "cloud and this Mac", "": 
 
 def _api_names(option) -> list[str]:
     """The names its calls are recorded under (api_usage.attempt's model): the spec's model ("gemini:gemini-3.8-flash@low"),
-    the catalog entry's API version ("veo-3.1-fast-generate-preview") and its key."""
+    the catalog entry's API version ("gemini-omni-1.1-flash") and its key."""
     from gpu_worker.manifests import get
 
     names = []
@@ -87,9 +87,11 @@ def rows(settings) -> list[dict]:
         if role == "fixed:video":
             from gpu_worker.manifests import get
 
-            entry = get("veo-3.1-fast")
-            row = {"role": role, "title": title, "model": entry.name if entry else "Veo 3.1 Fast", "runs": "cloud",
-                   "setting": None, "speed": _speed([entry.version if entry else "", "veo-3.1-fast"])}
+            from research_worker import video
+
+            entry = get(video.ENTRY)  # the video model researchers use (research_worker/video.py)
+            row = {"role": role, "title": title, "model": entry.name if entry else video.NAME, "runs": "cloud",
+                   "setting": None, "speed": _speed([entry.version if entry else video.MODEL, video.ENTRY])}
         else:
             chosen = current[group]
             group_options = options.GROUPS[group]

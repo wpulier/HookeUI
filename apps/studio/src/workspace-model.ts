@@ -83,8 +83,14 @@ export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[]):TabIte
  if(view.kind==='reader')return readerFact(view);
  const here=roots.filter(root=>root.dataset.workspaceView===view.id&&root.dataset.dismissed!=='true');
  const byPlacement=new Map(here.filter(root=>root.dataset.placementId).map(root=>[root.dataset.placementId!,root]));
+ // A window closed by its × stays mounted, dismissed: its arrangement is kept, but the Tab no longer holds it
+ // (will-display, 29 Oct: after "only the video", Main still listed the closed table, and Hooke hedged it might be open).
+ const closed=new Set(roots.filter(root=>root.dataset.workspaceView===view.id&&root.dataset.placementId
+  &&(root.dataset.dismissed==='true'||root.dataset.windowOpen==='false')&&!byPlacement.has(root.dataset.placementId))
+  .map(root=>root.dataset.placementId!));
  const out:TabItemFact[]=[];
  for(const item of view.items){
+  if(item.placementId&&closed.has(item.placementId))continue;
   const root=item.placementId?byPlacement.get(item.placementId):undefined;
   const native=root?.classList.contains('workspace-window')?{kind:root.dataset.sourceKind,media:root.dataset.sourceMedia}:null;
   out.push({placement:item.placementId??'',kind:itemKind(item,native),title:String(item.title||'Untitled window').slice(0,120),

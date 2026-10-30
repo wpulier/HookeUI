@@ -1,6 +1,6 @@
 {
  "id": "will-research",
- "about": "Will's research requests on the real June 14 leaf recording, as a journey (the finalisation plan's W1, the live partner spec's 4.8 horizontal 1): a researcher's result placed in a named Tab by the step Hooke keeps for when it lands, and a request stopped while Hooke is still working on it. The graphic step's window spans the researcher's work (waitFor), so what is said when it lands is judged with it. A document of the findings so far, saved and opened in a Tab of its own (W5: write_document, written from the Project's records, each paragraph citing them; its window spans the writing, `wait`). Later workstreams (W4) add their steps here. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "about": "Will's research requests on the real June 14 leaf recording, as a journey (the finalisation plan's W1, the live partner spec's 4.8 horizontal 1): a researcher's result placed in a named Tab by the step Hooke keeps for when it lands, and a request stopped while Hooke is still working on it. The graphic step's window spans the researcher's work (waitFor), so what is said when it lands is judged with it. W4 (4.8 horizontal 4, every claim comes from a check) adds \"I don't understand that, explain that\" right after the graphic lands, answered from that result's record (what made it, from what, when), and a generated video asked for by voice, whose failure must be said with its reason and what to do, or whose success comes from Veo 3.1 Fast's successor (Gemini Omni 1.1 Flash; Google retired Veo 3.1 Fast on 22 Oct 2026): a 6 s video is about $0.60 on top of its researcher. W5 adds a document of the findings so far, saved and opened in a Tab of its own (write_document, written from the Project's records, each paragraph citing them; its window spans the writing, `wait`). Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
@@ -28,6 +28,19 @@
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
   {
+   "id": "explain-graphic",
+   "kind": "ask",
+   "say": "I don't understand that, explain that.",
+   "expect": {
+    "tools": [
+     "do_in_hooke"
+    ],
+    "toolRequired": false,
+    "judge": "explains the last result, the labelled stoma graphic just placed in the Graphic Tab, from its record: what made it (the researcher, and the picture model when its record names one), from what (the photo of the stoma), when, and what its labels show, in simple everyday words; nothing its record doesn't say is claimed, it never explains something else, and no internal words (ids, tool names) are said"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
    "id": "findings-doc",
    "kind": "act",
    "say": "Write out the interesting findings so far, save that doc, and open it in a new tab.",
@@ -50,7 +63,8 @@
    "wait": 6,
    "expect": {
     "tools": [
-     "do_in_hooke"
+     "do_in_hooke",
+     "show_web"
     ],
     "toolRequired": false,
     "judge": "says in a few words that it is looking for one; never says a video was found or shown before it was"
@@ -67,6 +81,25 @@
     ],
     "outcome": true,
     "judge": "stops the video search Hooke was still doing and says it stopped only once it has, once; no video opens afterwards, and nothing is said about one being found"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "make-video",
+   "kind": "act",
+   "say": "Make a short video of a stoma opening and closing.",
+   "waitFor": {
+    "researcher": "done"
+   },
+   "wait": 900,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "start_researcher"
+    ],
+    "researchers": 1,
+    "outcome": true,
+    "judge": "starts one researcher on a generated video and says its outcome once, when it lands: either the video is shown, said to be a generated illustration made from the photo (not footage of the slide), or its failure is said with its reason in plain words (the video model retired, out of credit, no key, rate limited) and what the user can do; never a failure without its reason, never \"done\" before the video is there"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   }

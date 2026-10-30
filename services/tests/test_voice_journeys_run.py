@@ -525,3 +525,13 @@ def test_a_studio_build_older_than_its_sources_is_rebuilt_before_a_journey(tmp_p
     assert stack.stale(studio)
     built.unlink()
     assert stack.stale(studio)
+
+
+def test_the_judge_reads_each_steps_receipt_without_ids():
+    """will-display, 29 Oct: the receipt said 'a new Tab "Cell results" in front holds the cells' outlines…', but the
+    judge saw only "ok, confirmed" and called the claim unsupported: it gets the receipt's words, without ids."""
+    from bench.voice_journeys.judge import receipt
+
+    said = receipt('opened in window w-5deb0a46-bdb5-4341-8349-ccd9d24221dd: a new Tab "Cell results"  in front')
+    assert "w-5deb" not in said and 'a new Tab "Cell results" in front' in said
+    assert receipt("x" * 500).endswith("…") and len(receipt("x" * 500)) == 241

@@ -394,6 +394,25 @@ other files.
       as `user` with who and when (a day saved before this says `unknown`). The objective keeps
       who set it, and a calibration keeps the length it was made from (`Scale.facts`, for
       datasets). Field numbers 5-30 mm are accepted (a WF25x is about 9-10).
+- **"I don't understand that, explain that"** (the live partner spec's 4.8, horizontal 4: what a thing is and what made
+  it come from its record). "That" may be a result, not an outline: `board.last_result`, as of when the request was made
+  (`WhenAsked.at`), is the last thing the user saw or heard as an outcome: the newest exchange of the conversation's
+  journal with an answer (a typed answer, a hand-off's answer note, the voice's words, a late step's or a researcher's
+  note), with what its request made, opened or started (the turns' `resourceIds`, `objectIds` and `rid`), or the window in
+  front when the studio first showed it open after that answer (`Screen.opened_at`, a recorded fact, never the stacking
+  order). Nothing made after the request is what it meant. `resources(id="that")` gives it as facts, never prose: when
+  and how it was asked, what was said, the request's steps with the models that ran them (its Activity line,
+  `request:<session>:<turn>`), each result's record (`resource_how.how`: what made it, settings, from what, when, at
+  whose request, with the app's own titles), each outline's account (`known.py`), and the newest result's own reading
+  with its numbers (paged, a researcher's words in their wrapper), with the user's level; the model explains from those.
+  The voice hands it over (`do_in_hooke` names it). With nothing said yet it asks which result is meant.
+- **Why a model could not be used** is one mapping (`research_worker/api_usage.refusal`: retired, out of credit, no
+  key, a refused key, rate limited, the provider's error, no connection, cut off, the cap), read from the error's own
+  status and codes, said with what to do and the provider's words kept as detail. The brain's answer gets it through
+  `dispatch.refusal` ("Claude Opus 5.5 couldn't be used: your Anthropic account is out of credit; add credit to your
+  Anthropic account, or choose another model"), never "did not answer (…)"; the quick pass still falls back to the full
+  look for these (another model may answer), and stops only for the app's own policy (`POLICY_KINDS`). A researcher's
+  failed video, the engines' credit refusal, a model card's last use and the voice's diagnostics read the same mapping.
 - Corrections of segmented cells (`correct_cells`, M2): only when the user says some are wrong ("that's
   not a cell" about the clicked one, "these two are one cell", "undo that"). Each is a new revision of the
   population (`population.correct`, `Evidence.revise`): revision 0, the model's own, never changes and its

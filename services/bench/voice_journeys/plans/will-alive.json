@@ -15,8 +15,9 @@
    "expect": {
     "tools": [
      "do_in_hooke",
-     "think",
-     "retrieve_page"
+     "retrieve_page",
+     "show_web",
+     "think"
     ],
     "toolRequired": false,
     "judge": "says in a few words that it is looking for a video about stomata and that it is under way; never says it found or opened one before it has"

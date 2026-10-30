@@ -339,8 +339,10 @@ are doing, cancelling), and Projects ("use a segmentation model on the center th
 split it into steps, rephrase it into tools or choose how: Hooke's brain sees the view, knows what the user clicked and
 what "that" is, does it, checks it on screen and answers. Say its answer in your own words, the outcome first. When
 something failed, say what failed and why, from its answer, and what the user can do ("The video model has been
-retired; want me to use another?"). A request still under way is not done: say once, in a few words, that it is under
-way; its outcome is told to you when it lands. When the user says stop or cancel for a request Hooke is still working
+retired; want me to use another?"). A request still under way is not done, and its row on screen shows it working:
+say nothing more about it until its outcome is told to you, then say that once. Asked what Hooke has or could add, say
+what is ready and, for each addition worth naming, what it needs (a download and its size, a key, a setup); the chat
+shows the full list. When the user says stop or cancel for a request Hooke is still working
 on ("actually, stop that"), call stop_work, and say it stopped only once its result says it has; a researcher is
 stopped through do_in_hooke. Hooke's chat shows each request you hand over as a row of its own until its
 outcome, so the user can keep talking: when they ask for something new while one is under way, say one short line about
@@ -355,12 +357,26 @@ brief lists only the models in use. Never tell the user to restart, refresh, rel
 """
 
 
+LEAD_IN = ("Use a lead-in (\"Outlining them now.\") only before a tool that takes noticeable time (every cell outlined, a\n"
+           "researcher, a search); skip it for direct answers and quick actions (highlight, select, a Tab, close): call the tool,\n"
+           "then speak once, after its result (\"That oval is likely a stoma; it's highlighted.\").")
+LEAD_IN_BRAIN = ("A lead-in is at most four words naming the work (\"Outlining every cell.\"), and only before long work (every\n"
+                 "cell, a web search, a researcher, several models); never \"let me\", \"sure\", \"okay\" or \"got it\", and\n"
+                 "never why. Before anything else, no words: call the tool, then speak once, after its result (\"That oval is\n"
+                 "likely a stoma; it's outlined.\"). Name the likeliest thing plainly; a doubt in a few words after it, never a\n"
+                 "list of other things it might be.")
+
+
 def partner_prompt(acts: str = "brain") -> str:
     """The voice's instructions for how it acts (option PARTNER_ACTS): "brain" hands what is done in Hooke to Hooke's
     brain (PARTNER_ACTING_BRAIN); "direct" is the voice calling Hooke's tools itself (PARTNER's own Acting)."""
     if acts != "brain":
         return PARTNER
     head, rest = PARTNER.split("# Acting\n", 1)
+    # Will's journeys, 29 Oct: every quick request got a lead-in ("Let me take a closer look at that central feature
+    # before I name it.", "Sure, let me pull up the results table"), judged as filler; four plain words before long work
+    # scored as a colleague's. And a blurry look named three things it might be instead of the likeliest.
+    head = head.replace(LEAD_IN, LEAD_IN_BRAIN)
     _, tail = rest.split("# Pointing\n", 1)
     tail = tail.replace("never for what a tool just showed: highlight and outline tools show what they\nact on, and "
                         "after a tool that changes the screen Hooke points at its result as you speak (its result says\n"

@@ -72,10 +72,16 @@ class WorkspaceTabs:
             if key in args and (not isinstance(args[key], str) or not 1 <= len(args[key]) <= 256):
                 raise ToolFailed('Tab names and identities must be nonempty bounded text', next='list the Tabs first')
         action = args['action']
-        if action == 'only' and (not isinstance(args.get('keep'), list) or not 1 <= len(args['keep']) <= 8
+        if action == 'only' and isinstance(args.get('keep'), str):
+            args = {**args, 'keep': [args['keep']]}  # one id as a string (the brain sent it so, 29 Oct): that one stays
+        if action == 'only' and 'keep' not in args:
+            # Nothing named to keep: "close everything on this Tab" (will-workspace, 29 Oct: refused, so the brain closed
+            # each window by hand). Every window there closes; Main's specimen floats small, as it always stays.
+            args = {**args, 'keep': []}
+        if action == 'only' and (not isinstance(args.get('keep'), list) or not 0 <= len(args['keep']) <= 8
                                  or not all(isinstance(k, str) and 1 <= len(k) <= 256 for k in args['keep'])):
-            raise ToolFailed('name what stays: keep, the window or placement ids from the screen or tabs list',
-                             next='list the Tabs to see what each holds')
+            raise ToolFailed('keep is up to 8 window or placement ids from the screen or tabs list, or none to close '
+                             'everything on the Tab', next='list the Tabs to see what each holds')
         if action == 'only':
             # A window id as the screen shows it (document:<placement>) is its placement on the Tab.
             args = {**args, 'keep': [k.removeprefix('document:') for k in args['keep']]}

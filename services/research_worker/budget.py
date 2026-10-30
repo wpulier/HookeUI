@@ -26,7 +26,10 @@ PRICES = {
     "gemini-3.1-flash-image": {"text_in": 5.00, "image_in": 8.00, "image_out": 30.00},
     "web_search": 0.010,      # OpenAI, per call (search content tokens are billed as input)
     "google_search": 0.014,   # Gemini, per query beyond the monthly free tier (counted as paid)
-    "veo-3.1-fast": 0.10,     # per second at 720p
+    "veo-3.1-fast": 0.10,     # per second at 720p (retired by Google on 2026-10-22; kept for the records it made)
+    # Its successor, per second at 720p: 5,792 output tokens a second at $17.50 a million (Google's pricing page, read
+    # 2026-10-29: "approximately $0.10 per second"). research_worker/video.py.
+    "gemini-omni-flash": 0.10,
     "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
     "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations and vision; fast mode is twice this (vision.py)
     "gemini-4-argon": {"in": 4.00, "out": 20.00},  # vision; $2/$10 until 2026-11-30, priced at the list price after it

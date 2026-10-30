@@ -4465,10 +4465,10 @@
       "id": "fixed:video",
       "kind": "model",
       "title": "Video",
-      "label": "Veo 3.1 Fast",
+      "label": "Gemini Omni 1.1 Flash",
       "purpose": "Makes researchers' videos",
-      "source": "research_worker.researcher:VIDEO_MODEL",
-      "model": "veo-3.1-fast",
+      "source": "research_worker.video:MODEL",
+      "model": "gemini-omni-flash",
       "uses": [
         "gemini-api"
       ]
@@ -4667,7 +4667,7 @@
       "kind": "model",
       "title": "Looking closely",
       "purpose": "Names a thing exactly for the voice when a few seconds is fine",
-      "hint": "the voice says it is taking a closer look"
+      "hint": "the voice says what it found once; the screen shows it thinking meanwhile"
     },
     {
       "id": "watch",

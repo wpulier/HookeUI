@@ -57,6 +57,10 @@ class Found:
     # words. Empty when nothing looked at it (the legacy catalogue `find`), which is then said, not guessed.
     shows: str = ""
     looked_by: str = ""  # the model that looked
+    # Set when no photo found was all that was asked and this is the nearest of the requested subject: what it misses
+    # (the look's own words, "shows three stomata, not one"), said with it (will-workspace, 29 Oct: nine photos of
+    # several stomata were turned down for "a single stoma" and the user was left with nothing).
+    differs: str = ""
 
 
 def queries(subject: str) -> list[str]:
@@ -179,6 +183,7 @@ async def retrieve(subject: str, n: int = 1, *, search_terms: list[str] | None =
     failures = []
     rejected = []
     turned_down = []  # what the look saw in each picture it turned down, said if none passes
+    nearest = []  # the first picture turned down that is of the requested subject (match, image, look), offered if none passes
     visited_pages = set()
 
     def reject(page, reason):
@@ -214,6 +219,8 @@ async def retrieve(subject: str, n: int = 1, *, search_terms: list[str] | None =
                     if look.matches:
                         return match, image, look
                     turned_down.append(look)
+                    if look.subject and not nearest:
+                        nearest.append((match, image, look))
                     reject(match['page'], 'looked at and turned down: it shows ' + look.shows
                            + (f' (it fails: {look.unmet})' if look.unmet else ''))
                 except safe_fetch.FetchRefused as exc:
@@ -366,6 +373,14 @@ async def retrieve(subject: str, n: int = 1, *, search_terms: list[str] | None =
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+    if nearest:
+        # None was all that was asked; the nearest of the subject is shown with what it misses, said plainly.
+        match, image, look = nearest[0]
+        page = image.page if image.licence else match["page"]
+        return Found(image.jpeg, image.width, image.height, image.title or match["title"] or look.shows, page,
+                     image.licence, image.author, image.credit() if image.licence else urlparse(page).hostname or page,
+                     subject, n, round(time.monotonic() - started, 2), look.shows, LOOKUP_MODEL,
+                     differs=look.unmet or "not exactly what was asked")
     if turned_down:
         # Said plainly: what the photos found showed, and that none was what was asked.
         seen = '; '.join(dict.fromkeys(look.shows[:160] + (f' (fails: {look.unmet[:80]})' if look.unmet else '')

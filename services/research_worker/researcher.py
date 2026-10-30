@@ -35,6 +35,8 @@ from . import claims as claim_check
 from . import evidence as evidence_check
 from . import transcript
 from .limits import FIELD_MAX, HOLD_MAX_S, TooLong, whole
+from .api_usage import refusal, refusal_clause
+from . import video
 from .budget import (ALIVE_EVERY_S, CALL_MOST, CELL_FINDERS, CHART_TOOLS, CHECK_IN_COST_X, CHECK_IN_S, CHECK_IN_WAIT_S, EFFORTS, PRICES,
                      RUN_OPERATIONS, RUN_WAIT_MAX_S, STALL_ROUNDS, WRAP_UP_AT,
                      Budget, OverBudget, estimate_cancelled, image_cost, operation_limit, tokens_cost)
@@ -50,8 +52,8 @@ from .work import (LESSON, UnreadableReply, REVISE_LABELS, REVISE_LESSON, SCHEMA
                    inline_photo, json_reply, named_steps, offline_lesson, slug, trim)
 
 IMAGE_MODEL_DEFAULT = "gpt-image-2.5-flare"
-VIDEO_MODEL = "veo-3.1-fast-generate-preview"
-VIDEO_NAME = "Veo 3.1 Fast"  # its one name (catalog/models/veo-3.1-fast), said when it can't be used
+VIDEO_MODEL = video.MODEL  # research_worker/video.py: Veo 3.1 Fast's successor since Google retired it
+VIDEO_NAME = video.NAME  # its one name (catalog/models/gemini-omni-flash), said when it can't be used
 CHART_TABLE_MAX = 2_000_000  # characters of one table a chart reads whole (measurement_charts.py)
 LESSON_CLAUDE = "claude-sonnet-5-5"  # lessons when ANTHROPIC_API_KEY is set (capability role fixed:lesson-writer)
 LESSON_FALLBACK = "gpt-6.1-sol"  # lessons otherwise
@@ -243,6 +245,9 @@ class Researcher:
         self.saved_finding_refs: set[str] = set()  # scientific revisions survive a later presentation failure
         self.outputs = 0
         self.made: list[dict] = []  # this run's outputs, as emitted (for a partial result)
+        # Models this run could not use, each with why and what to do (api_usage.refusal): its result says them as facts
+        # (`unavailable`), whatever its write-up says (the live partner spec's 4.8, horizontal 4).
+        self.unavailable: list[dict] = []
         self.failed_urls: dict[str, str] = {}  # url -> why it could not be fetched (never fetched again)
         self.fetch_tries: dict[str, int] = {}  # url -> fetches that failed for a reason that may pass (FETCH_TRIES)
         self.spent_estimated = 0.0  # calls cancelled by a stop (billed, usage unknown)
@@ -1247,17 +1252,19 @@ class Researcher:
                 await asyncio.to_thread(_as_jpeg, still))
 
     async def tool_make_video(self, args: dict):
-        """Veo 3.1 Fast image-to-video from the photo, padded to 16:9 (spike S6). When the provider refuses or fails, the
-        error says which model and the provider's own status, so the user hears why (live 2026-10-28: "I can't see the
-        exact error"), and what can be made instead."""
+        """Gemini Omni 1.1 Flash image-to-video from the photo, padded to 16:9 (research_worker/video.py; spike S6 made it
+        with Veo 3.1 Fast, which Google retired on 22 Oct 2026). When the provider refuses or fails, the error says
+        which model, why in a person's words and what to do (api_usage.refusal: retired, out of credit, no key, rate
+        limited...), with the provider's own status beside it, so the user hears why (live 2026-10-28: "I can't see the
+        exact error"; Will's try-out of 29 Oct: "retired", said without the reason), and what can be made instead."""
         from google import genai
-        from google.genai import types
 
         from .fidelity import pad_to
 
         seconds = int(args.get("seconds") or 6)
-        seconds = seconds if seconds in (4, 6, 8) else 6
-        self.budget.check(PRICES["veo-3.1-fast"] * seconds)
+        seconds = seconds if seconds in video.SECONDS else 6
+        price = PRICES[video.ENTRY] * seconds
+        self.budget.check(price)
         source = self.crop_jpeg or self.frame_jpeg
         motion = whole(" ".join(str(args.get("motion") or "").split()), "motion")
         self.step(f"Making a {seconds} s video: {motion[:80]}")
@@ -1265,24 +1272,14 @@ class Researcher:
                   "Keep the camera and framing still; no text, no labels.")
         try:
             client = genai.Client(http_options={"retry_options": {"attempts": 1}})  # one admitted attempt
-            operation = await client.aio.models.generate_videos(
-                model=VIDEO_MODEL, prompt=prompt,
-                image=types.Image(image_bytes=pad_to(source, 1280, 720), mime_type="image/png") if source else None,
-                config=types.GenerateVideosConfig(duration_seconds=seconds, aspect_ratio="16:9", resolution="720p", number_of_videos=1))
-            while not operation.done:
-                await asyncio.sleep(4)
-                operation = await client.aio.operations.get(operation)
+            data = await video.make(client, prompt, pad_to(source, 1280, 720) if source else None, seconds)
         except asyncio.CancelledError:
             # Asked for, the video is made and billed whether or not anyone waits for it: its price is counted.
-            self.cancelled_call(VIDEO_MODEL, usd=PRICES["veo-3.1-fast"] * seconds)
+            self.cancelled_call(VIDEO_MODEL, usd=price)
             raise
-        except Exception as exc:  # noqa: BLE001 - the provider's status is said, never hidden behind "a step didn't work"
-            return self._video_unavailable(provider_status(exc), detail=f"{type(exc).__name__}: {exc}"), None
-        if operation.error:
-            return self._video_unavailable(provider_status(operation.error), detail=str(operation.error)), None
-        self.spend(VIDEO_MODEL, PRICES["veo-3.1-fast"] * seconds)
-        video = operation.response.generated_videos[0].video
-        data = video.video_bytes or await asyncio.get_running_loop().run_in_executor(None, lambda: client.files.download(file=video))
+        except Exception as exc:  # noqa: BLE001 - why is said, never hidden behind "a step didn't work"
+            return self._video_unavailable(exc, detail=f"{type(exc).__name__}: {exc}"), None
+        self.spend(VIDEO_MODEL, price)
         self.outputs += 1
         rel = f"outputs/{self.outputs:02d}-video.mp4"
         (self.dir / rel).write_bytes(data)
@@ -1293,15 +1290,23 @@ class Researcher:
         self.emit_output("video", rel, caption, text_content(motion, caption), generated=True)
         return {"ok": True, "output": rel}, None
 
-    def _video_unavailable(self, status: str, detail: str) -> dict:
-        """The video model refused or failed: said on its card with the provider's status, and told to the model with
-        what it can make instead (an animation of a table it read, when it has that tool)."""
-        self.step(f"The video model was unavailable ({VIDEO_NAME}, {status}); no video was made", "warning",
-                  detail=f"make_video: {detail}"[:600])
+    def _video_unavailable(self, error, detail: str) -> dict:
+        """The video model refused or failed: said on its card with why and what to do (api_usage.refusal) and the
+        provider's status, kept on the run as a fact its result carries (`unavailable`, whatever its write-up says), and
+        told to the model with what it can make instead (an animation of a table it read, when it has that tool)."""
+        found = refusal(error, model=VIDEO_NAME, provider="Google", keys=("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+        status = provider_status(error)
+        self.unavailable = [*getattr(self, "unavailable", []),
+                            {"model": VIDEO_NAME, "for": "the video", **found, "status": status[:200]}]
+        self.step(f"The video model ({VIDEO_NAME}) couldn't be used: {refusal_clause(found)}; {found['todo']}; no video "
+                  "was made",
+                  "warning", detail=f"make_video: {status}; {detail}"[:600])
         instead = (" To show measurements changing instead, animate_measurements draws an animation from a table this "
                    "session kept." if "animate_measurements" in self.tool_names() else "")
-        return {"error": f"the video model was unavailable ({VIDEO_NAME}, {status}); no video was made. Say exactly that "
-                         f"in your result (limitations), with this status.{instead}"}
+        return {"error": f"the video model ({VIDEO_NAME}) couldn't be used: {refusal_clause(found)} ({status}); no "
+                         "video was made. Say that in your result's limitations, "
+                         f"with what the user can do: {found['todo']}.{instead}",
+                "reason": found["reason"], "todo": found["todo"]}
 
     async def tool_make_lesson(self, args: dict):
         """A one-page interactive lesson: Claude when ANTHROPIC_API_KEY is set, else gpt-6.1-sol."""
@@ -1831,6 +1836,8 @@ class Researcher:
             self.result['captures'] = captures
         if getattr(self, 'lesson_draft', None):
             self.result['lesson'] = copy.deepcopy(self.lesson_draft)
+        if getattr(self, "unavailable", None):  # a model it could not use, with why: a fact of the run, not its words
+            self.result['unavailable'] = copy.deepcopy(self.unavailable)
         # A fact beside its sources (not a verdict on them): which cited pages none of its searches or fetches returned.
         # Only when its engine gives the pages' own addresses (a grounding redirect is not one).
         seen = {self._norm_url(u) for u in [*getattr(self, "search_sources", []),
@@ -1982,6 +1989,8 @@ class Researcher:
                                          findings=self.recorded, searched=self.search_sources, operations=self.ran_facts)
             if self.rejected:
                 self.result["rejected"] = copy.deepcopy(self.rejected)
+            if getattr(self, "unavailable", None):
+                self.result["unavailable"] = copy.deepcopy(self.unavailable)
             self.step("Kept what it found and made (no write-up)", "warning")
             status = "partial"
         if self.result is None and status == "done":

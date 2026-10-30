@@ -1127,6 +1127,19 @@ def test_a_wait_from_release_to_first_words_needs_thinking_shown():
     assert line_["result"] == "FAIL" and alive_run["uncovered"][0]["shown"] == ["idle", "thinking"], line_
 
 
+def test_an_idle_flicker_between_two_states_is_not_a_gap():
+    """will-alive, 29 Oct: "idle" shown for 0 ms as a hand-off's row ended and the voice began its outcome counted the
+    whole 7.6 s wait as uncovered. A state shown for less than ALIVE_FLICKER_S is a flicker, not a gap."""
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows + [shown(5.0, "working", n=1), shown(7.9, "idle"), shown(7.9, "thinking"), shown(8.5, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and not alive_run["uncovered"], line_
+    bench["events"] += [shown(6.0, "idle"), shown(6.8, "working", n=1)]  # 0.8 s of idle in the wait: uncovered
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["uncovered"], line_
+
+
 def test_a_short_idle_gap_is_not_a_silent_wait():
     bench, conv, inter, verdicts = good()
     more, rows = handed("h1", 5.0, 6.5)  # 1.5 s: under the 2 s the finish line names
