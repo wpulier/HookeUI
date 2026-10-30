@@ -2483,6 +2483,7 @@
           "view",
           "sessions-reveal",
           "project-storage",
+          "project-open-folder",
           "project-reveal",
           "project-export-prepare",
           "project-export",
