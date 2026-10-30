@@ -72,12 +72,15 @@ def _members(root, check, directories=None):
     return found
 
 
-def _stream(path, expected=None, output=None, check=lambda: None):
+def _stream(path, expected=None, output=None, check=lambda: None, *, max_bytes=None):
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as source:
         before = os.fstat(source.fileno())
         if not stat.S_ISREG(before.st_mode) or (expected and _stamp(before) != expected):
             raise ProjectLocationError('Project bytes changed during copying; keep the original and retry')
+        if max_bytes is not None and before.st_size > max_bytes:
+            raise ProjectLocationError('Project bytes exceed the requested verification allowance')
+        check()
         digest = hashlib.sha256()
         remaining = before.st_size
         while remaining:

@@ -85,7 +85,7 @@ def resolve(artifacts, session, entry):
     return resolve_entry(artifacts.day, session, entry)
 
 
-def resolve_entry(day, session, entry):
+def resolve_entry(day, session, entry, *, max_manifest_bytes=None, check=lambda: None):
     """Shared journal reader, including workspace recovery without a live Evidence artifacts."""
     path = entry['path']
     locations = getattr(day, 'locations', None)
@@ -110,15 +110,15 @@ def resolve_entry(day, session, entry):
     if not isinstance(expected, str) or not re.fullmatch('[a-f0-9]{64}', expected):
         raise ProjectLocationError('Evidence is missing its accepted manifest identity')
     # Stream the original manifest: no unbounded extra copy on large populations.
-    actual = _digest(manifest)
+    actual = _digest(manifest, max_bytes=max_manifest_bytes, check=check)
     if actual != expected:
         raise ProjectLocationError('Evidence no longer matches its accepted revision')
     return folder
 
 
-def _digest(path):
+def _digest(path, *, max_bytes=None, check=lambda: None):
     from .project_folder_copy import _stream
-    return _stream(path)[1]
+    return _stream(path, check=check, max_bytes=max_bytes)[1]
 
 
 def remember(artifacts, folder):

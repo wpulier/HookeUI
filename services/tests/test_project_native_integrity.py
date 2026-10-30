@@ -78,3 +78,31 @@ def test_native_verification_cancellation_preserves_original(project):
     with pytest.raises(RuntimeError, match='cancelled'):
         verify_native_records(locations.project(day.sid), check=cancelled)
     assert (p.path / 'manifest.json').read_bytes() == before
+
+
+def test_manifest_allowance_applies_before_manifest_hashing(project, monkeypatch):
+    day, locations, evidence, _ = project
+    make(evidence, day)
+    monkeypatch.setattr('orchestrator.project_native_integrity.MAX_EVIDENCE_FILE', 1)
+    with pytest.raises(ProjectLocationError, match='verification allowance'):
+        verify_native_records(locations.project(day.sid))
+
+
+def test_manifest_hash_observes_verification_cancellation(project, monkeypatch):
+    from orchestrator import project_folder_copy
+    day, locations, evidence, _ = project
+    p = make(evidence, day)
+    stream = project_folder_copy._stream
+    hashing = False
+    checks = []
+    def wrapped(path, *args, **kwargs):
+        nonlocal hashing
+        if path == p.path / 'manifest.json': hashing = True
+        return stream(path, *args, **kwargs)
+    monkeypatch.setattr(project_folder_copy, '_stream', wrapped)
+    def cancel_during_hash():
+        checks.append(hashing)
+        if hashing: raise RuntimeError('cancelled during manifest hash')
+    with pytest.raises(RuntimeError, match='cancelled during manifest hash'):
+        verify_native_records(locations.project(day.sid), check=cancel_during_hash)
+    assert True in checks

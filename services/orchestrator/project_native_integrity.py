@@ -39,7 +39,7 @@ def verify_native_records(root, *, check=lambda: None):
         saves += 1
         if saves > MAX_SAVES:
             raise ProjectLocationError('Native evidence verification exceeds its history allowance')
-        folder = resolve_entry(day, root.session, event)
+        folder = resolve_entry(day, root.session, event, max_manifest_bytes=MAX_EVIDENCE_FILE, check=check)
         identity = (event['path'], event.get('manifestSha256'), event.get('id'), event.get('revision'))
         if identity in checked:
             return
@@ -54,7 +54,7 @@ def verify_native_records(root, *, check=lambda: None):
             check()
             if name in OPTIONAL_FILES and _stream(folder / name, check=check)[1] != digest:
                 raise ProjectLocationError('Accepted native evidence enrichment is missing or changed')
-        resolve_entry(day, root.session, event)  # manifest must still match the journal pin
+        resolve_entry(day, root.session, event, max_manifest_bytes=MAX_EVIDENCE_FILE, check=check)  # manifest must still match the journal pin
         checked.add(identity)
 
     try:
