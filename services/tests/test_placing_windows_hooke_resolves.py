@@ -363,7 +363,8 @@ def test_a_table_never_side_by_side_is_said_plainly_with_nothing_to_ask_again(tm
     from orchestrator import table_window
     from tests.test_workspace_display import built as display_built, population
 
-    monkeypatch.setattr(table_window, 'TABLE_WAIT_S', 1.2)
+    monkeypatch.setattr(table_window, 'TABLE_WAIT_S', 3.0)
+    monkeypatch.setattr(table_window, 'REARRANGE_S', 0.2)
 
     async def go():
         app, studio = await display_built(tmp_path, monkeypatch, arranges=False)

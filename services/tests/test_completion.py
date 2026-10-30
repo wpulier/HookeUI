@@ -2174,8 +2174,10 @@ def test_front_on_a_tab_is_not_confirmed_while_a_window_there_is_over_it(fault):
     assert compare(expected, observed, command)['status'] != 'confirmed'
 
 
-def test_a_closed_window_is_no_longer_over_the_one_brought_to_front():
+def test_a_window_closed_since_is_no_longer_over_the_one_brought_to_front():
     expected, observed, command, _ = tab_front_case()
-    observed['items'][1]['z'] = 99
-    observed['items'][1]['open'] = False
+    gone = deepcopy(observed['items'][1])
+    gone.update(id='w-closed', rootId='root-closed', z=99, open=False, visible=False)
+    observed['items'].append(gone)
+    expected[-1]['expected']['above'] = [B, 'w-closed']
     assert compare(expected, observed, command)['status'] == 'confirmed'

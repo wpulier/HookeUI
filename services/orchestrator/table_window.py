@@ -167,7 +167,7 @@ async def _tab(services, ctx, asked: str, *, new: bool = False) -> tuple[str, st
             raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made; the studio lists "
                              f"{len(reply.get('tabs') or [])} Tabs", next=None)  # no next: what the studio lists is said
         tab, made = fresh[0], True
-    for attempt in range(2):  # a Tab that did not come forward is switched to once more, by Hooke
+    for _ in range(2):  # a Tab that did not come forward is switched to once more, by Hooke
         if tab.get("selected"):
             break
         reply = await services.workspace_tabs(ctx, {"action": "switch", "tab": tab["id"]})

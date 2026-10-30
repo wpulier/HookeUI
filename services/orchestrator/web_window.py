@@ -87,7 +87,8 @@ async def show(services, ctx, studio: ReaderStudio, *, shown: dict, title: str, 
             await act(services, {"do": "close", "what": before}, ctx=ctx)
 
     def refused(why: str):
-        raise ToolFailed(f"{what} is not shown in {where}: {why}; {kept}", next="ask again to open it there")
+        raise ToolFailed(f"{what} is not shown in {where}: {why}; {kept}",
+                         next=None)  # no next: what the screen shows, where it is kept and its link are said
 
     message = {"type": "web-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
                "workspacePin": studio.pin,

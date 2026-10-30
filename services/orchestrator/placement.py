@@ -415,7 +415,8 @@ async def open_picture(services, ctx, source: dict, title: str) -> str:
     opened = [o.wire() for o in (run.outputs[before:] if run is not None else ())]
     window = next((o.get("instanceId") for o in reversed(opened) if o.get("kind") == "presentation"), None)
     if not window:
-        raise ToolFailed("its window did not open", next="ask again to open it there")
+        raise ToolFailed("its window did not open: the studio confirmed no new window for it",
+                         next=None)  # no next: the open was sent and its confirmation awaited; nothing to repeat
     return str(window)
 
 
@@ -514,8 +515,13 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
         front = next((t for t in tabs if t.get("selected")), None)
+        if front is None:  # a researcher's Tab in front, or a list taken mid-switch: Hooke asks once more
+            listed = await broker(ctx, {"action": "list"})
+            front = next((t for t in listed.get("tabs") or () if isinstance(t, dict) and t.get("selected")
+                          and (t.get("kind") or "work") == "work"), None)
         if front is None:
-            raise ToolFailed("the studio has not said which Tab is in front", next="list the Tabs, then ask again")
+            raise ToolFailed("no Tab of this Project's own work is in front to put it in (a researcher's Tab or "
+                             "another page is)", next="name the Tab to put it in")
         tab_id, tab_title, made = str(front["id"]), str(front.get("title") or ""), False
     where = f'Tab "{inline(tab_title, 80)}"' + (" (a new Tab)" if made else "")
     here = [item for t, item in found if t.get("id") == tab_id]
