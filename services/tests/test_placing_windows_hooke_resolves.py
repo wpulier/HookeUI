@@ -258,3 +258,71 @@ def test_a_photo_beside_a_window_in_an_area_too_small_for_both_is_said_plainly(r
         said = run.summary.lower()
         assert 'make room' not in said and 'ask again' not in said and 'select the original' not in said, run.summary
     asyncio.run(go())
+
+
+# --- the table beside what is open (will-workspace "table", runs 2 and 3) ----------------------------------------------
+
+def test_a_table_whose_window_lands_after_the_arrange_is_arranged_again_and_shown_beside(tmp_path, monkeypatch):
+    """will-workspace runs 2-3: "Open a table of its results." show_measurements (beside, the default) failed after 8 s
+    with "its window is open there but not side by side yet: its windows still overlap; ask again to open it there".
+    The Tab was arranged once, straight after the studio answered, and a window that lands a beat later sits on top of
+    the tiling. Hooke arranges once the window is there, and again (bounded) until the report shows it side by side."""
+    from orchestrator.commands import COMMANDS
+    from tests.test_workspace_display import DisplayStudio, built as display_built, population, wire
+    from orchestrator.placement import beside_shown
+
+    class LateWindow(DisplayStudio):
+        """The table window joins its Tab 0.3 s after the studio answered, cascaded at its default place."""
+
+        async def table_reply(self, message):
+            placement = f'p{len(self.windows) + 1}'
+            await COMMANDS['table-window-result'](self.app, self, {
+                'type': 'table-window-result', 'id': message['id'], 'session': message['session'],
+                'workspacePin': message['workspacePin'],
+                'result': {'ok': True, 'placement': placement, 'project': self.project, 'tab': message['tab'],
+                           'fitted': False}})
+            await asyncio.sleep(0.3)
+            self.windows[placement] = {'tab': message['tab'], 'title': message['item']['title'], 'z': 30,
+                                       'resource': {**message['item']['resource'], 'picture': 0},
+                                       'state': 'rendered', 'generation': 1, 'rect': [40, 80, 420, 380]}
+            await self.send_report()
+
+    import tests.test_table_window as table
+    monkeypatch.setattr(table, 'TableStudio', LateWindow)
+
+    async def go():
+        from tests.test_table_window import asked, built as table_built
+        app, studio = await table_built(tmp_path, monkeypatch)
+        eid = population(app, monkeypatch)
+        studio.specimens['main'] = {'state': 'float', 'rect': [900, 500, 400, 300]}
+        run = await asked(app, studio, 'show_measurements', {'of': eid})
+        assert run.ok is True, run.summary
+        (placement,) = list(studio.windows)
+        assert beside_shown(wire(app, studio), 'main', [f'document:{placement}'])[0]
+        assert 'tiled side by side' in run.summary
+        assert 'ask again' not in run.summary
+    asyncio.run(go())
+
+
+def test_a_table_never_side_by_side_is_said_plainly_with_nothing_to_ask_again(tmp_path, monkeypatch):
+    """A studio whose Arrange never tiles it (the true limit): not done, said with where the table is saved, and no
+    "ask again" handed to the user; Hooke arranged it more than once itself."""
+    from orchestrator import table_window
+    from tests.test_workspace_display import built as display_built, population
+
+    monkeypatch.setattr(table_window, 'TABLE_WAIT_S', 1.2)
+
+    async def go():
+        app, studio = await display_built(tmp_path, monkeypatch, arranges=False)
+        eid = population(app, monkeypatch)
+        run = await asked_in(app, studio, 'show_measurements', {'of': eid})
+        assert run.ok is False
+        assert 'saved in data' in run.summary.lower() and 'ask again' not in run.summary.lower(), run.summary
+        arranges = [m for m in studio.sent('workspace-tabs') if m['action']['action'] == 'arrange']
+        assert len(arranges) >= 2, 'arranged again by Hooke before saying it is not side by side'
+    asyncio.run(go())
+
+
+async def asked_in(app, studio, tool, args):
+    from tests.test_table_window import asked
+    return await asked(app, studio, tool, args)

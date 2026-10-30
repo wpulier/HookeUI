@@ -16,6 +16,8 @@ _PIN_FIELDS = ("id", "rootId", "kind", "lifetimeGeneration", "sourceGeneration")
 ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only', 'reader')
 SPECIMEN_WAIT_S = 4.0  # the studio's report showing the specimen as asked, after its save was acknowledged
 PLACED_WAIT_S = 4.0  # the studio's report showing a Tab arranged (beside) or holding only what was kept (only)
+ARRANGES = 3  # beside: the Tab's Arrange, sent again while the report shows its windows overlapping
+REARRANGE_S = 1.0  # between two Arranges: the studio's report of the last one comes first
 ADD_PRESENTATIONS = {'population': 'masks', 'dataset-table': 'datatable', 'analysis': 'analysis', 'graph': 'graph',
                      'result-table': 'table'}
 ASK_EVERY_S = 0.5  # a studio in the background reports only when asked (main.ts screen-ask)
@@ -314,6 +316,7 @@ class WorkspaceTabs:
 
         loop = asyncio.get_running_loop()
         deadline, ask, why = loop.time() + PLACED_WAIT_S, loop.time(), ''
+        arranged_at, arranges = loop.time(), 1  # the Arrange just sent; again while they still overlap (beside)
         while True:
             current()
             observed = screen.observation(ctx.client)
@@ -334,12 +337,19 @@ class WorkspaceTabs:
                 why = 'another Tab is in front'
             if loop.time() >= deadline:
                 break
+            if (args['action'] == 'arrange' and tab and named is not None and named.get('id') == tab
+                    and arranges < ARRANGES and loop.time() - arranged_at >= REARRANGE_S):
+                # A window that landed after the Arrange sits over the tiling: Hooke arranges again, a few times at
+                # most, never the user (will-workspace, 30 Oct: "its windows still overlap").
+                await self.run(ctx, {'action': 'arrange', 'tab': tab}, verify=False)
+                arranged_at, arranges = loop.time(), arranges + 1
+                deadline = max(deadline, arranged_at + REARRANGE_S)
             if loop.time() - ask >= ASK_EVERY_S:
                 ctx.client.offer(json.dumps({'type': 'screen-ask'}))
                 ask = loop.time()
             await asyncio.sleep(0.05)
-        raise ToolFailed(f"the change was saved, but the studio does not show it on that Tab yet: {why}",
-                         next='list the Tabs to see what each holds now')
+        raise ToolFailed(f"the change was saved, but the screen does not show it on that Tab yet: {why}",
+                         next=None)  # no next: what the screen shows is said; Hooke arranged it again already
 
     async def _specimen_shown(self, screen, ctx, tab: str, asked: str, current) -> dict:
         """Done only once the studio's report shows the specimen as asked on that Tab (ADR 0006: done means the screen

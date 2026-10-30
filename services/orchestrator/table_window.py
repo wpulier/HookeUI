@@ -33,6 +33,8 @@ from .untrusted import inline
 TABLE_WAIT_S = 8.0  # the window shown with its rows drawn, counting only time the studio is in view (data_reader's)
 ANSWER_WAIT_S = 4.0  # the studio's answer to `table-window` (it answers at once, in the background too)
 AREA_FITTED = 0.6  # a window covering this much of the Tab's presentation area is said fitted to it
+ARRANGES = 3  # beside: the Tab's Arrange, sent once its window is there and again while the report shows it overlapping
+REARRANGE_S = 1.0  # between two Arranges of one placing: the studio's report of the last one comes first
 
 
 @dataclass
@@ -199,9 +201,10 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
     where = f'Tab "{inline(tab_title, 80)}"' if tab_title else "the Tab in front"
 
     def refused(why: str):
+        # No next: what the screen shows and where the table is saved are said; Hooke already did what it can (an
+        # Arrange again, a report asked for), so nothing is the user's to repeat (spec 4.8, horizontal 3).
         raise ToolFailed(f"{what} is not shown in {where}: {why}; {saved}. "
-                         + facts(target, revision, rows, displayed="no", front="no"),
-                         next="ask again to open it there")
+                         + facts(target, revision, rows, displayed="no", front="no"), next=None)
 
     if moved is None:
         message = {"type": "table-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
@@ -216,13 +219,14 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
         placement = str(answer.get("placement") or "") or None
     else:
         placement = moved
-    if beside:  # the Tab's own Arrange: done when the report below shows them side by side
-        await _arrange(services, ctx, tab_id)
-        guard()
     from .placement import beside_shown
 
     loop = asyncio.get_running_loop()
     tick = asked_at = loop.time()
+    # beside: the Tab's own Arrange, sent once the report shows its window there (one that lands after an Arrange sits
+    # on top of the tiling: will-workspace, 30 Oct, "its windows still overlap"), and again, a few times at most, while
+    # the report shows them overlapping. Done when the report shows them side by side.
+    arranges, arranged_at = 0, None
     in_view_s = background_s = 0.0  # time waited with the studio in view, and out of it
     away = False  # the studio is in the background now (its progress said once)
     last = Shown(None, tab_title or "", None, None)
@@ -236,11 +240,18 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
         state = ((item or {}).get("document") or {}).get("state")
         if item is not None and state == "failed":
             refused("its rows could not be read there")
+        side_by_side = not beside or (item is not None and arranges > 0 and beside_shown(report, tab_id, [item["id"]])[0])
         if (item is not None and state == "rendered" and item.get("visible") and visible is not False
-                and strip.get("tab") == tab_id and last.over is None
-                and (not beside or beside_shown(report, tab_id, [item["id"]])[0])):
+                and strip.get("tab") == tab_id and last.over is None and side_by_side):
             break
         now = loop.time()
+        if (beside and not side_by_side and item is not None and strip.get("tab") == tab_id
+                and arranges < ARRANGES and (arranged_at is None or now - arranged_at >= REARRANGE_S)):
+            await _arrange(services, ctx, tab_id)
+            guard()
+            arranges, arranged_at = arranges + 1, loop.time()
+            studio.client.offer(json.dumps({"type": "screen-ask"}))
+            now = loop.time()
         if visible is False:  # the studio in the background paints nothing: waited for, its time out of view not counted
             if not away and run is not None:
                 run.report_progress("waiting for the studio to be in view: the table is saved in Data, and its window "
@@ -331,22 +342,31 @@ async def _open_on(services, ctx, studio, *, ref: dict, title: str, tab_id: str,
     guard()
     if answer is None or not answer.get("ok"):
         why = "the studio did not answer" if answer is None else inline(str(answer.get("error") or "it could not open it"), 160)
-        raise ToolFailed(f"the table was not opened: {why}", next="ask again to open it there")
+        raise ToolFailed(f"the table was not opened: {why}", next=None)  # no next: why is said
     return str(answer.get("placement") or "") or None
 
 
-async def _wait_for(studio, guard, ok) -> tuple[dict | None, str]:
+async def _wait_for(studio, guard, ok, *, ready=None, arrange=None) -> tuple[dict | None, str]:
     """The studio's report until `ok(report)` says it shows what was asked (asking for reports meanwhile), at most
-    TABLE_WAIT_S of the studio's time in view; the last report and what `ok` said is missing."""
+    TABLE_WAIT_S of the studio's time in view; the last report and what `ok` said is missing. With `arrange`: the Tab's
+    Arrange, sent once `ready(report)` says its windows are there, and again (ARRANGES at most, REARRANGE_S apart) while
+    `ok` says they are not side by side yet."""
     loop = asyncio.get_running_loop()
     deadline, asked_at, why, report = loop.time() + TABLE_WAIT_S, loop.time(), "", None
+    arranges, arranged_at = 0, None
     while True:
         report = _current(studio, guard)
         shown, why = ok(report)
-        if shown:
+        if shown and (arrange is None or arranges):
             return report, ""
         if loop.time() >= deadline:
             return report, why
+        if (arrange is not None and (ready is None or ready(report)) and arranges < ARRANGES
+                and (arranged_at is None or loop.time() - arranged_at >= REARRANGE_S)):
+            await arrange()
+            guard()
+            arranges, arranged_at = arranges + 1, loop.time()
+            studio.client.offer(json.dumps({"type": "screen-ask"}))
         if loop.time() - asked_at >= ASK_EVERY_S:
             studio.client.offer(json.dumps({"type": "screen-ask"}))
             asked_at = loop.time()
@@ -378,7 +398,7 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
     def refused(why: str, where: str):
         raise ToolFailed(f"{what} is not shown {where}: {why}; {saved}. "
                          + facts(target, revision, rows, displayed="no", front="no"),
-                         next="ask again to place it there")
+                         next=None)  # no next: what is shown and where it is saved are said; nothing to repeat
 
     if placement == "overlay":
         raise ToolFailed("a table is not drawn on the live view; its cells' outlines are",
@@ -423,10 +443,8 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
             await _tabs(services, ctx, {"action": "add", "tab": tab_id, "resource": {"id": target, "version": entry.version}})
             guard()
         await _open_on(services, ctx, studio, ref=ref, title=title, tab_id=tab_id, guard=guard)
-        await _arrange(services, ctx, tab_id)
-        guard()
 
-        def shown(report):
+        def there(report):
             here = windows_on(report, tab_id)
             if _strip(report).get("tab") != tab_id:
                 return False, "another Tab came to the front"
@@ -436,9 +454,19 @@ async def place(services, ctx, studio: ReaderStudio, *, target: str, revision: i
             if outlines and not any((i.get("document") or {}).get("representation") == "masks"
                                     and target in identities(i) for i in here):
                 return False, "its outlines are not shown there"
-            return beside_shown(report, tab_id, [i["id"] for i in here])
+            return True, ""
 
-        report, why = await _wait_for(studio, guard, shown)
+        def shown(report):  # each window there clear of the others (its outlines, its table, the specimen)
+            ok, why = there(report)
+            for window in windows_on(report, tab_id) if ok else ():
+                ok, why = beside_shown(report, tab_id, [window["id"]])
+                if not ok:
+                    break
+            return ok, why
+
+        # Arranged once its windows are there, and again while they overlap (show(), beside).
+        report, why = await _wait_for(studio, guard, shown, ready=lambda r: there(r)[0],
+                                      arrange=lambda: _arrange(services, ctx, tab_id))
         if why:
             refused(why, f'in Tab "{inline(tab_title, 80)}"')
         new = "a new Tab" if made else "the Tab"
