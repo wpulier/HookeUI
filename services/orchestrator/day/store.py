@@ -159,6 +159,8 @@ class SessionStore:
         # what is on stage now ("live", an asset id, or None before anything was opened in it).
         self.sources: dict[str, float] = {}
         self.source_references: dict[str, dict] = {}
+        self.on_stage_reference: dict | None = None
+        self._source_retention_receipts: set[str] = set()
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
         # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
@@ -587,8 +589,11 @@ class SessionStore:
             self.removed_sources.discard(aid)
             if op == 'opened':
                 self.on_stage = aid
+                self.on_stage_reference = dict(e['retained']) if isinstance(e.get('retained'), dict) else None
             if isinstance(e.get('retained'), dict):
                 self.source_references[aid] = dict(e['retained'])
+                if op == 'retained':
+                    self._source_retention_receipts.add(json.dumps([aid, e['retained']], sort_keys=True))
         elif op == "removed" and aid != "live":
             self.removed_sources.add(aid)
         elif op == "restored":
@@ -622,8 +627,9 @@ class SessionStore:
         with self._filing(session) as store:
             if store.sid != session:
                 raise ValueError('The source destination Project is unavailable')
-            if store.source_references.get(aid) == retained and aid not in store.removed_sources:
-                return  # request-key retry: no duplicate history
+            receipt = json.dumps([aid, retained], sort_keys=True)
+            if receipt in store._source_retention_receipts:
+                return  # retry cannot undo a later choice or removal
             store._record({'type': 'source', 'asset': aid, 'op': 'retained',
                            'retained': dict(retained), 'by': by}, strict=True)
 

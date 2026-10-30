@@ -1,4 +1,5 @@
 import {CameraInputUnavailable} from './workspace-input';
+import {sameMediaReference} from './project-media-reference';
 import {scientificViewPreferences,type ScientificViewPreferences} from './scientific-view-preferences';
 import {sameStudyResource} from './workspace-study-restoration';
 import {studyArtifacts} from './workspace-study-artifacts';
@@ -420,12 +421,13 @@ private revision=0;private generation=0;private revealSequence=0;
   this.say(this.dirty?'Saving…':'Saved');this.retry.hidden=true;
   this.retry.textContent='Retry save';this.retry.onclick=()=>void this.flush();
  }
- /** Reads the saved layout in the newest format the server reads: a server that refuses format 6 is asked again for 5
-  * (an older Hooke server), and this studio then keeps reader Tabs for the session only. */
+ /** Negotiate older servers without dropping an exact retained input from a save. */
  private async readLayout(session:string):Promise<Record<string,any>>{
-  const reply=await this.opts.request('workspace-layout',{session,schema:this.schemaNow()});
-  if(reply.ok||reply.code!=='unsupported-schema'||this.schemaNow()<=5)return reply;
-  this.serverSchema=5;return this.opts.request('workspace-layout',{session,schema:5});
+  for(;;){
+   const reply=await this.opts.request('workspace-layout',{session,schema:this.schemaNow()});
+   if(reply.ok||reply.code!=='unsupported-schema'||this.schemaNow()<=5)return reply;
+   this.serverSchema=(this.schemaNow()-1) as LayoutSchema;
+  }
  }
  private accept(reply:any){if(!LAYOUT_SCHEMAS.includes(reply.layout?.schema)||reply.layout.coordinates!=='stage')throw new Error('Reload Hooke to read this saved layout.');this.revision=reply.revision;this.layout={...reply.layout,active:this.layout.active};
   // Reader Tabs a server too old to save them never has: they stay for the session, after the saved Tabs.
@@ -450,8 +452,9 @@ private revision=0;private generation=0;private revealSequence=0;
    if(this.dirty||this.conflict)throw new Error('The layout isn’t saved. Use Retry on the layout line before switching.');
    if(input && this.opts.selectInput){
     const current=this.opts.captureInput?.();
-    if(preserveCurrentInput&&current?.source!==input.source)throw new Error('The captured input changed. Choose it and run again.');
-    if(!preserveCurrentInput&&(restoreInput||current?.source!==input.source||id!==this.layout.active&&current?.position!==input.position)){
+    const same=current?.source===input.source&&sameMediaReference(current?.retained,input.retained);
+    if(preserveCurrentInput&&!same)throw new Error('The captured input changed. Choose it and run again.');
+    if(!preserveCurrentInput&&(restoreInput||!same||id!==this.layout.active&&current?.position!==input.position)){
      const blocked=this.opts.inputBlockReason?.(input);if(blocked)throw new Error(blocked);
      document.body.dataset.workspaceInputOpening='true';selectingInput=true;
      await this.opts.selectInput(input,this.session);
@@ -522,7 +525,8 @@ private revision=0;private generation=0;private revealSequence=0;
   if(this.changing||this.navigating||!this.session||!this.opts.captureInput||document.body.dataset.workspaceInputUnavailable)return;
   const input=this.opts.captureInput();
   // Playback position is saved on navigation, not on every playback tick.
-  if(input&&this.active()?.input?.source!==input.source&&this.rememberInput())this.changed();
+  const current=this.active()?.input;
+  if(input&&(current?.source!==input.source||!sameMediaReference(current?.retained,input.retained))&&this.rememberInput())this.changed();
  }
  async openInput(input:WorkspaceTabInput,title:string,owner=this.tabOwner()):Promise<boolean>{
   if(!this.ownsTabChoice(owner))throw new Error('The Project changed. Choose the input again in its intended Project.');
@@ -538,7 +542,8 @@ private revision=0;private generation=0;private revealSequence=0;
   this.capture();await this.flush();
   if(project!==this.session||generation!==this.generation)throw new Error('The Project changed. Open the input in its intended Project.');
   if(this.dirty||this.conflict)throw new Error('The layout isn’t saved. Use Retry on the layout line before opening another input.');
-  let target=this.layout.views.find(v=>v.input?.source===input.source);
+  if(input.retained&&this.schemaNow()<7)throw new Error('Update Hooke before opening retained Project media in a Tab.');
+  let target=this.layout.views.find(v=>v.input?.source===input.source&&sameMediaReference(v.input.retained,input.retained));
   if(!target&&this.layout.views.length===1){
    const main=this.layout.views[0];
    if(!main.input&&!main.items.length&&!main.notes.length){

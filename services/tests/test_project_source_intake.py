@@ -108,9 +108,13 @@ def test_new_explicit_intake_preserves_prior_bytes_and_request_identity(intake):
     expected = original.read_bytes()
     async def run():
         first = await retain(app, sid, identity, 'first-material-request')
+        app.day.open_source(identity, retained=first['retained'])
         Image.new('RGB', (17, 13), (99, 0, 12)).save(original)
         second = await retain(app, sid, identity, 'second-material-request')
         assert first['retained'] != second['retained']
+        listed = await app.session_sources(sid)
+        assert listed['onStageRetained'] == first['retained']
+        assert listed['sources'][0]['retained'] == second['retained']
         _, saved = await asyncio.to_thread(ProjectMedia(app.hub.resources.projects).read,
                                            MediaReference(**first['retained']))
         assert saved.read(0, saved.size) == expected
@@ -119,4 +123,18 @@ def test_new_explicit_intake_preserves_prior_bytes_and_request_identity(intake):
         with pytest.raises(ValueError, match='different source'):
             await retain(app, sid, unrelated, 'first-material-request')
         assert app.day.source_references[identity] == second['retained']
+        journal = app.day.journal.path.read_bytes()
+        assert await retain(app, sid, identity, 'first-material-request') == first
+        assert app.day.source_references[identity] == second['retained']
+        assert app.day.journal.path.read_bytes() == journal
+        app.day.remove_source(identity)
+        journal = app.day.journal.path.read_bytes()
+        assert await retain(app, sid, identity, 'second-material-request') == second
+        assert identity in app.day.removed_sources
+        assert app.day.journal.path.read_bytes() == journal
+        app.day.new('Different visible Project')
+        assert await retain(app, sid, identity, 'second-material-request') == second
+        restored = app.day.elsewhere(sid)
+        assert identity in restored.removed_sources
+        assert restored.journal.path.read_bytes() == journal
     asyncio.run(run())

@@ -2873,7 +2873,7 @@ async def source(app, client, msg) -> dict:
     stage_media = getattr(app, '_project_stage_media', None)
     if target != "live":
         if not is_asset_id(target):
-            raise tools.ToolError('open is an asset id or "live"', next=None)
+            raise tools.ToolError('open is an asset id or "live"', next=None)  # no next: malformed protocol input; UI supplies the source identity
         locations = getattr(app.day, 'locations', None)
         portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
         selected = msg.get('retained') or getattr(app.day, 'source_references', {}).get(target)
@@ -2882,7 +2882,7 @@ async def source(app, client, msg) -> dict:
                 raise tools.ToolError('Choose the retained revision of this Project source',
                                       next='collect the source into this Project before opening it')
             if msg.get('switch') is False:
-                raise tools.ToolError('Retained media must be opened through the camera bridge', next=None)
+                raise tools.ToolError('Retained media must be opened through the camera bridge', next=None)  # no next: the caller must use the supported source-selection path
             from .project_stage_media import manager
             stage_media = manager(app)
             try:
@@ -2891,17 +2891,17 @@ async def source(app, client, msg) -> dict:
                 raise tools.ToolError(str(error), next='check the retained source in Project data') from error
             asset = prepared.asset
         elif selected is not None:
-            raise tools.ToolError('This host has not opened the retained Project location', next=None)
+            raise tools.ToolError('This host has not opened the retained Project location', next='open the original Project before selecting its source')
         else:
             if library is None:
-                raise tools.ToolError('The Library is not available here', next=None)
+                raise tools.ToolError('The Library is not available here', next=None)  # no next: this host has no Library implementation
             asset = await asyncio.to_thread(library.get, target)
             if asset is None:
-                raise tools.ToolError(f'There is no asset {target}', next='choose a source from Inputs or Library')
+                raise tools.ToolError(f'there is no asset {target}', next='choose a source from Inputs or Library')
     try:
         async with _source_lock(app):
             if app.day.sid != sid or app._source_selection != selection:
-                raise tools.ToolError('That source selection was superseded', next=None)
+                raise tools.ToolError('That source selection was superseded', next=None)  # no next: the newer selection owns the Stage
             if msg.get("switch") is not False:
                 await note_position(app)
                 if prepared is not None or (getattr(app.hub, 'stage_meta', None) or {}).get('retained'):
@@ -2923,7 +2923,7 @@ async def source(app, client, msg) -> dict:
                 if stage_media is not None:
                     await stage_media.replaced(prepared)
             if app.day.sid != sid or app._source_selection != selection:
-                raise tools.ToolError('That source selection was superseded', next=None)
+                raise tools.ToolError('That source selection was superseded', next=None)  # no next: the newer selection owns the Stage
             previous = app.day.on_stage
             from .door import actor as source_actor
             source_by = source_actor.current() or 'user'
@@ -2951,7 +2951,7 @@ async def source_retain(app, client, msg) -> dict:
     import uuid
     sid = msg.get('session')
     if sid != app.day.sid:
-        raise tools.ToolError('That Project is no longer open', next=None)
+        raise tools.ToolError('That Project is no longer open', next=None)  # no next: the newly opened Project owns the UI
     try:
         result = await retain(app, sid, str(msg.get('asset') or ''), str(msg.get('requestId') or uuid.uuid4().hex))
     except (ValueError, OSError) as error:

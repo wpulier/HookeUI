@@ -220,6 +220,13 @@ def sources(stores, session, record):
         previews[identity] = f'/api/scientific-files/{selected.document}/media?' + urlencode({
             'session': session, 'revision': selected.revision, 'sha256': source.sha256})
     result = rows(session, assets, record)
+    if result['onStage'] and getattr(record, 'on_stage_reference', None):
+        result['onStageRetained'] = dict(record.on_stage_reference)
+        stage_ref = reference(record.on_stage_reference, session)
+        stage_metadata, _ = media.read(stage_ref)
+        if stage_metadata['asset'].get('id') != result['onStage']:
+            raise ProjectLocationError('The opened source has a conflicting identity')
+        result['onStageAsset'] = {**stage_metadata['asset'], 'retained': dict(record.on_stage_reference)}
     for row in result['sources']:
         row.update(thumb=previews[row['id']], retained=dict(refs[row['id']]))
     result['unavailableSources'] = [{'id': identity, 'reason': 'No exact retained source is selected'}
