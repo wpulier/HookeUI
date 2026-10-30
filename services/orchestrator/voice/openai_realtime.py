@@ -85,8 +85,8 @@ PROGRESS_AFTER_LEADIN_S = 20.0
 # work: a web search 11-16 s, every cell outlined 5-20 s), or once quiet HANDOFF_THINKING_S with none. Quick work says
 # nothing before its outcome (the 30 Oct journeys: most hand-offs ended in 5-7 s, every find, zoom, Tab and window step
 # under 2.5 s; lead-ins before quick work were judged "preliminary narration").
-HANDOFF_PROGRESS_AFTER_S = 4.5
-HANDOFF_STEP_S = 2.5
+HANDOFF_PROGRESS_AFTER_S = 5.5
+HANDOFF_STEP_S = 3.5
 HANDOFF_THINKING_S = 9.0
 # Words for that line: what is being done right now, as the voice's own ("I"), from the facts alone.
 HANDOFF_PROGRESS_WORDS = ("In one short sentence (under 10 words), say as yourself (\"I\") what you are doing for this "
@@ -1796,6 +1796,7 @@ class RealtimeSession(VoiceSession):
         pending = set(tasks.values())
         looked = False
         still_running = True  # every output so far says its tool is still running
+        let_go = False  # its progress line, not yet heard, was let go once its work landed
         shown = True  # every mark of a pointing round was drawn
         sent: set[str] = set()
         while pending:
@@ -1824,13 +1825,19 @@ class RealtimeSession(VoiceSession):
                 wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
                 due, facts = now - quiet_since >= wait, None
                 head, words = "Still running in Hooke for what the user asked: ", PROGRESS_WORDS
+            if progress and not let_go and handed and not led_in and not self._handoff_working(ids):
+                # Its work landed while its line was on its way: a line not yet heard is let go (the outcome follows).
+                let_go = True
+                self._unsay_progress(n)
             if (pending and len(progress) < PROGRESS_LINES and due
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):
                 facts = facts or self.running_facts() or "the tool you called"
                 self._log({"kind": "partner-progress", "n": n, "facts": facts, "line": len(progress) + 1})
+                working = (lambda ids=ids: self._handoff_working(ids)) if handed and not led_in else (lambda: True)
                 progress.append(self.respond(
-                    "progress", n=n, still=lambda pending=pending: any(not t.done() for t in pending),
+                    "progress", n=n, still=lambda pending=pending, working=working: (
+                        any(not t.done() for t in pending) and working()),
                     tool_choice="none", max_output_tokens=PROGRESS_TOKENS,
                     instructions=self.config.system_prompt + "\n\n" + head + facts + ". " + words))
         if progress:
@@ -1882,6 +1889,16 @@ class RealtimeSession(VoiceSession):
         if not doing or not (quiet >= HANDOFF_THINKING_S or any(d.get("stepS", 0) >= HANDOFF_STEP_S for d in doing)):
             return None
         return "; ".join(str(d["facts"]) for d in doing)
+
+    def _handoff_working(self, ids: list[str]) -> bool:
+        """Whether Hooke is still doing a hand-off's work (a step running, or still deciding), not only writing its
+        answer once its steps are done (partner_tools `handoff_doing`'s `working`)."""
+        for cid in ids:
+            with contextlib.suppress(Exception):
+                found = self.handoff_doing(cid)
+                if isinstance(found, dict) and found.get("working", True):
+                    return True
+        return False
 
     @staticmethod
     def _still_running(task: asyncio.Task) -> bool:

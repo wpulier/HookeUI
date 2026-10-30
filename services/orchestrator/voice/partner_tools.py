@@ -337,7 +337,10 @@ class PartnerTools:
         doing = ("running " + "; ".join(rows)) if rows else "working out how to do it (no step running yet)"
         facts = (f'the request "{inline(flight.label, 80)}" (the user asked: "{inline(flight.request, 300)}"), '
                  f"{time.time() - flight.started:.0f} s so far: {doing}")
-        return {"facts": facts, "stepS": longest}
+        # `working`: a step runs now, or none has run yet (it is still deciding). Its steps done and its answer being
+        # written is not work to announce: its outcome is moments away (will-research, 30 Oct: "I'm writing the findings
+        # document… still in progress", said after the document was saved and shown, then the outcome).
+        return {"facts": facts, "stepS": longest, "working": bool(rows) or not job.now}
 
     def _pointable(self, targets: list) -> list:
         """Of these mark targets, those the screen shows now (Partner.pointable)."""

@@ -2169,3 +2169,43 @@ def test_speaking_as_it_decides_is_the_other_option(monkeypatch):
         assert ("assistant", "voice", "Onion skin.") in [(x.role, x.channel, x.text) for x in t.brain.conversation.turns]
         assert t.sb.responses == 1 and not deleted(t)
     asyncio.run(go())
+
+
+def test_a_hand_offs_progress_line_not_yet_heard_is_let_go_once_its_work_has_landed(monkeypatch):
+    """will-research "findings-doc" and will-workspace "table", 30 Oct: "I'm writing the findings document… still in
+    progress" was said after the document was saved and shown (its step done, the brain writing its answer), then the
+    outcome: one outcome said twice. Once a hand-off's steps are done, a progress line not yet heard is let go, before
+    the brain's answer arrives."""
+    from orchestrator.brain.actions import ActionRunner
+    from orchestrator.brain.registry import ToolContext
+    monkeypatch.setattr(openai_realtime, "HANDOFF_PROGRESS_AFTER_S", 0.3)
+    monkeypatch.setattr(openai_realtime, "HANDOFF_STEP_S", 0.1)
+
+    async def go():
+        t = await partner_session(monkeypatch, acts="brain")
+        gate, answered = asyncio.Event(), asyncio.Event()
+
+        async def handler(ctx, args):
+            await gate.wait()
+            return "write_document done"
+        t.brain.registry.add(Tool("write_document", "Write document: writes and saves a document.",
+                                  schema({"about": {"type": "string"}}), handler, kind="effect", inline_ms=50))
+
+        async def turn(text, channel, **kw):
+            runner = ActionRunner(t.brain.registry, t.hub, lambda: None, lambda run, ctx: asyncio.sleep(0))
+            runs = await runner.run([("write_document", {"about": "findings"})], ToolContext("voice", 0, None, question=text))
+            await asyncio.wait([r.task for r in runs])
+            await answered.wait()  # the brain writing its answer, its step done
+            return {"answer": "I saved the findings document and opened it in its own Tab.",
+                    "actions": [r.wire() for r in runs]}
+        t.brain.turn = turn
+        await hand_off_round(t, "Write out the findings and open it in a new tab.", "Findings document")
+        await until_async(lambda: t.sb.responses == 2, seconds=10)  # the progress line, created, no audio yet
+        assert creates_of(t)[1]["response"]["metadata"]["cause"] == "progress"
+        gate.set()  # its step is done; the brain's answer has not come yet
+        cancel = await until_async(lambda: next((e for e in t.sb.sent if e["type"] == "response.cancel"
+                                                 and e.get("response_id") == "resp_2"), None), seconds=5)
+        assert cancel and any(r["kind"] == "partner-progress-unsaid" for r in t.logged)
+        await done(t.sb, "resp_2", status="cancelled")
+        answered.set()
+    asyncio.run(go())
