@@ -132,3 +132,18 @@ def test_a_follow_up_answer_or_a_description_is_not_offered_make_page(tmp_path):
     answer, _ = researcher(tmp_path / "a", {"effort": "quick", "deliverable": "answer"}, EFFORTS["quick"])
     description, _ = researcher(tmp_path / "d", {"effort": "quick", "purpose": "description"}, EFFORTS["quick"])
     assert "make_page" not in answer.tool_names() and "make_page" not in description.tool_names()
+
+
+def test_a_write_up_round_still_makes_the_page_asked_for_once():
+    """Live, 30 Oct: "compare them, and make me a short presentation" ran both models, then the stall rule made it write
+    up with only finish, and it ended "I haven't built the presentation yet". A round made to write up offers make_page
+    until a page is made, then finish alone."""
+    from research_worker.researcher import Researcher
+
+    r = Researcher.__new__(Researcher)
+    r.tool_names = lambda: ["run", "make_page", "finish"]
+    assert r.final_tools() == ["make_page", "finish"]
+    r.pages_made = 1
+    assert r.final_tools() == ["finish"]
+    r.pages_made, r.tool_names = 0, (lambda: ["run", "finish"])
+    assert r.final_tools() == ["finish"], "never a tool this effort does not have"

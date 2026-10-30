@@ -493,6 +493,14 @@ class Researcher:
         return "A note from the user while you work: " + " / ".join(notes)
 
     # --- what the engine needs ---------------------------------------------------------
+    def final_tools(self) -> list[str]:
+        """The tools of a round made to write up: finish, and make_page while no page is made yet, so slides or a visual
+        the user asked for are made from what it has rather than cut off (live, 30 Oct: "make me a short presentation"
+        ended "I haven't built the presentation yet" after the stall rule made it write up)."""
+        if "make_page" in self.tool_names() and not getattr(self, "pages_made", 0):
+            return ["make_page", "finish"]
+        return ["finish"]
+
     def tool_names(self) -> list[str]:
         allowed = [n for n in SCHEMAS if n in self.effort.tools]
         deliverable = self.spec.get("deliverable")
@@ -1344,6 +1352,7 @@ class Researcher:
         outputs and served under the research files' no-network sandbox (orchestrator/research/files.py): the studio
         shows it rendered in the researcher's Tab or the reader, never as text."""
         kind = "presentation" if args.get("kind") == "presentation" else "visual"
+        self.pages_made = getattr(self, "pages_made", 0) + 1
         title = whole(args.get("title") or ("Presentation" if kind == "presentation" else "Visual"), "the page's title")
         summary = whole(args.get("summary"), "the summary")
         html = clean_lesson(str(args.get("html") or ""))

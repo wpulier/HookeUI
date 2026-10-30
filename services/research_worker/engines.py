@@ -52,7 +52,8 @@ WRAP_UP = f"Time is nearly up: plan to call finish soon with {FINISH_ALL}; do no
 WRITE_UP_NOW = (f"Your time for this work is up. Call finish now with {FINISH_ALL}. Take one more step first only "
                 "if the work cannot be written up without it.")
 STALLED = (f"Your last {STALL_ROUNDS} rounds found no new source or finding. Call finish now with {FINISH_ALL}; "
-           "say plainly in limitations what you could not find.")
+           "say plainly in limitations what you could not find. If the user asked for slides or a visual and you have "
+           "not made it, make it first with make_page from what you have.")
 
 
 # A model call that failed for a reason that may pass (HTTP 408, 429 or 5xx, a timeout, a lost connection, no answer
@@ -535,7 +536,7 @@ class ClaudeEngine:
         return self._client
 
     def _tools(self, r: Researcher, final: bool, only: str | None, search: bool) -> list[dict]:
-        names = ["finish"] if final else [only] if only else r.tool_names()
+        names = r.final_tools() if final else [only] if only else r.tool_names()
         tools = [{"name": n, "description": r.schema(n)["description"], "input_schema": r.schema(n)["parameters"]}
                  for n in names]
         if search:
