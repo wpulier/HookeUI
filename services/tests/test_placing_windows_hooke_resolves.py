@@ -395,3 +395,41 @@ def test_a_new_tab_asked_for_with_no_name_is_named_as_the_studio_names_one(tmp_p
         assert json.loads(made.summary)['made']['title'].startswith('Tab ')
         assert len(studio.tabs) == 2
     asyncio.run(go())
+
+
+def test_a_live_window_moved_to_another_tab_opens_there_again_from_its_live_source(monkeypatch):
+    """Will's try-out, 30 Oct: "move that new enlargement into a new tab" was refused ("the live magnification isn't
+    saved and can't be moved across Tabs"). A live window is a view of the live source: moved, it closes where it is and
+    opens again from that same source on the Tab in front; anything it is not (no live source) is left as it was."""
+    from types import SimpleNamespace
+    from orchestrator import placement
+    from orchestrator.brain import registry
+    from orchestrator.brain.toolbox import present
+
+    live = SimpleNamespace(kind="live", to_wire=lambda: {"kind": "live", "id": "obj-o2"})
+    states = {"w-1": SimpleNamespace(id="w-1", source=live, title="the organism · live magnification", open=True)}
+    core = SimpleNamespace(get=lambda ws, iid: states[iid], list=lambda ws: tuple(states.values()))
+    services = SimpleNamespace(presentations=core,
+                               workspace_context=lambda client, **kw: SimpleNamespace(workspace_id="ws"))
+    done = []
+
+    async def act(services_, args, ctx=None):
+        done.append(("close", args["what"]))
+        states[args["what"]] = SimpleNamespace(**{**vars(states[args["what"]]), "open": False})
+        return "closed"
+
+    async def native(services_, ctx, args):
+        done.append(("open", args["source"]["id"], args["title"]))
+        states["w-2"] = SimpleNamespace(id="w-2", source=live, title=args["title"], open=True)
+        return "opened"
+    monkeypatch.setattr(present, "act", act)
+    monkeypatch.setattr(present, "_native_present", native)
+    token = registry.CURRENT_RUN.set(SimpleNamespace(occurrence=SimpleNamespace(request_id="r1", action_id="a1")))
+    try:
+        ctx = SimpleNamespace(client=object())
+        assert asyncio.run(placement._live_here(services, ctx, "w-1", "Close-up")) == "w-2"
+        assert done == [("close", "w-1"), ("open", "obj-o2", "the organism · live magnification")]
+        states["w-3"] = SimpleNamespace(id="w-3", source=SimpleNamespace(kind="saved-image"), title="", open=True)
+        assert asyncio.run(placement._live_here(services, ctx, "w-3", "x")) is None, "not live: left as it was"
+    finally:
+        registry.CURRENT_RUN.reset(token)

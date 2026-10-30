@@ -548,15 +548,25 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         how = f'; moved there from Tab "{inline(str(source_tab.get("title") or ""), 80)}", where it is no longer open'
         also = [str(t.get("title") or "") for t, _ in elsewhere[1:]]
     else:
-        if entry is None:
-            shows = (elsewhere[0][1].get("resource") or {}).get("id")
-            if not shows:
-                raise ToolFailed(f"{inline(what, 60)} is open in another Tab and keeps no saved work to open here",
-                                 next="say instead to move it here")
-            entry = await _saved(services, str(shows))
-        keep = await _open_here(services, ctx, entry, tab_id, title=title)
-        how = f"; opened there from its saved work ({entry.id})"
-        also = [str(t.get("title") or "") for t, _ in elsewhere]
+        shows = (elsewhere[0][1].get("resource") or {}).get("id") if elsewhere and entry is None else None
+        if entry is None and not shows and elsewhere:
+            # A live window (the magnifier's close-up of what is on the specimen) keeps no saved work: it is a view of
+            # the live source, so it opens again from that source here, and closes where it was, as a move (Will's
+            # try-out, 30 Oct: "move that new enlargement into a new tab" was refused as "not saved").
+            source_tab, item = elsewhere[0]
+            keep = await _live_here(services, ctx, window_id(item), title)
+            if keep is None:
+                raise ToolFailed(f"{inline(what, 60)} is open in another Tab and keeps no saved work or live view to "
+                                 "open here", next=None)  # no next: what it is and why it cannot open here is said
+            how = (f'; the live view opened there again, and closed in Tab '
+                   f'"{inline(str(source_tab.get("title") or ""), 80)}", where it was')
+            also = [str(t.get("title") or "") for t, _ in elsewhere[1:]]
+        else:
+            if entry is None:
+                entry = await _saved(services, str(shows))
+            keep = await _open_here(services, ctx, entry, tab_id, title=title)
+            how = f"; opened there from its saved work ({entry.id})"
+            also = [str(t.get("title") or "") for t, _ in elsewhere]
     if placement in ("only", "new-tab"):
         reply = await broker(ctx, {"action": "only", "tab": tab_id, "keep": [keep]})
         rest = "the live view floats small in its corner" if tab_id == "main" else "the live view is hidden there"
@@ -669,3 +679,30 @@ async def live_in_sight(hub, ctx) -> str:
             client.offer(json.dumps({"type": "screen-ask"}))
             ask = loop.time()
         await asyncio.sleep(0.05)
+
+
+async def _live_here(services, ctx, window: str, title: str) -> str | None:
+    """A live window (no saved work: a view of the live source) moved to the Tab in front: closed where it is, then opened
+    again there from the same live source. The id of the window it opened, or None when it is no live window this
+    workspace knows (it is then left as it was)."""
+    from .brain.registry import CURRENT_RUN
+    from .brain.toolbox.present import _native_present, act
+
+    core = getattr(services, "presentations", None)
+    run = CURRENT_RUN.get()
+    if core is None or run is None or run.occurrence is None or not ctx.client:
+        return None
+    try:
+        pctx = services.workspace_context(ctx.client, request_id=run.occurrence.request_id,
+                                          owner=run.occurrence.action_id)
+        state = core.get(pctx.workspace_id, window)
+    except Exception:  # not a window this workspace keeps
+        return None
+    if getattr(state.source, "kind", None) != "live":
+        return None
+    await act(services, {"do": "close", "what": window}, ctx=ctx)
+    before = {s.id for s in core.list(pctx.workspace_id)}
+    await _native_present(services, ctx, {"do": "open", "source": state.source.to_wire(),
+                                          "title": state.title or title})
+    made = [s.id for s in core.list(pctx.workspace_id) if s.id not in before and s.open]
+    return made[-1] if made else None
