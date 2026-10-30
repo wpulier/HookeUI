@@ -10,6 +10,9 @@ shared connector storage projection: captured-generation reads, missing-location
 refusal and host-resolved Finder targets. `project-folder.test.ts` covers stale
 responses and retry rendering with a synthetic DOM. These do not certify complete
 collection, a real Finder action or portable restoration.
+`test_project_launch` also exercises explicit known-folder relocation recovery,
+including unknown origins, conflicting legacy owners, active writers, unchanged
+accepted journal bytes and ordinary server argument/environment entrances.
 
 `test_project_record_dependencies.py` uses synthetic inputs with real accepted
 Studies, workflows and revision stores. It checks historical links, digest/missing
