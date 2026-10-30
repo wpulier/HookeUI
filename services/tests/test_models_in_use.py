@@ -56,7 +56,7 @@ def test_what_models_are_powering_you_names_each_jobs_model_and_where_it_runs(tm
     assert "Outlining: SAM 2.1 tiny (this Mac)" in lines["Outlining"] and "70 ms" in lines["Outlining"]
     assert "Cells: Cellpose-SAM (this Mac)" in lines["Cells"] and "no calls in the last 10 minutes" in lines["Cells"]
     assert "1.8 s" in lines["Seeing (the eyes)"] and "use <model> from now on" in lines["Seeing (the eyes)"]
-    assert "Video: Veo 3.1 Fast (cloud)" in lines["Video"] and "fixed in the code" in lines["Video"]
+    assert "Video: Gemini Omni 1.1 Flash (cloud)" in lines["Video"] and "fixed in the code" in lines["Video"]
     # The tool reads the settings for its list, never as the work in progress's reads (the acting bench's check).
     assert call.reads == []
 

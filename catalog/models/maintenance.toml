@@ -1,0 +1,19 @@
+# The app's own catalog's notices (orchestrator/maintenance/revocations.py, ticket 59's MT3): versions its maintainers
+# revoked and entries nobody maintains any more. No entry changes with it; an older app ignores it.
+
+# Google stopped serving Veo 3.1 Fast on 22 October 2026 and names Gemini Omni 1.1 Flash its replacement (the Gemini API's
+# deprecations page, updated 2026-10-22). Will's try-out of 29 Oct: a researcher's video failed on it. The video model
+# researchers use is its successor from this version of Hooke (research_worker/video.py, catalog/models/gemini-omni-flash),
+# reviewed as a change of model under ADR 0025 (new weights: a person's review, here the pull request's).
+[[revoked]]
+entry = "veo-3.1-fast"
+version = "veo-3.1-fast-generate-preview"
+why = "Google retired it on 22 October 2026; Gemini Omni 1.1 Flash replaces it"
+link = "https://ai.google.dev/gemini-api/docs/deprecations"
+severity = "block"
+replaced_by = "gemini-omni-flash"
+
+[[unmaintained]]
+entry = "veo-3.1-fast"
+since = "2026-10-22"
+why = "Google retired it; Gemini Omni 1.1 Flash replaces it"

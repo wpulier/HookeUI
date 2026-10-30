@@ -195,6 +195,13 @@ def _kind_description(active, installed, proof=''):
 def execution_block(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict | None:
     from . import kinds, own_trials
 
+    if m.runner == "cloud":  # a cloud model its catalog revoked (its provider retired it): said, never offered to run
+        from .maintenance import revocations
+
+        notice = revocations.revoked(m, m.version, environ)
+        if notice is not None and notice["severity"] == "block":
+            return {'action': 'unsupported', 'why': f"{m.name} can't be used: {notice['why']}"}
+
     backend = kinds.backends().get(m.runner)
     from . import fiji_display
     installed = (fiji_display.in_use(m, environ) if m.runner == 'fiji' else

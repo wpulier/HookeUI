@@ -87,6 +87,11 @@ in MT4 through the same package.
   - The daily metadata look takes it too.
   - A revoked active version: attention plus a known defect. `block` refuses its runs (`env_runner`).
   - A revoked candidate is never promoted.
+  - A cloud model's version revoked with `block` (its provider retired it) is never offered to run: its card says it
+    can't be used, with why (`catalog_view.execution_block`); `replaced_by` names the entry that replaces it. The app's
+    own catalog says this of Veo 3.1 Fast (Google retired it on 22 Oct 2026); its successor, Gemini Omni 1.1 Flash, is
+    a new entry and the code's video model from that version of Hooke, a change of model reviewed as its pull request
+    (ADR 0025: new weights wait for a person).
 - **Missing sources.** An entry is unmaintained when its catalog says so, or when its candidate snapshot at the
   newest commit no longer has it. A source unreachable for `UNREACHABLE` checks and `UNREACHABLE_S` needs attention
   ("couldn't reach its source since T"). Its working version stays in every case, and other entries of the same channel

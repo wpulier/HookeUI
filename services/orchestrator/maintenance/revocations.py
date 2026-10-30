@@ -10,6 +10,7 @@ and an older app ignores it:
     why = "areas were halved"    # plain words
     link = "https://..."         # the issue or advisory
     severity = "warn"            # warn: the card and the agent say it; block: its runs are refused, with what to do
+    replaced_by = "new-thing"    # optional: the entry that replaces it (a cloud model its provider retired)
 
     [[fixes]]
     entry = "renderer"
@@ -86,7 +87,8 @@ def revoked(m: catalog.Manifest, version: str, environ: Mapping[str, str] = os.e
     worst = max(found, key=lambda r: SEVERITIES.index(r["severity"]) if r.get("severity") in SEVERITIES else 0)
     return {"version": str(version), "why": str(worst.get("why") or "its maintainers revoked it"),
             "link": str(worst.get("link") or ""),
-            "severity": worst.get("severity") if worst.get("severity") in SEVERITIES else "warn"}
+            "severity": worst.get("severity") if worst.get("severity") in SEVERITIES else "warn",
+            **({"replacedBy": str(worst["replaced_by"])} if worst.get("replaced_by") else {})}
 
 
 def unmaintained(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict | None:

@@ -1,0 +1,12 @@
+id = "gemini-omni-flash"
+name = "Gemini Omni 1.1 Flash"
+runs = "cloud"
+version = "gemini-omni-1.1-flash"
+licence = ["gemini-api"]
+kind = "cloud-model"
+what = "Makes short illustration videos for researchers"
+runner = "cloud"
+service = "gemini"
+source = { url = "https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash" }
+needs_to_run = ["key:GEMINI_API_KEY"]
+credit = { authors = "Google DeepMind", link = "https://ai.google.dev/gemini-api/docs/models/gemini-omni-flash" }

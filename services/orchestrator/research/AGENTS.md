@@ -182,9 +182,14 @@ other files.
   media `derived`, said "Drawn by the app from a saved table" or "An animation ... not a video of the specimen", in Data
   as "Researcher N's chart/animation" whose picture reopens, and its table is among what it was made from. When the
   animation can't be drawn here, the chart is made instead and that is said. A generated video stays its own deliverable
-  (`make_video`, Veo), made only when it is asked for by name; one that fails says the model and the provider's own status
-  on the researcher's card ("The video model was unavailable (Veo 3.1 Fast, HTTP 404, NOT_FOUND: ...)"), and its model
-  is told it can animate a table instead. `tests/test_researcher_outputs.py` reproduces the 2026-10-28 request.
+  (`make_video`, `research_worker/video.py`: Gemini Omni 1.1 Flash through the Interactions API since Google retired Veo
+  3.1 Fast on 22 Oct 2026, recorded in `catalog/models/maintenance.toml`), made only when it is asked for by name; one
+  that fails says the model, why in a person's words and what to do (`api_usage.refusal`: retired, out of credit, no key,
+  rate limited...), with the provider's own status as its detail, on the researcher's card ("The video model (Gemini Omni
+  1.1 Flash) couldn't be used: your Google account is out of credit; add credit to your Google account, or choose another
+  model; no video was made"). The run keeps it as a fact its result carries (`unavailable`: model, reason, said, todo,
+  status), whatever the write-up says, so the voice says the reason when the researcher lands; its model is told it can
+  animate a table instead. `tests/test_researcher_outputs.py` reproduces the 2026-10-28 request and Will's try-out of 29 Oct.
 - Out of time or money after making something, a researcher keeps its work: status "partial",
   a result described from its outputs, restored and shown like "done". A URL that failed is
   not fetched again by the same researcher.
