@@ -30,13 +30,20 @@ ADR 0026 grants apply unchanged to saved-input work. New door actions are delibe
 ## Ordinary server qualification seam
 
 The server factory accepts an explicitly supplied ProjectLocations dependency,
-matching App.build. No request, environment flag or ordinary command-line launch
-selects this seam. An isolated full-server probe uses the ordinary lifespan and
+matching App.build. An operator may now select this staged seam using
+`--project-folders /absolute/parent` or `HOOKE_PROJECTS_DIR` through the normal
+launcher. This enables isolated real-browser/connector qualification on the same
+server path, rather than a private replacement server. No request or saved document
+selects it. With neither setting, existing installations remain unchanged; a profile
+that already has a location registry refuses to silently fall back to legacy storage.
+An isolated full-server probe uses the ordinary lifespan and
 Studio Project creation, grants a synthetic connection through signed owner
 confirmation, imports copied evidence and creates a Study. After process shutdown,
 folder relocation and restart preserve exact saved documents and inventory.
-This is server/storage evidence, not actual browser/client, media restoration,
-complete dependency collection or permission to migrate existing Projects.
+This is server/storage evidence, not actual browser/client, complete dependency
+collection or permission to migrate existing Projects. Default-on new-Project
+creation remains gated on the remaining qualification. Operator opt-in creates new
+folders only; legacy research remains in its existing location.
 
 ## Foundation implementation checkpoint
 
