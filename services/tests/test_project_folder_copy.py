@@ -176,3 +176,40 @@ def test_no_post_publication_disk_work_can_turn_success_into_failure(tmp_path, m
     monkeypatch.setattr(ProjectStore, '_sync_directory', checked_sync)
     copied = copy_snapshot(root, target)
     assert verify_snapshot(copied.path)['files'] > 0
+
+
+def test_a_growing_source_cannot_exceed_the_admitted_copy_size(tmp_path, monkeypatch):
+    import orchestrator.project_folder_copy as copy
+    from io import BytesIO
+    root, *_ = setup(tmp_path)
+    source = root.path / 'inputs/material.bin'
+    size = source.stat().st_size
+    output = BytesIO()
+    original = copy.os.fdopen
+    reads = []
+    class Growing:
+        def __init__(self, stream): self.stream = stream
+        def __enter__(self): return self
+        def __exit__(self, *args): return self.stream.__exit__(*args)
+        def fileno(self): return self.stream.fileno()
+        def read(self, count):
+            body = self.stream.read(count)
+            reads.append(len(body))
+            with source.open('ab') as stream: stream.write(b'x' * 100_000)
+            return body
+    monkeypatch.setattr(copy.os, 'fdopen', lambda *a, **kw: Growing(original(*a, **kw)))
+    with pytest.raises(ProjectLocationError, match='changed'):
+        copy._stream(source, output=output)
+    assert sum(reads) == size + 1
+    assert len(output.getvalue()) == size
+
+
+def test_deep_working_tree_refuses_before_reserving_a_copy(tmp_path, monkeypatch):
+    import orchestrator.project_folder_copy as copy
+    root, *_ = setup(tmp_path)
+    monkeypatch.setattr(copy, 'MAX_DEPTH', 5)
+    (root.path / 'workspace/a/b/c/d/e/f').mkdir(parents=True)
+    destination = tmp_path / 'Too deep'
+    with pytest.raises(ProjectLocationError, match='nesting'):
+        copy.copy_snapshot(root, destination)
+    assert not destination.exists()

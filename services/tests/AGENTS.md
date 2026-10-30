@@ -687,3 +687,5 @@ research lifecycle checks remain required alongside the adapter tests.
 Snapshot publication failure probes retain the pending marker after complete output bytes, directory-sync failures and failed acceptance. A fresh host refuses the uncertain result and preserves it on retry; no process-local fallback is needed. These are synthetic payloads through real storage, not complete Project restoration.
 
 Study evidence regressions exercise multiple retained workflow runs through one inventory read, then change original control and confirm the next read reflects it without replay. Unreadable receipt and foreign-Project checks remain explicit. These controlled execution/storage tests do not establish production latency or scientific quality.
+
+Project-folder copy bounds each stream to its captured byte count plus a one-byte growth probe, and refuses excessive directory depth before destination admission. Growth regressions assert bounded reads/output; copy failure keeps the ordinary incomplete marker.
