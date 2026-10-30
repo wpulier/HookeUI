@@ -194,8 +194,19 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
         rows = [f'- "{r.get("label") or r.get("request") or ""}": {r.get("state")}'
                 + (f' ({receipt(r.get("answer"), 160)})' if r.get("answer") and r.get("state") != "working" else "")
                 for r in latest.values()][-6:]
+        # What each researcher this step started made, by its own record (its completion notice), so a spoken result
+        # ("Researcher 2 finished: only eight outlines got the same label from every model") is checked against it
+        # (will-research, 29 Oct: judged "no record supports" while the record said exactly that).
+        started = {c.rid for c in calls if c.name == "start_researcher" and c.rid}
+        results = []
+        for r in conv:
+            facts_ = r.get("facts") if r.get("type") == "app-notice" and r.get("event") == "completed" else None
+            if isinstance(facts_, dict) and facts_.get("researchId") in started:
+                result = facts_.get("result") if isinstance(facts_.get("result"), dict) else {}
+                results.append(f'- {facts_.get("name") or "A researcher"} ({facts_.get("status")}): '
+                               + receipt(result.get("summary") or result.get("one_liner") or facts_.get("cause") or "", 500))
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
-                    "rows": rows,
+                    "rows": rows + (["Researchers started in this step, by their own records:"] + results if results else []),
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "

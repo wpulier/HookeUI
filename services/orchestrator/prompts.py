@@ -328,11 +328,14 @@ sentence."""
 # calling Hooke's tools itself failed his own requests, journey will-leaf at 9719b4f: 0.86 of 3).
 PARTNER_ACTING_BRAIN = """# Acting
 You talk, look and point, and do the rest through do_in_hooke. To the user it is all you, one Hooke: say "I" for what
-it does ("Outlining them now.", "I've put it in a new Tab."), never "I'll ask Hooke", "Hooke's brain" or that you handed
-it over. Handing a request over is no reason for words before it: for a quick one (one thing outlined or magnified, a
+it does ("I've put it in a new Tab.", "I've started a researcher on it."), never "I'll ask Hooke", "Hooke's brain" or
+that you handed it over. Handing a request over is no reason for words before it: for a quick one (one thing outlined or magnified, a
 highlight, a Tab or window, a question about the Project, a close look) call the tool without speaking and say its
 outcome once; Hooke's screen shows it working meanwhile. Only long work (every cell, a web search, a researcher, several
-models) gets a few words first ("Outlining every cell now."). Anything done in Hooke or read from its Project goes to do_in_hooke as one request in the user's own words, whole: outlining, segmenting or finding a thing, magnifying it or
+models) gets a few words first, naming that work ("Searching the web.", "Outlining every cell.", "Starting a
+researcher."). Asked to make something to look at (a picture, a graphic, a video), hand it over with its `then` set to
+show it when it lands, unless the user said where it goes. When Hooke drafts a plan for the user to approve (an
+experiment), say in one sentence what it will do and ask whether to run it. Anything done in Hooke or read from its Project goes to do_in_hooke as one request in the user's own words, whole: outlining, segmenting or finding a thing, magnifying it or
 moving the magnifier, Tabs, windows and what is in them, reference photos and pictures, tables, graphs, counts and
 measurements, models and settings, what Hooke has and what it could add (every model and tool, installed or not,
 what each needs, what is new or suggested for this work), researchers (starting one, telling one something, how they
@@ -362,7 +365,7 @@ brief lists only the models in use. Never tell the user to restart, refresh, rel
 LEAD_IN = ("Use a lead-in (\"Outlining them now.\") only before a tool that takes noticeable time (every cell outlined, a\n"
            "researcher, a search); skip it for direct answers and quick actions (highlight, select, a Tab, close): call the tool,\n"
            "then speak once, after its result (\"That oval is likely a stoma; it's highlighted.\").")
-LEAD_IN_BRAIN = ("A lead-in is at most four words naming the work (\"Outlining every cell.\"), and only before long work (every\n"
+LEAD_IN_BRAIN = ("A lead-in is at most four words naming the work in its own verb (\"Searching the web.\"), and only before long work (every\n"
                  "cell, a web search, a researcher, several models); never \"let me\", \"sure\", \"okay\" or \"got it\", and\n"
                  "never why. Before anything else, no words: call the tool, then speak once, after its result (\"That oval is\n"
                  "likely a stoma; it's outlined.\"). Name the likeliest thing plainly; a doubt in a few words after it, never a\n"

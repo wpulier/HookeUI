@@ -1742,7 +1742,10 @@ class RealtimeSession(VoiceSession):
             self._calls.pop(cid, None)
         if self.closed or epoch != self._epoch:
             return
-        if (progress or led_in) and still_running and go_on and not ack:
+        # A hand-off's row shows it working (handoffs.py), as a lead-in would have said: its still-running output is not
+        # said either (will-workspace, 29 Oct: "It's being created now. I'll only confirm once Hooke says…").
+        handed = bool(ids) and all(self._call_names.get(cid) == "do_in_hooke" for cid in ids)
+        if (progress or led_in or handed) and still_running and go_on and not ack:
             # A progress line, or the voice's own words before the tool in the reply that called it ("Outlining that
             # now."), said it is under way; outputs that only say so again are not said a second time (the outcome
             # comes as one line when it lands). Will's try-out, 29 Oct: three "still working" lines for one request.

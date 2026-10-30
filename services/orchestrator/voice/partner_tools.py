@@ -1106,6 +1106,18 @@ class PartnerTools:
             running = [j for j in self.thinking.of(project) if isinstance(j, HandoffJob) and j.state in WORKING]
             job = running[-1] if running else None
             if job is None:
+                # What "that" most likely meant had already finished (will-research, 29 Oct: the video opened, then
+                # "actually, stop that", answered only "nothing was running"): say what finished, and offer to undo it.
+                ended = [j for j in self.thinking.of(project) if isinstance(j, HandoffJob) and j.state in ENDED
+                         and j.state != "cancelled"]  # one already stopped is not "finished"
+                last = ended[-1] if ended else None
+                if last is not None:
+                    return {"ok": False, "result": "failed", "job": last.id, "finished": last.label,
+                            "state": last.state,
+                            "said": f"It had already finished: {last.label} ({last.state}).",
+                            "note": "Say in a few words that it had already finished and what it did, and offer to undo "
+                                    "it (close what it opened) if that is what the user wants; never just 'nothing "
+                                    "was running'."}
                 return {"ok": False, "result": "failed",
                         "said": "Nothing Hooke is doing is running now, so there was nothing to stop.",
                         "note": "If the user means a researcher, hand that to Hooke with do_in_hooke."}

@@ -116,8 +116,12 @@ def test_a_hand_off_in_flight_is_hooke_working_with_its_rows_key_and_lands_idle(
                                        "since": round(handoff.started, 3)}]
         # Its row's line went to the studio too (no dialogue here): the same id as the state's key.
         assert any(m.get("type") == "handoff" and m["id"] == handoff.id for m in t.studio)
-        # The voice speaks over it: speaking, and the hand-off still counted when it is quiet again.
-        await until_async(lambda: t.sb.responses >= 2)  # "still working", said once
+        # Its still-running output is not said (its row shows it: one acknowledgement, the row, one outcome)...
+        await until_async(lambda: any(r.get("kind") == "partner-round-quiet" for r in t.logged), seconds=30)
+        assert t.sb.responses == 1
+        # ...and when the voice speaks over it (another line), speaking, then the hand-off still counted when quiet.
+        t.session.respond("proactive", tool_choice="none")
+        await until_async(lambda: t.sb.responses >= 2)
         t.sb.emit({"type": "output_audio_buffer.started", "response_id": "resp_2"})
         await state_is(t, "speaking")
         await done(t.sb, "resp_2")

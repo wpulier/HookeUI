@@ -424,3 +424,21 @@ def test_a_hand_off_whose_late_step_lands_ends_from_that_steps_receipt(monkeypat
         last = rows(t.shown)[-1]
         assert last["state"] == "done" and not last.get("settling") and last["steps"][0]["ok"] is True
     asyncio.run(go())
+
+
+def test_stop_that_after_the_work_finished_says_what_finished(monkeypatch):
+    """will-research, 29 Oct: the video had opened, then "actually, stop that" was answered only "nothing was running".
+    With nothing running, the newest request that finished on its own is named, so the voice can offer to undo it."""
+    from orchestrator.voice.jobs import HandoffJob
+
+    async def go():
+        t = await handing_off(monkeypatch)
+
+        async def turn(text, channel, **kw):
+            return {"answer": "Opened a video about stomata.", "actions": []}
+        t.brain.turn = turn
+        await t.partner.tools.do_in_hooke({"request": "find a YouTube video about stomata", "label": "A stomata video"})
+        out = await t.partner.tools.stop_work({})
+        assert out["result"] == "failed" and out["finished"] == "A stomata video"
+        assert "already finished" in out["said"] and "undo" in out["note"]
+    asyncio.run(go())

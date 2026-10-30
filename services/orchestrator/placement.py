@@ -258,7 +258,8 @@ async def place(services, ctx, registry, args: dict) -> str:
         return await tool.handler(ctx, {"of": layer, "placement": placement, **({"tab": tab} if tab else {}),
                                         **({"instead": True} if instead else {})})
     if not what:
-        raise ToolFailed("name what to place: its id from the screen or Data", next="look at what is on screen")
+        raise ToolFailed("name what to place: its id from the screen or Data", next="look at what is on screen",
+                         argument=True)  # the call's own arguments did not fit: corrected by a later call (handoffs.corrected)
     if re.fullmatch(r"d\d+", what) and placement in ("new-tab", "only", "beside", "window"):
         said = await _document(services, ctx, what, placement, tab)
         if said is not None:
@@ -313,7 +314,7 @@ async def _saved(services, what: str):
     entry = await asyncio.to_thread(index.get, key, index.session())
     if entry is None:
         raise ToolFailed(f"{inline(what, 60)} is not open on any Tab and not in this Project's Data",
-                         next="name it by its id from the screen, the Tabs or Data")
+                         next="name it by its id from the screen, the Tabs or Data", argument=True)
     return entry
 
 

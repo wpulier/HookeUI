@@ -102,6 +102,10 @@ class WorkspaceTabs:
             raise ToolFailed('give the Tab a title', next='choose a short descriptive title')
         if action == 'move' and not {'from', 'placement'} <= set(args):
             raise ToolFailed('name the source Tab and exact placement to move', next='list its retained items first')
+        if action == 'only' and 'specimen' in args:
+            # only puts the specimen away itself (hidden; Main's floats small): the hint is what it does already
+            # (will-workspace, 29 Oct: only with specimen hide was refused, and nothing was closed).
+            args = {k: v for k, v in args.items() if k != 'specimen'}
         if (action == 'specimen') != ('specimen' in args) or (action == 'specimen'
                                                               and args['specimen'] not in tuple(SPECIMEN)):
             raise ToolFailed('say fill, float or hide for the specimen, with the specimen action',
@@ -134,7 +138,8 @@ class WorkspaceTabs:
             current()
             if entry is None:
                 said = str(ref.get('id'))[:60] if named else 'that item'
-                raise ToolFailed(f"{said} is not in this Project's Data", next='name it by its id from the screen, the Tabs or Data')
+                raise ToolFailed(f"{said} is not in this Project's Data", next='name it by its id from the screen, the Tabs or Data',
+                                 argument=True)
             # A photo, a video, a document or a researcher's work has no version to name (will-workspace and
             # will-research, 29 Oct: refused "not saved in this Project", and the voice told the user to save it first).
             if ref.get('version') is not None and ref['version'] != entry.version:
