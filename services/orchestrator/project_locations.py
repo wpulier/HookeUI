@@ -14,6 +14,12 @@ from .project_repository import create, session_root, verify_owner
 from .project_roots import ProjectLocationError, ProjectRegistry, writer
 
 
+# A stopped App can still have finishing executor/daemon writes. Keep its leases
+# strongly reachable until the OS tears down the process; task cancellation is not
+# proof of termination. Do not register an atexit unlock before worker teardown.
+_RETIRED_HOSTS = []
+
+
 class ProjectLocations:
     def __init__(self, legacy: Path, registry: ProjectRegistry, parent: Path):
         self.legacy, self.registry, self.parent = Path(legacy), registry, Path(parent)
@@ -96,6 +102,19 @@ class ProjectLocations:
             self.registry.register(root)
             self.writable(candidate)
             return root
+
+    def retire(self):
+        """Fence further storage admission without releasing this process's leases.
+
+        App.stop is not process termination: Python threads may still finish a
+        filesystem call. A complete orchestrator process restart releases leases.
+        Explicit close remains for owners that know no work was launched (setup,
+        failed construction, and isolated storage scopes).
+        """
+        with self._lock:
+            if not self.closed:
+                self.closed = True
+                _RETIRED_HOSTS.append(self)
 
     def close(self):
         with self._lock:

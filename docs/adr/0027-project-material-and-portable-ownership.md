@@ -237,3 +237,18 @@ mentioned in conversations. Unfinished checks, missing parts, links, changed fil
 oversized metadata and cancelled copies refuse. No public collection action or
 live App activation is added by this storage slice. Complete Project dependency
 closure, inclusion UI and mixed-domain reopen acceptance remain required.
+
+### Application integration qualification
+
+App.build can explicitly receive the host location resolver. The real application
+then shares it between its journal and scientific record services; no request or
+saved document can select that dependency. Build failure releases admitted leases.
+App shutdown fences later storage admission and retains its leases until actual
+process termination. Cancelling asyncio tasks does not terminate their writing
+threads. A second host stays read-only until the original process exits. Ordinary server startup remains legacy.
+
+The isolated application/connector test creates a Project folder, copies an input,
+creates a Study, stops, relocates, resumes the selected Project and reads the same
+revisions. Its connection confirmation is synthetic. This is a step beyond separate
+store tests, but not ordinary UI session-switch qualification, full dependency
+collection, portable media playback or provider researcher execution.
