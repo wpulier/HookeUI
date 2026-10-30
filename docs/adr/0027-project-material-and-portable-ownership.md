@@ -252,3 +252,13 @@ creates a Study, stops, relocates, resumes the selected Project and reads the sa
 revisions. Its connection confirmation is synthetic. This is a step beyond separate
 store tests, but not ordinary UI session-switch qualification, full dependency
 collection, portable media playback or provider researcher execution.
+
+## Storage-status contract
+
+Authorized readers can inspect durable origin, known folder location and observed
+owner availability through the shared `project-storage` contract. Legacy storage is
+explicitly distinct from a portable folder; a missing registered folder does not
+fall back to legacy creation. Inspection acquires no writer lease and transfers no
+authority. Collection status remains `not-assessed` until the complete dependency
+collector is qualified. A host without local storage support reports unavailability
+under the same contract. This slice adds no collection/open/migration mutation.

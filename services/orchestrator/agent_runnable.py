@@ -140,6 +140,7 @@ def runnable(tool_name: str) -> bool:
 DOOR_RESOURCES = {
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
+    'project.storage': 'reads location and collection facts for an authorized Project without moving files or granting access',
     'project.read': 'reads the exact authorized Project and retained corpus index',
     'project.state': 'reads the authorized Project as every reader sees it: data with exact references, researchers, Studies, the studio',
     'material.organize': 'organizes an exact artifact in an authorized Project; preserves its bytes, producing provenance and historical revisions',

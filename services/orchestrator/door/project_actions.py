@@ -14,6 +14,7 @@ SCHEMAS = {
     'project.create': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 80}},
     'project.list': {},
     'project.read': {},
+    'project.storage': {},
     # project.state (project_state.py): the Project's one view, every reader's; additive beside project.read, whose
     # output is unchanged. A page of its data at a time; `cursor` is the next page of the same revisions.
     'project.state': {'cursor': {'type': 'string', 'minLength': 1, 'maxLength': 128},
@@ -114,6 +115,15 @@ async def run(built, record, progress):
             return {'project': owner, 'artifacts': [{**identity(r), 'kind': r.document['kind'],
                      'title': r.document['title']} for r in rows], 'unreadable': errors}
         result = await asyncio.to_thread(read)
+    elif name == 'project.storage':
+        from ..project_storage_status import describe
+        from .schema import check
+        def storage():
+            access(built).require(project, actor)
+            value = describe(built.day, project)
+            check(value, 'project-storage')
+            return value
+        result = {'storage': await asyncio.to_thread(storage)}
     elif name == 'project.state':
         from .. import project_state
         try:
