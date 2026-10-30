@@ -216,6 +216,16 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
             rows = rows + [f"The Assistant was closed during this step; the presence pill "
                            f"{'showed' if any(e.get('pill') for e in shown) else 'did not show'} ("
                            + ", ".join(dict.fromkeys(str(e.get("pillWords") or e.get("state")) for e in shown))[:160] + ")."]
+        # What the voice pointed at, as the page drew it (the harness's mark events): a close look's box on the frame
+        # comes with its answer, not as a tool call (will-alive, 30 Oct: the stoma was boxed as the voice named it, and
+        # the judge, shown only tool calls, said it "did not point to it").
+        drawn: dict[str, dict] = {}
+        for e in bench.get("events") or []:
+            if e.get("e") == "mark" and e.get("on") and e.get("id") and start <= (e.get("t") or 0) < end:
+                drawn.setdefault(str(e["id"]), e)
+        pointed = [f"- (+{e['t'] - release:.1f} s) pointed: a {e.get('style') or 'mark'} drawn on "
+                   + ("the live view" if str(e.get("target") or "") == "frame" else f"{e.get('target')}")
+                   for e in sorted(drawn.values(), key=lambda e: e["t"])]
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
                     "rows": rows + (["Researchers started in this step, by their own records:"] + results if results else []),
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
@@ -230,7 +240,7 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
                                 # is checked against it (will-display, 29 Oct: the receipt said so; the judge saw
                                 # only "ok, confirmed" and called the claim unsupported).
                                 + (f'; its receipt: "{receipt(c.summary)}"' if c.summary else "")
-                                for c in calls]})
+                                for c in calls] + pointed})
     return out
 
 

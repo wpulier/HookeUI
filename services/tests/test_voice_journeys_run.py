@@ -540,7 +540,18 @@ def test_the_judge_reads_each_steps_receipt_without_ids():
 def test_researchers_the_app_starts_on_its_own_count_toward_the_cap():
     """will-experiment, 30 Oct: no step starts the experiment's audit researcher, so the stack's research cap was $0.00
     and every audit stopped on it. The plan's "researchersBehind" counts it for the cap and the reservation."""
-    plan = stack.load_plan("will-experiment")
-    assert plan.get("researchersBehind") == 1
-    assert run.researchers(plan) >= 1
+    assert run.researchers({"steps": [{"expect": {"researchers": 2}}], "researchersBehind": 1}) == 3
     assert run.researchers({"steps": [{"expect": {"researchers": 2}}]}) == 2
+    # will-experiment's audit is started in the step that waits for the experiment, and counted there.
+    assert run.researchers(stack.load_plan("will-experiment")) == 1
+
+
+def test_the_judge_is_shown_what_the_voice_pointed_at():
+    """will-alive, 30 Oct: a close look's box on the stoma came with its answer, not as a tool call, and the judge,
+    shown only tool calls, said the voice "did not point to it". The marks the page drew in a step are its actions."""
+    from bench.voice_journeys.judge import facts
+
+    bench, conv, inter, _ = good()
+    told = {f["id"]: f for f in facts(bench, conv, inter)}
+    assert any("pointed: a mark drawn on tab:Measurements" in a for a in told["table"]["actions"])
+    assert not any("pointed" in a for a in told["outline"]["actions"]), "only the step's own marks"

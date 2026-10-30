@@ -1,7 +1,6 @@
 {
  "id": "will-experiment",
  "about": "Will's experiment on the real June 14 leaf recording (Part 2.5, W5: \"experiments: a planner, workflows, long-running work, researchers auditing\"; the live partner spec's 4.8, horizontals 2 and 4). The request is planned first: Hooke drafts the plan from what can run here (Cellpose-SAM and micro-sam by their catalog names, frames of this footage, each model on every frame, the comparison, a researcher's audit and what it may cost), shows it as a card and asks once; nothing runs before the yes. \"Yes, run it\" starts exactly that plan as a workflow in the background (the experiment's card shows it working; the live view and the voice never wait on it). \"How is the experiment going?\" is answered from its records while it runs. When it lands, its results open in a Tab of their own (the comparison table, the outlines side by side on a frame, the researcher's audit) and the outcome is said once; the result step's window spans the run (waitFor experiment). Both models run on this Mac (Cellpose-SAM and micro-sam must be installed); the audit is a quick researcher, at most $0.25. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
- "researchersBehind": 1,
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
@@ -67,7 +66,8 @@
    "expect": {
     "visible": "a Tab of its own holding the experiment's results: the comparison table (a row per frame and model), the two models' outlines side by side on a frame, and the researcher's audit",
     "outcome": true,
-    "judge": "once the experiment has finished and its results Tab is shown, says its outcome once: how Cellpose-SAM's and micro-sam's cell counts compared across the frames and how many cells both found, that the researcher's audit is in it (or why it is not), and that the results are in their own Tab; agreement between the models is never said as which one is right; nothing about the result is said before it landed, and it is not said twice"
+    "judge": "once the experiment has finished and its results Tab is shown, says its outcome once: how Cellpose-SAM's and micro-sam's cell counts compared across the frames and how many cells both found, that the researcher's audit is in it (or why it is not), and that the results are in their own Tab; agreement between the models is never said as which one is right; nothing about the result is said before it landed, and it is not said twice",
+    "researchers": 1
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   }
