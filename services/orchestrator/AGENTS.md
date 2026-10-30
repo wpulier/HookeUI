@@ -1177,6 +1177,13 @@ Matrix inspection retains strict raw-count admission by default. Its explicit
 totals and unverified value semantics instead of implying cell library depths.
 Count preparation, prediction and export keep their existing strict checks.
 
+Project-folder estimates also include a bounded declared-record dependency review.
+It checks every accepted revision's exact artifact links, including Study inputs,
+claims/questions and workflow inputs/output lineage. External Projects are reported
+for inclusion review and never opened. Missing evidence, digest conflicts and
+unpinned execution locators are distinct; no prose/path inference, mutation or
+replay occurs. This is a partial preflight, not full dependency-closure certification.
+
 Project snapshot sealing and verification read every accepted scientific revision
 and verify its owned file/array bytes using the existing import/publication readers.
 Corruption cannot acquire legitimacy from a fresh outer checksum. Verification is

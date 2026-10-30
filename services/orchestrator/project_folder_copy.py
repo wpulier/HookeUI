@@ -18,7 +18,7 @@ import stat
 from .project_repository import document_root, session_root, verify_owner
 from .project_roots import COPY_INTENT, PARTS, SNAPSHOT, ProjectLocationError, ProjectRoot, writer
 from .scientific_projects import ProjectStore
-from .project_snapshot_integrity import verify_records
+from .project_snapshot_integrity import review_dependencies, verify_records
 
 MAX_FILES = 100_000
 MAX_DEPTH = 64
@@ -103,7 +103,8 @@ def estimate(root: ProjectRoot, *, check=lambda: None):
     members = _members(root.path, check)
     size = sum(member.size for member in members)
     return {'files': len(members), 'bytes': size, 'requiredFreeBytes': size + MAX_MANIFEST + HEADROOM,
-            'scope': 'project-folder', 'externalDependencies': 'not-verified'}
+            'scope': 'project-folder', 'externalDependencies': 'not-verified',
+            'dependencyReview': review_dependencies(root, check=check)}
 
 
 def copy_snapshot(root: ProjectRoot, destination: Path, *, check=lambda: None):
