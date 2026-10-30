@@ -444,7 +444,9 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
                 return f"{what} is {'the only window' if placement == 'only' else 'side by side with what is open'} " \
                        f"in the Tab in front ({reply.get('shown')})"
         entry = await _saved(services, what)
-    title = str((found[0][1].get("title") if found else (getattr(entry, "shown", "") or entry.title)) or what)
+    # The app's own words for what a researcher or the web made (its `title`), never theirs (`shown`, untrusted).
+    title = str((found[0][1].get("title") if found else (
+        entry.title if getattr(entry, "untrusted", False) else (getattr(entry, "shown", "") or entry.title))) or what)
     if placement == "new-tab":
         tab_id, tab_title, made = await _tab(services, ctx, tab or _fresh_title(tabs, title))
     elif tab:
