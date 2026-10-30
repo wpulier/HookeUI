@@ -254,6 +254,8 @@ COMMANDS = {
     "dataset-trash": "none: moves a dataset aside (the user's)",
     "dataset-reveal": "none: shows a dataset in the Finder",
     "sessions-reveal": "none: shows the folder every Project is saved in, in the Finder",
+    "project-storage": "none: reads the current Project location and collection readiness",
+    "project-reveal": "none: reveals the verified current Project folder in Finder",
     "rig": "calibration",
     "scale": "calibration",
     "arena": "temporary: a blind trial's outlines, until its vote",
@@ -340,6 +342,7 @@ COMMANDS = {
     "view": "none: the studio covers the live view to look back at a session, or shows it again (no looks meanwhile)",
     # A session's sources (library.py, sources.py; ADR 0022): kept in the session's journal and the library's file.
     "source": "asset",
+    "source-retain": "asset",
     "source-remove": "none: takes an asset out of the session (its journal); the library keeps it",
     "source-restore": "none: puts a removed asset back in the session (its journal)",
     "asset-meta": "none: the user's fields of an asset, kept in the library (library.jsonl)",

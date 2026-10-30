@@ -1,0 +1,142 @@
+{
+  "$id": "hooke:agent/project-dependencies",
+  "title": "Declared historical dependency inspection, not complete Project collection",
+  "type": "object",
+  "required": [
+    "session",
+    "availability",
+    "basis",
+    "documents",
+    "revisions",
+    "referencesChecked",
+    "resolvedRevisions",
+    "scope",
+    "issues",
+    "completeProject",
+    "reason"
+  ],
+  "properties": {
+    "session": {
+      "type": "string",
+      "minLength": 1
+    },
+    "availability": {
+      "enum": [
+        "available",
+        "unavailable"
+      ]
+    },
+    "basis": {
+      "type": "array",
+      "items": {
+        "$ref": "artifact-reference.schema.json"
+      },
+      "maxItems": 10000
+    },
+    "documents": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "revisions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "referencesChecked": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resolvedRevisions": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "enum": [
+        "declared-scientific-record-references"
+      ]
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "field",
+          "status",
+          "reference"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "$ref": "artifact-reference.schema.json"
+          },
+          "field": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "status": {
+            "enum": [
+              "unsupported-reference",
+              "external-project-inclusion-required",
+              "missing-or-unreadable",
+              "digest-mismatch",
+              "unpinned-execution-locator"
+            ]
+          },
+          "reference": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "maxLength": 128
+              },
+              "session": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "maxLength": 128
+              },
+              "revision": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "maxLength": 128
+              },
+              "digest": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "maxLength": 128
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "maxItems": 10000
+    },
+    "completeProject": {
+      "enum": [
+        false
+      ],
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "sourceReview": {
+      "$ref": "project-source-review.schema.json"
+    }
+  },
+  "additionalProperties": false
+}

@@ -21,6 +21,7 @@
     },
     "outcome": {"type": ["object", "null"]},
     "resumable": {"type": "boolean"},
+    "storageReadOnly": {"type": "boolean", "description": "Saved observation only: this host could not acquire the Project writer for recovery. The recorded state is not evidence of execution on this host; control is refused."},
     "execution": {"$ref": "operation-execution.schema.json"}
   }
 }

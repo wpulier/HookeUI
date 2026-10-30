@@ -1,0 +1,104 @@
+{
+  "$id": "hooke:agent/project-source-review",
+  "title": "Historical Library source inclusion review; not complete collection",
+  "type": "object",
+  "properties": {
+    "scope": {
+      "enum": [
+        "journal-library-source-events"
+      ]
+    },
+    "journal": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 268435456
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "events",
+        "bytes",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "string",
+            "pattern": "^a[0-9]+$"
+          },
+          "status": {
+            "enum": [
+              "retained-choices",
+              "inclusion-required"
+            ]
+          },
+          "choices": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "object",
+              "properties": {
+                "reference": {
+                  "$ref": "artifact-reference.schema.json"
+                },
+                "status": {
+                  "enum": [
+                    "retained-binding",
+                    "invalid-retained-binding"
+                  ]
+                }
+              },
+              "required": [
+                "reference",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "asset",
+          "status",
+          "choices"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "completeProject": {
+      "type": "boolean",
+      "enum": [
+        false
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "scope",
+    "journal",
+    "sources",
+    "completeProject",
+    "reason"
+  ],
+  "additionalProperties": false
+}

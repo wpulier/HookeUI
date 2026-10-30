@@ -182,3 +182,52 @@ def test_legacy_experiment_retry_keeps_original_execution(tmp_path):
             await s.start_workflow(study.id,'s1',actor=A,label='A',**{**fields,'revision':2})
         await runner.close()
     asyncio.run(go())
+
+
+@pytest.mark.parametrize('stopped', [False, True])
+def test_study_evidence_reads_one_inventory_without_caching_or_replaying(tmp_path, monkeypatch, stopped):
+    async def go():
+        studies, runner, study, image, definition = setup(tmp_path)
+        runner.steps.execute = lambda claim: {'status': 'completed', 'output': identity(image)}
+        original = []
+        for number in range(3):
+            record, _ = await studies.start_workflow(study.id, 's1', actor=A, label='Client A',
+                request=f'observation-{number}', workflow=definition.id, revision=1, inputs=[identity(image)])
+            original.append(record['id'])
+            await until_async(lambda: not runner.tasks)
+        if stopped:
+            studies.efforts.control(study.id, 's1', 'stop', actor=A)
+        scans = []
+        scan = studies.store.scan
+        def counted(session):
+            scans.append(session)
+            return scan(session)
+        monkeypatch.setattr(studies.store, 'scan', counted)
+        result = await studies.evidence(study.id, 's1')
+        assert scans == ['s1']
+        assert [r['id'] for r in result['operations']] == original
+        assert all(r['state'] == 'succeeded' for r in result['operations'])
+        assert not runner.tasks
+        assert not result['study']['stopPending']
+        # The next read derives a new observation, never a saved completion cache.
+        run = result['operations'][0]['execution']['id']
+        runner.workflows.control(run, 's1', 'stop', actor=A)
+        scans.clear()
+        changed = await studies.evidence(study.id, 's1')
+        assert scans == ['s1']
+        assert changed['operations'][0]['state'] == 'cancelled'
+        assert not runner.tasks
+        await runner.close()
+    asyncio.run(go())
+
+
+def test_batch_observation_refuses_unreadable_receipts_and_cross_project_runs(tmp_path, monkeypatch):
+    studies, runner, study, image, definition = setup(tmp_path)
+    w = runner.workflows
+    run = w.start(definition.id, 1, 's1', [identity(image)], 'b'*32, actor=A)
+    assert w.statuses([run.id], 'other') == {}
+    scan = studies.store.scan
+    monkeypatch.setattr(studies.store, 'scan', lambda sid: (scan(sid)[0], [{'id':'unreadable', 'reason':'lost bytes'}]))
+    with pytest.raises(InvalidProject, match='unreadable'):
+        runner.observed_statuses([run.id], 's1')
+    assert not runner.tasks

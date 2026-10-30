@@ -109,10 +109,10 @@ def _installed_studio_tab_capture(client, _pending, metadata) -> bool:
                for actual, value in zip(metadata["workspaceToImage"], expected))
 
 
-def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None) -> FastAPI:
+def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None, *, project_locations=None) -> FastAPI:
     from .build_info import identity, runtime_identity
     build = identity()  # backend source identity is fixed at process startup
-    built = App.build(bridge_url, paths, use_gpu=use_gpu)
+    built = App.build(bridge_url, paths, use_gpu=use_gpu, project_locations=project_locations)
     built._workspace_capture_authority = _installed_studio_tab_capture
     hub = built.hub
     hub.execution.context_provider = lambda: {
@@ -1211,8 +1211,15 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8770)
     parser.add_argument("--bridge-url", default="http://127.0.0.1:8765")
     parser.add_argument("--no-gpu", action="store_true")
+    parser.add_argument('--project-folders', default=os.environ.get('HOOKE_PROJECTS_DIR'),
+                        help='Explicit staged Project-folder parent; existing Projects stay in place')
+    parser.add_argument('--reopen-project', default=os.environ.get('HOOKE_REOPEN_PROJECT'),
+                        help='Explicitly recover the new location of a registered inactive Project; does not import or grant access')
     args = parser.parse_args()
-    server = create_app(args.bridge_url, use_gpu=not args.no_gpu)
+    from .project_launch import configured_locations
+    paths = Paths.from_env()
+    locations = configured_locations(paths, args.project_folders, reopen=args.reopen_project)
+    server = create_app(args.bridge_url, use_gpu=not args.no_gpu, paths=paths, project_locations=locations)
     # Where researchers read the session's index (their session tool; resources.py, Amendment 2.7): its researchers'
     # view, which reads as it did before ticket 66 (RESEARCHER_VIEW in create_app).
     server.state.app.research.resources_url = f"http://127.0.0.1:{args.port}/for-researchers"

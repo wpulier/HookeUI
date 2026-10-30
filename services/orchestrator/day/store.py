@@ -158,6 +158,9 @@ class SessionStore:
         # (a removed one's specimens are not the session's: `_subject_events` are applied again without them), and
         # what is on stage now ("live", an asset id, or None before anything was opened in it).
         self.sources: dict[str, float] = {}
+        self.source_references: dict[str, dict] = {}
+        self.on_stage_reference: dict | None = None
+        self._source_retention_receipts: set[str] = set()
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
         # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
@@ -523,11 +526,13 @@ class SessionStore:
             self.outcomes.setdefault(e["rid"], {})[e["step"]] = {"outcome": e["outcome"], "by": e.get("by") or "", "at": at}
         elif kind == "evidence-saved":
             self.evidence[e["id"]] = {"path": e["path"], "at": at, "thread": e.get("thread"), "revision": e.get("revision", 0),
-                                      "members": e.get("members") or []}
+                                      "members": e.get("members") or [],
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
         elif kind == "evidence-made":
             self.evidence_ids[e["id"]] = e.get("lastMember") or ""
         elif kind == "tracks-saved":
-            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread")}
+            self.tracks[e["id"]] = {"path": e["path"], "thread": e.get("thread"),
+                                      **({"manifestSha256": e["manifestSha256"]} if "manifestSha256" in e else {})}
             self.tracks_ids.add(e["id"])
         elif kind == "tracks-made":
             self.tracks_ids.add(e["id"])
@@ -578,11 +583,17 @@ class SessionStore:
         if not aid:
             return
         before = set(self.removed_sources)
-        if op == "opened":
+        if op in ("opened", "retained"):
             self.sources.pop(aid, None)
             self.sources[aid] = at  # newest last
             self.removed_sources.discard(aid)
-            self.on_stage = aid
+            if op == 'opened':
+                self.on_stage = aid
+                self.on_stage_reference = dict(e['retained']) if isinstance(e.get('retained'), dict) else None
+            if isinstance(e.get('retained'), dict):
+                self.source_references[aid] = dict(e['retained'])
+                if op == 'retained':
+                    self._source_retention_receipts.add(json.dumps([aid, e['retained']], sort_keys=True))
         elif op == "removed" and aid != "live":
             self.removed_sources.add(aid)
         elif op == "restored":
@@ -601,9 +612,26 @@ class SessionStore:
                 self._apply_subject(e, float(e.get("at") or self.clock()))
 
     # --- its sources (library.py; ADR 0022) -----------------------------------------------------
-    def open_source(self, aid: str, by: str = "user") -> None:
+    def open_source(self, aid: str, by: str = "user", *, retained=None) -> None:
         """An asset (or "live") put on stage: the session's from then on. Opening a removed one brings it back."""
-        self._record({"type": "source", "asset": aid, "op": "opened", "by": by})
+        if retained is not None:
+            from ..project_stage_media import reference
+            reference(retained, self.sid)
+        self._record({"type": "source", "asset": aid, "op": "opened", "by": by,
+                      **({'retained': dict(retained)} if retained is not None else {})}, strict=retained is not None)
+
+    def retain_source(self, aid: str, retained: dict, *, session: str, by: str) -> None:
+        """Associate copied material without moving the Stage or rewriting old bindings."""
+        from ..project_stage_media import reference
+        reference(retained, session)
+        with self._filing(session) as store:
+            if store.sid != session:
+                raise ValueError('The source destination Project is unavailable')
+            receipt = json.dumps([aid, retained], sort_keys=True)
+            if receipt in store._source_retention_receipts:
+                return  # retry cannot undo a later choice or removal
+            store._record({'type': 'source', 'asset': aid, 'op': 'retained',
+                           'retained': dict(retained), 'by': by}, strict=True)
 
     def record_layer(self, eid: str | None) -> None:
         """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding
@@ -829,13 +857,15 @@ class SessionStore:
             return self
 
     def record_evidence(self, eid: str, path: str, thread: str | None, revision: int, members: list[str], *,
-                        day: str | None = None, session: str | None = None) -> None:
+                        day: str | None = None, session: str | None = None,
+                        manifestSha256: str | None = None) -> None:
         """A population saved (evidence.py): filed in its session's journal with the date folder it is in (`day`),
         so a restart reads it back (ADR 0001)."""
         # `thread` as given: None is filed under the session (asked in no conversation of it), never a new t1.
         with self._filing(session) as store:
             store._record({"type": "evidence-saved", "id": eid, "path": path, "thread": thread, "day": day or self.date,
-                           "revision": revision, "members": members}, strict=True)
+                           "revision": revision, "members": members,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})}, strict=True)
 
     def record_annotation(self, source: dict, text: str, title: str = "", *, annotation_id: str = "", creation_id: str = "",
                           asked: Asked | None = None) -> dict:
@@ -925,10 +955,11 @@ class SessionStore:
             store._record({"type": "tracks-made", "id": tid, "day": day or self.date})
 
     def record_tracks(self, tid: str, path: str, thread: str | None, *, day: str | None = None,
-                      session: str | None = None) -> None:
+                      session: str | None = None, manifestSha256: str | None = None) -> None:
         """Motion tracks saved (motiontracks.py): filed in their session's journal, so a restart reads them back."""
         with self._filing(session) as store:  # thread None: under the session
-            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date},
+            store._record({"type": "tracks-saved", "id": tid, "path": path, "thread": thread, "day": day or self.date,
+                           **({"manifestSha256": manifestSha256} if manifestSha256 else {})},
                           strict=True)
 
     def link_research(self, rid: str, thread: str | None = None, *, session: str | None = None,

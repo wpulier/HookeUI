@@ -431,6 +431,42 @@ class ProjectStore:
                 continue
         return out
 
+    def head_references(self, session, *, max_documents, max_revisions, check=lambda: None):
+        """Bounded accepted-head identities without loading document bodies.
+
+        Discovery checks cancellation between directory entries and keeps only
+        exact references. Other owners are excluded by the existing head reader.
+        A later consumer still verifies each immutable revision's actual content.
+        """
+        from .scientific_import_transaction import reading
+        _identity(session, 'session')
+        check()
+        result, revisions, entries = [], 0, 0
+        with reading(self.root):
+            if not self.root.is_dir():
+                return result
+            with os.scandir(self.root) as paths:
+                for path in paths:
+                    check()
+                    entries += 1
+                    if entries > 100_000:
+                        raise InvalidProject('Project head inspection exceeds its directory allowance')
+                    if not PROJECT_ID.fullmatch(path.name):
+                        continue
+                    try:
+                        history = self._head(self._folder(path.name), session)
+                    except _OtherSession:
+                        continue
+                    except (OSError, InvalidProject):
+                        raise InvalidProject('Retained ownership is unreadable; recover records before dependency inspection') from None
+                    revisions += len(history)
+                    if len(result) >= max_documents or revisions > max_revisions:
+                        raise InvalidProject('Project dependency inspection exceeds its history allowance')
+                    result.append({'id': path.name, 'session': session,
+                                   'revision': len(history), 'digest': history[-1]})
+            check()
+        return sorted(result, key=lambda item: item['id'])
+
     def scan(self, session: str) -> tuple[list[ProjectRevision], list[dict]]:
         """Healthy projects and explicit unreadable records; another session is simply outside the query."""
         from .scientific_import_transaction import reading

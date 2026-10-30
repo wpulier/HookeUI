@@ -77,7 +77,7 @@ class Folder:
                 os.close(fd)
             os.close(directory)
 
-    def _consume(self, name, *, retain=False, expected=None, max_bytes=None):
+    def _consume(self, name, *, retain=False, expected=None, max_bytes=None, sync=False):
         self.check()
         with self._file(name) as fd:
             before = os.fstat(fd)
@@ -109,6 +109,11 @@ class Folder:
             digest = h.hexdigest()
             if expected is not None and digest != expected:
                 raise Invalid("output differs from its recorded digest")
+            if sync:
+                try:
+                    os.fsync(fd)
+                except OSError as exc:
+                    raise Invalid(f"output {name!r} could not be durably saved: {exc}") from exc
             self.check()
             return b"".join(chunks) if retain else {"sha256": digest, "bytes": size}
 
@@ -117,6 +122,10 @@ class Folder:
 
     def read(self, name, *, expected=None, max_bytes=None):
         return self._consume(name, retain=True, expected=expected, max_bytes=max_bytes)
+
+    def sync(self, name, *, expected):
+        """Flush the same descriptor whose bytes match the retained dependency identity."""
+        return self._consume(name, expected=expected, sync=True)
 
     def write(self, name, data):
         """Replace a parent-owned control file without following a worker-created alias at that name."""

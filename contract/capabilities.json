@@ -180,6 +180,7 @@
         "command": "source",
         "control": "source",
         "also": [
+          "source-retain",
           "source-remove",
           "source-restore",
           "asset-meta"
@@ -2557,7 +2558,9 @@
         "control": "session",
         "also": [
           "view",
-          "sessions-reveal"
+          "sessions-reveal",
+          "project-storage",
+          "project-reveal"
         ]
       },
       "pair": "new-session",

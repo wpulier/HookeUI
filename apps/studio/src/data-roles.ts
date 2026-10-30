@@ -8,6 +8,7 @@ import type { AssetMeta } from './protocol';
 import type { StudyResource } from './workspace-study-model';
 import { kindWords, matchesSearch } from './workspace-data-card';
 import { daysAgo, monthDay } from './sessions';
+import {isRetainedMaterial} from './material-identity';
 
 export type DataRole = 'acquired' | 'analysis' | 'writeup' | 'source' | 'other' | 'files' | 'model' | 'study' | 'history';
 export interface ProjectMaterial {
@@ -15,6 +16,7 @@ export interface ProjectMaterial {
   section: DataRole; category: string; record: boolean; run?: string;
   uses?: {study?: string; membership?: string; revision: number; digest: string; title: string; available: boolean; material?: ProjectMaterial}[];
   organization?: {role: string; input: boolean; by: string; revision: number};
+  inspection?: {status: 'reported' | 'conflicting'; reports: {id: string; session: string; revision: number; digest: string}[]; total: number};
   format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
 }
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
@@ -91,12 +93,14 @@ export function dataRows(entries: readonly DataEntry[], sources: readonly AssetM
   const listed = entries.filter((entry) => roleOf(entry) !== null && !unwritten(entry));
   const assets = new Map(listed.filter((entry) => entry.kind === 'asset').map((entry) => [entry.id, entry]));
   const inputs: DataRow[] = sources.map((asset) => {
-    const entry = assets.get(asset.id) ?? null;
+    const entry = asset.retained ? listed.find(entry=>isRetainedMaterial(entry,asset)) ?? null : assets.get(asset.id) ?? null;
     return { key: asset.id, role: 'acquired', entry, parts: entry ? [entry] : [], asset, maker: entry?.maker ?? null, at: entry?.at ?? asset.capturedAt ?? 0 };
   });
-  const joined = new Set(sources.map((asset) => asset.id));
+  const joined = new Set(sources.filter(asset=>!asset.retained).map((asset) => asset.id));
+  const retained = new Set(inputs.flatMap(row=>row.entry?[row.entry]:[]));
   const rows: DataRow[] = [], runs = new Map<string, DataRow>();
   for (const entry of listed) {
+    if (retained.has(entry)) continue;
     if (entry.kind === 'asset' && joined.has(entry.id)) continue;
     const role = roleOf(entry)!;
     // Folded within its section only: a run's parts are one thing, and a thing is in one section.
@@ -132,7 +136,7 @@ export function titleParts(title: string): { head: string; rest: string[]; time:
  * words; an input by its title's first part ("Human cells", its credit going to the quiet line). */
 export function rowTitle(row: DataRow): string {
   const entry = row.entry;
-  if (!entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
+  if (row.asset || !entry || entry.kind === 'asset') return (row.asset?.title ?? entry?.title ?? '').split(' · ')[0].trim();
   // Your note by its own title ("Your note · Field A looks denser" is "Field A looks denser"; its line says Note).
   if (entry.kind === 'annotation') return entry.title.replace(/^Your note · /, '') || entry.title;
   if (entry.untrusted || row.role === 'writeup' || row.role === 'source') return entry.title;

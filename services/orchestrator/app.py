@@ -224,8 +224,28 @@ class App:
     _capabilities_sent: dict | None = field(default=None, repr=False)  # the last full capabilities built for studios
 
     @classmethod
-    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True) -> "App":
-        paths = paths or Paths.from_env()  # where everything is saved, decided once (paths.py)
+    def build(cls, bridge_url: str, paths: Paths | None = None, use_gpu: bool = True,
+              *, project_locations=None) -> "App":
+        """Build one host; an explicit location resolver enables isolated portability qualification.
+
+        This internal dependency is not accepted from HTTP, saved files or an
+        environment toggle. Ordinary startup retains its existing storage policy.
+        The built host owns the resolver until its producers have stopped.
+        """
+        paths = paths or Paths.from_env()
+        if project_locations is not None:
+            from .project_roots import ProjectLocationError
+            if project_locations.legacy.resolve() != paths.sessions.resolve():
+                raise ProjectLocationError('Project locations must belong to this host’s session store')
+        try:
+            return cls._build(bridge_url, paths, use_gpu, project_locations=project_locations)
+        except BaseException:
+            if project_locations is not None:
+                project_locations.close()
+            raise
+
+    @classmethod
+    def _build(cls, bridge_url, paths, use_gpu, *, project_locations):
         from .scientific_import_transaction import recover
         from .scientific_projects import ProjectStore
         recover(ProjectStore(paths.results / "projects"), paths.sessions)
@@ -233,7 +253,7 @@ class App:
         hub.execution = execution.ExecutionLog.from_env(publish=hub.broadcast_execution)
         # The session and its conversations (day/store.py, ADR 0017): the one the app was last in, rebuilt from its
         # journal, so a restart comes back to the same session and conversation.
-        day = SessionStore.resume(root=paths.sessions, clock=session_clock())
+        day = SessionStore.resume(root=paths.sessions, clock=session_clock(), locations=project_locations)
         # Every session's journal read once now, before the event loop runs: after this the list only reads where a
         # journal grew (day/catalogue.py), so a reading on the loop (a new id, the session wire) stays small.
         day.catalogue.list()
@@ -529,6 +549,9 @@ class App:
         from .scientific_projects import ProjectStore
         from .paths import envs as environment_root
         projects = ProjectStore(paths.results / 'projects', runtime_root=environment_root())
+        if project_locations is not None:
+            from .project_stores import ProjectStores
+            projects = ProjectStores(projects, project_locations)
         hub.screen = Screen(hub.broadcast)  # what the studio reports it shows; the verbs' changes (screen.py)
         hub.resources = Index(hub, results=results, projects=projects, research=research, snapshots=paths.snapshots, bookmarks=bookmarks,
                               registrations=registrations, identity=hub.identity, memory=memory, seen=seen, taught=taught,
@@ -555,7 +578,8 @@ class App:
                           snapshots=paths.snapshots, origin_of=origin_of)
         hub.library = library
         # Yours: the user's own and the examples a session has used (any session's sources, the catalogue's).
-        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)}
+        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)
+                                if aid not in getattr(info, 'source_references', {})}
         # The library's looks (library_looks.py): one look at each new asset files it by what is in it, with the fast
         # vision model when it can run here (its key); what the running look saw while it was on stage is told as data.
         from .library_looks import LibraryLooks
@@ -573,7 +597,8 @@ class App:
 
         hub.library_looks = LibraryLooks(
             library, lambda aid: thumbnails_of(hub).get(aid, LIBRARY, ""), look_vision,
-            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen if source == aid],
+            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen
+                                 if source == aid and aid not in getattr(info, 'source_references', {})],
             log=agent.log, chosen=lambda: not day.local_only and hub.settings.library_looks == "on")
         hub.stage_meta = None  # the asset on stage's metadata, for the Board's line (brain/context.py); None on live
         hub.stage_image_json = None
@@ -584,9 +609,11 @@ class App:
 
         def staged() -> str | None:
             meta = hub.stage_meta
-            return meta.get("id") if isinstance(meta, dict) and is_asset_id(meta.get("id")) else None
+            return meta.get("id") if isinstance(meta, dict) and not meta.get('retained') and is_asset_id(meta.get("id")) else None
 
-        subjects.pinned = lambda: str(library.edits(staged()).get("specimen") or "") if staged() else ""
+        subjects.pinned = lambda: (str((hub.stage_meta or {}).get('specimen') or '')
+            if (hub.stage_meta or {}).get('retained') and (hub.stage_meta or {}).get('specimenBy') == 'user'
+            else str(library.edits(staged()).get("specimen") or "") if staged() else "")
         subjects.on_named.append(lambda name: library.set_meta(staged(), {"specimen": name}, by="user") if staged() else None)
         scale.asset_set = lambda aid, fields: library.set_meta(aid, fields, by="user")
 
@@ -1672,7 +1699,20 @@ class App:
                     await warm()
 
     async def stop(self) -> None:
+        try:
+            await self._stop()
+        finally:
+            media = getattr(self, '_project_stage_media', None)
+            if media is not None:
+                media.retire()
+            if getattr(self.day, 'locations', None) is not None:
+                # Completion/cancellation is not proof all writer threads ended.
+                # Fence later admission and hold leases until process teardown.
+                self.day.locations.retire()
+
+    async def _stop(self) -> None:
         self._stopping = True
+        self.hub.identity.io.retire()
         if getattr(self, "scientific_uploads", None) is not None:
             await asyncio.to_thread(self.scientific_uploads.close)
         from . import readiness
@@ -1978,7 +2018,7 @@ class App:
         hub = self.hub
         meta = asset.metadata() if asset is not None else None
         previous = getattr(hub, "stage_meta", None)
-        if (previous or {}).get("id") != (meta or {}).get("id"):
+        if ((previous or {}).get("id"), (previous or {}).get("retained")) != ((meta or {}).get("id"), (meta or {}).get("retained")):
             from . import ticket
             from .population import layer_of
 
@@ -1991,7 +2031,9 @@ class App:
         if fields is None:
             self.reopen_layer(asset)
         if hub.scale is not None:
-            hub.scale.use_asset(asset.id if asset is not None else None, asset.scale_optics() if asset is not None else None)
+            hub.scale.use_asset(asset.id if asset is not None else None,
+                                asset.scale_optics() if asset is not None else None,
+                                read_only=bool((meta or {}).get('retained')))
         if fields is None or "specimen" in fields:
             if fields is None:
                 self.subjects.source_changed(asset.user_specimen() if asset is not None else "")
@@ -2052,6 +2094,17 @@ class App:
         """Session `sid`'s sources (sources.rows): the open session's from its store, another's from its journal, each
         with the other sessions that use it (every session's journal, read by the catalogue)."""
         from . import sources
+
+        locations = getattr(self.day, 'locations', None)
+        portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
+        if portable is not None:
+            from .project_stage_media import sources as retained_sources
+            def read_retained():
+                record = next((i for i in self.day.catalogue.list() if i.id == sid), None)
+                if record is None:
+                    return {"session": sid, "onStage": None, "sources": [], "removed": []}
+                return retained_sources(self.hub.resources.projects, sid, record)
+            return await asyncio.to_thread(read_retained)
 
         library = getattr(self.hub, "library", None)
         if library is None:
@@ -2126,9 +2179,12 @@ class App:
     async def put_on_stage(self, aid: str) -> dict:
         """One of the user's assets on stage, as the studio's Add does (the `source` command, held at its start): it is
         the session's from then on (ADR 0022's amendment). The library's add_asset tool."""
-        from .commands import source
+        from .commands import source, source_retain
 
-        return await source(self, None, {"open": aid, "paused": True})
+        sid = self.day.sid
+        kept = await source_retain(self, None, {'asset': aid, 'session': sid})
+        return await source(self, None, {"open": aid, "paused": True, 'session': sid,
+                                        **({'retained': kept['retained']} if kept.get('retained') else {})})
 
     async def open_page(self, client, page: str, timeout: float = 4.0) -> dict | None:
         """Ask the studio that made the request (every studio when none did) to open a page ("#models/<id>") and wait for

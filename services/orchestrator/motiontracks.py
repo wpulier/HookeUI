@@ -715,6 +715,10 @@ class TracksStore:
                  keep: Callable[[Path, str], None] | None = None) -> None:
         self.hub = hub
         self.root = Path(root) if root is not None else None
+        from .project_artifact_folder import ArtifactFolder
+        self._folders = ArtifactFolder(self.root, 'evidence') if self.root is not None else None
+        self._retained_manifests = {}
+        self._recovered_optional = {}
         self.day = day  # day.SessionStore: each saved item a journal event, read back at start
         self.log = log or (lambda record: None)
         self.keep = keep  # Services.keep: mirror into a dataset being recorded
@@ -741,7 +745,8 @@ class TracksStore:
         from .day.ids import floor, owner
 
         date = getattr(self.day, "date", None) or time.strftime("%Y-%m-%d")
-        folder = self.root / date if self.root is not None else None
+        root = self.root_for(session)
+        folder = root / date if root is not None else None
         store = owner(self.day, session)
         key = (getattr(store, "sid", None), date)
         while True:
@@ -752,6 +757,15 @@ class TracksStore:
                 tid = f"m{self._given}"
             if tid not in self.items and (folder is None or not (folder / tid).exists()):
                 return tid
+
+    def root_for(self, session=None, *, write=False):
+        if self._folders is None and self.root is not None:
+            from .project_artifact_folder import ArtifactFolder
+            self._folders = ArtifactFolder(self.root, 'evidence')
+        return self._folders.root_for(self.day, session or self._session(), write=write) if self._folders else None
+
+    def _date(self) -> str:
+        return getattr(self.day, 'date', None) or time.strftime('%Y-%m-%d')
 
     def _session(self) -> str:
         return str(getattr(self.day, "sid", "") or "")
@@ -899,8 +913,10 @@ class TracksStore:
         from .evidence import _atomic
 
         try:
-            folder = self.root / (item.day or time.strftime("%Y-%m-%d")) / item.id
-            folder.mkdir(parents=True, exist_ok=True)
+            from .project_evidence import destination, sync_publication, verify_previous, remember
+            folder, portable = destination(self, item)
+            if portable:
+                verify_previous(self, item)
             files = {}
             jpeg = self.capture_jpeg(item)
             if jpeg:
@@ -914,6 +930,10 @@ class TracksStore:
                 _atomic(folder / name, data)
                 sums[name] = hashlib.sha256(data).hexdigest()
             _atomic(folder / "manifest.json", json.dumps(self.manifest(item, sums), default=str).encode())  # the manifest last
+            if portable:
+                verify_previous(self, item)
+                sync_publication(self, item, folder)
+                remember(self, folder)
         except Exception as exc:
             self._on_loop(loop, self._failed, item, f"{type(exc).__name__}: {exc}"[:200])
             return
@@ -959,8 +979,10 @@ class TracksStore:
 
                 # Filed in its session under its conversation; one from before sessions only while that is still the
                 # one loaded (S2): else filed under the session.
-                record(item.id, str(folder), filed_thread(self.hub, item.thread, item.session, item.generation),
-                       day=item.day or None, session=item.session or None)
+                from .project_evidence import reference
+                path, identity = reference(self, item, folder)
+                record(item.id, path, filed_thread(self.hub, item.thread, item.session, item.generation),
+                       day=item.day or None, session=item.session or None, **identity)
             why = ""
         except Exception as exc:
             why = f"its session's journal did not file it ({type(exc).__name__}: {exc})"[:200]
@@ -1030,14 +1052,18 @@ class TracksStore:
         checked against its files; a partial one is reported "incomplete, not loaded"."""
         loaded, problems = [], []
         for tid, entry in (getattr(self.day, "tracks", {}) or {}).items():
-            folder = Path(entry["path"])
             try:
+                from .project_evidence import resolve
+                folder = resolve(self, self._session(), entry)
                 manifest = json.loads((folder / "manifest.json").read_text())
                 if manifest.get("schema") != SCHEMA:
                     raise ValueError(f"schema {manifest.get('schema')}")
                 for name, digest in (manifest.get("files") or {}).items():
                     if hashlib.sha256((folder / name).read_bytes()).hexdigest() != digest:
                         raise ValueError(f"{name} does not match its checksum")
+                if entry.get('manifestSha256'):
+                    from .project_folder_copy import _stamp
+                    self._retained_manifests[folder] = (entry['manifestSha256'], _stamp((folder / 'manifest.json').lstat()))
             except Exception as exc:
                 problems.append(f"{tid}: incomplete, not loaded ({type(exc).__name__}: {exc})"[:200])
                 continue

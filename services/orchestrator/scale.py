@@ -102,14 +102,16 @@ class Scale:
         # setting the objective or calibrating describes it: `asset_set(id, fields)` keeps that in its metadata.
         self.asset: dict | None = None
         self.asset_set = None
+        self.asset_read_only = False
 
     # --- setting it -----------------------------------------------------------------------------
-    def use_asset(self, aid: str | None, optics: dict | None = None) -> None:
+    def use_asset(self, aid: str | None, optics: dict | None = None, *, read_only: bool = False) -> None:
         """An asset put on stage with its own magnification (None: the live camera again, and the objective menu's
         scale). A recording made at 40x is never measured at the objective on the microscope now; an asset with none
         states no sizes until the user sets its optics or calibrates on it."""
         self.asset = None if aid is None else {"id": aid, **{k: float(v) for k, v in (optics or {}).items()
                                                              if k in ("objective", "fieldNumber", "umPerPx") and v is not None}}
+        self.asset_read_only = bool(aid is not None and read_only)
         self._tell()
 
     def set_objective(self, objective: int | None, field_number: float | None = None, via: str | None = None) -> None:
@@ -139,6 +141,8 @@ class Scale:
     def _asset_fields(self, fields: dict) -> None:
         """The asset on stage's magnification changed (the objective said, or a calibration): kept on it."""
         assert self.asset is not None
+        if self.asset_read_only:
+            raise ValueError('This retained source has immutable optics; a reviewed revision is required')
         for k, v in fields.items():
             if v is None:
                 self.asset.pop(k, None)

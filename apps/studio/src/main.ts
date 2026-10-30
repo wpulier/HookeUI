@@ -1,4 +1,5 @@
-import {selectObservedWorkspaceInput} from './workspace-input';
+import {selectObservedWorkspaceInput,exactInputObserved} from './workspace-input';
+import { SourceIntake } from './source-intake';
 import { scientificAskSelection } from './scientific-ask-input';
 import { ActivityNavigation, type ActivitySurface } from './workspace-study-navigation';
 import { workspaceInput } from './workspace-views-model';
@@ -430,13 +431,20 @@ const sideResearchers = new ResearcherCards((rid) => { shelf.markOpened(rid); op
 // capabilities message's; its forms are the tools' own arguments (GET /api/actions). The dock's view tools move in.
 let studyActionOwner: string | null = null;
 let studyTransition = false;
-let studyInputNavigation:((source:string,title:string,session:string,position:number)=>Promise<boolean>)|null=null;
+let studyInputNavigation:((source:string,title:string,session:string,position:number,retained?:AssetMeta['retained'])=>Promise<boolean>)|null=null;
+const sourceIntake = new SourceIntake(() => sessionsModel.current,
+  (asset,session,request) => connection.request('source-retain',{asset,session}, request), () => openToken, sessionStorage);
 /** User choices open a dedicated work Tab; internal restoration still uses putOnStage. */
 async function openUserInput(target:string,options:{asset?:AssetMeta;at?:number;paused?:boolean;session?:string;say?:(text:string)=>void}={}):Promise<boolean>{
-  if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,options);
+  const session=options.session??sessionsModel.current;
   try{
+    if(sessionsModel.opening())throw new Error('Wait for this Project to finish opening.');
+    const admitted=await sourceIntake.prepare(target,session,options.asset?.retained);
+    if(!admitted.ready)return false;
+    if(sessionsModel.opening())return false;
+    if(document.body.dataset.workspaceStudy!=='true')return putOnStage(target,{...options,session,retained:admitted.retained});
     if(!studyInputNavigation)throw new Error('Wait for the workspace to finish opening.');
-    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',options.session??sessionsModel.current,options.at??0);
+    return await studyInputNavigation(target,target==='live'?'Live camera':options.asset?.title??'Saved input',session,options.at??0,admitted.retained);
   }catch(error){showHint(error instanceof Error?error.message:String(error),true);return false;}
 }
 const studySessionSwitch = new StudySessionSwitch();
@@ -2283,7 +2291,7 @@ const phonePanel = new PhonePanel(element('phone-panel'), source, bridgeBase, (t
 phonePanel.onDoctor = () => renderStatus();
 phonePanel.onStage = () => {
   if (!isAssetFeed(feed.state)) return null;
-  const title = sourcesModel.row(stageOf(feed.state, sourcesModel.state))?.title || feed.state?.footageTitle || 'a recording or picture';
+  const title = sourcesModel.state?.onStageAsset?.title || sourcesModel.row(stageOf(feed.state, sourcesModel.state))?.title || feed.state?.footageTitle || 'a recording or picture';
   return studyFeedSelector ? `${feed.state?.playback?.still ? 'Saved image' : 'Prerecorded video'} · ${title}` : title;
 };
 phonePanel.goLive = () => void openUserInput('live');
@@ -2320,7 +2328,7 @@ function renderStatus(): void {
   // One of the user's own recordings or pictures (the server put it on stage: the bridge's `asset:<path>`), or test
   // footage (the camera menu's, which stands for the live camera).
   const asset = isAssetFeed(feed.state) || !!feed.choosing?.name.startsWith('asset:');
-  const stageRow = isAssetFeed(feed.state) ? sourcesModel.row(stageOf(feed.state, sourcesModel.state)) : undefined;
+  const stageRow = isAssetFeed(feed.state) ? sourcesModel.state?.onStageAsset ?? sourcesModel.row(stageOf(feed.state, sourcesModel.state)) : undefined;
   // What plays is named by its title everywhere (the one being switched to, at once).
   const playingTitle = feed.choosing?.title ?? (footage ? stageRow?.title || feed.state?.footageTitle || footage.split('/').pop() || footage : '');
   const still = !feed.choosing && !!feed.state?.playback?.still;
@@ -2618,7 +2626,7 @@ function renderSources(): void {
  * when `paused` (a picture is always held). Opening associates: it is the session's from then on. The chip and the
  * player say it at once; a new session's home goes once it is there. Returns whether it is. */
 async function putOnStage(target: string, options: { at?: number; paused?: boolean; asset?: AssetMeta; session?: string;
-  say?: (text: string) => void } = {}): Promise<boolean> {
+  retained?: AssetMeta['retained']; say?: (text: string) => void } = {}): Promise<boolean> {
   stageChosen(); // something was put on stage: a start's landing never replaces it
   const asset = target === 'live' ? null : options.asset ?? sourcesModel.row(target) ?? null;
   // Already the camera: the session is told, and the camera is not restarted (a switch waits for its frames again).
@@ -2627,6 +2635,7 @@ async function putOnStage(target: string, options: { at?: number; paused?: boole
   renderSources();
   // `session`: a landing's, so a session left meanwhile never has another's source put in it (commands.py `source`).
   const command = { open: target, ...(target !== 'live' && options.paused ? { paused: true } : {}),
+    ...((options.retained ?? asset?.retained) ? {retained:options.retained ?? asset?.retained} : {}),
     ...(asset && typeof options.at === 'number' && options.at > 0 ? { at: options.at } : {}), ...(already ? { switch: false } : {}),
     ...(options.session ? { session: options.session } : {}) };
   const error = already
@@ -3863,6 +3872,7 @@ export function workspaceStudyBridge() {
     const retained = workspaceSession?.retainedPresentation() ?? { views: [], missing: [] };
     const playback = feed.state?.source === 'footage' ? feed.state.playback : null;
     const saved: StudyPresentation = { schema: 1, session: sessionsModel.current, source: sourcesModel.state?.onStage ?? null,
+      ...(sourcesModel.state?.onStageRetained ? {retained:sourcesModel.state.onStageRetained}:{}),
       position: playback ? positionAt(playback, performance.now() - feed.playbackAt) : 0, paused: playback?.paused !== false,
       wholeFrame: view.wholeFrame, conversation: day?.active ?? null, draft: question.value,
       reading: element('log').scrollTop, views: [...retained.views,...studyArtifacts().retainedPresentation()], missing: retained.missing };
@@ -3889,7 +3899,7 @@ export function workspaceStudyBridge() {
       if (saved.source === null) openHome();
       else {
         const available = saved.source === 'live' || sourcesModel.row(saved.source);
-        const opened = available && await putOnStage(saved.source, { session: sid, at: saved.position, paused: true });
+        const opened = available && await putOnStage(saved.source, { session: sid, at: saved.position, paused: true, retained:saved.retained });
         current();
         if (!opened) {
           missing.push('The saved source is unavailable. Choose another input; no replacement frame was used.');
@@ -4017,6 +4027,7 @@ export function workspaceStudyBridge() {
     example: () => exampleGuide.start(),
     upload: (files: File[], session?:string, current?:()=>boolean) => addFromMac(files,session,current),
     bindInputNavigation: (handler:NonNullable<typeof studyInputNavigation>) => {studyInputNavigation=handler;},
+    prepareInput: (asset:AssetMeta,session:string) => sourceIntake.prepare(asset.id,session,asset.retained),
     cameraStatus: () => feed.state?.bridge.sourceKind==='none'?'No camera selected':feed.state?.source==='camera'?feed.state.bridge.stateLabel:'Select to check camera connection',
     selectTabInput: async (input:import('./workspace-views-model').WorkspaceTabInput,session:string) => {
       await selectObservedWorkspaceInput(input.source,{
@@ -4028,8 +4039,8 @@ export function workspaceStudyBridge() {
         select:async()=>{
           studyTransition=true;
           try {
-            if(!await putOnStage(input.source,{paused:true,at:input.position,session}))throw new Error('The input could not be opened. Your saved Tab and Data are kept; retry opening the Tab.');
-            await waitFor(()=>sessionsModel.current===session&&sourcesModel.state?.onStage===input.source&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
+            if(!await putOnStage(input.source,{paused:true,at:input.position,session,retained:input.retained}))throw new Error('The input could not be opened. Your saved Tab and Data are kept; retry opening the Tab.');
+            await waitFor(()=>sessionsModel.current===session&&exactInputObserved(input,sourcesModel.state)&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
           }finally{studyTransition=false;}
         },
       });

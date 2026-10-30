@@ -1,4 +1,60 @@
+`test_project_source_preflight.py` uses synthetic journals and copied media over the
+real Project stores. It checks removed-source history, exact retained choices,
+origin mismatch, interrupted/changed journals and bounded refusal. This is source
+inclusion preflight, not full collection or playback/browser acceptance.
+
 # Checks
+
+`test_project_operation_storage` uses synthetic work through real operation stores
+and Project folders: admission-before-work, relocation to a new host, attribution,
+unchanged read-only receipts, duplicate-history refusal, no replay and uncertain
+sync retries retaining one admission ID. It imports no credentials or grants. These
+tests do not establish full Project collection, real connected-agent restoration or
+read-only application UX.
+
+`test_project_folder_commands` qualifies the owner folder inspector against the
+shared connector storage projection: captured-generation reads, missing-location
+refusal and host-resolved Finder targets. `project-folder.test.ts` covers stale
+responses and retry rendering with a synthetic DOM. These do not certify complete
+collection, a real Finder action or portable restoration.
+`test_project_launch` also exercises explicit known-folder relocation recovery,
+including unknown origins, conflicting legacy owners, active writers, unchanged
+accepted journal bytes and ordinary server argument/environment entrances.
+
+`test_project_record_dependencies.py` uses synthetic inputs with real accepted
+Studies, workflows and revision stores. It checks historical links, digest/missing
+failures, external-owner non-access, prose exclusion and bounded cancellation.
+This qualifies a declared-record preflight, not complete collection or browser use.
+
+`test_project_snapshot_integrity.py` uses synthetic accepted records and actual
+copy admission to reject damaged historical revisions, missing/changed file chunks,
+and a recomputed outer seal over corrupt evidence. These are integrity checks,
+not complete collection or real Project portability evidence.
+
+`test_project_server_routing.py` runs the ordinary FastAPI server and lifespan in
+separate processes, with synthetic consent and text. Studio creates the Project;
+the connector contributes copied evidence and a Study. Shutdown, folder move or explicit snapshot restoration, and
+restart retain the exact documents and shared inventory after original deletion.
+No public portable-mode switch, real browser/client, model, microscopy decoder or
+complete dependency collection is qualified by this test.
+
+`test_project_record_collection.py` retains a synthetic shared Record folder through
+real immutable intake and reads it after deleting the synthetic original and moving
+the Project. It checks unchanged warnings/cross-Project records, mutable source hard
+links, missing parts, changed files/folders, cancellation, disk admission and event-loop
+refusal. This qualifies storage only: no owner inclusion UI, media decoder, actual
+recording, complete Project dependency closure or live App activation is implied.
+
+`test_project_media.py` copies synthetic media through actual immutable intake,
+moves its owning Project, deletes the original, and reads the exact retained bytes.
+It checks changed/replaced originals, cancellation, writer exclusion, origin/digest
+refusal, Record-part refusal and shared inventory meaning. It does not qualify a
+decoder, full Library history, Record collection or ordinary media playback.
+
+Folder-copy completion tests inject final sync/removal failures and reopen the
+destination independently. Incomplete markers survive and original data remains;
+successful publication performs no post-completion storage verification that could
+report failure after making the copy visible. These are isolated storage checks.
 
 `test_project_table_routing.py` uses synthetic measurements through real table
 publication, journal revisions and analysis. It checks relocated historical
@@ -635,4 +691,121 @@ pseudocount inversion, normalization subsets, explicit negative projection and l
 prepared-runtime retention probe runs the actual confined concatenation operation with synthetic count inputs;
 none establishes full-shape packaging, generator distribution quality or competition performance.
 
+`test_project_evidence_routing.py` uses real journals and synthetic image/mask bytes.
+It checks immutable population saves through correction/link, relocation, inactive
+Project reading, origin/digest refusal, closed/replaced storage, second-host writer
+exclusion and failed directory syncing. It does not qualify a real segmentation
+model, Library collection or complete live Project portability.
+
+`test_project_tracks_routing.py` checks real track publication/reopen using synthetic
+points and images, including relocation, prior saves, inactive-Project previews,
+writer ownership, corrupt archives and workspace completion recovery. It shares the
+population evidence resolver; full microscopy collection is a separate gate.
+
+`test_project_bookmark_routing.py` exercises real isolated Project journals with synthetic camera images: relocation, inactive-Project reads, delayed capture across a switch, second-host refusal, changed media and interrupted publication. These are persistence tests, not live-camera or complete collection qualification.
+
+`test_project_snapshot_routing.py` uses synthetic camera bytes through the real tool, journal and index. It checks owner capture, clean/annotated retention, relocation, second-host reads, interrupted publication and changed folders/bytes. It does not qualify Library collection or a live microscopy experiment.
+
+`test_project_volume_routing.py` uses isolated real journals and job execution with a synthetic registration adapter. It covers relocation, copied-source independence, metadata history, owner changes, writer refusal and restart without replay. It is not brain-registration accuracy or ordinary UI qualification.
 The loop-stall regression holds its deliberate real event-loop block until the monitor has captured its stack, then awaits actual log delivery under HANG_S. Production thresholds and monitor behavior are unchanged; synthetic timing fixtures do not establish live p95.
+
+`test_project_identity_routing.py` uses synthetic observations with real Project journals and identity replay. It covers move/reopen, merged-ID retention, independent writer refusal, replaced storage and interrupted tails. It is storage evidence, not biological identity accuracy or live portability acceptance.
+
+`test_project_media_history.py` uses real Library edits and immutable file intake
+with synthetic pixels. It checks retained calibration revisions, unrelated-item
+exclusion, stable retries, change-during-copy refusal and bounded history recovery.
+It does not qualify playback, live capture or complete Project collection.
+
+`test_project_research_storage.py` uses real journals and files with synthetic
+researcher records: moved-folder readback, retained prior interpretations, output
+and transcript paths, interrupted read-only recovery, conflicting identities,
+writer exclusion, replaced storage and durable failed-publication markers. These
+checks do not run a provider or certify complete dependency collection. Legacy
+research lifecycle checks remain required alongside the adapter tests.
+Snapshot publication failure probes retain the pending marker after complete output bytes, directory-sync failures and failed acceptance. A fresh host refuses the uncertain result and preserves it on retry; no process-local fallback is needed. These are synthetic payloads through real storage, not complete Project restoration.
+
+Study evidence regressions exercise multiple retained workflow runs through one inventory read, then change original control and confirm the next read reflects it without replay. Unreadable receipt and foreign-Project checks remain explicit. These controlled execution/storage tests do not establish production latency or scientific quality.
+
+Project-folder copy bounds each stream to its captured byte count plus a one-byte growth probe, and refuses excessive directory depth before destination admission. Growth regressions assert bounded reads/output; copy failure keeps the ordinary incomplete marker.
+
+`test_project_app_routing.py` uses a real App and connector HTTP services with synthetic
+confirmed connections. It creates a separate folder, imports copied bytes, creates a
+Study, stops the host, relocates the folder and reopens the same exact research. It
+checks startup failure and a real delayed evidence save at shutdown: a second
+process cannot acquire the writer until the stopped host process actually exits. No real client confirmation, ordinary UI
+session switch, provider, media decoder or complete collection is implied.
+
+`test_project_storage_status` exercises real isolated journals/locations and
+synthetic-consent door requests. It covers missing/mismatched owners, no writer
+acquisition, shared contract validation, discovery/default-deny and unrelated
+Project refusal. These are not live hosted storage or complete collection proofs.
+
+`test_project_owned_snapshot` uses real isolated journals and synthetic workflow
+observations to check copying under the existing host lease, continued writer
+exclusion, concurrent bundle publication exclusion, pending transaction refusal,
+source-change/shutdown refusal and unchanged historical running state.
+It is folder-byte evidence, not complete collection, live execution or UI proof.
+
+Project material parity checks include a fresh Study with no findings: the owner,
+a synthetically granted reader and the resource index expose the same assignment
+metadata and exact revision. This is contract/storage evidence, distinct from
+actual client reconnection and browser inspection of a populated Project.
+
+`test_project_identity_lifecycle.py` uses actual isolated Project journals with
+synthetic identities and worker barriers. It checks asynchronous opening, stale
+read suppression, retained writes across UI switches, cancellation serialization,
+uncertain-history refusal and shutdown admission. This is storage/lifecycle
+evidence, not actual microscopy tracking or full portable UI qualification.
+
+`test_project_media_decoder.py` decodes synthetic retained pixels with real Pillow
+after removing the original and relocating the Project. It checks origin collisions,
+ambiguous historical Library IDs, disk/allowance/cancellation refusals and cleanup.
+This is actual decoder evidence on synthetic input, not browser playback, recording
+seek qualification or a complete mixed-Project restoration claim.
+
+The mixed `test_project_server_routing.py` case combines ordinary connector imports
+and Studies with synthetic microscopy accepted/corrected through real evidence
+services, retained media decoded by Pillow, conversation lines, note revisions and
+saved workspace layout. After host exit, it snapshots, relocates, restarts the full
+server and compares retained evidence. A new resume notice is expected; historical
+conversation lines remain identical. It does not certify live playback or complete
+dependency collection. The delayed image-inspection regression waits for actual
+worker admission after the inline response; scheduler speed is not a prerequisite
+for the late-answer contract.
+
+Project material tests use synthetic inspection receipts to qualify exact-reference joins, historical pins, conflicting reports and UI/agent contract parity. They do not establish a matrix computation; real connector/worker and browser evidence is recorded separately.
+
+Retained media tests distinguish synthetic PNG/transport bytes through actual HTTP/storage from renderer fixtures and real browser codec qualification. Mixed server relocation also reads original image pixels through the media HTTP route after restart. No live camera or full Project collection is established by those tests.
+
+`test_project_dependency_access.py` checks the shared inspection contract, exact
+basis preservation, concurrent revision refusal and door discovery/default-deny,
+request retry and grant revocation. Inputs and consent are synthetic, with actual
+accepted stores and door operation transport; this does not qualify a live agent,
+complete collection or public portable-folder UX.
+
+Source inspection through `project.dependencies` reads the captured Project's
+journal and historical retained media bindings. Synthetic-consent door checks
+cover shared schema, unchanged visible Project, cancellation and bounded owner
+reads. This is inclusion preflight, not a complete collection certificate.
+
+`test_project_stage_media.py` exercises actual App/journal/retained-file paths with
+synthetic pixels and a stand-in bridge transport. It checks exact source reopening
+after relocation and original deletion, frozen scientific reads after decoder-cache
+cleanup, overlay revision identity, legacy Library mutation refusals, uncertain
+bridge replacement and repeated cancellation. It is not live camera, actual bridge
+playback, browser or complete collection qualification.
+
+`test_project_source_intake.py` uses real App/Library/storage over synthetic pixels. It verifies copy-before-selection, retry after original deletion, captured Project/actor during switching and cancellation without a source binding. Studio source-intake tests cover deferred navigation and reopened-Project races; they are not actual browser or camera evidence.
+
+`test_workspace_layout_schema7.py` checks exact retained-media references through real journal save/reopen, foreign and malformed refusal, and explicit refusal to downgrade a newer layout. Source-intake/browser-model regressions include late response ordering, lost-reply keys, later-source preservation and distinct Tabs for distinct retained revisions. These remain synthetic UI/storage tests until the isolated mixed-media browser journey passes.
+
+`test_project_launch.py` checks the normal server entry point's explicit operator
+selection using an isolated profile and transport stand-in. It verifies folder-backed
+creation, no implicit activation, refusal to forget a registered profile, and invalid
+parent refusal without overwriting files. It does not replace the actual browser and
+supported-connector qualification or establish complete collection.
+
+`test_project_native_integrity.py` verifies synthetic microscope saves through real
+journals, evidence readers and folder-copy admission. Historical manifest/file
+damage refuses even with a recomputed outer seal. This is retained-byte integrity,
+not biological accuracy, complete collection or an actual browser proof.

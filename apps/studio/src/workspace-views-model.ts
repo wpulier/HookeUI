@@ -1,12 +1,12 @@
 import type { StudyRetainedView } from './workspace-study-restoration';
 export type Rect = [number,number,number,number];
 export interface NotePlacement {id:string;rect:Rect;placementId?:string}
-export interface WorkspaceTabInput {source:string;position:number}
+export interface WorkspaceTabInput {source:string;position:number;retained?:import('./project-media-reference').ProjectMediaReference}
 /** Schema 5 adds output and compare Tabs and table, analysis and graph windows; schema 6 the reader Tab (one Data item
  * shown full width, ticket 66); 2-5 keep their own format. */
-export const LAYOUT_SCHEMA=6;
-export type LayoutSchema=2|3|4|5|6;
-export const LAYOUT_SCHEMAS:readonly LayoutSchema[]=[2,3,4,5,6];
+export const LAYOUT_SCHEMA=7;
+export type LayoutSchema=2|3|4|5|6|7;
+export const LAYOUT_SCHEMAS:readonly LayoutSchema[]=[2,3,4,5,6,7];
 export type TabKind='output'|'compare'|'reader';
 export interface TabProvenance {researcher?:string;version?:number;run?:string;from?:string}
 export type LaneLabel='A'|'B'|'C';
@@ -54,7 +54,8 @@ export function needsSchema6(layout:Pick<WorkspaceLayout,'views'>):boolean {retu
 /** The layout as a server that saves only up to `supported` takes it: a reader Tab is left out (it stays in this
  * studio for the session) and the schema is at most what it reads. The newest server takes it whole. */
 export function layoutForServer(layout:WorkspaceLayout,supported:LayoutSchema):{schema:LayoutSchema;coordinates:'stage';views:WorkspaceView[]} {
- if(supported>=6)return {schema:layout.schema,coordinates:'stage',views:layout.views};
+ if(supported<7&&layout.views.some(v=>v.input?.retained))throw new Error('Update Hooke before saving Tabs with retained Project media. The exact reference cannot be dropped.');
+ if(supported>=6)return {schema:Math.min(layout.schema,supported) as LayoutSchema,coordinates:'stage',views:layout.views};
  return {schema:Math.min(layout.schema,supported) as LayoutSchema,coordinates:'stage',views:layout.views.filter(v=>v.kind!=='reader')};
 }
 /** A layout save that met a newer revision, rebased (WorkspaceViews.rebase): `local` (what this window shows) on top
@@ -83,7 +84,8 @@ export function needsSchema5(layout:Pick<WorkspaceLayout,'views'>):boolean {
 /** Like rememberView's move to schema 3: only writing a schema-5 field moves a layout to schema 5. */
 export function bumpForSchema5(layout:WorkspaceLayout):void {
  if(needsSchema5(layout))layout.schema=Math.max(5,layout.schema) as LayoutSchema;
- if(needsSchema6(layout))layout.schema=6;
+ if(needsSchema6(layout))layout.schema=Math.max(6,layout.schema) as LayoutSchema;
+ if(layout.views.some(v=>v.input?.retained))layout.schema=7;
 }
 /** Mark a Tab as an output or compare Tab. Lanes name 2-3 of the Tab's own windows, A-C, once each. */
 export function setTabKind(layout:WorkspaceLayout,id:string,fields:{kind:TabKind;provenance?:TabProvenance;compare?:TabCompare}):void {

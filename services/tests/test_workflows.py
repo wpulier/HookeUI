@@ -587,7 +587,8 @@ def test_researcher_and_studio_invocations_retain_equivalent_definition_and_inpu
     asyncio.run(exercise())
 
 
-def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_without_camera(tmp_path):
+@pytest.mark.parametrize("completed_before_read", [False, True])
+def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_without_camera(tmp_path, completed_before_read):
     import asyncio
     from tests.test_research_scientific_measurement import setup, FakeHub, ResearchManager
     from orchestrator.research.hands import Hands
@@ -620,7 +621,15 @@ def test_researcher_study_bridge_reads_evidence_and_admits_attributed_work_witho
         assert reply['ok'], reply
         operation = reply['values']['operation']
         run_id = operation['execution']['id']
-        await studies.workflows.tasks[(input_.session, run_id)]
+        key = (input_.session, run_id)
+        if completed_before_read:
+            from tests.waiting import until_async
+            await until_async(lambda: key not in studies.workflows.tasks)
+        # Finished tasks are intentionally retired; the retained run/attempt is
+        # the result. A fast successful driver need not still have a Task entry.
+        task = studies.workflows.tasks.get(key)
+        if task is not None:
+            await task
         retained = await call('study-read', study=study.id)
         assert retained['ok'], retained
         row = retained['values']

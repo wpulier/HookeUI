@@ -188,6 +188,82 @@ describe('the reader on screen', () => {
     reader.show(entry({ kind: 'result', table: true, id: 'd9', title: 'Areas · 10:00' }));
     expect(root.querySelectorAll('.rd-picture')).toEqual([]);
   });
+  it('opens the exact inspection in another retained Tab and preserves its source', async () => {
+    mount();
+    const id = 'p' + '1'.repeat(32), report = 'p' + '2'.repeat(32), day = '2026-10-25.4';
+    const digest = 'a'.repeat(64), reportDigest = 'b'.repeat(64);
+    const fetcher = vi.fn(async (url: string) => {
+      if (String(url).startsWith(`/api/scientific-projects/${report}?`))
+        return {ok: true, json: async () => ({project: {id: report, session: day, revision: 3, digest: reportDigest,
+          document: {kind: 'matrix-result', title: 'Recorded inspection', state: {}}}})};
+      if (String(url).startsWith(`/api/scientific-projects/${id}?`))
+        return {ok: true, json: async () => ({project: {id, session: day, revision: 1, digest,
+          document: {kind: 'source-file', title: 'Original dataset', state: {sourceFile: {
+            format: 1, name: 'original.bin', size: 3, sha256: 'c'.repeat(64)}}}}})};
+      return {ok: false, json: async () => ({error: 'No fixture reader'})};
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const openInNewTab = vi.fn(), reader = new DataReader(deps({openInNewTab}), 'tab');
+    const root = reader.root as unknown as TestElement;
+    reader.show(entry({id, day, kind: 'project', title: 'Original dataset', version: 1, source: {sha256: digest},
+      material: {kind: 'matrix', origin: 'imported', input: true, section: 'files', category: 'import',
+        record: false, dependencies: [], shape: [2, 3], inspection: {status: 'reported', total: 1,
+          reports: [{id: report, session: day, revision: 3, digest: reportDigest}]}}}));
+    await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
+    root.querySelector('.rd-material-inspection')!.querySelector('button')!.dispatchEvent(new Event('click'));
+    await vi.waitFor(() => expect(openInNewTab).toHaveBeenCalledWith(expect.objectContaining({
+      id: report, day, version: 3, kind: 'project', source: {sha256: reportDigest}})));
+    expect(reader.current()?.id).toBe(id);
+    expect(fetcher.mock.calls.some(([url]) => String(url).includes(`${report}?session=${day}&revision=3`))).toBe(true);
+    reader.clear();
+  });
+  it.each(['before response', 'after response', 'show again'])('enriches a restored exact source %s without resetting its preview', async (timing) => {
+    mount();
+    const id = 'p' + '3'.repeat(32), report = 'p' + '4'.repeat(32), day = '2026-10-25.4';
+    const digest = 'd'.repeat(64);
+    let release!: () => void;
+    const ready = new Promise<void>(resolve => { release = resolve; });
+    const fetcher = vi.fn(async () => {
+      await ready;
+      return {ok: true, json: async () => ({project: {id, session: day, revision: 1, digest,
+        document: {kind: 'source-file', title: 'Retained source', state: {sourceFile: {
+          format: 1, name: 'source.bin', size: 3, sha256: 'c'.repeat(64)}}}}})};
+    });
+    vi.stubGlobal('fetch', fetcher);
+    const changed = vi.fn();
+    const reader = new DataReader(deps({changed}), 'tab'), root = reader.root as unknown as TestElement;
+    const fallback = entry({id, day, version: 1, kind: 'project', title: 'Saved material'});
+    const known = {...fallback, material: {kind: 'matrix' as const, origin: 'imported' as const,
+      input: true, section: 'files' as const, category: 'import', record: false, dependencies: [],
+      shape: [2, 3], inspection: {status: 'reported' as const, total: 1,
+        reports: [{id: report, session: day, revision: 3, digest: 'b'.repeat(64)}]}}};
+    reader.show(fallback);
+    if (timing === 'before response') reader.refresh(known);
+    release();
+    await vi.waitFor(() => expect(root.dataset.displayState).toBe('rendered'));
+    const content = root.querySelector('.rd-body')!, original = content.children[0];
+    changed.mockClear();
+    if (timing === 'after response') { reader.refresh(known); expect(changed).toHaveBeenCalledTimes(1); }
+    if (timing === 'show again') reader.show(known);
+    expect(reader.kindLine()).toBe('Matrix');
+    const inspection = root.querySelector('.rd-material-inspection')!;
+    expect(inspection).toBeTruthy();
+    const details = inspection as unknown as HTMLDetailsElement;
+    details.open = true;
+    changed.mockClear();
+    reader.refresh({...known});
+    expect(changed).not.toHaveBeenCalled();
+    expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
+    expect(details.open).toBe(true);
+    expect(content.children[0]).toBe(original);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    reader.refresh({...known, version: 2, material: {...known.material, shape: [9, 9]}});
+    expect(reader.current()?.version).toBe(1);
+    expect(root.querySelector('.rd-material-inspection')).toBe(inspection);
+    reader.clear();
+    reader.refresh(known);
+    expect(root.querySelector('.rd-material-inspection')).toBeNull();
+  });
   it('gives a researcher’s work Talk to Researcher N, the one action that goes to its Tab', () => {
     mount();
     const talk = vi.fn(), reader = new DataReader(deps({ talk }), 'side'), root = reader.root as unknown as TestElement;

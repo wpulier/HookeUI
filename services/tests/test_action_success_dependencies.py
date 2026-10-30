@@ -152,6 +152,12 @@ def test_pending_dependency_is_reported_late_and_success_runs_the_effect_once():
                 assert not runs[0].sequence.done()
                 release.set()
                 await settled(runs)
+                # Sequence completion precedes its independent late reporters.
+                # Observe both deliveries rather than assuming a 30 ms timer wins.
+                async def reports_delivered():
+                    while len(late) < len(original):
+                        await asyncio.sleep(0.01)
+                await asyncio.wait_for(reports_delivered(), HANG_S)
             assert entered == ['held', 'effect'] and [r.ok for r in runs] == [True, True]
             assert [r.occurrence for r in runs] == original
             assert {(w['requestId'], w['actionId']) for w, owner in late} == {

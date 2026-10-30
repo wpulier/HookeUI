@@ -34,6 +34,7 @@ Reading scans files, so it is done off the event loop (asyncio.to_thread), cache
 from __future__ import annotations
 
 import json
+import copy
 import re
 import threading
 import time
@@ -311,6 +312,15 @@ class Library:
 
     def key_of(self, aid: str) -> str | None:
         return self._keys.get(aid)
+
+    def retention_state(self, asset: Asset) -> dict:
+        """Small source-owned capture guard; no scan or filesystem work under publication."""
+        with self.lock:
+            key = self._keys.get(asset.id)
+            return copy.deepcopy({'key': key, 'edits': self._edits.get(asset.id, {}),
+                'registered': self._registered.get(key), 'looked': self._looked.get(asset.id, {}),
+                'sharedLooked': self._looked_specimens.get(asset.specimen.lower(), {}) if asset.group == 'example' else {},
+                'trashed': self._trashed.get(asset.id)})
 
     def search(self, query: str = "", kind: str | None = None, fresh: bool = False, scope: str | None = None) -> list[Asset]:
         """Every asset matching the words (title, specimen, file, notes), newest first. `fresh`: the folders are read

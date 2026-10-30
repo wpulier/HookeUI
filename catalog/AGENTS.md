@@ -477,3 +477,5 @@ older apps; runtime entries do not gain a community-channel execution path.
 explicit limits, no silent annotation loss. `response-predict` keeps proportional fold as an explicit legacy
 approximation and offers pseudocount inversion only with compatible fitted normalization. Both are ordinary
 catalog/workflow declarations; numerical qualification and full-size scientific acceptance remain separate.
+
+Opt-in portable volumes and registration jobs retain their input copy, inspection, output files and metadata snapshots under the captured Project. Host runtime installations and atlas caches stay outside. Reopening reads saved outputs without installing or running software. Cancellation and terminal visibility are keyed by Project and job identity, so equal local IDs in different Projects cannot interfere. This staged adapter does not enable live portable creation.

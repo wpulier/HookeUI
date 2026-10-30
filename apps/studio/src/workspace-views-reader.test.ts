@@ -14,12 +14,12 @@ function views(fields:Record<string,unknown>={}){
   capture:vi.fn(),flush:vi.fn(async()=>{}),changed:vi.fn(),goTo:vi.fn(async()=>true),flash:vi.fn(),activate:vi.fn(async()=>true),...fields});
 }
 
-test('asks a server for layout schema 6, and once refused asks again for 5, keeping reader Tabs for the session',async()=>{
- const request=vi.fn(async(_type:string,fields:any)=>fields.schema===6?{ok:false,code:'unsupported-schema',error:'Reload this app: the requested layout format is unsupported.'}
+test('negotiates layout schemas 7 and 6 before legacy 5, keeping reader Tabs for the session',async()=>{
+ const request=vi.fn(async(_type:string,fields:any)=>fields.schema>=6?{ok:false,code:'unsupported-schema',error:'Reload this app: the requested layout format is unsupported.'}
   :{ok:true,revision:4,layout:{schema:5,coordinates:'stage',views:[{id:'main',title:'Main',specimen:{visible:true,rect:null},items:[],notes:[]}]}});
  const current=views({opts:{request}});
  const reply=await Reflect.get(WorkspaceViews.prototype,'readLayout').call(current,'p');
- expect(request.mock.calls.map(call=>call[1].schema)).toEqual([6,5]);
+ expect(request.mock.calls.map(call=>call[1].schema)).toEqual([7,6,5]);
  expect(reply.ok).toBe(true);
  expect(current.readerTabsUnsaved()).toBe(true);
  // A reader Tab opened on that server stays after the next accepted read; the saved layout is sent without it.

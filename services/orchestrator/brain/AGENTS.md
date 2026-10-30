@@ -612,3 +612,12 @@ Classify's models are named only to compare them (`names.COMPARED_ONLY`): `use` 
 classifies with one model alone; the vision models keep their ids, and MedSigLIP is told once on compare_models.
 
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.
+
+Bookmark capture gives Record the retained picture from the bookmark’s captured Project and date, never the currently selected Project after background work completes.
+
+The snapshot tool captures its Project and storage destination before drawing. In staged portable storage, its annotated/clean pictures publish together with hashes and pending-state recovery; a closed writer or changed destination refuses publication. Legacy capture semantics remain unchanged.
+
+Identity tools await the captured Project's history and use its serialized
+background mutation path for portable Projects. They preserve the existing event
+model and legacy path. No live-loop filesystem mutation or accepted state before
+durable publication is introduced; a changed owner refuses further work.

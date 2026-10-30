@@ -211,8 +211,11 @@ def add_seeing_tools(registry: Registry, services) -> None:
         colour = getattr(hub.settings, "outline_color", "pink")
         day = getattr(services.day, "date", None) or time.strftime("%Y-%m-%d", time.localtime(info.wall_at))
         root = services.snapshots if services.snapshots is not None else Paths.from_env().snapshots
-        folder = root / day  # today's folder; the session it was asked in is in its facts (ADR 0017)
         session = getattr(getattr(ctx, "asked", None), "session", None) or getattr(services.day, "sid", None)
+        from ...project_snapshots import Snapshots
+
+        retained = Snapshots(root, services.day)
+        folder = retained.folder(session, day, write=True)
         name = f"snapshot-{time.strftime('%H%M%S', time.localtime(info.wall_at))}-{uuid4().hex[:12]}-f{info.id}"
 
         from ...capture import reserving
@@ -240,8 +243,7 @@ def add_seeing_tools(registry: Registry, services) -> None:
             if members and layer is not None and hasattr(layer, "population"):
                 shown.append(SimpleNamespace(made_by=getattr(layer.population(), "made_by", None), trial=None))
             made_with = of_objects(shown, hub) if overlays else []
-            folder.mkdir(parents=True, exist_ok=True)
-            (folder / f"{name}.png").write_bytes(png.tobytes())  # native evidence; explicit Share makes a portable copy
+            clean_bytes = None
             if overlays:
                 # Its clean picture too (the same region, nothing drawn): a snapshot can be opened again as a picture to
                 # analyse (library.py), and outlines drawn on it would be taken for the specimen.
@@ -249,8 +251,7 @@ def add_seeing_tools(registry: Registry, services) -> None:
                              overlays=False, region=crop, size_of=size_of, frame_time=info.wall_at)
                 ok_clean, clean_png = cv2.imencode(".png", clean.image)
                 if ok_clean:  # beside it, in its own folder: the snapshot's picture is still the one PNG of its name
-                    (folder / "clean").mkdir(exist_ok=True)
-                    (folder / "clean" / f"{name}.png").write_bytes(clean_png.tobytes())
+                    clean_bytes = clean_png.tobytes()
             meta = {"frameId": info.id, "wallAt": info.wall_at,
                     "time": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(info.wall_at)),
                     "made": ("a real camera frame; outlines, labels and scale bar drawn by the app" if overlays else
@@ -259,7 +260,7 @@ def add_seeing_tools(registry: Registry, services) -> None:
                     "leftOut": drawn.left_out, "scale": drawn.scale, **({"session": session} if session else {}),
                     **({"madeWith": made_with} if made_with else {}),
                     **({"actor": actor} if actor else {})}  # who took it (ticket 66, S2): Data's "Made by"
-            (folder / f"{name}.json").write_text(json.dumps(meta, indent=1, default=float))
+            retained.save(session, day, name, meta, png.tobytes(), clean_bytes, admitted=folder)
             if services.keep is not None:  # a dataset being collected keeps its own copy
                 for suffix in (".png", ".json"):
                     services.keep(folder / f"{name}{suffix}", "snapshots")

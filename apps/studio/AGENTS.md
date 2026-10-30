@@ -1,3 +1,11 @@
+Restored retained-file readers accept later inventory classification and inspection links for the same exact revision in place. Ordinary refresh preserves the open preview and inspection disclosure; it never substitutes a newer revision.
+
+The Project menu's **Project folder** inspector uses the same `project-storage`
+projection as the connector. It captures the Project opening, discards late reads
+after navigation and reveals only the host-resolved saved location. Existing host
+storage and portable folder layouts are distinguished; neither availability nor
+Reveal claims complete collection. It does not migrate, move or export records.
+
 A Project with retained Studies uses its empty stage as a return point to those Studies:
 question, recorded experiment/input/report counts and Open Study. Counts are history,
 not running-status or scientific acceptance. Existing Data and Inputs remain the ways
@@ -2078,3 +2086,21 @@ not infer a file's scientific meaning or treat plain text as a qualified reader.
 A reader Tab retains one exact item. Opening a different Data/Input item or an
 internal source link from it goes to that item's retained Tab (reusing it when
 already open), rather than replacing the visible file under the previous title.
+
+Main waits for the current Project inventory and Studies before showing empty-project onboarding. A failed initial read offers Retry and Data rather than claiming there is no research. Refreshing a populated Project preserves its saved overview. Data’s rail badge remains the count of unread grouped rows, not all retained records.
+
+Main presents each Study’s purpose, observed execution and latest report before its supporting material and contributor details. Browse inputs stays the primary action for material-only Projects. DOM and keyboard order follow the same reading order; all counts and status still come from retained evidence.
+
+Inputs and retained file readers show matrix dimensions only when a retained matrix-inspect result pins the same Project, document revision, digest and file component/hash. Inspection links open the exact report in its own Tab; disagreement stays visible and never picks the newest answer. Images, recordings and whole Record collections retain their declared kind and use the same saved-file/folder inspector. These facts do not certify scientific correctness or change source bytes.
+
+Copied Library images and recordings preview their exact retained source revision in the Data reader, without resolving global Library IDs or moving the Stage. Browser codec failures retain the original download and an explicit retry. Closing the reader stops playback. Full Stage restoration is a separate qualification.
+
+Explicit Add/Open of a new Library image or recording first retains it in the captured portable Project, before any Tab/Stage navigation. Already-retained sources and restoration use their exact saved binding. A later source choice or changed Project opening suppresses late navigation; failed copying preserves the existing view. Legacy Projects keep their current storage behavior.
+
+Workspace layout schema 7 preserves exact retained media references on input Tabs. Older layout versions stay unchanged; an older server cannot receive a save that strips these references. Selecting two retained revisions of the same historical Library ID opens distinct Tabs. Stage metadata is reported separately from the latest selected Library binding. Pending material-intake request keys survive reconnect and page reload in browser session storage; acknowledged new Add actions get a new key.
+
+Inputs and Data join a Library source alias to its exact retained document, session,
+revision and digest. That single row keeps material organization and authorship,
+source preview and Open in Tab. Separate imports or revisions remain separate even
+when their names or bytes match. Late inventory refresh recomputes the join; source
+rows remain available while retained inventory is unavailable.

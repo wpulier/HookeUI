@@ -14,6 +14,8 @@ SCHEMAS = {
     'project.create': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 80}},
     'project.list': {},
     'project.read': {},
+    'project.storage': {},
+    'project.dependencies': {},
     # project.state (project_state.py): the Project's one view, every reader's; additive beside project.read, whose
     # output is unchanged. A page of its data at a time; `cursor` is the next page of the same revisions.
     'project.state': {'cursor': {'type': 'string', 'minLength': 1, 'maxLength': 128},
@@ -114,6 +116,32 @@ async def run(built, record, progress):
             return {'project': owner, 'artifacts': [{**identity(r), 'kind': r.document['kind'],
                      'title': r.document['title']} for r in rows], 'unreadable': errors}
         result = await asyncio.to_thread(read)
+    elif name == 'project.storage':
+        from ..project_storage_status import describe
+        from .schema import check
+        def storage():
+            access(built).require(project, actor)
+            value = describe(built.day, project)
+            check(value, 'project-storage')
+            return value
+        result = {'storage': await asyncio.to_thread(storage)}
+    elif name == 'project.dependencies':
+        from ..project_dependency_access import inspect
+        from .schema import check as validate
+        def check():
+            access(built).require(project, actor)
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Dependency inspection stopped before completion')
+        def review():
+            value = inspect(built.hub.resources.projects, project, check=check, day=built.day)
+            validate(value, 'project-dependencies')
+            return value
+        def cancel():
+            record['state'] = 'cancelRequested'
+        from ..scientific_project_api import _owned
+        value = await _owned(review, on_cancel=cancel)
+        check()
+        result = {'dependencies': value}
     elif name == 'project.state':
         from .. import project_state
         try:

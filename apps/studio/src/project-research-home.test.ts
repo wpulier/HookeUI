@@ -13,7 +13,7 @@ const study = (session = 'p1'): Effort => ({id:'s1',session,revision:1,digest:'d
 function setup() {
   const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
   const host = new TestElement('section'); let current = 'p1';
-  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn()};
+  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),retry:vi.fn()};
   const home = new ProjectResearchHome(host as unknown as HTMLElement, actions);
   const root = home.root as unknown as TestElement;
   const button = (text: string) => root.querySelectorAll('button').find(item => item.textContent === text) as unknown as HTMLButtonElement;
@@ -74,7 +74,7 @@ test('same-Project updates preserve disclosures, but a new report or Project sta
   expect(details().every(item=>item.open)).toBe(true);
   changed.claims!.push({request:'replacement',statement:'Next result',byLabel:'Codex',evidence:[],dependsOn:[]});
   home.update('p1',[changed]);
-  expect(details()[0].open).toBe(true);
+  expect(details().find(item=>item.dataset.disclosure==='study:s1:question')?.open).toBe(true);
   expect(details().find(item=>item.dataset.disclosure?.endsWith(':report:replacement'))?.open).not.toBe(true);
   home.update('p2',[study('p2')]);
   expect(details().some(item => item.open)).toBe(false);
@@ -125,4 +125,39 @@ test('material freshness does not invalidate independent workflow observations',
  expect(root.textContent).toContain('No experiments running');
  home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[]});
  expect(root.textContent).not.toContain('Material refresh failed');
+});
+
+
+test('initial loading and failed reads never masquerade as an empty Project',()=>{
+ const {home,host,root,actions,button}=setup();
+ home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
+ expect(host.dataset.projectResearch).toBe('true');
+ expect(root.textContent).toContain('Opening your Project');
+ expect(root.textContent).not.toContain('No Study yet');
+ home.update('p1',[],'',{},[],{count:0,groups:[],error:'Material read failed'});
+ expect(root.textContent).toContain('Project history could not be loaded');
+ fire(button('Retry') as unknown as TestElement,'click');expect(actions.retry).toHaveBeenCalledOnce();
+ home.update('p1',[],'',{},[],{count:0,groups:[]});
+ expect(host.dataset.projectResearch).toBe('false');expect(root.hidden).toBe(true);
+});
+test('material arriving before Studies keeps the populated overview through refresh',()=>{
+ const {home,root}=setup();
+ home.update('p1',[],'',{},[],{count:2,groups:[],loading:true});
+ expect(root.textContent).toContain('2 Project inputs');
+ expect(root.textContent).not.toContain('Opening your Project');
+ expect(root.textContent).not.toContain('No Study yet');
+ home.update('p1',[study()],'',{},[],{count:2,groups:[],loading:false});
+ expect(root.textContent).toContain('Response transfer');
+});
+
+
+test('a return to the same Project waits for new reads and rejects its previous buttons',()=>{
+ const {home,root,button,actions,setCurrent}=setup();
+ home.update('p1',[study()]);const original=button('Open Study');
+ setCurrent('p2');home.update('p2',[],'',{},[],{count:0,groups:[],loading:true});
+ setCurrent('p1');home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
+ fire(original as unknown as TestElement,'click');expect(actions.openStudy).not.toHaveBeenCalled();
+ expect(root.textContent).toContain('Opening your Project');
+ home.update('p1',[],'',{},[],{count:2,groups:[],loading:false});
+ expect(root.textContent).toContain('2 Project inputs');
 });

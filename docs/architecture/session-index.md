@@ -254,3 +254,14 @@ capture the original session, pending saves are scoped to their store, and saved
 reads follow the journal owner after relocation. Changed/missing result folders
 refuse rather than recreating evidence. App activation still waits for the other
 legacy asset/research stores; this adapter does not certify complete collection.
+
+Study assignments are working material from creation, before findings exist.
+`project.state` joins each authoritative Study once into its data list with the
+same material metadata as the resource index and its exact Study reference. The
+separate Studies summary remains navigation/status for that same object, not a
+second output. No finding or scientific completion is inferred from an assignment.
+
+Retained Project media has one scientific inventory entry. `_sources` omits the
+legacy Library alias for an exact `source_references` binding, including inactive
+Project reads. Inputs/Data join the source’s retained metadata to that exact record;
+a matching host Library ID cannot contribute another item or replace its identity.

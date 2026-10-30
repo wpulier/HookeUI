@@ -119,23 +119,27 @@ class Identity:
     opened. `store` (the session store) says which session that is and its dates; without one (a test's) a day is a
     session."""
 
-    def __init__(self, root: Path | None, today: Callable[[], str], hub=None, log=None, store=None) -> None:
+    def __init__(self, root: Path | None, today: Callable[[], str], hub=None, log=None, store=None, *, _events=None) -> None:
         self.root = Path(root) if root is not None else None
         self.today = today
         self.hub = hub
         self.log = log or (lambda record: None)
         self.store = store
+        from .project_events import ProjectEvents
+        self._project_events = _events if _events is not None else (ProjectEvents(self.root, 'identity') if self.root is not None else None)
         self.day = ""
         self.session = ""
         self._given = 0  # the highest individual number given or read back in this run (day/ids.py)
         self._task: asyncio.Task | None = None
-        self._load()
+        from .identity_io import IdentityIO
+        self.io = IdentityIO(self)
+        self.io.opened()
         listeners = getattr(hub, "on_carry", None)
         if isinstance(listeners, list):  # outlines brought back after a gap or a jump (hub.carried; review B3)
             listeners.append(self._carried)
         opened = getattr(store, "listeners", None)
         if isinstance(opened, list):  # another session opened: its things followed are the ones loaded
-            opened.append(lambda event: self._load() if event.get("type") == "session-opened" else None)
+            opened.append(lambda event: self.io.opened() if event.get("type") == "session-opened" else None)
 
     # --- the session's files ---------------------------------------------------------------------
     def _sid(self) -> str:
@@ -147,13 +151,17 @@ class Identity:
             return [self.today()]
         return sorted(set(getattr(self.store, "days", []) or []) | {self.today()})
 
+    def _portable(self):
+        locations = getattr(self.store, 'locations', None)
+        return locations is not None and locations.project(self.session or self._sid()) is not None
+
     def _path(self, day: str | None = None) -> Path | None:
         """A date's file (default: today's, where new events go)."""
+        if self._project_events is not None and self._portable():
+            return self._project_events.path(self.store, self.session or self._sid(), day or self.today())
         return self.root / (day or self.today()) / "events.jsonl" if self.root is not None else None
 
-    def _load(self) -> None:
-        from .day.sid import session_of
-
+    def _reset(self) -> None:
         self.day = self.today()
         self.session = self._sid()
         self.of: dict[str, str] = {}  # node -> individual id (nodes given to it)
@@ -164,13 +172,19 @@ class Identity:
         self.carries: dict[str, list[dict]] = {}  # node -> each time its outline was brought back, with basis and score
         self.observations: dict[str, list[dict]] = {}  # node -> its observations, oldest first
         self.lost: dict[str, float] = {}  # node -> when continuity was lost (cleared when it is found again)
+
+    def _load(self) -> None:
+        from .day.sid import session_of
+
+        self._reset()
         for date in self._dates():
             path = self._path(date)
-            if path is None or not path.exists():
+            if path is None or (not self._portable() and not path.exists()):
                 continue
-            for line in path.read_text().splitlines():
+            records = self._project_events.read(self.store, self.session, date) if self._portable() else path.read_text().splitlines()
+            for line in records:
                 try:
-                    event = json.loads(line)
+                    event = line if isinstance(line, dict) else json.loads(line)
                     if session_of(event, date) != self.session:
                         continue  # another session's, filed on the same date
                     self._apply({**event, "day": event.get("day") or date})
@@ -181,7 +195,8 @@ class Identity:
         """Another session is open (one opened without telling: a test's): its events are the ones loaded. Midnight
         changes nothing but the date new events are written under."""
         if self._sid() != self.session:
-            self._load()
+            self.io.opened()
+        self.io.require_ready()
 
     def _apply(self, event: dict) -> None:
         kind = event["kind"]
@@ -236,6 +251,10 @@ class Identity:
 
     def _write(self, event: dict) -> None:
         event = {**event, "session": self.session}  # filed under today's date, with the session it was made in
+        if self._project_events is not None and self._portable():
+            self._project_events.append(self.store, self.session, self.today(), event)
+            self._apply({**event, "day": self.today()})
+            return
         self._apply({**event, "day": self.today()})
         path = self._path()
         if path is None:
@@ -442,6 +461,8 @@ class Identity:
         """The hub brought an outline back after a gap or a jump (hub.carried): a same-object link of that outline
         across the gap, with its basis and the match's score, recorded when the outline is part of an individual; never
         for an outline made on an earlier run's view (that run's offsets placed the search: the K2 re-check, SF2)."""
+        if not self.io.ready:
+            return
         self._current()
         node = outline_node(object_id)
         obj = (getattr(getattr(self.hub, "scene", None), "objects", None) or {}).get(object_id)
@@ -449,8 +470,8 @@ class Identity:
             self.log({"kind": "identity-carry", "outline": object_id, "basis": basis, "ignored": "made on an earlier run's view"})
             return
         if self._watched(node):
-            self._write({"kind": "carried", "node": node, "basis": basis, "confidence": round(float(confidence), 3),
-                         "at": time.time(), "run": RUN})
+            self.io.carry({"kind": "carried", "node": node, "basis": basis, "confidence": round(float(confidence), 3),
+                           "at": time.time(), "run": RUN})
 
     def history(self, i: str) -> list[dict]:
         """Every observation of the individual, oldest first: its members' (from their populations) and
@@ -504,6 +525,8 @@ class Identity:
     def followed_outlines(self) -> list[str]:
         """This run's outline ids of the things followed (the object follower follows these first). Cheap: it is
         asked every follower step."""
+        if not self.io.ready:
+            return []
         ids = set(self.followed())
         out = []
         for node, i in self.of.items():
@@ -521,7 +544,7 @@ class Identity:
                 self._task = None
 
     async def _loop(self) -> None:
-        while self.followed():
+        while self.io.ready and self.followed():
             try:
                 await self.measure_followed()
             except Exception as exc:  # one bad round never stops following
@@ -539,6 +562,8 @@ class Identity:
         """Each followed individual's outline of this run, measured again on the view now when its place is
         verified there; continuity lost (another epoch, not rejoined) is written down once with when the view left
         its epoch, never guessed past; found again, the loss is cleared."""
+        await self.io.ensure_ready()
+        owner = self.io.owner()
         hub = self.hub
         info = getattr(hub, "latest_info", None)
         made = []
@@ -548,14 +573,14 @@ class Identity:
                 if obj is None or info is None or made_on_earlier_run(obj):  # never placed in this run: nothing to measure
                     continue
                 if obj.anchor_epoch != info.epoch:
-                    self.lose(node, self.left_at(obj))
+                    await self.io.mutate("lose", node, self.left_at(obj), owner=owner)
                     continue
                 if getattr(obj, "track", "tracking") != "tracking":
                     continue  # not verified in place now: not measured, and nothing said about where it is
-                self.found(node)
+                await self.io.mutate("found", node, owner=owner)
                 observation = await measure_outline(hub, obj, info)
                 if observation is not None:
-                    self.observe(node, observation)
+                    await self.io.mutate("observe", node, observation, owner=owner)
                     made.append(observation)
         return made
 
@@ -954,6 +979,9 @@ async def link_populations(hub, a, b) -> str:
     why = linkable(hub, a, b)
     if why:
         return f"no links made: can't tell which cells are the same: {why}"
+    identity = identity_of(hub)
+    await identity.io.ensure_ready()
+    owner = identity.io.owner()
     try:
         done = await runner(hub).run("link", capture_of(hub, b), Prompt("populations", text=f"{a.id}>{b.id}"),
                                      params={"a": a.id, "b": b.id})
@@ -983,8 +1011,8 @@ async def link_populations(hub, a, b) -> str:
             again += 1
             continue
         score = float(link.get("score") or 0.0)
-        identity.same_one(member_node(a.id, x), member_node(b.id, y), basis="linking", confidence=score,
-                          by="query_population")
+        await identity.io.mutate("same_one", member_node(a.id, x), member_node(b.id, y), basis="linking", confidence=score,
+                                 by="query_population", owner=owner)
         already.add((x, y))
         kept += 1
         scores.append(score)

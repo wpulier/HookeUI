@@ -29,8 +29,13 @@ class WorkflowService:
         A missing driver cannot establish termination of a dispatched worker. Reads
         disclose that uncertainty without changing receipts or restarting anything.
         """
-        result=self.workflows.status(id_,session)
-        task=self.tasks.get((session,id_))
+        return self._observe(self.workflows.status(id_,session))
+
+    def observed_statuses(self, ids, session):
+        return {id_:self._observe(row) for id_,row in self.workflows.statuses(ids,session).items()}
+
+    def _observe(self, result):
+        task=self.tasks.get((result['session'],result['id']))
         owned=task is not None and not task.done()
         latest={(a['item'],a['node']):a for a in result['attempts']}
         unresolved=any(a['status'] in ('running','awaiting-research') for a in latest.values())

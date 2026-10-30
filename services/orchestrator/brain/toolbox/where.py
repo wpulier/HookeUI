@@ -112,7 +112,7 @@ def add_where_tools(registry: Registry, services) -> None:
             keep = getattr(services, "keep", None)  # a dataset being collected gets the picture itself (review B2)
             if keep is not None and mark.get("picture"):
                 try:
-                    keep(bookmarks.folder() / mark["picture"], f"bookmark-{bookmarks.today()}-{mark['picture']}")
+                    keep(bookmarks.folder(mark.get("day"), session=mark.get("session")) / mark["picture"], f"bookmark-{bookmarks.today()}-{mark['picture']}")
                 except Exception:
                     pass
             log = getattr(services, "log", None)
