@@ -1719,7 +1719,10 @@ async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<voi
     if (ownsRead() && generation === refreshGeneration && snapshot.session === session) {
       resultsFailedSession = session;
       renderBoard();
-      if (dataOpen) dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => void refreshResults()));
+      if (dataOpen) {
+        if(resourceSession===session)renderResults();
+        else dataView.show(el('p', 'study-error', String(error)), button('Retry results', () => retryProjectReads()));
+      }
       if (drawerOpen && section === 'inputs') refreshInputRows?.();
     }
   }
@@ -1838,6 +1841,7 @@ function renderResults(opened = false): void {
   dataList.render({rows:shown,choices:makerChoices(all),maker:makerFilter,query:dataSearch.value,loading:resourceSession!==snapshot.session,
     source:sourceFilter===null?null:snapshot.sources.find(item=>item.id===sourceFilter)?.title??'one input',
     here:row=>rowHere(row,here),seen:dataSeen(),now:Date.now()/1000,model:entry=>entry.madeBy?bridge.makerName(entry.madeBy):''});
+  if(resultsFailed()){const notice=el('div','study-error');notice.setAttribute('role','status');notice.append(el('p','','Could not refresh. Showing saved Project data.'),button('Retry results',()=>retryProjectReads()));dataList.list.prepend(notice);}
   dataView.showResults();
   if(readingPosition)dataBody.scrollTop=readingPosition;
   watchSeen();

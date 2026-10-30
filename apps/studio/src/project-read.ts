@@ -19,7 +19,7 @@ export class ProjectRead {
     this.pending=read;
     read.promise=Promise.resolve().then(()=>load(controller.signal,current)).finally(()=>{
       clearTimeout(read.slow);clearTimeout(read.deadline);
-      if(current()){this.pending=undefined;this.slow=false;this.changed();}
+      if(current()){const wasSlow=this.slow;this.pending=undefined;this.slow=false;if(wasSlow)this.changed();}
     });
     return read.promise;
   }

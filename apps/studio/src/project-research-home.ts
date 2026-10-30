@@ -57,6 +57,8 @@ export class ProjectResearchHome {
     this.root.append(intro);
     if(error){const notice=node('p',`Showing saved history. ${error}`,'project-research-notice');notice.setAttribute('role','status');this.root.append(notice);}
     if(material.error){const notice=node('p',material.error,'project-research-notice');notice.setAttribute('role','status');this.root.append(notice);}
+    if(material.slow){const notice=node('p','Loading is taking longer than usual. Showing available material.','project-research-notice');notice.setAttribute('role','status');this.root.append(notice);}
+    if((error||material.error||material.slow)&&this.actions.retry)this.root.append(action('Retry','retry',this.actions.retry));
     const stats=node('div','','project-research-stats');
     for(const [label,count] of [['Studies',owned.length],['Agents contributed',agentCount],['Experiments',experiments],['Findings',owned.reduce((n,s)=>n+s.findings.length,0)]] as const){
       const item=node('div','','project-research-stat');item.append(node('strong',String(count)),node('span',label));stats.append(item);

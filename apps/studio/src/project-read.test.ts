@@ -25,3 +25,8 @@ test('slow reads announce after ten seconds and abort after thirty; a new read c
  await vi.advanceTimersByTimeAsync(20_000);await first;expect(read.slow).toBe(false);
  const load=vi.fn(async()=>{});await read.run('A',load);expect(load).toHaveBeenCalledOnce();
 });
+test('ordinary completed polls preserve the rendered control tree',async()=>{
+ const changed=vi.fn();const read=new ProjectRead(changed);
+ await read.run('A',async()=>{});await read.run('A',async()=>{});
+ expect(changed).not.toHaveBeenCalled();
+});
