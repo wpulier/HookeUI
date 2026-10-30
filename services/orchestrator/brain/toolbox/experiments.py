@@ -51,8 +51,8 @@ def add_experiment_tools(registry: Registry, services) -> None:
                          request_id=request_of(ctx), turn_id=ctx.turn_id or None, asked_in=ctx.asked)
             attach(values={"experiment": x.wire()})
             return (X.plan_words(x) + ". Say the plan as its first two sentences say it (the models by name, the "
-                    "frames, the comparison, the audit, the time and the cost) and ask once whether to run it; nothing "
-                    "has run")
+                    "frames, the comparison, the audit, the time and the cost), the second ending in the one question "
+                    "whether to run it (\"…; shall I run it?\"), two sentences in all; nothing has run")
         x = xs.get(args.get("experiment"), session)
         if do == "change":
             x = xs.change(x, models=args.get("models"), on=args.get("on"), frames=args.get("frames"),
@@ -60,7 +60,7 @@ def add_experiment_tools(registry: Registry, services) -> None:
                           effort=args.get("effort"), measure=args.get("measure"))
             attach(values={"experiment": x.wire()})
             return ("Changed: " + X.plan_words(x) + ". Say the plan as it is now, as its first two sentences say it, "
-                    "and ask once whether to run it; nothing has run")
+                    "the second ending in the one question whether to run it, two sentences in all; nothing has run")
         if do == "stop":
             said = await xs.stop(x)
             attach(values={"experiment": x.wire()})
