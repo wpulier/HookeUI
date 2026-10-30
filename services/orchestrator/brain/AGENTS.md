@@ -467,3 +467,8 @@ numbers, units, exclusions and input identities remain available. Saved never im
 Bookmark capture gives Record the retained picture from the bookmark’s captured Project and date, never the currently selected Project after background work completes.
 
 The snapshot tool captures its Project and storage destination before drawing. In staged portable storage, its annotated/clean pictures publish together with hashes and pending-state recovery; a closed writer or changed destination refuses publication. Legacy capture semantics remain unchanged.
+
+Identity tools await the captured Project's history and use its serialized
+background mutation path for portable Projects. They preserve the existing event
+model and legacy path. No live-loop filesystem mutation or accepted state before
+durable publication is introduced; a changed owner refuses further work.

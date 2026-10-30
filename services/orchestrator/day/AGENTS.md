@@ -346,3 +346,10 @@ bytes, retains known metadata, and refuses changed sources, event-loop work and
 individual Record parts. Readers use retained chunks rather than host Library IDs.
 Library alias/playback integration and complete capture/history collection remain
 unqualified; live portable activation stays off.
+
+`identity_io` qualifies portable identity reads and existing tool mutations on a
+serialized background path. Captured Project/generation fences prevent late state
+from replacing a later selection. A cancelled caller leaves its actual worker
+serialized; accepted events remain in the original Project. Loading/read failures
+are explicit. The shared ProjectEvents instance retains inode pins across calls.
+This does not qualify complete collection or turn on ordinary portable creation.

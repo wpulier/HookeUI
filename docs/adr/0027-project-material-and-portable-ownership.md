@@ -276,3 +276,17 @@ read-only snapshot retains observed running states as history, not commands.
 This internal primitive does not establish dependency closure, guarantee a copy
 will finish while research keeps changing, or expose a complete Project export.
 The ordinary host still does not enable portable locations by default.
+
+## Portable identity lifecycle
+
+The live Identity view loads portable history on a serialized background path. Each
+admission captures the Project and UI generation; a late load cannot overwrite a
+newer selection. Existing identity tools, linking and observations persist through
+the same append-only history before updating the matching live view. Caller
+cancellation does not release the queue while its worker still writes. A changed
+Project refuses new admission; already-admitted work keeps its original owner.
+
+Loading and uncertain history are explicit, never an empty accepted identity list.
+The follower waits for known history. Synchronous portable mutation still refuses
+on the event loop. These tests qualify the identity lifecycle, not full Library
+playback, complete dependency collection or ordinary portable-folder activation.
