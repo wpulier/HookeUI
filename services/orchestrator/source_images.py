@@ -25,7 +25,9 @@ MAX_BYTES = 16 * 1024 * 1024
 def descriptor(asset, session: str) -> str | None:
     if asset is None or asset.kind != "still":
         return None
-    return json.dumps({"asset": asset.id, "path": str(asset.path), "session": session,
+    source = ({"retained": asset.exact_reference()} if hasattr(asset, 'exact_reference')
+              else {"path": str(asset.path)})
+    return json.dumps({"asset": asset.id, **source, "session": session,
                        "optics": asset.scale_optics()})
 
 
@@ -68,15 +70,36 @@ def _shape(data: bytes) -> tuple[int, int, int, str]:
     raise ValueError("scientific analysis currently requires a single-plane 8-bit grayscale or RGB PNG/JPEG")
 
 
-def _read(store, spec: dict) -> Capture:
-    path = Path(spec["path"])
+def _read(store, spec: dict, projects=None) -> Capture:
     try:
-        size = path.stat().st_size
+        if spec.get('unavailable'):
+            raise ValueError(spec['unavailable'])
+        retained = None
+        if 'retained' in spec:
+            from .project_stage_media import reference
+            from .project_media import ProjectMedia
+            if projects is None:
+                raise ValueError('retained Project media is unavailable on this host')
+            selected = reference(spec['retained'], spec['session'])
+            metadata, retained = ProjectMedia(projects).read(selected)
+            if metadata['asset']['id'] != spec['asset'] or metadata['asset']['kind'] != 'still':
+                raise ValueError('the retained original does not match this picture')
+            size = retained.size
+        else:
+            path = Path(spec["path"])
+            size = path.stat().st_size
         if size > MAX_BYTES:
             raise ValueError("the original picture exceeds the 16 MiB import limit")
         with store.memory.reserve("analysis", size * 2, "reading original image"):
-            with path.open("rb") as stream:
-                data = stream.read(size + 1)
+            if retained is not None:
+                from .scientific_files import CHUNK_BYTES
+                data = b''.join(retained.read(offset, min(CHUNK_BYTES, size - offset))
+                                for offset in range(0, size, CHUNK_BYTES))
+                if hashlib.sha256(data).hexdigest() != retained.sha256:
+                    raise ValueError('the retained original failed its content hash check')
+            else:
+                with path.open("rb") as stream:
+                    data = stream.read(size + 1)
             if len(data) != size:
                 raise ValueError("the original image changed while it was being read")
             width, height, channels, media = _shape(data)
@@ -92,11 +115,14 @@ def _read(store, spec: dict) -> Capture:
                           "dtype": "uint8", "axes": "YX" if channels == 1 else "YXC", "channels": channels,
                           "pixelEncoding": "row-major uint8 grayscale" if channels == 1 else "row-major uint8 BGR",
                           "mediaType": media, "units": "pixels", "orientation": "encoded pixel grid; EXIF rotation not applied"}
+                if retained is not None:
+                    source['retained'] = dict(spec['retained'])
                 ok, preview = cv2.imencode(".jpg", pixels)
                 if not ok:
                     raise ValueError("the original image's display preview could not be made")
                 scale = {"units": "pixels", "frame": [width, height], "asset": spec["asset"]}
-                per_pixel = spec.get("optics", {}).get("umPerPx")
+                per_pixel = (metadata["asset"].get("optics", {}) if retained is not None
+                             else spec.get("optics", {})).get("umPerPx")
                 if isinstance(per_pixel, (int, float)) and np.isfinite(per_pixel) and per_pixel > 0:
                     scale.update(umPerPx=per_pixel, measured=True, source="asset", units="µm")
                     source.update(umPerPx=per_pixel, units="µm", calibrationSource="asset")
@@ -116,7 +142,8 @@ async def for_analysis(hub, capture=None):
     if spec is None:
         return capture
     # Freeze before awaiting disk work: later source/session changes cannot relabel these bytes.
-    return await asyncio.to_thread(_read, captures(hub), json.loads(spec))
+    return await asyncio.to_thread(_read, captures(hub), json.loads(spec),
+                                   getattr(getattr(hub, 'resources', None), 'projects', None))
 
 
 async def worker_input(capture) -> bytes:

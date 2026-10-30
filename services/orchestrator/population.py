@@ -320,14 +320,19 @@ def stage_spec(spec_json: str | None) -> dict | None:
         spec = json.loads(spec_json)
     except (TypeError, ValueError):
         return None
-    return spec if isinstance(spec, dict) and spec.get("asset") and spec.get("path") else None
+    return spec if isinstance(spec, dict) and spec.get("asset") and (spec.get("path") or isinstance(spec.get('retained'), dict)) else None
 
 
 def on_stage(spec_json: str | None, source: dict | None) -> bool:
     """Whether the still `spec_json` names is the picture a population was found on (`source`, its sourceImage): the
     same asset. A population made from a retained result's picture names no asset, so it is never the Stage's."""
     spec = stage_spec(spec_json)
-    return bool(spec and isinstance(source, dict) and source.get("asset") and spec["asset"] == source["asset"])
+    if not (spec and isinstance(source, dict) and source.get('asset') == spec['asset']):
+        return False
+    if spec.get('retained') is not None or source.get('retained') is not None:
+        return (isinstance(spec.get('retained'), dict) and spec['retained'] == source.get('retained')
+                and spec.get('session') == source.get('session'))
+    return True
 
 
 def _inside_disc(population: Population, fov) -> None:

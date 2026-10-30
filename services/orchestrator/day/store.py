@@ -158,6 +158,7 @@ class SessionStore:
         # (a removed one's specimens are not the session's: `_subject_events` are applied again without them), and
         # what is on stage now ("live", an asset id, or None before anything was opened in it).
         self.sources: dict[str, float] = {}
+        self.source_references: dict[str, dict] = {}
         self.removed_sources: set[str] = set()
         self.on_stage: str | None = None
         # The population the cells' layer showed in it last (population.py Layer, `record_layer`), or None: a reopened
@@ -585,6 +586,8 @@ class SessionStore:
             self.sources[aid] = at  # newest last
             self.removed_sources.discard(aid)
             self.on_stage = aid
+            if isinstance(e.get('retained'), dict):
+                self.source_references[aid] = dict(e['retained'])
         elif op == "removed" and aid != "live":
             self.removed_sources.add(aid)
         elif op == "restored":
@@ -603,9 +606,13 @@ class SessionStore:
                 self._apply_subject(e, float(e.get("at") or self.clock()))
 
     # --- its sources (library.py; ADR 0022) -----------------------------------------------------
-    def open_source(self, aid: str, by: str = "user") -> None:
+    def open_source(self, aid: str, by: str = "user", *, retained=None) -> None:
         """An asset (or "live") put on stage: the session's from then on. Opening a removed one brings it back."""
-        self._record({"type": "source", "asset": aid, "op": "opened", "by": by})
+        if retained is not None:
+            from ..project_stage_media import reference
+            reference(retained, self.sid)
+        self._record({"type": "source", "asset": aid, "op": "opened", "by": by,
+                      **({'retained': dict(retained)} if retained is not None else {})}, strict=retained is not None)
 
     def record_layer(self, eid: str | None) -> None:
         """The population the cells' layer shows now in this session (None: none), journaled when it changes. Hiding

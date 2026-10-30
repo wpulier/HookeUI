@@ -551,7 +551,8 @@ class App:
                           snapshots=paths.snapshots, origin_of=origin_of)
         hub.library = library
         # Yours: the user's own and the examples a session has used (any session's sources, the catalogue's).
-        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)}
+        library.used = lambda: {aid for info in day.catalogue.list() for aid in opened_sources(info)
+                                if aid not in getattr(info, 'source_references', {})}
         # The library's looks (library_looks.py): one look at each new asset files it by what is in it, with the fast
         # vision model when it can run here (its key); what the running look saw while it was on stage is told as data.
         from .library_looks import LibraryLooks
@@ -569,7 +570,8 @@ class App:
 
         hub.library_looks = LibraryLooks(
             library, lambda aid: thumbnails_of(hub).get(aid, LIBRARY, ""), look_vision,
-            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen if source == aid],
+            seen_on=lambda aid: [name for info in day.catalogue.list() for name, source in info.seen
+                                 if source == aid and aid not in getattr(info, 'source_references', {})],
             log=agent.log, chosen=lambda: not day.local_only and hub.settings.library_looks == "on")
         hub.stage_meta = None  # the asset on stage's metadata, for the Board's line (brain/context.py); None on live
         hub.stage_image_json = None
@@ -580,9 +582,11 @@ class App:
 
         def staged() -> str | None:
             meta = hub.stage_meta
-            return meta.get("id") if isinstance(meta, dict) and is_asset_id(meta.get("id")) else None
+            return meta.get("id") if isinstance(meta, dict) and not meta.get('retained') and is_asset_id(meta.get("id")) else None
 
-        subjects.pinned = lambda: str(library.edits(staged()).get("specimen") or "") if staged() else ""
+        subjects.pinned = lambda: (str((hub.stage_meta or {}).get('specimen') or '')
+            if (hub.stage_meta or {}).get('retained') and (hub.stage_meta or {}).get('specimenBy') == 'user'
+            else str(library.edits(staged()).get("specimen") or "") if staged() else "")
         subjects.on_named.append(lambda name: library.set_meta(staged(), {"specimen": name}, by="user") if staged() else None)
         scale.asset_set = lambda aid, fields: library.set_meta(aid, fields, by="user")
 
@@ -1659,6 +1663,9 @@ class App:
         try:
             await self._stop()
         finally:
+            media = getattr(self, '_project_stage_media', None)
+            if media is not None:
+                media.retire()
             if getattr(self.day, 'locations', None) is not None:
                 # Completion/cancellation is not proof all writer threads ended.
                 # Fence later admission and hold leases until process teardown.
@@ -1966,7 +1973,7 @@ class App:
         hub = self.hub
         meta = asset.metadata() if asset is not None else None
         previous = getattr(hub, "stage_meta", None)
-        if (previous or {}).get("id") != (meta or {}).get("id"):
+        if ((previous or {}).get("id"), (previous or {}).get("retained")) != ((meta or {}).get("id"), (meta or {}).get("retained")):
             from . import ticket
             from .population import layer_of
 
@@ -1979,7 +1986,9 @@ class App:
         if fields is None:
             self.reopen_layer(asset)
         if hub.scale is not None:
-            hub.scale.use_asset(asset.id if asset is not None else None, asset.scale_optics() if asset is not None else None)
+            hub.scale.use_asset(asset.id if asset is not None else None,
+                                asset.scale_optics() if asset is not None else None,
+                                read_only=bool((meta or {}).get('retained')))
         if fields is None or "specimen" in fields:
             if fields is None:
                 self.subjects.source_changed(asset.user_specimen() if asset is not None else "")
@@ -2040,6 +2049,17 @@ class App:
         """Session `sid`'s sources (sources.rows): the open session's from its store, another's from its journal, each
         with the other sessions that use it (every session's journal, read by the catalogue)."""
         from . import sources
+
+        locations = getattr(self.day, 'locations', None)
+        portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
+        if portable is not None:
+            from .project_stage_media import sources as retained_sources
+            def read_retained():
+                record = next((i for i in self.day.catalogue.list() if i.id == sid), None)
+                if record is None:
+                    return {"session": sid, "onStage": None, "sources": [], "removed": []}
+                return retained_sources(self.hub.resources.projects, sid, record)
+            return await asyncio.to_thread(read_retained)
 
         library = getattr(self.hub, "library", None)
         if library is None:

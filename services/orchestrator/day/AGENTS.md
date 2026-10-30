@@ -362,3 +362,13 @@ uses them. The caller owns that copy through decoder shutdown. It never register
 global Library alias; live playback and workspace restoration remain unqualified.
 
 The material inventory joins recorded matrix inspections to exact source revisions and file hashes. Report references remain available; conflicting dimensions do not select a preferred report. These are recorded tool facts, not independent scientific acceptance or a new content read.
+
+The opt-in retained Stage path journals the selected origin/document/revision/digest with
+its source. Source rows and original-image analysis read that exact Project revision,
+never a host Library alias. The bridge uses a verified disposable file under the host
+results cache, held until an acknowledged feed replacement; uncertain requests and host
+stop retain ownership. Saved optics are read-only until a revision-editing path exists.
+Legacy Library edit/trash commands refuse in portable Projects, and retained subjects
+do not write into equal Library IDs. Overlay matching includes the exact retained
+reference. Ordinary portable startup remains off pending complete collection and UI
+qualification.
