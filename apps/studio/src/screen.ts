@@ -1136,6 +1136,10 @@ export class WorkspaceSession {
   frontPresentation(saved: import('./workspace-study-restoration').StudyRetainedView): boolean {
     return this.pair?.windows.frontPresentation(saved) ?? false;
   }
+  /** Arrange's tile for a native window by its id (WorkspaceWindows.placeWindow); true when there is nothing more to do. */
+  placeWindow(id: string, rect: readonly number[]): boolean {
+    return this.pair?.windows.placeWindow(id, rect) ?? true;
+  }
   openRetainedResource(saved: import('./workspace-study-restoration').StudyRetainedView, foreground = true): Promise<void> {
     if (this.disposed || !this.pair) return Promise.reject(new Error('Reconnect before reopening retained evidence.'));
     const existing = this.pair.windows.retainedViews().find(view => { const ref=studyResourceReference(view.resource); return this.pair?.windows.root(view.id).dataset.workspaceView === document.body.dataset.activeWorkspaceView && ref && sameStudyResource(ref,saved.resource) && (!saved.placementId || this.pair?.windows.root(view.id).dataset.placementId===saved.placementId); });

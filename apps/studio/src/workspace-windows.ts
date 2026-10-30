@@ -81,6 +81,7 @@ const contextKeys = ['workspaceId', 'clientId', 'pageEpoch', 'connectionEpoch', 
 const supportedSources = new Set(['live', 'saved-image', 'video', 'lesson', 'written', 'composite']);
 const pictureSources = new Set(['live', 'saved-image', 'composite']);
 const clampUnit = (value: number) => Math.max(0, Math.min(1, value));
+const PLACE_TRIES = 4; // an Arrange's tile, sent at most this often for one window before it is left where it is
 const displayKinds: Record<string, string> = { live: 'magnifier', 'saved-image': 'image', composite: 'comparison' };
 const buttonLabels: Record<string, string> = { 'zoom-in': '+', 'zoom-out': '−', 'zoom-fit': 'Fit', front: '↑', close: '×', hide: '−', ungroup: '↔', retry: 'Retry' };
 const derivedKind = (source: WindowSource) => displayKinds[source.kind] ?? source.kind;
@@ -184,6 +185,7 @@ export class WorkspaceWindows {
   private phoneStamp = '';
   private restoring = new Set<string>();
   private restoreFailures = new Map<string, string>();
+  private placing = new Map<string, { rect: string; tries: number }>(); // placeWindow's commands for one tile
   private readonly shelf = document.createElement('div');
 
   constructor(options: WindowOptions) {
@@ -237,6 +239,25 @@ export class WorkspaceWindows {
     if(command){this.restoring.add(row.state.id);this.dispatchUser({...command,instance:row.state.id});return false;}
     this.restoring.delete(row.state.id);
     return true;
+  }
+  /** A tile for a native window with no retained resource (the live magnifier), from the Tab's Arrange: its size, then
+   *  its place, each the person's own resize and move, one at a time (each accepted descriptor fences the next, as in
+   *  restorePresentation). `rect` is in the host's coordinates. True once it has both, or when there is nothing to place
+   *  (gone, closed) or it was refused PLACE_TRIES times (left where it is). */
+  placeWindow(id: string, rect: readonly number[]): boolean {
+    const row = this.rows.get(id);
+    if (!row || row.disposed || !row.state.open || row.dismissed) { this.placing.delete(id); return true; }
+    if (row.pending.size) return false;
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    const size = [rect[2], rect[3]], host = this.opts.host.getBoundingClientRect();
+    const position = [rect[0] + host.left, rect[1] + host.top];
+    const command = !same(row.state.geometryIntent.size, size) ? { action: 'resize', values: { size } }
+      : !same(row.state.geometryIntent.position, position) ? { action: 'move', values: { position } } : null;
+    const key = JSON.stringify(rect), tries = this.placing.get(id)?.rect === key ? this.placing.get(id)!.tries : 0;
+    if (!command || tries >= PLACE_TRIES) { this.placing.delete(id); return true; }
+    this.placing.set(id, { rect: key, tries: tries + 1 });
+    this.dispatchUser({ ...command, instance: id });
+    return false;
   }
   restore(id: string, foreground = true): void {
     const row = this.row(id);
