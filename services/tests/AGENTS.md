@@ -1,5 +1,12 @@
 # Checks
 
+`test_project_server_routing.py` runs the ordinary FastAPI server and lifespan in
+separate processes, with synthetic consent and text. Studio creates the Project;
+the connector contributes copied evidence and a Study. Shutdown, folder move and
+restart retain the exact documents and shared inventory after original deletion.
+No public portable-mode switch, real browser/client, model, microscopy decoder or
+complete dependency collection is qualified by this test.
+
 `test_project_record_collection.py` retains a synthetic shared Record folder through
 real immutable intake and reads it after deleting the synthetic original and moving
 the Project. It checks unchanged warnings/cross-Project records, mutable source hard

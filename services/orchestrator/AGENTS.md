@@ -1152,7 +1152,9 @@ App.build accepts an internal, explicitly supplied ProjectLocations dependency f
 isolated host qualification. It checks the legacy host identity and shares that
 resolver between the real SessionStore and scientific ProjectStores. Failed build
 releases its leases. App shutdown fences further admission but retains its writer
-leases until process termination: cancelled tasks may still have writing threads. Ordinary server startup still supplies no resolver. This is not a
+leases until process termination: cancelled tasks may still have writing threads.
+`server.create_app` accepts the same keyword-only dependency for isolated full-server
+qualification; ordinary command-line startup still supplies no resolver. This is not a
 request-selected storage path or a live migration/default-policy change. Portable
 UI session switching, media aliasing and provider execution remain unqualified.
 
