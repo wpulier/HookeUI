@@ -60,6 +60,16 @@ def main(mode, folder, material="protocol"):
             if mode == 'create':
                 receipt['mixed'] = project_mixed_probe.create(built, client, h, base, sid)
             mixed_evidence = project_mixed_probe.inspect(built, receipt, base)
+            media = receipt['mixed']['media']
+            saved_media = built.hub.resources.projects.read(media['document'], sid, revision=media['revision'])
+            preview = client.get(f"/api/scientific-files/{media['document']}/media", params={
+                'session': sid, 'revision': media['revision'],
+                'sha256': saved_media.document['state']['sourceFile']['sha256']})
+            assert preview.status_code == 200 and preview.headers['content-type'] == 'image/png', preview.text
+            import io
+            from PIL import Image
+            assert Image.open(io.BytesIO(preview.content)).tobytes() == bytes((4, 83, 212)) * (13 * 17)
+
             if mode == 'create':
                 receipt['mixedEvidence'] = mixed_evidence
             else:

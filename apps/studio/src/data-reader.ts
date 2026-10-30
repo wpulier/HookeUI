@@ -31,6 +31,7 @@ import { showScientificSource, showScientificFolder } from './scientific-file-im
 import { showMatrixResult } from './scientific-matrix-result';
 import { readMaterialRevision } from './project-material-reader';
 import { materialKind } from './project-inputs';
+import { showRetainedMedia } from './retained-media-preview';
 import type { ProjectMaterial } from './data-roles';
 import './data-reader.css';
 
@@ -876,6 +877,7 @@ export class DataReader {
       body.replaceChildren();
       if (document.kind === 'source-file') {
         showScientificSource(body, document.state, ref, open, document.resources);
+        showRetainedMedia(body, document.state, ref, signal);
         const inspection = entry.material?.inspection;
         if (inspection) {
           const details = el('details', 'rd-material-inspection');
