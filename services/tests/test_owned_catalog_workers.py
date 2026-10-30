@@ -47,7 +47,10 @@ def controlled(home, monkeypatch, family, mode):
     control.write_text(mode)
     pid = home / 'worker-pid'
     prelude = f'''import os, time, pathlib
-pathlib.Path({str(pid)!r}).write_text(str(os.getpid()))
+pid_file = pathlib.Path({str(pid)!r})
+pending_pid = pid_file.with_suffix('.pending')
+pending_pid.write_text(str(os.getpid()))
+pending_pid.replace(pid_file)
 mode = pathlib.Path({str(control)!r}).read_text()
 if mode == 'startup': time.sleep(60)
 '''
