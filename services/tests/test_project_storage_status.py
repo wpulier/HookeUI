@@ -113,3 +113,27 @@ def test_leased_project_with_changed_owner_never_reports_available(tmp_path):
         assert result['origin'] == root.origin and 'do not match' in result['reason']
     finally:
         locations.close()
+
+
+def test_successful_status_reports_verified_location_when_registry_moves(tmp_path, monkeypatch):
+    from orchestrator.project_locations import ProjectLocations
+    from orchestrator.project_roots import ProjectRoot
+    day, locations = setup(tmp_path)
+    project = day.create_retained('Research', actor='user')
+    root = locations.project(project.sid)
+    locations.close()
+    reader = ProjectLocations(locations.legacy, locations.registry, locations.parent)
+    original = reader.project
+    def moved_before_resolution(session):
+        moved = tmp_path / 'Moved during status read'
+        root.path.rename(moved)
+        reader.registry.register(ProjectRoot.open(moved), replace_inactive=True)
+        return original(session)
+    monkeypatch.setattr(reader, 'project', moved_before_resolution)
+    try:
+        result = describe(SimpleNamespace(root=day.root, locations=reader), project.sid)
+        assert result['availability'] == 'available'
+        assert result['location'] == str(tmp_path / 'Moved during status read')
+        assert result['origin'] == root.origin
+    finally:
+        reader.close()

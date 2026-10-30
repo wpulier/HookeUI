@@ -39,7 +39,8 @@ def describe(day, session):
                 verify_owner(root)  # check even when this process already holds its lease
             except (OSError, ValueError) as error:
                 return _value(session, availability='unavailable', reason=str(error)[:500], **value)
-            return _value(session, availability='available', **value)
+            return _value(session, layout='project-folder', availability='available',
+                          origin=root.origin, location=str(root.path))
     # Legacy stores may contain several Projects. Never advertise the shared home
     # as a self-contained Project folder or mint an origin while inspecting it.
     try:
