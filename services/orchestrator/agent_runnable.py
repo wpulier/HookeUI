@@ -140,6 +140,8 @@ def runnable(tool_name: str) -> bool:
 DOOR_RESOURCES = {
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
+    'project.export.prepare': 'reads the byte estimate and unverified dependency scope of an authorized Project folder',
+    'project.export': 'contributor explicitly exports an immutable folder snapshot to a new host-selected location; no authority or completeness is inferred',
     'project.storage': 'reads location and collection facts for an authorized Project without moving files or granting access',
     'project.dependencies': 'inspects declared historical evidence dependencies in an authorized Project; never reads external Projects or claims complete collection',
     'project.read': 'reads the exact authorized Project and retained corpus index',

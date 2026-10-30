@@ -15,6 +15,8 @@ SCHEMAS = {
     'project.list': {},
     'project.read': {},
     'project.storage': {},
+    'project.export.prepare': {},
+    'project.export': {'acknowledgeIncomplete': {'type': 'boolean', 'enum': [True]}},
     'project.dependencies': {},
     # project.state (project_state.py): the Project's one view, every reader's; additive beside project.read, whose
     # output is unchanged. A page of its data at a time; `cursor` is the next page of the same revisions.
@@ -41,7 +43,7 @@ def authorize(built, name, project, actor):
     if name not in SCHEMAS or not agent_runnable.door_resource(name):
         raise Refused(403, 'action-not-admitted', 'This action is not declared for agents.', next='discover available tools')
     if name not in ('project.create', 'project.list'):
-        access(built).require(project, actor, write=name in ('project.import', 'material.organize'))
+        access(built).require(project, actor, write=name in ('project.import', 'material.organize', 'project.export'))
 
 
 def _summary(built, project, actor):
@@ -125,6 +127,25 @@ async def run(built, record, progress):
             check(value, 'project-storage')
             return value
         result = {'storage': await asyncio.to_thread(storage)}
+    elif name in ('project.export.prepare', 'project.export'):
+        from ..project_export import prepare, export, owned_export
+        from .schema import check as validate
+        def check():
+            access(built).require(project, actor, write=name == 'project.export')
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Project export stopped before publication')
+        def perform():
+            if name == 'project.export.prepare':
+                value = prepare(built.day, project, check=check)
+                validate(value, 'project-export-plan')
+            else:
+                value = export(built.day, project, record['id'],
+                    acknowledge_incomplete=args['acknowledgeIncomplete'], check=check)
+                validate(value, 'project-export')
+            access(built).require(project, actor, write=name == 'project.export')
+            return value
+        def stop(): record['state'] = 'cancelRequested'
+        result = {'export': await owned_export(perform, stopped=stop)}
     elif name == 'project.dependencies':
         from ..project_dependency_access import inspect
         from .schema import check as validate

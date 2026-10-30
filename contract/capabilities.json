@@ -2483,7 +2483,12 @@
           "view",
           "sessions-reveal",
           "project-storage",
-          "project-reveal"
+          "project-reveal",
+          "project-export-prepare",
+          "project-export",
+          "project-export-status",
+          "project-export-stop",
+          "project-export-reveal"
         ]
       },
       "pair": "new-session",

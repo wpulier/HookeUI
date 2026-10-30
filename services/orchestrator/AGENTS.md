@@ -1219,3 +1219,10 @@ Project folder estimates include bounded historical source-event preflight. Remo
 Library sources remain dependencies; live camera and prose do not become file links.
 Exact retained choices are scoped by origin, with missing inclusion explicit. This
 reads no host Library and does not certify all media/journal dependencies collected.
+
+Owner Project-folder export commands use the same snapshot service and original
+Operations records as connected contributors. Preparation is read-only and scoped
+to the captured Project; starting captures the requested owner before background
+work. Navigation does not retarget admitted copying. Status/Stop read/control only
+that Project's export operations. Completed copies remain explicitly unverified for
+external dependencies; failure/cancellation preserve incomplete destinations.

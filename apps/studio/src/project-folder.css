@@ -17,3 +17,8 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-folder button.study-primary:hover { background: var(--mm-accent-fill-hover); }
 .project-folder button:focus-visible, .project-folder summary:focus-visible { outline: 2px solid var(--mm-focus-ring); outline-offset: 3px; }
 .project-folder button:disabled { cursor: default; opacity: .5; }
+
+.project-export { border-top: 1px solid var(--mm-line); padding-top: 18px; display: grid; gap: 12px; }
+.project-export h3 { margin: 0; font-size: 15px; }
+.project-export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.project-export .project-folder-path { margin-top: 10px; font-size: 12px; color: var(--mm-text-2); }
