@@ -920,7 +920,7 @@ export class DataReader {
           }
           details.append(actions);
           const uses=latest.material?.uses?.filter(use=>use.study&&use.revision===ref.version&&use.digest===latest.source?.sha256)??[];
-          for(const use of uses){const b=button('Open Study',()=>{if(!signal.aborted)this.deps.openStudy?.(use.study!);});b.title=use.study!;details.append(b);}
+          for(const use of uses){const b=button(use.studyTitle?`Study · ${use.studyTitle}`:'Open Study',()=>{if(!signal.aborted)this.deps.openStudy?.(use.study!);});b.className='material-study-link';b.title='Open the linked Study';details.append(b);}
           if (inspection) {
             details.append(el('h3','','Retained inspections'));
             for (const [index, {report, caption}] of reports.entries()) {

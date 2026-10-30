@@ -4,7 +4,6 @@ const node=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',cls='')=>{const
 export function matrixPreview(preview:MatrixPreview):HTMLElement {
  const section=node('section','','material-preview');
  section.append(node('h4','Preview'),node('p',`First ${preview.observations.length} observations × ${preview.variables.length} variables. Positional slice, not representative sampling.`,'rd-note'));
- if(preview.integerEncoding)section.append(node('p','Integers beyond the browser’s exact numeric range are preserved as decimal text.','rd-note'));
  const scroll=node('div','','material-preview-scroll');scroll.tabIndex=0;scroll.setAttribute('aria-label','Matrix preview; scroll to see columns');
  const table=node('table'),head=node('tr');head.append(node('th','Observation'));
  for(const label of preview.variables){const th=node('th',label);th.scope='col';head.append(th);}const thead=node('thead');thead.append(head);table.append(thead);

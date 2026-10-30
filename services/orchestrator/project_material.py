@@ -260,7 +260,7 @@ def attach_usage(entries, store=None) -> list[str]:
                 problems.append(f'Study {study.id}: input {ref["id"]} is unavailable')
                 continue
             current = entry.version == ref['revision'] and entry.source.get('sha256') == ref['digest']
-            use = {'study': study.id, 'revision': ref['revision'], 'digest': ref['digest'],
+            use = {'study': study.id, 'studyTitle': study.title, 'revision': ref['revision'], 'digest': ref['digest'],
                    'title': entry.title, 'available': current, 'material': {k: v for k, v in entry.material.items() if k != 'uses'} if current else describe({})}
             if not current and store is not None:
                 try:

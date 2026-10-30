@@ -94,6 +94,9 @@
           },
           "membership": {
             "type": "string"
+          },
+          "studyTitle": {
+            "type": "string"
           }
         }
       }

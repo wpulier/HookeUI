@@ -66,6 +66,7 @@ def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
     attach_usage([model, assignment])
     assert model.material['input'] and model.material['origin'] == 'generated'
     assert model.material['uses'][0]['study'] == study.id
+    assert model.material['uses'][0]['studyTitle'] == study.document['title']
     check(model.material, 'project-material')
     model.version += 1
     attach_usage([model, assignment])
