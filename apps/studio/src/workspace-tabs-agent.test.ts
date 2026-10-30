@@ -66,3 +66,34 @@ test('the Assistant opens one saved item in a Tab of its own the way Open in new
  const failed=await current.agentCommand('p',{action:'reader',item:{resource:{day:'p',id:'d8',version:null},title:'Other'}});
  expect(failed).toEqual({ok:false,error:'Its Tab did not open. Open it from Data.'});
 });
+
+/** A live close-up's window as the Stage holds it: a native window the Tab lists, its arrangement never saves. */
+function liveWindow(tab:string){
+ const dataset:Record<string,string>={project:'p',workspaceView:tab,placementId:'pm',presentationId:'w-live',sourceKind:'live',sourceMedia:'capture'};
+ return {dataset,classList:{contains:(name:string)=>name==='workspace-window'},getAttribute:(name:string)=>name==='aria-label'?'the stoma · live magnification':null,querySelector:()=>null} as unknown as HTMLElement;
+}
+
+test('a live close-up the Tab lists moves to another Tab as itself, though its arrangement never saves it (will-tabs, 30 Oct)',async()=>{
+ // "Move that new enlargement into a new Tab": the live magnifier was listed on Main, and the move was refused
+ // "That exact placement is no longer in the named source Tab." It is the same window, now on the Tab asked for.
+ const {current}=fixture(),root=liveWindow('main');
+ current.layout.views.push({id:'mag',title:'Magnified View',specimen:{visible:false,rect:null},items:[],notes:[]});
+ current.openIds.push('mag');current.layout.active='mag';current.loaded.add('mag');
+ Object.assign(current,{roots:()=>[root],visibility:vi.fn()});
+ const listed=await current.agentCommand('p',{action:'list'});
+ const held=listed.tabs.find((t:{id:string})=>t.id==='main').items[0];
+ expect(held).toMatchObject({placement:'pm',kind:'magnifier',window:'w-live'});
+ const moved=await current.agentCommand('p',{action:'move',tab:'mag',from:'main',placement:held.placement});
+ expect(moved.ok).toBe(true);
+ expect(root.dataset.workspaceView).toBe('mag');
+ expect(current.visibility).toHaveBeenCalled();
+ expect(moved.tabs.find((t:{id:string})=>t.id==='main').items).toEqual([]);
+ expect(moved.tabs.find((t:{id:string})=>t.id==='mag').items[0]).toMatchObject({placement:'pm',window:'w-live'});
+ expect(current.layout.views.every((v:{items:unknown[]})=>v.items.length===0)).toBe(true); // nothing saved for it
+ // Undo, and a person's own Move, take the same way back.
+ expect(Reflect.get(WorkspaceViews.prototype,'relocate').call(current,'pm','mag','main',false)).toBe('pm');
+ expect(root.dataset.workspaceView).toBe('main');
+ // A window it does not list is still refused, as before.
+ const gone=await current.agentCommand('p',{action:'move',tab:'mag',from:'main',placement:'other'});
+ expect(gone).toEqual({ok:false,error:'That exact placement is no longer in the named source Tab.'});
+});

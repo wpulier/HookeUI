@@ -11,7 +11,7 @@ import {fitTabRow,measureTabRow,type TabRowParts} from './tab-row-fit';
 import {holdUntilLanded} from './side-motion';
 import {flyTo} from './tab-close-motion';
 import {tabMark,type TabMark} from './tab-marks';
-import {tabItems,holds,LIST_ITEMS,type TabItemFact} from './workspace-model';
+import {tabItems,holds,listedWindow,LIST_ITEMS,type TabItemFact} from './workspace-model';
 import './workspace-views.css';
 interface Options {
  /** More things "+" can add beside a Tab (a researcher, a study), each opening as a Tab of its own. Without them "+" adds a Tab. */
@@ -1113,16 +1113,25 @@ private revision=0;private generation=0;private revealSequence=0;
   this.flashNote.hidden=false;this.flashTimer=window.setTimeout(()=>this.clearFlash(),10000);
  }
  private clearFlash(){clearTimeout(this.flashTimer);this.flashNote.hidden=true;this.flashNote.replaceChildren();}
- /** One window's placement from one Tab to another, as data: a move keeps its placement id, a copy gets a new one. */
+ /** One window's placement from one Tab to another, as data: a move keeps its placement id, a copy gets a new one. A
+  * window the Tab lists but its arrangement does not save (the live magnifier, a web page) moves as itself: its root is
+  * put on the other Tab, and nothing is saved for it (will-tabs, 30 Oct: "move that new enlargement into a new Tab" was
+  * refused "That exact placement is no longer in the named source Tab"; a person's Move said "Retain this item"). */
  private relocate(pid:string|undefined,fromId:string,toId:string,copy:boolean):string|null{
   const source=this.layout.views.find(v=>v.id===fromId),target=this.layout.views.find(v=>v.id===toId);
   if(!pid||!source||!target||source===target)return null;
   const note=source.notes.find(n=>n.placementId===pid),item=source.items.find(n=>n.placementId===pid),next=copy?uuid():pid;
   if(note){target.notes.push({...structuredClone(note),placementId:next});if(!copy)source.notes=source.notes.filter(n=>n!==note);}
   else if(item){target.items.push({...structuredClone(item),placementId:next});if(!copy)source.items=source.items.filter(n=>n!==item);}
-  else return null;
+  else{const loose=copy?undefined:this.looseRoot(source.id,pid);if(!loose)return null;loose.dataset.workspaceView=target.id;this.visibility();return pid;}
   if(!copy)pruneLanes(source);
   return next;
+ }
+ /** The open window on Tab `tab` with placement `pid` that the Tab lists but its arrangement does not save. */
+ private looseRoot(tab:string,pid:unknown):HTMLElement|undefined{
+  if(typeof pid!=='string'||!pid)return undefined;
+  return this.roots().find(root=>root.dataset.project===this.session&&root.dataset.workspaceView===tab&&root.dataset.placementId===pid
+   &&root.dataset.dismissed!=='true'&&root.dataset.windowOpen!=='false'&&!root.dataset.studyRetained&&!root.dataset.noteId&&listedWindow(root));
  }
  private async move(root:HTMLElement,to:string,copy:boolean):Promise<string|null>{
   if(this.busy())return null;this.capture();const source=this.active(),target=this.layout.views.find(v=>v.id===to);if(!source||!target||source===target)return null;
@@ -1174,7 +1183,7 @@ private revision=0;private generation=0;private revealSequence=0;
    if(this.dirty&&!this.conflict){await this.settle(check);await this.flush();check();} // a save rebased on a newer revision goes again
    if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
    await this.settle(check);if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace is still busy with another action.');
-   const target=this.layout.views.find(v=>v.id===args.tab);
+   const target=this.layout.views.find(v=>v.id===args.tab);let loose=false; // a move of a window the arrangement does not save
    if(args.action!=='create'&&args.action!=='reader'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
    if(args.action==='reader'){
     // Open in new Tab, as a person's: one saved item in a Tab of its own, the Data reader full width (an item that has
@@ -1198,8 +1207,12 @@ private revision=0;private generation=0;private revealSequence=0;
     await this.closeTab(target!.id);check();if(this.openIds.includes(target!.id))throw new Error('The Tab could not close. Save or finish its work first.');
    }else if(args.action==='move'){
     const source=this.layout.views.find(v=>v.id===args.from);
-    if(!source||!source.items.some(i=>i.placementId===args.placement)&&!source.notes.some(i=>i.placementId===args.placement))throw new Error('That exact placement is no longer in the named source Tab.');
-    if(source.id!==target!.id){
+    loose=!!source&&!!this.looseRoot(source.id,args.placement);
+    if(!source||!loose&&!source.items.some(i=>i.placementId===args.placement)&&!source.notes.some(i=>i.placementId===args.placement))throw new Error('That exact placement is no longer in the named source Tab.');
+    if(loose&&source.id!==target!.id){
+     // Moved as itself (relocate): the same window, live view and all, shown on the Tab asked for; nothing to save.
+     if(!this.relocate(args.placement,source.id,target!.id,false))throw new Error('The placement could not move.');
+    }else if(source.id!==target!.id){
      if(!this.relocate(args.placement,source.id,target!.id,false))throw new Error('The placement could not move.');
      for(const root of this.roots())if(root.dataset.placementId===args.placement)root.dataset.workspaceView=target!.id;
      if(target!.id===this.layout.active){const moved=target!.items.find(i=>i.placementId===args.placement);if(moved)this.completionRestores.add(args.placement);}
@@ -1231,7 +1244,7 @@ private revision=0;private generation=0;private revealSequence=0;
     }
    }else throw new Error('This Tab action is not supported.');
    await this.flush();check();if(this.dirty||this.conflict)throw new Error('The change is not confirmed saved. Check Retry save or Review recovery.');
-   if(['add','move'].includes(args.action)&&target!.id===this.layout.active){
+   if(['add','move'].includes(args.action)&&!loose&&target!.id===this.layout.active){
     if(!await this.activate(target!.id,true))throw new Error('The placement was saved but its Tab could not reopen. Reopen it from Data.');check();
    }
    this.render();return report();
