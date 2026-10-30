@@ -2098,13 +2098,19 @@ def add_present_tools(registry: Registry, services) -> None:
         "over": {"type": "boolean", "description": "legacy magnifier move/resize: asked for over the view or its object"},
         "revision": {"type": "integer", "description": "population open/show only: 0 for retained original, or its current revision; no recomputation"},
         "placement": {**PLACEMENT_SCHEMA, "description": "do=place only: " + PLACEMENT_WORDS
-                      + ". Outlines (eN): overlay draws them on the live view; new-tab gives them a Tab with their "
-                      "capture and table"},
-        "tab": {"type": "string", "maxLength": 80, "description": "with placement: the Tab, by title or id (default: in front)"},
+                      + ". Outlines (eN, layer:eN): overlay draws them on the live view; new-tab gives them a Tab with "
+                      "their capture and table"},
+        "tab": {"type": "string", "maxLength": 80,
+                "description": "with placement: the Tab to put it in, by title or id, made when none has that title "
+                               "(default: in front); it is opened there from Data when not open there"},
+        "instead": {"type": "boolean",
+                    "description": "with placement: move it here from the Tab it is open in, when the user wants it "
+                                   "here rather than there; otherwise it opens here too"},
     }
     description = ("Present layers, document windows and the magnifier" + (" or independent native windows" if native else "") + ". "
                    "do=place with placement puts a thing where it is asked (overlay on the live view, beside, new-tab, "
-                   "window, replace, close, only), done once the screen shows it. "
+                   "window, replace, close, only), done once the screen shows it; with tab it puts it in that Tab "
+                   "(a window, a saved picture, a researcher's picture, a table), wherever it is now. "
                    "Choose an operation supported by the exact target. Document windows (notes, masks, tables) close without removing Data. Outlines are named or segmented specimen shapes; "
                    "they are distinct from population masks and motion trajectory layers. A prior step N that made motion tracks or a population "
                    "can be addressed with what='@N' for layer show/hide/opacity; never predict its new ID. Reopen saved work by its "

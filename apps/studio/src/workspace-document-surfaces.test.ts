@@ -37,3 +37,29 @@ test('the screen report lists the Data reader and its item, as the right edge’
  reader.dataset.readerOpen='';expect(surface.read().open).toBe(false);
  reader.dataset={} as typeof reader.dataset;expect(documentSurfaces()).toEqual([]);
 });
+
+test('a reader Tab\'s reader is the Tab\'s own page, behind the windows opened on it (will-research: a video "hidden behind the document")',()=>{
+ // On a reader Tab the windows' layer is lifted over the reader (data-reader.css), and the report says the same order:
+ // the reader below any window, so "nothing over it" is read from what the person sees.
+ const reader={hidden:false,visible:true,classList:{contains:(name:string)=>name==='data-reader-tab'},
+  dataset:{readerResource:JSON.stringify({day:'p',id:'d1',version:null}),readerOpen:'true',readerTitle:'Findings',displayState:'rendered'},
+  getBoundingClientRect:()=>[0,92,1440,768],contains:()=>false,querySelectorAll:()=>[]};
+ const video={visible:true,classList:{contains:()=>false},dataset:{placementId:'v1',project:'p',workspaceView:'r',
+  webWindow:JSON.stringify({kind:'video',resource:{day:'p',id:'d2',version:null}})},style:{zIndex:''},
+  getAttribute:()=>'What are stomata',getBoundingClientRect:()=>[300,120,640,400],contains:()=>false,querySelectorAll:()=>[]};
+ vi.stubGlobal('document',{querySelectorAll:(selector:string)=>selector.startsWith('.data-reader')?[reader]:[video],activeElement:null,
+  body:{dataset:{workspaceProject:'p',activeWorkspaceView:'r'}}});
+ const [tab,window]=documentSurfaces().map(s=>s.read());
+ expect(tab.legacy?.document?.representation).toBe('reader-tab');
+ expect(window.legacy?.document?.representation).toBe('video');
+ expect((tab.z??0)<(window.z??0)).toBe(true);
+});
+
+test('the stylesheet lifts a reader Tab\'s windows over its reader, and the right edge\'s reader stays over them',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const css=readFileSync(new URL('./data-reader.css',import.meta.url),'utf8').replace(/\s+/g,' ');
+ const z=(rule:RegExp)=>Number(rule.exec(css)?.[1]);
+ const readerTab=z(/\.data-reader-tab \{[^}]*z-index: (\d+)/),windows=z(/\[data-reader-tab='true'\] #study-artifacts \{[^}]*z-index: (\d+)/);
+ expect(windows).toBeGreaterThan(readerTab);
+ expect(z(/\.data-reader-side \{[^}]*z-index: (\d+)/)).toBeGreaterThan(windows);
+});

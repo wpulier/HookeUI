@@ -546,5 +546,5 @@ def test_present_place_puts_outlines_on_the_live_view_or_in_their_own_tab(tmp_pa
         assert run.ok is True, run.summary
         assert any(t['title'] == 'Cell results' for t in studio.tabs)
         run = await asked(app, studio, 'present', {'do': 'place', 'what': 'document:p1', 'placement': 'overlay'})
-        assert run.ok is False and 'only outlines and layers' in run.summary
+        assert run.ok is False and 'not outlines or tracks; only those are drawn' in run.summary
     asyncio.run(go())

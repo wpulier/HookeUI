@@ -586,3 +586,35 @@ def test_start_researcher_says_a_follow_up_steers_the_one_just_started(tmp_path)
     words = research_tools(hub, ResearchManager(hub, root=tmp_path)).tools["start_researcher"].description
     assert "always start a new one" not in words
     assert "researcher_note" in words and "just started" in words and "same answer" in words
+
+
+def test_a_made_illustration_needs_no_outline_only_labelling_their_own_thing_does(tmp_path, fake_engine):
+    """will-research, 29 Oct: "make a small labeled graphic of a stoma" was sent as annotated_image with nothing
+    outlined and refused "an annotated picture needs an outlined object; click the thing first, then ask"; the voice
+    then told the user "it couldn't annotate your stoma because nothing was outlined first". The model chooses an
+    illustration (image, labelled or not) or labels on the user's own outlined thing (annotated_image); a refusal of its
+    own choice is said to the model, as the call to correct, never as the user's job."""
+    async def go():
+        hub = FakeHub()
+        manager = ResearchManager(hub, root=tmp_path)
+        registry = research_tools(hub, manager)
+        words = "Start a researcher to make a small labeled graphic of a stoma"
+        ctx = ToolContext("voice", 3, None, words, "deleg-3")
+        ctx.step = 1
+        refused = registry.start("start_researcher", {"brief": "a small labelled graphic of a stoma", "effort": "quick",
+                                                      "deliverable": "annotated_image", "asked_with": words}, ctx)
+        await refused.task
+        ctx.step = 2
+        made = registry.start("start_researcher", {"brief": "a small labelled graphic of a stoma", "effort": "quick",
+                                                   "deliverable": "image", "asked_with": words}, ctx)
+        await made.task
+        description = registry.tools["start_researcher"].description
+        manager.stop()
+        return refused, made, description
+
+    refused, made, description = asyncio.run(go())
+    assert refused.ok is False and refused.wire()["argument"] is True, "the model's own call, to correct"
+    assert "choose image" in refused.next and "click" not in refused.summary, refused.summary
+    assert made.ok is True and "Researcher 1" in made.summary, "an illustration needs nothing outlined"
+    assert "argument" not in made.wire()
+    assert "labelled or not" in description and "the user's own outlined thing" in description

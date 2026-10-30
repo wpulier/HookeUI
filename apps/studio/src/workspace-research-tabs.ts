@@ -141,7 +141,7 @@ export class WorkspaceResearchTabs {
   // What each one shows (workspace-model.ts): a researcher's conversation and the work it made, by kind; a Study's
   // question, steps and write-up; a draft's form.
   return [
-   ...this.rows.filter(row=>open.has(row.rid)||this.hidden.has(row.rid)).map(row=>({id:researchId(row.rid),title:`${row.name} · ${researcherObjective(row)}`,open:open.has(row.rid),selected:selected===researchId(row.rid),kind:'researcher' as const,shows:researchShows(row.outputs)})),
+   ...this.rows.filter(row=>open.has(row.rid)||this.hidden.has(row.rid)).map(row=>({id:researchId(row.rid),title:`${row.name} · ${researcherObjective(row)}`,open:open.has(row.rid),selected:selected===researchId(row.rid),kind:'researcher' as const,shows:researchShows(row.outputs,12,row.rid)})),
    ...[...this.virtual.values()].map(tab=>({id:tab.id,title:tab.name,open:true,selected:selected===tab.id,kind:tab.id.startsWith('study:')?'study' as const:'draft' as const,
     shows:tab.id.startsWith('study:')?[{kind:'document' as const,title:'The Study: its question, steps and write-up'}]:[{kind:'document' as const,title:'A new researcher’s form'}]})),
   ];

@@ -18,7 +18,8 @@ export function readerSurfaces():StudioSurface[]{
    const words=[mode==='tab'?'Reader Tab':mode==='research'?'Researcher’s reader':'Reader',root.dataset.readerTitle,root.dataset.readerView].filter(Boolean).join(' · ');
    const legacy:StudioSurfaceLegacy={schema:'studio-surface-v1',scope:'dom-observation',title:words.slice(0,120),shows:resource.id,
     document:{project,tab,placement:`reader:${mode}:${tab}`,resource,representation:mode==='tab'?'reader-tab':mode==='research'?'reader-research':'reader',state:root.dataset.displayState??'requested',focused:root.contains(document.activeElement)}};
-   return {kind:'document',open,visible,rect,z:mode==='side'?105:40,space:'workspace',legacy,contentKey:JSON.stringify({resource,mode,view:root.dataset.readerView??''}),
+   // A reader Tab's reader is the Tab's own page, under the windows opened on it (data-reader.css lifts their layer).
+   return {kind:'document',open,visible,rect,z:mode==='side'?105:mode==='tab'?1:40,space:'workspace',legacy,contentKey:JSON.stringify({resource,mode,view:root.dataset.readerView??''}),
     controls:visible?[...root.querySelectorAll<HTMLButtonElement>('button')].map((node,index)=>({node,fact:{id:`${id}:control:${index}`,targetId:id,role:node.getAttribute('aria-label')?.startsWith('Close')?'close':'button',present:open&&surfaceVisible(node,true,true,rectOf(node.getBoundingClientRect())),enabled:!node.disabled,editable:false as const,stateRevision:null,observedValue:null}})).filter(control=>control.fact.present).slice(0,40):[]};
   }};
  });

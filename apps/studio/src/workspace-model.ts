@@ -76,12 +76,24 @@ function rootFact(root:HTMLElement):Omit<TabItemFact,'placement'>|null{
  return null;
 }
 
+/** The windows open on a Tab that its arrangement does not save (a web page or video, a native window not yet
+ * captured), each once, after `out`. */
+function unsaved(here:readonly HTMLElement[],out:TabItemFact[]):TabItemFact[]{
+ const saved=new Set(out.map(i=>i.placement));
+ for(const root of here){
+  const placement=root.dataset.placementId;if(!placement||saved.has(placement)||root.dataset.windowOpen==='false')continue;
+  const fact=rootFact(root);if(fact){out.push({placement,...fact});saved.add(placement);}
+ }
+ return out;
+}
+
 /** Everything a work Tab holds, in its saved order (bottom to top), then the windows open on it that the arrangement
  * does not save. `roots` are the window roots of this Project's Stage (every Tab's; each says its Tab). A root that is
- * closed (dismissed) is not held. */
+ * closed (dismissed) is not held. A reader Tab holds its one item and the windows opened over it (will-research,
+ * 29 Oct: a video opened on a document's Tab was in no Tab's holds). */
 export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[]):TabItemFact[]{
- if(view.kind==='reader')return readerFact(view);
  const here=roots.filter(root=>root.dataset.workspaceView===view.id&&root.dataset.dismissed!=='true');
+ if(view.kind==='reader')return unsaved(here,readerFact(view));
  const byPlacement=new Map(here.filter(root=>root.dataset.placementId).map(root=>[root.dataset.placementId!,root]));
  // A window closed by its × stays mounted, dismissed: its arrangement is kept, but the Tab no longer holds it
  // (will-display, 29 Oct: after "only the video", Main still listed the closed table, and Hooke hedged it might be open).
@@ -100,11 +112,7 @@ export function tabItems(view:WorkspaceView,roots:readonly HTMLElement[]):TabIte
  }
  const saved=new Set(out.map(i=>i.placement));
  for(const note of view.notes)if(note.placementId&&!saved.has(note.placementId)){out.push({placement:note.placementId,kind:'note',title:'Note'});saved.add(note.placementId);}
- for(const root of here){
-  const placement=root.dataset.placementId;if(!placement||saved.has(placement)||root.dataset.windowOpen==='false')continue;
-  const fact=rootFact(root);if(fact){out.push({placement,...fact});saved.add(placement);}
- }
- return out;
+ return unsaved(here,out);
 }
 
 /** A Tab's items counted by kind, the screen report's compact form (main.ts Tab strip; workspace_observation `holds`). */
@@ -114,15 +122,17 @@ export function holds(items:readonly TabItemFact[]):Partial<Record<ItemKind,numb
  return out;
 }
 
-/** What a researcher's or Study's Tab shows (it keeps its own work): its conversation and the work it made, by kind. */
+/** What a researcher's or Study's Tab shows (it keeps its own work): its conversation and the work it made, by kind.
+ * Each piece of work is named by its Data id (`<rid>:<output id>`, research_entries.py) when its researcher is known,
+ * the id present, tabs add and the reader take; a bare output id (o1) is also an outline's and is taken by none. */
 export interface ResearchShows {kind:ItemKind;title:string;id?:string}
 const OUTPUT_KINDS:Record<string,ItemKind>={image:'image',picture:'image',video:'video',html:'document',report:'document',lesson:'document',presentation:'document',figure:'graph',table:'table',mask:'outlines'};
-export function researchShows(outputs:readonly {kind?:string;contentKind?:string;caption?:string;id?:string;current?:boolean}[]|undefined,limit=12):ResearchShows[]{
+export function researchShows(outputs:readonly {kind?:string;contentKind?:string;caption?:string;id?:string;current?:boolean}[]|undefined,limit=12,rid?:string):ResearchShows[]{
  const shows:ResearchShows[]=[{kind:'document',title:'Its conversation'}];
  for(const output of outputs??[]){
   if(output.current===false)continue;
   const kind=OUTPUT_KINDS[output.contentKind??'']??OUTPUT_KINDS[output.kind??'']??'document';
-  shows.push({kind,title:String(output.caption||output.contentKind||output.kind||'Work').slice(0,120),...(output.id?{id:output.id}:{})});
+  shows.push({kind,title:String(output.caption||output.contentKind||output.kind||'Work').slice(0,120),...(output.id?{id:rid?`${rid}:${output.id}`:output.id}:{})});
   if(shows.length>=limit)break;
  }
  return shows;

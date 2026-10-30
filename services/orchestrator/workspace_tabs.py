@@ -129,15 +129,15 @@ class WorkspaceTabs:
             # is still refused.
             if isinstance(ref, str):
                 ref = {'id': ref}
-            if isinstance(ref, dict) and set(ref) <= {'id', 'version'} and ref.get('version') is None and isinstance(ref.get('id'), str):
-                found = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session)
-                current()
-                ref = {'id': ref['id'], 'version': found.version if found is not None else -1}
-            if not isinstance(ref, dict) or set(ref) != {'id', 'version'} or not isinstance(ref['id'], str) or type(ref['version']) is not int or ref['version'] < 0:
-                raise ToolFailed('that item is not saved in this Project', next='read the saved resource first')
-            entry = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session)
+            named = isinstance(ref, dict) and set(ref) <= {'id', 'version'} and isinstance(ref.get('id'), str)
+            entry = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session) if named else None
             current()
-            if entry is None or entry.version != ref['version']:
+            if entry is None:
+                said = str(ref.get('id'))[:60] if named else 'that item'
+                raise ToolFailed(f"{said} is not in this Project's Data", next='name it by its id from the screen, the Tabs or Data')
+            # A photo, a video, a document or a researcher's work has no version to name (will-workspace and
+            # will-research, 29 Oct: refused "not saved in this Project", and the voice told the user to save it first).
+            if ref.get('version') is not None and ref['version'] != entry.version:
                 raise ToolFailed('the selected resource is unavailable or has changed', next='read its current saved revision')
             presentation = ADD_PRESENTATIONS.get(entry.kind)
             if args.get('presentation') == 'table' and entry.kind == 'population':
@@ -147,8 +147,8 @@ class WorkspaceTabs:
                 # the Tab in front (will-workspace, 29 Oct: the brain tried tabs add for a reference photo, was refused
                 # without where to go, and the user was told about saved versions).
                 raise ToolFailed(f'a {entry.kind} is not added to a Tab this way',
-                                 next=f'switch to the Tab, then present with do place, what {entry.id} and placement '
-                                      'window, only or beside')
+                                 next=f'present with do place, what {entry.id}, tab and placement only, beside or window '
+                                      'puts it in that Tab')
             payload['item'] = {'resource': {'day': owner.session, 'id': entry.id, 'version': entry.version, 'picture': None},
                                'title': entry.title, 'presentation': presentation, 'zoom': 1, 'pan': [.5, .5]}
             payload.pop('resource', None)

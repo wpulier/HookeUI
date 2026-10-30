@@ -27,11 +27,16 @@ from .admission import AdmissionDenied
 
 class ToolFailed(RuntimeError):
     """A tool could not do what was asked; the message is shown to the user, with `next`, the plain
-    next step the user can take, when there is one (Amendment 4, item 2: never a dead end)."""
+    next step the user can take, when there is one (Amendment 4, item 2: never a dead end).
 
-    def __init__(self, message: str = "", next: str | None = None) -> None:
+    `argument`: the refusal is of the call's own arguments, the model's choice that does not fit (an annotated picture
+    with nothing outlined), for the model to correct and call again; once a later call of the same tool in the same
+    turn replaced it, it is no failure of the request and never said to the user (voice/handoffs.py `corrected`)."""
+
+    def __init__(self, message: str = "", next: str | None = None, *, argument: bool = False) -> None:
         super().__init__(message)
         self.next = next
+        self.argument = argument
 
     def said(self) -> str:
         """What the user is told: what went wrong, then what to do."""
@@ -360,6 +365,7 @@ class ToolRun:
     answer: str | None = None  # the brain's later answer from completed queries; summary remains the tool's receipt
     reads: list[str] = field(default_factory=list)  # the option groups it read while it ran (options.recording_reads)
     next: str | None = None  # a refusal's plain next step (ToolFailed.next), also in its summary
+    argument: bool = False  # a refusal of the call's own arguments, for the model to correct (ToolFailed.argument)
     # What it is doing while it runs, when that is worth saying ("loading micro-sam (usually about 2 min)":
     # loads.py), so the answer and the voice say it is being done and why it takes long; None once done.
     progress: str | None = None
@@ -426,6 +432,8 @@ class ToolRun:
             out["answer"] = self.answer
         if self.next:
             out["next"] = self.next
+        if self.argument:
+            out["argument"] = True
         if self.models:
             out["models"] = copy.deepcopy(self.models)
         if self.progress and self.ok is None:
@@ -741,6 +749,7 @@ class Registry:
                 except ToolFailed as exc:
                     run._argument_error = None  # retain the receipt, not adapter traceback/source frames
                     run.ok, run.summary, run.next = False, exc.said(), exc.next
+                    run.argument = bool(getattr(exc, "argument", False))
                 except asyncio.CancelledError:
                     from ..user_stop import STOP, requested
 

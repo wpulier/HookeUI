@@ -4,6 +4,7 @@ working at once with the voice's short label, then settled from the brain's own 
 reason), filed with its conversation under one lineId so a later state replaces the earlier one (voice/handoffs.py). A
 long one says it is still working past the voice's wait, and its outcome updates the same row when it lands."""
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -348,4 +349,35 @@ def test_a_step_with_nothing_to_wait_on_is_done_right_after_or_never_promised(mo
                                                  "label": "A new Tab", "then": "put the photo in it"})
         assert out["then"]["not_kept"] == "the first part did not work" and "do not promise it" in out["then"]["note"]
         assert rows(shown)[-1]["then"]["state"] == "dropped"
+    asyncio.run(go())
+
+
+def test_a_call_the_brain_corrected_in_the_same_turn_is_no_failure_and_never_said(monkeypatch):
+    """will-research, 29 Oct: start_researcher was first refused for its own argument (annotated_image, nothing
+    outlined), then started as an illustration in the same turn. The row said "did not work" and the voice said "it
+    couldn't annotate your stoma because nothing was outlined first". A refusal of the brain's own call (`argument`)
+    that a later call of the same tool replaced is the brain correcting itself: neither a failure nor told to the
+    voice. A real failure, or an argument refusal never corrected, still is one."""
+    corrected = {**step("start_researcher", False, "annotated_image labels a photo of the user's own outlined thing, "
+                                                    "and nothing is outlined"), "argument": True}
+
+    async def go():
+        t, shown = await handing_off(monkeypatch)
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {
+            "answer": "Researcher 1 is making a labelled picture of a stoma.",
+            "actions": [corrected, started_researcher("r271381")]})
+        out = await t.partner.tools.do_in_hooke({"request": "make a labeled graphic of a stoma", "label": "A graphic"})
+        assert out["ok"] is True and "failed" not in out
+        assert "outlined" not in json.dumps(out), "the corrected refusal never reaches the voice"
+        assert rows(shown)[-1]["state"] == "started"
+        # Not corrected: still a failure, said from the brain's answer.
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {
+            "answer": "I could not start it.", "actions": [corrected]})
+        out = await t.partner.tools.do_in_hooke({"request": "make a labeled graphic of a stoma", "label": "A graphic"})
+        assert out["ok"] is False and rows(shown)[-1]["state"] == "failed"
+        # A real failure beside a later success of the same tool is not hidden.
+        t.brain.turn = lambda text, channel, **kw: asyncio.sleep(0, {
+            "answer": "", "actions": [step("present", False, "the window did not close"), step("present", True, "opened", 2)]})
+        out = await t.partner.tools.do_in_hooke({"request": "close that and open this", "label": "Windows"})
+        assert out["ok"] is False and out["failed"] == ["present: the window did not close"]
     asyncio.run(go())

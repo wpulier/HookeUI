@@ -251,7 +251,10 @@ def add_research_tools(registry: Registry, services) -> None:
             ids = [i for i in [*ctx.objects, getattr(ctx, "pointed", None), selected] if i in hub.scene.objects]
             obj = hub.scene.objects[ids[0]] if ids else None
         if deliverable == "annotated_image" and obj is None:
-            raise ToolFailed("an annotated picture needs an outlined object", next="click the thing first, then ask")
+            # The model's choice, said to the model to correct (will-research, 29 Oct: "a small labeled graphic of a
+            # stoma" was refused here and the user was told to click the thing first).
+            raise ToolFailed("annotated_image draws labels on a photo of the user's own outlined thing, and nothing is "
+                             "outlined", next="choose image for a made picture, labelled or not; outline their own thing to label it", argument=True)
         day = services.day
         # It belongs to the conversation the request was made in (even if the user has switched
         # since); its results are written there.
@@ -302,8 +305,9 @@ def add_research_tools(registry: Registry, services) -> None:
         "For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. "
         "deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, "
         "drawn from the table's own values), annotated_image "
-        "(labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use "
-        "reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the "
+        "(labels drawn on a photo of the user's own outlined thing on this slide), image (a made AI illustration or "
+        "diagram of a kind of thing, labelled or not, needing nothing outlined; never a real photo: for a real photo "
+        "use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the "
         "user explicitly asks for one). "
         "Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; "
         "image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can "
