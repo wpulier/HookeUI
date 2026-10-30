@@ -139,12 +139,18 @@ def test_memory_is_reserved_before_allocation_and_refused_with_the_reason():
     assert memory.reserved["analysis"] == 3 * MB
     first.release()
     assert memory.reserved["analysis"] == 0
+    # Each allowance, full with others' work, says what fills it (work larger than the whole allowance is said as too
+    # large instead: test_large_stills).
+    held = memory.reserve("interactive", 6 * MB, "an outline being made")
     with pytest.raises(Refused) as clicks:
-        memory.reserve("interactive", 11 * MB, "a click")
+        memory.reserve("interactive", 5 * MB, "a click")
     assert "too many outlines" in str(clicks.value)
+    held.release()
+    held = memory.reserve("unsaved", 3 * MB, "evidence being saved")
     with pytest.raises(Refused) as unsaved:
-        memory.reserve("unsaved", 6 * MB, "evidence")
+        memory.reserve("unsaved", 3 * MB, "evidence")
     assert "not yet saved" in str(unsaved.value)
+    held.release()
 
 
 def test_the_worst_case_footprint_counts_decodes_label_maps_and_copies():

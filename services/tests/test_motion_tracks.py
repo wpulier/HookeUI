@@ -202,7 +202,8 @@ def test_its_memory_is_counted_and_a_full_allowance_refuses_it_with_the_reason()
     assert r.ok and held == want  # its view, its picture and its points, settled to what it keeps (contract 1)
     full = MotionHub(frames, memory=Memory({"interactive": 64, "analysis": 160, "unsaved": 0.01}))
     refused = tool(full, {"show": False})
-    assert refused.ok is False and "analyses not yet saved fill their allowance" in refused.summary
+    # An allowance smaller than the work alone: said as too large for it, never as full or worth waiting for.
+    assert refused.ok is False and "more than all 0 MB set aside for analyses not yet saved" in refused.summary
     assert tracks_of(full).items == {}
 
 

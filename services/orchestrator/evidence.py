@@ -449,11 +449,14 @@ def label_workspace_bytes(wire: dict, distinct: int | None = None) -> int:
 
 def masks_from_labels(labels: np.ndarray, origin: tuple[int, int] = (0, 0), *,
                       admit: Callable[[int], None] | None = None,
-                      admit_workspace: Callable[[int], None] | None = None) -> list[tuple[int, Mask]]:
+                      admit_workspace: Callable[[int], None] | None = None,
+                      scale: float = 1.0) -> list[tuple[int, Mask]]:
     """Each native label's own mask, in its bounding box: [(label, Mask)]. Numeric lookup IDs and
     bounds stay inside label_workspace_bytes, independent of the largest native ID. Admit the sum
     of all retained mask rectangles before allocating any; disconnected instances can overlap in
-    bounding-box storage even though their occupied pixels never overlap."""
+    bounding-box storage even though their occupied pixels never overlap. `scale`: capture px per
+    label px (a large still's working copy, source_images.Working), `origin` in capture px; each
+    mask is kept at the labels' own scale."""
     if not labels.size or not labels.any():
         return []
     # Keep discovery inside its admitted scratch bound, including the first call. np.unique
@@ -487,7 +490,11 @@ def masks_from_labels(labels: np.ndarray, origin: tuple[int, int] = (0, 0), *,
             continue
         y0, x0 = int(lo[0]), int(lo[1])
         bits = labels[y0:int(hi[0]) + 1, x0:int(hi[1]) + 1] == label
-        out.append((int(label), Mask(bits, origin[0] + x0, origin[1] + y0)))
+        if scale == 1:
+            out.append((int(label), Mask(bits, origin[0] + x0, origin[1] + y0)))
+        else:
+            out.append((int(label), Mask(bits, origin[0] + int(round(x0 * scale)), origin[1] + int(round(y0 * scale)),
+                                         float(scale))))
     return out
 
 
