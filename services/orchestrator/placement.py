@@ -587,9 +587,10 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         await broker(ctx, {"action": "arrange", "tab": tab_id})
         said = f"{inline(title, 80)} is side by side with what is open in {where}, the live view included ({keep})"
     else:  # window, replace: in front there
-        if not how.startswith("; opened"):
-            await _front(services, ctx, keep)
+        fronted = await _front(services, ctx, keep) if not how.startswith("; opened") else ""
         said = f"{inline(title, 80)} is open in a window in {where}, in front ({keep})"
+        if "(held:" in str(fronted or ""):  # a live close-up whose object left the view: said so, never "live"
+            said += "; it shows its last frame, held, since what it magnifies left the view"
     said += how
     if also:
         names = ", ".join(f'"{inline(t, 60)}"' for t in also[:3])
