@@ -1723,7 +1723,9 @@ class RealtimeSession(VoiceSession):
             # would feel broken is filled.
             now = self.clock()
             quiet_since = max(began, self._last_audio_at, self._audio_until, self._last_user_at)
-            wait = PROGRESS_AFTER_LEADIN_S if led_in else PROGRESS_AFTER_S
+            # A hand-off's row shows its work (handoffs.py), as a lead-in would have said it: the long wait either way.
+            handed = bool(ids) and all(self._call_names.get(cid) == "do_in_hooke" for cid in ids)
+            wait = PROGRESS_AFTER_LEADIN_S if led_in or handed else PROGRESS_AFTER_S
             if (pending and len(progress) < PROGRESS_LINES and now - quiet_since >= wait
                     and not self.audible() and self._requested is None and self._response is None and not self._asks
                     and self._held is None and n == self.n and epoch == self._epoch):

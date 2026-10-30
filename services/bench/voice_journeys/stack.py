@@ -120,10 +120,23 @@ def settings_for(args: argparse.Namespace, plan: dict | None = None) -> str:
     return json.dumps(settings) if settings else ""
 
 
+def stale(studio: Path) -> bool:
+    """Whether the studio's build is older than any of its sources: a journey runs the studio as it is now, never an
+    earlier build (29 Oct: every journey from 17:06 ran a build without the hand-off rows, the voice's state or the
+    studio's report fixes, so the bench never saw Hooke working and those fixes were never tried)."""
+    built = studio / "dist" / "index.html"
+    if not built.exists():
+        return True
+    at = built.stat().st_mtime
+    sources = [studio / name for name in ("index.html", "package.json", "vite.config.ts", "tsconfig.json")]
+    sources += [p for folder in ("src", "public") for p in (studio / folder).rglob("*") if p.is_file()]
+    return any(p.exists() and p.stat().st_mtime > at for p in sources)
+
+
 def publish(checkout: Path, build: bool) -> Path:
-    """The player and every plan's words beside the studio build."""
+    """The player and every plan's words beside the studio build (rebuilt when any of its sources is newer)."""
     dist = checkout / "apps" / "studio" / "dist"
-    if build or not (dist / "index.html").exists():
+    if build or stale(checkout / "apps" / "studio"):
         subprocess.run(["npm", "run", "build"], cwd=checkout / "apps" / "studio", check=True)
     test = dist / "voice-test"
     test.mkdir(parents=True, exist_ok=True)

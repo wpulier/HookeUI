@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from orchestrator.reference import WEB_SEARCHES
+
 from research_worker import safe_fetch
 from orchestrator.ticket import issue
 from tests.test_workspace_actions_app import (
@@ -201,7 +203,7 @@ def test_another_lookup_receives_reference_sources_from_the_request_pin(retained
                           asked=app.day.here(), request_snapshot=pin)
         runs, _ = await plan(app, [('reference_photo', {'subject': 'stoma', 'n': 2})], ctx=ctx)
         assert runs[0].ok is False
-        assert len(queries) == 2
+        assert len(queries) == WEB_SEARCHES
         assert all(PAGE in q and digest(pixels) in q for q in queries)
         assert all('a different one from somewhere else online' in q for q in queries)
         assert len(app.services.presentations.list(WORKSPACE)) == 1

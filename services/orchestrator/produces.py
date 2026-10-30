@@ -260,6 +260,7 @@ COMMANDS = {
     "observe-confirm": "none: keeps the user's word that they accepted a licence (observed.py)",
     "page-opened": "none: the studio says it shows a page the agent opened (open_models)",
     "table-window-result": "none: the studio says whether it opened the table window an agent asked for (table_window.py)",
+    "web-window-result": "none: the studio says whether it opened the web page or video window Hooke asked for (web_window.py)",
     "model-download-cancel": "none: stops a download; what it fetched stays in its staging folder for next time",
     "model-install": "none: makes a model's own Python in the catalog's envs folder (envs.py); said in Activity",
     "model-prepare": "none: prepares candidate dependencies for private review, without operation activation or qualification",

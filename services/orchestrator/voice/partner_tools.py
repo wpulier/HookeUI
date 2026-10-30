@@ -63,7 +63,9 @@ DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Proj
                "photos and pictures, tables, graphs, counts and measurements, models and settings, researchers (start "
                "one, tell one something, how they are doing, cancel one), Projects. Hooke's brain sees the view, knows "
                "what the user clicked and what \"that\" is, does it with its own tools, checks it on screen and returns "
-               "its answer and what it did; say the outcome from that answer, a failure with its reason.")
+               "its answer and what it did; say the outcome from that answer, once, a failure with its reason. Call it "
+               "without speaking first: its row on screen shows Hooke working. Only for long work (every cell, a web "
+               "search, a researcher, several models) say a few words first.")
 # The hand-off's title on Hooke's screen: its row in the chat and its entry in the "in progress" strip (handoffs.py).
 HANDOFF_LABEL = ("a short title for this request on Hooke's screen, 2 to 6 plain words the user would use, never a tool "
                  "name (\"Reference photo of a stoma\", \"A new Tab\", \"Stop the highlight\")")

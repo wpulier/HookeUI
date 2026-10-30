@@ -29,8 +29,10 @@ DEADLINE_S = 10.0  # legacy catalogue lookup
 # broader search never ran (live 2026-10-11 12:21, by voice: nothing shown).
 SEARCH_CAP_S = 15.0  # one search, given up past this (beyond every normal one measured)
 HEDGE_AFTER_S = 8.0  # a search not back by its p75: the same search is sent again beside it, the first photo wins
-WEB_DEADLINE_S = 45.0  # every search, download and check together; the step reports late, never blocking chat
-WEB_SEARCHES = 2  # the search and one recovery with the observed rejections (a hedge is a copy, not a recovery)
+WEB_DEADLINE_S = 60.0  # every search, download and check together (three rounds); the step reports late, never blocking chat
+WEB_SEARCHES = 3  # the search and two recoveries with the observed rejections (a hedge is a copy, not a recovery);
+# will-workspace, 29 Oct: two rounds turned down two photos of several stomata for "a single stoma" and said it failed,
+# and the next search found one at once: Hooke tries again with what it saw before saying it could not (spec 4.8, 3)
 WEB_PAGES = 6
 
 

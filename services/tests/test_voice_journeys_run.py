@@ -507,3 +507,21 @@ def test_the_watch_plan_moves_the_slide_once_measures_a_steady_stretch_and_bring
     assert json.loads(stack.settings_for(args, plan)) == {"watch": "chatty", "reflex": "lean", "voice": "gpt-realtime-2.1",
                                                           "talk": "hold"}
     assert stack.settings_for(argparse.Namespace(settings="", voice="", talk="")) == ""
+
+
+def test_a_studio_build_older_than_its_sources_is_rebuilt_before_a_journey(tmp_path):
+    """29 Oct: the bench served a studio built at 17:06 to every journey after it, without the hand-off rows or the
+    voice's state; a build older than any source is stale."""
+    import os
+
+    studio = tmp_path / "studio"
+    (studio / "src").mkdir(parents=True)
+    (studio / "dist").mkdir()
+    source, built = studio / "src" / "main.ts", studio / "dist" / "index.html"
+    source.write_text("x"), built.write_text("y")
+    os.utime(source, (1000, 1000)), os.utime(built, (2000, 2000))
+    assert not stack.stale(studio)
+    os.utime(source, (3000, 3000))
+    assert stack.stale(studio)
+    built.unlink()
+    assert stack.stale(studio)
