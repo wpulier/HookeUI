@@ -464,3 +464,5 @@ read-only folders. Provider starts/follow-ups/presentations in portable Projects
 explicitly unavailable pending host billing and lifecycle qualification; ordinary
 legacy Projects retain their existing execution behavior. Shared acquisitions and
 global description caches are not yet collected by this adapter.
+
+Study evidence reads its original workflow receipts from one bounded Project inventory scan per request. The same workflow status derivation and observed driver ownership serve individual and batch reads; no persistent status cache or dispatch is added. Missing runs remain interrupted admissions, and unreadable records prevent a false completion claim.

@@ -124,14 +124,16 @@ class Studies:
                 await self.workflows.command(command, actor=record['by'])
             return await self.operation(record), made
 
-    async def operation(self, record):
+    async def operation(self, record, *, observed=None):
         execution = record.get('execution')
         if not execution:
             return record
         check(execution, 'operation-execution')
         self.workflows.owner(execution['session'])
         try:
-            run = await asyncio.to_thread(self.workflows.observed_status, execution['id'], execution['session'])
+            run = observed if observed is not None else await asyncio.to_thread(self.workflows.observed_status, execution['id'], execution['session'])
+            if run['id'] != execution['id'] or run['session'] != execution['session']:
+                raise InvalidProject('Workflow observation belongs to another admission')
         except (FileNotFoundError, InvalidProject) as error:
             return {**record, 'state': 'interrupted', 'outcome': {
                 'says': 'The original workflow admission has no readable run. Nothing was replayed.',
@@ -151,9 +153,16 @@ class Studies:
 
     async def evidence(self, study, session):
         row = await asyncio.to_thread(self.read, study, session)
-        runs = []
-        for item in row.get('experiments', {}).values():
-            runs.append(await self.operation(self.operations.get(item['operation'])))
+        records = [self.operations.get(item['operation']) for item in row.get('experiments', {}).values()]
+        if any(record['project'] != session for record in records):
+            raise InvalidProject('Study operation belongs to another Project')
+        executions = [record['execution'] for record in records if record.get('execution')]
+        for execution in executions:
+            check(execution, 'operation-execution')
+            if execution['session'] != session:
+                raise InvalidProject('Study execution belongs to another Project')
+        observed = await asyncio.to_thread(self.workflows.observed_statuses, [e['id'] for e in executions], session)
+        runs = [await self.operation(record, observed=observed.get(record.get('execution', {}).get('id'))) for record in records]
         return {'study': row, 'operations': runs}
 
     def evidence_read(self, study, session, reference, *, actor, label):
