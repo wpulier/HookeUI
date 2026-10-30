@@ -74,6 +74,10 @@ def declared(saved):
             yield path.lstrip('.'), ref, False
     for pattern in PATHS:
         for path, ref in _values(state, pattern.split('.')):
+            # Captured native inputs predate artifact-reference's digest name.
+            # Normalize this producer's exact shape, not arbitrary saved objects.
+            if pattern == 'populationSource.nativeSource.nativeSource' and type(ref) is dict:
+                ref = {**ref, 'digest': ref.get('revisionDigest')}
             yield path, ref, False
     if saved.document['kind'] == 'scientific-python-history':
         for path, ref in _values(state, ['input']):
@@ -129,7 +133,7 @@ class RecordDependencyReview:
         digest = ref.get('digest')
         if not locator and (type(revision) is not int or revision < 1):
             return 'unsupported-reference'
-        if digest is not None and (type(digest) is not str or not DIGEST.fullmatch(digest)):
+        if 'digest' in ref and (type(digest) is not str or not DIGEST.fullmatch(digest)):
             return 'unsupported-reference'
         key = (ref['id'], None if locator else revision)
         try:

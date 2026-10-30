@@ -123,3 +123,27 @@ def test_limits_and_cancellation_preserve_research(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError, match='cancelled'):
         review_dependencies(root, check=stop)
     assert store.read(saved.id, root.session) == saved
+
+
+@pytest.mark.parametrize('digest', ['correct', '0' * 64, None, 'invalid'])
+def test_captured_native_reference_uses_its_revision_digest(tmp_path, digest):
+    from types import SimpleNamespace
+    from orchestrator.admission import native_source
+    from tests.test_native_picture_inputs import input_at
+    root, *_ = setup(tmp_path)
+    store = ProjectStore(document_root(root))
+    owner, _, reference = input_at(SimpleNamespace(day=SimpleNamespace(sid=root.session),
+        hub=SimpleNamespace(resources=SimpleNamespace(projects=store))))
+    _, _, captured = native_source(store, reference, root.session)
+    if digest != 'correct':
+        captured['revisionDigest'] = digest
+    saved = store.create(root.session, {'kind': 'note', 'title': 'Native result', 'resources': [],
+        'runtimes': [], 'state': {'populationSource': {'nativeSource': {'nativeSource': captured}}}})
+    review = RecordDependencyReview(store, root.session)
+    review.inspect(saved)
+    issues = review.result()['issues']
+    if digest == 'correct':
+        assert issues == [] and review.result()['resolvedRevisions'] == 1
+    else:
+        assert issues[0]['status'] == ('digest-mismatch' if digest == '0' * 64 else 'unsupported-reference')
+    assert store.read(owner.id, root.session) == owner
