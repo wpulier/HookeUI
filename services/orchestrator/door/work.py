@@ -231,6 +231,17 @@ def check_args(schema: dict, args: dict, project: str | None = None) -> None:
         raise Refused(400, "bad-arguments", f"It needs {', '.join(missing)}.", next="send the arguments its inputSchema requires")
 
 
+def stage_revision(app):
+    """Admission identity includes the retained revision, not its reusable Library alias."""
+    asset = getattr(app.day, 'on_stage', None)
+    retained = getattr(app.day, 'on_stage_reference', None)
+    if retained is None:
+        return asset  # Legacy Stage receipt meaning stays unchanged.
+    from ..project_stage_media import reference
+    reference(retained, app.day.sid)
+    return json.dumps({'asset': asset, 'retained': retained}, sort_keys=True, separators=(',', ':'))
+
+
 async def run_capability(app, record: dict, progress, tool: str, preset: dict, args: dict) -> dict:
     """A listed capability, run by its tool as the agent (never as the researcher's own hand), in the agent's Project."""
     from .. import commands
@@ -241,10 +252,17 @@ async def run_capability(app, record: dict, progress, tool: str, preset: dict, a
     refused = own_project(app, record["project"], record["by"])
     if refused is not None:
         raise refused
-    if app.day.on_stage != record.get("inputRevision"):
+    if stage_revision(app) != record.get("inputRevision"):
         raise Refused(409, "input-changed", "What this was asked to run on is no longer on your Project's stage.",
                       next="open the input again, then ask with a new request key")
     await progress(1, 2, f"Running {record.get('capabilityName') or 'it'}")
+    # Publishing progress yields: recheck before handing the captured Stage to the tool.
+    refused = own_project(app, record["project"], record["by"])
+    if refused is not None:
+        raise refused
+    if stage_revision(app) != record.get('inputRevision'):
+        raise Refused(409, 'input-changed', 'The retained input changed before this operation started.',
+                      next='open the intended revision, then ask with a new request key')
     # A catalog row names its entry in the preset, and the agent's arguments are its parameters; otherwise (any other
     # tool) the arguments are the tool's own.
     tool_args = {**preset, "params": args} if tool == "run_capability" and "capability" in preset else {**preset, **args}

@@ -1989,3 +1989,9 @@ Copied Library images and recordings preview their exact retained source revisio
 Explicit Add/Open of a new Library image or recording first retains it in the captured portable Project, before any Tab/Stage navigation. Already-retained sources and restoration use their exact saved binding. A later source choice or changed Project opening suppresses late navigation; failed copying preserves the existing view. Legacy Projects keep their current storage behavior.
 
 Workspace layout schema 7 preserves exact retained media references on input Tabs. Older layout versions stay unchanged; an older server cannot receive a save that strips these references. Selecting two retained revisions of the same historical Library ID opens distinct Tabs. Stage metadata is reported separately from the latest selected Library binding. Pending material-intake request keys survive reconnect and page reload in browser session storage; acknowledged new Add actions get a new key.
+
+Inputs and Data join a Library source alias to its exact retained document, session,
+revision and digest. That single row keeps material organization and authorship,
+source preview and Open in Tab. Separate imports or revisions remain separate even
+when their names or bytes match. Late inventory refresh recomputes the join; source
+rows remain available while retained inventory is unavailable.

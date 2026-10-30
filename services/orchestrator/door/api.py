@@ -357,7 +357,7 @@ def register(app, built, studio_origin, header: str) -> Connections:
                 name, preset = how["tool"], dict(how.get("args") or {})
                 record, made = await operations.admit(
                     by=c.actor, label=c.label, tool=tool, project=project,
-                    input_revision=getattr(built.day, "on_stage", None), generation=found["generation"],
+                    input_revision=work.stage_revision(built), generation=found["generation"],
                     params=args, request_key=key,
                     work=lambda record, progress: work.run_capability(built, {**record, "capabilityName": found["name"]},
                                                                       progress, name, preset, args))

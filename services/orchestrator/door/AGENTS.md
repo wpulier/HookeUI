@@ -235,3 +235,9 @@ The local project.dependencies receipt includes sourceReview from the captured
 Project journal and accepted media bindings. The read grant and cancellation guard
 cover both scans. It accepts no caller path and never consults another host's Library.
 Omission on an unavailable host is not a complete-collection claim.
+
+Live-stage operation admission includes the exact retained media reference in
+inputRevision when present, preserving the legacy asset identity otherwise.
+Execution rechecks Project ownership and that revision after publishing progress,
+before tool admission. Reusing a Library alias for another revision cannot silently
+retarget queued work. The scientific execution retains its original input evidence.

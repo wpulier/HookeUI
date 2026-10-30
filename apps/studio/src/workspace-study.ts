@@ -1,5 +1,7 @@
 import { organizeMaterial } from './material-organization';
 import {inputChangeBlockReason} from './workspace-input';
+import {isRetainedMaterial,retainedSource} from './material-identity';
+import {sameMediaReference} from './project-media-reference';
 import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
@@ -1472,7 +1474,7 @@ let refreshInputRows: (() => void) | null = null;
 function renderInputs(): void {
   const owner=workspaceViews.tabOwner();
   if (inputQueryOwner !== owner.session) { inputQuery = ''; inputQueryOwner = owner.session; }
-  const mediaRows: {node: HTMLElement; text: string}[] = [];
+  const mediaRows: {node: HTMLElement; text: string; asset: AssetMeta}[] = [];
   const list=el('div','study-specimens');
   // The live camera: green only while it is truly live (refreshLiveCameraStatus); its words say which camera.
   const liveLead=el('span','mm-row-icon');liveLead.append(el('span','study-live-mark'));
@@ -1487,7 +1489,7 @@ function renderInputs(): void {
     const {wrap,row}=dataRow(thumb,asset.title,`${kind} · ${where}`,`${asset.title}\nPreview; Open in Tab gives it a Tab of its own`,()=>showPreview(asset,owner),
       ()=>[{label:'Open in Tab',title:'Open it in a Tab of its own',act:()=>void openSource(asset,owner)},{label:'Results',title:'What was made from it, in Data',act:()=>{sourceFilter=asset.id;showSection('results');}}],`More for ${asset.title}`);
     wrap.classList.add('study-input');row.classList.toggle('active',asset.id===snapshot.onStage);if(asset.id===snapshot.onStage)row.setAttribute('aria-current','true');
-    list.append(wrap); mediaRows.push({node: wrap, text: `${asset.title} ${kind}`.toLocaleLowerCase()});
+    list.append(wrap); mediaRows.push({node: wrap, text: `${asset.title} ${kind}`.toLocaleLowerCase(),asset});
   }
   const material = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
   const controls = el('div', 'project-input-controls');
@@ -1506,20 +1508,30 @@ function renderInputs(): void {
     }
     const needle = inputQuery.trim().toLocaleLowerCase();
     let matchingMedia = 0;
-    for (const row of mediaRows) { row.node.hidden = !!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
-    const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery) : [];
+    const retained=resourceSession===snapshot.session?projectInputs(entries):[];
+    for (const row of mediaRows) { row.node.hidden = retained.some(entry=>isRetainedMaterial(entry,row.asset))||!!needle && !row.text.includes(needle); if (!row.node.hidden) matchingMedia++; }
+    const selected = resourceSession === snapshot.session ? projectInputs(entries, inputQuery, snapshot.sources) : [];
     const grouped = [...selected].sort((a, b) => (a.material?.organization?.role || 'Material').localeCompare(b.material?.organization?.role || 'Material'));
     let previousGroup = '';
     for (const entry of grouped) {
       const group = entry.material?.organization?.role || 'Material';
       if (group !== previousGroup) { materialList.append(el('h3', 'project-input-group', group)); previousGroup = group; }
       const actions = entryActions(entry);
+      const source=retainedSource(entry,snapshot.sources);
       const open = () => { if (!inputOwnerCurrent(owner)) return;
         if (entry.material?.kind === 'assignment') void openStudy(entry.id);
+        else if(source)showPreview(source,owner);
         else actions.open(); };
-      const {wrap} = dataRow(el('span', 'mm-row-icon', entry.material?.kind === 'assignment' ? '◇' : '▤'),
-        entry.title, materialFacts(entry), `${entry.title}\n${materialFacts(entry)}\nPreview retained material`, open,
-        () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] : actions.menu(), `More for ${entry.title}`);
+      const lead=el('span', source?.thumb?'mm-row-thumb':'mm-row-icon',entry.material?.kind==='assignment'?'◇':source?.thumb?'':'▤');
+      if(source?.thumb){const picture=el('img');picture.src=source.thumb;picture.alt='';picture.loading='lazy';lead.append(picture);}
+      const title=source?.title??entry.title;
+      const onStage=!!source&&snapshot.onStage===source.id&&sameMediaReference(source.retained,bridge.capturePresentationSync().retained);
+      const facts=[materialFacts(entry),onStage?'On the Stage':''].filter(Boolean).join(' · ');
+      const {wrap,row} = dataRow(lead,
+        title, facts, `${title}\n${facts}\nPreview retained material`, open,
+        () => entry.material?.kind === 'assignment' ? [{label: 'Open Study', act: open}] :
+          source?[{label:'Open image or recording in Tab',act:()=>void openSource(source,owner)},...actions.menu()]:actions.menu(), `More for ${title}`);
+      row.classList.toggle('active',onStage);if(onStage)row.setAttribute('aria-current','true');
       materialList.append(wrap);
     }
     if (resourceSession === snapshot.session && inputQuery && !selected.length && !matchingMedia) materialList.append(el('p', 'study-muted', 'No matching material.'));
