@@ -1,4 +1,5 @@
 import { organizeMaterial } from './material-organization';
+import {inputChangeBlockReason} from './workspace-input';
 import { projectInputs, materialFacts, projectEntry, retainedProjectEntry } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
 import { ProjectResearchHome } from './project-research-home';
@@ -844,7 +845,7 @@ const workspaceViews:WorkspaceViews = new WorkspaceViews({
  intercept:name=>{if(!researchStage.hidden&&!canLeaveStudy(()=>workspaceViews.command(name as Parameters<WorkspaceViews['command']>[0])))return true;clearStudyDraftMarkers();if(researchTabs.command(name))return true;if(researchStage.hidden)return false;closeResearchStage();return name==='close';},
  captureInput:()=>{const state=bridge.state();if(!state.ready)return null;const saved=bridge.capturePresentationSync();return saved.source?{source:saved.source,position:saved.source==='live'?0:saved.position,...(saved.retained?{retained:saved.retained}:{})}:null;},
  selectInput:bridge.selectTabInput,
- inputBlockReason:input=>input.source===bridge.state().onStage?null:busy()?'This run keeps its captured input. You can preview Data while it finishes.':bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null,
+ inputBlockReason:input=>inputChangeBlockReason(input,{onStage:bridge.state().onStage, onStageRetained:bridge.capturePresentationSync().retained},busy(),bridge.switchBlockReason()?.replaceAll('switching projects','changing the input')??null),
  // A reader Tab (Open in new Tab): the same reader, full width; its mark is its item's kind.
  reader:view=>showReaderTab(view),legacy:view=>showLegacyTab(view),openResearcher:rid=>openResearcherTab(rid),readerMark:view=>{const item=readerItem(view),entry=item?readerEntryOf({id:item.resource.id,day:item.resource.day,version:item.resource.version}):null;return entry?readerMark(entry):'output';},
  storageKey,request:bridge.request,restoreItems:bridge.restoreItems,placeItem:bridge.placeItem,frontItem:bridge.frontItem,captureItems:()=>bridge.capturePresentationSync().views,openData:()=>setDataOpen(true),notice:actionError,layoutChanged:()=>{snapshot=bridge.state();bridge.layoutChanged();renderContext();}});

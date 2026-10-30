@@ -1,4 +1,4 @@
-import {selectObservedWorkspaceInput} from './workspace-input';
+import {selectObservedWorkspaceInput,exactInputObserved} from './workspace-input';
 import { SourceIntake } from './source-intake';
 import { scientificAskSelection } from './scientific-ask-input';
 import { ActivityNavigation, type ActivitySurface } from './workspace-study-navigation';
@@ -3837,7 +3837,7 @@ export function workspaceStudyBridge() {
           studyTransition=true;
           try {
             if(!await putOnStage(input.source,{paused:true,at:input.position,session,retained:input.retained}))throw new Error('The input could not be opened. Your saved Tab and Data are kept; retry opening the Tab.');
-            await waitFor(()=>sessionsModel.current===session&&sourcesModel.state?.onStage===input.source&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
+            await waitFor(()=>sessionsModel.current===session&&exactInputObserved(input,sourcesModel.state)&&!staging&&!stageGate.holding(performance.now()),'The selected input has not finished opening. Retry its Tab before running a tool.');
           }finally{studyTransition=false;}
         },
       });

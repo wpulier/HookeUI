@@ -2876,7 +2876,7 @@ async def source(app, client, msg) -> dict:
             raise tools.ToolError('open is an asset id or "live"', next=None)  # no next: malformed protocol input; UI supplies the source identity
         locations = getattr(app.day, 'locations', None)
         portable = await asyncio.to_thread(locations.project, sid) if locations is not None else None
-        selected = msg.get('retained') or getattr(app.day, 'source_references', {}).get(target)
+        selected = msg['retained'] if 'retained' in msg else getattr(app.day, 'source_references', {}).get(target)
         if portable is not None:
             if selected is None:
                 raise tools.ToolError('Choose the retained revision of this Project source',

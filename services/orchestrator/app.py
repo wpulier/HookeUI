@@ -2137,8 +2137,9 @@ class App:
         from .commands import source, source_retain
 
         sid = self.day.sid
-        await source_retain(self, None, {'asset': aid, 'session': sid})
-        return await source(self, None, {"open": aid, "paused": True, 'session': sid})
+        kept = await source_retain(self, None, {'asset': aid, 'session': sid})
+        return await source(self, None, {"open": aid, "paused": True, 'session': sid,
+                                        **({'retained': kept['retained']} if kept.get('retained') else {})})
 
     async def open_page(self, client, page: str, timeout: float = 4.0) -> dict | None:
         """Ask the studio that made the request (every studio when none did) to open a page ("#models/<id>") and wait for

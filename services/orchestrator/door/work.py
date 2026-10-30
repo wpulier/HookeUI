@@ -168,15 +168,21 @@ async def open_file(app, record: dict, progress, raw_path) -> dict:
     made = app.new_session(f"{label}: {path.stem}"[:80], by="agent")
     sid = made["session"]
     _remember_project(app, sid, record["by"])
-    await commands.source_retain(app, None, {'asset': asset.id, 'session': sid, 'requestId': record['id']})
-    await commands.source(app, None, {"open": asset.id, "session": sid})
-    for _ in range(100):
+    kept = await commands.source_retain(app, None, {'asset': asset.id, 'session': sid, 'requestId': record['id']})
+    await commands.source(app, None, {"open": asset.id, "session": sid,
+                                    **({'retained': kept['retained']} if kept.get('retained') else {})})
+    def observed():
         staged = getattr(app.hub, "stage_meta", None) or {}
-        if app.day.on_stage == asset.id and staged.get("id") == asset.id:
+        return (app.day.sid == sid and app.day.on_stage == asset.id and staged.get('id') == asset.id
+                and (not kept.get('retained') or
+                     (getattr(app.day, 'on_stage_reference', None) == kept['retained']
+                      and staged.get('retained') == kept['retained'])))
+    for _ in range(100):
+        if observed():
             break
         await asyncio.sleep(0.1)
     await progress(3, 3, "Opened")
-    landed = app.day.on_stage == asset.id
+    landed = observed()
     return {"says": f"Opened {path.name} in its own Project." if landed else
             f"{path.name} is in its own Project, but it hasn't reached the stage yet.",
             "project": sid, "asset": asset.id, "onStage": landed}

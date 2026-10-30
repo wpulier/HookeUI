@@ -138,3 +138,49 @@ def test_new_explicit_intake_preserves_prior_bytes_and_request_identity(intake):
         assert identity in restored.removed_sources
         assert restored.journal.path.read_bytes() == journal
     asyncio.run(run())
+
+
+@pytest.mark.parametrize('entrance', ['assistant', 'connector'])
+def test_open_keeps_its_intake_receipt_when_a_newer_copy_arrives(intake, monkeypatch, entrance):
+    """Actual callers and copy/journal; bridge upload/selection are transport stand-ins."""
+    from orchestrator.door import work
+    app, sid, identity, original = intake
+    original_retain = commands.source_retain
+    receipts, selected = [], []
+
+    async def interleaved(app, client, msg):
+        first = await original_retain(app, client, {**msg, 'requestId': 'first-open-material'})
+        Image.new('RGB', (17, 13), (99, 0, 12)).save(original)
+        newer = await original_retain(app, client, {**msg, 'requestId': 'later-open-material'})
+        receipts.extend([first['retained'], newer['retained']])
+        return first
+
+    async def select(app, client, msg):
+        selected.append(msg)
+        app.day.open_source(identity, retained=msg['retained'])
+        app.hub.stage_meta = {'id': identity, 'retained': msg['retained']}
+        return {'ok': True}
+
+    monkeypatch.setattr(commands, 'source_retain', interleaved)
+    monkeypatch.setattr(commands, 'source', select)
+
+    async def run():
+        if entrance == 'assistant':
+            await app.put_on_stage(identity)
+        else:
+            async def upload(*args):
+                return {'name': original.name}
+            async def progress(*args):
+                pass
+            monkeypatch.setattr(work, '_upload', upload)
+            monkeypatch.setattr(work, 'takeover', lambda *args: None)
+            monkeypatch.setattr(app, 'new_session', lambda *args, **kwargs: {'session': sid})
+            token = actor.ACTOR.set(None)
+            try:
+                await work.open_file(app, {'by': 'agent:ac_' + 'a' * 24, 'id': 'op_fixture'}, progress, str(original))
+            finally:
+                actor.ACTOR.reset(token)
+        assert receipts[0] != receipts[1]
+        assert selected[0]['retained'] == receipts[0]
+        assert app.day.on_stage_reference == receipts[0]
+    asyncio.run(run())
