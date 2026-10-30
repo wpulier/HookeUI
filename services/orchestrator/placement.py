@@ -354,7 +354,7 @@ async def place(services, ctx, registry, args: dict) -> str:
         raise ToolFailed(f"{inline(what, 60)} is not outlines or tracks; only those are drawn on the live view",
                          next="put it beside the live view instead (placement beside)")
     if placement == "close":
-        return await act(services, {"do": "close", "what": what}, ctx=ctx)
+        return await _close(services, ctx, what)
     return await put(services, ctx, what, placement=placement, tab=tab, instead=instead)
 
 
@@ -508,7 +508,6 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
     The window it put there is the one kept (only) or arranged (beside), by its id on screen, never the Data id it was
     asked by. Done only once the studio's report shows it (the tabs broker checks only and beside)."""
     from .brain.registry import ToolFailed
-    from .brain.toolbox.present import act
     from .table_window import _tab
 
     broker = getattr(services, "workspace_tabs", None)
@@ -524,7 +523,7 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         if on_screen:  # a panel the Tabs do not list (the magnifier, the reader): on the Tab in front, as before
             front_tab = strip(wire).get("tab")
             if placement == "window":
-                return await act(services, {"do": "front", "what": what}, ctx=ctx)
+                return await _front(services, ctx, what)
             if placement in ("only", "beside") and front_tab:
                 reply = await broker(ctx, {"action": "only", "tab": front_tab, "keep": [what]} if placement == "only"
                                      else {"action": "arrange", "tab": front_tab})
@@ -557,38 +556,26 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         before = front_of(_report_wire(services, ctx) or {}).get("window")
         mine = {window_id(i) for i in here}
         if before and before not in mine:
-            await act(services, {"do": "close", "what": before}, ctx=ctx)
+            await _close(services, ctx, before)
     how, also = "", []
+    # A window that keeps no saved work (the magnifier's live close-up, a web page opened from no Data item) is the
+    # thing itself: placed in another Tab, it moves there, whether or not the words said "instead"; there is nothing to
+    # open it from a second time (will-tabs, 30 Oct: "move a magnified view of the original specimen there").
+    loose = entry is None and bool(elsewhere) and not (elsewhere[0][1].get("resource") or {}).get("id")
     if here:
         keep = window_id(here[0])
-    elif elsewhere and instead:
+    elif elsewhere and (instead or loose):
         source_tab, item = elsewhere[0]
-        await broker(ctx, {"action": "move", "tab": tab_id, "from": str(source_tab["id"]), "placement": str(item["placement"])})
-        keep = window_id(item)
+        keep = await _move_here(services, ctx, source_tab, item, tab_id)
         how = f'; moved there from Tab "{inline(str(source_tab.get("title") or ""), 80)}", where it is no longer open'
         also = [str(t.get("title") or "") for t, _ in elsewhere[1:]]
     else:
         shows = (elsewhere[0][1].get("resource") or {}).get("id") if elsewhere and entry is None else None
-        if entry is None and not shows and elsewhere:
-            # A live window (the magnifier's close-up of what is on the specimen) keeps no saved work: it is a view of
-            # the live source, so it opens again from that source here, and closes where it was, as a move (Will's
-            # try-out, 30 Oct: "move that new enlargement into a new tab" was refused as "not saved").
-            source_tab, item = elsewhere[0]
-            keep = await _live_here(services, ctx, window_id(item), title)
-            if keep is None:
-                # Neither saved nor live: Hooke saves what it shows first (snapshot), then places that (Will, 30 Oct:
-                # "it saves, then moves"; never a refusal the user has to work around).
-                raise ToolFailed(f"{inline(what, 60)} is open in another Tab and keeps no saved work or live view to "
-                                 "open here", next=None, needs=("snapshot", {}))  # no next: Hooke snapshots it first
-            how = (f'; the live view opened there again, and closed in Tab '
-                   f'"{inline(str(source_tab.get("title") or ""), 80)}", where it was')
-            also = [str(t.get("title") or "") for t, _ in elsewhere[1:]]
-        else:
-            if entry is None:
-                entry = await _saved(services, str(shows))
-            keep = await _open_here(services, ctx, entry, tab_id, title=title)
-            how = f"; opened there from its saved work ({entry.id})"
-            also = [str(t.get("title") or "") for t, _ in elsewhere]
+        if entry is None:
+            entry = await _saved(services, str(shows))
+        keep = await _open_here(services, ctx, entry, tab_id, title=title)
+        how = f"; opened there from its saved work ({entry.id})"
+        also = [str(t.get("title") or "") for t, _ in elsewhere]
     if placement in ("only", "new-tab"):
         reply = await broker(ctx, {"action": "only", "tab": tab_id, "keep": [keep]})
         rest = "the live view floats small in its corner" if tab_id == "main" else "the live view is hidden there"
@@ -601,7 +588,7 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         said = f"{inline(title, 80)} is side by side with what is open in {where}, the live view included ({keep})"
     else:  # window, replace: in front there
         if not how.startswith("; opened"):
-            await act(services, {"do": "front", "what": keep}, ctx=ctx)
+            await _front(services, ctx, keep)
         said = f"{inline(title, 80)} is open in a window in {where}, in front ({keep})"
     said += how
     if also:
@@ -703,31 +690,33 @@ async def live_in_sight(hub, ctx) -> str:
         await asyncio.sleep(0.05)
 
 
-async def _live_here(services, ctx, window: str, title: str) -> str | None:
-    """A live window (no saved work: a view of the live source) moved to the Tab in front: closed where it is, then opened
-    again there from the same live source. The id of the window it opened, or None when it is no live window this
-    workspace knows (it is then left as it was)."""
-    from .brain.registry import CURRENT_RUN
-    from .brain.toolbox.present import _native_present, act
+async def _move_here(services, ctx, source_tab: dict, item: dict, tab_id: str) -> str:
+    """`item`, open on `source_tab`, moved to Tab `tab_id` as itself: the Tab's own move (the person's Move), a saved
+    window's placement and a window its arrangement never saves alike (the live magnifier: the same window, its live
+    view, zoom and size, now on that Tab and gone from the other; workspace-views.ts relocate). The id it goes by on
+    screen. One way for every window: the live close-up is never closed and opened again from its source (will-tabs,
+    30 Oct: that close went the legacy panel way, TARGET_GONE, and a window reopened while its object was out of view
+    had no frame to show)."""
+    await services.workspace_tabs(ctx, {"action": "move", "tab": tab_id, "from": str(source_tab["id"]),
+                                         "placement": str(item["placement"])})
+    return window_id(item)
 
-    core = getattr(services, "presentations", None)
-    run = CURRENT_RUN.get()
-    if core is None or run is None or run.occurrence is None or not ctx.client:
-        return None
-    try:
-        pctx = services.workspace_context(ctx.client, request_id=run.occurrence.request_id,
-                                          owner=run.occurrence.action_id)
-        state = core.get(pctx.workspace_id, window)
-    except Exception:  # not a window this workspace keeps
-        return None
-    if getattr(state.source, "kind", None) != "live":
-        return None
-    await act(services, {"do": "close", "what": window}, ctx=ctx)
-    before = {s.id for s in core.list(pctx.workspace_id)}
-    await _native_present(services, ctx, {"do": "open", "source": state.source.to_wire(),
-                                          "title": state.title or title})
-    made = [s.id for s in core.list(pctx.workspace_id) if s.id not in before and s.open]
-    return made[-1] if made else None
+
+async def _front(services, ctx, window: str) -> str:
+    """`window` brought to the front the way `present` does it: a native window (w-…) by its own instance, which waits
+    for its draw (a live close-up just moved to the Tab in front paints its next frame), anything else as a panel."""
+    from .brain.toolbox.present import _native_settled, act, native_window
+
+    if native_window(services, window):
+        return await _native_settled(services, ctx, {"do": "front", "instance": {"instanceId": window}})
+    return await act(services, {"do": "front", "what": window}, ctx=ctx)
+
+
+async def _close(services, ctx, window: str) -> str:
+    """`window` closed the way `present` closes it (a native window by its own instance; close_window)."""
+    from .brain.toolbox.present import close_window
+
+    return await close_window(services, ctx, window)
 
 
 def _output_name(output: dict) -> str:
