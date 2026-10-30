@@ -463,6 +463,47 @@ def test_a_live_close_up_placed_in_another_tab_moves_there_as_itself_with_or_wit
     assert sent[-1]["keep"] == ["w-2095"] and "is now the only window" in said, said
 
 
+def test_a_moved_window_is_placed_once_the_screen_shows_it_on_its_new_tab(monkeypatch):
+    """The isolated instance, 30 Oct: right after the Tab move, the front that followed read the report from before it,
+    found the close-up "on Main" and switched to Main, where it no longer was; it was never seen. The move is done once
+    the screen shows the window on its new Tab (Hooke asks the studio for a report meanwhile), and a move the screen
+    never shows is said as that, with nothing for the user to repeat."""
+    from types import SimpleNamespace
+    from orchestrator import placement, screen as screen_module
+    from orchestrator.brain.registry import ToolFailed
+
+    reads, asks = [], []
+
+    def report(tab):
+        return {"items": [{"id": "w-2095", "view": {"arrangement": {"project": "p", "tab": tab, "placement": "f905"}}}]}
+
+    class Screen:
+        def __init__(self, after):
+            self.after = after
+
+        def observation(self, client):
+            reads.append(1)
+            return SimpleNamespace(wire=lambda: report("mag" if len(reads) > self.after else "main"))
+
+    async def broker(ctx, args):
+        return {"ok": True}
+
+    services = SimpleNamespace(workspace_tabs=broker, hub=SimpleNamespace())
+    ctx = SimpleNamespace(client=SimpleNamespace(offer=asks.append))
+    item, source = {"placement": "f905", "window": "w-2095"}, {"id": "main", "title": "Main"}
+    monkeypatch.setattr(placement, "ASK_EVERY_S", 0.01)
+    monkeypatch.setattr(screen_module, "screen_of", lambda hub: Screen(after=5))
+    assert asyncio.run(placement._move_here(services, ctx, source, item, "mag")) == "w-2095"
+    assert len(reads) > 5 and asks, "waited for the report that shows it there, asking for one"
+
+    reads.clear()
+    monkeypatch.setattr(placement, "MOVE_WAIT_S", 0.2)
+    monkeypatch.setattr(screen_module, "screen_of", lambda hub: Screen(after=10 ** 6))
+    with pytest.raises(ToolFailed) as refused:
+        asyncio.run(placement._move_here(services, ctx, source, item, "mag"))
+    assert "does not show it there yet" in str(refused.value) and refused.value.next is None
+
+
 def test_a_window_a_request_opens_goes_to_the_tab_it_was_asked_in(monkeypatch):
     """Will's try-out, 30 Oct: "In this close-up tab, pull up two images from online", then, while it ran, "open a new
     tab": the second photo landed in that new Tab. What a request opens goes to the Tab it was asked in when another

@@ -697,9 +697,47 @@ async def _move_here(services, ctx, source_tab: dict, item: dict, tab_id: str) -
     screen. One way for every window: the live close-up is never closed and opened again from its source (will-tabs,
     30 Oct: that close went the legacy panel way, TARGET_GONE, and a window reopened while its object was out of view
     had no frame to show)."""
+    import asyncio
+    import json
+
+    from .brain.registry import ToolFailed
+    from .screen import screen_of
+
     await services.workspace_tabs(ctx, {"action": "move", "tab": tab_id, "from": str(source_tab["id"]),
                                          "placement": str(item["placement"])})
-    return window_id(item)
+    window = window_id(item)
+    hub, client = getattr(services, "hub", None), getattr(ctx, "client", None)
+    if hub is None or client is None:
+        return window
+    # Done once the report shows it there: what follows reads where it is from the screen (bringing its Tab to the
+    # front), and a report from before the move would send it back to the Tab it left (the isolated instance, 30 Oct:
+    # the front that followed switched to Main, and the moved close-up was never seen).
+    screen = screen_of(hub)
+    loop = asyncio.get_running_loop()
+    deadline, ask = loop.time() + MOVE_WAIT_S, loop.time()
+    while True:
+        observed = screen.observation(client)
+        if tab_shown(observed.wire() if observed is not None else None, window) == tab_id:
+            return window
+        if loop.time() >= deadline:
+            raise ToolFailed("it was moved to that Tab, but the screen does not show it there yet",
+                             next=None)  # no next: the move was confirmed by the Tabs; the screen is what lags
+        if loop.time() - ask >= ASK_EVERY_S:
+            client.offer(json.dumps({"type": "screen-ask"}))
+            ask = loop.time()
+        await asyncio.sleep(0.05)
+
+
+MOVE_WAIT_S = 4.0  # the studio's report showing a moved window on its new Tab, after the Tabs confirmed the move
+
+
+def tab_shown(wire: dict | None, window: str) -> str | None:
+    """The Tab the report places window `window` on: a native window's arrangement, a document window's own Tab."""
+    row = next((i for i in (wire or {}).get("items") or () if i.get("id") == window), None)
+    if row is None:
+        return None
+    return (((row.get("view") or {}).get("arrangement") or {}).get("tab")
+            or (_legacy(row).get("document") or {}).get("tab"))
 
 
 async def _front(services, ctx, window: str) -> str:
