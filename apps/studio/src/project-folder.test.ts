@@ -41,13 +41,17 @@ test('late Project responses cannot populate a different opening or reveal files
   expect(reveal).not.toHaveBeenCalled();
 });
 
-test('missing location stays readable but cannot be revealed', async () => {
+test.each(['project-folder', 'legacy', 'unavailable'] as const)('unavailable %s does not claim accessible work and offers retry', async layout => {
   dom(); const reveal = vi.fn();
   const dialog = openProjectFolder({title: 'Research', session: 'p', current: () => true,
-    read: async () => ({storage: {...status, availability: 'unavailable', reason: 'Folder missing'}}), reveal});
+    read: async () => ({storage: {...status, layout, availability: 'unavailable', reason: 'Folder missing'}}), reveal});
   await vi.waitFor(() => expect(dialog.textContent).toContain('Folder missing'));
   expect((dialog.querySelector('footer')!.querySelector('button') as HTMLButtonElement).disabled).toBe(true);
   expect(dialog.textContent).toContain('not been replaced or recreated');
+  expect(dialog.textContent).not.toContain('work remains available');
+  expect(dialog.textContent).not.toContain('Saved in Hooke');
+  expect(dialog.textContent).toContain('Project location unavailable');
+  expect(dialog.textContent).toContain('Retry');
 });
 
 test('failed reads retry without losing the original Project identity', async () => {

@@ -46,23 +46,28 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
       const {storage} = await opts.read();
       if (!current() || storage.session !== opts.session) { if (!closed) changed(); return; }
       const portable = storage.layout === 'project-folder';
-      body.append(node('strong', portable ? 'Saved in a Project folder' : 'Saved in Hooke’s existing storage'));
+      const available = storage.availability === 'available';
+      body.append(node('strong', !available ? 'Project location unavailable' : portable ? 'Saved in a Project folder' : 'Saved in Hooke’s existing storage'));
       if (storage.location) body.append(node('p', storage.location, 'project-folder-path'));
       if (storage.reason) body.append(node('p', storage.reason));
-      body.append(node('p', portable
+      if (available) body.append(node('p', portable
         ? 'This folder keeps the Project’s accepted records. Keep it at this location until collection and reopening are available. A complete portable copy has not yet been verified.'
         : 'Your work remains available here. A portable Project copy has not been collected.'));
       const details = node('details'), summary = node('summary', 'Identity and collection');
       details.append(summary, node('p', `Project identity: ${storage.origin ?? 'Unavailable'}`, 'project-folder-path'), node('p', storage.collection.reason));
       body.append(details);
-      reveal.disabled = storage.availability !== 'available';
-      status.textContent = storage.availability === 'available' ? '' : 'Saved location unavailable. Your research has not been replaced or recreated.';
+      reveal.disabled = !available;
+      status.textContent = available ? '' : 'Your research has not been replaced or recreated.';
+      if (!available) addRetry();
     } catch (error) {
       if (!current()) { if (!closed) changed(); return; }
       status.textContent = error instanceof Error ? error.message : String(error);
-      const retry = node('button', 'Retry', 'study-quiet'); retry.type = 'button';
-      retry.addEventListener('click', () => { if (current()) void load(); else changed(); }); body.append(retry);
+      addRetry();
     }
+  };
+  const addRetry = () => {
+    const retry = node('button', 'Retry', 'study-quiet'); retry.type = 'button';
+    retry.addEventListener('click', () => { if (current()) void load(); else changed(); }); body.append(retry);
   };
   dialog.addEventListener('close', () => { closed = true; dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
   document.body.append(dialog); dialog.showModal(); void load(); return dialog;

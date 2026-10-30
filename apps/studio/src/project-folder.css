@@ -1,12 +1,12 @@
-dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); box-sizing: border-box; padding: 24px; border: 1px solid var(--line, #353537); border-radius: 20px; background: var(--panel, #19191b); color: var(--text, #eee); overflow: auto; }
+dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(100dvh - 48px); box-sizing: border-box; padding: 24px; border: 1px solid var(--mm-line); border-radius: 20px; background: var(--mm-card); color: var(--mm-text); overflow: auto; }
 .project-folder::backdrop { background: #0008; }
 .project-folder header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .project-folder h2 { margin: 0; font-size: 20px; }
-.project-folder-name { margin: 8px 0 24px; color: var(--muted, #a0a0aa); }
+.project-folder-name { margin: 8px 0 24px; color: var(--mm-text-2); }
 .project-folder-body { display: grid; gap: 12px; line-height: 1.5; font-size: 14px; }
 .project-folder-body p { margin: 0; }
 .project-folder-path { overflow-wrap: anywhere; user-select: text; }
-.project-folder details { border-top: 1px solid var(--line, #353537); padding-top: 16px; color: var(--muted, #a0a0aa); }
+.project-folder details { border-top: 1px solid var(--mm-line); padding-top: 16px; color: var(--mm-text-2); }
 .project-folder details p { margin-top: 12px; }
 .project-folder summary { cursor: pointer; }
 .project-folder-status { font-size: 13px; line-height: 1.5; }
