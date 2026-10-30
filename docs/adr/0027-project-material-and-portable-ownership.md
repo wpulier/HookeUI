@@ -372,3 +372,9 @@ select newest-wins, or infer references from conversation text. A missing bindin
 requires explicit inclusion review. A binding is not proof of whole-Record inclusion,
 complete Library history or verified media bytes. Changes, damaged journals and
 resource limits refuse this preflight; active work is never replayed.
+
+The authorized dependency action includes this historical-source review when a local
+Project journal is available. Both legacy and portable stores use the same bounded
+reader, origin checks and exact choices. This adds no authority to inspect a global
+Library or other Project, and no caller can supply a filesystem path. Older or
+unavailable hosts may omit sourceReview; omission never means dependencies complete.

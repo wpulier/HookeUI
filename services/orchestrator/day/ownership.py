@@ -84,7 +84,7 @@ def snapshot(root, sid):
         return _snapshot(root, sid)
 
 
-def retained_owner(root, sid):
+def retained_owner(root, sid, *, allowance=None, check=lambda: None):
     """Read journal ownership for ordinary retained work, without export envelope ceilings.
 
     Stream events so cumulative history does not need to fit a transfer bundle.
@@ -92,10 +92,13 @@ def retained_owner(root, sid):
     """
     from ..scientific_import_transaction import reading
     with reading(root):
-        return _snapshot(root, sid, transfer=False)
+        return _snapshot(root, sid, transfer=False, allowance=allowance, check=check)
 
 
-def _snapshot(root, sid, *, transfer=True):
+def _snapshot(root, sid, *, transfer=True, allowance=None, check=lambda: None):
+    if allowance is not None and (type(allowance) is not tuple or len(allowance) != 2
+            or any(type(n) is not int or n <= 0 for n in allowance)):
+        raise ValueError("Invalid Project owner read allowance")
     if not is_sid(sid):
         raise ValueError('Invalid Project owner session')
     folder = Path(root) / sid
@@ -111,10 +114,17 @@ def _snapshot(root, sid, *, transfer=True):
         import stat
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError('Project owner journal must be a regular file')
-        while raw := stream.readline(MAX_LINE + 1 if transfer else -1):
+        limits = (MAX_JOURNAL, MAX_LINE) if transfer else allowance
+        if limits and os.fstat(stream.fileno()).st_size > limits[0]:
+            raise ValueError('Project owner journal exceeds its read allowance')
+        while True:
+            check()
+            raw = stream.readline(limits[1] + 1 if limits else -1)
+            if not raw:
+                break
             used += len(raw)
-            if transfer and (len(raw) > MAX_LINE or used > MAX_JOURNAL):
-                raise ValueError('Project owner journal exceeds the transfer allowance')
+            if limits and (len(raw) > limits[1] or used > limits[0]):
+                raise ValueError('Project owner journal exceeds its read allowance')
             if not raw.endswith(b'\n'):
                 break  # ordinary concurrent append may have an incomplete final line
             try:

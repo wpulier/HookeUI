@@ -19,7 +19,7 @@ establish ownership across a Project switch.
     Equal date IDs or equal event timestamps in independent profiles do not establish the same Project. The origin
     remains in the journal, not a second registry. Opening or exporting a legacy journal never invents an origin.
     `day/ownership.py` reads bounded transfer owner envelopes (16 MiB journal, 64 KiB line);
-    ordinary retained-folder ownership streams the journal without these export ceilings, under the same publication guard; imported scientific work retains
+    ordinary retained-folder ownership streams the journal without these export ceilings, under the same publication guard; resource-bounded inspection can supply its own byte/line allowance and cancellation check; imported scientific work retains
     the original origin and an explicit `session-imported` event with name/local-only metadata. This is a partial
     work import, not restoration of absent conversations, assets or workspace layout. Re-export preserves that origin.
     Import refuses a same-ID Project with a different or unavailable origin, including the initial same-day Project
