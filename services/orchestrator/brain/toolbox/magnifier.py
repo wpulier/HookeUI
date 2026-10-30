@@ -569,7 +569,10 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         seen = (f"what it shows, from a look at its pixels{' by ' + model_said(looked_by) if looked_by else ''}: {shows}"
                 if shows else "what it shows was not checked: nothing looked at its pixels")
         if differs:  # none found was all that was asked: this is the nearest, and what it misses is said with it
-            seen = f"the nearest found, not exactly what was asked ({differs}); {seen}"
+            # A request only partly met gets a next step (will-workspace, 30 Oct: "shows three stomata, rather than just
+            # a single stoma", judged as no next step to get one).
+            seen = (f"the nearest found, not exactly what was asked ({differs}): say how it differs and offer to look "
+                    f"again for exactly {subject}; {seen}")
         if args.get("show") is False:
             attach(picture_bytes=found.jpeg)
             return (f"retained a reference photo: a real photo from {site}, not this slide ({title}; {credit}); "

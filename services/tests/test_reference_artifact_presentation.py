@@ -803,3 +803,22 @@ def test_what_a_window_is_to_a_placement_is_said_by_the_check_that_failed(retain
 
     states, anchor = {}, None
     asyncio.run(go())
+
+
+def test_the_nearest_photo_says_how_it_differs_and_offers_to_look_again(retained_reference, monkeypatch):
+    """will-workspace, 30 Oct: "a single stoma" found only a photo of three; the answer said so but offered no next
+    step, judged as leaving the user stuck. The nearest photo's receipt asks for the difference and an offer to look
+    again for exactly what was asked."""
+    from research_worker import retrieval
+    app, studio, pixels, external = retained_reference
+
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(False, 'three stomata between guard cells, light microscopy',
+                                   unmet='shows three stomata, not one', subject=True)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look_at_photo)
+
+    async def go():
+        run, _, entry = await fetch_reference(app)
+        assert 'the nearest found, not exactly what was asked' in run.summary
+        assert 'offer to look again for exactly leaf pore' in run.summary
+    asyncio.run(go())
