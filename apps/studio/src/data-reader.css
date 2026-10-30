@@ -198,3 +198,9 @@ body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hove
 /* The switcher's menu: wide enough for a title and its kind, each cut with an ellipsis rather than at the edge. */
 .workspace-add-menu.rd-switch-menu { max-width: min(460px, calc(100vw - 32px)); }
 .workspace-add-menu.rd-switch-menu > button { min-width: 0; }
+
+.rd-retained-media { display: grid; gap: 10px; margin-bottom: 20px; }
+.rd-retained-media .rd-retained-image, .rd-retained-media .rd-video { display: block; max-width: 100%; max-height: 65vh; object-fit: contain; border-radius: 12px; background: #101114; }
+.rd-retained-media .rd-note { margin: 0; }
+.rd-retained-media button { justify-self: start; }
+.rd-retained-media [hidden] { display: none; }

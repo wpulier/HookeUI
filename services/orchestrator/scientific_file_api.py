@@ -28,17 +28,22 @@ HEADERS={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',
 
 
 class SourceResponse(StreamingResponse):
-    def __init__(self,source,room):
+    def __init__(self,source,room,*,media_type="application/octet-stream",start=0,end=None,partial=False):
         self.room=room
+        end=source.size if end is None else end
         async def pieces():
-            offset=0
-            while offset<source.size:
-                length=min(CHUNK_BYTES,source.size-offset)
+            offset=start
+            while offset<end:
+                length=min(CHUNK_BYTES,end-offset)
                 yield await _owned(source.read,offset,length)
                 offset+=length
-        super().__init__(pieces(),media_type='application/octet-stream',headers={**HEADERS,
-            'Content-Length':str(source.size),
-            'Content-Disposition':"attachment; filename*=UTF-8''"+quote(source.name,safe='')})
+        headers={**HEADERS,'Content-Length':str(end-start),
+                 'Content-Disposition':"attachment; filename*=UTF-8''"+quote(source.name,safe='')}
+        if media_type != 'application/octet-stream':
+            headers.update({'Content-Disposition':'inline','Accept-Ranges':'bytes',
+                            'Content-Security-Policy':"default-src 'none'; sandbox"})
+        if partial:headers['Content-Range']=f'bytes {start}-{end-1}/{source.size}'
+        super().__init__(pieces(),media_type=media_type,status_code=206 if partial else 200,headers=headers)
     async def __call__(self,scope,receive,send):
         try:await super().__call__(scope,receive,send)
         finally:self.room.release()
@@ -287,6 +292,40 @@ def register(app,built,studio_origin,header):
                 result=await _owned(read)
             return JSONResponse(result,headers=HEADERS)
         except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
+
+    @app.get('/api/scientific-files/{project}/media')
+    async def preview_media(request:Request,project:str,session:str,revision:int,sha256:str):
+        from .scientific_media import media_type, byte_range, RangeRefused
+        room=None;watcher=None;stopping=threading.Event();deadline=time.monotonic()+60
+        def check():
+            if stopping.is_set() or time.monotonic()>deadline:
+                raise InvalidProject('Media verification stopped; retry its retained revision')
+        try:
+            if not is_sid(session) or revision<1:
+                raise Refused('Choose an exact saved media revision.',next='reopen the material in Project Data')
+            room=captures(built.hub).memory.reserve('analysis',VERIFY_WORKING_BYTES,'previewing retained media')
+            saved=await _owned(store.read,project,session,revision=revision)
+            state=saved.document['state'].get('sourceFile')
+            if (saved.document['kind']!='source-file' or type(state) is not dict
+                    or state.get('sha256')!=sha256):
+                raise Refused('This is not the selected retained original.',409,next='reopen the exact material revision')
+            watcher=asyncio.create_task(watch_disconnect(request,stopping))
+            source=await _owned(store.file_source,project,session,revision,state['reference'],check=check,on_cancel=stopping.set)
+            kind=media_type(await _owned(source.read,0,min(64,source.size)))
+            if kind is None:
+                raise Refused('This format has no browser media preview.',415,next='download the original or choose a scientific reader')
+            try:start,end,partial=byte_range(request.headers.get('range'),source.size)
+            except RangeRefused:
+                return JSONResponse({'ok':False,'error':'This media byte range is unavailable.','next':'reopen the retained media'},
+                    status_code=416,headers={**HEADERS,'Content-Range':f'bytes */{source.size}'})
+            response=SourceResponse(source,room,media_type=kind,start=start,end=end,partial=partial);room=None
+            return response
+        except (Refused,MemoryRefused,InvalidProject,OSError) as error:return _error(error)
+        finally:
+            if watcher is not None:
+                watcher.cancel()
+                with suppress(asyncio.CancelledError):await watcher
+            if room is not None:room.release()
 
     @app.get('/api/scientific-files/{project}')
     async def download(request:Request,project:str,session:str,revision:int):
