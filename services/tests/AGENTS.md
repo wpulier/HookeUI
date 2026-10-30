@@ -842,3 +842,5 @@ relocates/reopens without shadow storage or replay. The red trace and actual
 isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
+
+Working-copy restoration tests use actual isolated Project stores and immutable snapshots with synthetic material. They verify preserved identity/history, pinned export manifests, no access/registry import, stale ownership, cancellation/disk failures and same-key admission. These do not establish native chooser or complete dependency collection.

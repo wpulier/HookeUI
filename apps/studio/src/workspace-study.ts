@@ -1,3 +1,4 @@
+import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
@@ -1267,6 +1268,13 @@ const appMenu = new WorkspaceAppMenu({
         stop: async operation => { const r = await bridge.request('project-export-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
         reveal: async operation => { const r = await bridge.request('project-export-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The export folder could not be revealed.'); },
       },
+      restorationActions: source => ({
+        prepare: async () => { const r = await bridge.request('project-copy-prepare', {session: owner.session, operation: source}); if (!r.copy) throw new Error('Restoration preparation is unavailable.'); return r.copy; },
+        start: async requestKey => { const r = await bridge.request('project-copy-restore', {session: owner.session, operation: source, requestKey, acknowledgeIncomplete: true}); if (!r.operation) throw new Error('Restoration admission was not acknowledged. Retry this request.'); return workingCopyOperation(r.operation); },
+        read: async operation => { const r = await bridge.request('project-copy-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Restoration status is unavailable.'); return workingCopyOperation(r.operation); },
+        stop: async operation => { const r = await bridge.request('project-copy-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return workingCopyOperation(r.operation); },
+        reveal: async operation => { const r = await bridge.request('project-copy-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The working copy could not be revealed.'); },
+      }),
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});

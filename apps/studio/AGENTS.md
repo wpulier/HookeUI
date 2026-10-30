@@ -2023,3 +2023,5 @@ Reveal read actual operation receipts. No UI labels this as complete collection.
 Project menu input counts use the server's shared material membership, including
 historical selections. `sourcesIncomplete` means the shown count is partial; keep
 that qualification when merging live session counters into the catalogue row.
+
+Project folder export completion offers a separate working-copy restoration after space/scope review. Its tracked operation survives closing the panel and keeps its request identity after a lost reply. Completion exposes the location without navigating or replaying work; opening remains the normal owner Project action.

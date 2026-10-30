@@ -1230,3 +1230,5 @@ to the captured Project; starting captures the requested owner before background
 work. Navigation does not retarget admitted copying. Status/Stop read/control only
 that Project's export operations. Completed copies remain explicitly unverified for
 external dependencies; failure/cancellation preserve incomplete destinations.
+
+Owner project-copy commands restore only a completed export receipt from the current Project. They use the existing operation service, source-manifest pin and host-selected fresh destination; never register a copy, navigate, inherit grants or replay work. An incomplete copy is kept for inspection. Opening and location replacement remain separate explicit owner controls.

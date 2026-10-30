@@ -521,3 +521,8 @@ verify retained history, refuse either active writer, and publish only the locat
 The Project origin, accepted bytes and local grants stay unchanged. An unknown
 origin cannot use this mode or adopt historical permissions. Default opening still
 refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
+
+
+### Working copy of an owned export
+
+The owner may explicitly restore a completed Project export to a new host-selected folder after reviewing its retained size and incomplete collection scope. The same operation service owns progress, retries and cancellation. Restoration preserves the original identity, accepted history and snapshot receipt, without registering a location, navigating, importing grants or replaying executions. Opening the working copy remains a separate owner choice subject to duplicate-origin and writer checks. Neither an export receipt nor its path authorizes agents to restore/import Projects.

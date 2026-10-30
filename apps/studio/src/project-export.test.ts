@@ -127,3 +127,51 @@ test('changing Project during preparation cannot expose an export action for sta
   expect(view.element.textContent).not.toContain('Export this partial copy');
   expect(actions.start).not.toHaveBeenCalled(); view.dispose();
 });
+
+test('restoration reviews its scope, preserves a lost request, and never navigates', async () => {
+  const {actions, saved} = setup();
+  vi.mocked(actions.start).mockRejectedValueOnce(new Error('Reply lost'));
+  const view = projectExport(actions, () => true, 'origin.export-1', 'restore');
+  click(view.element, 'Review restoration');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Uncollected dependencies remain uncollected'));
+  click(view.element, 'Restore working copy');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Reply lost'));
+  const key = saved.get('hooke.project-restore.origin.export-1.pending');
+  view.dispose();
+  const resumed = projectExport(actions, () => true, 'origin.export-1', 'restore');
+  click(resumed.element, 'Recover restoration');
+  await vi.waitFor(() => expect(resumed.element.textContent).toContain('Restoration admitted'));
+  expect(vi.mocked(actions.start).mock.calls.map(call => call[0])).toEqual([key, key]);
+  expect(saved.get('hooke.project-export.origin')).toBeUndefined();
+  resumed.dispose();
+});
+
+test('successful restoration shows explicit opening instructions and keeps the export separate', async () => {
+  const {actions, saved} = setup();
+  saved.set('hooke.project-restore.origin.export-1', 'restoration-1');
+  vi.mocked(actions.read).mockResolvedValue({id: 'restoration-1', state: 'succeeded', outcome: {export: {
+    location: '/Projects/Restored/copy', files: 12, bytes: 4096, manifestSha256: 'a'.repeat(64),
+    collection: {state: 'unverified', reason: 'Keep the original Project.'},
+  }}});
+  const view = projectExport(actions, () => true, 'origin.export-1', 'restore');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Working copy restored and verified'));
+  expect(view.element.textContent).toContain('it has not been opened and no work was restarted');
+  expect(view.element.textContent).toContain('Keep the original Project');
+  expect(actions.start).not.toHaveBeenCalled();
+  view.dispose();
+});
+
+test('a completed export offers the separate restoration flow only when supplied', async () => {
+  const {actions, saved} = setup(); saved.set('hooke.project-export.origin', 'export-1');
+  vi.mocked(actions.read).mockResolvedValue({id: 'export-1', state: 'succeeded', outcome: {export: {
+    location: '/Projects/Exports/copy', files: 12, bytes: 4096, manifestSha256: 'a'.repeat(64),
+    collection: {state: 'unverified', reason: 'Keep original'},
+  }}});
+  const restore = {...actions, start: vi.fn(async () => ({id: 'restore-1', state: 'running'}))};
+  const factory = vi.fn(() => restore);
+  const view = projectExport(actions, () => true, 'origin', 'export', factory);
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Review restoration'));
+  expect(factory).toHaveBeenCalledWith('export-1');
+  expect(restore.start).not.toHaveBeenCalled();
+  view.dispose();
+});

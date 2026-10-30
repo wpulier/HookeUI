@@ -3285,6 +3285,87 @@ async def project_export_stop(app, client, msg) -> dict:
     return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
 
 
+@command('project-copy-prepare')
+async def project_copy_prepare(app, client, msg) -> dict:
+    from .project_working_copy import prepare
+    record = _project_export_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('export')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('This export has not completed.', next='wait for its saved receipt')
+    day, generation = app.day, app.day.generation
+    value = await asyncio.to_thread(prepare, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='review the copy from its owning Project')
+    return {'ok': True, 'copy': value}
+
+
+@command('project-copy-restore')
+async def project_copy_restore(app, client, msg) -> dict:
+    from .project_working_copy import restore
+    from .project_export import owned_export
+    source = _project_export_operation(app, msg)
+    receipt = (source.get('outcome') or {}).get('export')
+    if source['state'] != 'succeeded' or not isinstance(receipt, dict) or msg.get('acknowledgeIncomplete') is not True:
+        raise tools.ToolError('Review the completed export first.', next='prepare its working copy')
+    day, session = app.day, msg['session']
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Working-copy restoration stopped before publication')
+        def perform():
+            from .door.schema import check as validate
+            value = restore(day, session, receipt, record['id'], check=check)
+            validate(value, 'project-working-copy')
+            return {'copy': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Restoring and verifying a separate working copy')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.restore',
+        project=session, input_revision=None, generation='project-working-copy-v1',
+        params={'export': source['id'], 'manifestSha256': receipt['manifestSha256'], 'acknowledgeIncomplete': True},
+        request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_copy_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='return to the Project that owns the copy')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg['session'] or record['tool'] != 'project.restore':
+        raise tools.ToolError('This is not a working copy of this Project.', next='choose its owning Project')
+    return record
+
+
+@command('project-copy-status')
+async def project_copy_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_copy_operation(app, msg)}
+
+
+@command('project-copy-stop')
+async def project_copy_stop(app, client, msg) -> dict:
+    record = _project_copy_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
+
+
+@command('project-copy-reveal')
+async def project_copy_reveal(app, client, msg) -> dict:
+    import subprocess
+    import sys
+    from .project_working_copy import reveal
+    record = _project_copy_operation(app, msg)
+    receipt = (record.get('outcome') or {}).get('copy')
+    if record['state'] != 'succeeded' or not isinstance(receipt, dict):
+        raise tools.ToolError('The working copy has not completed.', next='wait for its saved receipt')
+    day, generation = app.day, app.day.generation
+    path = await asyncio.to_thread(reveal, day, msg['session'], receipt)
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='return to its copy details')
+    if sys.platform != 'darwin':
+        return {'ok': False, 'path': str(path), 'error': 'Open this location in your file manager.'}
+    subprocess.Popen(['open', '-R', str(path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return {'ok': True, 'path': str(path)}
+
+
 # --- researchers --------------------------------------------------------------------------------
 @command('research-open-capture')
 async def research_open_capture(app, client, msg) -> dict:

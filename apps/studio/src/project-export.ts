@@ -3,6 +3,14 @@ import {collectionReview, type CollectionReview} from './project-collection-revi
 export interface ExportPlan extends CollectionReview {files: number; bytes: number; requiredFreeBytes: number; collection: {state: 'unverified'; reason: string}}
 export interface ExportReceipt {location: string; files: number; bytes: number; manifestSha256: string; collection: {state: 'unverified'; reason: string}}
 export interface ExportOperation {id: string; state: string; progress?: {says?: string} | null; outcome?: {export?: ExportReceipt; says?: string; next?: string} | null}
+export interface WorkingCopyReceipt extends Omit<ExportReceipt, 'manifestSha256'> {sourceManifestSha256: string}
+export interface WorkingCopyOperation extends Omit<ExportOperation, 'outcome'> {outcome?: {copy?: WorkingCopyReceipt; says?: string; next?: string} | null}
+/** Presentation adapter; the server's restoration receipt remains unchanged. */
+export function workingCopyOperation(row: WorkingCopyOperation): ExportOperation {
+  const result = row.outcome?.copy;
+  return {...row, outcome: row.outcome ? {says: row.outcome.says, next: row.outcome.next,
+    ...(result ? {export: {...result, manifestSha256: result.sourceManifestSha256}} : {})} : row.outcome};
+}
 export interface ExportActions {
   prepare(): Promise<ExportPlan>;
   start(requestKey: string): Promise<ExportOperation>;
@@ -15,15 +23,17 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = '', cls = ''
 };
 const bytes = (n: number) => n < 1024 ** 2 ? `${Math.ceil(n / 1024)} KiB` : `${(n / 1024 ** 2).toFixed(1)} MiB`;
 
-export function projectExport(actions: ExportActions, current: () => boolean, origin: string): {element: HTMLElement; dispose(): void} {
+export function projectExport(actions: ExportActions, current: () => boolean, origin: string, mode: 'export' | 'restore' = 'export', restoration?: (operation: string) => ExportActions): {element: HTMLElement; dispose(): void} {
+  const restore = mode === 'restore';
+  let child: ReturnType<typeof projectExport> | undefined;
   const element = node('section', '', 'project-export');
   const status = node('p', '', 'project-folder-status'); status.setAttribute('role', 'status');
   const content = node('div'), controls = node('div', '', 'project-export-actions');
-  element.append(node('h3', 'Export copy'), content, status, controls);
+  element.append(node('h3', restore ? 'Working copy' : 'Export copy'), content, status, controls);
   let disposed = false, timer: ReturnType<typeof setTimeout> | undefined, busy = false;
   let readEpoch = 0;
-  let requestKey = `project-export-${crypto.randomUUID()}`, operation = '';
-  const storageKey = `hooke.project-export.${origin}`;
+  let requestKey = `project-${mode}-${crypto.randomUUID()}`, operation = '';
+  const storageKey = `hooke.project-${mode}.${origin}`;
   const pendingKey = `${storageKey}.pending`;
   let pending = '';
   try {
@@ -49,30 +59,36 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
   const render = (row: ExportOperation) => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
+    child?.dispose(); child = undefined;
     operation = row.id; controls.replaceChildren(); content.replaceChildren();
     if (row.state === 'succeeded' && row.outcome?.export) {
       const result = row.outcome.export;
-      status.textContent = 'Folder copy saved and verified.';
+      status.textContent = restore ? 'Working copy restored and verified.' : 'Folder copy saved and verified.';
       content.append(node('p', `${result.files.toLocaleString()} files · ${bytes(result.bytes)}`),
         node('p', result.collection.reason), node('p', result.location, 'project-folder-path'));
+      if (restore) content.append(node('p', 'Use Open Project to choose this folder after closing the original host. This copy keeps the same identity; it has not been opened and no work was restarted.'));
       button('Reveal copy', async () => {
         busy = true;
         try { await actions.reveal(operation); } catch (error) { if (active()) showError(error); }
         finally { busy = false; }
       }, true);
-      button('New copy', () => { requestKey = `project-export-${crypto.randomUUID()}`; void prepare(); });
+      if (!restore && restoration) {
+        child = projectExport(restoration(row.id), current, `${origin}.${row.id}`, 'restore');
+        content.append(child.element);
+      }
+      button('New copy', () => { requestKey = `project-${mode}-${crypto.randomUUID()}`; void prepare(); });
       return;
     }
     if (['failed', 'cancelled', 'interrupted'].includes(row.state)) {
-      status.textContent = row.outcome?.says ?? `Export ${row.state}.`;
+      status.textContent = row.outcome?.says ?? `Copy ${row.state}.`;
       if (row.outcome?.next) content.append(node('p', row.outcome.next));
       content.append(node('p', 'Your original remains unchanged. Incomplete copies are kept for inspection.'));
-      button('Prepare another copy', () => { requestKey = `project-export-${crypto.randomUUID()}`; void prepare(); });
+      button('Prepare another copy', () => { requestKey = `project-${mode}-${crypto.randomUUID()}`; void prepare(); });
       return;
     }
-    status.textContent = row.state === 'cancelRequested' ? 'Stopping the copy…' : row.progress?.says ?? 'Export admitted. Waiting for its result…';
+    status.textContent = row.state === 'cancelRequested' ? 'Stopping the copy…' : row.progress?.says ?? (restore ? 'Restoration admitted. Waiting for its result…' : 'Export admitted. Waiting for its result…');
     content.append(node('p', 'You can close this panel. The admitted copy stays with this Project’s activity.'));
-    if (row.state !== 'cancelRequested') button('Stop export', async () => {
+    if (row.state !== 'cancelRequested') button(restore ? 'Stop restoration' : 'Stop export', async () => {
       busy = true; readEpoch++;
       try { const result = await actions.stop(operation); if (active()) render(result); }
       catch (error) { if (active()) showError(error); }
@@ -89,8 +105,8 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
     catch (error) {
       if (!active() || epoch !== readEpoch) return;
       showError(error); controls.replaceChildren();
-      button('Check export', poll);
-      button('Prepare a new copy', () => { requestKey = `project-export-${crypto.randomUUID()}`; void prepare(); });
+      button(restore ? 'Check restoration' : 'Check export', poll);
+      button('Prepare a new copy', () => { requestKey = `project-${mode}-${crypto.randomUUID()}`; void prepare(); });
     }
   };
   const start = async () => {
@@ -98,36 +114,37 @@ export function projectExport(actions: ExportActions, current: () => boolean, or
     // Save admission identity before sending. A lost reply followed by closing the
     // panel must recover the same operation, not create a second snapshot.
     try { localStorage.setItem(pendingKey, requestKey); }
-    catch { status.textContent = 'Export recovery cannot be saved in this browser. Enable local storage and retry.'; return; }
-    busy = true; readEpoch++; status.textContent = 'Admitting the export…'; controls.replaceChildren();
+    catch { status.textContent = 'Copy recovery cannot be saved in this browser. Enable local storage and retry.'; return; }
+    busy = true; readEpoch++; status.textContent = restore ? 'Admitting the restoration…' : 'Admitting the export…'; controls.replaceChildren();
     const admittedKey = requestKey;
     try {
       const result = await actions.start(admittedKey);
       // Keep the locator even if navigation closed this view during admission.
       acknowledge(result.id, admittedKey); render(result);
     }
-    catch (error) { if (active()) { showError(error); button('Retry this export', start); } }
+    catch (error) { if (active()) { showError(error); button(restore ? 'Retry this restoration' : 'Retry this export', start); } }
     finally { busy = false; }
   };
   const prepare = async () => {
     if (!active()) return;
     if (timer) clearTimeout(timer);
+    child?.dispose(); child = undefined;
     busy = true; readEpoch++; controls.replaceChildren(); status.textContent = 'Checking saved files and required space…';
     try {
       const plan = await actions.prepare();
       if (!active()) return;
       content.replaceChildren(node('p', `${plan.files.toLocaleString()} files · ${bytes(plan.bytes)} · needs ${bytes(plan.requiredFreeBytes)} free`), node('p', plan.collection.reason));
       content.append(collectionReview(plan));
-      status.textContent = 'This is a folder snapshot, not a fully collected Project.';
-      button('Export this partial copy', start, true);
+      status.textContent = restore ? 'This restores the exported files. Uncollected dependencies remain uncollected.' : 'This is a folder snapshot, not a fully collected Project.';
+      button(restore ? 'Restore working copy' : 'Export this partial copy', start, true);
     } catch (error) { if (active()) { showError(error); button('Retry preparation', prepare); } }
     finally { busy = false; }
   };
   if (pending) {
-    status.textContent = 'The previous export reply was not received. Check that same request before making another copy.';
-    button('Recover export', start, true);
+    status.textContent = 'The previous copy reply was not received. Check that same request before making another copy.';
+    button(restore ? 'Recover restoration' : 'Recover export', start, true);
   }
   else if (operation) void poll();
-  else { content.append(node('p', 'Create an immutable copy of the files saved in this Project folder.')); button('Review export', prepare); }
-  return {element, dispose() { disposed = true; if (timer) clearTimeout(timer); }};
+  else { content.append(node('p', restore ? 'Restore the verified export into a separate working folder. The original and export stay intact.' : 'Create an immutable copy of the files saved in this Project folder.')); button(restore ? 'Review restoration' : 'Review export', prepare); }
+  return {element, dispose() { disposed = true; child?.dispose(); if (timer) clearTimeout(timer); }};
 }
