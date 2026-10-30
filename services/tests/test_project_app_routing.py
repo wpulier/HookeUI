@@ -3,6 +3,7 @@ import asyncio
 
 import pytest
 
+from tests.waiting import HANG_S
 from orchestrator.app import App
 from orchestrator.paths import Paths
 from orchestrator.project_locations import ProjectLocations
@@ -32,24 +33,24 @@ def test_app_connector_creation_import_study_and_relocation_keep_exact_history(t
         try:
             with selectors.DefaultSelector() as ready:
                 ready.register(process.stdout, selectors.EVENT_READ)
-                assert ready.select(30), 'Application probe did not reach stopped state'
+                assert ready.select(HANG_S), 'Application probe did not reach stopped state'
             line = process.stdout.readline()
             if not line:
-                _, err = process.communicate(timeout=10)
+                _, err = process.communicate(timeout=HANG_S)
                 pytest.fail(err)
             assert line.strip() == 'stopped-with-lease', line
             receipt = json.loads((tmp_path / 'fixture-receipt.json').read_text())
             root = ProjectRoot.open(tmp_path / 'Moved Project' if mode == 'reopen' else receipt['root'])
             with pytest.raises(ProjectLocationError, match='read-only'):
                 with writer(root): pass
-            _, err = process.communicate('exit\n', timeout=20)
+            _, err = process.communicate('exit\n', timeout=HANG_S)
             assert process.returncode == 0, err
             with writer(root): pass
             return root
         finally:
             if process.poll() is None:
                 process.kill()
-                process.communicate(timeout=10)
+                process.communicate(timeout=HANG_S)
 
     root = probe('create')
     moved = tmp_path / 'Moved Project'

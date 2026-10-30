@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from tests.waiting import HANG_S
 from orchestrator.app import App
 from orchestrator.door import api
 from orchestrator.origin import studio_origin
@@ -80,7 +81,7 @@ def main(mode, folder):
         def delayed_destination(*args):
             destination = original_destination(*args)
             blocked.set()
-            assert released.wait(30)
+            assert released.wait(HANG_S)
             return destination
         evidence = built.hub.evidence
         item = population(evidence, view())
@@ -88,7 +89,7 @@ def main(mode, folder):
         evidence.add(item)
         with patch.object(project_evidence, 'destination', delayed_destination):
             evidence.schedule_save(item)
-            assert blocked.wait(5)
+            assert blocked.wait(HANG_S)
             if mode == 'create':
                 receipt['events'] = ProjectRepository(root).events()
                 (base / 'fixture-receipt.json').write_text(json.dumps(receipt))
