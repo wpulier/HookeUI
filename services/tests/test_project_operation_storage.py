@@ -259,3 +259,39 @@ def test_invalid_candidates_count_toward_history_loading_budget(tmp_path, monkey
     monkeypatch.setattr(operations, budget, 2)
     with pytest.raises(ValueError, match='allowance'):
         Operations(tmp_path)
+
+
+def test_unreadable_directory_cannot_be_treated_as_new_request_history(tmp_path, monkeypatch):
+    from orchestrator.door import operations
+    home, locations, root = setup(tmp_path)
+    async def go():
+        ops = Operations(home, locations=locations)
+        calls = []
+        async def work(record, progress): calls.append(record['id']); return {'kept': True}
+        record, _ = await admit(ops, root.session, work)
+        await settle(ops)
+        folder = root.path / 'history/operations'
+        scan = operations.os.scandir
+        def denied(path):
+            if path == folder: raise PermissionError('injected unreadable directory')
+            return scan(path)
+        monkeypatch.setattr(operations.os, 'scandir', denied)
+        fresh = Operations(home, locations=locations)
+        monkeypatch.setattr(operations.os, 'scandir', scan)
+        with pytest.raises(Refused, match='history is unavailable'):
+            await admit(fresh, root.session, work)
+        assert calls == [record['id']]
+        reloaded = Operations(home, locations=locations)
+        same, made = await admit(reloaded, root.session, work)
+        assert not made and same['id'] == record['id']
+    try: asyncio.run(go())
+    finally: locations.close()
+
+
+def test_directory_entry_budget_includes_unmatched_files(tmp_path, monkeypatch):
+    from orchestrator.door import operations
+    folder = tmp_path / 'agents/operations'
+    folder.mkdir(parents=True)
+    for number in range(3): (folder / f'unmatched-{number}').touch()
+    monkeypatch.setattr(operations, 'MAX_RECORDS', 2)
+    with pytest.raises(ValueError, match='entry allowance'): Operations(tmp_path)

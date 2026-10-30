@@ -102,7 +102,7 @@ class Operations:
                 raise ValueError('Operation storage was replaced by a link; preserve the original Project')
             if owner is not None and folder.is_dir():
                 self._folders[folder] = (folder.stat().st_dev, folder.stat().st_ino)
-            for path in folder.glob('op_*.json'):
+            for path in self._candidates(folder):
                 candidates += 1
                 if candidates > MAX_RECORDS:
                     raise ValueError('Operation history exceeds its loading allowance')
@@ -150,6 +150,29 @@ class Operations:
                     record = {**record, 'storageReadOnly': True}
             self._records[record['id']] = record
             self._keys[(record.get('by', ''), record['requestKey'])] = record['id']
+
+    def _candidates(self, folder):
+        # pathlib.glob can buffer a whole directory and suppress scan failures.
+        # A missing directory is normal before first admission; an unreadable one
+        # is unknown history, never evidence that a request key is new.
+        try:
+            iterator = os.scandir(folder)
+        except FileNotFoundError:
+            return
+        except OSError as error:
+            self._history_complete = False
+            self.unreadable.append(f'{folder}: {str(error)[:240]}')
+            return
+        try:
+            with iterator:
+                for count, entry in enumerate(iterator, 1):
+                    if count > MAX_RECORDS:
+                        raise ValueError('Operation directory exceeds its entry allowance')
+                    if entry.name.startswith('op_') and entry.name.endswith('.json'):
+                        yield Path(entry.path)
+        except OSError as error:
+            self._history_complete = False
+            self.unreadable.append(f'{folder}: {str(error)[:240]}')
 
     def _read_saved(self, path, owner):
         from ..scientific_projects import ProjectStore
