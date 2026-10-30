@@ -1128,7 +1128,9 @@ The shared workflow library remains host-owned; runs retain frozen definitions.
 Live App activation and complete legacy collection remain separate qualification.
 
 `project_folder_copy` is a verified byte-copy stage, not proof of dependency
-closure. Inactive copies acquire a writer lease; an owning host can copy under
+closure. Both scientific/journal publication guards remain held through copy
+acceptance, excluding concurrent bundle import and refusing its pending barriers.
+Inactive copies acquire a writer lease; an owning host can copy under
 its retained lease without releasing it. Source membership and captured file
 identities/hashes are checked again before publication; observed changes, shutdown
 or location changes leave an incomplete destination for explicit recovery.

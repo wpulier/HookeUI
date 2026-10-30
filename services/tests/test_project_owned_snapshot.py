@@ -75,3 +75,71 @@ def test_shutdown_during_snapshot_preserves_incomplete_marker(tmp_path):
     with pytest.raises(ProjectLocationError, match='closed'):
         copy_owned_snapshot(locations, project.sid, target, check=stopped)
     assert (target / COPY_INTENT).exists()
+
+
+def test_bundle_publisher_cannot_enter_during_owned_copy(tmp_path, monkeypatch):
+    import threading
+    from orchestrator import project_folder_copy as copies
+    from orchestrator.project_repository import document_root, session_root
+    from orchestrator.scientific_import_transaction import publishing, _visibility_lock, ImportPending
+    from orchestrator.file_locks import fcntl
+    from tests.waiting import HANG_S
+    day, locations = setup(tmp_path)
+    project = day.create_retained('Research', actor='user')
+    root = locations.project(project.sid)
+    roots = (document_root(root), session_root(root))
+    start, probed, finished = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+    refused = []
+    def publish():
+        try:
+            assert start.wait(HANG_S)
+            for path in roots:
+                try:
+                    with _visibility_lock(path, fcntl.LOCK_EX | fcntl.LOCK_NB): pass
+                except ImportPending:
+                    refused.append(path)
+            probed.set()
+            with publishing(*roots):
+                # Real publication cannot begin until the copy exits both guards.
+                finished.set()
+        except BaseException as error:
+            errors.append(error)
+            probed.set()
+    thread = threading.Thread(target=publish, daemon=True)
+    thread.start()
+    verify = copies.verify_owner
+    def after_owner(captured):
+        result = verify(captured)
+        start.set()
+        assert probed.wait(HANG_S)
+        assert refused == list(roots)
+        assert not finished.is_set()
+        return result
+    monkeypatch.setattr(copies, 'verify_owner', after_owner)
+    try:
+        copied = copy_owned_snapshot(locations, project.sid, tmp_path / 'Protected')
+        thread.join(HANG_S)
+        assert not thread.is_alive() and not errors and finished.is_set()
+        monkeypatch.setattr(copies, 'verify_owner', verify)
+        assert verify_snapshot(copied.path)
+    finally:
+        start.set()
+        thread.join(HANG_S)
+        locations.close()
+
+
+@pytest.mark.parametrize('section', ['artifacts/records', 'history/sessions'])
+def test_pending_bundle_is_refused_before_snapshot_destination(tmp_path, section):
+    from orchestrator.scientific_import_transaction import INTENT, ImportPending
+    day, locations = setup(tmp_path)
+    try:
+        project = day.create_retained('Research', actor='user')
+        root = locations.project(project.sid)
+        (root.path / section / INTENT).write_text('{"format":1}')
+        destination = tmp_path / 'Refused'
+        with pytest.raises(ImportPending):
+            copy_owned_snapshot(locations, project.sid, destination)
+        assert not destination.exists()
+    finally:
+        locations.close()

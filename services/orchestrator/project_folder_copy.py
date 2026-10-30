@@ -15,7 +15,7 @@ import re
 import shutil
 import stat
 
-from .project_repository import verify_owner
+from .project_repository import document_root, session_root, verify_owner
 from .project_roots import COPY_INTENT, PARTS, SNAPSHOT, ProjectLocationError, ProjectRoot, writer
 from .scientific_projects import ProjectStore
 
@@ -134,6 +134,15 @@ def copy_owned_snapshot(locations, session, destination: Path, *, check=lambda: 
 
 
 def _copy_admitted(root, destination, *, check):
+    # Bundle publication spans both stores. A host writer lease excludes other
+    # hosts, not its own importer; keep both existing visibility guards through
+    # acceptance so a stable pending transaction cannot become a sealed copy.
+    from .scientific_import_transaction import reading
+    with reading(document_root(root)), reading(session_root(root)):
+        return _copy_visible(root, destination, check=check)
+
+
+def _copy_visible(root, destination, *, check):
     destination = Path(destination).expanduser()
     parent = destination.parent.resolve(strict=True)
     destination = parent / destination.name

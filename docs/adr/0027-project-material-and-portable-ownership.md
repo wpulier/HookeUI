@@ -267,7 +267,9 @@ under the same contract. This slice adds no collection/open/migration mutation.
 
 A host that already owns the Project writer can invoke the same bounded folder
 copy stage without releasing its lease or replaying an operation. Its captured
-location and continued writer ownership are rechecked during copying. Source
+location and continued writer ownership are rechecked during copying. Both stores
+retain their existing shared publication guards throughout, so a concurrent bundle
+import cannot be sealed halfway through its transaction. Source
 changes refuse acceptance and preserve the incomplete marker. The resulting
 read-only snapshot retains observed running states as history, not commands.
 
