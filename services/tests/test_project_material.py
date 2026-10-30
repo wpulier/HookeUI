@@ -290,3 +290,15 @@ def test_grouped_material_scan_reads_each_shared_head_only_once(tmp_path, monkey
     (store.root / saved[0].id / 'head.json').write_text('broken')
     grouped = store.scan_sessions(sessions)
     assert all(grouped[sid][1] for sid in sessions)
+
+
+def test_pending_legacy_publication_keeps_project_list_with_qualified_count(web):
+    from tests.test_scientific_file_api import upload
+    client, app = web
+    upload(client, app)
+    store = app.hub.resources.projects
+    (store.root / '.bundle-import.json').write_text('{}')
+    response = client.get('/api/sessions')
+    assert response.status_code == 200
+    row = next(row for row in response.json()['sessions'] if row['id'] == app.day.sid)
+    assert row['counts']['sourcesIncomplete']

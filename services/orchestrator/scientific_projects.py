@@ -473,10 +473,17 @@ class ProjectStore:
         This grants no access and is not an agent endpoint. Unattributable damaged
         heads mark every requested group incomplete rather than disappearing.
         """
+        sessions = tuple(dict.fromkeys(sessions))
+        for session in sessions:
+            _identity(session, 'session')
+        try:
+            return self._scan_sessions(sessions)
+        except (OSError, ValueError) as error:
+            return {session: ([], [{'id': session, 'reason': str(error)}]) for session in sessions}
+
+    def _scan_sessions(self, sessions):
         from .scientific_import_transaction import reading
         result = {session: ([], []) for session in sessions}
-        for session in result:
-            _identity(session, 'session')
         with reading(self.root):
             if not self.root.is_dir():
                 return result
