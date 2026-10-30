@@ -521,3 +521,12 @@ verify retained history, refuse either active writer, and publish only the locat
 The Project origin, accepted bytes and local grants stay unchanged. An unknown
 origin cannot use this mode or adopt historical permissions. Default opening still
 refuses an implicit relocation. Studio's normal unsaved-work gate owns navigation.
+
+
+### Copy-on-write folder members
+
+Folder snapshots and working-copy restoration may use the platform's descriptor-based clone for each admitted regular file. This creates independent files, never hard links to mutable originals. Only unsupported filesystem/platform cases fall back to streaming; storage and access failures remain failures. Source stamps, accepted-record verification, independent byte hashes and durable publication remain unchanged. Full-byte disk estimates stay conservative: copy-on-write reduces initial allocation but later edits can require additional space. This does not certify external dependency completeness or change the snapshot format.
+
+### Accepted numeric history in snapshots
+
+All journal-accepted table, analysis and graph revisions participate in folder verification, including superseded values. Reuse the existing numeric reader with the captured Project artifact root and original accepted identity/hash. Copying or recomputing an outer manifest cannot bless damaged earlier results. No evaluator is installed or run, and original records are never repaired automatically. This is another producer-owned integrity check; source dependency closure and legacy migration remain separately qualified.
