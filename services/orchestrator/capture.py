@@ -13,7 +13,8 @@ Memory is bounded at its peak, by reservation before allocation:
   label map at w x h x 4 bytes, masks, temporary copies), computed from the capture's dimensions,
   in one of three allowances (interactive, analysis, unsaved evidence);
 - a reservation that would go over its allowance is refused with the reason, before anything is
-  allocated, and a holder that needs more asks for it first (`Reservation.grow`);
+  allocated, and a holder that needs more asks for it first (`Reservation.grow`); work larger than its
+  whole allowance is said as too large for it, never as full or worth waiting for;
 - nothing held is ever evicted: what is admitted fits.
 GPU and worker-process memory are outside this bound (worker classes and queue limits govern them).
 
@@ -45,7 +46,7 @@ MB = 1024 * 1024
 # saved in another run is never taken for the live frame that has its id now (Captures.read_back).
 RUN = f"{os.getpid()}-{time.time():.0f}"
 
-BOUND_MB = 376
+BOUND_MB = 408
 # "research": a researcher's own operations (research/hands.py) and an experiment's model runs, apart from the user's:
 # a run waiting behind the live view's work never takes the room the user's own analyses need (review of #173). One
 # fits at 1080p.
@@ -53,8 +54,15 @@ BOUND_MB = 376
 # as their population is loaded. They were split from the run's own hold and stayed in "research", so ten runs of one
 # experiment filled the room the next run needed (will-experiment, 29 Oct: "a researcher's analyses fill their
 # allowance (24 of 24 MB)", Experiment 2 at frame 4); a table is about 1.5-3 MB at 160 cells.
-ALLOWANCES_MB = {"interactive": 64, "analysis": 160, "unsaved": 32, "research": 24, "kept": 96}
+# "unsaved": a run's evidence until it is saved. A run on a 12 MP photo, outlined at its working size
+# (source_images.WORKING_PIXELS), holds about 25-30 MB here (its original's bytes, its full-size preview and its label
+# map at the working size); two fit, one saving while the next is made (32 MB refused one alone: live, 30 Oct).
+ALLOWANCES_MB = {"interactive": 64, "analysis": 160, "unsaved": 64, "research": 24, "kept": 96}
 CLASSES = tuple(ALLOWANCES_MB)
+# What each allowance is room for, in the words a refusal says it with.
+ROOM_FOR = {"interactive": "outlines being made", "analysis": "analyses in progress",
+            "unsaved": "analyses not yet saved", "research": "a researcher's analyses",
+            "kept": "the tables of analyses made in the background"}
 TEMPORARY_SHARE = 0.25  # copies made while working (crops, re-encodes) on top of what is kept
 # Which decoded images each kind of hold reserves room for (footprint below). A Capture keeps a
 # decode only while a hold covers it, and drops it when the last such hold is let go; a decode no
@@ -76,11 +84,14 @@ class CaptureGone(ToolFailed):
     """The view a piece of work needed is no longer held anywhere."""
 
 
-def footprint(width: int, height: int, jpeg_bytes: int, kind: str) -> int:
+def footprint(width: int, height: int, jpeg_bytes: int, kind: str, grid: tuple[int, int] | None = None) -> int:
     """The worst case, in bytes, that a holder of a `width` x `height` view keeps resident for
-    `kind` of work, temporary copies included (contract 1)."""
+    `kind` of work, temporary copies included (contract 1). `grid`: the size its label map and masks
+    are made at when that is not the view's own (a large still analysed at its working size,
+    source_images.working_copy); its decodes are still the view's."""
     px = int(width) * int(height)
-    gray, bgr, labels = px, 3 * px, 4 * px
+    gray, bgr = px, 3 * px
+    labels = 4 * (int(grid[0]) * int(grid[1]) if grid is not None else px)
     kept = {
         "hold": jpeg_bytes + gray,  # a request keeping its view: bytes, plus a decode for placing
         "outline": jpeg_bytes + gray + bgr,  # outlining and naming: the template, the crops
@@ -180,6 +191,14 @@ class Memory:
         if self.reserved[cls] + nbytes > self.allowances[cls]:
             self.refused[cls] += 1
             used, allowed = self.reserved[cls] / MB, self.allowances[cls] / MB
+            if nbytes > self.allowances[cls]:
+                # Larger than its whole allowance: no room others let go ever makes it fit, so it is never said as
+                # full and never asks the user to wait (live, 30 Oct: a 12 MP still was refused with "analyses not yet
+                # saved fill their allowance (0 of 32 MB)" and "wait a moment for saving").
+                reason = (f"this needs {nbytes / MB:.0f} MB of memory at once, more than all {allowed:.0f} MB set aside for "
+                          f"{ROOM_FOR.get(cls, 'it')}, so waiting would not help")
+                self.last_refusal[cls] = f"{why}: {reason}"
+                raise Refused(reason, next=None)  # no next: nothing the user does makes it fit; the words say why
             reason, next_step = {
                 "interactive": (f"too many outlines are still being made ({used:.0f} of {allowed:.0f} MB held)",
                                 "wait a moment, then click again"),
@@ -272,10 +291,10 @@ class Capture:
             if self._covered[decoded] == 0:
                 object.__setattr__(self, f"_{decoded}", None)
 
-    def footprint(self, kind: str) -> int:
+    def footprint(self, kind: str, grid: tuple[int, int] | None = None) -> int:
         w = int(getattr(self.info, "width", 0) or 0)
         h = int(getattr(self.info, "height", 0) or 0)
-        return footprint(w, h, len(self.jpeg or b"") + len(self.native or b""), kind)
+        return footprint(w, h, len(self.jpeg or b"") + len(self.native or b""), kind, grid)
 
     @property
     def resident(self) -> int:
@@ -316,6 +335,9 @@ class Captures:
         self._held: dict[int, Capture] = {}
         self._holds: dict[int, int] = {}
         self._scales: OrderedDict[int, dict] = OrderedDict()  # frame id -> its scale, decided once (scale_of)
+        # An original still's id -> its working copy (source_images.working_copy), while a run is using it: runs on the
+        # same still at once are shown the same copy, so the same computation is one job (contract 4).
+        self.working: weakref.WeakValueDictionary[int, object] = weakref.WeakValueDictionary()
         self._lock = threading.RLock()  # taken from worker threads too (adopt, hold)
 
     def take(self, frame_id: int | None = None) -> Capture:
@@ -425,15 +447,16 @@ class Captures:
         info = pick(window_s) if pick is not None else None
         return self.take(info.id if info is not None else None)
 
-    def hold(self, capture: Capture, cls: str, kind: str, owner: str) -> Hold:
+    def hold(self, capture: Capture, cls: str, kind: str, owner: str, grid: tuple[int, int] | None = None) -> Hold:
         """Reserve what holding `capture` for `kind` of work costs, in allowance `cls`, and keep it
-        findable by id until the hold is released. Refused when it does not fit."""
+        findable by id until the hold is released. Refused when it does not fit. `grid`: the size its
+        label map and masks are made at, when not the capture's own (footprint)."""
         with self._lock:
             if self._held.get(capture.id, capture) is not capture or self._live.get(capture.id, capture) is not capture:
                 # One Capture per frame id: a second object for the same frame would keep its own bytes
                 # and decodes uncounted beside the first (scaffolding review, M1.1 item 7).
                 raise ValueError(f"view {capture.id} was taken twice; take it through the capture store")
-            reservation = self.memory.reserve(cls, capture.footprint(kind), f"{owner} holding view {capture.id}")
+            reservation = self.memory.reserve(cls, capture.footprint(kind, grid), f"{owner} holding view {capture.id}")
             self._held[capture.id] = capture
             self._live[capture.id] = capture
             self._holds[capture.id] = self._holds.get(capture.id, 0) + 1

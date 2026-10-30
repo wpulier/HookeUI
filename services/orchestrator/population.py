@@ -84,6 +84,7 @@ def members_from(output: dict, evidence, session: str | None = None, *, admit_ma
     if output.get("labels"):
         labels = decode_labels(output["labels"])
         origin = tuple(output["labels"].get("origin") or (0, 0))
+        scale = float(output["labels"].get("scale") or 1)  # a large still's working copy (source_images.Working)
         scores = output.get("scores") or {}
         mask_bytes, instance_bytes, polygon_bytes = 0, 0, 0
 
@@ -106,7 +107,8 @@ def members_from(output: dict, evidence, session: str | None = None, *, admit_ma
             if admit_masks is not None:
                 admit_masks(mask_bytes + instance_bytes + polygon_bytes)
 
-        for label, mask in masks_from_labels(labels, origin, admit=keep_masks, admit_workspace=plan_instances):
+        for label, mask in masks_from_labels(labels, origin, admit=keep_masks, admit_workspace=plan_instances,
+                                             scale=scale):
             extras = {}
             score = scores.get(label, scores.get(str(label)))
             if score is not None:
@@ -156,7 +158,7 @@ async def segment(hub, *, capture=None, choice: str | None = None, policy: str |
     evidence = evidence_of(hub)
     evidence.admit()
     store = captures(hub)
-    from .source_images import for_analysis
+    from .source_images import for_analysis, working_copy
 
     if capture is None and getattr(hub, "stage_image_json", None) is None:
         info = getattr(hub, "latest_info", None)
@@ -173,21 +175,34 @@ async def segment(hub, *, capture=None, choice: str | None = None, policy: str |
         x0, y0 = max(0, int(capture.fov.cx - r)), max(0, int(capture.fov.cy - r))
         x1, y1 = min(capture.width, int(capture.fov.cx + r)), min(capture.height, int(capture.fov.cy + r))
         region = (x0, y0, x1 - x0, y1 - y0)
+    # A still larger than a camera frame is shown to the model as its working copy, every pixel an exact block of
+    # the original's (source_images.working_copy); what it finds is kept on the original's own pixels, its masks at
+    # the copy's scale, so it is measured, saved and drawn on the Stage's still as one found on the original is.
+    copied = await asyncio.to_thread(working_copy, store, capture) if capture.native is not None else None
     # Held until it is saved, in the unsaved-evidence allowance (its worst case: the view, its label
-    # map and masks); refused, with the reason, when that is full.
+    # map and masks, at the size the model is shown); refused, with the reason, when that is full.
     # A researcher's own run (priority "research") holds in its own allowance, never the user's.
-    hold = store.hold(capture, "research" if priority == "research" else "unsaved", "evidence", "evidence being made")
+    hold = store.hold(capture, "research" if priority == "research" else "unsaved", "evidence", "evidence being made",
+                      grid=copied.size if copied is not None else None)
+    shown_hold = None
     try:
+        if copied is not None:  # its bytes, resident while the model is shown them
+            shown_hold = store.hold(copied.capture, "analysis", "bytes", "the large still's working copy")
         disc = [capture.fov.cx, capture.fov.cy, capture.fov.radius] if capture.fov is not None else None
+        crop = (copied.crop(region) if copied is not None else tuple(region)) if region else None
         try:
-            done = await runner(hub).run(operation, capture, Prompt("field"), choice=choice, policy=policy, origin=origin,
-                                         params={"compare_reference": compare_reference, "crop": tuple(region) if region else None, "disc": tuple(disc) if disc else None,
+            done = await runner(hub).run(operation, copied.capture if copied is not None else capture, Prompt("field"),
+                                         choice=choice, policy=policy, origin=origin,
+                                         params={"compare_reference": compare_reference, "crop": crop, "disc": tuple(disc) if disc else None,
                                                  **({"priority": priority} if priority else {}),
                                                  **({"inputs": inputs} if inputs else {})}, made_for=made_for)
         except Unavailable as exc:
             raise ToolError(f"can't segment every cell here ({exc})" if operation == "cells" else f"can't run it here ({exc})",
                             next="click a cell to outline it" if operation == "cells" else "its card on the Models page") from exc
-        output = done.output
+        finally:
+            if shown_hold is not None:
+                shown_hold.release()
+        output = copied.to_original(done.output) if copied is not None else done.output
         request = tickets.current()
         session = _session(request, hub)
         # Decoding and bounds planning have transient room. Once bounds are known, the evidence
@@ -228,6 +243,7 @@ async def segment(hub, *, capture=None, choice: str | None = None, policy: str |
                                 producer={**(output.get("producer") or {}),
                                           **({"capturedNativeInput": copy.deepcopy(capture.source_image)}
                                              if (capture.source_image or {}).get("nativeSource") else {}),
+                                          **({"workingInput": copied.wire()} if copied is not None else {}),
                                           "implementation": done.execution.executed,
                                           # fine-tuned weights say which version made it (operations._cells)
                                           "version": output.get("version") or (impl.version if impl is not None else ""),
@@ -235,9 +251,19 @@ async def segment(hub, *, capture=None, choice: str | None = None, policy: str |
                                                             "disc": [round(v, 2) for v in disc] if disc else None,
                                                             "scoreIs": output.get("score") or ("iou" if output.get("regions") else None)}},
                                 transformations={"crop": crop_used,
-                                                 "input": ("the original imported image, decoded without resizing"
+                                                 "input": (f"the original imported image, area-averaged to {copied.size[0]} x "
+                                                           f"{copied.size[1]} for the model (its working size: each pixel the mean "
+                                                           f"of a {copied.scale} x {copied.scale} block of the original's)"
+                                                           if copied is not None else
+                                                           "the original imported image, decoded without resizing"
                                                            if capture.native is not None else "the camera's JPEG as received, decoded once"),
-                                                 "masks": ("Native ImageJ particle mask pixels retained exactly on the input grid; pixel-center measurements"
+                                                 "masks": ((("Native ImageJ particle mask pixels retained exactly on the working copy's grid"
+                                                             if done.execution.executed == "fiji-analyze-particles" else
+                                                             "kept as the model returned them on the working copy")
+                                                            + f", each mask pixel a {copied.scale} x {copied.scale} block of the "
+                                                              "original's pixels; measured in the original's pixels")
+                                                           if copied is not None else
+                                                           "Native ImageJ particle mask pixels retained exactly on the input grid; pixel-center measurements"
                                                            if done.execution.executed == "fiji-analyze-particles" else
                                                            "kept as the model returned them, each in its box at the model's scale"),
                                                  "measuredOn": "the capture's grey picture, full size"})

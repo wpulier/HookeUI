@@ -100,7 +100,8 @@ def test_image_reply_that_cannot_fit_is_refused_before_payload_is_read(home, tmp
     pipe, header_bytes = reply_process(monkeypatch, [4096, 4096, 3], b'')
     store = captures(rig.hub)
     before = store.memory.reserved['analysis']
-    with pytest.raises(operations.Unavailable, match='held views are full'):
+    # A reply larger than the whole allowance: said as too large for it, never as full or worth waiting for.
+    with pytest.raises(operations.Unavailable, match='more than all .* MB set aside for analyses in progress'):
         asyncio.run(operations.runner(rig.hub).run('spot-report', store.get(1), operations.Prompt('field'),
                                                  choice='dark-spots', origin='user-chosen'))
     assert pipe.tell() == header_bytes
