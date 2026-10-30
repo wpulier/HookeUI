@@ -82,7 +82,8 @@ export function handoffView(h: HandoffLine, now: number, replayed = false): Hand
   let status: string, detail: string;
   if (state === 'working') {
     const waiting = h.settling ? steps.find((step) => step.ok === null) : undefined;
-    status = h.long || h.settling ? 'Still working' : 'Hooke is working';
+    // The Assistant's header already says Hooke is working: the row says it in a word, so its time stays in view.
+    status = h.long || h.settling ? 'Still working' : 'Working';
     detail = [waiting ? actionName(waiting.tool) : '', clock(took * 1000)].filter(Boolean).join(' · ');
   } else if (state === 'done') {
     const last = [...steps].reverse().find((step) => step.ok === true && step.summary);
@@ -167,7 +168,7 @@ export class HandoffRow {
     this.root.dataset.handoff = id;
     this.head = make('button', 'chat-handoff-head'); this.head.type = 'button';
     this.head.setAttribute('aria-expanded', 'false');
-    this.cell = litCell('working', { size: 12 });
+    this.cell = litCell('working', { size: 10 });
     const words = make('span', 'chat-handoff-words');
     this.titleEl = make('span', 'chat-handoff-title');
     const sub = make('span', 'chat-handoff-sub');
@@ -399,11 +400,13 @@ export class FlightStrip {
       try { this.onChange(all); } catch { /* a listener's fault never stops the strip */ }
     }
     const was = !this.root.hidden;
-    this.root.hidden = all.length === 0;
+    // One piece of work in flight is said by its own row and the voice's "Hooke working": the strip lists them only when
+    // there are several to tell apart (Will's try-out, 30 Oct: a row, this strip and the header, three signs for one zoom).
+    this.root.hidden = all.length < 2;
     this.current.clear();
     for (const entry of all) this.current.set(entry.key, entry);
     if (!all.length) { this.list.replaceChildren(); this.buttons.clear(); return; }
-    if (!was) arrive(this.root);
+    if (!was && !this.root.hidden) arrive(this.root);
     const words = flightWords(all.filter((entry) => !entry.waiting).length);
     if (this.count.textContent !== words) this.count.textContent = words;
     const keep = new Set(all.map((entry) => entry.key));

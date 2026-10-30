@@ -22,7 +22,7 @@ const step = (tool: string, ok: boolean | null, summary: string, actionId = 'a1'
 
 describe('what a row says', () => {
   test('working: Hooke is working with its clock; past the voice\'s wait, still working', () => {
-    expect(handoffView(handoff('h1'), NOW)).toMatchObject({ state: 'working', cell: 'working', title: PHOTO, status: 'Hooke is working',
+    expect(handoffView(handoff('h1'), NOW)).toMatchObject({ state: 'working', cell: 'working', title: PHOTO, status: 'Working',
       detail: '0:07', counting: true });
     expect(handoffView(handoff('h1', { long: true, startedAt: NOW - 18 }), NOW)).toMatchObject({ status: 'Still working', detail: '0:18' });
   });
@@ -123,7 +123,7 @@ describe('drawn', () => {
     const row = rows()[0];
     expect(row.dataset.state).toBe('working');
     expect(row.querySelector('.chat-handoff-title')!.textContent).toBe(PHOTO);
-    expect(row.querySelector('.chat-handoff-sub')!.textContent).toBe('Hooke is working0:07');
+    expect(row.querySelector('.chat-handoff-sub')!.textContent).toBe('Working0:07');
     expect(row.dataset.arrived).toBe(''); // it rises in once
     vi.advanceTimersByTime(3000);
     expect(row.querySelector('.chat-handoff-detail')!.textContent).toBe('0:10');
@@ -197,8 +197,18 @@ describe('the strip over the composer', () => {
     expect(root.querySelector('.chat-flight-count')!.textContent).toBe('Working');
     expect(root.querySelectorAll('.chat-flight-item').map((b) => b.textContent)).toEqual(['Researcher 5', 'then: put it in Stoma Reference']);
     strip.set('handoffs', []);
+    expect(root.hidden).toBe(true);
+    expect(strip.entries.map((e) => e.key)).toEqual(['researcher:r5']);
     strip.set('researchers', []);
     expect(root.hidden).toBe(true);
+  });
+
+  test('one piece of work is said by its row and the voice, never a strip of one (Will\'s try-out, 30 Oct)', () => {
+    const strip = new FlightStrip();
+    const root = strip.root as unknown as TestElement;
+    strip.set('handoffs', [{ key: 'handoff:h1', name: 'Magnify organism', since: 10, doing: 'Hooke is working', go: vi.fn() }]);
+    expect(root.hidden).toBe(true);
+    expect(strip.working).toBe(1);
   });
 });
 
