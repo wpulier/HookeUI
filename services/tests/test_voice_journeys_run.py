@@ -535,3 +535,12 @@ def test_the_judge_reads_each_steps_receipt_without_ids():
     said = receipt('opened in window w-5deb0a46-bdb5-4341-8349-ccd9d24221dd: a new Tab "Cell results"  in front')
     assert "w-5deb" not in said and 'a new Tab "Cell results" in front' in said
     assert receipt("x" * 500).endswith("…") and len(receipt("x" * 500)) == 421
+
+
+def test_researchers_the_app_starts_on_its_own_count_toward_the_cap():
+    """will-experiment, 30 Oct: no step starts the experiment's audit researcher, so the stack's research cap was $0.00
+    and every audit stopped on it. The plan's "researchersBehind" counts it for the cap and the reservation."""
+    plan = stack.load_plan("will-experiment")
+    assert plan.get("researchersBehind") == 1
+    assert run.researchers(plan) >= 1
+    assert run.researchers({"steps": [{"expect": {"researchers": 2}}]}) == 2

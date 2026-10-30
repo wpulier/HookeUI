@@ -47,7 +47,11 @@ def spoken_steps(plan: dict) -> int:
 
 
 def researchers(plan: dict) -> int:
-    return sum(int((s.get("expect") or {}).get("researchers") or 0) for s in plan["steps"])
+    """The researchers a run may start: those its steps start, plus those the app starts on its own behalf (the plan's
+    "researchersBehind": an experiment's audit), so the stack's research cap and the reservation cover them
+    (will-experiment, 30 Oct: no step counts the audit, the cap was $0.00, and every audit stopped on it)."""
+    return (sum(int((s.get("expect") or {}).get("researchers") or 0) for s in plan["steps"])
+            + int(plan.get("researchersBehind") or 0))
 
 
 def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -> float:
