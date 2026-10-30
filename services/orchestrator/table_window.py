@@ -201,10 +201,9 @@ async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: in
     where = f'Tab "{inline(tab_title, 80)}"' if tab_title else "the Tab in front"
 
     def refused(why: str):
-        # No next: what the screen shows and where the table is saved are said; Hooke already did what it can (an
-        # Arrange again, a report asked for), so nothing is the user's to repeat (spec 4.8, horizontal 3).
         raise ToolFailed(f"{what} is not shown in {where}: {why}; {saved}. "
-                         + facts(target, revision, rows, displayed="no", front="no"), next=None)
+                         + facts(target, revision, rows, displayed="no", front="no"),
+                         next=None)  # no next: what is shown and where it is saved are said; Hooke arranged it again
 
     if moved is None:
         message = {"type": "table-window", "id": uuid.uuid4().hex, "session": project, "tab": tab_id,
