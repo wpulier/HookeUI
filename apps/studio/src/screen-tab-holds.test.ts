@@ -19,3 +19,12 @@ test('a Tab strip outside its contract is refused by the studio\'s own check', (
   expect(() => observeLegacyForTest(tabs({ table: -1 }))).toThrow(/Invalid workspace Tabs/);
   expect(() => observeLegacyForTest(tabs({ table: 1 }, 'bogus'))).toThrow(/Invalid workspace Tabs/);
 });
+
+test('the Tab strip says an empty Tab\'s live feed is minimized, and the report\'s own check accepts it (Will, 30 Oct)', () => {
+  const strip = (specimen: Record<string, unknown>) => ({ schema: 'studio-surface-v1' as const, scope: 'dom-observation' as const,
+    workspace: { project: 'p', tab: 't', tabs: [{ id: 'main', title: 'Main', front: false }, { id: 't', title: 'Tab 2', front: true, specimen }] } });
+  const out = verifierLegacy({ tabs: [{ id: 't', title: 'Tab 2', front: true, specimen: { state: 'float', rect: [16, 600, 260, 231], minimized: true } }] });
+  expect(out.tabs?.[0].specimen).toEqual({ state: 'float', rect: [16, 600, 260, 231], minimized: true });
+  expect(observeLegacyForTest(strip({ state: 'float', rect: [16, 600, 260, 231], minimized: true }) as never).workspace?.tabs?.[1]).toMatchObject({ specimen: { minimized: true } });
+  expect(() => observeLegacyForTest(strip({ state: 'fill', minimized: true }) as never)).toThrow(/Invalid workspace specimen/);
+});

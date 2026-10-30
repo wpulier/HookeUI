@@ -268,9 +268,9 @@ def test_front_says_what_the_tab_in_front_holds_its_overlays_and_magnifiers():
 
 # --- placing the table -------------------------------------------------------------------------------------------------
 
-def test_open_the_cell_results_in_a_new_tab_gives_their_outlines_and_their_table_side_by_side(tmp_path, monkeypatch):
-    """will-display step 2: a Tab of their own, a canvas with no specimen, the outlines on their capture and the
-    table beside them, like Will's own "Cell outlines" Tab."""
+def test_the_table_in_a_new_tab_fills_it_full_screen_with_no_live_feed(tmp_path, monkeypatch):
+    """Will, 30 Oct: "Like cellpose outline, if I ask for the table in a new tab, it should open the table full screen."
+    The table alone, the only window there, fitted to the Tab, the specimen hidden."""
     async def go():
         app, studio = await built(tmp_path, monkeypatch)
         eid = population(app, monkeypatch)
@@ -279,13 +279,29 @@ def test_open_the_cell_results_in_a_new_tab_gives_their_outlines_and_their_table
         tab = next(t for t in studio.tabs if t['title'] == 'Cell results')
         assert studio.active == tab['id'] and studio.specimens[tab['id']] == {'state': 'hidden'}
         shown = sorted(w.get('representation', 'table') for w in studio.windows.values() if w['tab'] == tab['id'])
-        assert shown == ['masks', 'table']
-        assert 'new Tab "Cell results"' in run.summary and "outlines on their capture" in run.summary
+        assert shown == ['table']
+        assert 'new Tab "Cell results"' in run.summary and 'filling the Tab, with no live feed' in run.summary
         actions = [m['action']['action'] for m in studio.sent('workspace-tabs')]
-        assert actions[:3] == ['list', 'list', 'create'] and 'add' in actions and actions[-1] == 'arrange'
+        assert actions[:3] == ['list', 'list', 'create'] and 'add' not in actions and actions[-1] == 'only'
         # A second time, a new Tab of its own again, never the first one reused.
         run = await asked(app, studio, 'show_measurements', {'of': eid, 'placement': 'new-tab'})
         assert run.ok is True and 'new Tab "Cell results 2"' in run.summary, run.summary
+    asyncio.run(go())
+
+
+def test_the_outlines_in_a_new_tab_share_it_with_their_table(tmp_path, monkeypatch):
+    """will-display step 2, when the outlines are what was asked for there: on their capture, their table beside them,
+    the two sharing the Tab, like Will's own "Cell outlines" Tab."""
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        eid = population(app, monkeypatch)
+        run = await asked(app, studio, 'present', {'do': 'place', 'what': eid, 'placement': 'new-tab'})
+        assert run.ok is True, run.summary
+        tab = next(t for t in studio.tabs if t['title'] == 'Cell results')
+        shown = sorted(w.get('representation', 'table') for w in studio.windows.values() if w['tab'] == tab['id'])
+        assert shown == ['masks', 'table'] and "outlines on their capture" in run.summary
+        actions = [m['action']['action'] for m in studio.sent('workspace-tabs')]
+        assert 'add' in actions and actions[-1] == 'arrange'
     asyncio.run(go())
 
 
@@ -596,3 +612,18 @@ def test_only_keeps_a_window_by_any_name_the_tab_list_gives_it():
                                              {'placement': 'c9', 'window': 'w-8', 'kind': 'table'}]}]}
     assert set(aliases(reply, ['b244'])) == {'b244', 'w-7', 'document:b244'}, 'never the Data item another window may show'
     assert aliases(reply, ['zzz']) == ['zzz'], 'a name no item has stays as it is'
+
+
+def test_the_tab_strip_says_an_empty_tabs_feed_is_minimized_and_refuses_it_on_anything_but_a_float():
+    """Will, 30 Oct: an empty new Tab shows a minimized live feed of the main input; the report says so, so a claim
+    about what a Tab shows is checked against it."""
+    import pytest
+
+    from orchestrator import workspace_observation as wo
+
+    assert wo._specimen({'state': 'float', 'rect': [16, 600, 260, 231], 'minimized': True}) == {
+        'state': 'float', 'rect': [16, 600, 260, 231], 'minimized': True}
+    assert wo._specimen({'state': 'hidden'}) == {'state': 'hidden'}
+    for bad in ({'state': 'fill', 'minimized': True}, {'state': 'float', 'minimized': False}):
+        with pytest.raises(Exception):
+            wo._specimen(bad)

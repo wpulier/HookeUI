@@ -5,7 +5,9 @@ Will, 29 Oct: "HOW we display in various ways the data produced by the models is
 all." Every tool that puts something on screen takes the same `placement` word, and each placement is done only when
 the studio's report shows it (ADR 0006): the words here are the brain's, the checks below read the report.
 
-- `new-tab`: a Tab of its own, a canvas with no specimen (a run's outlines go there on their capture, with their table).
+- `new-tab`: a Tab of its own, with no live feed: one thing fills it full screen, two or more share it side by side (Will,
+  30 Oct: "if I ask for the table in a new tab, it should open the table full screen"). An empty new Tab (tabs create)
+  shows a minimized live feed of the main input in its corner, which goes away once something is placed there.
 - `beside`: side by side in this Tab, tiled with what is there, the live view included (the Tab's own Arrange).
 - `overlay`: drawn on the live specimen (outlines and layers only).
 - `window`: a floating window, in front.
@@ -38,7 +40,7 @@ def layer_of(what: str) -> str | None:
 
 # The brain-facing words (kept short: they go into the tool descriptions).
 WORDS = {
-    "new-tab": "a Tab of its own (no specimen)",
+    "new-tab": "a Tab of its own (no live feed): one thing fills it, two or more share it side by side",
     "beside": "side by side in this Tab with what is there, the live view included",
     "overlay": "drawn on the live specimen (outlines and layers only)",
     "window": "a floating window, in front",
@@ -310,7 +312,14 @@ async def place(services, ctx, registry, args: dict) -> str:
         # new Tab, then "name what to place" twice and an empty Tab). Every one of them is placed, in the order made.
         made = request_made(ctx)
         if len(made) > 1:
-            said = [await place(services, ctx, registry, {**args, "what": one}) for one in made]
+            said = [await place(services, ctx, registry, {**args, "what": made[0]})]
+            if args.get("placement") == "new-tab" and not args.get("tab"):
+                # One new Tab for them all ("put two reference photos in a new tab"), shared side by side: the rest
+                # go into the Tab the first one made, never a Tab each (Will, 30 Oct).
+                made_tab = _newest_made_tab(services, ctx)
+                if made_tab:
+                    args = {**args, "tab": made_tab}
+            said += [await place(services, ctx, registry, {**args, "what": one}) for one in made[1:]]
             return "; ".join(said)
         if made:
             what = made[0]
@@ -341,8 +350,10 @@ async def place(services, ctx, registry, args: dict) -> str:
         tool = registry.tools.get("show_measurements")
         if tool is None:
             raise ToolFailed("its table cannot be opened here", next="present show draws its outlines on the specimen")
+        # The outlines asked for in a Tab of their own: on their capture, with their table sharing the Tab beside them.
         return await tool.handler(ctx, {"of": layer, "placement": placement, **({"tab": tab} if tab else {}),
-                                        **({"instead": True} if instead else {})})
+                                        **({"instead": True} if instead else {}),
+                                        **({"outlines": True} if placement == "new-tab" else {})})
     if not what:
         raise ToolFailed("name what to place: its id from the screen or Data", next="look at what is on screen",
                          argument=True)  # the call's own arguments did not fit: corrected by a later call (handoffs.corrected)
@@ -536,6 +547,10 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
         entry.title if getattr(entry, "untrusted", False) else (getattr(entry, "shown", "") or entry.title))) or what)
     if placement == "new-tab":  # a new Tab is asked for: made, and told apart from one already called that
         tab_id, tab_title, made = await _tab(services, ctx, tab or title, new=True)
+        if tab_id in {str(t.get("id")) for t in tabs}:
+            # A Tab already there (made by this request for an earlier thing, or named by its id): this one shares it
+            # with what is there, side by side, rather than closing it (two reference photos in one new Tab).
+            placement = "shared"
     elif tab:
         tab_id, tab_title, made = await _tab(services, ctx, tab)
     else:
@@ -591,14 +606,17 @@ async def put(services, ctx, what: str, *, placement: str, tab: str | None, inst
             also = [str(t.get("title") or "") for t, _ in elsewhere]
     if placement in ("only", "new-tab"):
         reply = await broker(ctx, {"action": "only", "tab": tab_id, "keep": [keep]})
-        rest = "the live view floats small in its corner" if tab_id == "main" else "the live view is hidden there"
+        rest = ("the live view floats small in its corner" if tab_id == "main"
+                else "it fills the Tab, with no live feed there" if placement == "new-tab" else "the live view is hidden there")
         said = f"{inline(title, 80)} is now the only window in {where}, in front; {rest} ({keep})"
         shown = (reply.get("shown") or {}).get("windows")
         if shown is not None and not any(k in shown for k in (keep, f"document:{keep}")):
             said += f"; the studio lists there: {', '.join(map(str, shown[:4]))}"
-    elif placement == "beside":
-        await broker(ctx, {"action": "arrange", "tab": tab_id})
-        said = f"{inline(title, 80)} is side by side with what is open in {where}, the live view included ({keep})"
+    elif placement in ("beside", "shared"):
+        reply = await broker(ctx, {"action": "arrange", "tab": tab_id})
+        feed = next((t.get("feed") or t.get("specimen") for t in reply.get("tabs") or () if t.get("id") == tab_id), None)
+        live = ("the live view included" if feed not in ("none", "hidden") else "sharing the Tab, with no live feed there")
+        said = f"{inline(title, 80)} is side by side with what is open in {where}, {live} ({keep})"
     else:  # window, replace: in front there
         if not how.startswith("; opened"):
             await act(services, {"do": "front", "what": keep}, ctx=ctx)
@@ -733,6 +751,15 @@ async def _live_here(services, ctx, window: str, title: str) -> str | None:
 def _output_name(output: dict) -> str:
     """The name a typed step output goes by for place: a window's id, else the Data item it is."""
     return str(output.get("instanceId") or (output.get("resource") or {}).get("id") or output.get("id") or "")
+
+
+def _newest_made_tab(services, ctx) -> str | None:
+    """The id of the Tab this request made last (workspace_tabs.WorkspaceTabs.made), or None."""
+    from .workspace_tabs import request_key
+
+    broker = getattr(getattr(services, "hub", None), "workspace_tabs", None)
+    made = (getattr(broker, "made", None) or {}).get(request_key(ctx) or "") or ()
+    return str(made[-1]["id"]) if made else None
 
 
 def request_made(ctx) -> list[str]:

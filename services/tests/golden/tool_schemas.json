@@ -2154,7 +2154,7 @@
      "type": "boolean"
     },
     "placement": {
-     "description": "do=place only: where it goes: new-tab: a Tab of its own (no specimen); beside: side by side in this Tab with what is there, the live view included; overlay: drawn on the live specimen (outlines and layers only); window: a floating window, in front; replace: in place of the window in front, which closes; close: closed (its Data is kept); only: the only thing open in its Tab (the rest closed, the specimen hidden; Main's floats small). Outlines (eN, layer:eN): overlay draws them on the live view; new-tab gives them a Tab with their capture and table",
+     "description": "do=place only: where it goes: new-tab: a Tab of its own (no live feed): one thing fills it, two or more share it side by side; beside: side by side in this Tab with what is there, the live view included; overlay: drawn on the live specimen (outlines and layers only); window: a floating window, in front; replace: in place of the window in front, which closes; close: closed (its Data is kept); only: the only thing open in its Tab (the rest closed, the specimen hidden; Main's floats small). Outlines (eN, layer:eN): overlay draws them on the live view; new-tab gives them a Tab with their capture and table",
      "enum": [
       "new-tab",
       "beside",

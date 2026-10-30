@@ -264,3 +264,27 @@ def test_the_words_let_the_model_decide_move_or_also(tmp_path, monkeypatch):
         assert 'wherever it is now' in tools['present'].description
         assert wire(app, studio) is not None
     asyncio.run(go())
+
+
+def test_two_photos_put_in_one_new_tab_share_it_side_by_side(tmp_path, monkeypatch):
+    """Will, 30 Oct: a Tab made for something has no feed; one thing fills it, two or more share it. The first photo put
+    in a new Tab fills it (only); the second put in that same Tab shares it (arranged), never closing the first."""
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        saved(app, monkeypatch, d1=photo_entry(studio, 'd1'), d2=photo_entry(studio, 'd2'))
+        opens_pictures(studio, monkeypatch)
+        await studio.send_report()
+        run = await asked(app, studio, 'present', {'do': 'place', 'placement': 'new-tab', 'tab': 'Plant cells',
+                                                   'what': 'd1'})
+        assert run.ok is True, run.summary
+        tab = next(t['id'] for t in studio.tabs if t['title'] == 'Plant cells')
+        assert 'it fills the Tab, with no live feed there' in run.summary
+        assert studio.sent('workspace-tabs')[-1]['action']['action'] == 'only'
+        run = await asked(app, studio, 'present', {'do': 'place', 'placement': 'new-tab', 'tab': tab, 'what': 'd2'})
+        assert run.ok is True, run.summary
+        assert [t['title'] for t in studio.tabs].count('Plant cells') == 1, 'one Tab for both, never a Tab each'
+        shown = sorted(w['resource']['id'] for w in studio.windows.values() if w['tab'] == tab)
+        assert shown == ['d1', 'd2'], 'the second shares the Tab; the first is not closed'
+        assert studio.sent('workspace-tabs')[-1]['action']['action'] == 'arrange'
+        assert 'side by side with what is open in Tab "Plant cells"' in run.summary
+    asyncio.run(go())
