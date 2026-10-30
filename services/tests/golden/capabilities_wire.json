@@ -6010,7 +6010,20 @@
    "catalog": "matrix-inspect",
    "contributed": false,
    "family": "measuring",
-   "fields": [],
+   "fields": [
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Turn off only to inspect finite transformed or aggregate values. This does not make them eligible for count-based preparation or prediction.",
+     "initial": true,
+     "key": "require_raw_counts",
+     "kind": "boolean",
+     "label": "Require whole nonnegative counts",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    }
+   ],
    "generated": true,
    "how": {
     "args": {
@@ -6037,7 +6050,20 @@
    "catalog": "matrix-inspect",
    "contributed": false,
    "family": "measuring",
-   "fields": [],
+   "fields": [
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Turn off only to inspect finite transformed or aggregate values. This does not make them eligible for count-based preparation or prediction.",
+     "initial": true,
+     "key": "require_raw_counts",
+     "kind": "boolean",
+     "label": "Require whole nonnegative counts",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    }
+   ],
    "generated": true,
    "how": {
     "href": "#workflows?capability=matrix-inspect"
@@ -6059,7 +6085,20 @@
    "catalog": "matrix-inspect",
    "contributed": false,
    "family": "measuring",
-   "fields": [],
+   "fields": [
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Turn off only to inspect finite transformed or aggregate values. This does not make them eligible for count-based preparation or prediction.",
+     "initial": true,
+     "key": "require_raw_counts",
+     "kind": "boolean",
+     "label": "Require whole nonnegative counts",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    }
+   ],
    "generated": true,
    "how": {
     "href": "#workflows?capability=matrix-inspect",

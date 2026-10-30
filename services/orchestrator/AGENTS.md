@@ -1171,3 +1171,8 @@ exact accepted bytes and checks disk, source membership and changes before final
 publication. It does not register the location, transfer grants, select the Project
 or replay ongoing operations. Source snapshots remain immutable and external
 dependency completeness remains unverified. Ordinary portable activation stays off.
+
+Matrix inspection retains strict raw-count admission by default. Its explicit
+`require_raw_counts=false` mode describes finite numeric matrices, recording row
+totals and unverified value semantics instead of implying cell library depths.
+Count preparation, prediction and export keep their existing strict checks.
