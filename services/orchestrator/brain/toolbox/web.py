@@ -84,11 +84,18 @@ def add_web_tools(registry: Registry, services) -> None:
             require_current(ctx, services.day)
             entry = where_kept(services, ctx, shown, title, {})
             return await open_web(services, ctx, shown=shown, title=title, entry=entry, placement=placement, tab=tab)
+        from ..registry import CURRENT_RUN
+
+        run = CURRENT_RUN.get()
+        if run is not None:  # what it is doing now, in its own words (a progress line says this, never "opening")
+            run.report_progress(f"searching the web for a video about {video}")
         try:
             found = await (getattr(services, "find_video", None) or find)(video)
         except NotFound as exc:
             raise ToolFailed(f"no video of {video} was opened: {exc}", next="try other words for it if useful") from None
         require_current(ctx, services.day)
+        if run is not None:
+            run.report_progress(f"opening the video it found, \"{inline(found.title, 120)}\"")
         entry = where_kept(services, ctx, found.shown(), found.title,
                            {"subject": video, "channel": found.channel, "checked": found.why or "its title matches"})
         said = await open_web(services, ctx, shown=found.shown(), title=found.title, entry=entry, placement=placement,

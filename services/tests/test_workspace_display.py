@@ -483,6 +483,9 @@ def test_a_youtube_video_about_stomata_opens_in_a_window_kept_in_data_and_done_o
         # What it showed and the window it is in, so its outcome line points at it (30 Oct: "pointed 0 of 1").
         from orchestrator.voice.partner_tools import pointing_at
         assert pointing_at([run.wire()]) == [f'document:{placement}']
+        # What it was doing, in its own words, for a progress line: searching, then opening what it found (30 Oct:
+        # "I'm opening a YouTube video" was said from the tool's description while it searched, and the search failed).
+        assert run.progress and run.progress.startswith('opening the video it found')
         # Hands: verified once the report shows its window.
         intent = intent_of('show_web', {'video': 'stomata'})
         assert intent.kind == 'open' and intent.check == 'record' and intent.background

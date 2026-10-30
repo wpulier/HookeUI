@@ -90,9 +90,10 @@ HANDOFF_STEP_S = 3.5
 HANDOFF_THINKING_S = 9.0
 # Words for that line: what is being done right now, as the voice's own ("I"), from the facts alone.
 HANDOFF_PROGRESS_WORDS = ("In one short sentence (under 10 words), say as yourself (\"I\") what you are doing for this "
-                          "request right now, in the user's words, from these facts alone: only what is being done, "
-                          "never what it may find, that it is done, or what comes next; no tool's name and no "
-                          "\"Hooke\". The user has heard nothing about it yet.")
+                          "request right now, in the user's words, from these facts alone: a step's own words, when it "
+                          "has them, say what it is doing now (a tool's description says only what it can do); only "
+                          "what is being done, never what it may find, that it is done, or what comes next; no tool's "
+                          "name and no \"Hooke\". The user has heard nothing about it yet.")
 PROGRESS_LINES = 1
 # A spoken line's tokens include its reasoning: at 100 every progress line from 29 Oct was cut off mid-sentence. Its
 # length is set by its instructions; this only stops a runaway.
