@@ -69,6 +69,22 @@ test('a researcher\'s Tab shows its conversation and the work it made, by kind; 
   .toEqual([{kind:'document',title:'Its conversation'},{kind:'image',title:'Stoma close-up',id:'o1'},{kind:'document',title:'Findings'},{kind:'video',title:'Opening',id:'o3'}]);
 });
 
+test('a researcher\'s work is named by its Data id, the one every tool takes (never a bare o1, which is also an outline)',()=>{
+ // will-research, 29 Oct: tabs list gave the picture as "o1"; tabs add o1 was refused, and the user was told to save it.
+ expect(researchShows([{kind:'image',caption:'Generated illustration',id:'o1'},{kind:'html',caption:'Notes'}],12,'r271381'))
+  .toEqual([{kind:'document',title:'Its conversation'},{kind:'image',title:'Generated illustration',id:'r271381:o1'},{kind:'document',title:'Notes'}]);
+});
+
+test('a window opened on a reader Tab is held by that Tab beside its one item (will-research: a video over a document)',()=>{
+ const reader:WorkspaceView={id:'r',title:'Findings',specimen:{visible:false,rect:null},kind:'reader',notes:[],items:[{resource:{day:'p',id:'d1',version:null},title:'Findings so far'} as unknown as WorkspaceView['items'][number]]};
+ const roots=[root({workspaceView:'r',placementId:'v1',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'https://www.youtube.com/watch?v=abc',url:'https://www.youtube-nocookie.com/embed/abc',resource:{day:'p',id:'d2',version:null}})},{label:'What are stomata'}),
+  root({workspaceView:'main',placementId:'v2',webWindow:JSON.stringify({kind:'video',site:'youtube.com',page:'x',url:'y'})})];
+ const facts=tabItems(reader,roots);
+ expect(facts.map(f=>[f.placement,f.kind])).toEqual([['reader:tab:r','document'],['v1','video']]);
+ expect(facts[1].resource).toEqual({day:'p',id:'d2',version:null});
+ expect(holds(facts)).toEqual({document:1,video:1});
+});
+
 /** The Tab's own `only`: what was kept stays, every other window is closed through its own ×, and the specimen is put
  * away (hidden; Main's floats small, it always keeps it). */
 function onTab(id:string,roots:ReturnType<typeof root>[]){

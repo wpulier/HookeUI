@@ -12,6 +12,9 @@ body[data-workspace-study='true'] .data-reader-side {
 }
 /* A reader Tab: the reader fills the Stage under its bar. */
 body[data-workspace-study='true'] .data-reader-tab { position: absolute; inset: 0; z-index: 40; background: var(--mm-bar); }
+/* A window opened on a reader Tab (a video, a picture) is in front of its reader, as on any Tab (will-research,
+   29 Oct: a video opened over a document was "hidden behind the current document"); the right edge's reader stays over. */
+body[data-workspace-study='true'][data-reader-tab='true'] #study-artifacts { z-index: 41; }
 body[data-workspace-study='true'] .rd-head { flex: none; border-bottom: 1px solid var(--mm-line); }
 body[data-workspace-study='true'] .rd-back {
   display: inline-flex; align-items: center; gap: 2px; height: 28px; margin: 8px 10px 0; padding: 0 8px 0 4px; border: 0;
