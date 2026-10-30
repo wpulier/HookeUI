@@ -60,7 +60,13 @@ interface Detail { entry?: ReaderEntry; detail?: { text?: string; values?: unkno
  * records it cites; null when the reply does not hold one. Read leniently: a malformed part is left out. */
 export interface ReaderDocument {
   title: string; leftOut: number;
-  sections: { heading: string; paragraphs: { text: string; cites: { id: string; day?: string; title: string }[] }[] }[];
+  /** Who made it, when it is not the Assistant's writing (an experiment's results: made by the app from its records). */
+  byline?: string;
+  sections: { heading: string; paragraphs: { text: string; cites: { id: string; day?: string; title: string }[] }[];
+    /** A table of the section's numbers (an experiment's comparison), its cells as kept. */
+    table?: { columns: string[]; rows: (string | number | boolean | null)[][] };
+    /** One of the entry's own pictures (by its index), with its caption. */
+    figure?: { picture: number; caption: string } }[];
 }
 export function readerDocument(detail: { values?: unknown } | undefined): ReaderDocument | null {
   const values = detail?.values as { document?: unknown; leftOut?: { paragraphs?: unknown } } | undefined;
@@ -75,11 +81,24 @@ export function readerDocument(detail: { values?: unknown } | undefined): Reader
         typeof c?.id === 'string' && c.id ? [{ id: c.id, ...(typeof c.day === 'string' ? { day: c.day } : {}), title: text(c.title, 200) || c.id }] : []);
       return [{ text: words, cites }];
     });
-    return paragraphs.length ? [{ heading: text(section?.heading, 200), paragraphs }] : [];
+    if (!paragraphs.length) return [];
+    const raw = section as { table?: { columns?: unknown; rows?: unknown }; figure?: { picture?: unknown; caption?: unknown } };
+    const columns = Array.isArray(raw.table?.columns) ? raw.table.columns.slice(0, 16).map((c) => text(c, 80)) : [];
+    const cell = (v: unknown) => typeof v === 'string' ? v.slice(0, 120) : typeof v === 'number' && Number.isFinite(v) ? v
+      : typeof v === 'boolean' ? v : null;
+    const rows = columns.length && Array.isArray(raw.table?.rows)
+      ? raw.table.rows.slice(0, 200).flatMap((r) => Array.isArray(r) ? [columns.map((_, i) => cell(r[i]))] : []) : [];
+    const picture = raw.figure?.picture;
+    return [{ heading: text(section?.heading, 200), paragraphs,
+              ...(columns.length && rows.length ? { table: { columns, rows } } : {}),
+              ...(typeof picture === 'number' && Number.isInteger(picture) && picture >= 0
+                ? { figure: { picture, caption: text(raw.figure?.caption, 300) } } : {}) }];
   });
   if (!sections.length) return null;
   const left = values?.leftOut?.paragraphs;
-  return { title: text(doc.title, 200) || 'Document', sections, leftOut: typeof left === 'number' && left > 0 ? Math.floor(left) : 0 };
+  const byline = text((values as { byline?: unknown } | undefined)?.byline, 200);
+  return { title: text(doc.title, 200) || 'Document', sections, leftOut: typeof left === 'number' && left > 0 ? Math.floor(left) : 0,
+           ...(byline ? { byline } : {}) };
 }
 
 /** What the thing is, for its renderer. `sources` is a researcher's Tab's list of the sources it cited (no index entry
@@ -874,9 +893,28 @@ export class DataReader {
       words.append(...text.split(/\n{2,}/).map((part) => el('p', '', part)));
     } else {
       this.loaded.title = doc.title; this.loaded.kind = 'Document'; this.drawHead();
-      words.append(el('h2', '', doc.title), el('p', 'byline', `Written by the Assistant from this Project’s records${when ? `, ${when}` : ''}`));
+      words.append(el('h2', '', doc.title), el('p', 'byline', `${doc.byline ?? 'Written by the Assistant from this Project’s records'}${when ? `, ${when}` : ''}`));
       for (const section of doc.sections) {
         words.append(el('h3', '', section.heading));
+        const src = section.figure ? entry.pictures?.[section.figure.picture] : undefined;
+        if (section.figure && typeof src === 'string' && src) {
+          const fig = el('figure', 'rd-fig rd-doc-fig'), img = el('img');
+          img.src = src; img.alt = section.figure.caption; img.loading = 'lazy'; fig.append(img);
+          if (section.figure.caption) fig.append(el('figcaption', '', section.figure.caption));
+          words.append(fig);
+        }
+        if (section.table) {
+          const wrap = el('div', 'rd-doc-table'), table = el('table'), head = el('tr');
+          for (const c of section.table.columns) head.append(el('th', '', c));
+          const thead = el('thead'); thead.append(head);
+          const tbody = el('tbody');
+          for (const row of section.table.rows) {
+            const tr = el('tr');
+            for (const v of row) tr.append(el('td', typeof v === 'number' ? 'mm-num' : '', v === null ? '' : typeof v === 'boolean' ? (v ? 'yes' : '') : String(v)));
+            tbody.append(tr);
+          }
+          table.append(thead, tbody); wrap.append(table); words.append(wrap);
+        }
         for (const paragraph of section.paragraphs) {
           words.append(el('p', '', paragraph.text));
           if (!paragraph.cites.length) continue;

@@ -1,0 +1,29 @@
+/* An experiment's card in the chat (experiment-card.ts): the starters' card tier (the page tone, a hairline, the card
+   radius), its lit cell, the plan's steps as a short numbered list while it is a plan, its cost in the quiet tone, and
+   the column's one primary button (Run it) beside the mock's secondary ones. */
+.chat-xcards { list-style: none; margin: 4px 0 10px; display: flex; flex-direction: column; gap: 6px; }
+.chat-xcard {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr); column-gap: 10px; align-items: start; width: 100%;
+  box-sizing: border-box; padding: 10px 12px; border-radius: var(--mm-r-card, 10px); background: var(--mm-page);
+  box-shadow: inset 0 0 0 1px var(--mm-line-strong); color: var(--mm-text); font: 400 13px/18px var(--mm-sans);
+}
+.chat-xcard > .lit-cell { margin-top: 2px; justify-self: center; }
+.chat-xcard-words { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.chat-xcard-title { font: 500 13px/18px var(--mm-sans); overflow-wrap: anywhere; }
+.chat-xcard-status { font: 400 12px/16px var(--mm-sans); color: var(--mm-text-3); overflow-wrap: anywhere; }
+.chat-xcard[data-state='proposed'] .chat-xcard-status { color: var(--mm-text-2); }
+.chat-xcard-steps { margin: 4px 0 0; padding: 0 0 0 18px; color: var(--mm-text-2); font: 400 12px/17px var(--mm-sans); }
+.chat-xcard-steps li + li { margin-top: 2px; }
+.chat-xcard-steps[hidden], .chat-xcard-cost[hidden], .chat-xcard-bar[hidden] { display: none; }
+.chat-xcard-cost { margin: 4px 0 0; color: var(--mm-text-3); font: 400 12px/16px var(--mm-sans); }
+.chat-xcard-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chat-xcard-act {
+  height: 28px; padding: 0 12px; border: 0; border-radius: var(--mm-r-button, 8px); background: none;
+  box-shadow: inset 0 0 0 1px var(--mm-line-strong); color: var(--mm-text); font: 500 12px/1 var(--mm-sans); cursor: pointer;
+  transition: background var(--mm-fast, 120ms) var(--mm-ease, ease);
+}
+.chat-xcard-act:hover { background: var(--mm-hover, var(--mm-card)); }
+.chat-xcard-act.is-primary { background: var(--mm-accent-fill); box-shadow: var(--mm-highlight, none); color: #fff; font-weight: 600; }
+.chat-xcard-act.is-primary:hover { background: var(--mm-accent-fill-hover, var(--mm-accent-fill)); }
+.chat-xcard-act:disabled { opacity: .55; cursor: default; }
+.chat-xcard-act:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 2px; }

@@ -40,6 +40,17 @@ describe('what the reader shows for each kind', () => {
     expect(readerDocument({ values: { title: 'no document' } })).toBeNull();
     expect(readerDocument(undefined)).toBeNull();
   });
+  it('reads an experiment’s results: its byline, a section’s table and its figure, each cell as kept (experiments.py)', () => {
+    const doc = readerDocument({ values: { byline: 'Made by the app from Experiment 1’s run records', document: { title: 'Experiment 1', sections: [
+      { heading: 'The comparison', paragraphs: [{ text: 'On 2 frames.', cites: [] }],
+        table: { columns: ['Frame', 'Model', 'Cells', 'Reused'], rows: [[1, 'Cellpose-SAM', 41, false], ['all', 'Cellpose-SAM', 40.5, { x: 1 }], 'not a row'] },
+        figure: { picture: 0, caption: 'The outlines side by side' } },
+      { heading: 'Bad parts', paragraphs: [{ text: 'Kept.', cites: [] }], table: { columns: 'no', rows: [] }, figure: { picture: -1 } }] } } });
+    expect(doc?.byline).toBe('Made by the app from Experiment 1’s run records');
+    expect(doc?.sections[0].table).toEqual({ columns: ['Frame', 'Model', 'Cells', 'Reused'], rows: [[1, 'Cellpose-SAM', 41, false], ['all', 'Cellpose-SAM', 40.5, null]] });
+    expect(doc?.sections[0].figure).toEqual({ picture: 0, caption: 'The outlines side by side' });
+    expect(doc?.sections[1]).toEqual({ heading: 'Bad parts', paragraphs: [{ text: 'Kept.', cites: [] }] });
+  });
   it('names the kind and the first view as the mock does: Outlines, Table, Page for a write-up, Source for a source', () => {
     expect([kindWord(entry({})), thingView(entry({}))]).toEqual(['Outlines', 'Outlines']);
     expect(kindWord(entry({ kind: 'result-table' }))).toBe('Table');
