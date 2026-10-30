@@ -842,3 +842,6 @@ relocates/reopens without shadow storage or replay. The red trace and actual
 isolated browser startup are recorded separately from synthetic checks.
 
 `matrix-inspect` depth-summary tests use tiny dense/sparse counts with uneven and zero depths. They distinguish the mean reciprocal from the reciprocal mean, preserve every observation, check chunk invariance and refuse count semantics for transformed inputs. Real research measurements remain separate evidence.
+
+
+`test_file_clone` exercises the native macOS clone on an isolated filesystem: replacing the source path cannot retarget its captured descriptor, and later writes/deletion remain independent. Unsupported-platform tests and injected native errors distinguish fallback from failed publication. Folder-copy tests preserve normal stream fallback, hashes and incomplete recovery; they do not certify complete collection.
