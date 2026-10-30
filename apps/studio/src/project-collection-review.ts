@@ -19,6 +19,7 @@ const issueWords: Record<string, string> = {
   'missing-or-unreadable': 'Referenced evidence is unavailable', 'digest-mismatch': 'Evidence identity does not match',
   'unpinned-execution-locator': 'Execution link does not pin an evidence revision',
 };
+const referenceWords = (ref: Partial<Reference>) => `${ref.session ?? 'Owner unspecified'} · ${ref.id ?? 'Reference unavailable'}${ref.revision === undefined ? '' : ` · revision ${ref.revision}`}${ref.digest ? ` · ${ref.digest}` : ''}`;
 
 export function collectionReview(plan: CollectionReview): HTMLElement {
   const root = node('section', '', 'project-collection-review');
@@ -42,11 +43,13 @@ export function collectionReview(plan: CollectionReview): HTMLElement {
   const details = node('details'), summary = node('summary', 'Inspect dependency details');
   const rows = [
     ...issues.map(issue => ({title: issueWords[issue.status] ?? 'Relationship needs review',
-      detail: `${issue.source.id} · revision ${issue.source.revision} · ${issue.field}`,
-      reference: issue.reference ? `${issue.reference.session ?? 'Owner unspecified'} · ${issue.reference.id ?? 'Reference unavailable'}${issue.reference.revision === undefined ? '' : ` · revision ${issue.reference.revision}`}` : 'Reference unavailable'})),
-    ...sources.map(source => ({title: source.status === 'inclusion-required' ? 'Media inclusion required' : 'Retained media choices',
+      detail: `${referenceWords(issue.source)} · ${issue.field}`,
+      reference: issue.reference ? referenceWords(issue.reference) : 'Reference unavailable'})),
+    ...sources.flatMap(source => [{title: source.status === 'inclusion-required' ? 'Media inclusion required' : 'Retained media choices',
       detail: `Historical source ${source.asset} · ${source.choices.filter(choice => choice.status === 'retained-binding').length} retained choices · ${source.choices.filter(choice => choice.status === 'invalid-retained-binding').length} invalid bindings`,
-      reference: 'A retained choice does not establish complete recording or metadata history.'})),
+      reference: 'A retained choice does not establish complete recording or metadata history.'},
+      ...source.choices.map(choice => ({title: choice.status === 'retained-binding' ? 'Valid retained binding' : 'Invalid retained binding',
+        detail: `Historical source ${source.asset}`, reference: referenceWords(choice.reference)}))]),
   ];
   const list = node('ul'), navigation = node('div', '', 'project-collection-pages');
   const previous = node('button', 'Previous'), next = node('button', 'Next'), page = node('span');

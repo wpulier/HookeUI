@@ -25,11 +25,13 @@ test('resolved declared links do not certify unassessed recording dependencies',
 test('external owners and damaged media remain explicit and untrusted fields render literally', () => {
   const view = render({dependencyReview: {documents: 1, revisions: 1, referencesChecked: 1,
     issues: [{source: ref, field: '<img src=x onerror=alert(1)>', status: 'external-project-inclusion-required', reference: {...ref,session:'2026-09-01'}}]},
-    sourceReview: {sources: [{asset:'a1',status:'retained-choices', choices:[{reference:ref,status:'retained-binding'},{reference:ref,status:'invalid-retained-binding'}]}]}});
+    sourceReview: {sources: [{asset:'a1',status:'retained-choices', choices:[{reference:ref,status:'retained-binding'},{reference:{...ref,revision:2,digest:'c'.repeat(64)},status:'invalid-retained-binding'}]}]}});
   expect(view.textContent).toContain('1 historical media sources still need inclusion review');
   expect(view.textContent).toContain('Another Project is required');
   expect(view.textContent).toContain('2026-09-01');
   expect(view.textContent).toContain('1 invalid bindings');
+  const invalid = Array.from(view.querySelectorAll('li')).find(item=>item.textContent?.startsWith('Invalid retained binding'));
+  expect(invalid?.textContent).toContain(`${ref.id} · revision 2 · ${'c'.repeat(64)}`);
   expect(view.textContent).toContain('<img src=x onerror=alert(1)>');
   expect(view.querySelector('img')).toBeNull();
 });
