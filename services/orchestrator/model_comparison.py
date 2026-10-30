@@ -46,6 +46,16 @@ class Selection:
         return "; ".join(parts)
 
 
+def choices_line(operation: str) -> str:
+    """The models a comparison of `operation` can name, "id = name; ...": an operation only compared lists them all."""
+    from . import names
+    from .operations import OPERATIONS
+
+    if operation in names.COMPARED_ONLY:
+        return "; ".join(f"{i.id} = {i.label}" for i in OPERATIONS[operation].implementations)
+    return names.choices_line(operation)
+
+
 def select(hub, operation: str, named, *, pick=None) -> Selection:
     """The implementations `named` means for `operation` (each once, in order), those that can run here first-come up to
     MAX_MODELS. `pick(hub, op, name)` resolves one name (the brain's `choosing.pick`, which also asks about a family's

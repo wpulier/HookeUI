@@ -401,10 +401,9 @@ def add_choosing_tools(registry: Registry, services) -> None:
                 raise ToolFailed('the policy is "raw" (exactly those models) or "route" (each with its declared fallbacks)',
                                  next='say "exactly those models" or "with their fallbacks"')
             placement = args.get("placement")
-            from ...placement import PLACEMENTS
-
-            if placement is not None and placement not in PLACEMENTS:
-                raise ToolFailed(f"{placement!r} is not a place for the comparison's table", next="say one of: " + ", ".join(PLACEMENTS))
+            if placement is not None and placement not in TABLE_PLACEMENTS:
+                raise ToolFailed(f"{placement!r} is not a place for the comparison's table",
+                                 next="say one of: " + ", ".join(TABLE_PLACEMENTS))
             chosen = model_comparison.select(hub, op.id, args.get("implementations"),
                                              pick=None if op.id in names.COMPARED_ONLY else pick)
             unknown, cannot = chosen.unknown, chosen.cannot
@@ -412,7 +411,7 @@ def add_choosing_tools(registry: Registry, services) -> None:
             if named < 2:
                 if unknown:  # a name that means nothing goes back to the model with the choices (live 2026-10-11)
                     raise ToolFailed(f"a comparison needs two different models (not known: {'; '.join(unknown)}); the "
-                                     f"choices (id = name): {names.choices_line(op.id)}", next=PICK_AGAIN)
+                                     f"choices (id = name): {model_comparison.choices_line(op.id)}", next=PICK_AGAIN)
                 raise ToolFailed("a comparison needs two different models", next=ASK_WHICH)
             most = model_comparison.MAX_MODELS
             if args.get("exact") and (unknown or cannot or not 2 <= named <= most):

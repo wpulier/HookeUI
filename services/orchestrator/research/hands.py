@@ -362,12 +362,9 @@ class Hands:
                               next="name a population by its id (the session tool lists them), or segment the view first")
         chosen = model_comparison.select(self.hub, "classify", models)
         if len(chosen.impls) < model_comparison.MIN_MODELS:
-            from ..operations import OPERATIONS
-
             said = chosen.said()
             raise Refusal("a comparison needs two classifying models that can run here" + (f" ({said})" if said else ""),
-                          next=f"name two to {model_comparison.MAX_MODELS} of: " + "; ".join(
-                              f"{i.id} = {i.label}" for i in OPERATIONS["classify"].implementations))
+                          next=f"name two to {model_comparison.MAX_MODELS} of: {model_comparison.choices_line('classify')}")
         record = await model_comparison.compare_classes(self.hub, population, chosen.impls, classes=classes,
                                                         origin="background", made_for=session.name, priority=PRIORITY)
         if not any(not a.get("failed") for a in record["arms"]):

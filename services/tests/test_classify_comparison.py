@@ -343,3 +343,13 @@ def test_the_side_by_side_picture_tiles_six_models_three_to_a_row_whatever_their
     picture = cv2.imdecode(np.frombuffer(comparing.picture(view, arms, (100, 100, 200, 200)), np.uint8), cv2.IMREAD_COLOR)
     assert 2 * 300 < picture.shape[0] < 3 * 300  # two rows of three, a two-line caption never breaks the row
     assert len(set(comparing.COLOURS_BGR)) == 6
+
+
+def test_an_unknown_classifier_is_refused_with_every_classifier_named(stand_ins):
+    world, _, _ = stand_ins
+    with pytest.raises(ToolFailed) as refused:
+        compare(world, {"operation": "classify", "implementations": ["gemini-3.8-flash", "a magic eight ball"]})
+    assert "not known: a magic eight ball" in str(refused.value) and "medsiglip-448 = MedSigLIP 448" in str(refused.value)
+    with pytest.raises(ToolFailed, match="not a place"):
+        compare(world, {"operation": "classify", "implementations": ["gemini-3.8-flash", "gpt-6.1-sol"],
+                        "placement": "overlay"})

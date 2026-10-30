@@ -31,6 +31,8 @@ from typing import Any
 MAX_MEMBERS = 60  # members named in one run (every model of a comparison names the same ones)
 PER_SHEET = 20  # tiles in one picture a vision model is shown
 TILE = 160  # px, one member's crop on a sheet
+# A sheet's answer: room for a model's own thinking (counted in its output by OpenAI and Gemini), then ~50 a tile.
+REPLY_TOKENS = 600
 UNSURE, NONE_OF_THESE = "unsure", "none of these"
 OPEN = "open"  # no classes given and no subject list: the vision models name each in their own words
 MAX_CLASSES = 24
@@ -237,7 +239,7 @@ def register() -> None:
         cost, priced, calls = 0.0, True, 0
         for jpeg, numbers in pictures:
             result = await client.ask([jpeg], ask_words(numbers, classes, vocabulary, specimen),
-                                      max_output_tokens=60 + 40 * len(numbers))
+                                      max_output_tokens=REPLY_TOKENS + 50 * len(numbers))
             calls += 1
             if result.error or not isinstance(result.data, dict):
                 why = result.error.split(": ", 1)[-1][:160] if result.error else "its answer could not be read"
