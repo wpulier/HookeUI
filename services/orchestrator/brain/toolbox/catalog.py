@@ -5,7 +5,11 @@ to turn it on, in the user's words; a download only on their yes; never a key.
   choices need, what is ready and what is available to add, and their keys; for a model or a job ("SAM 3.1",
   "outlining"), each model's status, uses, facts and next step; for a key ("my Google key"), what it turns on. A model
   whose next step is a download is offered as a proposal (`p1`, kept PROPOSAL_S): the agent asks, and the user's yes
-  starts exactly it.
+  starts exactly it. For kinds of work (`does`, the catalog's operations, "cells", "outline": the model reads the request
+  and names them, live 2026-10-29: "what segmentation models do we have, and what others could we add?"; a job named
+  does too), every entry in the catalog that does them, installed or not, split by where each stands here, with every
+  step each needs, what is new in the catalog for it and how one not in it is added (catalog_view.work_words): the
+  answer names only what the catalog has.
 - `get_model` (effect): starts the proposed download on the user's yes (`confirms`, and `asked_with` quoting their reply,
   checked against what they said in the last half minute: research/policy.quoted), through the same queue as the
   page's Download (downloads.py).
@@ -144,6 +148,31 @@ def add_catalog_tools(registry: Registry, services) -> None:
             line += f" (for now as Review updates: {policy['less']})"
         return line + (f"; {update['says']}." if update.get("says") else ".")
 
+    def work(w: dict, asked: list[str], also: list[dict] = ()) -> str:
+        """Every catalog entry that does these kinds of work, installed or not, grouped by where each stands here, with
+        what is new for it and how one not in the catalog is added (catalog_view.work_words); each download or install
+        it could take next offered, as for a model named."""
+        from ... import catalog_view
+
+        rows = w.get("models") or []
+        found = [r for r in rows if set(asked) & set(r.get("does") or [])]
+        found += [r for r in also if r not in found]
+        news = ((w.get("setup") or {}).get("news") or {}).get("new") or []
+        text = catalog_view.work_words(found, asked, catalog_view.work_kinds(rows), rows=rows, news=news,
+                                       ways=catalog_view.ways_to_add(asked))
+        # Its next download or install is offered as a named model's is (get_model takes it by name or "all"), said in
+        # one line: the steps are above, and the round that answers reads only the first part of this text.
+        setup = [r for r in found if catalog_view.standing(r) == "setup"
+                 and (r.get("download") or {}).get("state") not in ("queued", "downloading", "checking")]
+        offered = [propose(r) for r in setup
+                   if (r.get("next") or {}).get("kind") in ("download", "install") and (r.get("next") or {}).get("model")]
+        if offered:
+            text += ("\nA download or install above that is its next step starts on the user's yes: get_model with its "
+                     "name (or 'all') and asked_with quoting them.")
+        if any((r.get("next") or {}).get("kind") == "key" for r in setup):
+            text += "\n" + KEYS_ARE_THEIRS
+        return text
+
     async def models(ctx: ToolContext, args: dict) -> str:
         from ... import catalog_view
 
@@ -156,16 +185,34 @@ def add_catalog_tools(registry: Registry, services) -> None:
             found = [r for r in rows if r["id"] in {n["key"] for n in fresh}]
             more = offer(found)
             return catalog_news.words_for_agent(fresh) + (f"\nTo turn one on:\n{more}" if more else "")
+        does = args.get("does") or []
+        # A list, or one string of them ("cells,outline": a json-actions answer is not held to the schema; live run).
+        does = [d for item in ([does] if isinstance(does, str) else does)
+                for d in re.split(r"[\s,;/]+|\band\b", str(item).strip().lower()) if d]
+        if does:  # what Hooke has and could add for kinds of work, the model's own reading of the request
+            kinds = catalog_view.work_kinds(rows)
+            unknown = [d for d in does if d not in kinds]
+            if unknown and len(unknown) == len(does):
+                return (f"no entry in Hooke's catalog does {', '.join(unknown)}. The kinds of work it has: "
+                        + "; ".join(f"{k} = {t}" for k, t in catalog_view.shared_kinds().items()) + ".")
+            return work(w, [d for d in does if d in kinds])
         about = str(args.get("about") or "").strip()
         card = job_card(w, about) if about else None
         if card is not None:
             from ...capability_shelf import words
 
             offered = offer_capability(ctx, card)
-            return words({"cards": [card]}) + (f"\n{offered}" if offered else "") + "\n" + KEYS_ARE_THEIRS
+            asked = catalog_view.job_operations(w.get("roles") or [], card["id"])
+            listing = work(w, asked) if asked else ""  # every entry for the job's work, not only its options here
+            return words({"cards": [card]}) + (f"\n{offered}" if offered else "") + (f"\n{listing}" if listing else "") + (
+                "" if KEYS_ARE_THEIRS in listing else "\n" + KEYS_ARE_THEIRS)
         if about and about.lower() not in ("everything", "all", "setup", "what do i need", "status"):
             key = catalog_view.key_matching(keys, about)
             found = catalog_view.matching(rows, about)
+            # A job named ("outlining"): every entry in the catalog that does its work, not only its choices already here.
+            asked = [] if catalog_view.named_rows(rows, about) else catalog_view.job_operations(w.get("roles") or [], about)
+            if asked:
+                return work(w, asked, found)
             # What its card says about the outside world (a licence's access, a key) is asked again first, so the
             # answer is today's: "I accepted the licence" is seen at once (observed.py).
             asked = [r for r in found[:2] if any(f.get("observed") and f.get("ok") is not True for f in r.get("facts", []))]
@@ -179,7 +226,8 @@ def add_catalog_tools(registry: Registry, services) -> None:
                 return catalog_view.key_words(key, rows) + " " + KEYS_ARE_THEIRS
             if not found:
                 return (f"no model or job in the catalog is called {about!r}. Ask with nothing named for the whole list, "
-                        "or name a model (SAM 3.1), a job (outlining) or a key (Google).")
+                        "name a model (SAM 3.1), a job (outlining) or a key (Google), or pass does with the kinds of work "
+                        "meant (" + ", ".join(catalog_view.shared_kinds()) + ").")
             more = offer(found)
             kept = (w.get("setup") or {}).get("maintenance") or {}
             return "\n".join(catalog_view.row_words(r) + maintained(kept.get(r["id"])) for r in found[:8]) + \
@@ -194,15 +242,27 @@ def add_catalog_tools(registry: Registry, services) -> None:
             jobs += "\n" + "\n".join(x for x in offered if x)
         return catalog_view.overview(rows, keys) + jobs + (f"\nTo turn on what the user's choices need:\n{more}" if more else "")
 
+    from ... import catalog_view
+
+    kinds = catalog_view.shared_kinds()  # the app's operations some catalog entry declares, with their titles
+    params = schema({"about": {"type": "string", "description": "a model, a job or a key (optional: nothing for the whole setup)"},
+                     "does": {"type": "array", "items": {"type": "string", **({"enum": list(kinds)} if kinds else {})},
+                              "description": "kinds of work, listed below: every catalog entry that does them (optional)"},
+                     "new": {"type": "boolean", "description": "what is new in the catalog since the user last looked"}})
+    if kinds:  # the catalog's own kinds of work, named once: the model reads the request and picks them
+        params["description"] = "Kinds of work (does): " + "; ".join(f"{k} = {t}" for k, t in kinds.items())
     registry.add(Tool(
-        "models", "Which models run here, which don't and why, and how to turn each on: the Models page in words. Ask with "
-        "nothing named for what the user's choices need (\"what do I need to set up?\"), or name a model (\"SAM 3.1\"), a "
-        "job (\"outlining\") or a key (\"my Google key\": what it turns on). Answers in the past and present, never a "
-        "promise that one key turns everything on. A download it offers starts only on the user's yes (get_model). "
-        "new: what others added to the catalog that this Mac hasn't known yet (\"anything new?\"), never turned on by itself.",
-        schema({"about": {"type": "string", "description": "a model, a job or a key (optional: nothing for the whole setup)"},
-                "new": {"type": "boolean", "description": "what is new in the catalog since the user last looked"}}),
-        models, kind="query", inline_ms=500, family="conversation"))
+        "models", "What models and tools Hooke has and could add, which run here, which don't and why, and how to turn "
+        "each on: the Toolbox in words, from Hooke's own catalog. For what Hooke has or could add for some work (\"what "
+        "segmentation models do we have, and what could we add?\"), pass does with every kind of work the request means: "
+        "it lists every catalog entry that does them, installed or not (working here, here but not run yet, not set up "
+        "with every step each needs: a download and its size, a key, a licence, its own Python; can't run here), what is "
+        "new in the catalog, and how one not in it is added. Ask with nothing named for what the user's choices need "
+        "(\"what do I need to set up?\"), or name a model (\"SAM 3.1\"), a job (\"outlining\") or a key (\"my Google "
+        "key\": what it turns on). Answers in the past and present, never a promise that one key turns everything on. A "
+        "download it offers starts only on the user's yes (get_model). new: what others added to the catalog that this "
+        "Mac hasn't known yet (\"anything new?\"), never turned on by itself.",
+        params, models, kind="query", inline_ms=500, family="conversation"))
 
     def names_it(row: dict, words: str) -> bool:
         """Whether the user's own words name this model: its name, its id, or its family's word ("DINOv3" for DINOv3

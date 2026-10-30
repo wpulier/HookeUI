@@ -355,6 +355,7 @@ asked and never pushed into a prompt:
 |---|---|
 | "what do I need to set up?" | `models`: what your choices need, what is ready, what is available to add, and your keys |
 | "why can't you use SAM 3.1?" | `models` about it: its status, uses, facts and next step; a download is offered ("Want me to get it? 3.5 GB") |
+| "what segmentation models do we have, and what could we add?" | `models` with `does` (the kinds of work the request means, the model's own reading: outline, cells): every catalog entry that does them, installed or not, split into working here, here but not run yet, not set up (every step each needs: a download and its size, a key, a licence, its own Python), and can't run here; what is new in the catalog for it; how one not in the catalog is added from a link; the other kinds of work. A job named ("outlining") is answered the same way. A model not listed is said not to be in the catalog |
 | "yes, download it" | `get_model`: the offered download starts, only on your own yes (the offer's id, your words quoted and checked), and is said started, never done |
 | "add my OpenAI key" | `open_models`: the Models page opens at a card that waits on that key, with Add key there, done once the studio says it shows it |
 | "what does my Google key turn on?" | the catalog's own words for it, the models that use it, and that it turns on only what it lists |

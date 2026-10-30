@@ -226,10 +226,17 @@ def add_capability_tool(registry: Registry, services) -> None:
 
         if args.get("operation"):
             # Which models can do this, here and now, without running any of them (M1.4).
-            from ...operations import alternatives_text
+            from ...operations import IMPL_MODEL, OPERATIONS, alternatives_text
 
-            return alternatives_text(services.hub, str(args["operation"]).strip().lower(),
-                                     str(args.get("prompt") or "").strip().lower() or None)
+            operation = str(args["operation"]).strip().lower()
+            text = alternatives_text(services.hub, operation, str(args.get("prompt") or "").strip().lower() or None)
+            if services.capabilities is not None:  # what the catalog has for it that isn't set up, so isn't listed above
+                from ... import catalog_view
+
+                listed = {IMPL_MODEL.get(i.id, i.id) for i in OPERATIONS[operation].implementations}
+                more = catalog_view.elsewhere(services.capabilities().get("models") or [], operation, listed)
+                text += f"\n{more}" if more else ""
+            return text
         if services.capabilities is None:  # which models can do an operation needs only the operations themselves
             raise ToolFailed("the list of everything it can do is not available here",
                              next="ask which models can do one thing (outline, cells, find-like)")

@@ -278,3 +278,179 @@ def test_the_agent_offers_the_fiji_cards_actual_setup_action(nothing_downloaded,
     assert svc.installs.started == [(model, "you, by asking")]
     assert action in started and "never that it is done" in started
     assert "Python" not in started and "packages" not in started
+
+
+# --- what Hooke has and could add for kinds of work (`models` does; Part 2.5) -------------------------------------------
+# Live 2026-10-29 (journey at 9618e42): "What segmentation models do we have, and what others could we add?" reached
+# `models` as the Outlining job alone, which lists only what is already a choice of it; the answer guessed the rest
+# ("possibly other specialized tools like Cellpose-SAM or InstanSeg") and the judge failed it. The model names the kinds
+# of work; the tool gives every catalog entry that does them, installed or not, with where each stands and what it needs.
+def _row(id, name, does, status, *, kind="model", what="", face=None, steps=(), group="available", used=(), word=""):
+    return {"id": id, "name": name, "runs": "this-mac", "where": "on this Mac", "what": what, "kind": kind, "does": list(does),
+            "status": status, "word": word or (steps[0]["says"] if steps else "Ready"), "group": group,
+            "next": steps[0] if steps else None, "steps": list(steps), "facts": [], "face": face or {},
+            "usedFor": [{"role": r, "title": t, "current": c, "fixed": False, "options": [id]} for r, t, c in used]}
+
+
+FIXTURE_ROWS = [
+    _row("edgetam", "EdgeTAM", ["outline", "cells"], "ready", what="Outlines what you click or box", group="ready",
+         face={"state": "on", "by": "use", "says": "Working here · last ran 14:02", "action": None},
+         used=[("outline", "Outlining", True), ("cells", "Cells", False)]),
+    _row("sam2.1-tiny", "SAM 2.1 tiny", ["outline"], "ready", what="Outlines what you click or box",
+         face={"state": "unchecked", "says": "Ready to run; not checked on this Mac yet",
+               "action": {"kind": "check", "says": "Check it here"}}, used=[("outline", "Outlining", False)]),
+    _row("instanseg-brightfield", "InstanSeg (brightfield nuclei)", ["cells"], "needs-setup",
+         what="Outlines every nucleus on a brightfield slide",
+         steps=[{"kind": "download", "says": "Download 16 MB", "how": "Its Download button", "model": "instanseg-brightfield",
+                 "bytes": 15792317},
+                {"kind": "install", "says": "Install InstanSeg (brightfield nuclei)", "model": "instanseg-brightfield",
+                 "how": "its own Python and 35 packages, each checked by its hash"}]),
+    _row("sam3.1-local", "SAM 3.1 (this Mac)", ["outline"], "needs-setup", what="Outlines what you box",
+         steps=[{"kind": "key", "says": "Add your Hugging Face key to download it", "how": "put HF_TOKEN=... in a file",
+                 "service": "huggingface"},
+                {"kind": "licence", "says": "Its licence: not confirmed yet", "url": "https://huggingface.co/facebook/sam3.1"},
+                {"kind": "download", "says": "Download 3.5 GB", "model": "sam3.1-local", "bytes": 3502755717},
+                {"kind": "install", "says": "Install SAM 3.1's code", "how": "not installed here (sam3)"}],
+         used=[("outline", "Outlining", False)]),
+    _row("cellpose-sam", "Cellpose-SAM", ["cells"], "unavailable", what="Outlines every cell in a view", group="unavailable",
+         word="Not in this edition: its weights were trained on non-commercial data"),
+    _row("dinov2-small", "DINOv2 small", ["looks"], "ready", group="ready",
+         face={"state": "on", "says": "On · last check: works", "action": None}),
+]
+FIXTURE_NEWS = [
+    {"key": "nucleus-finder", "name": "Nucleus finder (fixture)", "what": "Outlines nuclei on stained slides", "kind": "model",
+     "does": ["cells"], "requirements": ["Runs on this Mac", "Download 5.0 MB", "Install and check in its own environment"],
+     "badge": "reviewed", "fetched": False, "tags": []},
+    {"key": "look-alike-fixture", "name": "Look-alike fixture", "what": "Compares how things look", "kind": "model",
+     "does": ["looks"], "requirements": [], "badge": "reviewed", "fetched": False, "tags": []},
+]
+
+
+def fixture_services() -> SimpleNamespace:
+    wire = {"models": [dict(r) for r in FIXTURE_ROWS],
+            "roles": [{"id": "outline", "title": "Outlining"}, {"id": "cells", "title": "Cells"}],
+            "setup": {"keys": {}, "news": {"new": FIXTURE_NEWS}}}
+    return SimpleNamespace(hub=SimpleNamespace(), agent=None, capabilities=lambda: wire, downloads=Downloads(), open_page=None)
+
+
+def _section(said: str, heading: str) -> list[str]:
+    """The entries under one of the answer's headings, up to the next heading or the end of the catalog's facts."""
+    body = said.split(heading + "\n", 1)[1].split("\n</catalog-facts>", 1)[0]
+    lines = []
+    for line in body.split("\n"):
+        if not line.startswith("- "):
+            break
+        lines.append(line[2:])
+    return lines
+
+
+ANSWER_WINDOW = 1940  # what the round that answers from a query reads of its text (brain/claims.py answer_facts)
+
+
+def test_what_could_we_add_lists_every_catalog_entry_for_the_work_with_where_it_stands_and_what_it_needs():
+    reg = registry(fixture_services())
+    words = "What segmentation models do we have, and what others could we add?"
+    said = asyncio.run(reg.tools["models"].handler(ctx(words), {"does": ["outline", "cells"]}))
+    assert said.startswith("Hooke's catalog for outline, cells: 5 entries, installed or not, and 1 new; nothing else in "
+                           "it does this. On this Mac unless it says cloud."), said
+    # Plainly split, in this order: working here, here but not run yet, not set up (every step), can't run here.
+    order = [said.index(title + ":") for _, title in catalog_view.STANDING if title + ":" in said]
+    assert order == sorted(order) and len(order) == 4, said
+    assert _section(said, "Working here (ran or passed its check on this Mac):") == [
+        "EdgeTAM (outline, cells; chosen for Outlining)"]
+    assert _section(said, "Here, not run yet (nothing to get or install):") == ["SAM 2.1 tiny (outline)"]
+    assert _section(said, "Not set up here (every step each needs):") == [
+        "InstanSeg (brightfield nuclei) (cells): Download 16 MB; Install InstanSeg (brightfield nuclei) (its own Python and "
+        "35 packages)",
+        "SAM 3.1 (this Mac) (outline): Add your Hugging Face key to download it; Its licence: not confirmed yet "
+        "(https://huggingface.co/facebook/sam3.1); Download 3.5 GB; Install SAM 3.1's code (not installed here (sam3))"]
+    assert _section(said, "Can't run on this Mac:") == [
+        "Cellpose-SAM (cells): Not in this edition: its weights were trained on non-commercial data"]
+    assert "HF_TOKEN" not in said, "a key's how stays on its card"
+    # Nothing of other work in the list; the other kinds are named so a request meaning them too can ask.
+    assert "DINOv2 small" not in said and "Look-alike fixture" not in said
+    assert "Other kinds of work in the catalog (does): looks (1)." in said
+    # What the catalog has that isn't on this Mac yet, with what it needs, and how one not in the catalog is added.
+    assert _section(said, "New in the catalog, not on this Mac yet (New for you's Get it fetches it):") == [
+        "Nucleus finder (fixture): Outlines nuclei on stained slides. Needs: Runs on this Mac; Download 5.0 MB; Install and "
+        "check in its own environment"]
+    assert ("Adding one not in the catalog (the user, on the Toolbox's Add a capability): from a link to a 2D BioImage "
+            "Model Zoo model with TorchScript or ONNX weights, a Hugging Face transformers segmentation model or a Cellpose "
+            "model file of the user's, each checked here first; for any other link, Have an AI build it drafts an adapter, "
+            "used once the user reviews it.") in said
+    # The facts the answer needs are inside what the answering round reads; what it may lose is the offers' last lines.
+    assert said.index("Other kinds of work") < ANSWER_WINDOW, len(said)
+    # Its next download is offered as any named model's is; a key is the user's.
+    assert "get_model with its name (or 'all')" in said and "Never ask them to say or type a key" in said
+    started = asyncio.run(reg.tools["get_model"].handler(ctx("yes, add InstanSeg"),
+                                                         {"model": "InstanSeg (brightfield nuclei)", "asked_with": "yes, add InstanSeg"}))
+    assert started.startswith("started downloading InstanSeg (brightfield nuclei)")
+
+
+def test_a_job_named_lists_every_entry_for_its_work_and_says_the_other_kinds():
+    """The journey's own call ("outlining"): every catalog entry that outlines, not only its choices already here, and the
+    catalog's other kinds of work by name, so a request that meant cells too can ask for them."""
+    reg = registry(fixture_services())
+    said = asyncio.run(reg.tools["models"].handler(ctx("what could we add for outlining?"), {"about": "outlining"}))
+    assert said.startswith("Hooke's catalog for outline: 3 entries, installed or not; nothing else in it does this."), said
+    assert "EdgeTAM (chosen for Outlining)" in said and "- SAM 2.1 tiny\n" in said and "SAM 3.1 (this Mac): Add your" in said
+    assert "InstanSeg" not in said and "Nucleus finder" not in said
+    assert "Other kinds of work in the catalog (does): cells (3); looks (1)." in said
+    assert "no reviewed code here runs one from a link for this work" in said, "the templates make cells, not outlines"
+    cells = asyncio.run(reg.tools["models"].handler(ctx("what could we add for cells?"), {"about": "cells"}))
+    assert "- InstanSeg (brightfield nuclei): Download 16 MB" in cells and "Nucleus finder (fixture)" in cells
+    assert "SAM 2.1 tiny" not in cells
+    # The kinds as one string (a json-actions answer isn't held to the schema; the live run passed "cells,outline", and
+    # taken as one unknown kind it was answered "Cellpose-SAM is not in the catalog").
+    joined = asyncio.run(reg.tools["models"].handler(ctx(), {"does": "cells,outline"}))
+    assert joined == asyncio.run(reg.tools["models"].handler(ctx(), {"does": ["cells", "outline"]}))
+    assert "5 entries, installed or not" in joined
+    # A kind the catalog has none of is said as that, with the kinds it has; never a guess.
+    none = asyncio.run(reg.tools["models"].handler(ctx(), {"does": ["denoise"]}))
+    assert none.startswith("no entry in Hooke's catalog does denoise. The kinds of work it has: outline = ")
+
+
+def test_the_real_catalog_gives_every_entry_that_outlines_or_segments_installed_or_not(nothing_downloaded):
+    """Over the real rows (an isolated profile, nothing downloaded): each entry whose manifest declares outline or cells
+    is listed once with its steps, read from its manifest (catalog_view.operations_of), never by its name; and the whole
+    list, with how to add one, fits in what the answering round reads."""
+    from gpu_worker import manifests as catalog
+
+    svc = services({"GEMINI_API_KEY": True})
+    reg = registry(svc)
+    rows = svc.capabilities()["models"]
+    assert next(r for r in rows if r["id"] == "instanseg-brightfield")["does"] == ["cells"]
+    expected = {k for k, m in catalog.manifests().items()
+                if {"outline", "cells", "find-like"} & set(catalog_view.operations_of(m))}
+    assert {"edgetam", "micro-sam-lm", "sam2.1-tiny", "sam3.1-local", "cellpose-sam", "instanseg-brightfield"} <= expected
+    said = asyncio.run(reg.tools["models"].handler(ctx(), {"does": ["outline", "cells", "find-like"]}))
+    listed = [line[2:] for line in said.split("\n") if line.startswith("- ")]
+    for r in rows:
+        mine = [line for line in listed if line.startswith(catalog_view._short_name(r) + " (")]
+        assert len(mine) == (r["id"] in expected), (r["id"], said)
+    assert "- InstanSeg (brightfield nuclei) (cells): Download 16 MB; Install InstanSeg (brightfield nuclei) (its own Python" \
+        in said
+    assert "- SAM 3.1 (this Mac) (outline): Add your Hugging Face key to download it;" in said and "Download 3.5 GB" in said
+    assert said.index("Other kinds of work") < ANSWER_WINDOW, len(said)
+    tool = reg.tools["models"]
+    assert {"outline", "cells", "find-like"} <= set(tool.params["properties"]["does"]["items"]["enum"])
+    assert "cells = Segment every cell in the view" in tool.params["description"]
+
+
+def test_capabilities_by_operation_says_what_the_catalog_has_that_isnt_set_up():
+    """capabilities(operation=) lists the implementations registered here; an entry with its own adapter is one only once
+    installed and proven, so the catalog's others are said beside them, with their next step."""
+    said = catalog_view.elsewhere(FIXTURE_ROWS, "cells", {"edgetam", "cellpose-sam"})
+    assert said == ("Also in Hooke's catalog, not set up here: InstanSeg (brightfield nuclei) (on this Mac): Download 16 MB. "
+                    "models with does ['cells'] says every step each needs, and how one not in the catalog is added.")
+    assert catalog_view.elsewhere(FIXTURE_ROWS, "outline", {"edgetam", "sam2.1-tiny", "sam3.1-local"}) == ""
+
+
+def test_new_for_you_says_what_each_new_entry_does():
+    from orchestrator import catalog_news
+
+    assert catalog_news.does({"implements": [{"operation": "cells"}, {"operation": "outline"}]}) == ["cells", "outline"]
+    assert catalog_news.does({"id": "spot-shape", "outputs": [{"type": "table.objects"}]}) == ["spot-shape"]
+    assert catalog_news.does({"id": "x", "operation": "cells", "outputs": [{"type": "labels.instance.2d"}]}) == ["cells"]
+    assert catalog_news.does({"members": [{"id": "a", "operation": "cells"}, {"id": "b"}]}) == ["cells", "b"]
+    assert catalog_news.does({"id": "notes"}) == []

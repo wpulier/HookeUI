@@ -218,6 +218,17 @@ def requirements(data: dict) -> list[str]:
     return rows[:16]
 
 
+def does(data: dict) -> list[str]:
+    """The kinds of work a manifest's data declares, as catalog_view.operations_of reads them from an entry: its
+    `implements`, format 2's `operation` (its own id when left out), a bundle's members'. What the agent's `models`
+    (does) offers a new entry for, read from its manifest only."""
+    ops = [i.get("operation") for i in data.get("implements") or [] if isinstance(i, dict)]
+    if isinstance(data.get("outputs"), list) and data["outputs"]:
+        ops.append(data.get("operation") or data.get("id"))
+    ops += [d.get("operation") or d.get("id") for d in data.get("members") or [] if isinstance(d, dict)]
+    return list(dict.fromkeys(o for o in ops if isinstance(o, str) and o))
+
+
 @transaction
 def mark_mentioned(row: dict, environ: Mapping[str, str] = os.environ) -> None:
     data = state(environ)
@@ -264,7 +275,8 @@ def new(environ: Mapping[str, str] = os.environ, about: Iterable[str] = (), read
                     "channel": m.channel, "trusted": bool(not m.channel or c.get("reviewed") or c.get("trusted")),
                     "example": f"/api/catalog/example/{key}" if m.example else "",
                     "relevant": relevant(m, about), "arrived": seen["seen"], "fetched": True,
-                    "version": m.version, "requirements": requirements(asdict(m)), "update": False, "offer": offer})
+                    "version": m.version, "requirements": requirements(asdict(m)), "update": False, "offer": offer,
+                    "does": does(asdict(m))})
     for key, d in peeks.items():  # only peeked at: offered with Get it, nothing of its code on this Mac yet
         update, offer = bool(d.get('_update')), fingerprint(d)
         if key in dismissed or (key in on and not update):
@@ -291,7 +303,8 @@ def new(environ: Mapping[str, str] = os.environ, about: Iterable[str] = (), read
                     "link": str(credit.get("link", "")), "badge": "reviewed", "channel": channel, "trusted": True,
                     "example": f"/api/catalog/example/{key}?preview={commit}" if d.get("example") else "",
                     "relevant": bool(mine & about_words), "arrived": seen["seen"], "fetched": False, "commit": commit,
-                    "version": str(d.get("version", "")), "requirements": requirements(d), "update": update, "offer": offer})
+                    "version": str(d.get("version", "")), "requirements": requirements(d), "update": update, "offer": offer,
+                    "does": does(d)})
     if changed:
         _save(data, environ)
     out.sort(key=lambda r: r["name"].lower())
