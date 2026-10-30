@@ -350,3 +350,15 @@ The review reports missing/conflicting evidence and external dependencies withou
 repairing, replaying or guessing links from prose or filenames. This review covers
 declared scientific-record relationships only; journals, shared captures and
 unknown extension semantics still require their collection qualification.
+
+### Authorized dependency inspection
+
+The same declared-record review is available through a read-authorized
+`project.dependencies` door action for both legacy and routed Projects. It captures
+all accepted document heads, checks their historical references off the event loop,
+and refuses if membership or heads change during the review. The receipt includes
+that exact basis; references to external owners remain unresolved inclusion requests,
+never authority to read them. Cancellation and revocation stop the affected review.
+This is an inspection, not collection, migration, grant creation or a completeness
+certificate. Hosted implementations without local storage report unavailable using
+the same contract. The CLI discovers this action without a private code path.

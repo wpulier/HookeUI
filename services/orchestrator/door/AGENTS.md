@@ -221,3 +221,12 @@ mismatched registered folder stays unavailable; legacy stores are not presented 
 portable folders. Collection remains explicitly not assessed. Hosted callers that
 cannot inspect local storage use the same unavailable meaning, never a fabricated
 local path or completeness claim.
+
+`project.dependencies` is a read-authorized, discoverable inspection on either
+legacy or routed Project records. It captures the accepted heads, reads every
+historical revision through the captured store, and returns the shared
+`project-dependencies` contract. External references are reported without opening
+their owners. Changing heads/membership, revocation or cancellation stops the
+review rather than returning a mixed basis. Its tracked receipt is not a complete
+collection certificate, a migration, a grant or an executable workflow. Hosts
+without local storage use explicit unavailability; the CLI has no special path.

@@ -755,3 +755,9 @@ for the late-answer contract.
 Project material tests use synthetic inspection receipts to qualify exact-reference joins, historical pins, conflicting reports and UI/agent contract parity. They do not establish a matrix computation; real connector/worker and browser evidence is recorded separately.
 
 Retained media tests distinguish synthetic PNG/transport bytes through actual HTTP/storage from renderer fixtures and real browser codec qualification. Mixed server relocation also reads original image pixels through the media HTTP route after restart. No live camera or full Project collection is established by those tests.
+
+`test_project_dependency_access.py` checks the shared inspection contract, exact
+basis preservation, concurrent revision refusal and door discovery/default-deny,
+request retry and grant revocation. Inputs and consent are synthetic, with actual
+accepted stores and door operation transport; this does not qualify a live agent,
+complete collection or public portable-folder UX.
