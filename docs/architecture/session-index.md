@@ -153,6 +153,11 @@ other files.
   change in memory without a write, so a marker that missed one would say unchanged when it was not. The build is
   cheap: one collect's nested reads are shared (the researchers, and the collects the read badges' documents make),
   so a listing reads each store once plus each researcher-read entry's document.
+- **A document** (`write_document`, documents.py; on-screen.md "Documents") is a result entry with `media` "document":
+  role "writeup" (`produces.RESULT_ROLES`), a product, untrusted (its words are a model's from records partly not the
+  app's), `shown` its own title, its line made from what it keeps (`documents.summary_of`, never the receipt of the
+  request that made it, which says where it was shown then), and its text read from its file (`documents.text_of`, the
+  entry's detail; its values are not read twice). In `project.state` it is category "other", not a measurement.
 - **Saved scientific measurements** (`measure_saved_objects`) publish a typed table in the accepted Project,
   exposed by the index as `project`. They do not duplicate that table as a legacy `result` entry.
 - **Results are built from the tool run itself.** No tool has storage code of its own:

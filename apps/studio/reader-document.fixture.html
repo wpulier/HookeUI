@@ -1,0 +1,50 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Document in its Tab · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Design evidence only (W5, documents): the production Data reader (data-reader.ts) in a reader Tab, as
+     workspace-study.ts mounts it on the Stage, showing a document the Assistant wrote from a Project's records
+     (orchestrator/documents.py values_of). The document is the one Claude Opus 5.5 (fast mode) wrote from synthetic
+     leaf-epidermis records on 29 Oct (no server: the detail route is answered here). ?mode=tab|side, &theme=light. -->
+<style>
+ body{margin:0;background:var(--mm-page);color:var(--mm-text);font:13px var(--mm-sans);-webkit-font-smoothing:antialiased;overflow:hidden}
+ .fx-top{position:fixed;inset:0 0 auto 0;height:44px;box-shadow:inset 0 -1px 0 var(--mm-line);display:flex;align-items:center;padding-left:86px;font:600 13px var(--mm-sans)}
+ .fx-rail{position:fixed;left:0;top:44px;bottom:0;width:72px;background:var(--mm-page);box-shadow:inset -1px 0 0 var(--mm-line)}
+ .fx-tabs{position:fixed;left:72px;right:0;top:44px;height:44px;background:var(--mm-page);display:flex;align-items:flex-end;gap:2px;padding:0 8px;box-sizing:border-box}
+ .fx-tabs span{height:36px;display:flex;align-items:center;padding:0 12px;border-radius:8px 8px 0 0;color:var(--mm-text-2)}
+ .fx-tabs span[aria-current]{background:var(--mm-bar);color:var(--mm-text)}
+ #stage{position:fixed;left:72px;right:0;top:88px;bottom:40px;background:var(--mm-desk, #111)}
+ .fx-strip{position:fixed;left:72px;right:0;bottom:0;height:40px;box-shadow:inset 0 1px 0 var(--mm-line);background:var(--mm-page)}
+</style>
+<body class="studio-shell" data-workspace-study="true" data-reader-tab="true">
+<div class="fx-top">Fixture: a document in a Tab of its own (design evidence only)</div>
+<nav class="fx-rail" aria-label="Fixture rail"></nav>
+<div class="fx-tabs"><span>Main</span><span aria-current="true">Leaf epidermis: findings so far</span></div>
+<main id="stage"></main>
+<div class="fx-strip"></div>
+<script type="module">
+import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
+import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';
+import {DataReader} from '/src/data-reader.ts';
+const params=new URLSearchParams(location.search);
+document.documentElement.dataset.workspaceTheme=params.get('theme')==='light'?'light':'dark';
+const cite=(id,title)=>({id,kind:'result',day:'p',title});
+const values={media:'document',title:'Leaf epidermis: findings so far',leftOut:{paragraphs:0,cites:0},document:{title:'Leaf epidermis: findings so far',sections:[
+ {heading:'What the sample appears to be',paragraphs:[{text:'Researcher 1 reported that the jigsaw-shaped pavement cells and kidney-shaped guard cells suggest the abaxial epidermis of a dicot leaf. This is Researcher 1’s interpretation. No other record confirms the leaf side or the plant group, so both remain open.',cites:[cite('r1','Researcher 1’s notes')]}]},
+ {heading:'Cells and stomata counted',paragraphs:[
+  {text:'Hooke outlined 61 cells in the leaf epidermis view with Cellpose-SAM, and 58 of them are still in place. In the count of the view, 7 of the 61 cells were stomata (guard-cell pairs). This is a count of saved outlines in one view, not a biological ground truth.',cites:[cite('e3','Leaf epidermis cells · 14:02'),cite('d4','Count · 14:03')]},
+  {text:'Researcher 1 reported a stomatal density of about 7 per field. This matches the 7 stomata counted in this single view. Whether it holds across other fields is not recorded.',cites:[cite('r1','Researcher 1’s notes'),cite('d4','Count · 14:03')]}]},
+ {heading:'A measured stoma',paragraphs:[
+  {text:'The naming model named one outlined object a stoma and was sure of it (0.93). Hooke measured this stoma as 31 µm long and 22 µm wide.',cites:[cite('named-o3','stoma · 14:05'),cite('d5','Measurement · 14:06')]},
+  {text:'The scale behind these lengths is estimated, not measured. It comes from the 40x objective, which the user stated, and a default field number of 18 mm.',cites:[cite('d5','Measurement · 14:06'),cite('scale-now','Scale · 40x (estimated)')]}]},
+ {heading:'Reference photo',paragraphs:[{text:'For comparison, a reference photo of a stoma was taken from commons.wikimedia.org: “Tomato leaf stomate” by Louisa Howard, licence Public domain. It is a comparison image only and does not identify the species of this sample.',cites:[cite('d6','Reference photo · 14:08')]}]}]}};
+window.fetch=async(url)=>({ok:true,json:async()=>String(url).startsWith('/api/resources/d7')?{entry:{},detail:{text:'',values}}:{}});
+const opened=[];
+const deps={researchers:()=>[{rid:'r1',name:'Researcher 1',day:'p'}],working:()=>false,method:()=>'',input:()=>null,places:()=>[],tab:()=>'reader-1',
+ close(){},back(){},talk(){},openInNewTab(){},showOnPicture:async()=>{},onPicture:()=>false,addToTab(){},goTo(){},routes:()=>[],
+ trash:()=>({label:'Move to trash',disabled:true,act(){}}),editNote(){},open:(ref)=>{opened.push(ref);document.body.dataset.opened=JSON.stringify(opened);},changed(){}};
+const mode=params.get('mode')==='side'?'side':'tab';
+const reader=new DataReader(deps,mode);
+(mode==='tab'?document.getElementById('stage'):document.body).append(reader.root);
+reader.show({id:'d7',kind:'result',media:'document',title:'Document · 14:09',summary:'',state:'done',actions:['open','read'],day:'p',at:Date.now()/1000-120,
+ untrusted:true,role:'writeup',maker:{kind:'assistant',name:'The Assistant'},madeBy:{tool:'write_document'}});
+</script>
+</body></html>

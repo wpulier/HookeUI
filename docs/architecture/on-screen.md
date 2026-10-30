@@ -152,6 +152,33 @@ other files.
     certified from its load event) and nothing over it. Closing it stops it playing. Its window is not saved in the
     Tab's arrangement yet (that needs a layout field), so it closes with the Project.
   - `retrieve_page` with `show` opens the page it read the same way, or says its link.
+- **Documents** (`write_document`, `orchestrator/documents.py`; Will, 29 Oct: "Write out the interesting findings… save
+  that doc, also open it in tab"). Every claim comes from a check:
+  - **The facts are code's:** the Project's records as the brain's `resources` lists them (`Index.list`: counts,
+    measurements, populations with their measured columns, named outlines, the scale, facts settled, tables and
+    analyses, reference photos, the user's notes, researchers' reports), each with its id, what it is, who and what
+    made it and when. What is not the app's own (a researcher's words, a reference photo's web source, the user's notes)
+    goes only inside one untrusted block. An earlier document is never a record: a new one is written from the records.
+  - **The prose is the model's:** the brain's own model (`settings.vision`) writes the title, sections and paragraphs,
+    choosing what is interesting for what was asked, each paragraph listing the ids it draws on.
+  - **The checks are code's:** a paragraph that cites no record of this Project is left out (and said, in the receipt
+    and under the document), a cited id the Project does not have is dropped, an id written in the text becomes the
+    record's plain name ("(Count · 14:02)"); with nothing left, nothing is saved.
+  - **Kept** as the Project's own result (`media` "document", Data's Write-ups, a product): its sections with each
+    paragraph's citations (id, kind, plain name) in the result's file, its text read from there (`documents.text_of`:
+    the brain's `resources(id=)`, a researcher's session tool, the reader's detail). Its words are untrusted to every
+    prompt; its line is the app's ("Document · 14:05"), and Data shows its own title.
+  - **Shown when asked**, in a Tab of its own by default (`placement.DEFAULTS` "document"): a reader Tab, the person's
+    own Open in new Tab (`WorkspaceViews.openReaderTab`) through the tabs broker's `reader` action (one saved item by
+    its exact id and version; an item that has a Tab goes to it), named after it. Done only once the report shows
+    `document:reader-tab` with it, its Tab in front and its pages drawn (`state` rendered; only the studio's time in
+    view counts, `SHOW_WAIT_S`); a studio in the background is said placed, not shown yet. `beside` opens it in the
+    reader on the right of the Tab in front (data_reader.py). A studio without the reader Tab action ("not supported")
+    shows it in the reader beside, and the receipt says it is not in a Tab of its own. The reader draws it on its page,
+    each paragraph's records by name under it, each opening in the same reader (`data-reader.ts` `drawDocument`).
+  - **Its receipt** says what was written (its title, its sections, the records it cites by name), where it is saved
+    ("saved in Data as d7, under Write-ups") and where the studio shows it. Opened later, it is `present do=place`
+    with its id (new-tab or beside), the same path. A deep report that reads the web is a researcher's.
 - **A failure on the report path says what did not happen** (`screen.REPORT_NEXT`): not confirmed on screen yet, saved
   work kept, asking again reads the next report. The studio is the app's own window: nothing tells the model to check,
   open, refresh or restart it (the log ended "I can't see your screen ... quit and reopen the app"). A look at the screen

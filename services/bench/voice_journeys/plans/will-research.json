@@ -1,6 +1,6 @@
 {
  "id": "will-research",
- "about": "Will's research requests on the real June 14 leaf recording, as a journey (the finalisation plan's W1, the live partner spec's 4.8 horizontal 1): a researcher's result placed in a named Tab by the step Hooke keeps for when it lands, and a request stopped while Hooke is still working on it. The graphic step's window spans the researcher's work (waitFor), so what is said when it lands is judged with it. Later workstreams (W4, W5) add their steps here. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "about": "Will's research requests on the real June 14 leaf recording, as a journey (the finalisation plan's W1, the live partner spec's 4.8 horizontal 1): a researcher's result placed in a named Tab by the step Hooke keeps for when it lands, and a request stopped while Hooke is still working on it. The graphic step's window spans the researcher's work (waitFor), so what is said when it lands is judged with it. A document of the findings so far, saved and opened in a Tab of its own (W5: write_document, written from the Project's records, each paragraph citing them; its window spans the writing, `wait`). Later workstreams (W4) add their steps here. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
@@ -24,6 +24,22 @@
     "visible": "a Tab named Graphic holding the researcher's labelled stoma graphic, placed after the researcher finished",
     "outcome": true,
     "judge": "starts one researcher on the graphic and keeps the Tab step for when it finishes; once the researcher has finished, its labelled stoma graphic is placed in a new Tab called Graphic, and that is said once, only after it is placed (never promised as done before)"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "findings-doc",
+   "kind": "act",
+   "say": "Write out the interesting findings so far, save that doc, and open it in a new tab.",
+   "wait": 120,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "write_document"
+    ],
+    "visible": "a Tab of its own showing the document of the findings, its pages drawn",
+    "outcome": true,
+    "judge": "writes the document from what this Project has found so far (the researcher's labelled stoma graphic and anything else measured, named or reported), saves it and opens it in a new Tab of its own; says once, only after that Tab shows it, that it is saved and open there, with what it covers in a few words; invents no finding, number or source the Project does not have, and never says it is open before it is"
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
