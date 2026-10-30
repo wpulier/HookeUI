@@ -856,24 +856,45 @@ export class DataReader {
   /** An answer or anything else: its picture when it has one, and its words. */
   private async drawAnswer(body: HTMLElement, signal: AbortSignal): Promise<void> {
     const entry = this.entry!;
-    if (entry.kind === 'project' && (!entry.material || ['file', 'folder', 'model', 'analysis'].includes(entry.material.kind))) {
+    if (entry.kind === 'project' && (!entry.material || ['file', 'folder', 'model', 'analysis', 'matrix', 'image', 'recording', 'recorded-dataset'].includes(entry.material.kind))) {
       this.loading(body, 'Reading saved material…');
       const ref = {id: entry.id, day: entry.day ?? '', version: Number(entry.version)};
       const document = await readMaterialRevision(ref, entry.source?.sha256, signal);
       if (signal.aborted) return;
-      const open = async (target: {id: string; version: number; title: string}) => {
+      const open = async (target: {id: string; version: number; title: string; digest?: string}) => {
         if (signal.aborted) return;
         const targetRef = {...ref, id: target.id, version: target.version};
-        const saved = await readMaterialRevision(targetRef, undefined, signal);
+        const saved = await readMaterialRevision(targetRef, target.digest, signal);
         if (signal.aborted) return;
         const {openStudyScientific} = await import('./scientific-document');
         if (!signal.aborted) await openStudyScientific({resource: {...targetRef, picture: null}, title: String(saved.title ?? target.title), zoom: 1, pan: [0, 0]});
       };
       this.loaded.title = typeof document.title === 'string' ? document.title : entry.title;
-      this.loaded.kind = document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);
+      this.loaded.kind = entry.material ? kindWord(entry) : document.kind === 'source-file' ? 'File' : document.kind === 'source-directory' ? 'Folder' : kindWord(entry);
       this.drawHead();
       body.replaceChildren();
-      if (document.kind === 'source-file') { showScientificSource(body, document.state, ref, open, document.resources); return; }
+      if (document.kind === 'source-file') {
+        showScientificSource(body, document.state, ref, open, document.resources);
+        const inspection = entry.material?.inspection;
+        if (inspection) {
+          const details = el('details', 'rd-material-inspection');
+          details.append(el('summary', '', inspection.status === 'conflicting' ? 'Inspection reports disagree' : 'Recorded matrix inspection'));
+          if (inspection.status === 'reported' && entry.material?.shape)
+            details.append(el('p', 'rd-note', `${entry.material.shape.map(n => n.toLocaleString()).join(' × ')} · AnnData. Dimensions come from the retained inspection report.`));
+          for (const report of inspection.reports) {
+            if (report.session !== ref.day) continue;
+            const button = el('button', 'mm-control', `Open inspection · revision ${report.revision}`);
+            button.type = 'button';
+            button.addEventListener('click', () => { void open({id: report.id, version: report.revision, digest: report.digest, title: 'Matrix inspection'}).catch(error => {
+              if (!signal.aborted) details.append(el('p', 'rd-note', error instanceof Error ? error.message : 'The retained inspection could not be opened.'));
+            }); });
+            details.append(button);
+          }
+          if (inspection.total > inspection.reports.length) details.append(el('p', 'rd-note', `Showing ${inspection.reports.length} of ${inspection.total} retained inspections. All reported shapes were compared.`));
+          body.append(details);
+        }
+        return;
+      }
       if (document.kind === 'source-directory') { showScientificFolder(body, document.state, ref, open); return; }
       if (document.kind === 'matrix-result') { showMatrixResult(body, document.state, ref, document.resources, open); return; }
     }

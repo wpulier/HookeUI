@@ -360,3 +360,5 @@ The bounded worker refuses unreadable history. `project_media_decoder.retained_p
 verifies retained chunks and its disposable host copy before a path-based decoder
 uses them. The caller owns that copy through decoder shutdown. It never registers a
 global Library alias; live playback and workspace restoration remain unqualified.
+
+The material inventory joins recorded matrix inspections to exact source revisions and file hashes. Report references remain available; conflicting dimensions do not select a preferred report. These are recorded tool facts, not independent scientific acceptance or a new content read.
