@@ -178,3 +178,34 @@ def test_owner_selection_retry_reconfirms_durability_even_when_bytes_are_visible
     monkeypatch.setattr(os, 'fsync', tracked)
     configured_locations(host, str(parent), opening=str(moved)).close()
     assert calls  # an earlier failed sync cannot turn a retry into a memory-only no-op
+
+
+def test_strict_selection_retries_failed_directory_publication(tmp_path, monkeypatch):
+    import os
+    import stat
+    from orchestrator.day.prefs import Prefs
+    location = tmp_path / 'new-host' / 'sessions'
+    original_sync = os.fsync
+    def failing_directory(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            raise OSError('injected directory sync failure')
+        return original_sync(fd)
+    monkeypatch.setattr(os, 'fsync', failing_directory)
+    with pytest.raises(OSError, match='directory sync'):
+        Prefs(location).point('2026-10-30', strict=True)
+    assert (location / 'preferences.jsonl').stat().st_size > 0
+    # A fresh reader sees those bytes, but must not bypass their failed publication.
+    with pytest.raises(OSError, match='directory sync'):
+        Prefs(location).point('2026-10-30', strict=True)
+    synced = []
+    def accepted(fd):
+        if stat.S_ISDIR(os.fstat(fd).st_mode):
+            value = os.fstat(fd)
+            synced.append((value.st_dev, value.st_ino))
+        return original_sync(fd)
+    monkeypatch.setattr(os, 'fsync', accepted)
+    Prefs(location).point('2026-10-30', strict=True)
+    for folder in (location, location.parent, tmp_path):
+        value = folder.stat()
+        assert (value.st_dev, value.st_ino) in synced
+    assert Prefs(location).current == '2026-10-30'

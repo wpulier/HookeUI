@@ -92,8 +92,11 @@ class Journal:
                 os.fsync(f.fileno())  # the immutable origin must survive once creation returns
             observed = os.fstat(f.fileno())
             self._admitted_inode = (observed.st_dev, observed.st_ino)
-        if created:
-            for folder in (self.path.parent, self.root):
+        if created or durable:
+            # A prior directory-sync failure may leave visible but uncommitted
+            # entries. Strict retries reconfirm the complete enclosing path.
+            folders = (self.path.parent, *self.path.parent.parents) if durable else (self.path.parent, self.root)
+            for folder in folders:
                 fd = os.open(folder, os.O_RDONLY)
                 try:
                     os.fsync(fd)
